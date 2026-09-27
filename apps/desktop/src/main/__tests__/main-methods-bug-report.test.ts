@@ -48,6 +48,8 @@ function handler(
     window?: unknown,
 ) {
     return createMainMethodHandler({
+        getAgentCommander: vi.fn(),
+        revealSessionInWorkbench: () => Promise.resolve(),
         getProcessExplorer: () => ({}) as ProcessExplorerWindowController,
         getRemoteDebugging: () => ({ port: '9223', transport: 'port' }) as const,
         getUserDataPath: () => '/user-data',

@@ -23,6 +23,7 @@ import { app, BrowserWindow, dialog, Menu, powerMonitor, shell } from 'electron'
 
 import { isBenignRendererErrorMessage } from '../shared/renderer-error-policy';
 import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
+import type { AgentCommanderWindowController } from './agent-commander-window';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import type { AppQuitIntent } from './app-quit';
 import {
@@ -52,8 +53,8 @@ import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 import { createMainMethodHandler } from './main-methods';
 import { buildAppMenuTemplate } from './menu';
 import { createMenuRefreshController } from './menu-refresh';
-import { kilobytesToMegabytes, ProcessExplorerSampler } from './process-explorer';
-import { ProcessExplorerWindowController } from './process-explorer-window';
+import { createOnDemandWindows } from './on-demand-windows';
+import type { ProcessExplorerWindowController } from './process-explorer-window';
 import { loadRendererEntry } from './renderer-entry';
 import { observeRendererHangs } from './renderer-hang-observer';
 import { RendererReadiness } from './renderer-readiness';
@@ -126,6 +127,7 @@ if (ownsProfileInstance) {
         processName: 'desktop',
     });
     let processExplorer: ProcessExplorerWindowController;
+    let agentCommander: AgentCommanderWindowController | undefined;
     let updateService: UpdateService;
     let notifications: DesktopNotifications | undefined;
     let isForceWindowClose = false;
@@ -152,7 +154,8 @@ if (ownsProfileInstance) {
     });
     const eventRelay = createMainEventRelay({
         deliver: (message) => {
-            if (mainWindow && !mainWindow.isDestroyed())
+            const isForWorkbench = agentCommander?.relay(message) ?? true;
+            if (isForWorkbench && mainWindow && !mainWindow.isDestroyed())
                 mainWindow.webContents.send('caxri:event', message);
         },
         loadState: () => supervisor.request('app.bootstrap'),
@@ -435,6 +438,8 @@ if (ownsProfileInstance) {
             if (mainWindow === window && !isQuitStarted) {
                 mainWindow = undefined;
                 mainRenderer = undefined;
+                // Closing the Workbench detaches every Terminal view, the Commander's included.
+                agentCommander?.close();
             }
             mainLogger?.write('info', logEventCatalog.window.closed);
         });
@@ -497,6 +502,11 @@ if (ownsProfileInstance) {
     const handleMainMethod = createMainMethodHandler({
         ...gpuRecovery.mainMethodOptions,
         getProcessExplorer: () => processExplorer,
+        getAgentCommander: () => agentCommander,
+        revealSessionInWorkbench: async (sessionId) => {
+            await supervisor.request('session.select', { sessionId });
+            await focusMainWindow();
+        },
         getRemoteDebugging: () => remoteDebuggingState(desktopProfile),
         getUserDataPath: () => desktopProfile.userDataPath,
         getSupervisor: () => supervisor,
@@ -556,6 +566,7 @@ if (ownsProfileInstance) {
                 );
             },
             renderer: () => mainRenderer,
+            companion: agentCommander?.companion(),
             transport: dispatchCommand,
         });
     }
@@ -596,6 +607,7 @@ if (ownsProfileInstance) {
                             payload: { command, viaAccelerator: isViaAccelerator },
                         }),
                     openProcessExplorer: () => processExplorer.open(),
+                    openAgentCommander: () => agentCommander?.open(),
                 }),
             ),
         );
@@ -699,45 +711,13 @@ if (ownsProfileInstance) {
                     : resolve(currentDirectory, '../../apps/server/dist/server'),
                 userDataPath,
             });
-            processExplorer = new ProcessExplorerWindowController({
+            ({ agentCommander, processExplorer } = createOnDemandWindows({
                 currentDirectory,
-                forceRenderError:
-                    process.env.CAXRI_E2E === '1' &&
-                    process.env.CAXRI_TEST_PROCESS_EXPLORER_RENDER_ERROR === '1',
                 logger: mainLogger,
-                isPackaged: app.isPackaged,
-                rendererUrl: process.env.ELECTRON_RENDERER_URL,
-                sampler: new ProcessExplorerSampler({
-                    rootPid: process.pid,
-                    serverPid: () => supervisor.serverProcessId(),
-                    /**
-                     * Resolved lazily at sample time: the diagnostics window is created on demand, so its renderer
-                     * process does not exist yet while this controller is being constructed.
-                     */
-                    rendererRoles: () => {
-                        const roles = new Map<number, string>();
-                        const workbenchPid =
-                            mainWindow && !mainWindow.isDestroyed()
-                                ? mainWindow.webContents.getOSProcessId()
-                                : undefined;
-                        if (workbenchPid !== undefined) roles.set(workbenchPid, 'workbench');
-                        const explorerPid = processExplorer.processId();
-                        if (explorerPid !== undefined) roles.set(explorerPid, 'process explorer');
-                        return roles;
-                    },
-                    electronProcesses: () =>
-                        app.getAppMetrics().map((metric) => ({
-                            pid: metric.pid,
-                            type: metric.type,
-                            name: metric.name,
-                            serviceName: metric.serviceName,
-                            cpuPercent: metric.cpu.percentCPUUsage,
-                            memoryMb: kilobytesToMegabytes(metric.memory.workingSetSize),
-                        })),
-                }),
-                theme: async () => (await supervisor.request('theme.get')).value,
+                mainWindow: () => mainWindow,
+                supervisor,
                 windowMode: e2eWindowMode,
-            });
+            }));
             supervisor.onEvent(sendEvent);
             wirePowerWake(powerMonitor, () => (quitIntent = 'system-shutdown'), supervisor);
             if (

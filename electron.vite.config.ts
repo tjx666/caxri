@@ -152,6 +152,9 @@ export default defineConfig(async ({ command }) => {
                 rollupOptions: {
                     input: {
                         'index': resolve('apps/desktop/src/renderer/index.html'),
+                        'agent-commander': resolve(
+                            'apps/desktop/src/renderer/agent-commander.html',
+                        ),
                         'process-explorer': resolve(
                             'apps/desktop/src/renderer/process-explorer.html',
                         ),

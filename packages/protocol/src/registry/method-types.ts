@@ -77,6 +77,8 @@ export const effectfulCommandRecovery = {
     'agentActions.recordRecent': 'none',
     'agent.dispatch.start': 'durable',
     'agent.delegation.create': 'durable',
+    'commander.ensure': 'memory',
+    'commander.session.create': 'durable',
     'agent.delegation.access.create': 'memory',
     'agent.delegation.access.revoke': 'memory',
     'agent.delegation.stop': 'durable',
@@ -141,6 +143,8 @@ export const effectfulCommandRecovery = {
      */
     'contextMenu.show': 'none',
     'processExplorer.open': 'durable',
+    'agentCommander.open': 'durable',
+    'agentCommander.revealSession': 'durable',
     'dialog.selectDirectory': 'memory',
     'pathBrowser.start': 'memory',
     'pathBrowser.navigate': 'memory',

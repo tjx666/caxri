@@ -189,6 +189,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 openSessionContentSearch: record('dialogs.openSessionContentSearch'),
             },
             windows: {
+                openAgentCommander: record('windows.openAgentCommander'),
                 openProcessExplorer: record('windows.openProcessExplorer'),
                 zoom: record('windows.zoom'),
             },

@@ -6,8 +6,14 @@ import type {
     DelegationRoster,
     DelegationSelection,
     Principal,
+    TerminalRecord,
 } from '@caxri/protocol';
-import { CaxriError, delegationProviderSchema, isDelegationEffortSupported } from '@caxri/protocol';
+import {
+    CaxriError,
+    delegationProviderSchema,
+    isDelegationEffortSupported,
+    isTopLevelProject,
+} from '@caxri/protocol';
 
 /**
  * Provider launch selection stays behind the agents domain's public API.
@@ -22,6 +28,35 @@ export interface DelegationAuthority {
     callerTerminalId?: string;
 }
 
+/**
+ * The Agent Commander is recognized by its exact Terminal and system Project, both recorded by domain services when
+ * they created it; a capability or Project claim alone never qualifies a caller.
+ */
+function isAgentCommanderCaller(database: CaxriDatabase, authority: DelegationAuthority): boolean {
+    const commander = database.agentCommanderRows();
+    return Boolean(
+        commander?.terminalId &&
+        authority.principal.kind === 'agent' &&
+        authority.callerTerminalId === commander.terminalId &&
+        authority.principal.projectIds.length === 1 &&
+        authority.principal.projectIds[0] === commander.projectId,
+    );
+}
+
+/**
+ * The Terminal a child pane splits beside and inherits its cwd from: the caller, but only when it lives in the target
+ * Session. The Agent Commander keeps `callerTerminalId` for ownership and depth, but delegates from its own window into
+ * another Session and, like an external caller, fills that Session's pane instead.
+ */
+export function delegationPaneCaller(
+    database: CaxriDatabase,
+    authority: DelegationAuthority,
+    target: { sessionId: string },
+): TerminalRecord | undefined {
+    const caller = authority.callerTerminalId && database.getTerminal(authority.callerTerminalId);
+    return caller && caller.sessionId === target.sessionId ? caller : undefined;
+}
+
 export function authorizeDelegationSession(
     database: CaxriDatabase,
     authority: DelegationAuthority,
@@ -31,6 +66,26 @@ export function authorizeDelegationSession(
     if (!session || session.projectId !== input.projectId)
         throw new CaxriError('NOT_FOUND', 'Delegation Session is unavailable');
     if (authority.principal.kind === 'human-cli' || authority.principal.kind === 'desktop') return;
+    if (isAgentCommanderCaller(database, authority)) {
+        /**
+         * Only Sessions the Commander created itself, in a Project the user can still see: delegating into a busy user
+         * Session would split its active pane, and the Commander never widens into control or dispatch.
+         */
+        const project = database
+            .listVisibleProjects()
+            .find((candidate) => candidate.id === input.projectId);
+        if (
+            !project ||
+            !isTopLevelProject(project) ||
+            session.archivedAt !== undefined ||
+            !database.agentCommanderRows()?.sessionIds.includes(input.sessionId)
+        )
+            throw new CaxriError(
+                'FORBIDDEN',
+                'The Agent Commander may delegate only into Sessions it created',
+            );
+        return;
+    }
     if (authority.principal.kind === 'delegation-client') {
         if (
             authority.principal.projectIds[0] !== input.projectId ||

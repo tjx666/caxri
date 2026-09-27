@@ -93,6 +93,7 @@ export function createE2EBuildFreshnessOptions(root: string): BuildFreshnessOpti
             join(root, 'out', 'preload', 'process-explorer.cjs'),
             join(root, 'out', 'renderer', 'index.html'),
             join(root, 'out', 'renderer', 'process-explorer.html'),
+            join(root, 'out', 'renderer', 'agent-commander.html'),
             join(root, 'apps', 'cli', 'dist', 'caxri.cjs'),
         ],
         staleMessage: staleBuildMessage,

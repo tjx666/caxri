@@ -24,6 +24,16 @@ type AgentCommandRequest = Extract<
 >;
 
 /**
+ * The Agent Commander delegates into Sessions outside its own system Project. Its Project scope deliberately stays
+ * narrow, so Core defers the target check to the delegation domain, which admits only Sessions the Commander created in
+ * a visible top-level Project (`authorizeDelegationSession`).
+ */
+function assertDelegationTargetScope(context: CommandExecutionContext, projectId: string): void {
+    if (context.principal.kind === 'agent' && context.capabilities.includes('commander')) return;
+    assertProjectScope(context, projectId);
+}
+
+/**
  * Derives caller identity from the authenticated endpoint; public callers cannot supply authority.
  */
 export function agentCommandRequest(
@@ -57,7 +67,7 @@ export function agentCommandRequest(
                 : undefined,
     };
     if (request.method === 'agent.delegation.create') {
-        assertProjectScope(context, request.params.projectId);
+        assertDelegationTargetScope(context, request.params.projectId);
         return {
             method: 'agent.delegation.createInternal',
             params: {
@@ -68,7 +78,7 @@ export function agentCommandRequest(
         };
     }
     if (request.method === 'agent.delegation.presets') {
-        assertProjectScope(context, request.params.projectId);
+        assertDelegationTargetScope(context, request.params.projectId);
         return {
             method: 'agent.delegation.presetsInternal',
             params: { ...authority, ...request.params },

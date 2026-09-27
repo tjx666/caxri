@@ -18,6 +18,10 @@ export const agentEndpointBeginParamsSchema = z.object({
     name: z.string().trim().min(1).max(200),
     permissionClass: agentPermissionClassSchema,
     messaging: agentMessagingCapabilitySchema,
+    /**
+     * Set only by domain services for the Agent Commander Terminal they own; it adds the fixed Commander capabilities.
+     */
+    role: z.literal('commander').optional(),
 });
 
 export const agentEndpointBeginResultSchema = z.object({

@@ -91,6 +91,19 @@ type SessionStateFailureMode = 'retain' | 'rollback';
 // from inside store actions satisfies unicorn/no-top-level-assignment-in-function.
 const bootstrapRead = { inFlight: undefined as Promise<void> | undefined };
 const queuedRead = { current: undefined as Promise<void> | undefined };
+/**
+ * Where every full snapshot read comes from. The Workbench window reads `app.bootstrap`. The Agent Commander window is
+ * not admitted for that method, so its entry swaps in a Commander-scoped reader before the first render; shared code
+ * that refreshes after a command (a Terminal pane's Restart, for instance) then converges on the scoped snapshot
+ * instead of raising a denied request.
+ */
+const snapshotSource = {
+    read: (): Promise<BootstrapState> => caxri.request('app.bootstrap'),
+};
+
+export function configureWorkbenchSnapshotSource(read: () => Promise<BootstrapState>): void {
+    snapshotSource.read = read;
+}
 const recordRefresh = { inFlight: undefined as Promise<void> | undefined };
 /**
  * The `state.changed` reasons a Renderer command may wait for before it reports itself done. Only commands whose result
@@ -469,7 +482,7 @@ async function runLoadBootstrap(): Promise<void> {
     const finishPerformanceRequest = beginRendererPerformanceRequest('app.bootstrap');
     try {
         const readStamp = sessionStateWrites.sent;
-        const state = await caxri.request('app.bootstrap');
+        const state = await snapshotSource.read();
         finishPerformanceRequest();
         applySnapshot(state, readStamp, terminalReadSequence);
     } catch (error: unknown) {

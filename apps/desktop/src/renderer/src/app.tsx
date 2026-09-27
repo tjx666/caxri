@@ -1,7 +1,5 @@
 import { useEffect } from 'react';
 
-import { cssFontFamilyEntry } from '@caxri/utils';
-
 import { runCommand } from './commands/execute';
 import { useCommandShortcuts } from './commands/use-command-shortcuts';
 import { TooltipProvider } from './components/ui/tooltip';
@@ -42,8 +40,8 @@ import { WorkbenchColumn } from './features/workbench/workbench-column';
 import { activeWorkbenchFocusElement } from './features/workbench/workbench-focus';
 import { WorkbenchRootPrompt } from './features/workbench/workbench-root-prompt';
 import { useStartupLoaderRemoval } from './hooks/use-startup-loader-removal';
+import { useWorkbenchAppearance } from './hooks/use-workbench-appearance';
 import { registerPickerFallbackFocus } from './lib/picker-final-focus';
-import { applyCssTheme } from './lib/theme-css';
 import { cn } from './lib/utilities';
 import { useGitDecorationSync } from './queries/git-decoration-sync';
 import { useRuntimeQueryInvalidation } from './queries/invalidation';
@@ -57,7 +55,7 @@ import {
     useChromeLayoutStore,
     useChromeViewportClamp,
 } from './stores/chrome-layout';
-import { useIsFullScreen, useSettings, useTheme } from './stores/selectors';
+import { useIsFullScreen, useSettings } from './stores/selectors';
 import {
     initializeWorkbench,
     subscribeWorkbenchEvents,
@@ -103,9 +101,6 @@ function useRuntimeAttachment(): void {
 
 export function App() {
     const isAttached = useWorkbenchStore((state) => state.bootstrap !== undefined);
-    const theme = useTheme();
-    const workbenchFontFamily = useSettings()?.['workbench.fontFamily'];
-    const editorFontFamily = useSettings()?.['editor.fontFamily'];
     const zoomLevel = useSettings()?.['window.zoomLevel'] ?? 0;
     const primarySidebarWidth = useChromeLayoutStore((state) => state.primarySidebarWidth);
     const secondarySidebarWidth = useChromeLayoutStore((state) => state.secondarySidebarWidth);
@@ -130,9 +125,7 @@ export function App() {
     useExternalDocumentSync();
     useGitDecorationSync();
     useChromeViewportClamp();
-    useEffect(() => {
-        if (theme) applyCssTheme(theme);
-    }, [theme]);
+    useWorkbenchAppearance();
     /**
      * Page zoom scales every CSS pixel but not the native traffic lights, so the header clearances reserved for them
      * divide by this factor to stay the lights' physical width. Main applies the zoom itself; this mirrors the same
@@ -144,27 +137,6 @@ export function App() {
             String(1.2 ** zoomLevel),
         );
     }, [zoomLevel]);
-    useEffect(() => {
-        const entry = cssFontFamilyEntry(workbenchFontFamily);
-        // Keep the default stack behind the custom entry so a missing or misspelled font degrades to the system
-        // font instead of the browser serif default (the `var()` fallback in theme.css only applies when unset).
-        if (entry)
-            document.documentElement.style.setProperty(
-                '--workbench-font-family',
-                `${entry}, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,
-            );
-        else document.documentElement.style.removeProperty('--workbench-font-family');
-    }, [workbenchFontFamily]);
-    /**
-     * Monaco receives `editor.fontFamily` as an option, which reaches nothing outside an editor widget. Publishing it
-     * as a custom property too is what lets CSS-rendered code — the Markdown preview's fenced blocks — use the same
-     * font as the editor those lines came from.
-     */
-    useEffect(() => {
-        const entry = cssFontFamilyEntry(editorFontFamily);
-        if (entry) document.documentElement.style.setProperty('--editor-font-family', entry);
-        else document.documentElement.style.removeProperty('--editor-font-family');
-    }, [editorFontFamily]);
     useEffect(() => {
         if (!isAttached) return;
         return scheduleCodeEditorPreload();
