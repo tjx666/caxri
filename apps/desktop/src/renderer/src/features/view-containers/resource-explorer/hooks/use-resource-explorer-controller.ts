@@ -4,29 +4,29 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
 import { useIsFetching } from '@tanstack/react-query';
 
-import { executeCommand } from '../../../commands/execute';
-import { dragPath, hasDraggedPath } from '../../../lib/file-drag';
-import { CONTROLLED_VIEW_QUERY_METHOD, queryClient } from '../../../queries/client';
-import { useSelectedSession, useSelectedWorkbenchProject } from '../../../stores/selectors';
-import { useActivePaneTab } from '../../workbench/pane-actions';
+import { executeCommand } from '../../../../commands/execute';
+import { dragPath, hasDraggedPath } from '../../../../lib/file-drag';
+import { CONTROLLED_VIEW_QUERY_METHOD, queryClient } from '../../../../queries/client';
+import { useSelectedSession, useSelectedWorkbenchProject } from '../../../../stores/selectors';
+import { useActivePaneTab } from '../../../workbench/pane-actions';
 import {
     useControlledView,
     useControlledViewActionCommand,
     useResourceExplorerClient,
-} from '../controlled-view-context';
-import { subscribeCoreViewCommands } from '../core-view-commands';
-import { useIsViewContainerActive } from '../view-container-activity';
-import type { EditRequest, FocusTarget } from './directory-entries';
-import { BUSY_DISABLED_REASON } from './directory-entries';
-import { cancelFileOperation, moveFile, pasteFile } from './file-actions';
-import type { FileClipboardEntry } from './file-clipboard';
-import { useFileClipboardStore } from './file-clipboard';
-import type { PendingFileOperation } from './file-operation-state';
+} from '../../controlled-view-context';
+import { subscribeCoreViewCommands } from '../../core-view-commands';
+import { useIsViewContainerActive } from '../../view-container-activity';
+import { cancelFileOperation, moveFile, pasteFile } from '../file-actions';
+import type { FileClipboardEntry } from '../file-clipboard';
+import { useFileClipboardStore } from '../file-clipboard';
+import type { PendingFileOperation } from '../file-operation-state';
 import {
     CANCEL_REVEAL_THRESHOLD_MS,
     isPathBlockedByFileOperations,
     useFileOperationStore,
-} from './file-operation-state';
+} from '../file-operation-state';
+import type { EditRequest, FocusTarget } from '../file-tree-item-types';
+import { BUSY_DISABLED_REASON } from '../file-tree-item-types';
 import {
     activeResourceExplorerScope,
     clearScopeRevealPath,
@@ -36,8 +36,8 @@ import {
     setScopeFocusPath,
     setScopeSelectedPath,
     subscribeResourceExplorerScopePruning,
-} from './resource-explorer-scope-store';
-import { fileOperationsForProject, fileTreeRootCaption } from './resource-explorer-state';
+} from '../resource-explorer-scope-store';
+import { fileOperationsForProject, fileTreeRootCaption } from '../resource-explorer-state';
 
 /**
  * Every caller fires an already-tracked file action whose own `tryCommand` path reports failures via a toast.

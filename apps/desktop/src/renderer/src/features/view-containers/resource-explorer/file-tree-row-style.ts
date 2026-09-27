@@ -1,14 +1,15 @@
 import type { CSSProperties } from 'react';
 
+import type { FileTreeRow } from './file-tree-rows';
+
 /**
- * Mirrors the `h-7` row height in `directory-entries.tsx`. Every sticky offset is derived from it, so the two must
- * change together.
+ * Mirrors the `h-7` row height in `file-tree-item.tsx`. The virtualizer's size estimate and every sticky offset are
+ * derived from it, so the two must change together.
  */
 export const FILE_TREE_ROW_HEIGHT = 28;
 
 /**
- * Caps how many ancestors may stack before the pinned header would eat the panel. Ancestors deeper than this share the
- * last slot, leaving the row closest to the viewport visible — the one that actually answers "where am I".
+ * Caps how many ancestors may stack before the pinned header would eat the panel.
  */
 export const MAX_STICKY_ANCESTORS = 5;
 
@@ -23,40 +24,14 @@ const LEAF_ROW_PADDING = 23;
 export interface FileTreeRowStyleInput {
     depth: number;
     isDirectory: boolean;
-    isExpanded: boolean;
-}
-
-function stickyAncestorHeight(depth: number): number {
-    return Math.min(depth, MAX_STICKY_ANCESTORS) * FILE_TREE_ROW_HEIGHT;
 }
 
 /**
- * Positions one file-tree row, including VS Code-style sticky scroll for expanded directories.
- *
- * The tree renders as nested DOM (`<div>{row}{subtree}</div>`), so an expanded directory's element already spans
- * exactly the region where that directory is the ancestor context. `position: sticky` therefore reproduces the sticky
- * ancestor chain with no scroll listener, no overlay, and no ancestor bookkeeping — the browser pins each row while its
- * own subtree is on screen and lets the next sibling push it out. This depends on the tree not being virtualized;
- * introducing virtualization would flatten the DOM and require an explicit overlay instead.
- *
- * Rows carry `scrollMarginTop` so keyboard navigation never scrolls the focused row underneath the pinned ancestors.
- * The explicit `zIndex` is required because every row is `relative`: without it, later siblings would paint over a
- * pinned row. Deeper rows win so an incoming subtree pushes the previous ancestor out cleanly.
+ * Indents one file-tree row. Positioning belongs to the virtualizer and the sticky overlay, not the row.
  */
-export function fileTreeRowStyle({
-    depth,
-    isDirectory,
-    isExpanded,
-}: FileTreeRowStyleInput): CSSProperties {
-    const paddingLeft =
-        (isDirectory ? DIRECTORY_ROW_PADDING : LEAF_ROW_PADDING) + depth * ROW_INDENT;
-    const base: CSSProperties = { paddingLeft, scrollMarginTop: stickyAncestorHeight(depth) };
-    if (!isDirectory || !isExpanded) return base;
+export function fileTreeRowStyle({ depth, isDirectory }: FileTreeRowStyleInput): CSSProperties {
     return {
-        ...base,
-        position: 'sticky',
-        top: Math.min(depth, MAX_STICKY_ANCESTORS - 1) * FILE_TREE_ROW_HEIGHT,
-        zIndex: 1 + Math.min(depth, MAX_STICKY_ANCESTORS),
+        paddingLeft: (isDirectory ? DIRECTORY_ROW_PADDING : LEAF_ROW_PADDING) + depth * ROW_INDENT,
     };
 }
 
@@ -65,4 +40,84 @@ export function fileTreeRowStyle({
  */
 export function fileTreeLeafIndent(depth: number): number {
     return LEAF_ROW_PADDING + depth * ROW_INDENT;
+}
+
+export interface RowExtent {
+    end: number;
+    start: number;
+}
+
+export interface StickyFileTreeRow {
+    index: number;
+    /**
+     * Offset from the top of the viewport. Below the row's own slot only while its subtree's end is pushing it out.
+     */
+    top: number;
+}
+
+/**
+ * Computes the VS Code-style sticky ancestor stack for a virtualized tree.
+ *
+ * Slot `n` holds the depth-`n` ancestor (or the row itself) of whatever row sits just below the `n` rows already
+ * pinned, as long as that directory's own row has scrolled above the slot and its subtree is still on screen. When the
+ * subtree's last row rises past the slot's bottom edge, the pinned row is pushed up with it and nothing deeper pins —
+ * the same hand-off the next sibling folder performs in VS Code.
+ *
+ * This replaces per-row `position: sticky`, which relied on every expanded directory's subtree being nested in the DOM
+ * and could not survive virtualization.
+ */
+export function stickyFileTreeRows(
+    rows: readonly FileTreeRow[],
+    scrollOffset: number,
+    extent: (index: number) => RowExtent | undefined,
+    rowAt: (offset: number) => number | undefined,
+): StickyFileTreeRow[] {
+    const pinned: StickyFileTreeRow[] = [];
+    for (let slot = 0; slot < MAX_STICKY_ANCESTORS; slot += 1) {
+        const slotTop = slot * FILE_TREE_ROW_HEIGHT;
+        const line = scrollOffset + slotTop;
+        let candidate = rowAt(line);
+        while (candidate !== undefined && rows[candidate].depth > slot)
+            candidate = rows[candidate].parentRow;
+        if (candidate === undefined) break;
+        const row = rows[candidate];
+        if (row.kind !== 'entry' || row.depth !== slot || !row.isExpanded) break;
+        if (row.lastDescendant === candidate) break;
+        const own = extent(candidate);
+        const subtree = extent(row.lastDescendant);
+        if (!own || !subtree || own.start >= line) break;
+        const top = Math.min(slotTop, subtree.end - scrollOffset - FILE_TREE_ROW_HEIGHT);
+        pinned.push({ index: candidate, top });
+        if (top < slotTop) break;
+    }
+    return pinned;
+}
+
+/**
+ * How far the ancestors pinned above a row at `depth` reach down the viewport once that row is near the top.
+ */
+export function stickyCoverage(depth: number): number {
+    return Math.min(depth, MAX_STICKY_ANCESTORS) * FILE_TREE_ROW_HEIGHT;
+}
+
+/**
+ * The scroll offset that brings a row fully into view below its would-be sticky ancestors, or `undefined` when it is
+ * already visible. Keyboard movement and Editor reveal go through this instead of `scrollIntoView`, which knows nothing
+ * about the overlay and would park the row underneath it.
+ */
+export function fileTreeRevealOffset({
+    depth,
+    extent,
+    scrollOffset,
+    viewportHeight,
+}: {
+    depth: number;
+    extent: RowExtent;
+    scrollOffset: number;
+    viewportHeight: number;
+}): number | undefined {
+    const top = extent.start - stickyCoverage(depth);
+    if (top < scrollOffset) return Math.max(0, top);
+    if (extent.end > scrollOffset + viewportHeight) return Math.max(0, extent.end - viewportHeight);
+    return undefined;
 }

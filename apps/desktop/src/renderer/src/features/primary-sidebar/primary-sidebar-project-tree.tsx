@@ -5,6 +5,7 @@ import { defaultAppSettings, isPinnedSession } from '@caxri/protocol';
 import { Plus } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
+import { useScrollEdge } from '../../hooks/use-scroll-edge';
 import {
     useProjects,
     useSelectedProject,
@@ -21,7 +22,6 @@ import { useProjectCollapse } from './hooks/use-project-collapse';
 import { useProjectOrder } from './hooks/use-project-order';
 import type { ProjectSessionWindow } from './hooks/use-project-session-windows';
 import { useProjectSessionWindows } from './hooks/use-project-session-windows';
-import { useScrollEdge } from './hooks/use-scroll-edge';
 import { useSessionOrder } from './hooks/use-session-order';
 import { useSessionPullRequestPoll } from './hooks/use-session-pull-request';
 import { useSessionRename } from './hooks/use-session-rename';
@@ -192,7 +192,7 @@ export function PrimarySidebarProjectTree() {
     };
 
     return (
-        <div className="project-list-shell relative min-h-0 flex-1">
+        <div className="scroll-edge-shell relative min-h-0 flex-1">
             <div
                 ref={projectListReference}
                 className="project-list absolute inset-0 overflow-auto p-2"

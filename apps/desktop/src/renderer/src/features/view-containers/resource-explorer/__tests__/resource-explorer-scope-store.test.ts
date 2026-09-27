@@ -45,7 +45,6 @@ function rowInputs(path: string): unknown[] {
         rowSelectors.isPathExpanded(state, path),
         rowSelectors.isPathSelected(state, path),
         rowSelectors.isPathFocusRequested(state, path),
-        rowSelectors.pathRevealRevision(state, path),
         rowSelectors.hasScopeSelection(state),
     ];
 }

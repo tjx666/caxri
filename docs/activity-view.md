@@ -135,8 +135,9 @@ reveals its tail on hover or keyboard focus the same way a Project tree title do
 `useSessionTitleScroll` hook.
 
 The queue's own scroller carries the Project tree's VS Code-style inset shadow once it scrolls away
-from the top, through the same `useScrollEdge` binding, so both bodies of the side bar signal hidden
-content above identically.
+from the top, through the same `useScrollEdge` binding
+([secondary-sidebar-trees.md](secondary-sidebar-trees.md#scroll-cue)), so every side bar body
+signals hidden content above identically.
 
 An unread row's mark-read button follows the Project tree's hover-action rule: the same `--elevated`
 chip, centered on the right edge with a **Mark as Read** tooltip, and on hover the row's text makes

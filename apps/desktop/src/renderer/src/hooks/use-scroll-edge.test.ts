@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { bindScrollEdge } from '../hooks/use-scroll-edge';
+import { bindScrollEdge } from './use-scroll-edge';
 
 function createScroller(scrollTop: number): {
     emit: (type: string) => void;

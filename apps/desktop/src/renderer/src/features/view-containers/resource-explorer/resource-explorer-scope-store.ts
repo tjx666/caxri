@@ -109,12 +109,6 @@ export const rowSelectors = {
         const { scopeId } = state.activeScope ?? {};
         return scopeId !== undefined && state.selectionByScope[scopeId] !== undefined;
     },
-    pathRevealRevision(state: ResourceExplorerScopeState, path: string): number | undefined {
-        const { scopeId } = state.activeScope ?? {};
-        if (scopeId === undefined) return;
-        const reveal = state.revealByScope[scopeId];
-        return reveal?.path === path ? reveal.revision : undefined;
-    },
 };
 
 export function useIsPathExpanded(path: string): boolean {
@@ -133,8 +127,25 @@ export function useIsPathFocusRequested(path: string): boolean {
     return useResourceExplorerScopeStore((state) => rowSelectors.isPathFocusRequested(state, path));
 }
 
-export function usePathRevealRevision(path: string): number | undefined {
-    return useResourceExplorerScopeStore((state) => rowSelectors.pathRevealRevision(state, path));
+/**
+ * The active scope's pending reveal request. The tree, not a row, consumes it: the revealed row may sit outside the
+ * virtualized window, so only the tree can scroll it into view.
+ */
+export function useActiveRevealRequest(): { path: string; revision: number } | undefined {
+    return useResourceExplorerScopeStore((state) => {
+        const { scopeId } = state.activeScope ?? {};
+        return scopeId === undefined ? undefined : state.revealByScope[scopeId];
+    });
+}
+
+/**
+ * The active scope's selected path, which the tree keeps mounted so the roving Tab stop survives scrolling.
+ */
+export function useActiveSelectedPath(): string | undefined {
+    return useResourceExplorerScopeStore((state) => {
+        const { scopeId } = state.activeScope ?? {};
+        return scopeId === undefined ? undefined : state.selectionByScope[scopeId];
+    });
 }
 
 export function setScopeSelectedPath(scopeId: string, path: string | undefined): void {
@@ -153,8 +164,9 @@ export function setScopeFocusPath(scopeId: string, path: string | undefined): vo
 
 /**
  * Reveals a Project entry without moving keyboard focus: every ancestor directory becomes expanded, the entry becomes
- * the tree selection, and a revision tells the eventual lazy-mounted row to scroll into view. Existing disclosure state
- * is merged rather than replaced so following the Editor never collapses a branch the user opened explicitly.
+ * the tree selection, and a revision tells the tree to scroll that row into view once its listing has loaded. Existing
+ * disclosure state is merged rather than replaced so following the Editor never collapses a branch the user opened
+ * explicitly.
  */
 export function didRevealPathInScope(scopeId: string, projectRoot: string, path: string): boolean {
     if (path === projectRoot || !isPathAtOrBelow(path, projectRoot)) return false;
