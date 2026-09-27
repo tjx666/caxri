@@ -388,7 +388,9 @@ where every browser puts them. They are `no-drag` islands in the header's drag r
 with an empty stack renders disabled rather than hidden, so the pair never reflows and its
 position stays learnable; the shortcut and command name reach the user through the shared command
 tooltip instead of a bespoke label. Archived Sessions use one stable PrimarySidebar footer entry
-with a global count. Search, filters, Project-grouped results, restore, and delete live in a
+with a global count: a compact ghost button carrying only the archive glyph and the count, named by
+its tooltip and accessible name rather than a text label, because a rarely visited entry should not
+spend a full-width row of chrome on its own name. Search, filters, Project-grouped results, restore, and delete live in a
 full-width management dialog. Project disclosures contain active Sessions only, so low-frequency
 history never fragments navigation. A disclosure renders its first five Sessions in sidebar order
 plus a text-only `Show N more` row that reveals ten more per activation and disappears once the list
@@ -587,9 +589,11 @@ tab. Ignored entries stay muted and italic and take no decoration. The decoratio
 row or tab is still named by its bare filename, and the status reaches assistive technology as an
 accessible description (`Git: modified.`) rather than being folded into that name.
 
-**Child repositories** — a directory that is a repository of its own takes the Git repository
-folder icon instead of the one its name would earn, so a submodule is never mistaken for an
-ordinary folder. This covers both a `.gitmodules`-declared submodule and a directory someone cloned
+**Child repositories** — a directory that is a repository of its own takes the neutral folder icon
+instead of the one its name would earn, with the Git logo as a badge in its lower-right corner, so a
+submodule is never mistaken for an ordinary folder. The badge rather than `folder_type_git` is the
+point: that asset is just another tinted folder among `docs` and `e2e`, while a plain folder
+wearing the Git mark is the only row shaped that way. This covers both a `.gitmodules`-declared submodule and a directory someone cloned
 in independently; the row's tooltip and its accessible description name which of the two it is,
 since only the submodule shows up as a change in the parent when its recorded commit moves. A
 linked worktree takes no mark: it is a peer checkout, not something nested in this tree. The mark
