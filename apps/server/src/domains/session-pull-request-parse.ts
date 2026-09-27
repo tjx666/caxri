@@ -1,4 +1,8 @@
-import type { ProjectStatusState, SessionPullRequest } from '@caxri/protocol';
+import type {
+    ProjectStatusState,
+    PullRequestUnavailable,
+    SessionPullRequest,
+} from '@caxri/protocol';
 
 import { parseGitHubPullRequest } from './project-status-parse';
 
@@ -52,4 +56,30 @@ export function selectBranchPullRequest<T extends { state: string; isDraft?: boo
     let best: T | undefined;
     for (const candidate of candidates) if (!best || rank(candidate) < rank(best)) best = candidate;
     return best;
+}
+
+/**
+ * One Session's pull request as its sidebar row shows it: `value` when one was found, `unavailable` when the last
+ * lookup failed, neither when the Session has none.
+ */
+export interface SessionPullRequestResolution {
+    unavailable?: PullRequestUnavailable;
+    value?: SessionPullRequest;
+}
+
+/**
+ * Whether a re-resolved row differs from the last one in anything the sidebar draws, which is what earns a
+ * `sessionPullRequests.changed` event.
+ */
+export function isRowChanged(
+    next: SessionPullRequestResolution,
+    previous: SessionPullRequestResolution | undefined,
+): boolean {
+    return (
+        next.value?.state !== previous?.value?.state ||
+        next.value?.checks !== previous?.value?.checks ||
+        next.value?.url !== previous?.value?.url ||
+        next.value?.deployment?.state !== previous?.value?.deployment?.state ||
+        next.unavailable?.reason !== previous?.unavailable?.reason
+    );
 }
