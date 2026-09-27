@@ -1,6 +1,6 @@
 import type { FileEntry } from '@caxri/protocol';
 
-import { resolveFileIcon } from './file-icon-resolver';
+import { GIT_REPOSITORY_BADGE, resolveFileIcon } from './file-icon-resolver';
 
 const SYMLINK_ARROW_PATH = 'M2.6 7.4 7.4 2.6M7.4 2.6H4.7M7.4 2.6V5.3';
 
@@ -25,6 +25,24 @@ function SymlinkBadge() {
     );
 }
 
+/**
+ * Marks a submodule or nested clone with the Git logo in the folder's lower-right corner. The stacked `drop-shadow`s
+ * trace a `--surface` outline around the diamond itself rather than a box behind it, the same separation the symlink
+ * arrow gets from its double stroke.
+ */
+function ChildRepoBadge() {
+    return (
+        <img
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-0.5 -bottom-0.5 size-2.5 [filter:drop-shadow(1px_0_0_var(--surface))_drop-shadow(-1px_0_0_var(--surface))_drop-shadow(0_1px_0_var(--surface))_drop-shadow(0_-1px_0_var(--surface))]"
+            data-file-icon-badge={GIT_REPOSITORY_BADGE.id}
+            draggable={false}
+            src={GIT_REPOSITORY_BADGE.src}
+        />
+    );
+}
+
 export function FileTypeIcon({
     entry,
     expanded = false,
@@ -33,7 +51,7 @@ export function FileTypeIcon({
     entry: Pick<FileEntry, 'kind' | 'linkKind' | 'linkTarget' | 'name'>;
     expanded?: boolean;
     /**
-     * Whether this directory is a submodule or a nested clone, which takes the Git repository folder icon.
+     * Whether this directory is a submodule or a nested clone, which takes a neutral folder wearing the Git badge.
      */
     childRepo?: boolean;
 }) {
@@ -48,6 +66,13 @@ export function FileTypeIcon({
             src={icon.src}
         />
     );
+    if (childRepo && (entry.kind === 'directory' || entry.linkKind === 'directory'))
+        return (
+            <span className="relative flex h-4 w-4 flex-none" data-child-repo-icon="">
+                {image}
+                <ChildRepoBadge />
+            </span>
+        );
     if (entry.kind !== 'symlink') return image;
     return (
         <span

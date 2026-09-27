@@ -2,6 +2,8 @@ import type { FileEntry } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 import {
     DEFAULT_FILE,
+    DEFAULT_FOLDER,
+    DEFAULT_FOLDER_OPENED,
     getIconForFile,
     getIconForFolder,
     getIconForOpenFolder,
@@ -30,13 +32,12 @@ function resolveFileIconFilename(name: string): string {
 }
 
 /**
- * The icon `.git` resolves to in the vscode-icons set: a folder wearing the Git logo. A submodule or an independently
- * cloned directory borrows it because the statement is the same one — this folder is a repository — and a name-derived
- * icon cannot say that. Requested by name rather than through `getIconForFolder('.git')` so the intent survives an
- * upstream remap of that folder name.
+ * The Git logo, worn as a corner badge by a submodule or independently cloned directory. The folder underneath stays
+ * the neutral one so the badge is the only thing that differs from an ordinary folder: `folder_type_git` bakes the logo
+ * into a red folder that reads as just another themed folder beside `docs` or `e2e`, while a plain folder carrying the
+ * universally known Git mark is unmistakably "a repository in here".
  */
-const GIT_REPOSITORY_FOLDER = 'folder_type_git.svg';
-const GIT_REPOSITORY_FOLDER_OPENED = 'folder_type_git_opened.svg';
+export const GIT_REPOSITORY_BADGE: ResolvedFileIcon = toResolvedIcon('file_type_git.svg');
 
 /**
  * A symlink is resolved by what it points at, so a linked folder reads as a folder instead of an untyped placeholder. A
@@ -44,7 +45,7 @@ const GIT_REPOSITORY_FOLDER_OPENED = 'folder_type_git_opened.svg';
  * present a confident answer the filesystem cannot back.
  *
  * Being a repository of its own outranks the folder's name: that `example` is a submodule matters more than that it is
- * called `example`, and the name-derived icon for such a folder is almost always the generic one anyway.
+ * called `example`, so a child repository takes the neutral folder and {@link GIT_REPOSITORY_BADGE} says the rest.
  *
  * @param entry The row this icon belongs to.
  * @param isExpanded Whether a directory row is open, which selects the matching `_opened` asset.
@@ -56,10 +57,7 @@ export function resolveFileIcon(
     isChildRepo = false,
 ): ResolvedFileIcon {
     if (entry.kind === 'directory' || entry.linkKind === 'directory') {
-        if (isChildRepo)
-            return toResolvedIcon(
-                isExpanded ? GIT_REPOSITORY_FOLDER_OPENED : GIT_REPOSITORY_FOLDER,
-            );
+        if (isChildRepo) return toResolvedIcon(isExpanded ? DEFAULT_FOLDER_OPENED : DEFAULT_FOLDER);
         const lowerName = entry.name.toLowerCase();
         const filename = isExpanded ? getIconForOpenFolder(lowerName) : getIconForFolder(lowerName);
         return toResolvedIcon(filename);

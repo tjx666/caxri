@@ -73,16 +73,16 @@ describe('resolveFileIcon', () => {
         ).toBe('file_type_typescript');
     });
 
-    it('gives a child repository the Git folder icon over the one its name earns', () => {
+    it('gives a child repository the neutral folder over the one its name earns', () => {
         expect(resolveFileIcon({ kind: 'directory', name: 'example' }, false, true).id).toBe(
-            'folder_type_git',
+            'default_folder',
         );
         // The name would otherwise win: `src` has an icon of its own, and being a submodule outranks it.
         expect(resolveFileIcon({ kind: 'directory', name: 'src' }, false, true).id).toBe(
-            'folder_type_git',
+            'default_folder',
         );
         expect(resolveFileIcon({ kind: 'directory', name: 'src' }, true, true).id).toBe(
-            'folder_type_git_opened',
+            'default_folder_opened',
         );
         // A file is never a repository root, so the flag must not reach the file lookup.
         expect(resolveFileIcon({ kind: 'file', name: 'README.md' }, false, true).id).toBe(
