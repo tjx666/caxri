@@ -1,9 +1,8 @@
 /**
- * Roving-tabindex keyboard navigation for the file tree's ARIA `role="tree"` widget. The tree is built from
- * recursively-mounted, independently data-fetched components, so there is no single Renderer-side list of "currently
- * visible rows" to walk. DOM order already matches the intended visual/logical order, though (an expanded directory's
- * children render immediately after its own row), so navigation reads `[role="treeitem"]` straight out of the DOM
- * instead of threading a parallel flattened-tree data structure through every level of props.
+ * DOM-order roving-tabindex navigation for Source Control's ARIA `role="tree"` widget, whose rows come from sections
+ * that each own their data, so there is no single Renderer-side list of rows to walk. DOM order matches the visual
+ * order, so navigation reads `[role="treeitem"]` straight out of the DOM. Movement inside a virtualized group list is
+ * resolved against its row model first (`source-control-tree-rows.ts`), because that list mounts only nearby rows.
  */
 
 export interface TreeItemDescriptor {

@@ -5,9 +5,9 @@ import { CheckCheck, Hand, Hourglass, Moon, TriangleAlert, Zap } from 'lucide-re
 
 import { useRelativeTimes } from '@/hooks/use-relative-time';
 
+import { useScrollEdge } from '../../hooks/use-scroll-edge';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
-import { useScrollEdge } from '../primary-sidebar/hooks/use-scroll-edge';
 import { useSessionPullRequestPoll } from '../primary-sidebar/hooks/use-session-pull-request';
 import { useSessionRename } from '../primary-sidebar/hooks/use-session-rename';
 import { sessionWorktreeProject, topLevelProjects } from '../primary-sidebar/project-visibility';
@@ -85,7 +85,7 @@ export function AgentActivityView() {
     const treeReference = useRef<HTMLDivElement>(null);
     const scrollReference = useRef<HTMLDivElement>(null);
     // The Project tree's own inset-shadow scroll cue (`primary-sidebar-project-tree.tsx`), bound to this queue's
-    // scroller too: `.agent-activity-shell`'s `::after` in styles.css reads the `data-scrolled` attribute this sets.
+    // scroller too: `.scroll-edge-shell`'s `::after` in styles.css reads the `data-scrolled` attribute this sets.
     useScrollEdge(scrollReference);
     // Owns the cadence only; each row subscribes to its own slice of the snapshot this keeps fresh.
     useSessionPullRequestPoll();
@@ -245,7 +245,7 @@ export function AgentActivityView() {
     };
 
     return (
-        <div className="agent-activity-shell relative min-h-0 flex-1">
+        <div className="scroll-edge-shell relative min-h-0 flex-1">
             <div
                 ref={scrollReference}
                 className="agent-activity absolute inset-0 overflow-auto p-2"

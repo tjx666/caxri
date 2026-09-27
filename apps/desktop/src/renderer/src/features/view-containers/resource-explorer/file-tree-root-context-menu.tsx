@@ -7,8 +7,8 @@ import {
     ContextMenuSeparator,
     ContextMenuTrigger,
 } from '../../../components/ui/context-menu';
-import type { ResourceExplorerController } from './use-resource-explorer-controller';
-import { rootPasteDisabledReason } from './use-resource-explorer-controller';
+import type { ResourceExplorerController } from './hooks/use-resource-explorer-controller';
+import { rootPasteDisabledReason } from './hooks/use-resource-explorer-controller';
 
 export function FileTreeRootContextMenu({
     children,

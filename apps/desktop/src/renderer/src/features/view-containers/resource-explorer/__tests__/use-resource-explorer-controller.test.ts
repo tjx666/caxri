@@ -7,7 +7,7 @@ import {
     dropIntoProjectRoot,
     pasteIntoProjectRoot,
     refreshResourceExplorer,
-} from '../use-resource-explorer-controller';
+} from '../hooks/use-resource-explorer-controller';
 
 const context = {
     isBlocked: false,
