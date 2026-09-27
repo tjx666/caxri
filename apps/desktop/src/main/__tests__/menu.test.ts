@@ -252,11 +252,15 @@ describe('application menu', () => {
         expect(item?.accelerator).toBeUndefined();
     });
 
-    it.each(['terminal.clear', 'terminal.find'] as const)(
+    /**
+     * A binding without `when` would otherwise earn a native accelerator, which Main drops while the Agent Commander
+     * window is focused even though that window runs these Terminal actions itself.
+     */
+    it.each(['terminal.clear', 'terminal.find', 'terminal.openDetectedLink'] as const)(
         'leaves %s shortcuts to the focused Renderer surface',
         (command) => {
             const template = buildAppMenuTemplate({
-                keybindings: defaultKeybindings,
+                keybindings: [{ command, key: 'cmd+alt+l' }],
                 dispatchCommand: vi.fn(),
                 openAgentCommander: vi.fn(),
                 stopAgentCommander: vi.fn(),

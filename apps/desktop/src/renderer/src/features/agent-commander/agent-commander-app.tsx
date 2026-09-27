@@ -8,16 +8,19 @@ import { ToastOutlet } from '../toasts/toast-outlet';
 import { CommanderBoardView } from './commander-board-view';
 import { useAgentCommanderStore } from './commander-client';
 import { stopCommander } from './commander-commands';
+import { useCommanderShortcuts } from './commander-shortcuts';
 import { CommanderTerminal } from './commander-terminal';
 import { useAgentCommander } from './use-agent-commander';
 
 /**
  * The Agent Commander window: the board of every Workbench Session on the left, the Commander's own Terminal on the
- * right. It renders no Workbench chrome and runs no global commands; menu accelerators stay with the Workbench window.
+ * right. It renders no Workbench chrome and runs no Workbench commands; menu accelerators stay with the Workbench
+ * window, and the keyboard reaches only its Terminal's own actions.
  */
 export function AgentCommanderApp() {
     const { retry, status } = useAgentCommander();
     useWorkbenchAppearance();
+    useCommanderShortcuts();
     return (
         <TooltipProvider>
             <div className="agent-commander flex h-screen w-screen flex-col bg-background text-foreground">
