@@ -17,7 +17,11 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import type { AgentActivityGlyphId } from '../agent-activity/agent-activity-glyph';
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
-import { commanderPullRequestBadge, commanderRowPresentation } from './commander-board';
+import {
+    commanderPullRequestBadge,
+    commanderRowPresentation,
+    commanderTaskBadge,
+} from './commander-board';
 import { openCommanderPullRequest, revealCommanderSession } from './commander-commands';
 
 /**
@@ -40,6 +44,7 @@ const GLYPH_COMPONENTS: Record<AgentActivityGlyphId, ComponentType<{ size?: numb
 export function CommanderBoardItem({ now, row }: { now: number; row: CommanderBoardRow }) {
     const presentation = commanderRowPresentation(row);
     const badge = commanderPullRequestBadge(row.pullRequest);
+    const task = commanderTaskBadge(row.task);
     const GlyphIcon = GLYPH_COMPONENTS[presentation.glyph];
     return (
         <li
@@ -75,6 +80,18 @@ export function CommanderBoardItem({ now, row }: { now: number; row: CommanderBo
                         <Tooltip content="Created by Agent Commander, so it can delegate tasks here">
                             <span className="commander-board-marker relative flex-none rounded bg-elevated px-1 text-[10px] leading-4 text-muted">
                                 Commander
+                            </span>
+                        </Tooltip>
+                    )}
+                    {task && (
+                        <Tooltip content={task.title}>
+                            <span
+                                className={cn(
+                                    'commander-board-task relative flex-none text-[11px] leading-4 whitespace-nowrap',
+                                    task.toneClassName,
+                                )}
+                            >
+                                {task.label}
                             </span>
                         </Tooltip>
                     )}

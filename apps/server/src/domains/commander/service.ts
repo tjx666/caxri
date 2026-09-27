@@ -139,12 +139,16 @@ export class AgentCommanderService {
         const { database } = this.options;
         const sessions = database.listVisibleSessions();
         const sessionIds = new Set(sessions.map((session) => session.id));
+        const rows = database.agentCommanderRows();
         return commanderBoard({
-            commanderSessionIds: new Set(database.agentCommanderRows()?.sessionIds),
+            commanderSessionIds: new Set(rows?.sessionIds),
             now: this.now(),
             projects: database.listVisibleProjects(),
             pullRequests: this.options.pullRequests(),
             sessions,
+            tasks: database.agentDelegations
+                .receiptsForSessions(rows?.sessionIds ?? [])
+                .filter((task) => task.callerTerminalId === rows?.terminalId),
             terminals: database
                 .listTerminals()
                 .filter((terminal) => sessionIds.has(terminal.sessionId)),
