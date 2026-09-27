@@ -1,6 +1,6 @@
 import { commandDefinitions, defaultKeybindings } from '@caxri/protocol';
-import type { MenuItem, MenuItemConstructorOptions } from 'electron';
-import { describe, expect, it, vi } from 'vitest';
+import type { BaseWindow, MenuItem, MenuItemConstructorOptions } from 'electron';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildAppMenuTemplate } from '../menu';
 
@@ -21,6 +21,8 @@ describe('application menu', () => {
             openAgentCommander: vi.fn(),
             stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
         });
 
         expect(submenu(template, 'Project').map((item) => item.id)).not.toContain(
@@ -35,6 +37,8 @@ describe('application menu', () => {
             openAgentCommander: vi.fn(),
             stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
         });
         const actual = template.flatMap((menu) =>
             Array.isArray(menu.submenu)
@@ -63,6 +67,8 @@ describe('application menu', () => {
             openAgentCommander,
             stopAgentCommander,
             openProcessExplorer: vi.fn(),
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
         });
         const view = submenu(template, 'View');
         const click = (id: string) =>
@@ -78,6 +84,79 @@ describe('application menu', () => {
         expect(dispatchCommand).not.toHaveBeenCalled();
     });
 
+    describe('while another Caxri window is focused', () => {
+        const workbench = {};
+        const commander = { close: vi.fn() };
+        const focusWorkbench = vi.fn();
+        function menuItem(menu: string, id: string) {
+            const dispatchCommand = vi.fn();
+            const template = buildAppMenuTemplate({
+                keybindings: defaultKeybindings,
+                dispatchCommand,
+                openAgentCommander: vi.fn(),
+                stopAgentCommander: vi.fn(),
+                openProcessExplorer: vi.fn(),
+                workbenchWindow: () => workbench as BaseWindow,
+                focusWorkbench,
+            });
+            const item = submenu(template, menu).find((candidate) => candidate.id === id);
+            if (!item?.click) throw new Error(`Missing ${id}`);
+            const click = item.click;
+            return {
+                dispatchCommand,
+                press: () =>
+                    click({} as MenuItem, commander as unknown as BaseWindow, {
+                        triggeredByAccelerator: true,
+                    }),
+                select: () =>
+                    click({} as MenuItem, commander as unknown as BaseWindow, {
+                        triggeredByAccelerator: false,
+                    }),
+            };
+        }
+
+        beforeEach(() => vi.clearAllMocks());
+
+        it('closes that window, not a Workbench tab, on Close Tab', () => {
+            const { dispatchCommand, press } = menuItem(
+                'Window',
+                'command.workbench.closeActiveTab',
+            );
+
+            press();
+
+            expect(commander.close).toHaveBeenCalledOnce();
+            expect(dispatchCommand).not.toHaveBeenCalled();
+        });
+
+        it('drops a shortcut typed there instead of running it on the hidden Workbench', () => {
+            const { dispatchCommand, press } = menuItem('Terminal', 'command.terminal.restart');
+
+            press();
+
+            expect(dispatchCommand).not.toHaveBeenCalled();
+            expect(focusWorkbench).not.toHaveBeenCalled();
+        });
+
+        it('still opens Settings in the Workbench from its shortcut', () => {
+            const { dispatchCommand, press } = menuItem('Caxri', 'command.settings.open');
+
+            press();
+
+            expect(focusWorkbench).toHaveBeenCalledOnce();
+            expect(dispatchCommand).toHaveBeenCalledWith('settings.open', true);
+        });
+
+        it('brings the Workbench forward before running a menu item picked with the pointer', () => {
+            const { dispatchCommand, select } = menuItem('Terminal', 'command.terminal.new');
+
+            select();
+
+            expect(focusWorkbench).toHaveBeenCalledOnce();
+            expect(dispatchCommand).toHaveBeenCalledWith('terminal.new', false);
+        });
+    });
+
     it('uses configured accelerators and preserves accelerator-aware dispatch', () => {
         const dispatchCommand = vi.fn();
         const template = buildAppMenuTemplate({
@@ -89,6 +168,8 @@ describe('application menu', () => {
             openAgentCommander: vi.fn(),
             stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
             (candidate) => candidate.id === 'command.terminal.new',
@@ -114,6 +195,8 @@ describe('application menu', () => {
             openAgentCommander: vi.fn(),
             stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
             (candidate) => candidate.id === 'command.terminal.clear',
@@ -137,6 +220,8 @@ describe('application menu', () => {
             openAgentCommander: vi.fn(),
             stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
             (candidate) => candidate.id === 'command.terminal.new',
@@ -156,6 +241,8 @@ describe('application menu', () => {
             openAgentCommander: vi.fn(),
             stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
             (candidate) => candidate.id === 'command.terminal.new',
@@ -174,6 +261,8 @@ describe('application menu', () => {
                 openAgentCommander: vi.fn(),
                 stopAgentCommander: vi.fn(),
                 openProcessExplorer: vi.fn(),
+                workbenchWindow: vi.fn(),
+                focusWorkbench: vi.fn(),
             });
             const item = submenu(template, 'Terminal').find(
                 (candidate) => candidate.id === `command.${command}`,
@@ -191,6 +280,8 @@ describe('application menu', () => {
             openAgentCommander: vi.fn(),
             stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
             (candidate) => candidate.id === 'command.terminal.copy',
@@ -209,6 +300,8 @@ describe('application menu', () => {
             openAgentCommander: vi.fn(),
             stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
             (candidate) => candidate.id === 'command.terminal.copy',
@@ -227,6 +320,8 @@ describe('application menu', () => {
             openAgentCommander: vi.fn(),
             stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
             (candidate) => candidate.id === 'command.terminal.copy',
@@ -252,6 +347,8 @@ describe('application menu', () => {
             openAgentCommander: vi.fn(),
             stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
         });
         const accelerators = template.flatMap((menu) =>
             Array.isArray(menu.submenu)
@@ -278,6 +375,8 @@ describe('application menu', () => {
             openAgentCommander: vi.fn(),
             stopAgentCommander: vi.fn(),
             openProcessExplorer,
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
         });
         const item = submenu(template, 'Help').find(
             (candidate) => candidate.id === 'command.processExplorer.open',
@@ -295,6 +394,8 @@ describe('application menu', () => {
             openAgentCommander: vi.fn(),
             stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
         });
         const help = submenu(template, 'Help');
 
