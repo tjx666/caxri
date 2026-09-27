@@ -46,9 +46,10 @@ export interface RemoteCommandDefinition {
      */
     quietKey?: string;
     /**
-     * The entry field `--quiet` prints, when the entry's stable ID is not `id` (for example a board row's `sessionId`).
-     * `catalog.test.ts` checks every declared pair against the method's result schema, because a quiet read that fails
-     * after a mutation already ran reports failure for work that happened.
+     * The entry field `--quiet` prints, when the entry's stable ID is not `id` (for example a board row's `sessionId`,
+     * or an Agent Endpoint's `ref`, printed as the reference `agent` commands accept). `catalog.test.ts` checks every
+     * declared pair against the method's result schema, because a quiet read that fails after a mutation already ran
+     * reports failure for work that happened.
      */
     quietIdKey?: string;
     stream?: 'events' | 'logs';

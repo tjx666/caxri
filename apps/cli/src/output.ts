@@ -1,5 +1,5 @@
-import type { CaxriErrorCode, WireError } from '@caxri/protocol';
-import { CaxriError, isCaxriError } from '@caxri/protocol';
+import type { AgentEndpointRef, CaxriErrorCode, WireError } from '@caxri/protocol';
+import { agentEndpointRefSchema, CaxriError, isCaxriError } from '@caxri/protocol';
 import type { z } from 'zod';
 
 export type CliOutputMode = 'human' | 'json' | 'quiet';
@@ -29,9 +29,9 @@ function shapeOf(schema: z.ZodType): Partial<Record<string, z.ZodType>> {
 }
 
 /**
- * Whether every variant of a method's result schema yields a string ID for `--quiet`, read from `idKey` on each entry
- * (the result itself, or the list under `quietKey`). A union result, such as a query's per-principal views, must yield
- * one from every variant.
+ * Whether every variant of a method's result schema yields a stable ID for `--quiet` (a string, or an Agent Endpoint
+ * ref), read from `idKey` on each entry (the result itself, or the list under `quietKey`). A union result, such as a
+ * query's per-principal views, must yield one from every variant.
  */
 export function hasQuietIds(result: z.ZodType, quietKey?: string, idKey = 'id'): boolean {
     if (result.def.type === 'union')
@@ -41,20 +41,33 @@ export function hasQuietIds(result: z.ZodType, quietKey?: string, idKey = 'id'):
     const entries = quietKey ? shapeOf(result)[quietKey] : result;
     const entry =
         entries?.def.type === 'array' ? (entries as z.ZodArray<z.ZodType>).element : entries;
-    return entry !== undefined && shapeOf(entry)[idKey]?.def.type === 'string';
+    const id = entry === undefined ? undefined : shapeOf(entry)[idKey];
+    return id?.def.type === 'string' || id === agentEndpointRefSchema;
 }
 
 /**
- * One stable ID per entry, read from `idKey`: `id` for most results, or the field a command names in `quietIdKey`.
+ * An Agent Endpoint's stable ID: the `<host-id>:<endpoint-id>:<generation>` reference every `agent` command accepts.
+ * The protocol's identifier schema would allow a colon, but the Server mints the host ID as a 32-digit hex process
+ * identity and the endpoint ID as a UUID, so the joined form always parses back.
+ */
+export function formatEndpointReference(reference: AgentEndpointRef): string {
+    return `${reference.hostId}:${reference.endpointId}:${reference.generation}`;
+}
+
+/**
+ * One stable ID per entry, read from `idKey`: `id` for most results, or the field a command names in `quietIdKey`. An
+ * Agent Endpoint's `ref` prints as its formatted reference, so `agent list --quiet` feeds straight into other `agent`
+ * commands.
  */
 export function quietLines(value: unknown, idKey = 'id'): string[] {
     const entries: unknown[] = Array.isArray(value) ? (value as unknown[]) : [value];
     return entries.map((entry) => {
         const id: unknown =
             typeof entry === 'object' && entry !== null ? Reflect.get(entry, idKey) : undefined;
-        if (typeof id !== 'string' || id.length === 0)
-            throw new CaxriError('VALIDATION', 'Quiet output has no stable ID');
-        return id;
+        if (typeof id === 'string' && id.length > 0) return id;
+        const endpoint = agentEndpointRefSchema.safeParse(id);
+        if (endpoint.success) return formatEndpointReference(endpoint.data);
+        throw new CaxriError('VALIDATION', 'Quiet output has no stable ID');
     });
 }
 
