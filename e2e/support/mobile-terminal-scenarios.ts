@@ -244,10 +244,23 @@ export async function executeMobileTerminalScenario(
             () => mobileSemantics(environment.serial),
             (nodes) => nodes.some(({ checkId }) => checkId === 'terminal-release'),
         );
-        const takenOver = await waitForMobile(
+        /**
+         * The leased grid can be wider than Desktop's tall fixture grid, and it shrinks once more when the key row
+         * appears, so wait for a changed size that holds across a full lease debounce.
+         */
+        let takenOver = await waitForMobile(
             () => fixture.menuState(),
-            ({ cols }) => cols !== null && cols < desktopSize.cols,
+            ({ cols, rows }) =>
+                cols !== null && (cols !== desktopSize.cols || rows !== desktopSize.rows),
         );
+        for (let attempt = 0; attempt < 10; attempt += 1) {
+            // eslint-disable-next-line no-await-in-loop -- each sample waits past the lease debounce.
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            // eslint-disable-next-line no-await-in-loop -- the next sample depends on this one.
+            const next = await fixture.menuState();
+            if (next.cols === takenOver.cols && next.rows === takenOver.rows) break;
+            takenOver = next;
+        }
         /**
          * The leased grid keeps the observing text size; a full-size font gave a phone only about 49 columns.
          */
