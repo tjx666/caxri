@@ -88,7 +88,10 @@ directories.
   the change, or when the user explicitly requests it; otherwise ask before splitting. Cancel an
   obsolete run before pushing a replacement so the shared runner performs only useful work.
 - With explicit user authorization, small fixes and minor features may be committed directly on
-  `main` and pushed without a pull request. `main` and remote branches can move at any moment.
+  `main` and pushed without a pull request. Documentation-only changes carry that authorization
+  standing: commit them on `main` in the primary checkout and push, with no worktree, pull
+  request, or CI run, as defined in `pull-request`'s fast-merge section. `main` and remote branches
+  can move at any moment.
 - When you encounter commits you did not author — after a branch switch, fetch, rebase, or a PR
   merge — treat the newest commits as authoritative by default. Rebase or merge onto them and
   resolve conflicts in favor of the latest state. Do not stop to ask, and do not discard the
