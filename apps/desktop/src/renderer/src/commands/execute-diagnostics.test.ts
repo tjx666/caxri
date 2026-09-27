@@ -4,6 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('../lib/caxri', () => ({ caxri: { request: mocks.request } }));
+/**
+ * `execute.ts` imports `git-review-navigation-commands.ts`, which reaches `git-review-comment-binding.ts` for its
+ * mounted-editor registry; that module imports Monaco, which needs a real `window` unavailable under this suite's
+ * `node` environment (see `vitest.config.ts`). Nothing in this suite exercises Git review navigation, so the binding
+ * registry is stubbed out instead of loaded.
+ */
+vi.mock('../features/editor/git-review-comment-binding', () => ({
+    listBoundGitReviewCommentEditors: () => new Set(),
+}));
 
 import { configureToastActions } from '../stores/toast-actions';
 import { dismissToast, getToasts } from '../stores/toasts';

@@ -1,11 +1,15 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 
-import type { Principal, ServerEvent } from '@caxri/protocol';
+import type { PermissionAutoAllowStatus, Principal, ServerEvent } from '@caxri/protocol';
 import { CaxriError, MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from '@caxri/protocol';
 
 import type { AgentEndpointLifecycle } from '../agent-endpoints';
-import type { AgentTimelineService, AgentTranscriptWatcher } from '../agents';
+import type {
+    AgentTimelineService,
+    AgentTranscriptWatcher,
+    PermissionAutoAllowAccess,
+} from '../agents';
 import { AgentAttentionRequests } from '../agents';
 import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
@@ -29,6 +33,8 @@ type MobileDomainMethods = Pick<
     | 'mobile.attention.listInternal'
     | 'mobile.attention.answer'
     | 'mobile.attention.answerInternal'
+    | 'mobile.attention.autoAllowRevoke'
+    | 'mobile.attention.autoAllowRevokeInternal'
     | 'mobile.image.upload'
     | 'mobile.image.uploadInternal'
     | 'mobile.changes.list'
@@ -76,6 +82,11 @@ export function createMobileDomainHandlers(options: {
     emit: (event: ServerEvent) => void;
     endpoints?: AgentEndpointLifecycle;
     files: FileService;
+    /**
+     * "Always allow in this Session" (issue caxri#1295). Optional so a fixture that never exercises the grant can omit
+     * it; the default reports every Session as ungranted.
+     */
+    autoAllow?: Partial<PermissionAutoAllowAccess>;
     git: GitService;
     imageDirectory?: string;
     queue: MobileTerminalMutationQueue;
@@ -84,6 +95,11 @@ export function createMobileDomainHandlers(options: {
     transcripts: AgentTranscriptWatcher;
 }): MobileDomainMethods {
     const attentionRequests = options.attentionRequests ?? new AgentAttentionRequests();
+    const noAutoAllowGrant = (): PermissionAutoAllowStatus => ({ granted: false });
+    const attentionAutoAllowStatus =
+        options.autoAllow?.attentionAutoAllowStatus ?? noAutoAllowGrant;
+    const grantAutoAllow = options.autoAllow?.grantAutoAllow ?? noAutoAllowGrant;
+    const revokeAutoAllow = options.autoAllow?.revokeAutoAllow ?? noAutoAllowGrant;
     const images = new MobileImageStore(options.imageDirectory);
     const browseProject = createMobileProjectBrowseHandler({});
     const addProject = createMobileProjectAddHandler({
@@ -96,7 +112,10 @@ export function createMobileDomainHandlers(options: {
         },
         'mobile.attention.listInternal': ({ sessionId, principal }) => {
             authorizedSession(options.database, sessionId, principal);
-            return { requests: attentionRequests.list(sessionId) };
+            return {
+                requests: attentionRequests.list(sessionId),
+                autoAllow: attentionAutoAllowStatus(sessionId),
+            };
         },
         'mobile.attention.answer': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile attention requires a paired device');
@@ -106,6 +125,7 @@ export function createMobileDomainHandlers(options: {
             requestId,
             decision,
             answers,
+            autoAllow,
             principal,
         }) => {
             if (principal.kind !== 'paired-device' || principal.role !== 'control')
@@ -114,7 +134,22 @@ export function createMobileDomainHandlers(options: {
                     'Control access is required to answer Agent requests',
                 );
             authorizedSession(options.database, sessionId, principal);
-            return attentionRequests.answer(sessionId, requestId, { decision, answers });
+            const result = attentionRequests.answer(sessionId, requestId, { decision, answers });
+            // Grant only after the answer itself validated; a rejected answer must not enable auto-allow.
+            if (autoAllow && decision === 'allow') grantAutoAllow(sessionId);
+            return result;
+        },
+        'mobile.attention.autoAllowRevoke': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile attention requires a paired device');
+        },
+        'mobile.attention.autoAllowRevokeInternal': ({ sessionId, principal }) => {
+            if (principal.kind !== 'paired-device' || principal.role !== 'control')
+                throw new CaxriError(
+                    'FORBIDDEN',
+                    'Control access is required to revoke Agent auto-allow',
+                );
+            authorizedSession(options.database, sessionId, principal);
+            return revokeAutoAllow(sessionId, 'user');
         },
         'mobile.agent.availability': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile Agent availability requires a paired device');

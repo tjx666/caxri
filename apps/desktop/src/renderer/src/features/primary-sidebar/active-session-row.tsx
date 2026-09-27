@@ -141,7 +141,9 @@ export function ActiveSessionRow({
                     {worktreeProject && <WorktreeIcon aria-hidden="true" size={12} />}
                 </span>
             )}
-            <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={14} />
+            {/* `tone="state"`: this is the Session row itself, so Claude Code/Codex must tint like every
+                other Agent instead of keeping a fixed brand color. */}
+            <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={14} tone="state" />
             {renaming ? (
                 <SessionRenameInput
                     sessionId={session.id}

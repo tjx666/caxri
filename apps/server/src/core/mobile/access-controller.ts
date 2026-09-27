@@ -70,6 +70,7 @@ type MobileControlRequest = Extract<
             | 'mobile.agent.actions'
             | 'mobile.attention.list'
             | 'mobile.attention.answer'
+            | 'mobile.attention.autoAllowRevoke'
             | 'mobile.agent.submit'
             | 'mobile.image.upload'
             | 'mobile.session.create'
@@ -509,10 +510,12 @@ export const openMobileAccessController = async (options: {
                         currentPairedPrincipal(principal, request.method);
                     });
                 }
-                case 'mobile.attention.answer': {
-                    /**
-                     * Serialize a one-shot provider decision with revocation.
-                     */
+                /**
+                 * Both are a one-shot control command with revocation: an Agent permission decision, or the "Always
+                 * allow in this Session" revoke sharing the same grant path (issue caxri#1295).
+                 */
+                case 'mobile.attention.answer':
+                case 'mobile.attention.autoAllowRevoke': {
                     return withAuthority(async () => {
                         assertOpen();
                         const principal = currentPairedPrincipal(context.principal, request.method);

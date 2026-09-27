@@ -1,5 +1,6 @@
 import type {
     Command,
+    ProjectStatusDeployment,
     ProjectStatusRepository,
     ProjectStatusSummary,
     TreeItemRichTooltip,
@@ -33,7 +34,9 @@ import {
 import type { StatusTooltip } from './status-presentation';
 import {
     acceptanceIcon,
+    branchDeploymentRowDescription,
     deploymentAccessibilityLabel,
+    deploymentEnvironmentLabel,
     deploymentIcon,
     deploymentRowDescription,
     deploymentRowLabel,
@@ -367,51 +370,92 @@ function buildRepoChildren(
     }
     const reviewThreads = reviewThreadsNode(repo, prefix);
     if (repo.deployments) {
-        const { branchDeployments, url: deploymentsUrl } = repo.deployments;
+        const { branchDeployments, production, preview, url: deploymentsUrl } = repo.deployments;
         const environments = [...new Set(branchDeployments.map(({ environment }) => environment))];
-        nodes.push(
-            item(`${prefix}:deployments`, 'Deployments', {
-                description:
-                    environments.length === 1
-                        ? `${branchDeployments.length} on ${environments[0]}`
-                        : `${branchDeployments.length} on ${repo.branch}`,
-                icon: 'rocket',
-                tooltip: {
-                    rows: [
-                        { label: 'branch', value: repo.branch },
-                        ...environments.map((environment) => ({
-                            label: environment,
-                            value: `${branchDeployments.filter((deployment) => deployment.environment === environment).length}`,
-                        })),
-                        { label: 'project', value: linkText(deploymentsUrl), url: deploymentsUrl },
-                    ],
-                },
-                children: branchDeployments.map((deployment, index) =>
-                    item(`${prefix}:branch-deployment:${index}`, deploymentRowLabel(deployment), {
-                        trailingIcon:
-                            deployment.environment === 'production'
-                                ? 'circle-arrow-up'
-                                : 'deployment-preview',
-                        description: deploymentRowDescription(deployment),
-                        accessibilityLabel: deploymentAccessibilityLabel(
+        /**
+         * Whether `deployment` — a `branchDeployments` row — is also the branch's current Production or Preview build,
+         * so that row can say "Latest" instead of the summary loop below repeating it as a second top-level row
+         * (#1291).
+         */
+        const isLatestDeployment = (deployment: ProjectStatusDeployment): boolean =>
+            (deployment.environment === 'production' &&
+                production?.hostname === deployment.hostname) ||
+            (deployment.environment === 'preview' && preview?.hostname === deployment.hostname);
+        /**
+         * Whether `deployment` — the branch's current Production or Preview build — is already one of the rows
+         * `branchDeployments` renders above. Almost always true: `branchDeployments` usually already carries the newest
+         * build in each environment for this same branch, which is exactly what made the same commit show up twice
+         * before this fix (#1291).
+         */
+        const isAlreadyListed = (deployment: ProjectStatusDeployment): boolean =>
+            branchDeployments.some(
+                (branchDeployment) =>
+                    branchDeployment.hostname === deployment.hostname &&
+                    branchDeployment.environment === deployment.environment,
+            );
+        /**
+         * Detached HEAD has no branch of its own to report deployments for, and `detached` is Git's own internal name
+         * for that state (`status.ts`'s `parseGitStatus`), not something to print as though it were one. A repo with
+         * genuinely nothing deployed yet on a named branch still gets the node — `0 on main` reads as "nothing shipped
+         * on this branch", the fact this panel exists to report.
+         */
+        const isDetachedWithNothingDeployed =
+            repo.branch === 'detached' && branchDeployments.length === 0;
+        if (!isDetachedWithNothingDeployed)
+            nodes.push(
+                item(`${prefix}:deployments`, 'Deployments', {
+                    description:
+                        environments.length === 1
+                            ? `${branchDeployments.length} on ${environments[0]}`
+                            : `${branchDeployments.length} on ${repo.branch}`,
+                    icon: 'rocket',
+                    tooltip: {
+                        rows: [
+                            { label: 'branch', value: repo.branch },
+                            ...environments.map((environment) => ({
+                                label: environment,
+                                value: `${branchDeployments.filter((deployment) => deployment.environment === environment).length}`,
+                            })),
+                            {
+                                label: 'project',
+                                value: linkText(deploymentsUrl),
+                                url: deploymentsUrl,
+                            },
+                        ],
+                    },
+                    children: branchDeployments.map((deployment, index) =>
+                        item(
+                            `${prefix}:branch-deployment:${index}`,
                             deploymentRowLabel(deployment),
-                            `${deployment.environment} · ${deploymentStateLabel(deployment)}`,
-                            deployment,
+                            {
+                                description: branchDeploymentRowDescription(
+                                    deployment,
+                                    isLatestDeployment(deployment),
+                                ),
+                                accessibilityLabel: deploymentAccessibilityLabel(
+                                    deployment.commit?.message ?? deployment.hostname,
+                                    `${deployment.environment} · ${deploymentStateLabel(deployment)}`,
+                                    deployment,
+                                ),
+                                icon: deploymentIcon(deployment),
+                                tooltip: deploymentTooltip(
+                                    deploymentEnvironmentLabel(deployment.environment),
+                                    deployment,
+                                ),
+                                url: deployment.inspectorUrl,
+                            },
                         ),
-                        icon: deploymentIcon(deployment),
-                        tooltip: deploymentTooltip(deployment.environment, deployment),
-                        url: deployment.inspectorUrl,
-                    }),
-                ),
-            }),
-        );
+                    ),
+                }),
+            );
         // fe-helper's order: the deployment list, then the review feedback, then the latest environments.
         if (reviewThreads) nodes.push(reviewThreads);
         for (const [label, deployment] of [
-            ['Production', repo.deployments.production],
-            ['Preview', repo.deployments.preview],
+            ['Production', production],
+            ['Preview', preview],
         ] as const) {
-            if (!deployment) continue;
+            // Already shown once, inline, by the `branchDeployments` row `isLatestDeployment` marks "Latest" above.
+            if (!deployment || isAlreadyListed(deployment)) continue;
             const stateLabel = deploymentStateLabel(deployment);
             nodes.push(
                 item(`${prefix}:${deployment.environment}`, label, {

@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import process from 'node:process';
 
 /**
@@ -11,11 +13,53 @@ import process from 'node:process';
  * agent that has not loaded `e2e-testing` or `quality-check` never sees the rule forbidding it. So the rule is enforced
  * here, where the command itself refuses, rather than only in prose a session may never read.
  *
- * The escape hatch is deliberately the user's to grant, never the agent's to infer: no heuristic about branch state,
- * offline CI, or "this change is risky" opens it.
+ * The escape hatch is deliberately never the agent's to infer: no heuristic about branch state, offline CI, or "this
+ * change is risky" opens it. The user grants it with `CAXRI_FULL_SUITE_AUTHORIZED=1`. While the user is away, the only
+ * other key is an independent review receipt: a subagent or another harness judged that one full run is worth the
+ * runner time, and recorded that verdict against the exact head (`e2e-testing` skill, "Local full-suite review").
  */
 
 const AUTHORIZATION_VARIABLE = 'CAXRI_FULL_SUITE_AUTHORIZED';
+const REVIEW_RECEIPT_VARIABLE = 'CAXRI_FULL_SUITE_REVIEW_RECEIPT';
+
+/**
+ * Written by the primary agent from an independent reviewer's verdict. `head` binds it to one commit, so a receipt for
+ * an earlier head cannot be replayed after later edits change what the full run would validate.
+ */
+interface FullSuiteReviewReceipt {
+    /**
+     * Full commit SHA the reviewer judged.
+     */
+    head: string;
+    /**
+     * Who judged it, for example `subagent:general-purpose` or `dianjiang:codex`.
+     */
+    reviewer: string;
+    /**
+     * Only `run` authorizes; a reviewer that says `skip` is recorded the same way and still refuses.
+     */
+    verdict: 'run' | 'skip';
+    /**
+     * Why focused specs or remote CI cannot answer the question instead.
+     */
+    reason: string;
+}
+
+export interface FullSuiteAuthorizationDependencies {
+    readHead: () => string;
+    readReceipt: (path: string) => string;
+}
+
+/**
+ * Synchronous on purpose: the guard runs once at runner startup, before any test work, and staying sync keeps every
+ * caller (`globalSetup`, the package-script entrypoint, the pool runner) a plain boolean check.
+ */
+const DEFAULT_DEPENDENCIES: FullSuiteAuthorizationDependencies = {
+    // oxlint-disable-next-line node/no-sync -- see the startup-only rationale above
+    readHead: () => execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+    // oxlint-disable-next-line node/no-sync -- see the startup-only rationale above
+    readReceipt: (path) => readFileSync(path, 'utf8'),
+};
 
 export type FullSuiteRunner = 'unit' | 'e2e';
 
@@ -106,10 +150,39 @@ const GUIDANCE = new Map<FullSuiteRunner, string>([
 ]);
 
 /**
+ * Accepts only a well-formed `run` verdict for the current head. Any read or parse failure refuses, never authorizes.
+ */
+function isReviewReceiptValid(
+    path: string,
+    dependencies: FullSuiteAuthorizationDependencies = DEFAULT_DEPENDENCIES,
+): boolean {
+    try {
+        const receipt = JSON.parse(
+            dependencies.readReceipt(path),
+        ) as Partial<FullSuiteReviewReceipt>;
+        return (
+            receipt.verdict === 'run' &&
+            typeof receipt.reviewer === 'string' &&
+            receipt.reviewer.trim() !== '' &&
+            typeof receipt.reason === 'string' &&
+            receipt.reason.trim() !== '' &&
+            receipt.head === dependencies.readHead()
+        );
+    } catch {
+        return false;
+    }
+}
+
+/**
  * `CI` is set by GitHub Actions on every runner, which is exactly where the full gate is supposed to execute.
  */
-export function isFullSuiteAuthorized(environment: NodeJS.ProcessEnv = process.env): boolean {
-    return Boolean(environment.CI) || Boolean(environment[AUTHORIZATION_VARIABLE]);
+export function isFullSuiteAuthorized(
+    environment: NodeJS.ProcessEnv = process.env,
+    dependencies: FullSuiteAuthorizationDependencies = DEFAULT_DEPENDENCIES,
+): boolean {
+    if (environment.CI || environment[AUTHORIZATION_VARIABLE]) return true;
+    const receipt = environment[REVIEW_RECEIPT_VARIABLE];
+    return Boolean(receipt) && isReviewReceiptValid(receipt as string, dependencies);
 }
 
 /**
@@ -147,7 +220,9 @@ export function fullSuiteRefusalMessage(runner: FullSuiteRunner): string {
         GUIDANCE.get(runner),
         '',
         `If the user has explicitly authorized a local full run, re-run with ${AUTHORIZATION_VARIABLE}=1. Never set`,
-        `that variable on your own judgement.`,
+        `that variable on your own judgement. While the user is away, ask a subagent or another harness to judge`,
+        `whether one full run is justified, and pass its current-head \`run\` verdict with`,
+        `${REVIEW_RECEIPT_VARIABLE}=<receipt.json> (\`e2e-testing\` skill, "Local full-suite review").`,
     ].join('\n');
 }
 

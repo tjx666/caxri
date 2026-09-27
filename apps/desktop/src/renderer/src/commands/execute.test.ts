@@ -23,6 +23,16 @@ import { registerCommand } from './registry';
  * backs. Here it is mocked so `runCommand`'s gate can be driven by a plain boolean instead of a real DOM focus target.
  */
 vi.mock('../lib/keybindings', () => ({ isEditableEventTarget: vi.fn() }));
+
+/**
+ * `execute.ts` imports `git-review-navigation-commands.ts`, which reaches `git-review-comment-binding.ts` for its
+ * mounted-editor registry; that module imports Monaco, which needs a real `window` unavailable under this suite's
+ * `node` environment. This test drives `context.git.*` through the local `record`-based stand-ins below rather than the
+ * real navigation commands, so the binding registry itself is stubbed out instead of loaded.
+ */
+vi.mock('../features/editor/git-review-comment-binding', () => ({
+    listBoundGitReviewCommentEditors: () => new Set(),
+}));
 const mockedIsEditableEventTarget = vi.mocked(isEditableEventTarget);
 const catalogOwnedSharedIds = new Set<CommandId>(
     sharedCommandDefinitions
@@ -166,6 +176,10 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             git: {
                 canSwitchBranch: () => true,
                 switchBranch: record('git.switchBranch'),
+                canGoToReviewComment: () => true,
+                goToNextReviewComment: record('git.goToNextReviewComment'),
+                goToPreviousReviewComment: record('git.goToPreviousReviewComment'),
+                showPendingReviewComments: record('git.showPendingReviewComments'),
             },
             dialogs: {
                 openSettings: record('dialogs.openSettings'),

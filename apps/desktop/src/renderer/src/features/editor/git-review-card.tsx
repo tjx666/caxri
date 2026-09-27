@@ -2,15 +2,18 @@ import { useState } from 'react';
 
 import { Button } from '../../components/ui/button';
 import { Textarea } from '../../components/ui/textarea';
+import { editGitReviewComment, removeGitReviewComment } from './git-review-comment-commands';
 import type { GitReviewComment } from './git-review-comments';
-import { reviewSideLabel, useGitReviewComments } from './git-review-comments';
+import { reviewSideLabel } from './git-review-comments';
 
 export function GitReviewCard({ comment }: { comment: GitReviewComment }) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState('');
     const isEditing = editing || !comment.text;
-    const edit = (id: string, text: string) => useGitReviewComments.getState().edit(id, text);
-    const remove = (id: string) => useGitReviewComments.getState().remove(id);
+    // eslint-disable-next-line no-void -- floating-promise discard: comment refetches via `gitReview.changed`
+    const edit = (id: string, text: string) => void editGitReviewComment(id, text);
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    const remove = (id: string) => void removeGitReviewComment(id);
     const save = () => {
         if (!draft.trim()) return;
         edit(comment.id, draft.trim());

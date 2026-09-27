@@ -4,21 +4,18 @@ import { createRoot } from 'react-dom/client';
 import type { editor as MonacoEditor } from 'monaco-editor';
 
 import { monaco } from '../../lib/monaco';
+import { subscribeCaxriQuery } from '../../queries/client';
+import type { BoundGitReviewCommentEditor, ReviewEditorScope } from './git-review-bound-editors';
+import { registerBoundGitReviewCommentEditor } from './git-review-bound-editors';
 import { GitReviewCard } from './git-review-card';
 import {
     clearActiveGitReviewComment,
+    createGitReviewComment,
+    refreshGitReviewComments,
     setActiveGitReviewComment,
 } from './git-review-comment-commands';
 import type { GitReviewComment } from './git-review-comments';
-import { reviewSnippet, useGitReviewComments } from './git-review-comments';
-
-interface ReviewEditorScope {
-    sessionId: string;
-    repositoryId: string;
-    sourceKey: string;
-    path: string;
-    side: GitReviewComment['side'];
-}
+import { reviewSnippet } from './git-review-comments';
 
 /**
  * Monaco owns the scrolling surface; view zones keep cards attached to their exact lines.
@@ -38,9 +35,8 @@ export function bindGitReviewCommentEditor(
         }
     >();
     let hoverDecorations: MonacoEditor.IEditorDecorationsCollection | undefined;
+    let scopedComments: GitReviewComment[] = [];
     const isInScope = (comment: GitReviewComment) =>
-        comment.sessionId === scope.sessionId &&
-        comment.repositoryId === scope.repositoryId &&
         comment.sourceKey === scope.sourceKey &&
         comment.path === scope.path &&
         comment.side === scope.side;
@@ -74,8 +70,26 @@ export function bindGitReviewCommentEditor(
             '--git-review-zone-width',
             `${editor.getLayoutInfo().contentWidth}px`,
         );
+    /**
+     * A comment created on a line near the viewport's bottom edge gets its card placed below the visible area, where
+     * the user cannot see or type into it; the next render scrolls just far enough to show that one new card.
+     */
+    let revealOnCreateId: string | undefined;
+    const revealCreatedZone = () => {
+        const entry = revealOnCreateId ? zones.get(revealOnCreateId) : undefined;
+        if (!entry) return;
+        revealOnCreateId = undefined;
+        const lineHeight = editor.getOption(monaco.editor.EditorOption.lineHeight);
+        const zoneBottom =
+            editor.getTopForLineNumber(entry.comment.endLine) +
+            lineHeight +
+            (entry.zone.heightInPx ?? 0);
+        const viewportBottom = editor.getScrollTop() + editor.getLayoutInfo().height;
+        if (zoneBottom > viewportBottom)
+            editor.setScrollTop(zoneBottom - editor.getLayoutInfo().height);
+    };
     const renderZones = () => {
-        const comments = useGitReviewComments.getState().comments.filter(isInScope);
+        const comments = scopedComments;
         const currentIds = new Set(comments.map((comment) => comment.id));
         editor.changeViewZones((accessor) => {
             for (const [id, entry] of zones) {
@@ -121,14 +135,15 @@ export function bindGitReviewCommentEditor(
         const endLine = line ?? Math.max(startLine, selection?.endLineNumber ?? startLine);
         const model = editor.getModel();
         if (!model) return;
-        useGitReviewComments.getState().add({
-            id: crypto.randomUUID(),
+        const id = crypto.randomUUID();
+        revealOnCreateId = id;
+        // eslint-disable-next-line no-void -- floating-promise discard: new comment appears via `gitReview.changed`
+        void createGitReviewComment({
+            id,
             ...scope,
             startLine,
             endLine,
             snippet: reviewSnippet(model.getValue(), startLine, endLine),
-            text: '',
-            status: 'pending',
         });
     };
     /**
@@ -181,25 +196,44 @@ export function bindGitReviewCommentEditor(
         if (event.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN)
             add(event.target.position.lineNumber);
     });
-    const content = editor.onDidChangeModelContent(() =>
-        useGitReviewComments
-            .getState()
-            .refresh(
-                scope.sessionId,
-                scope.repositoryId,
-                scope.sourceKey,
-                scope.path,
-                scope.side,
-                editor.getValue(),
-            ),
-    );
+    const content = editor.onDidChangeModelContent(() => {
+        // eslint-disable-next-line no-void -- floating-promise discard: outdated status refetches via `gitReview.changed`
+        void refreshGitReviewComments(
+            scope.sessionId,
+            scope.repositoryId,
+            scope.sourceKey,
+            scope.path,
+            scope.side,
+            editor.getValue(),
+        );
+    });
     const layout = editor.onDidLayoutChange(() => {
         for (const entry of zones.values()) syncZoneWidth(entry.zone.domNode);
     });
-    const unsubscribe = useGitReviewComments.subscribe(renderZones);
-    renderZones();
+    const boundEditor: BoundGitReviewCommentEditor = {
+        scope,
+        getComments: () => scopedComments,
+        reveal: (id) => {
+            const entry = zones.get(id);
+            if (!entry) return false;
+            editor.revealLineInCenter(entry.comment.endLine);
+            editor.focus();
+            return true;
+        },
+    };
+    const unregister = registerBoundGitReviewCommentEditor(boundEditor);
+    const unsubscribe = subscribeCaxriQuery(
+        'gitReview.list',
+        { sessionId: scope.sessionId, repositoryId: scope.repositoryId },
+        (comments) => {
+            scopedComments = (comments ?? []).filter(isInScope);
+            renderZones();
+            revealCreatedZone();
+        },
+    );
     return () => {
         unsubscribe();
+        unregister();
         focus.dispose();
         clearActiveGitReviewComment(editor);
         hover.dispose();

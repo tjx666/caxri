@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { TerminalKind } from '@caxri/protocol';
 import { Plus } from 'lucide-react';
 
+import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../components/ui/menu';
 import {
@@ -12,22 +13,26 @@ import {
 } from '../../components/ui/split-button';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
-import { useSettings } from '../../stores/selectors';
-import { newTerminalAgentChoices, resolveNewTerminalAgent } from './new-terminal-agent';
+import { useSettings, useTerminals } from '../../stores/selectors';
+import { sessionAgentTerminal } from '../session/session-agent-terminal';
+import { usePaneViewSession } from '../workbench/pane-view-session';
+import {
+    newTerminalAgentChoices,
+    resolveNewTerminalAgent,
+    resolveNewTerminalTarget,
+} from './new-terminal-agent';
 import { createTerminal } from './terminal-commands';
 
 const MENU_LABEL = 'Select a different agent';
 
 /**
- * The in-Session New Terminal control. The tab strip's + opens the Agent list on hover or press; the empty pane's
- * labelled control uses a split button when a default Agent is configured.
+ * The in-Session New Terminal control. The tab strip's + opens the Agent list on hover; the empty pane's labelled
+ * control uses a split button when a default Agent is configured.
  *
  * With no default Agent configured there is nothing for the labelled control's leading half to create, so it collapses
  * to a single button that opens the list — that state of the setting reads "Ask each time". Splitting it there would
  * put two buttons that both open the same menu next to each other: a screen reader would hear two controls claiming the
- * same popup, and Base UI returns focus to whichever one owns the menu rather than the one that was pressed. A
- * configured default turns the labelled leading half into a real action and keeps the chevron as the override; the
- * tab-strip + always opens the list so starting another Agent stays one choice away.
+ * same popup, and Base UI returns focus to whichever one owns the menu rather than the one that was pressed.
  */
 export function NewTerminalButton({
     appearance = 'icon',
@@ -42,6 +47,9 @@ export function NewTerminalButton({
      */
     paneId?: string;
 }) {
+    const session = usePaneViewSession();
+    const terminals = useTerminals();
+    const primaryTerminal = session ? sessionAgentTerminal(session, terminals) : undefined;
     const defaultAgent = resolveNewTerminalAgent(useSettings()?.['session.defaultAgent']);
     const isIcon = appearance === 'icon';
     const [iconMenuOpen, setIconMenuOpen] = useState(false);
@@ -67,27 +75,84 @@ export function NewTerminalButton({
         </MenuContent>
     );
 
-    if (isIcon || !defaultAgent)
-        /**
-         * No `CommandTooltip` here: the button asks which Agent to start, while `terminal.new` has no menu to open from
-         * a shortcut and falls back to a shell when no default is configured.
-         */
-        return (
-            <Menu
-                open={isIcon ? iconMenuOpen : undefined}
-                onOpenChange={isIcon ? setIconMenuOpen : undefined}
-            >
+    if (isIcon) {
+        // Fix #1292: a click clones the Session's own primary Agent before falling back to the configured default,
+        // so the tab strip keeps a live conversation going instead of always asking or always following a possibly
+        // stale setting. See `resolveNewTerminalTarget`.
+        const target = resolveNewTerminalTarget(primaryTerminal, defaultAgent);
+        if (target) {
+            const icon = (
                 <MenuTrigger
-                    openOnHover={isIcon}
+                    openOnHover
                     delay={100}
                     closeDelay={150}
                     render={
+                        /**
+                         * Names what a click will actually create, for the screen reader that never sees the hover
+                         * preview. `CommandTooltip` below covers the sighted hint plus the ⌘T shortcut it shares.
+                         */
                         <Button
-                            aria-label="New Terminal"
-                            size={isIcon ? 'icon' : 'default'}
-                            variant={isIcon ? 'ghost' : 'default'}
+                            aria-label={`New Terminal (${resolveAgentIcon(target).label})`}
+                            size="icon"
+                            variant="ghost"
                         >
-                            {isIcon ? <Plus size={14} /> : 'New Terminal'}
+                            <Plus size={14} />
+                        </Button>
+                    }
+                />
+            );
+            return (
+                <Menu
+                    open={iconMenuOpen}
+                    onOpenChange={(open, details) => {
+                        /**
+                         * `trigger-press` covers both a pointer click and a keyboard Enter/Space activation — Base UI
+                         * reports either the same way for a native `<button>`. Hovering still opens the list (the
+                         * `openOnHover` trigger above), which this veto never sees because that request's reason is
+                         * `trigger-hover`, not `trigger-press`. Canceling here keeps Base UI from opening the popup at
+                         * all, so there is no flash of a list that immediately closes.
+                         */
+                        if (open && details.reason === 'trigger-press') {
+                            details.cancel();
+                            create(target);
+                            return;
+                        }
+                        setIconMenuOpen(open);
+                    }}
+                >
+                    <CommandTooltip commandId="terminal.new">{icon}</CommandTooltip>
+                    {menu}
+                </Menu>
+            );
+        }
+        /**
+         * No `CommandTooltip` here: with no live primary Agent and no configured default, the button asks which Agent
+         * to start, while `terminal.new` has no menu to open from a shortcut and falls back to a shell.
+         */
+        return (
+            <Menu open={iconMenuOpen} onOpenChange={setIconMenuOpen}>
+                <MenuTrigger
+                    openOnHover
+                    delay={100}
+                    closeDelay={150}
+                    render={
+                        <Button aria-label="New Terminal" size="icon" variant="ghost">
+                            <Plus size={14} />
+                        </Button>
+                    }
+                />
+                {menu}
+            </Menu>
+        );
+    }
+
+    if (!defaultAgent)
+        return (
+            <Menu>
+                <MenuTrigger
+                    render={
+                        <Button aria-label="New Terminal" size="default" variant="default">
+                            New Terminal
                         </Button>
                     }
                 />

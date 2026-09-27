@@ -180,16 +180,64 @@ function shortCommitSha(sha: string): string {
 }
 
 /**
+ * The emoji run this repository's own commit convention puts at the front of a subject line (gitmoji), plus the space
+ * that follows it. `Extended_Pictographic` alone misses a sequence joined by a variation selector or ZWJ, so both are
+ * folded into the same run rather than left to stop the match one code point early.
+ */
+const LEADING_GITMOJI_PATTERN = /^(?:\p{Extended_Pictographic}[\u{FE0F}\u{200D}]?)+\s*/u;
+
+/**
+ * Drops a leading gitmoji from a commit subject for the one row that also carries its own state icon
+ * (`deploymentIcon`): stacked together, an unrelated glyph baked into the label text read as a doubled icon rather than
+ * two different facts (#1291). Falls back to the untouched message when stripping would leave nothing — a message that
+ * was only ever the emoji is not improved by deleting it.
+ */
+function stripLeadingGitmoji(message: string): string {
+    const stripped = message.replace(LEADING_GITMOJI_PATTERN, '').trim();
+    return stripped.length > 0 ? stripped : message;
+}
+
+/**
  * What the deployment built, not where it landed. A Vercel alias is a generated hash that is already unreadable at
  * SecondarySidebar width, while the commit subject answers the question a deployment list is actually asked. Falls back
  * to the alias for a direct CLI upload, which carries no Git provenance.
  */
 export function deploymentRowLabel(deployment: ProjectStatusDeployment): string {
-    return deployment.commit?.message ?? deployment.hostname;
+    const message = deployment.commit?.message ?? deployment.hostname;
+    return deployment.commit ? stripLeadingGitmoji(message) : message;
 }
 
 export function deploymentRowDescription(deployment: ProjectStatusDeployment): string | undefined {
     return deployment.commit ? shortCommitSha(deployment.commit.sha) : undefined;
+}
+
+/**
+ * `Production` / `Preview`, the same word the summary rows already use as their own label. Kept as one function so a
+ * reader never sees the panel spell an environment two different ways.
+ */
+export function deploymentEnvironmentLabel(
+    environment: ProjectStatusDeployment['environment'],
+): string {
+    return environment === 'production' ? 'Production' : 'Preview';
+}
+
+/**
+ * The `Deployments` child row's own description: which environment this is, whether it is the branch's current
+ * Production or Preview, and the short SHA — all as text a reader can select and a screen reader can announce, instead
+ * of a bare trailing glyph with no name of its own (#1291). Always returns text: unlike
+ * {@link deploymentRowDescription}, there is always at least an environment to report.
+ */
+export function branchDeploymentRowDescription(
+    deployment: ProjectStatusDeployment,
+    isLatest: boolean,
+): string {
+    return [
+        deploymentEnvironmentLabel(deployment.environment),
+        isLatest ? 'Latest' : undefined,
+        deployment.commit ? shortCommitSha(deployment.commit.sha) : undefined,
+    ]
+        .filter((part): part is string => part !== undefined)
+        .join(' · ');
 }
 
 /**

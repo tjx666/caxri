@@ -9,6 +9,7 @@ import { expect, test } from './support/fixtures.ts';
 import {
     createShellSession,
     launchCaxri,
+    openSettingsTab,
     pageRequest,
     pressNewTerminal,
     splitTerminalToRight,
@@ -293,9 +294,8 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
          * An ordinary input is the fourth focus surface in the #264 priority contract. A background Terminal selection
          * must not replace the input's selected text when the user presses Cmd+C.
          */
-        await running.page.keyboard.press('Meta+,');
-        const settingsDialog = running.page.getByRole('dialog');
-        const settingsSearch = settingsDialog.getByLabel('Search settings');
+        const settingsTab = await openSettingsTab(running.page);
+        const settingsSearch = settingsTab.getByLabel('Search settings');
         const inputCopyText = 'INPUT_COPY_TARGET';
         await settingsSearch.fill(inputCopyText);
         await settingsSearch.press('Meta+A');
@@ -303,8 +303,10 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
         await settingsSearch.press('Meta+C');
         await expect.poll(() => running.clipboard.textEquals(inputCopyText)).toBe(true);
         await running.clipboard.claimText(inputCopyText);
-        await running.page.keyboard.press('Escape');
-        await expect(settingsDialog).toHaveCount(0);
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
+        // outright, the tab-appropriate replacement for the old "Escape to dismiss the dialog" step.
+        await running.page.keyboard.press('Meta+w');
+        await expect(settingsTab).toHaveCount(0);
 
         const keybindings = await pageRequest<{
             value: Array<{ command: string; key: string; when?: 'terminalFocus' }>;
@@ -322,19 +324,18 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
                 label: 'Copy Selection [⇧⌘C]',
             });
 
-        await running.page.keyboard.press('Meta+,');
-        const keybindingsDialog = running.page.getByRole('dialog');
-        await keybindingsDialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
-        const keybindingsSearch = keybindingsDialog.getByLabel('Search keyboard shortcuts');
+        const keybindingsTab = await openSettingsTab(running.page);
+        await keybindingsTab.getByRole('tab', { name: 'Keybindings', exact: true }).click();
+        const keybindingsSearch = keybindingsTab.getByLabel('Search keyboard shortcuts');
         await keybindingsSearch.fill('terminal.copy');
-        await expect(keybindingsDialog.locator('[data-shortcut="cmd+shift+c"]')).toBeVisible();
+        await expect(keybindingsTab.locator('[data-shortcut="cmd+shift+c"]')).toBeVisible();
         await keybindingsSearch.press('Meta+A');
         await running.clipboard.writeText('REBIND_INPUT_COPY_SENTINEL');
         await keybindingsSearch.press('Meta+C');
         await expect.poll(() => running.clipboard.textEquals('terminal.copy')).toBe(true);
         await running.clipboard.claimText('terminal.copy');
-        await running.page.keyboard.press('Escape');
-        await expect(keybindingsDialog).toHaveCount(0);
+        await running.page.keyboard.press('Meta+w');
+        await expect(keybindingsTab).toHaveCount(0);
 
         await running.page
             .locator(`.work-tab[data-terminal-id="${secondTerminalId}"] [role="tab"]`)

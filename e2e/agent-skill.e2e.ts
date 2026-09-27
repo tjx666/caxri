@@ -10,6 +10,7 @@ import { expect, test } from './support/fixtures.ts';
 import {
     createProjectSession,
     launchCaxri,
+    openSettingsTab,
     pageRequest,
     revealSettingsSection,
 } from './support/helpers.ts';
@@ -206,10 +207,9 @@ process.stdin.resume();
 
         running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
         const sessionId = await createProjectSession(running.page, 'codex');
-        await running.page.keyboard.press('Meta+,');
-        const settingsDialog = running.page.getByRole('dialog');
-        await revealSettingsSection(settingsDialog, 'Codex');
-        const codexSkill = settingsDialog.locator('[data-agent-skill-health="codex"]');
+        const settingsTab = await openSettingsTab(running.page);
+        await revealSettingsSection(settingsTab, 'Codex');
+        const codexSkill = settingsTab.locator('[data-agent-skill-health="codex"]');
         await expect(codexSkill).toContainText(`Bundled v${bundled.bundledVersion}`);
         await expect(codexSkill.locator('[data-agent-skill-scope="local"]')).toContainText(
             'Project local · Conflict · installed v99.0.0',
@@ -222,8 +222,10 @@ process.stdin.resume();
         await expect(globalSkill.locator('code')).toHaveText(
             'caxri skills install caxri-cli --provider codex --global --yes',
         );
-        await settingsDialog.getByRole('button', { name: 'Close' }).click();
-        await expect(settingsDialog).not.toBeVisible();
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
+        // outright — there is no "Close" button to click anymore.
+        await running.page.keyboard.press('Meta+w');
+        await expect(settingsTab).toHaveCount(0);
         await pageRequest(running.page, 'terminal.create', { sessionId, kind: 'codex' });
         await expect.poll(async () => (await captures(capturePath)).length).toBe(2);
         await expect(running.page.locator('.xterm-rows')).toContainText('Skill Agent ready');

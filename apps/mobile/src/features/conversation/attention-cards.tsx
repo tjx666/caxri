@@ -22,6 +22,13 @@ import {
     toggleAttentionOption,
 } from './attention-answer';
 import { AttentionCardChrome, AttentionPermissionActions } from './attention-card-chrome';
+import {
+    attentionRequestList,
+    isAttentionQueryEnabled,
+    isAutoAllowGranted,
+    visibleAttentionRequests,
+} from './attention-cards-model';
+import { AttentionEmptyState } from './attention-empty-state';
 
 type Attention = MethodResult<'mobile.attention.list'>['requests'][number];
 
@@ -30,7 +37,6 @@ type Attention = MethodResult<'mobile.attention.list'>['requests'][number];
  * scrolls once a Session accumulates enough pending requests to exceed it.
  */
 const ATTENTION_MAX_HEIGHT_RATIO = 0.45;
-const VISIBLE_REQUEST_LIMIT = 3;
 
 const AttentionQuestionFields = ({
     advance,
@@ -126,7 +132,11 @@ const AttentionCard = ({
     role: 'view' | 'reply' | 'control' | null;
     submit: (
         requestId: string,
-        answer: { decision?: 'allow' | 'deny'; answers?: Record<string, string> },
+        answer: {
+            decision?: 'allow' | 'deny';
+            autoAllow?: true;
+            answers?: Record<string, string>;
+        },
     ) => Promise<void>;
     theme: MobileTheme;
 }) => {
@@ -140,6 +150,7 @@ const AttentionCard = ({
     const question = item.questions.at(questionIndex);
     const send = async (answer: {
         decision?: 'allow' | 'deny';
+        autoAllow?: true;
         answers?: Record<string, string>;
     }) => {
         setBusy(true);
@@ -203,7 +214,16 @@ const AttentionCard = ({
                 theme={theme}
             />
             {canAnswer && item.kind === 'permission' ? (
-                <AttentionPermissionActions send={(decision) => send({ decision })} theme={theme} />
+                <AttentionPermissionActions
+                    send={(decision, shouldAutoAllow) =>
+                        send(
+                            shouldAutoAllow
+                                ? { decision, autoAllow: shouldAutoAllow }
+                                : { decision },
+                        )
+                    }
+                    theme={theme}
+                />
             ) : null}
             {question && item.kind === 'question' ? (
                 <AttentionQuestionFields
@@ -246,6 +266,61 @@ const AttentionCard = ({
     );
 };
 
+/**
+ * Shown whenever the Session's "Always allow in this Session" grant (issue caxri#1295) is active, regardless of whether
+ * any permission request is currently pending, so a `control` device can always find the revoke action and every role
+ * can see the grant is on. `onRevoke` is `null` for `view`/`reply` devices, which keep the Server's read-only role rule
+ * and never see the control.
+ */
+const AttentionAutoAllowBanner = ({
+    onRevoke,
+    theme,
+}: {
+    onRevoke: (() => Promise<void>) | null;
+    theme: MobileTheme;
+}) => {
+    const [busy, setBusy] = useState(false);
+    return (
+        <View
+            style={{
+                alignItems: 'center',
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+                borderWidth: 1,
+                flexDirection: 'row',
+                gap: 8,
+                justifyContent: 'space-between',
+                padding: 8,
+            }}
+            testID="attention-auto-allow-banner"
+        >
+            <Text style={{ color: theme.text, flex: 1 }}>
+                Always allow is on: every later permission request in this Session is allowed
+                automatically.
+            </Text>
+            {onRevoke ? (
+                <Pressable
+                    accessibilityLabel="Turn off Always allow"
+                    accessibilityRole="button"
+                    disabled={busy}
+                    style={{ justifyContent: 'center', minHeight: 44, paddingHorizontal: 8 }}
+                    testID="attention-auto-allow-revoke"
+                    onPress={async () => {
+                        setBusy(true);
+                        try {
+                            await onRevoke();
+                        } finally {
+                            setBusy(false);
+                        }
+                    }}
+                >
+                    <Text style={{ color: theme.primary, fontWeight: '600' }}>Turn off</Text>
+                </Pressable>
+            ) : null}
+        </View>
+    );
+};
+
 export const AttentionCards = ({
     fallbackToTerminal,
     onOpenTerminal,
@@ -272,7 +347,7 @@ export const AttentionCards = ({
      */
     const seenRequestIds = useRef<Set<string> | null>(null);
     const attention = useQuery({
-        enabled: isForeground && status === 'connected' && connectionScopeKey !== null,
+        enabled: isAttentionQueryEnabled(isForeground, status, connectionScopeKey),
         queryFn: () => request('mobile.attention.list', { sessionId }),
         queryKey: ['mobile', 'attention', connectionScopeKey, sessionId],
         refetchInterval: 1_500,
@@ -294,31 +369,37 @@ export const AttentionCards = ({
         }
         seenRequestIds.current = new Set(attention.data.requests.map((item) => item.id));
     }, [attention.data]);
-    const requests = attention.data?.requests ?? [];
-    const visible = expanded ? requests : requests.slice(-VISIBLE_REQUEST_LIMIT);
+    const requests = attentionRequestList(attention.data);
+    const visible = visibleAttentionRequests(requests, expanded);
+    const revokeAutoAllow = async () => {
+        await request('mobile.attention.autoAllowRevoke', { sessionId });
+        await attention.refetch();
+    };
+    const banner = isAutoAllowGranted(attention.data) ? (
+        <AttentionAutoAllowBanner
+            onRevoke={role === 'control' ? revokeAutoAllow : null}
+            theme={theme}
+        />
+    ) : null;
     if (visible.length === 0) {
-        if (!fallbackToTerminal || !attention.isSuccess) return null;
-        const fallbackCopy = "This Agent's requests need to be handled in Terminal.";
-        return onOpenTerminal ? (
-            <Pressable
-                accessibilityLabel="Open Terminal"
-                accessibilityRole="button"
-                onPress={onOpenTerminal}
-                style={{ justifyContent: 'center', minHeight: 44, padding: 8 }}
-                testID="attention-open-terminal-fallback"
-            >
-                <Text style={{ color: theme.primary, textDecorationLine: 'underline' }}>
-                    {fallbackCopy}
-                </Text>
-            </Pressable>
-        ) : (
-            <Text style={{ color: theme.muted, padding: 8 }}>{fallbackCopy}</Text>
+        return (
+            <AttentionEmptyState
+                banner={banner}
+                fallbackToTerminal={fallbackToTerminal}
+                isSuccess={attention.isSuccess}
+                onOpenTerminal={onOpenTerminal}
+                theme={theme}
+            />
         );
     }
     const hiddenCount = requests.length - visible.length;
     const submit = async (
         requestId: string,
-        answer: { decision?: 'allow' | 'deny'; answers?: Record<string, string> },
+        answer: {
+            decision?: 'allow' | 'deny';
+            autoAllow?: true;
+            answers?: Record<string, string>;
+        },
     ) => {
         await request('mobile.attention.answer', { sessionId, requestId, ...answer });
         await attention.refetch();
@@ -337,6 +418,7 @@ export const AttentionCards = ({
             style={{ maxHeight: windowHeight * ATTENTION_MAX_HEIGHT_RATIO }}
             testID="attention-cards"
         >
+            {banner}
             <FlatList
                 contentContainerStyle={{ gap: 8, padding: 8 }}
                 data={visible}

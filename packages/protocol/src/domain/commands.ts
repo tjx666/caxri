@@ -82,6 +82,9 @@ export const commandIds = [
     'developer.reportBug',
     'diagnostics.export',
     'git.switchBranch',
+    'git.goToNextReviewComment',
+    'git.goToPreviousReviewComment',
+    'git.showPendingReviewComments',
 ] as const;
 
 export type CommandId = (typeof commandIds)[number];

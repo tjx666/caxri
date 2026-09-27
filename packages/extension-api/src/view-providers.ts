@@ -160,6 +160,9 @@ export interface SourceControlProviderModel {
     description: string;
     descriptionAccessibilityLabel: string;
     descriptionTooltip: string;
+    /**
+     * Trailing counts; empty when every count is zero, since a synced, clean repository shows no count noise.
+     */
     countLabel: string;
     /**
      * Web page describing the changes this provider is currently showing — the pull request in Pull Request mode.

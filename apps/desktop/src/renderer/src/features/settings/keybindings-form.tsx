@@ -2,16 +2,9 @@ import type { KeyboardEvent } from 'react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { Keybinding } from '@caxri/protocol';
-import {
-    commandDefinitions,
-    findKeybindingConflicts,
-    formatShortcut,
-    normalizeShortcut,
-} from '@caxri/protocol';
-import { AlertTriangle, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react';
+import { findKeybindingConflicts } from '@caxri/protocol';
+import { Search, X } from 'lucide-react';
 
-import { ShortcutBadge } from '../../components/shortcut-badge';
-import { Button } from '../../components/ui/button';
 import { Input, InputGroup } from '../../components/ui/input';
 import { Tooltip } from '../../components/ui/tooltip';
 import { isModifierKey, keyboardEventShortcut } from '../../lib/keybindings';
@@ -23,9 +16,11 @@ import {
     commitOnBlur,
     commitOnEnter,
     filterKeybindingRows,
+    groupKeybindingRows,
     isFocusNavigationKey,
     startRecording,
 } from './keybinding-editor';
+import { KeybindingRowItem } from './keybinding-row-item';
 
 interface KeybindingsFormProperties {
     /**
@@ -38,10 +33,6 @@ interface KeybindingsFormProperties {
     onChange: (index: number, key: string) => void;
     onRemove: (index: number) => void;
 }
-
-const titleByCommand = new Map<string, string>(
-    commandDefinitions.map((command) => [command.id, command.title]),
-);
 
 /**
  * Clear-search affordance shared with `ProjectSearch`'s `searchOptionClassName`.
@@ -66,6 +57,7 @@ export function KeybindingsForm({
     const searchReference = useRef<HTMLInputElement>(null);
     const rows = useMemo(() => buildKeybindingRows(keybindings), [keybindings]);
     const visibleRows = useMemo(() => filterKeybindingRows(rows, query), [query, rows]);
+    const groups = useMemo(() => groupKeybindingRows(visibleRows), [visibleRows]);
     const conflictsByKey = useMemo(
         () =>
             new Map(
@@ -91,6 +83,10 @@ export function KeybindingsForm({
 
     const restoreFocus = (command: string): void => {
         setFocusRequest((current) => ({ command, id: (current?.id ?? 0) + 1 }));
+    };
+
+    const startRecordingRow = (row: KeybindingRow): void => {
+        setRecording(startRecording(row.id));
     };
 
     const commitPending = (row: KeybindingRow, key: string): void => {
@@ -200,136 +196,35 @@ export function KeybindingsForm({
                     {visibleRows.length} of {rows.length} shortcuts
                 </p>
             </div>
-            <ul className="structured-editor m-0 min-h-0 list-none overflow-auto p-2">
-                {visibleRows.map((row) => {
-                    const conflict = row.key
-                        ? conflictsByKey.get(normalizeShortcut(row.key))
-                        : undefined;
-                    const conflictId = conflict ? `keybinding-conflict-${row.id}` : undefined;
-                    const isRecording = recording?.rowId === row.id;
-                    return (
-                        <li
-                            key={row.id}
-                            aria-describedby={conflictId}
-                            className="group mb-1 grid min-h-14 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded border border-transparent px-3 py-2 focus-within:border-border focus-within:bg-elevated hover:border-border hover:bg-elevated"
-                        >
-                            <div className="min-w-0">
-                                <div className="flex min-w-0 items-baseline gap-2">
-                                    <strong className="truncate text-[12px] text-foreground">
-                                        {row.title}
-                                    </strong>
-                                    <span className="shrink-0 text-[10px] text-muted">
-                                        {row.category}
-                                    </span>
-                                </div>
-                                <code className="block truncate text-[10px] text-muted">
-                                    {row.command}
-                                </code>
-                                {conflict && (
-                                    <p
-                                        id={conflictId}
-                                        role="status"
-                                        aria-live="polite"
-                                        className="mt-1 flex items-center gap-1 text-[10px] text-danger"
-                                    >
-                                        <AlertTriangle aria-hidden="true" size={11} />
-                                        {conflict.reason === 'chordPrefix' ? (
-                                            // Not "conflicts with": nothing else has to be bound for this
-                                            // to be dead. The chord opens a sequence, so dispatch waits for a
-                                            // second key instead of ever running this command.
-                                            <>
-                                                Never fires: {formatShortcut(conflict.key)} starts a
-                                                chord sequence
-                                            </>
-                                        ) : (
-                                            <>
-                                                Conflicts with{' '}
-                                                {conflict.commands
-                                                    .flatMap((command) =>
-                                                        command === row.command
-                                                            ? []
-                                                            : [
-                                                                  titleByCommand.get(command) ??
-                                                                      command,
-                                                              ],
-                                                    )
-                                                    .join(', ')}
-                                            </>
-                                        )}
-                                    </p>
-                                )}
-                            </div>
-                            <Button
-                                aria-label={`${row.key ? 'Edit' : 'Add'} shortcut for ${row.title}`}
-                                aria-describedby={conflictId}
-                                className="min-w-36"
-                                data-keybinding-command={row.command}
-                                data-keybinding-recording={isRecording || undefined}
-                                size="sm"
-                                variant={isRecording && recording.pending ? 'default' : 'secondary'}
-                                onBlur={() => handleRecordingBlur(row)}
-                                onClick={() => setRecording(startRecording(row.id))}
-                                onKeyDown={(event) => handleRecordingKey(event, row)}
-                            >
-                                {isRecording ? (
-                                    recording.pending ? (
-                                        // Deliberately distinct from a committed binding (the bug
-                                        // this closes): accent chrome plus an explicit hint, so an
-                                        // uncommitted chord can never be mistaken for a saved one.
-                                        <span className="flex flex-col items-center gap-0.5">
-                                            <ShortcutBadge
-                                                shortcut={recording.pending}
-                                                keyClassName="border-accent-foreground/40 bg-transparent text-accent-foreground"
-                                            />
-                                            {/* Capture appends a second chord into a sequence, so clearing needs
-                                                its own key and its own hint — otherwise a mistyped first chord looks
-                                                unrecoverable without leaving recording. */}
-                                            <span className="text-[10px] text-accent-foreground/80">
-                                                Enter save · ⌫ clear · Esc cancel
-                                            </span>
-                                        </span>
-                                    ) : (
-                                        'Press shortcut · Esc to cancel'
-                                    )
-                                ) : row.key ? (
-                                    <ShortcutBadge shortcut={row.key} />
-                                ) : (
-                                    <>
-                                        <Pencil size={12} /> Add Shortcut
-                                    </>
-                                )}
-                            </Button>
-                            <div className="flex min-w-16 justify-end gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
-                                {row.bindingIndex !== undefined && (
-                                    <Button
-                                        aria-label={`Remove shortcut for ${row.title}`}
-                                        size="icon"
-                                        variant="ghost"
-                                        onClick={() => removeRow(row)}
-                                    >
-                                        <Trash2 size={13} />
-                                    </Button>
-                                )}
-                                {row.defaultKey && row.key !== row.defaultKey && (
-                                    <Button
-                                        aria-label={`Reset shortcut for ${row.title}`}
-                                        size="icon"
-                                        variant="ghost"
-                                        onClick={() => resetRow(row)}
-                                    >
-                                        <RotateCcw size={13} />
-                                    </Button>
-                                )}
-                            </div>
-                        </li>
-                    );
-                })}
+            <div className="structured-editor m-0 min-h-0 overflow-auto p-2">
+                {groups.map((group) => (
+                    <section key={group.category} className="mb-3 last:mb-0">
+                        <h3 className="mb-1 truncate px-3 text-[10px] font-medium tracking-wide text-muted uppercase">
+                            {group.category}
+                        </h3>
+                        <ul className="m-0 list-none p-0">
+                            {group.rows.map((row) => (
+                                <KeybindingRowItem
+                                    key={row.id}
+                                    conflictsByKey={conflictsByKey}
+                                    recording={recording}
+                                    row={row}
+                                    onRecordingBlur={handleRecordingBlur}
+                                    onRecordingKey={handleRecordingKey}
+                                    onRemove={removeRow}
+                                    onReset={resetRow}
+                                    onStartRecording={startRecordingRow}
+                                />
+                            ))}
+                        </ul>
+                    </section>
+                ))}
                 {visibleRows.length === 0 && (
                     <div className="flex flex-col items-center gap-2 p-6 text-center text-muted">
                         <p>No keyboard shortcuts found.</p>
                     </div>
                 )}
-            </ul>
+            </div>
         </div>
     );
 }

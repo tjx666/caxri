@@ -56,6 +56,12 @@ export interface SettingRowDescriptor {
      */
     accessibleTitle: string;
     description?: string;
+    /**
+     * Longer explanation shown from an inline info affordance next to the title, for a row whose `description` was
+     * shortened to fit its row height but still owes the reader the mechanics it dropped (e.g. Delegation depth's
+     * worked examples). Most rows have no `detail` and rely on `description` alone.
+     */
+    detail?: string;
     binding: SettingRowBinding;
     /**
      * Lowercased text corpus the settings search matches against.
@@ -235,27 +241,6 @@ const rows: SettingRowSource[] = [
     specRow('workbench.externalEditor'),
     specRow('updates.skippedVersion'),
     {
-        id: 'general.hardwareAcceleration',
-        category: 'general',
-        title: 'Hardware acceleration',
-        /**
-         * Says what turning it off actually costs and what takes it back. The previous wording promised "Caxri never
-         * changes this automatically", which stopped being true the moment a crash card could write it; the promise is
-         * now the accurate one — Caxri only changes it behind a confirmation the user answered.
-         */
-        description:
-            'Draws Caxri with your graphics hardware. Turn it off to use software rendering, which is slower but keeps working when graphics fail. Caxri only changes this after you confirm it, and a change takes effect the next time Caxri starts.',
-        binding: { type: 'hardware-acceleration' },
-        haystack: lower([
-            'hardware acceleration',
-            'gpu',
-            'graphics',
-            'software rendering',
-            'slow',
-            'restart',
-        ]),
-    },
-    {
         id: 'sessions.archived',
         category: 'general',
         title: 'Archived Sessions',
@@ -283,6 +268,33 @@ const rows: SettingRowSource[] = [
     },
     specRow('terminal.fontFamily'),
     specRow('terminal.fontSize'),
+    {
+        id: 'terminal.hardwareAcceleration',
+        category: 'terminal',
+        title: 'Hardware acceleration',
+        /**
+         * Kept as its own setting rather than merged into GPU acceleration below (issue caxri#1289): it gates the GPU
+         * for the whole app, GPU acceleration gates only the Terminal's WebGL renderer, and the two can legitimately
+         * disagree — GPU acceleration can still be "on" while this is off, it just has nothing to accelerate. Placed
+         * directly above it so the dependency reads in cause-then-effect order. Also says what turning it off actually
+         * costs and what takes it back: the previous wording promised "Caxri never changes this automatically", which
+         * stopped being true the moment a crash card could write it, so the promise is now the accurate one — Caxri
+         * only changes it behind a confirmation the user answered.
+         */
+        description:
+            "Controls whether the whole app draws with your graphics hardware, including every Terminal's GPU " +
+            'acceleration below. Off, Caxri uses software rendering, which is slower but keeps working when ' +
+            'graphics fail. Caxri only changes this after you confirm it, and a change takes effect after a restart.',
+        binding: { type: 'hardware-acceleration' },
+        haystack: lower([
+            'hardware acceleration',
+            'gpu',
+            'graphics',
+            'software rendering',
+            'slow',
+            'restart',
+        ]),
+    },
     specRow('terminal.gpuAcceleration'),
     specRow('terminal.scrollback'),
     specRow('terminal.longPasteThreshold'),
@@ -366,12 +378,16 @@ const rows: SettingRowSource[] = [
         id: 'agents.delegation.maxDepth',
         category: 'agents',
         title: 'Delegation depth',
-        description:
-            'An Agent can hand part of its job to a second Agent, and that one can hand part of ' +
-            'its own job to a third. This is how many times in a row that may happen: 1 lets the ' +
-            'Agent you started bring in one helper, which then finishes alone; 2 lets that helper ' +
-            'bring in one more. Nothing is handed on until the delegation presets name which ' +
-            'Agents may be brought in, which is done in the Source view.',
+        description: 'How many times in a row an Agent may hand part of its job to another Agent.',
+        /**
+         * The worked example and the pointer to where delegation presets are edited both matter, but together they
+         * wrapped this row to four lines (issue caxri#1289). Moved behind the row's info affordance so the one-line
+         * `description` above stays the thing every reader sees.
+         */
+        detail:
+            '1 lets the Agent you started bring in one helper, which then finishes alone; 2 lets ' +
+            'that helper bring in one more. Which Agents may be brought in is set by the ' +
+            'delegation presets, in the Source view.',
         binding: { type: 'delegation-depth' },
         /**
          * Derived from the one spec that already describes this key, so the words it lists — `model`, `effort`,

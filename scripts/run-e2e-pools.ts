@@ -6,6 +6,10 @@ import { resolve } from 'node:path';
 import process from 'node:process';
 
 import {
+    fullSuiteRefusalMessage,
+    isFullSuiteAuthorized,
+} from '../.agents/skills/quality-check/scripts/full-suite-authorization';
+import {
     acquireDesktopLease,
     inspectDesktopLease,
     releaseDesktopLease,
@@ -411,6 +415,15 @@ function slowestSpecSummary(receipt: E2EPoolReceipt, workers: number): string[] 
 
 async function main(): Promise<void> {
     const pool = parseE2EPool(process.argv.slice(2));
+    /**
+     * Every pool hands Playwright an explicit spec list, which the `globalSetup` guard reads as a focused run. Refuse
+     * here instead, or this script is an unguarded path to the full Electron suite.
+     */
+    if (!isFullSuiteAuthorized()) {
+        process.stderr.write(`${fullSuiteRefusalMessage('e2e')}\n`);
+        process.exitCode = 1;
+        return;
+    }
     const parallelWorkers = resolveParallelWorkers(process.env);
     const plan = createE2EPoolPlan(await discoverE2ESpecs());
     const invocations =

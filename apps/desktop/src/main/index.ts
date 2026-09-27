@@ -25,7 +25,12 @@ import { isBenignRendererErrorMessage } from '../shared/renderer-error-policy';
 import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import type { AppQuitIntent } from './app-quit';
-import { confirmAppQuit, createAppQuitHandler, notifyAppQuitStopFailure } from './app-quit';
+import {
+    confirmAppQuit,
+    createAppQuitHandler,
+    createReviewCommentsQuitOptions,
+    notifyAppQuitStopFailure,
+} from './app-quit';
 import { updateArgvConfig } from './argv-config';
 import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
@@ -176,6 +181,7 @@ if (ownsProfileInstance) {
         },
         closeDesktop: () => supervisor.shutdown(),
         confirm: (impact) => confirmAppQuit(dialog, mainWindow, impact),
+        ...createReviewCommentsQuitOptions(dialog, mainWindow, () => supervisor),
         detachAll: () => supervisor.request('terminal.detachAll'),
         exit: () => app.exit(0),
         logFailure: (level, stage, error) =>

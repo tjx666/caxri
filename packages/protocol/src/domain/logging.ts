@@ -16,6 +16,17 @@ export const logEventCatalog = {
         hookTurnExpired: 'agent.hook_turn_expired',
         hookTurnInterrupted: 'agent.hook_turn_interrupted',
         integrationReconcileFailed: 'agent.integration_reconcile_failed',
+        /**
+         * Grant/revoke transition for the Session-scoped "Always allow in this Session" permission auto-allow (issue
+         * caxri#1295). Carries a closed `reason` enum (`'user' | 'agentRestart' | 'sessionDeleted'`) instead of a bare
+         * boolean, per the diagnostics invariant that a state change must record why it happened.
+         */
+        permissionAutoAllowChanged: 'agent.permission_auto_allow_changed',
+        /**
+         * One entry per auto-allowed permission request. Never logs request content — only the Session/Terminal id,
+         * tool name, and the running per-Session grant lifetime count.
+         */
+        permissionAutoAllowed: 'agent.permission_auto_allowed',
         probe: 'agent.probe',
         probeFailed: 'agent.probe_failed',
         processProbeFailed: 'agent.process_probe_failed',
