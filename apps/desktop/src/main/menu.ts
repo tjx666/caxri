@@ -16,6 +16,39 @@ export interface AppMenuOptions {
     openProcessExplorer: () => void;
     openAgentCommander: () => void;
     stopAgentCommander: () => void;
+    /**
+     * The Workbench window, which runs every command-backed item. Absent while it is closed.
+     */
+    workbenchWindow: () => BaseWindow | undefined;
+    /**
+     * Restores, shows, and focuses the Workbench window.
+     */
+    focusWorkbench: () => void;
+}
+
+/**
+ * App-level shortcuts that still reach the Workbench from another Caxri window, bringing it forward: Settings is where
+ * the user goes from anywhere in the app.
+ */
+const APP_LEVEL_SHORTCUTS = new Set<CommandId>(['settings.open']);
+
+/**
+ * Where a command-backed item runs while another Caxri window, such as the Agent Commander or the Process Explorer, is
+ * focused. Every command acts on the Workbench, which the user is not looking at: Close Tab would close a Workbench tab
+ * and Restart Terminal would restart a Workbench Terminal, out of sight. So Close Tab closes the focused window, the
+ * way it does in every macOS app; a shortcut typed there is dropped, because it was meant for that window, unless it is
+ * app-level; and an item picked from the menu bar brings the Workbench forward first, so the user sees what it
+ * changes.
+ */
+function commandTarget(
+    commandId: CommandId,
+    focused: BaseWindow | undefined,
+    workbench: BaseWindow | undefined,
+    isViaAccelerator: boolean,
+): 'close-focused' | 'drop' | 'focus-workbench' | 'workbench' {
+    if (!focused || !workbench || focused === workbench) return 'workbench';
+    if (commandId === 'workbench.closeActiveTab') return 'close-focused';
+    return isViaAccelerator && !APP_LEVEL_SHORTCUTS.has(commandId) ? 'drop' : 'focus-workbench';
 }
 
 /**
@@ -89,6 +122,8 @@ export function buildAppMenuTemplate({
     openAgentCommander,
     openProcessExplorer,
     stopAgentCommander,
+    workbenchWindow,
+    focusWorkbench,
 }: AppMenuOptions): MenuItemConstructorOptions[] {
     const command = (definition: CommandDefinition): MenuItemConstructorOptions => ({
         id: `command.${definition.id}`,
@@ -109,7 +144,7 @@ export function buildAppMenuTemplate({
          * `useCommandShortcuts` does) or an actual mouse/touch click on the menu item (a deliberate user action that
          * must keep working even while a Terminal/editor has focus).
          */
-        click: (_menuItem: MenuItem, _window: BaseWindow | undefined, event: KeyboardEvent) => {
+        click: (_menuItem: MenuItem, focused: BaseWindow | undefined, event: KeyboardEvent) => {
             /**
              * The Process Explorer menu must work while its diagnostic window is focused.
              */
@@ -120,7 +155,20 @@ export function buildAppMenuTemplate({
              */
             if (definition.id === 'agentCommander.open') return openAgentCommander();
             if (definition.id === 'agentCommander.stop') return stopAgentCommander();
-            dispatchCommand(definition.id, event.triggeredByAccelerator === true);
+            const isViaAccelerator = event.triggeredByAccelerator === true;
+            const workbench = workbenchWindow();
+            switch (commandTarget(definition.id, focused, workbench, isViaAccelerator)) {
+                case 'close-focused':
+                    return focused?.close();
+                case 'drop':
+                    return;
+                case 'focus-workbench':
+                    focusWorkbench();
+                    break;
+                case 'workbench':
+                    break;
+            }
+            dispatchCommand(definition.id, isViaAccelerator);
         },
     });
     const commandItems = (menu: NativeMenuId): MenuItemConstructorOptions[] =>

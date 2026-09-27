@@ -79,6 +79,67 @@ test('Agent Commander keeps running after its window closes and stops on request
 });
 
 /**
+ * The native menu belongs to the whole app, so Close Tab pressed in the Commander window used to close the active tab
+ * of the Workbench behind it. It must close the Commander window instead and leave the Commander running.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
+test('Close Tab in the focused Agent Commander window closes that window, not a Workbench tab', async ({}, testInfo) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-commander-menu-e2e-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: {} },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        await createShellSession(running.page);
+        const workbenchTerminals = running.page.locator('.terminal-pane');
+        await expect(workbenchTerminals).toHaveCount(1);
+        await pageRequest(running.page, 'agentCommander.open');
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        await expect(running.page.locator('.commander-status-chip')).toContainText('Commander');
+
+        /**
+         * Electron hands a menu item's click the focused window; passing the Commander's reproduces its Cmd+W without
+         * depending on which app macOS has in front during the run.
+         */
+        await running.app.evaluate(({ BrowserWindow, Menu }) => {
+            const commander = BrowserWindow.getAllWindows().find((window) =>
+                window.webContents.getURL().includes('agent-commander'),
+            );
+            const item = Menu.getApplicationMenu()?.getMenuItemById(
+                'command.workbench.closeActiveTab',
+            );
+            if (!commander || !item) throw new Error('Commander window or Close Tab is missing');
+            (item.click as (...parameters: unknown[]) => void)(
+                { triggeredByAccelerator: true },
+                commander,
+                commander.webContents,
+            );
+        });
+
+        await expect.poll(() => running.app.windows().length).toBe(1);
+        await expect(workbenchTerminals).toHaveCount(1);
+        await expect
+            .poll(() => pageRequest<CommanderStatus>(running.page, 'commander.status'))
+            .not.toEqual({ state: 'stopped' });
+        await testInfo.attach('workbench-after-commander-close-tab', {
+            body: await running.page.locator('.commander-status-chip').screenshot(),
+            contentType: 'image/png',
+        });
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
  * Server Core restart takes every PTY with it, and the Server restores only the selected Session, which is never the
  * Commander's. An open window must bring its Commander back itself instead of showing a Terminal nothing restarts.
  */

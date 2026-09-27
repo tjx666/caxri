@@ -60,6 +60,12 @@ Closing or reloading the Commander window detaches its view of the Commander Ter
 keeps running and the next window re-attaches from a snapshot. Closing the main window detaches
 every Terminal view, the Commander's included, and then closes the Commander window.
 
+The native menu belongs to the whole app, and its command items act on the Workbench. While the
+Commander window (or the Process Explorer) is focused, Main therefore routes them by the focused
+window (`apps/desktop/src/main/menu.ts`): Close Tab (`Cmd+W`) closes the focused window, a shortcut
+typed there is dropped except the app-level Settings shortcut, and an item picked from the menu bar
+brings the Workbench forward before it runs.
+
 While the Commander runs, the Workbench status bar shows a muted `Commander` chip with its state
 (`starting`, `working`, `needs input`, or `idle`) from `commander.status`; clicking it opens the
 window. A stopped Commander shows no chip. **View > Stop Agent Commander** (also in the Command
