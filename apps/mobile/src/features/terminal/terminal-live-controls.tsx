@@ -6,6 +6,7 @@ import { ArrowDown, Keyboard, RotateCw, X } from 'lucide-react-native';
 import { IconButton } from '../../components/icon-button';
 import type { MobileTheme } from '../../theme/tokens';
 import type { TerminalKey } from './key-input';
+import type { MobileTerminalExitPresentation } from './terminal-exit-presentation';
 import { TerminalKeyBar } from './terminal-key-bar';
 import { terminalViewStyles as styles } from './terminal-view-styles';
 import type { useLiveTerminal } from './use-live-terminal';
@@ -59,11 +60,18 @@ export const TerminalKeyboardInput = ({
  * Status that must interrupt the screen floats as a compact chip over the Terminal instead of stacking rows under it.
  */
 export const TerminalStatusChip = ({
+    exitPresentation,
     isConnected,
     role,
     terminal,
     theme,
 }: {
+    /**
+     * The specific reason a stopped Terminal exited, so a crash reads differently from a clean exit instead of both
+     * sharing the generic "Terminal has stopped" copy. Falls back to that generic muted copy when the caller has not
+     * threaded the Session's `primaryTerminal.lastProcessState` through yet.
+     */
+    exitPresentation?: MobileTerminalExitPresentation;
     /**
      * While the phone is offline the app-wide Reconnecting banner already explains the frozen frame.
      */
@@ -72,18 +80,22 @@ export const TerminalStatusChip = ({
     terminal: LiveTerminal;
     theme: MobileTheme;
 }) => {
+    const stopped = exitPresentation ?? { label: 'Terminal has stopped', tone: 'muted' as const };
     const label =
         terminal.error ??
         {
             loading: 'Loading Terminal…',
             ready: role === 'control' ? null : 'View only on this device',
             stale: isConnected ? 'Terminal updates paused · showing the last frame' : null,
-            stopped: 'Terminal has stopped',
+            stopped: stopped.label,
             unavailable: 'Terminal is unavailable',
             error: 'Unable to load the Terminal',
         }[terminal.state];
     if (!label) return null;
-    const isError = terminal.error !== null || terminal.state === 'error';
+    const isError =
+        terminal.error !== null ||
+        terminal.state === 'error' ||
+        (terminal.state === 'stopped' && stopped.tone === 'danger');
     return (
         <View
             accessibilityRole={isError ? 'alert' : undefined}
@@ -149,24 +161,38 @@ export const TerminalFloatingActions = ({
                 </Pressable>
             )}
             {terminal.hasLease || !terminal.canControl ? null : (
-                <Pressable
-                    accessibilityHint="Sizes the shared Terminal for this phone and opens the keyboard."
-                    accessibilityLabel="Take over Terminal"
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: !canTakeOver }}
-                    disabled={!canTakeOver}
-                    onPress={onTakeOver}
-                    style={[
-                        styles.floatingPill,
-                        { backgroundColor: theme.primary, opacity: canTakeOver ? 1 : 0.45 },
-                    ]}
-                    testID="terminal-take-over"
-                >
-                    <Keyboard color={theme.primaryForeground} size={18} strokeWidth={2.25} />
-                    <Text style={[styles.floatingLabel, { color: theme.primaryForeground }]}>
-                        Take over
-                    </Text>
-                </Pressable>
+                <View style={styles.takeOverGroup}>
+                    {/* Visible disclosure of the same side effect `accessibilityHint` already gives a screen reader,
+                    so a sighted user learns it too instead of only finding out after tapping. Hidden from assistive
+                    tech to avoid announcing the same fact twice. */}
+                    <View
+                        accessibilityElementsHidden
+                        importantForAccessibility="no-hide-descendants"
+                        style={[styles.takeOverCaption, { backgroundColor: theme.elevated }]}
+                    >
+                        <Text style={[styles.takeOverCaptionText, { color: theme.muted }]}>
+                            Temporarily resizes the Terminal on your computer
+                        </Text>
+                    </View>
+                    <Pressable
+                        accessibilityHint="Sizes the shared Terminal for this phone and opens the keyboard."
+                        accessibilityLabel="Take over Terminal"
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: !canTakeOver }}
+                        disabled={!canTakeOver}
+                        onPress={onTakeOver}
+                        style={[
+                            styles.floatingPill,
+                            { backgroundColor: theme.primary, opacity: canTakeOver ? 1 : 0.45 },
+                        ]}
+                        testID="terminal-take-over"
+                    >
+                        <Keyboard color={theme.primaryForeground} size={18} strokeWidth={2.25} />
+                        <Text style={[styles.floatingLabel, { color: theme.primaryForeground }]}>
+                            Take over
+                        </Text>
+                    </Pressable>
+                </View>
             )}
         </View>
     );

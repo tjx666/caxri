@@ -3,6 +3,7 @@ import { Platform, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 import type { MobileTheme } from '../../theme/tokens';
+import type { MobileTerminalExitPresentation } from './terminal-exit-presentation';
 import {
     TerminalControlBar,
     TerminalFloatingActions,
@@ -15,6 +16,12 @@ import { useLiveTerminal } from './use-live-terminal';
 import { useTerminalKeyboard } from './use-terminal-keyboard';
 
 interface TerminalLiveViewProperties {
+    /**
+     * The specific reason the Terminal stopped, derived from the Session's `primaryTerminal.lastProcessState` (see
+     * `mobileTerminalExitPresentation`). Optional so a caller that has not threaded it through yet still renders the
+     * generic muted "Terminal has stopped" copy instead of losing the status chip.
+     */
+    exitPresentation?: MobileTerminalExitPresentation;
     isConnected: boolean;
     isStopped: boolean;
     role: 'view' | 'reply' | 'control' | null;
@@ -35,6 +42,7 @@ export const TerminalLiveView = (properties: TerminalLiveViewProperties) => {
 };
 
 function AndroidTerminalLiveView({
+    exitPresentation,
     isConnected,
     isStopped,
     role,
@@ -98,6 +106,7 @@ function AndroidTerminalLiveView({
                     thirdPartyCookiesEnabled={false}
                 />
                 <TerminalStatusChip
+                    exitPresentation={exitPresentation}
                     isConnected={isConnected}
                     role={role}
                     terminal={terminal}

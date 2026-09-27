@@ -6,6 +6,7 @@ import type { MobileTheme } from '../../../theme/tokens';
 import { AttentionCards } from '../../conversation/attention-cards';
 import { ConversationView } from '../../conversation/conversation-view';
 import type { useConversationTimeline } from '../../conversation/use-conversation-timeline';
+import { primaryTerminalExitPresentation } from '../../terminal/terminal-exit-presentation';
 import { TerminalLiveView } from '../../terminal/terminal-live-view';
 import { useSegmentEntering } from '../hooks/use-segment-entering';
 import type { MobileSessionItem } from '../session-model';
@@ -21,6 +22,7 @@ export const SessionDetailBody = ({
     deviceRole,
     isConnected,
     isVisible,
+    onSegmentChange,
     segment,
     session,
     theme,
@@ -33,6 +35,7 @@ export const SessionDetailBody = ({
     deviceRole: 'view' | 'reply' | 'control' | null;
     isConnected: boolean;
     isVisible: boolean;
+    onSegmentChange: (segment: SessionSegment) => void;
     segment: SessionSegment;
     session: MobileSessionItem;
     theme: MobileTheme;
@@ -47,6 +50,7 @@ export const SessionDetailBody = ({
     const terminal = terminalId ? (
         <TerminalLiveView
             key={terminalId}
+            exitPresentation={primaryTerminalExitPresentation(session.primaryTerminal)}
             isConnected={isConnected}
             isStopped={isMobileTerminalStopped(session)}
             role={deviceRole}
@@ -59,21 +63,23 @@ export const SessionDetailBody = ({
             <Text style={{ color: theme.muted }}>No active Terminal for this Session.</Text>
         </View>
     );
-    const attention = (shouldFallbackToTerminal: boolean) => (
+    const attention = (shouldFallbackToTerminal: boolean, canOpenTerminal: boolean) => (
         <AttentionCards
             fallbackToTerminal={shouldFallbackToTerminal}
+            onOpenTerminal={canOpenTerminal ? () => onSegmentChange('terminal') : undefined}
             role={deviceRole}
             sessionId={session.id}
             theme={theme}
         />
     );
     /**
-     * A native Agent request can arrive before its first transcript makes Conversation available.
+     * A native Agent request can arrive before its first transcript makes Conversation available. "Open Terminal" is
+     * pointless here: this pane already is the Terminal.
      */
     const terminalWithAttention = (
         <View style={{ flex: 1 }}>
             {terminal}
-            {attention(false)}
+            {attention(false, false)}
         </View>
     );
     const conversation = (
@@ -86,6 +92,7 @@ export const SessionDetailBody = ({
             {attention(
                 session.lastActivityState === 'waiting' &&
                     session.primaryTerminal?.provider !== 'claude',
+                true,
             )}
         </View>
     );

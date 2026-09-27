@@ -47,6 +47,9 @@ export const terminalViewStyles = StyleSheet.create({
         paddingHorizontal: 16,
     },
     floatingLabel: { fontSize: 14, fontWeight: '700' },
+    takeOverGroup: { alignItems: 'flex-end', gap: 6 },
+    takeOverCaption: { borderRadius: 10, maxWidth: 180, paddingHorizontal: 8, paddingVertical: 3 },
+    takeOverCaptionText: { fontSize: 11, lineHeight: 14, textAlign: 'right' },
     hiddenInput: { height: 1, left: -100, opacity: 0, position: 'absolute', width: 1 },
     controlBar: {
         alignItems: 'center',
@@ -54,13 +57,14 @@ export const terminalViewStyles = StyleSheet.create({
         flexDirection: 'row',
         paddingRight: 2,
     },
-    keyBar: { flex: 1, flexGrow: 1, maxHeight: 52 },
+    // 44 key height + 6px top/bottom `keyBarContent` padding, so a 44dp key never clips against this cap.
+    keyBar: { flex: 1, flexGrow: 1, maxHeight: 56 },
     keyBarContent: { alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 6 },
     key: {
         alignItems: 'center',
         borderRadius: 8,
         justifyContent: 'center',
-        minHeight: 38,
+        minHeight: 44,
         minWidth: 42,
         paddingHorizontal: 10,
     },

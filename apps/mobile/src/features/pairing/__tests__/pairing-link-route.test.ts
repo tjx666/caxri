@@ -1,6 +1,7 @@
 import { MOBILE_TRANSPORT_VERSION, serializeMobilePairingLink } from '@caxri/mobile-transport';
 import { describe, expect, it, vi } from 'vitest';
 
+import { MobilePairingError } from '../../connection/mobile-gateway-client';
 import {
     pairingLinkFromRouteParameters,
     readPairingRoute,
@@ -31,6 +32,22 @@ describe('pairingLinkFromRouteParameters', () => {
     ])('rejects an incomplete, repeated, or extended route contract', (parameters) => {
         expect(() => pairingLinkFromRouteParameters(parameters)).toThrow(
             'Pairing route parameters do not match the protocol',
+        );
+    });
+
+    it('throws a MobilePairingError so a malformed caxri://pair link shows the specific copy', () => {
+        expect.assertions(2);
+        try {
+            pairingLinkFromRouteParameters({});
+        } catch (error) {
+            expect(error).toBeInstanceOf(MobilePairingError);
+            expect((error as MobilePairingError).code).toBe('invalid-link');
+        }
+    });
+
+    it('surfaces the specific invalid-link copy through readPairingRoute for a malformed link', () => {
+        expect(readPairingRoute({}).error).toBe(
+            'This is not a valid Caxri pairing link. Copy or scan a new code.',
         );
     });
 });
