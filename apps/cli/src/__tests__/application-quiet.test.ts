@@ -1,5 +1,5 @@
 // eslint-disable-next-line unicorn/name-replacements -- this file tests `application.ts`, the CLI composition root's documented name (see project-architecture).
-import type { ProtocolWelcome } from '@caxri/protocol';
+import type { AgentEndpointSummary, ProtocolWelcome } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -34,6 +34,26 @@ function server(result: unknown, method: string): CliServerClient {
             capabilities: ['commander'],
             commands: [method],
         } satisfies ProtocolWelcome,
+    };
+}
+
+function agentEndpoint(endpointId: string, generation: number): AgentEndpointSummary {
+    return {
+        ref: { hostId: 'host-1', endpointId, generation },
+        projectId: 'project-1',
+        sessionId: 'session-1',
+        terminalId: `terminal-${endpointId}`,
+        provider: 'codex',
+        name: 'Codex',
+        permissionClass: 'standard',
+        messaging: {
+            deliveryMode: 'pull',
+            health: 'ready',
+            reason: 'pull_ready',
+            checkedAt: 1,
+            nextAction: 'use_pull',
+        },
+        expiresAt: 1,
     };
 }
 
@@ -121,6 +141,22 @@ describe('quiet output', () => {
             }),
         ).resolves.toBe(0);
         expect(output.stdout()).toBe('\n');
+    });
+
+    it('prints each Agent as the Endpoint reference other agent commands accept', async () => {
+        const output = io();
+        const client = server(
+            { agents: [agentEndpoint('endpoint-1', 2), agentEndpoint('endpoint-2', 1)] },
+            'agent.list',
+        );
+
+        await expect(
+            runCli(['agent', 'list', '--quiet'], {
+                connect: () => Promise.resolve(client),
+                io: output.io,
+            }),
+        ).resolves.toBe(0);
+        expect(output.stdout()).toBe('host-1:endpoint-1:2\nhost-1:endpoint-2:1\n');
     });
 
     it('prints one Session ID per board row', async () => {
