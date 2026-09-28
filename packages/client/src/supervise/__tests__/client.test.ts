@@ -63,6 +63,28 @@ function createAttachedClient(options: { desktopLease?: unknown } = {}) {
     };
 }
 
+describe('ServerClient event fan-out', () => {
+    it('delivers an event to later listeners when an earlier one throws, then closes the transport', () => {
+        const { client, socket } = createAttachedClient();
+        const failing = vi.fn(() => {
+            throw new Error('listener failure');
+        });
+        const surviving = vi.fn();
+        client.onEvent(failing);
+        client.onEvent(surviving);
+        const event = {
+            event: 'terminal.output',
+            payload: { terminalId: 'terminal-1', data: 'ok' },
+        };
+
+        socket.emit('message', Buffer.from(JSON.stringify({ type: 'event', event })), false);
+
+        expect(failing).toHaveBeenCalledTimes(1);
+        expect(surviving).toHaveBeenCalledExactlyOnceWith(event);
+        expect(socket.terminate).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe('ServerClient close notification', () => {
     it('notifies onClose listeners exactly once when the socket closes', () => {
         const { client, socket } = createAttachedClient();
