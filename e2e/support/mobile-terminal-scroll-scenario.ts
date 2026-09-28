@@ -192,9 +192,12 @@ async function measureDocument(
 ) {
     const { serial } = environment;
     const at = (fraction: number) => Math.round(viewport.top + viewport.height * fraction);
-    await capture(environment, `${input}-document-end`, artifacts);
-
+    /**
+     * The fixture reports its document before the phone has drawn it, so the capture follows the settle wait instead of
+     * showing the previous screen.
+     */
     const start = await settledState(fixture);
+    await capture(environment, `${input}-document-end`, artifacts);
     await slowDrag(serial, viewport.x, at(0.2), at(0.7));
     const afterDown = await settledState(fixture);
     const slowDown = measure(input, start, afterDown, at(0.7) - at(0.2), viewport);
