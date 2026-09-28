@@ -142,6 +142,7 @@ export interface CommandContext {
     developer: { reportBug(): void; toggleScreencastMode(): void };
     diagnostics: { export(): void };
     updates: { check(): void };
+    shellCommand: { install(): void; uninstall(): void };
 }
 
 export interface SessionMruShortcutInvocation {

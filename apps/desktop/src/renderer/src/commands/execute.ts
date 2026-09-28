@@ -52,6 +52,10 @@ import {
 import { compactWarmSessions } from '../features/session/session-compaction-commands';
 import { lastTabTerminalSessionId } from '../features/session/session-last-tab';
 import {
+    installShellCommand,
+    uninstallShellCommand,
+} from '../features/shell-command/shell-command-commands';
+import {
     canSelectWorkbenchRoot,
     canSwitchBranch,
     selectWorkbenchRootFromCommand,
@@ -404,6 +408,7 @@ const commandContext: CommandContext = {
         },
     },
     updates: { check: checkForUpdates },
+    shellCommand: { install: installShellCommand, uninstall: uninstallShellCommand },
 };
 
 export function isCommandAvailable(
