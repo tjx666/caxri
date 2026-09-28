@@ -109,9 +109,10 @@ export function SessionAgentStatusIcon({
 }
 
 /**
- * A thin arc over a faint track, in the icon's own color. Foreground rather than an accent: the list must stay neutral
- * (DESIGN.md keeps the screen's single accent on the focused pane), and a colored arc would compete with the amber
- * attention ring and the pull request glyph colors on the same row. Reduced motion leaves the arc still.
+ * A thin `--success` arc over a faint track in the icon's own color. The arc is the one colored part so a working
+ * Session stands out of a neutral list at a glance, and it borrows the same success tone the row's `Working` label uses
+ * rather than `--accent`, which DESIGN.md reserves for the focused pane. The track stays neutral: a fully green ring on
+ * every running row reads as a wall of color once several Agents work at once. Reduced motion leaves the arc still.
  */
 export function RunningArc({
     className,
@@ -144,7 +145,7 @@ export function RunningArc({
                 cy="10"
                 fill="none"
                 r="9.25"
-                stroke="currentColor"
+                stroke="var(--success)"
                 strokeDasharray="14.5 58.1"
                 strokeLinecap="round"
                 strokeWidth={strokeWidth}
