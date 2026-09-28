@@ -2,19 +2,8 @@ import type { ProjectStatusAcceptance } from '@caxri/protocol';
 import { rememberBounded } from '@caxri/utils';
 import type { z } from 'zod';
 
-/**
- * Reaches past `project-status`'s barrel into its leaf `parse` module on purpose: `project-status/index.ts` itself
- * depends on this domain's barrel to build `ProjectStatusService`, so importing these schema/mapping helpers through
- * `project-status`'s barrel would close that into a real circular dependency. `parse.ts` holds no import back into
- * `external-status`, so this deep import stays acyclic; the allowance is recorded next to the guard it bypasses in
- * `../__tests__/structure.test.ts`.
- */
-import {
-    acceptanceBundleSchema,
-    mapAcceptanceBundle,
-    parseExternalJson,
-} from '../project-status/parse';
 import { SingleFlight } from '../single-flight';
+import { acceptanceBundleSchema, mapAcceptanceBundle, parseExternalJson } from './parse';
 
 /**
  * Longer than the Renderer's 60s status-bar poll, for the reason spelled out on `RECORD_TTL_MS` in `./github.ts`: at

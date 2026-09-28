@@ -1,6 +1,6 @@
 /**
  * Hex normalization shared by every theme importer, plus the readers that turn a VS Code color theme's `colors` and
- * `tokenColors` into Caxri roles. Split out of `theme.ts` so that file stays the import pipeline — format detection,
+ * `tokenColors` into Caxri roles. Split out of `index.ts` so that file stays the import pipeline — format detection,
  * the iTerm/Warp/Caxri parsers, include resolution, and contrast enforcement — rather than also holding the largest
  * per-format mapping table.
  */

@@ -1,5 +1,5 @@
 /**
- * Guards for untrusted theme-import documents, shared by the iTerm2, Warp, and VS Code parsers in `theme.ts`.
+ * Guards for untrusted theme-import documents, shared by the iTerm2, Warp, and VS Code parsers in `index.ts`.
  *
  * Two failure shapes used to escape the importer uncategorized. A parser throwing (`yaml` on a broken document,
  * `jsonc-parser` on an empty file, `plist` on a missing root element) reached the wire as `INTERNAL` with a stack, so
