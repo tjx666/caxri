@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import type { WatchedJob } from '../watch-ci';
+import type { WatchedJob, WatchState } from '../watch-ci';
 import {
+    buildWatchState,
+    canFollowSharedState,
     formatCiNotification,
     formatRunSummary,
     isHeartbeatStale,
@@ -13,6 +15,18 @@ const job = (name: string, status: string, conclusion: string): WatchedJob => ({
     conclusion,
     name,
     status,
+});
+
+const sharedState = (overrides: Partial<WatchState> = {}): WatchState => ({
+    attempt: 1,
+    conclusion: '',
+    heartbeatAt: '2026-08-16T09:59:50Z',
+    jobs: [],
+    notifiedFailedJobs: [],
+    pollerPid: 100,
+    runId: '123',
+    status: 'in_progress',
+    ...overrides,
 });
 
 describe('watch-ci', () => {
@@ -49,13 +63,77 @@ describe('watch-ci', () => {
         expect(newlyFailedJobs([], jobs)).toEqual([]);
     });
 
+    it('follows a live poller only for an attempt this watcher has already polled', () => {
+        const now = Date.parse('2026-08-16T10:00:00Z');
+        // A rerun reuses the run ID: before its own first poll a watcher cannot tell whether a terminal state is the
+        // previous attempt's, so it must not exit on it.
+        const previousAttemptFailed = sharedState({ conclusion: 'failure', status: 'completed' });
+        expect(canFollowSharedState(previousAttemptFailed, undefined, now, 200)).toBe(false);
+        expect(canFollowSharedState(previousAttemptFailed, 2, now, 200)).toBe(false);
+        expect(canFollowSharedState(sharedState({ attempt: 2 }), 2, now, 200)).toBe(true);
+        expect(canFollowSharedState(sharedState({ attempt: 3 }), 2, now, 200)).toBe(true);
+        expect(canFollowSharedState(sharedState(), 1, now, 100)).toBe(false);
+        expect(
+            canFollowSharedState(sharedState({ heartbeatAt: '2026-08-16T09:58:00Z' }), 1, now, 200),
+        ).toBe(false);
+        expect(canFollowSharedState(undefined, 1, now, 200)).toBe(false);
+    });
+
+    it('starts job tracking and failure notifications over for a new attempt', () => {
+        const poller = { heartbeatAt: '2026-08-16T10:00:00Z', pollerPid: 200 };
+        const failedAttempt = sharedState({
+            conclusion: 'failure',
+            jobs: [job('release', 'completed', 'failure')],
+            notifiedFailedJobs: ['release'],
+            status: 'completed',
+        });
+        const rerun = buildWatchState(
+            '123',
+            { attempt: 2, status: 'queued' },
+            failedAttempt,
+            poller,
+        );
+        expect(rerun).toMatchObject({
+            attempt: 2,
+            jobs: [],
+            notifiedFailedJobs: [],
+            pollerPid: 200,
+        });
+        const failedAgain = buildWatchState(
+            '123',
+            { attempt: 2, jobs: [{ conclusion: 'failure', name: 'release', status: 'completed' }] },
+            rerun,
+            poller,
+        );
+        expect(newlyFailedJobs(failedAgain.notifiedFailedJobs, failedAgain.jobs)).toEqual([
+            'release',
+        ]);
+    });
+
+    it('keeps the last job list and notifications while status-only polling the same attempt', () => {
+        const previous = sharedState({
+            jobs: [job('checks', 'completed', 'failure')],
+            notifiedFailedJobs: ['checks'],
+        });
+        const state = buildWatchState('123', { attempt: 1, status: 'in_progress' }, previous, {
+            heartbeatAt: '2026-08-16T10:00:00Z',
+            pollerPid: 200,
+        });
+        expect(state.jobs).toEqual(previous.jobs);
+        expect(state.notifiedFailedJobs).toEqual(['checks']);
+    });
+
     it('formats a per-job summary with conclusions falling back to status', () => {
         const summary = formatRunSummary({
+            attempt: 1,
             conclusion: '',
             jobs: [job('checks', 'completed', 'success'), job('e2e', 'in_progress', '')],
             runId: '123',
         });
         expect(summary).toBe('run 123: in progress\n  checks: success\n  e2e: in_progress');
+        expect(
+            formatRunSummary({ attempt: 2, conclusion: 'failure', jobs: [], runId: '123' }),
+        ).toBe('run 123 (attempt 2): failure');
     });
 
     it('names the branch, PR title, workflow, and failing jobs in notifications', () => {
