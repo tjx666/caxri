@@ -19,6 +19,7 @@ import {
 
 import { getSessionState, useSessionState } from '../../stores/selectors';
 import { patchSessionState } from '../../stores/workbench';
+import { supersedePendingFileOpens } from '../editor/editor-open-intent';
 import { workTabId } from '../tabs/work-tab-accessibility';
 import { focusTerminalById } from '../terminal/terminal-commands';
 
@@ -36,9 +37,15 @@ export function getPaneLayout(): PaneLayout | undefined {
     return getSessionState()?.paneLayout;
 }
 
+/**
+ * An explicit selection wins over a file open still awaiting its read; otherwise that open would re-activate the tab
+ * the user just left.
+ */
 export function selectPaneTab(tabId: string): void {
     const layout = getPaneLayout();
-    if (layout) applyPaneLayout(selectTab(layout, tabId));
+    if (!layout) return;
+    supersedePendingFileOpens();
+    applyPaneLayout(selectTab(layout, tabId));
 }
 
 /**
