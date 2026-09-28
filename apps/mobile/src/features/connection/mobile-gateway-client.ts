@@ -11,7 +11,6 @@ import {
     HANDSHAKE_NONCE_BYTES,
     handshakeConfirmation,
     isHandshakeConfirmationValid,
-    MOBILE_GATEWAY_MAX_WIRE_BYTES,
     MOBILE_TRANSPORT_VERSION,
     mobileClientConfirmationSchema,
     MobileFrameCounter,
@@ -52,7 +51,8 @@ import { isFastMobileRead } from './mobile-read-timeouts';
 import { pairingClientHello } from './pairing-client-hello';
 import { pairingCredential } from './pairing-credential';
 import { createPairingSocketRuntime } from './pairing-socket-runtime';
-import { MobileSocketReaderBudget } from './socket-reader-budget';
+import type { SocketReader } from './socket-reader';
+import { connectionClosedError, createSocketReader } from './socket-reader';
 
 const HANDSHAKE_TIMEOUT_MS = 10_000;
 const SOCKET_OPEN_TIMEOUT_MS = 4_000;
@@ -102,12 +102,26 @@ export class MobileReconnectError extends Error {
 
 export class MobileVersionMismatchError extends Error {
     readonly code = 'version-mismatch' as const;
+    /**
+     * The transport version Desktop speaks, when Desktop said so; a pairing link rejected locally carries none.
+     */
+    readonly supportedVersion: number | undefined;
 
-    constructor() {
+    constructor(supportedVersion?: number) {
         super(
             'This app and Caxri on your computer use different versions. Update both to the latest build.',
         );
         this.name = 'MobileVersionMismatchError';
+        this.supportedVersion = supportedVersion;
+    }
+
+    /**
+     * Only a newer Desktop can hold the build that fixes the mismatch, so only then is update recovery worth trying.
+     */
+    get isDesktopNewer(): boolean {
+        return (
+            this.supportedVersion !== undefined && this.supportedVersion > MOBILE_TRANSPORT_VERSION
+        );
     }
 }
 
@@ -129,105 +143,6 @@ const mobileReadySchema = z.strictObject({
     deviceId: mobileDeviceIdSchema,
     generation: z.number().int().positive(),
 });
-
-interface SocketReader {
-    close(): void;
-    next(timeoutMs?: number): Promise<unknown>;
-}
-
-const eventError = (): Error => new Error('The Caxri connection closed.');
-
-const createSocketReader = (socket: WebSocket): SocketReader => {
-    const queued: Array<{ release(): void; value: unknown }> = [];
-    const waiting: Array<{ reject(error: Error): void; resolve(value: unknown): void }> = [];
-    const budget = new MobileSocketReaderBudget();
-    let isClosed = false;
-
-    /**
-     * A peer close may follow a final authenticated frame before the owner advances to its steady-state reader. Keep
-     * already parsed frames available in that case; explicit local cleanup and protocol failures discard them.
-     */
-    const rejectAll = (shouldDiscardQueued: boolean): void => {
-        isClosed = true;
-        const pendingRequests = [...waiting];
-        waiting.length = 0;
-        if (shouldDiscardQueued) {
-            const queuedMessages = [...queued];
-            queued.length = 0;
-            for (const item of queuedMessages) item.release();
-        }
-        for (const pending of pendingRequests) pending.reject(eventError());
-    };
-    socket.addEventListener('message', (event) => {
-        if (isClosed) return;
-        if (typeof event.data !== 'string') {
-            socket.close();
-            rejectAll(true);
-            return;
-        }
-        if (event.data.length > MOBILE_GATEWAY_MAX_WIRE_BYTES) {
-            socket.close();
-            rejectAll(true);
-            return;
-        }
-        // Server wire messages are ASCII JSON, so code-unit length is also their UTF-8 byte length.
-        const byteLength = event.data.length;
-        const release = budget.tryAcquire(byteLength);
-        if (!release) {
-            socket.close();
-            rejectAll(true);
-            return;
-        }
-        let value: unknown;
-        try {
-            value = JSON.parse(event.data) as unknown;
-        } catch {
-            release();
-            socket.close();
-            rejectAll(true);
-            return;
-        }
-        const pending = waiting.shift();
-        if (pending) {
-            release();
-            pending.resolve(value);
-        } else queued.push({ release, value });
-    });
-    socket.addEventListener('close', () => rejectAll(false));
-    socket.addEventListener('error', () => rejectAll(false));
-
-    return {
-        close: () => rejectAll(true),
-        next: (timeoutMs) => {
-            const item = queued.shift();
-            if (item) {
-                item.release();
-                return Promise.resolve(item.value);
-            }
-            if (isClosed) return Promise.reject(eventError());
-            return new Promise((resolve, reject) => {
-                const timeout: { handle?: ReturnType<typeof setTimeout> } = {};
-                const pending = {
-                    resolve: (result: unknown) => {
-                        clearTimeout(timeout.handle);
-                        resolve(result);
-                    },
-                    reject: (error: Error) => {
-                        clearTimeout(timeout.handle);
-                        reject(error);
-                    },
-                };
-                if (timeoutMs !== undefined)
-                    timeout.handle = setTimeout(() => {
-                        const index = waiting.indexOf(pending);
-                        if (index !== -1) waiting.splice(index, 1);
-                        reject(new Error('Caxri did not respond in time.'));
-                    }, timeoutMs);
-                waiting.push(pending);
-            });
-        },
-    };
-};
 
 const openSocketAt = async (
     address: string,
@@ -262,7 +177,7 @@ const openSocketAt = async (
     return socket;
 };
 
-const openSocket = async (
+export const openSocket = async (
     addresses: string[],
     port: number,
     runtime: MobileGatewayRuntime,
@@ -352,8 +267,8 @@ const establish = async (input: {
     try {
         socket.send(JSON.stringify(input.clientHello));
         const response = await reader.next(HANDSHAKE_TIMEOUT_MS);
-        if (mobileVersionMismatchSchema.safeParse(response).success)
-            throw new MobileVersionMismatchError();
+        const mismatch = mobileVersionMismatchSchema.safeParse(response);
+        if (mismatch.success) throw new MobileVersionMismatchError(mismatch.data.supportedVersion);
         const challenge = mobileServerHelloSchema.parse(response);
         const transcript: HandshakeTranscript = {
             mode: input.mode,
@@ -493,7 +408,7 @@ export class MobileGatewayConnection {
         timeoutMs: number,
         isMutation = false,
     ): Promise<CommandReplyEnvelope> {
-        if (this.#termination || this.#closedByOwner) throw eventError();
+        if (this.#termination || this.#closedByOwner) throw connectionClosedError();
         if (this.#deferredMutationError) throw this.#deferredMutationError;
         const timeoutError = new MobileGatewayTimeoutError();
         const response = this.#router.waitForReply(
@@ -520,7 +435,7 @@ export class MobileGatewayConnection {
     close(): void {
         this.#closedByOwner = true;
         this.#heartbeat.stop();
-        this.#router.rejectAll(eventError());
+        this.#router.rejectAll(connectionClosedError());
         this.#session.reader.close();
         this.#session.socket.close();
         this.#listeners.clear();
@@ -610,7 +525,7 @@ export class MobileGatewayConnection {
             if (!reply.ok)
                 throw new MobileGatewayRequestError(reply.error.code, reply.error.message);
             const { subscriptionId } = mobileSubscribeResultSchema.parse(reply.result);
-            if (this.#termination || this.#closedByOwner) throw eventError();
+            if (this.#termination || this.#closedByOwner) throw connectionClosedError();
             this.#router.addSubscription(subscriptionId, resource, listener);
             let didUnsubscribe = false;
             return {

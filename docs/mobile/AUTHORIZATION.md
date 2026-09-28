@@ -24,7 +24,9 @@ method set.
 
 `mobile.update.check` and `mobile.update.prepare` are granted to every role: they expose only the
 update bundle Desktop ships and a short-lived download token for the requesting device; see
-[UPDATE.md](UPDATE.md).
+[UPDATE.md](UPDATE.md). Update recovery grants the same two things to a paired, unrevoked device
+whose transport version no longer matches, after it proves its credential. It is a separate
+pre-authentication exchange outside the dispatcher and method set, so it authorizes nothing else.
 
 The read-only panel methods (`mobile.panels.list`, `mobile.tree.children`, `mobile.files.list`,
 `mobile.files.read`, and `mobile.files.search`) are granted starting at `view`, since they only project state a device with

@@ -327,6 +327,7 @@ export const openMobileAccessController = async (options: {
                     }
                 },
                 ...(options.selectAddress && { selectAddress: options.selectAddress }),
+                updateSource: updateRequests.readSource,
             });
         },
         close: () =>

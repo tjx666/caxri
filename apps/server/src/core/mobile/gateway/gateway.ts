@@ -74,6 +74,7 @@ import { messageByteLength, messageText } from './socket-message';
 import { MobileSocketQueueBudget } from './socket-queue-budget';
 import { SourceAttemptLimiter } from './source-attempt-limiter';
 import { MobileUpdateDownloads } from './update-downloads';
+import { isMobileUpdateRecoveryHello, MobileUpdateRecoveryExchange } from './update-recovery';
 
 export { selectMobileGatewayAddress } from './address-selection';
 export { boundedMobileReply } from './reply';
@@ -117,6 +118,11 @@ export interface MobileGatewayOptions {
      * Test seam for driving a real handshake timeout without a 10-second wait; production always uses the default.
      */
     handshakeTimeoutMs?: number;
+    /**
+     * The Android bundle shipped with this Desktop, read directly by update recovery so that path never enters the
+     * command dispatcher. Absent means recovery answers "no bundle".
+     */
+    updateSource?: () => Promise<MobileUpdateSource | undefined>;
 }
 
 /**
@@ -133,6 +139,10 @@ export class MobileGateway {
     readonly #options: MobileGatewayOptions;
     readonly #pairings: MobilePairingLedger;
     readonly #random: (bytes: number) => Uint8Array;
+    /**
+     * Revocations still being written; the registry's memory changes only after its atomic file replacement.
+     */
+    readonly #revokingDevices = new Set<string>();
     readonly #sockets = new Set<WebSocket>();
     readonly #sourceAttempts: SourceAttemptLimiter;
     readonly #tcpSockets = new Set<Socket>();
@@ -348,6 +358,8 @@ export class MobileGateway {
                 session.revoking = true;
                 session.application?.abortPendingTerminalInputs();
             }
+        this.#revokingDevices.add(deviceId);
+        this.#updateDownloads.revokeDevice(deviceId);
         let revoked: MobileDeviceSummary;
         try {
             revoked = await this.#options.registry.revoke(deviceId, expectedGeneration);
@@ -355,6 +367,8 @@ export class MobileGateway {
             if (activeSessions)
                 for (const session of activeSessions.values()) session.revoking = false;
             throw error;
+        } finally {
+            this.#revokingDevices.delete(deviceId);
         }
         if (activeSessions)
             for (const session of activeSessions.values()) session.application?.close();
@@ -403,6 +417,7 @@ export class MobileGateway {
         this.#sockets.add(socket);
         this.#handshakes += 1;
         let session: GatewaySession | undefined;
+        let recovery: MobileUpdateRecoveryExchange | undefined;
         let isReady = false;
         let isAcceptingMessages = true;
         let didTerminate = false;
@@ -453,6 +468,16 @@ export class MobileGateway {
                 if (!isAcceptingMessages) return;
                 const raw = JSON.parse(messageText(data)) as unknown;
                 if (!session) {
+                    if (recovery) {
+                        isAcceptingMessages = false;
+                        await this.#completeUpdateRecovery(socket, recovery, raw, terminate);
+                        return;
+                    }
+                    if (isMobileUpdateRecoveryHello(raw)) {
+                        recovery = this.#beginUpdateRecovery(raw, localAddress);
+                        socket.send(recovery.challenge);
+                        return;
+                    }
                     if (
                         typeof raw === 'object' &&
                         raw !== null &&
@@ -526,6 +551,49 @@ export class MobileGateway {
                     releaseQueueCapacity();
                 }
             })();
+        });
+    }
+
+    #beginUpdateRecovery(
+        raw: unknown,
+        localAddress: string | undefined,
+    ): MobileUpdateRecoveryExchange {
+        try {
+            return MobileUpdateRecoveryExchange.begin(raw, {
+                downloads: this.#updateDownloads,
+                isRevoking: (deviceId) => this.#revokingDevices.has(deviceId),
+                origin: () =>
+                    localAddress && this.#port ? `http://${localAddress}:${this.#port}` : undefined,
+                random: this.#random,
+                registry: this.#options.registry,
+                serverId: this.#options.protocolIdentity.serverId,
+                updateSource: this.#options.updateSource,
+            });
+        } catch (error) {
+            this.#diagnostics.updateRecovery('invalid-frame');
+            throw error;
+        }
+    }
+
+    /**
+     * Sends the single recovery answer and closes; the socket never becomes an application session.
+     */
+    async #completeUpdateRecovery(
+        socket: WebSocket,
+        recovery: MobileUpdateRecoveryExchange,
+        raw: unknown,
+        terminate: (reason?: MobileGatewayFailureReason) => void,
+    ): Promise<void> {
+        const { frame, outcome } = await recovery.complete(raw);
+        this.#diagnostics.updateRecovery(outcome);
+        if (!frame) {
+            terminate('invalidHandshake');
+            return;
+        }
+        if (socket.readyState !== 1) return;
+        socket.send(frame, (error) => {
+            if (error) terminate();
+            else socket.close(1_000, 'Update recovery complete');
         });
     }
 

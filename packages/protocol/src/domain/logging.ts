@@ -14,6 +14,11 @@ export const logEventCatalog = {
          * One record per Android update download request, with a closed `outcome`, served bytes, and duration.
          */
         updateDownload: 'mobile_gateway.update_download',
+        /**
+         * One record per update-recovery exchange from a phone whose transport version no longer matches, with a closed
+         * `outcome`.
+         */
+        updateRecovery: 'mobile_gateway.update_recovery',
         enabled: 'mobile_gateway.enabled',
         disabled: 'mobile_gateway.disabled',
         connectionEstablished: 'mobile_gateway.connection_established',

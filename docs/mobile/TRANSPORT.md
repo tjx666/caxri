@@ -4,7 +4,11 @@ The Mobile gateway is a separate, default-off WebSocket endpoint on a private IP
 and reconnect use the versioned encrypted handshake in `@caxri/mobile-transport`. Version 3 adds
 Terminal observer snapshots, Host output sequences, and generation-fenced control. A mismatched `hello` receives a plaintext
 `version-mismatch` frame before authentication; all application frames after authentication are
-sealed with the session key and monotonically increasing counters.
+sealed with the session key and monotonically increasing counters. A paired phone refused by a
+newer Desktop can instead open the frozen, version-independent `update-recovery-v1` exchange as the
+first frame of a new socket; it proves the pairing credential, returns only the Android update
+manifest and download URL, and never becomes an application session. See
+[UPDATE.md](UPDATE.md#update-recovery).
 
 The same HTTP server also serves `GET /mobile/update/<token>` for the update APK. That route carries
 no application frames: the bearer token is issued over the sealed channel and the payload is checked
