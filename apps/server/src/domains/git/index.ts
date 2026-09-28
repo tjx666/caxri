@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 
@@ -13,19 +12,15 @@ import type {
     GitSummary,
     ServerEvent,
     ServerOperationParameters,
+    SessionDiffStats,
     TerminalCommitLinkResolution,
     TerminalReferenceContext,
     TerminalReferencePreview,
     TerminalReferencePreviewRequest,
 } from '@caxri/protocol';
-import {
-    CaxriError,
-    errorMessage,
-    isCaxriError,
-    MAX_CONFIGURABLE_FILE_BYTES,
-} from '@caxri/protocol';
+import { CaxriError, isCaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { AsyncSemaphore, execFileAsync, logEventCatalog } from '@caxri/system';
+import { AsyncSemaphore } from '@caxri/system';
 
 import { readBoundedRegularFile } from '../bounded-file-reader';
 import { ExternalStatusHub } from '../external-status';
@@ -34,9 +29,10 @@ import type { ProjectRootResolver } from '../project-roots';
 import { SingleFlight } from '../single-flight';
 import { GitBlameService } from './blame';
 import { GitChangeTracker } from './change-tracker';
+import type { GitCommandOptions } from './command';
+import { runGitCommand } from './command';
 import { parseCommitFiles, readCommitDetails } from './commit-details';
 import { COMMIT_FORMAT, parseCommitLog } from './commit-log';
-import { classifyGitFailure, gitFailureLogLevel, resolveGitLaunch, toGitError } from './errors';
 import { readGitHubPullRequestView } from './github';
 import type { GitMetadataWatcherOptions } from './metadata-watcher';
 import { GitMetadataWatcher } from './metadata-watcher';
@@ -46,25 +42,14 @@ import { loadTerminalReferenceContext, resolveTerminalCommitLink } from './refer
 import { loadTerminalReferencePreview } from './reference-preview';
 import { parseGitRemoteHost } from './remote-host';
 import { computeRepoId, GitRepoService } from './repo';
-import { gitSignalOptions, sharedGitRequest } from './request-signal';
+import { sharedGitRequest } from './request-signal';
+import { SessionDiffStatStore } from './session-diff-stats';
 import type { GitSummaryRequester } from './summary-trace';
 import { RepoTopologyRegistry } from './topology';
 import { GitWorkingTreeService } from './working-tree';
 
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
-const MAX_GIT_METADATA_BYTES = 4 * 1024 * 1024;
 const MAX_LOCAL_BRANCHES = 1_000;
-
-interface GitCommandOptions {
-    allowFailure?: boolean;
-    input?: string;
-    maxBufferBytes?: number;
-    /**
-     * Override for network-bound operations (fetch/pull/push), which can legitimately outlast the 10s default that
-     * bounds local metadata commands.
-     */
-    timeoutMs?: number;
-}
 
 interface DiffTarget {
     candidate: string;
@@ -80,28 +65,6 @@ export interface GitWorktreeTopology {
 export { describeGitFailure, resolveGitLaunch } from './errors';
 export { withGitRequestSignal } from './request-signal';
 export type { GitSummaryRequester } from './summary-trace';
-
-/**
- * Subcommand-bearing Git operations whose second argv token is required to attribute a command in structured logs
- * (`worktree list` vs `worktree add`); every other operation logs argv[0] alone so no user-controlled path or ref ever
- * reaches the log stream.
- */
-const SUBCOMMAND_OPERATIONS = new Set(['worktree', 'remote', 'stash', 'submodule']);
-
-function classifyGitOperation(arguments_: readonly string[]): string {
-    const operation = arguments_[0] ?? 'unknown';
-    if (!SUBCOMMAND_OPERATIONS.has(operation)) return operation;
-    const subcommand = arguments_.find((token, index) => index > 0 && !token.startsWith('-'));
-    return subcommand ? `${operation}.${subcommand}` : operation;
-}
-
-/**
- * Stable, non-reversible identity for correlating commands of one repository in diagnostics without recording the
- * filesystem path itself.
- */
-function hashRepoPath(path: string): string {
-    return createHash('sha256').update(path).digest('hex').slice(0, 12);
-}
 
 interface GitServiceOptions {
     /**
@@ -125,6 +88,7 @@ interface GitServiceOptions {
 
 export class GitService {
     private readonly commands = new AsyncSemaphore(MAX_CONCURRENT_GIT_COMMANDS);
+    private readonly diffStats: SessionDiffStatStore;
     private readonly histories = new SingleFlight<string, GitCommitPage>();
     private readonly repositoryService: GitRepoService;
     private readonly blameService: GitBlameService;
@@ -171,6 +135,9 @@ export class GitService {
             watchHub: options.watchHub,
         });
         this.repositoryService.attachMetadataWatcher(this.metadataWatcher);
+        this.diffStats = new SessionDiffStatStore({
+            git: (cwd, arguments_, options_) => this.git(cwd, arguments_, options_),
+        });
         this.pullRequestService = new GitPullRequestService({
             git: (cwd, arguments_, options) => this.git(cwd, arguments_, options),
             pullRequestView: (repo, isForced) =>
@@ -200,67 +167,8 @@ export class GitService {
         });
     }
 
-    private async git(
-        cwd: string,
-        arguments_: string[],
-        options: GitCommandOptions = {},
-    ): Promise<string> {
-        const queuedAt = performance.now();
-        return this.commands.run(async () => {
-            const startedAt = performance.now();
-            const timing = () => ({
-                queueMs: startedAt - queuedAt,
-                execMs: performance.now() - startedAt,
-                repository: hashRepoPath(cwd),
-            });
-            try {
-                const { executable, environment } = await resolveGitLaunch();
-                const execution = execFileAsync(executable, arguments_, {
-                    cwd,
-                    timeout: options.timeoutMs ?? 10_000,
-                    maxBuffer: options.maxBufferBytes ?? MAX_GIT_METADATA_BYTES,
-                    ...gitSignalOptions(),
-                    // GIT_TERMINAL_PROMPT=0 makes a credential-less fetch/pull/push fail fast
-                    // instead of hanging on a hidden terminal prompt until the timeout.
-                    env: {
-                        ...environment,
-                        GIT_OPTIONAL_LOCKS: '0',
-                        GIT_TERMINAL_PROMPT: '0',
-                        LC_ALL: 'C',
-                    },
-                });
-                if (options.input !== undefined) {
-                    /**
-                     * A fast Git failure may close stdin before the bounded batch is written.
-                     */
-                    execution.child.stdin?.on('error', () => {});
-                    execution.child.stdin?.end(options.input);
-                }
-                const { stdout } = await execution;
-                // Debug, not info: on a real profile `git.command` plus `git.summary` filled 87% of a 5MB generation
-                // and cut retention to ~38h, rotating out the lifecycle evidence incidents need. Failures stay at warn.
-                this.logger.write('debug', logEventCatalog.git.command, {
-                    durationMs: performance.now() - queuedAt,
-                    fields: { operation: classifyGitOperation(arguments_), ...timing() },
-                });
-                return stdout;
-            } catch (error) {
-                const reason = classifyGitFailure(error);
-                const level = gitFailureLogLevel(reason, options.allowFailure);
-                this.logger.write(level, logEventCatalog.git.commandFailed, {
-                    durationMs: performance.now() - queuedAt,
-                    fields: {
-                        operation: classifyGitOperation(arguments_),
-                        ...timing(),
-                        allowFailure: options.allowFailure === true,
-                        reason,
-                        error: errorMessage(error, 'unknown'),
-                    },
-                });
-                if (options.allowFailure) return '';
-                throw toGitError(error);
-            }
-        });
+    private git(cwd: string, arguments_: string[], options?: GitCommandOptions): Promise<string> {
+        return runGitCommand(this.commands, this.logger, cwd, arguments_, options);
     }
 
     private resolveRepository(sessionId: string, repoIdValue: string): Promise<GitRepoSummary> {
@@ -474,6 +382,12 @@ export class GitService {
                 ({ files: _files, ...projection }) => projection,
             ),
         };
+    }
+
+    sessionDiffStats(
+        sessions: ReadonlyArray<{ id: string; rootPath: string }>,
+    ): Promise<SessionDiffStats> {
+        return this.diffStats.forSessions(sessions, (id) => this.summary(id, 0, 'diffStats'));
     }
 
     async mobileChangesList(sessionId: string, shouldRefresh = false) {

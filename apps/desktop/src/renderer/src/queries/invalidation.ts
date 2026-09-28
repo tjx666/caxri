@@ -37,6 +37,11 @@ const BADGE_OPERATIONS = new Set<ControlledViewQueryOperation>(['badge.snapshot'
  */
 const CATALOG_QUERY_KEY: readonly [CaxriMethod] = ['viewContainers.catalog'];
 const PULL_REQUESTS_QUERY_KEY: readonly [CaxriMethod] = ['session.pullRequests'];
+/**
+ * Every visible Session's diff stat in one read (the PrimarySidebar rows); no arguments, so one invalidation reaches
+ * every row's observer.
+ */
+const SESSION_DIFF_STATS_QUERY_KEY: readonly [CaxriMethod] = ['session.diffStats'];
 const AGENT_ACTIONS_QUERY_KEY: readonly [CaxriMethod] = ['agentActions.list'];
 /**
  * The Commander's rows are excluded from Workbench records, so no record-scoped change names them; any state change may
@@ -592,6 +597,10 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
         }
         if (event.event === 'git.changed') {
             invalidateGitChangedQueries(queryClient, event.payload.sessionIds);
+            // One snapshot covers every Session, so any Git change may move some row's diff stat.
+            // Fire-and-forget: see the justification in invalidateFileDependentQueries above.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void queryClient.invalidateQueries({ queryKey: SESSION_DIFF_STATS_QUERY_KEY });
             return;
         }
         if (event.event === 'projectStatus.changed') {
