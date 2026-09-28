@@ -34,7 +34,7 @@ const waitFor = (serial: string, isReady: (nodes: SemanticNodes) => boolean) =>
 /**
  * A missing control is only proven by repeated observations after the screen has settled, not by one early read.
  */
-async function assertStaysAbsent(serial: string, ids: readonly string[]): Promise<void> {
+export async function assertStaysAbsent(serial: string, ids: readonly string[]): Promise<void> {
     for (let sample = 0; sample < 5; sample += 1) {
         // eslint-disable-next-line no-await-in-loop -- each sample is one timed observation of the same screen.
         const nodes = await mobileSemantics(serial);
@@ -199,7 +199,7 @@ async function projectIcons(
 /**
  * Drags a Session row leftward from its right side, away from the system Back gesture edges, to reveal its action.
  */
-async function swipeRowLeft(serial: string, rowId: string): Promise<void> {
+export async function swipeRowLeft(serial: string, rowId: string): Promise<void> {
     const row = (await mobileSemantics(serial)).find(({ checkId }) => checkId === rowId);
     const bounds = row && androidBounds(row.bounds);
     if (!bounds) throw new Error('Synthetic Session row is unavailable');

@@ -14,10 +14,11 @@ import {
     waitForMobile,
 } from './mobile-android';
 import { pinchTerminal } from './mobile-native-pinch';
+import type { MobileTerminalAcceptanceFixture } from './mobile-terminal-acceptance-fixture';
 import { createMobileTerminalAcceptanceFixture } from './mobile-terminal-acceptance-fixture';
 import { tapTerminalKey } from './mobile-terminal-key';
 
-interface Environment {
+export interface Environment {
     artifactManifestPath: string;
     assetsDirectory: string;
     caseId: string;
@@ -26,6 +27,74 @@ interface Environment {
     sourceCommit?: string;
     launchId?: string;
     remoteVideoPath?: string;
+}
+
+/**
+ * Sizes Desktop's window for a tall synthetic grid, waits until Desktop renders exactly the fake Agent's grid, and
+ * writes the formal fixture preflight receipt that every captured Terminal frame depends on.
+ */
+export async function prepareMobileTerminalFixture(
+    fixture: MobileTerminalAcceptanceFixture,
+    environment: Environment,
+) {
+    const { launchId, sourceCommit } = environment;
+    const surface = fixture.running.page.locator(
+        `.terminal-pane[data-terminal-id="${fixture.terminalId}"] .terminal-surface`,
+    );
+    await fixture.running.app.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0].setBounds({ width: 1100, height: 1500 });
+    });
+    await waitForMobile(
+        () => fixture.menuState(),
+        ({ rows }) => rows !== null && rows >= 50,
+    );
+    await expect(surface).toHaveAttribute('data-terminal-attached', 'true');
+    await expect(surface).toHaveAttribute('data-terminal-grid', /^\d+x\d+$/u);
+    const desktopGrid = await surface.getAttribute('data-terminal-grid');
+    const grid = /^(\d+)x(\d+)$/u.exec(desktopGrid ?? '');
+    if (!grid) throw new Error('Desktop Terminal grid is unavailable');
+    const desktopSize = { cols: Number(grid[1]), rows: Number(grid[2]) };
+    await waitForMobile(
+        () => fixture.menuState(),
+        ({ cols, rows }) => cols === desktopSize.cols && rows === desktopSize.rows,
+    );
+
+    if (!sourceCommit || !launchId)
+        throw new Error('Terminal fixture Acceptance identity is incomplete');
+    const observedGrid = await waitForMobile(
+        async () => {
+            const state = await fixture.menuState();
+            const renderedRows = await surface.locator('.xterm-rows > div').allTextContents();
+            const grid = await surface.getAttribute('data-terminal-grid');
+            return { grid, renderedRows, state };
+        },
+        ({ grid, renderedRows, state }) =>
+            state.cols !== null &&
+            state.rows !== null &&
+            grid === `${state.cols}x${state.rows}` &&
+            renderedRows.length === state.rows &&
+            renderedRows[0]?.startsWith(`│${state.generation} `) &&
+            renderedRows.every((line, index) => line === state.lines[index]),
+    );
+    if (observedGrid.state.cols === null || observedGrid.state.rows === null)
+        throw new Error('Synthetic Terminal grid is unavailable');
+    const preflight = createTerminalFixturePreflightReceipt(
+        {
+            columns: observedGrid.state.cols,
+            domRowCount: observedGrid.renderedRows.length,
+            firstGridMarker: observedGrid.state.firstGridMarker,
+            generation: observedGrid.state.generation,
+            lines: observedGrid.renderedRows,
+            rows: observedGrid.state.rows,
+        },
+        environment.caseId,
+        { launchId, sourceCommit },
+    );
+    if (preflight.result.status !== 'ready')
+        throw new Error('Synthetic Terminal formal fixture preflight was blocked');
+    const preflightName = `${environment.caseId}-fixture-preflight.json`;
+    await writeJsonAtomic(join(environment.assetsDirectory, preflightName), preflight);
+    return { desktopSize, surface };
 }
 
 export async function executeMobileTerminalScenario(
@@ -38,67 +107,12 @@ export async function executeMobileTerminalScenario(
         receipt: Record<string, unknown>,
     ) => Promise<void>,
 ): Promise<void> {
-    const { launchId, sourceCommit, remoteVideoPath } = environment;
+    const { remoteVideoPath } = environment;
     if (!remoteVideoPath) throw new Error('Terminal recording path is unavailable');
     const fixture = await createMobileTerminalAcceptanceFixture(environment.serial);
     let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
     try {
-        const surface = fixture.running.page.locator(
-            `.terminal-pane[data-terminal-id="${fixture.terminalId}"] .terminal-surface`,
-        );
-        await fixture.running.app.evaluate(({ BrowserWindow }) => {
-            BrowserWindow.getAllWindows()[0].setBounds({ width: 1100, height: 1500 });
-        });
-        await waitForMobile(
-            () => fixture.menuState(),
-            ({ rows }) => rows !== null && rows >= 50,
-        );
-        await expect(surface).toHaveAttribute('data-terminal-attached', 'true');
-        await expect(surface).toHaveAttribute('data-terminal-grid', /^\d+x\d+$/u);
-        const desktopGrid = await surface.getAttribute('data-terminal-grid');
-        const grid = /^(\d+)x(\d+)$/u.exec(desktopGrid ?? '');
-        if (!grid) throw new Error('Desktop Terminal grid is unavailable');
-        const desktopSize = { cols: Number(grid[1]), rows: Number(grid[2]) };
-        await waitForMobile(
-            () => fixture.menuState(),
-            ({ cols, rows }) => cols === desktopSize.cols && rows === desktopSize.rows,
-        );
-
-        if (!sourceCommit || !launchId)
-            throw new Error('Terminal fixture Acceptance identity is incomplete');
-        const observedGrid = await waitForMobile(
-            async () => {
-                const state = await fixture.menuState();
-                const renderedRows = await surface.locator('.xterm-rows > div').allTextContents();
-                const grid = await surface.getAttribute('data-terminal-grid');
-                return { grid, renderedRows, state };
-            },
-            ({ grid, renderedRows, state }) =>
-                state.cols !== null &&
-                state.rows !== null &&
-                grid === `${state.cols}x${state.rows}` &&
-                renderedRows.length === state.rows &&
-                renderedRows[0]?.startsWith(`│${state.generation} `) &&
-                renderedRows.every((line, index) => line === state.lines[index]),
-        );
-        if (observedGrid.state.cols === null || observedGrid.state.rows === null)
-            throw new Error('Synthetic Terminal grid is unavailable');
-        const preflight = createTerminalFixturePreflightReceipt(
-            {
-                columns: observedGrid.state.cols,
-                domRowCount: observedGrid.renderedRows.length,
-                firstGridMarker: observedGrid.state.firstGridMarker,
-                generation: observedGrid.state.generation,
-                lines: observedGrid.renderedRows,
-                rows: observedGrid.state.rows,
-            },
-            environment.caseId,
-            { launchId, sourceCommit },
-        );
-        if (preflight.result.status !== 'ready')
-            throw new Error('Synthetic Terminal formal fixture preflight was blocked');
-        const preflightName = `${environment.caseId}-fixture-preflight.json`;
-        await writeJsonAtomic(join(environment.assetsDirectory, preflightName), preflight);
+        const { desktopSize, surface } = await prepareMobileTerminalFixture(fixture, environment);
 
         await fixture.pair();
         await tapMobileCheck(environment.serial, `session-row-${fixture.sessionId}`);

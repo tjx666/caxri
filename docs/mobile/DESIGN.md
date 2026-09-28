@@ -134,6 +134,9 @@ added without moving screens. Query keys include the same host identity.
 - The host menu contains `Add Project` (control devices only) and `Forget this computer`.
 - Do not reorder rows while the user is touching or scrolling the list; reconcile after the
   interaction ends.
+- On a control device, swiping a row left reveals its `Archive` action. At most one row stays
+  open: opening another row, tapping a different row, or scrolling the list closes it, and the tap
+  that closes a row does not open that Session. Android Acceptance `MOB-MOTION-02` records this.
 - Empty state: `No Sessions yet` / `Start one here or on your computer.` with a `New Session` action.
 
 ## Session screen
@@ -154,6 +157,11 @@ added without moving screens. Query keys include the same host identity.
 - Segments are icon tabs; the selected tab adds its label, and every tab keeps an accessible name.
   The Changes tab shows the changed-file count as a badge when it is non-zero. A plain shell Session
   with no Agent has no Conversation tab.
+- Switching segments slides the new body in from the side the selection moved toward while it fades
+  in; the first segment of a Session does not move because the screen transition already animates
+  it. A populated Conversation stays hidden until its list has scrolled to the latest message, so it
+  plays the slide itself once it is positioned instead of spending it on an empty frame. Android
+  Acceptance `MOB-MOTION-01` reads the entry side of every switch from its recording.
 - The composer is hidden on Project, and on Terminal for a `control` device, which types through the
   Terminal's own keyboard instead. A `reply` device keeps the composer on Terminal because it is its
   only way to answer.
@@ -173,6 +181,9 @@ added without moving screens. Query keys include the same host identity.
   a raw Ctrl-C to a shell.
 - The byte counter appears only past 75% of the limit.
 - Drafts are kept per Session in memory and survive segment switches, navigation, and reconnects.
+- The attach button opens an image source sheet. A choice slides the sheet away first and only then
+  opens the photo picker or camera, so system UI never covers a sheet still on screen
+  (`MOB-COMPOSE-02`).
 - Delivery states:
   - `Sending…` — input disabled, draft kept.
   - Delivered to the Terminal — clear the draft.
@@ -192,6 +203,8 @@ parses provider files.
 - Tool calls: one row each — icon, verb, and a one-line summary (`Ran npm test`, `Edited
 src/auth.ts`), plus duration when known. Consecutive tool calls collapse into one group row (`Ran 4
 commands · 12s`). Tapping expands the group; tapping a row opens its bounded detail.
+- Tool detail opens in a bottom sheet capped at 65% of the screen height. Its title and `Close` stay
+  in place while long output scrolls inside the sheet (`MOB-MOTION-03`).
 - Thinking is hidden. A turn divider shows the turn's duration.
 - Content the Agent's harness injects as a user turn (background task notifications, slash-command
   echoes, local command output) renders as a compact event row — status icon and a short title,
@@ -220,7 +233,11 @@ for this Agent. Showing the Terminal.` A plain shell never shows this notice.
   keeps no xterm scrollback, so on a control device the drag is forwarded as wheel input through
   `mobile.terminal.scroll`, the same way a Desktop wheel reaches the application. This scrolls the
   shared screen that Desktop also shows, and needs no takeover. View and reply devices scroll only
-  local scrollback.
+  local scrollback and never send `mobile.terminal.scroll`.
+- One displayed row of finger travel sends one wheel line, so an application that moves one line per
+  wheel step follows the finger; a flick released while moving keeps gliding. Android Acceptance
+  `MOB-TERM-SCROLL-FEEL-01` measures this against a synthetic full-screen application for both SGR
+  wheel reports and cursor-key scrolling.
 - **Take over**: a floating `Take over` button (control devices) resizes the PTY to the phone through
   a Server lease and opens the system keyboard. The phone keeps the text size it showed while
   observing, so the leased grid holds as many cells as fit at that size instead of switching to a

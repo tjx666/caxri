@@ -18,14 +18,22 @@ import {
 
 interface MenuState {
     cols: number | null;
+    /**
+     * The synthetic document the fake Agent shows instead of the menu: `mouse` scrolls one line per SGR wheel report,
+     * `keys` has no mouse reporting and scrolls one line per cursor key, like a pager on the alternate screen.
+     */
+    document: { input: 'keys' | 'mouse'; lines: number; top: number } | null;
     firstGridMarker: { columns: number; generation: string; rows: number };
     generation: string;
     lines: string[];
     rows: number | null;
     /**
-     * The fake Agent is on the alternate screen with SGR mouse reporting, like a full-screen Agent TUI.
+     * The fake Agent is on the alternate screen, with SGR mouse reporting unless its document scrolls by cursor keys,
+     * like a full-screen Agent TUI.
      */
     fullscreen: boolean;
+    keyDown: number;
+    keyUp: number;
     selected: number;
     submissions: number;
     wheelDown: number;
@@ -71,6 +79,8 @@ async function createMenuAgent(userData: string, statePath: string) {
             codex: {
                 executableSource: String.raw`#!${process.execPath}
 // 为隔离验收输出合成彩色菜单；只修改临时选择状态文件。输入 f 切换 alternate screen 与 SGR 鼠标上报，并统计滚轮。
+// 输入 d 同样进入 alternate screen，但显示可滚动的合成文档：每个滚轮事件移动一行，模拟全屏 Agent 的滚动。
+// 输入 k 进入不开启鼠标上报的 alternate screen 文档，每个上下方向键移动一行，模拟 pager。
 const fs = require('node:fs');
 if (process.argv.includes('--version')) {
   process.stdout.write('codex-cli 0.151.0\n');
@@ -84,6 +94,11 @@ let submissions = 0;
 let fullscreen = false;
 let wheelUp = 0;
 let wheelDown = 0;
+let documentTop = null;
+let documentInput = 'mouse';
+let keyUp = 0;
+let keyDown = 0;
+const DOCUMENT_LINES = 1000;
 let pending = Buffer.alloc(0);
 let generationNumber = 0;
 const statePath = ${JSON.stringify(statePath)};
@@ -92,23 +107,33 @@ const render = () => {
   const rows = process.stdout.rows ?? 0;
   if (cols < 18 || rows < 4) return;
   const generation = 'G' + (++generationNumber);
-  const labels = Array.from({ length: rows }, (_, index) => 'Synthetic row ' + String(index + 1).padStart(2, '0'));
-  labels[0] = generation + ' Agent ready';
-  labels[1] = selected === 1 ? '> 1. First' : '  1. First';
-  labels[2] = selected === 2 ? '> 2. Second' : '  2. Second';
-  labels[rows - 1] = submissions > 0 ? 'Selection submitted' : 'Choose an option';
+  if (documentTop !== null) documentTop = Math.max(0, Math.min(DOCUMENT_LINES - rows, documentTop));
+  const labels = documentTop === null
+    ? Array.from({ length: rows }, (_, index) => 'Synthetic row ' + String(index + 1).padStart(2, '0'))
+    : Array.from({ length: rows }, (_, index) => 'Synthetic line ' + String(documentTop + index + 1).padStart(4, '0'));
+  if (documentTop === null) {
+    labels[0] = generation + ' Agent ready';
+    labels[1] = selected === 1 ? '> 1. First' : '  1. First';
+    labels[2] = selected === 2 ? '> 2. Second' : '  2. Second';
+    labels[rows - 1] = submissions > 0 ? 'Selection submitted' : 'Choose an option';
+  }
   const lines = labels.map((label) => '│' + label.slice(0, cols - 2).padEnd(cols - 2, ' ') + '│');
   process.stdout.write('\x1b[?7l\x1b[2J');
   for (const [index, line] of lines.entries()) {
-    const color = index === 0 ? 32 : index === selected ? 36 : index === rows - 1 && submissions > 0 ? 35 : 37;
+    const color = documentTop !== null
+      ? ((documentTop + index + 1) % 10 === 0 ? 33 : 37)
+      : index === 0 ? 32 : index === selected ? 36 : index === rows - 1 && submissions > 0 ? 35 : 37;
     process.stdout.write('\x1b[' + (index + 1) + ';1H\x1b[' + color + 'm' + line + '\x1b[0m');
   }
   process.stdout.write('\x1b[?7h');
   fs.writeFileSync(statePath + '.next', JSON.stringify({
     cols,
+    document: documentTop === null ? null : { input: documentInput, lines: DOCUMENT_LINES, top: documentTop },
     firstGridMarker: { columns: cols, generation, rows },
     fullscreen,
     generation,
+    keyDown,
+    keyUp,
     lines,
     rows,
     selected,
@@ -131,13 +156,18 @@ process.stdin.on('data', (chunk) => {
       const button = Number(pending.subarray(3, end).toString('latin1').split(';')[0]);
       if (button === 64) wheelUp += 1;
       if (button === 65) wheelDown += 1;
+      if (documentTop !== null) documentTop += button === 64 ? -1 : button === 65 ? 1 : 0;
       pending = pending.subarray(end + 1);
       render();
       continue;
     }
     if (first === 27) {
       if (pending.length < 3) break;
-      if (pending[1] === 91 && pending[2] === 66) {
+      if (documentTop !== null && documentInput === 'keys' && pending[1] === 91 && (pending[2] === 65 || pending[2] === 66)) {
+        if (pending[2] === 65) keyUp += 1;
+        else keyDown += 1;
+        documentTop += pending[2] === 65 ? -1 : 1;
+      } else if (pending[1] === 91 && pending[2] === 66) {
         selected = 2;
       } else if (pending[1] === 91 && pending[2] === 65) {
         selected = 1;
@@ -147,9 +177,13 @@ process.stdin.on('data', (chunk) => {
       continue;
     }
     pending = pending.subarray(1);
-    if (first === 102) {
+    if (first === 102 || first === 100 || first === 107) {
       fullscreen = !fullscreen;
-      process.stdout.write(fullscreen ? '\x1b[?1049h\x1b[?1000h\x1b[?1006h' : '\x1b[?1006l\x1b[?1000l\x1b[?1049l');
+      // The document opens at its end, like an Agent transcript, so a downward drag reveals earlier lines.
+      documentTop = fullscreen && first !== 102 ? DOCUMENT_LINES : null;
+      documentInput = first === 107 ? 'keys' : 'mouse';
+      const mouse = first === 107 ? '' : '\x1b[?1000h\x1b[?1006h';
+      process.stdout.write(fullscreen ? '\x1b[?1049h' + mouse : '\x1b[?1006l\x1b[?1000l\x1b[?1049l');
       render();
       continue;
     }
