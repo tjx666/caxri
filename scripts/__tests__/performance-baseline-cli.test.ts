@@ -1,14 +1,20 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { parseArguments as parseCollectArguments } from '../performance-baseline-collect';
 import {
     isSamplesReceipt,
     parseArguments as parseDeriveArguments,
+    resolveInputPaths,
 } from '../performance-baseline-derive';
 import {
     parseArguments as parseGateArguments,
     shouldSkipForChangedFiles,
 } from '../performance-baseline-gate';
+import { parseArguments as parseTrendArguments } from '../performance-trend-check';
 
 describe('performance-baseline-collect parseArguments', () => {
     it('applies defaults and accumulates repeated --env flags', () => {
@@ -85,6 +91,161 @@ describe('performance-baseline-derive parseArguments', () => {
             'durationMs, react.commitCount',
         ]);
         expect(options.metrics).toEqual(['durationMs', 'react.commitCount']);
+    });
+
+    it('accumulates repeated --input-dir flags and accepts --input-dir instead of --input', () => {
+        const options = parseDeriveArguments([
+            '--input-dir',
+            'dir-a',
+            '--input-dir',
+            'dir-b',
+            '--spec',
+            'e2e/renderer.performance.e2e.ts',
+        ]);
+        expect(options.inputDirs).toEqual(['dir-a', 'dir-b']);
+        expect(options.inputs).toEqual([]);
+    });
+
+    it('requires --provenance for --source runner but not for --source local', () => {
+        expect(() =>
+            parseDeriveArguments([
+                '--input',
+                'a.json',
+                '--spec',
+                'e2e/renderer.performance.e2e.ts',
+                '--source',
+                'runner',
+            ]),
+        ).toThrow(/--provenance/u);
+        expect(() =>
+            parseDeriveArguments([
+                '--input',
+                'a.json',
+                '--spec',
+                'e2e/renderer.performance.e2e.ts',
+                '--source',
+                'runner',
+                '--provenance',
+                'runs 1-100, 2026-01-01 to 2026-01-02',
+            ]),
+        ).not.toThrow();
+        expect(() =>
+            parseDeriveArguments([
+                '--input',
+                'a.json',
+                '--spec',
+                'e2e/renderer.performance.e2e.ts',
+            ]),
+        ).not.toThrow();
+    });
+
+    it('rejects a negative --relative-margin or --absolute-margin-ms', () => {
+        expect(() =>
+            parseDeriveArguments([
+                '--input',
+                'a.json',
+                '--spec',
+                'e2e/renderer.performance.e2e.ts',
+                '--relative-margin',
+                '-1',
+            ]),
+        ).toThrow(/--relative-margin/u);
+        expect(() =>
+            parseDeriveArguments([
+                '--input',
+                'a.json',
+                '--spec',
+                'e2e/renderer.performance.e2e.ts',
+                '--absolute-margin-ms',
+                '-1',
+            ]),
+        ).toThrow(/--absolute-margin-ms/u);
+    });
+});
+
+describe('performance-baseline-derive resolveInputPaths', () => {
+    let root: string;
+
+    afterEach(async () => {
+        await rm(root, { recursive: true, force: true });
+    });
+
+    it('combines explicit --input paths with every renderer-performance.json found under --input-dir', async () => {
+        root = await mkdtemp(join(tmpdir(), 'caxri-performance-derive-'));
+        await mkdir(join(root, 'run-1'), { recursive: true });
+        await mkdir(join(root, 'run-2'), { recursive: true });
+        await writeFile(join(root, 'run-1', 'renderer-performance.json'), '{}', 'utf8');
+        await writeFile(join(root, 'run-2', 'renderer-performance.json'), '{}', 'utf8');
+
+        const options = parseDeriveArguments([
+            '--input',
+            'explicit.json',
+            '--input-dir',
+            root,
+            '--spec',
+            'e2e/renderer.performance.e2e.ts',
+        ]);
+        const resolved = (await resolveInputPaths(options)).toSorted((left, right) =>
+            left.localeCompare(right),
+        );
+        expect(resolved).toEqual(
+            [
+                'explicit.json',
+                join(root, 'run-1', 'renderer-performance.json'),
+                join(root, 'run-2', 'renderer-performance.json'),
+            ].toSorted((left, right) => left.localeCompare(right)),
+        );
+    });
+
+    it('throws when --input-dir finds nothing rather than silently deriving from zero receipts', async () => {
+        root = await mkdtemp(join(tmpdir(), 'caxri-performance-derive-empty-'));
+        const options = parseDeriveArguments([
+            '--input-dir',
+            root,
+            '--spec',
+            'e2e/renderer.performance.e2e.ts',
+        ]);
+        await expect(resolveInputPaths(options)).rejects.toThrow(
+            /found no renderer-performance\.json/u,
+        );
+    });
+});
+
+describe('performance-trend-check parseArguments', () => {
+    it('requires --receipts-dir', () => {
+        expect(() => parseTrendArguments([])).toThrow(/--receipts-dir/u);
+    });
+
+    it('applies the documented defaults', () => {
+        const options = parseTrendArguments(['--receipts-dir', 'dir']);
+        expect(options.baseline).toBe('scripts/performance-baseline.json');
+        expect(options.windowSize).toBe(20);
+        expect(options.alarmRatio).toBe(0.02);
+    });
+
+    it('rejects a non-positive --window or --alarm-ratio', () => {
+        expect(() => parseTrendArguments(['--receipts-dir', 'dir', '--window', '0'])).toThrow(
+            /--window/u,
+        );
+        expect(() => parseTrendArguments(['--receipts-dir', 'dir', '--alarm-ratio', '0'])).toThrow(
+            /--alarm-ratio/u,
+        );
+    });
+
+    it('overrides --baseline, --window, and --alarm-ratio', () => {
+        const options = parseTrendArguments([
+            '--receipts-dir',
+            'dir',
+            '--baseline',
+            'custom-baseline.json',
+            '--window',
+            '30',
+            '--alarm-ratio',
+            '0.03',
+        ]);
+        expect(options.baseline).toBe('custom-baseline.json');
+        expect(options.windowSize).toBe(30);
+        expect(options.alarmRatio).toBe(0.03);
     });
 });
 

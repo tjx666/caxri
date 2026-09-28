@@ -1,444 +1,649 @@
 {
     "schemaVersion": 1,
-    "armed": false,
-    "source": "local",
+    "armed": true,
+    "source": "runner",
     "spec": "e2e/renderer.performance.e2e.ts",
-    "recordedAt": "2026-09-28T16:55:06.159Z",
-    "commit": "60c93bba9892c076849f93e47b21ffac56821569",
+    "recordedAt": "2026-09-28T18:14:08.002Z",
+    "commit": "776da574a7ae18e5bb0209a1a95b857acf91ddfb",
+    "provenance": "98 renderer-performance-receipt artifacts from self-hosted CI runs 35967460812-36421490139 (2026-09-24T07:13:31Z to 2026-09-28T12:48:30Z)",
     "metrics": {
         "durationMs": {
-            "median": 192.8,
-            "mad": 68.2,
+            "kind": "continuous",
+            "median": 211.3,
+            "mad": 0.8,
             "k": 5,
-            "thresholdMs": 533.8,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 228.8,
+            "thresholdMs": 248.104,
+            "sampleCount": 98
         },
         "react.commitCount": {
+            "kind": "discrete",
             "median": 8,
             "mad": 0,
             "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 8,
             "thresholdMs": 8,
-            "sampleCount": 8
+            "sampleCount": 98
         },
         "react.profiledRenderCount": {
+            "kind": "discrete",
             "median": 11,
             "mad": 0,
             "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 11,
             "thresholdMs": 11,
-            "sampleCount": 8
+            "sampleCount": 98
         },
         "react.mountRenderCount": {
+            "kind": "discrete",
             "median": 0,
             "mad": 0,
             "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
             "thresholdMs": 0,
-            "sampleCount": 8
+            "sampleCount": 98
         },
         "react.updateRenderCount": {
+            "kind": "discrete",
             "median": 7,
             "mad": 0,
             "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 7,
             "thresholdMs": 7,
-            "sampleCount": 8
+            "sampleCount": 98
         },
         "react.nestedUpdateRenderCount": {
+            "kind": "discrete",
             "median": 4,
             "mad": 0,
             "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 4,
             "thresholdMs": 4,
-            "sampleCount": 8
+            "sampleCount": 98
         },
         "react.actualDurationP50Ms": {
-            "median": 0.25,
-            "mad": 0.05,
+            "kind": "continuous",
+            "median": 0.3,
+            "mad": 0,
             "k": 5,
-            "thresholdMs": 0.5,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 0.5,
+            "thresholdMs": 1.54,
+            "sampleCount": 98
         },
         "react.actualDurationP95Ms": {
-            "median": 0.75,
-            "mad": 0.05,
+            "kind": "continuous",
+            "median": 1.7,
+            "mad": 0.1,
             "k": 5,
-            "thresholdMs": 1,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 2.7,
+            "thresholdMs": 3.916,
+            "sampleCount": 98
         },
         "react.actualDurationMaxMs": {
-            "median": 0.75,
-            "mad": 0.05,
+            "kind": "continuous",
+            "median": 1.7,
+            "mad": 0.1,
             "k": 5,
-            "thresholdMs": 1,
-            "sampleCount": 8
-        },
-        "react.baseDurationMaxMs": {
-            "median": 6.15,
-            "mad": 0.25,
-            "k": 5,
-            "thresholdMs": 7.4,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 2.7,
+            "thresholdMs": 3.916,
+            "sampleCount": 98
         },
         "react.surfaces.primary-sidebar.profiledRenderCount": {
+            "kind": "discrete",
             "median": 4,
             "mad": 0,
             "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 4,
             "thresholdMs": 4,
-            "sampleCount": 8
+            "sampleCount": 98
         },
         "react.surfaces.primary-sidebar.actualDurationP50Ms": {
-            "median": 0.3,
-            "mad": 0.05,
+            "kind": "continuous",
+            "median": 1.1,
+            "mad": 0.1,
             "k": 5,
-            "thresholdMs": 0.55,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 1.7,
+            "thresholdMs": 2.836,
+            "sampleCount": 98
         },
         "react.surfaces.primary-sidebar.actualDurationP95Ms": {
-            "median": 0.75,
-            "mad": 0.05,
+            "kind": "continuous",
+            "median": 1.7,
+            "mad": 0.1,
             "k": 5,
-            "thresholdMs": 1,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 2.7,
+            "thresholdMs": 3.916,
+            "sampleCount": 98
         },
         "react.surfaces.primary-sidebar.actualDurationMaxMs": {
-            "median": 0.75,
-            "mad": 0.05,
+            "kind": "continuous",
+            "median": 1.7,
+            "mad": 0.1,
             "k": 5,
-            "thresholdMs": 1,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 2.7,
+            "thresholdMs": 3.916,
+            "sampleCount": 98
         },
         "react.surfaces.primary-sidebar.actualDurationTotalMs": {
-            "median": 1.8,
-            "mad": 0.15,
+            "kind": "continuous",
+            "median": 5.1,
+            "mad": 0.3,
             "k": 5,
-            "thresholdMs": 2.55,
-            "sampleCount": 8
-        },
-        "react.surfaces.primary-sidebar.baseDurationMaxMs": {
-            "median": 6.15,
-            "mad": 0.25,
-            "k": 5,
-            "thresholdMs": 7.4,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 7.3,
+            "thresholdMs": 8.884,
+            "sampleCount": 98
         },
         "react.surfaces.workbench.profiledRenderCount": {
+            "kind": "discrete",
             "median": 3,
             "mad": 0,
             "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 3,
             "thresholdMs": 3,
-            "sampleCount": 8
+            "sampleCount": 98
         },
         "react.surfaces.workbench.actualDurationP50Ms": {
+            "kind": "continuous",
             "median": 0.1,
             "mad": 0,
             "k": 5,
-            "thresholdMs": 0.1,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 0.2,
+            "thresholdMs": 1.216,
+            "sampleCount": 98
         },
         "react.surfaces.workbench.actualDurationP95Ms": {
-            "median": 0.3,
-            "mad": 0,
+            "kind": "continuous",
+            "median": 0.2,
+            "mad": 0.1,
             "k": 5,
-            "thresholdMs": 0.3,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 0.4,
+            "thresholdMs": 1.756,
+            "sampleCount": 98
         },
         "react.surfaces.workbench.actualDurationMaxMs": {
-            "median": 0.3,
-            "mad": 0,
+            "kind": "continuous",
+            "median": 0.2,
+            "mad": 0.1,
             "k": 5,
-            "thresholdMs": 0.3,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 0.4,
+            "thresholdMs": 1.756,
+            "sampleCount": 98
         },
         "react.surfaces.workbench.actualDurationTotalMs": {
-            "median": 0.4,
-            "mad": 0.05,
+            "kind": "continuous",
+            "median": 0.3,
+            "mad": 0.1,
             "k": 5,
-            "thresholdMs": 0.65,
-            "sampleCount": 8
-        },
-        "react.surfaces.workbench.baseDurationMaxMs": {
-            "median": 2.6,
-            "mad": 0.35,
-            "k": 5,
-            "thresholdMs": 4.35,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 0.7,
+            "thresholdMs": 1.864,
+            "sampleCount": 98
         },
         "react.surfaces.secondary-sidebar.profiledRenderCount": {
+            "kind": "discrete",
             "median": 4,
             "mad": 0,
             "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 4,
             "thresholdMs": 4,
-            "sampleCount": 8
+            "sampleCount": 98
         },
         "react.surfaces.secondary-sidebar.actualDurationP50Ms": {
+            "kind": "continuous",
             "median": 0.1,
-            "mad": 0.05,
+            "mad": 0.1,
             "k": 5,
-            "thresholdMs": 0.35,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 0.5,
+            "thresholdMs": 1.648,
+            "sampleCount": 98
         },
         "react.surfaces.secondary-sidebar.actualDurationP95Ms": {
+            "kind": "continuous",
             "median": 0.4,
-            "mad": 0,
+            "mad": 0.1,
             "k": 5,
-            "thresholdMs": 0.4,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 1,
+            "thresholdMs": 2.08,
+            "sampleCount": 98
         },
         "react.surfaces.secondary-sidebar.actualDurationMaxMs": {
+            "kind": "continuous",
             "median": 0.4,
-            "mad": 0,
+            "mad": 0.1,
             "k": 5,
-            "thresholdMs": 0.4,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 1,
+            "thresholdMs": 2.08,
+            "sampleCount": 98
         },
         "react.surfaces.secondary-sidebar.actualDurationTotalMs": {
-            "median": 0.85,
+            "kind": "continuous",
+            "median": 0.7,
             "mad": 0.1,
             "k": 5,
-            "thresholdMs": 1.35,
-            "sampleCount": 8
-        },
-        "react.surfaces.secondary-sidebar.baseDurationMaxMs": {
-            "median": 1.9,
-            "mad": 0.1,
-            "k": 5,
-            "thresholdMs": 2.4,
-            "sampleCount": 8
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 1.7,
+            "thresholdMs": 2.836,
+            "sampleCount": 98
         },
         "requests.sessionSelect.count": {
+            "kind": "discrete",
             "median": 1,
             "mad": 0,
             "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 1,
             "thresholdMs": 1,
-            "sampleCount": 8
+            "sampleCount": 98
         },
         "requests.sessionSelect.totalDurationMs": {
-            "median": 6.45,
-            "mad": 0.7,
-            "k": 5,
-            "thresholdMs": 9.95,
-            "sampleCount": 8
-        },
-        "requests.sessionSelect.maxDurationMs": {
-            "median": 6.45,
-            "mad": 0.7,
-            "k": 5,
-            "thresholdMs": 9.95,
-            "sampleCount": 8
-        },
-        "requests.appBootstrap.count": {
-            "median": 1,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 1,
-            "sampleCount": 8
-        },
-        "requests.appBootstrap.totalDurationMs": {
-            "median": 7.55,
-            "mad": 0.65,
-            "k": 5,
-            "thresholdMs": 10.8,
-            "sampleCount": 8
-        },
-        "requests.appBootstrap.maxDurationMs": {
-            "median": 7.55,
-            "mad": 0.65,
-            "k": 5,
-            "thresholdMs": 10.8,
-            "sampleCount": 8
-        },
-        "terminals.attachedCount": {
-            "median": 1,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 1,
-            "sampleCount": 8
-        },
-        "terminals.reusedCount": {
-            "median": 1,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 1,
-            "sampleCount": 8
-        },
-        "terminals.stages.snapshotReplay.count": {
-            "median": 0,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 0,
-            "sampleCount": 8
-        },
-        "terminals.stages.snapshotReplay.totalDurationMs": {
-            "median": 0,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 0,
-            "sampleCount": 8
-        },
-        "terminals.stages.snapshotReplay.maxDurationMs": {
-            "median": 0,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 0,
-            "sampleCount": 8
-        },
-        "terminals.stages.webglAttach.count": {
-            "median": 0,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 0,
-            "sampleCount": 8
-        },
-        "terminals.stages.webglAttach.totalDurationMs": {
-            "median": 0,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 0,
-            "sampleCount": 8
-        },
-        "terminals.stages.webglAttach.maxDurationMs": {
-            "median": 0,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 0,
-            "sampleCount": 8
-        },
-        "terminals.stages.xtermCreate.count": {
-            "median": 0,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 0,
-            "sampleCount": 8
-        },
-        "terminals.stages.xtermCreate.totalDurationMs": {
-            "median": 0,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 0,
-            "sampleCount": 8
-        },
-        "terminals.stages.xtermCreate.maxDurationMs": {
-            "median": 0,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 0,
-            "sampleCount": 8
-        },
-        "longAnimationFrames.count": {
-            "median": 0,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 0,
-            "sampleCount": 8
-        },
-        "longAnimationFrames.totalDurationMs": {
-            "median": 0,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 0,
-            "sampleCount": 8
-        },
-        "longAnimationFrames.maxDurationMs": {
-            "median": 0,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 0,
-            "sampleCount": 8
-        },
-        "longAnimationFrames.totalBlockingDurationMs": {
-            "median": 0,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 0,
-            "sampleCount": 8
-        },
-        "longAnimationFrames.maxBlockingDurationMs": {
-            "median": 0,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 0,
-            "sampleCount": 8
-        },
-        "longAnimationFrames.maxStyleAndLayoutDurationMs": {
-            "median": 0,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 0,
-            "sampleCount": 8
-        },
-        "interactions.count": {
-            "median": 1,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 1,
-            "sampleCount": 8
-        },
-        "interactions.maxDurationMs": {
-            "median": 16,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 16,
-            "sampleCount": 8
-        },
-        "interactions.maxInputDelayMs": {
-            "median": 0.85,
-            "mad": 0.1,
-            "k": 5,
-            "thresholdMs": 1.35,
-            "sampleCount": 8
-        },
-        "interactions.maxProcessingDurationMs": {
-            "median": 1.25,
-            "mad": 0.15,
-            "k": 5,
-            "thresholdMs": 2,
-            "sampleCount": 8
-        },
-        "interactions.maxPresentationDelayMs": {
-            "median": 15.3,
-            "mad": 0.15,
-            "k": 5,
-            "thresholdMs": 16.05,
-            "sampleCount": 8
-        },
-        "frames.sampleCount": {
-            "median": 21.5,
-            "mad": 8,
-            "k": 5,
-            "thresholdMs": 61.5,
-            "sampleCount": 8
-        },
-        "frames.estimatedRefreshIntervalMs": {
-            "median": 7.7,
-            "mad": 0.25,
-            "k": 5,
-            "thresholdMs": 8.95,
-            "sampleCount": 8
-        },
-        "frames.intervalP50Ms": {
-            "median": 8.3,
-            "mad": 0,
-            "k": 5,
-            "thresholdMs": 8.3,
-            "sampleCount": 8
-        },
-        "frames.intervalP95Ms": {
-            "median": 10,
-            "mad": 0.25,
-            "k": 5,
-            "thresholdMs": 11.25,
-            "sampleCount": 8
-        },
-        "frames.maxIntervalMs": {
-            "median": 13.3,
-            "mad": 3.55,
-            "k": 5,
-            "thresholdMs": 31.05,
-            "sampleCount": 8
-        },
-        "frames.missedFrameCount": {
-            "median": 0.5,
+            "kind": "continuous",
+            "median": 5.7,
             "mad": 0.5,
             "k": 5,
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 9.6,
+            "thresholdMs": 11.368,
+            "sampleCount": 98
+        },
+        "requests.sessionSelect.maxDurationMs": {
+            "kind": "continuous",
+            "median": 5.7,
+            "mad": 0.5,
+            "k": 5,
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 9.6,
+            "thresholdMs": 11.368,
+            "sampleCount": 98
+        },
+        "requests.appBootstrap.count": {
+            "kind": "discrete",
+            "median": 1,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 1,
+            "thresholdMs": 1,
+            "sampleCount": 98
+        },
+        "requests.appBootstrap.totalDurationMs": {
+            "kind": "continuous",
+            "median": 6.5,
+            "mad": 0.5,
+            "k": 5,
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 10.3,
+            "thresholdMs": 12.124,
+            "sampleCount": 98
+        },
+        "requests.appBootstrap.maxDurationMs": {
+            "kind": "continuous",
+            "median": 6.5,
+            "mad": 0.5,
+            "k": 5,
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 10.3,
+            "thresholdMs": 12.124,
+            "sampleCount": 98
+        },
+        "terminals.attachedCount": {
+            "kind": "discrete",
+            "median": 1,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 1,
+            "thresholdMs": 1,
+            "sampleCount": 98
+        },
+        "terminals.reusedCount": {
+            "kind": "discrete",
+            "median": 1,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 1,
+            "thresholdMs": 1,
+            "sampleCount": 98
+        },
+        "terminals.stages.snapshotReplay.count": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
+        },
+        "terminals.stages.snapshotReplay.totalDurationMs": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
+        },
+        "terminals.stages.snapshotReplay.maxDurationMs": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
+        },
+        "terminals.stages.webglAttach.count": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
+        },
+        "terminals.stages.webglAttach.totalDurationMs": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
+        },
+        "terminals.stages.webglAttach.maxDurationMs": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
+        },
+        "terminals.stages.xtermCreate.count": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
+        },
+        "terminals.stages.xtermCreate.totalDurationMs": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
+        },
+        "terminals.stages.xtermCreate.maxDurationMs": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
+        },
+        "longAnimationFrames.count": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
+        },
+        "longAnimationFrames.totalDurationMs": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
+        },
+        "longAnimationFrames.maxDurationMs": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
+        },
+        "longAnimationFrames.totalBlockingDurationMs": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
+        },
+        "longAnimationFrames.maxBlockingDurationMs": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
+        },
+        "longAnimationFrames.maxStyleAndLayoutDurationMs": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
+        },
+        "interactions.count": {
+            "kind": "discrete",
+            "median": 2,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 3,
             "thresholdMs": 3,
-            "sampleCount": 8
+            "sampleCount": 98
+        },
+        "interactions.maxDurationMs": {
+            "kind": "discrete",
+            "median": 32,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 40,
+            "thresholdMs": 40,
+            "sampleCount": 98
+        },
+        "interactions.maxInputDelayMs": {
+            "kind": "continuous",
+            "median": 5.4,
+            "mad": 0.3,
+            "k": 5,
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 7.9,
+            "thresholdMs": 9.532,
+            "sampleCount": 98
+        },
+        "interactions.maxProcessingDurationMs": {
+            "kind": "continuous",
+            "median": 1,
+            "mad": 0.1,
+            "k": 5,
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 2.6,
+            "thresholdMs": 3.808,
+            "sampleCount": 98
+        },
+        "interactions.maxPresentationDelayMs": {
+            "kind": "continuous",
+            "median": 30.35,
+            "mad": 1.2,
+            "k": 5,
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 38.5,
+            "thresholdMs": 42.58,
+            "sampleCount": 98
+        },
+        "frames.sampleCount": {
+            "kind": "discrete",
+            "median": 12,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 13,
+            "thresholdMs": 13,
+            "sampleCount": 98
+        },
+        "frames.estimatedRefreshIntervalMs": {
+            "kind": "continuous",
+            "median": 16.6,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 16.6,
+            "thresholdMs": 18.928,
+            "sampleCount": 98
+        },
+        "frames.intervalP50Ms": {
+            "kind": "continuous",
+            "median": 16.7,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 16.7,
+            "thresholdMs": 19.036,
+            "sampleCount": 98
+        },
+        "frames.intervalP95Ms": {
+            "kind": "continuous",
+            "median": 18.15,
+            "mad": 0.45,
+            "k": 5,
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 18.7,
+            "thresholdMs": 23.032,
+            "sampleCount": 98
+        },
+        "frames.maxIntervalMs": {
+            "kind": "continuous",
+            "median": 18.15,
+            "mad": 0.45,
+            "k": 5,
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 18.7,
+            "thresholdMs": 23.032,
+            "sampleCount": 98
+        },
+        "frames.missedFrameCount": {
+            "kind": "discrete",
+            "median": 0,
+            "mad": 0,
+            "k": 5,
+            "relativeMargin": 0,
+            "absoluteMarginMs": 0,
+            "historicalMaxMs": 0,
+            "thresholdMs": 0,
+            "sampleCount": 98
         }
     }
 }

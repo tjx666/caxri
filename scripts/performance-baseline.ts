@@ -3,9 +3,38 @@
  * from repeated samples, flattening a benchmark receipt into comparable metrics, and comparing a current run against a
  * committed baseline. `scripts/performance-baseline-collect.ts` produces samples,
  * `scripts/performance-baseline-derive.ts` turns samples into the committed `scripts/performance-baseline.json`, and
- * `scripts/performance-baseline-gate.ts` is the CI entrypoint that uses the comparison below. See
- * `docs/ci-performance.md` for the full design and how to refresh the baseline.
+ * `scripts/performance-baseline-gate.ts` is the CI entrypoint that uses the comparison below.
+ * `scripts/performance-trend.ts` builds on the same `median`/`roundTo` primitives for the separate gradual-creep check.
+ * See `docs/ci-performance.md` for the full design and how to refresh the baseline.
  */
+
+import { readdir } from 'node:fs/promises';
+import { join } from 'node:path';
+
+/**
+ * Recursively finds every file named exactly `filename` under `rootPath`. Recursion is manual (not `readdir(..., {
+ * recursive: true })`) so a symlink inside a downloaded artifact directory is never followed twice -- matching the same
+ * concern `scripts/ci-bundle-budget.ts`'s `measureBytes` documents. Used to collect `renderer-performance.json`
+ * receipts out of a `gh run download` / artifacts directory for `scripts/performance-baseline-derive.ts --input-dir`
+ * and `scripts/performance-trend-check.ts --receipts-dir`.
+ */
+export async function findReceiptFiles(
+    rootPath: string,
+    filename = 'renderer-performance.json',
+): Promise<string[]> {
+    const entries = await readdir(rootPath, { withFileTypes: true });
+    const found: string[] = [];
+    for (const entry of entries) {
+        const entryPath = join(rootPath, entry.name);
+        if (entry.isDirectory()) {
+            // eslint-disable-next-line no-await-in-loop -- a receipts directory is at most a few hundred entries deep
+            found.push(...(await findReceiptFiles(entryPath, filename)));
+        } else if (entry.isFile() && entry.name === filename) {
+            found.push(entryPath);
+        }
+    }
+    return found;
+}
 
 /**
  * Below this many samples the median absolute deviation is dominated by one or two points and is not a trustworthy
@@ -14,16 +43,84 @@
 export const MINIMUM_PERFORMANCE_SAMPLE_COUNT = 8;
 
 /**
+ * Below this many samples a _continuous_ metric's `max(values)` is not a trustworthy estimate of the true historical
+ * tail either -- `docs/ci-performance.md`'s backtest used 98 real runner receipts and only reached a 0% false-failure
+ * rate at that scale. `scripts/performance-baseline-derive.ts` still derives below this count (down to
+ * `MINIMUM_PERFORMANCE_SAMPLE_COUNT`), it only warns, because a first-time arming has no larger corpus to draw from.
+ */
+export const RECOMMENDED_MINIMUM_RUNNER_SAMPLE_COUNT = 40;
+
+/**
  * Multiplier applied to the median absolute deviation. 5x is deliberately generous: the goal is to catch a real,
  * repeated regression (the issue's example is a steady 3% creep per change), not to flag ordinary machine jitter on a
  * shared runner.
  */
 export const DEFAULT_PERFORMANCE_THRESHOLD_K = 5;
 
+/**
+ * Multiplicative margin applied on top of `max(median + k·MAD, historicalMax)` for a continuous metric. Backtested
+ * against 98 real `renderer-performance` runner receipts (see docs/ci-performance.md "Per-run gate: design and
+ * backtest"): `k·MAD` alone collapses on this distribution (the bulk of samples cluster within a fraction of a
+ * millisecond of the median while a legitimate noise tail reaches several percent further out), so the threshold is
+ * anchored to the observed historical maximum instead and this margin absorbs the chance that the next clean run's
+ * maximum lands slightly past every one already seen. 8% plus `DEFAULT_PERFORMANCE_ABSOLUTE_MARGIN_MS` was the smallest
+ * combination that reached a 0% false-failure rate on both the leave-one-out and time-split backtests.
+ */
+export const DEFAULT_PERFORMANCE_RELATIVE_MARGIN = 0.08;
+
+/**
+ * Flat additive margin (in the metric's own unit -- milliseconds for every gated metric) applied after the relative
+ * margin. Alone, a percentage margin is too tight on a near-zero metric (8% of 0.3ms is 0.024ms, smaller than the
+ * receipt's own 0.1ms rounding), so this floor keeps small-scale metrics from re-arming on their own rounding noise.
+ */
+export const DEFAULT_PERFORMANCE_ABSOLUTE_MARGIN_MS = 1;
+
+/**
+ * Metric name patterns excluded from the per-run gate and the trend check even when a receipt reports them -- recorded
+ * in the baseline for visibility, never compared. `react.baseDurationMaxMs` (and its per-surface variants) estimates
+ * the render cost React _would have_ paid without memoization; the 98-receipt historical corpus contains two outliers
+ * (11.2ms and 15.5ms against a 3.4-6.8ms bulk) that no plausible margin absorbs without also hiding a real regression
+ * of similar size -- see docs/ci-performance.md for the backtest that found them. Add another pattern here only with
+ * the same kind of backtest evidence; this is a documented exception, not a place to route every noisy metric.
+ */
+const EXCLUDED_PERFORMANCE_METRIC_PATTERN = /(?:^|\.)baseDurationMaxMs$/u;
+
+export function isExcludedPerformanceMetric(metric: string): boolean {
+    return EXCLUDED_PERFORMANCE_METRIC_PATTERN.test(metric);
+}
+
+/**
+ * A metric is treated as discrete (render/commit counts, and any duration metric the platform itself quantizes to whole
+ * milliseconds, such as the Event Timing API's `interactions.maxDurationMs`) when every sample in the derivation window
+ * happens to be a whole number. This is deliberately shape-based rather than name-based: a dot-path allowlist of
+ * "count" names would miss `interactions.maxDurationMs`, which is a genuine duration but reads as one of only four
+ * values (16/24/32/40) because the browser rounds it -- exactly the "frame-quantized metric" case
+ * `docs/ci-performance.md` documents needing the historical-max treatment instead of median + k·MAD. Real
+ * `performance.now()`-based millisecond durations (`durationMs`, `react.actualDurationP95Ms`, ...) have never landed on
+ * a whole number across every sample in the 98-receipt historical corpus, so this heuristic does not misclassify them
+ * there; a future metric that manages to do so only affects that one metric's threshold shape, not the others.
+ */
+export function isDiscretePerformanceMetric(values: readonly number[]): boolean {
+    return values.length > 0 && values.every((value) => Number.isSafeInteger(value));
+}
+
 export interface PerformanceMetricBaseline {
+    kind: 'continuous' | 'discrete';
     median: number;
     mad: number;
     k: number;
+    /**
+     * 0 for a discrete metric -- its threshold is the bare historical maximum, see `derivePerformanceMetricBaseline`.
+     */
+    relativeMargin: number;
+    /**
+     * 0 for a discrete metric.
+     */
+    absoluteMarginMs: number;
+    /**
+     * Raw `max(values)` from the derivation window, kept alongside `thresholdMs` for auditability.
+     */
+    historicalMaxMs: number;
     thresholdMs: number;
     sampleCount: number;
 }
@@ -40,6 +137,13 @@ export interface PerformanceBaseline {
     spec: string;
     recordedAt: string;
     commit: string;
+    /**
+     * Free-text description of the runner receipts this baseline was derived from -- an artifact/run id range and a
+     * date range, matching `docs/ci-performance.md`'s arming recipe. Never a local filesystem path: the receipts are
+     * downloaded into an operator-chosen temp directory that must not end up in a committed, eventually-public file.
+     * Present only for `source: 'runner'` derivations; `--source local` never writes it.
+     */
+    provenance?: string;
     metrics: Record<string, PerformanceMetricBaseline>;
 }
 
@@ -58,6 +162,7 @@ type PerformanceGateRowStatus = 'ok' | 'regressed';
 
 interface PerformanceGateRow {
     metric: string;
+    kind: 'continuous' | 'discrete';
     currentMs: number;
     baselineMedianMs: number;
     thresholdMs: number;
@@ -81,7 +186,7 @@ export interface PerformanceGateResult {
     reason?: string;
 }
 
-function roundTo(value: number, decimals: number): number {
+export function roundTo(value: number, decimals: number): number {
     const factor = 10 ** decimals;
     return Math.round(value * factor) / factor;
 }
@@ -97,27 +202,71 @@ export function medianAbsoluteDeviation(values: readonly number[], center: numbe
     return median(values.map((value) => Math.abs(value - center)));
 }
 
+export interface DerivePerformanceMetricBaselineOptions {
+    /**
+     * Multiplier on the median absolute deviation, see `DEFAULT_PERFORMANCE_THRESHOLD_K`.
+     */
+    k?: number;
+    /**
+     * See `DEFAULT_PERFORMANCE_RELATIVE_MARGIN`. Ignored for a discrete metric.
+     */
+    relativeMargin?: number;
+    /**
+     * See `DEFAULT_PERFORMANCE_ABSOLUTE_MARGIN_MS`. Ignored for a discrete metric.
+     */
+    absoluteMarginMs?: number;
+}
+
 /**
- * Median + k·MAD threshold for one metric. Throws below `MINIMUM_PERFORMANCE_SAMPLE_COUNT` rather than returning a
- * threshold built on too little evidence — a caller that wants to skip an under-sampled metric should catch this and
- * omit it.
+ * Derives one metric's gate threshold from repeated samples. Throws below `MINIMUM_PERFORMANCE_SAMPLE_COUNT` rather
+ * than returning a threshold built on too little evidence — a caller that wants to skip an under-sampled metric should
+ * catch this and omit it.
+ *
+ * `isDiscretePerformanceMetric` decides the shape:
+ *
+ * - Discrete (render/commit counts, frame-quantized durations): `thresholdMs` is the bare historical maximum. There is no
+ *   margin, so an intended increase (a new count that is genuinely supposed to be higher) requires an explicit baseline
+ *   refresh rather than silently widening on its own next time it is sampled.
+ * - Continuous (ordinary sub-millisecond-resolution durations): `thresholdMs` is `max(median + k·MAD, historicalMax) * (1
+ *
+ *   - RelativeMargin) + absoluteMarginMs`. `k·MAD`alone is a real spread estimate but collapses on a distribution whose
+ *       bulk sits far tighter than its legitimate tail (see`DEFAULT_PERFORMANCE_RELATIVE_MARGIN`'s comment); anchoring
+ *       to the historical maximum instead, with a margin to absorb the next clean run landing slightly past every one
+ *       already seen, is what reached a 0% false-failure rate in the backtest documented in docs/ci-performance.md.
  */
 export function derivePerformanceMetricBaseline(
     values: readonly number[],
-    k: number = DEFAULT_PERFORMANCE_THRESHOLD_K,
+    options: DerivePerformanceMetricBaselineOptions = {},
 ): PerformanceMetricBaseline {
     if (values.length < MINIMUM_PERFORMANCE_SAMPLE_COUNT) {
         throw new Error(
             `insufficient samples (${values.length}) to derive a threshold; need at least ${MINIMUM_PERFORMANCE_SAMPLE_COUNT}`,
         );
     }
+    const k = options.k ?? DEFAULT_PERFORMANCE_THRESHOLD_K;
     const centerValue = median(values);
     const spread = medianAbsoluteDeviation(values, centerValue);
+    const historicalMax = Math.max(...values);
+    const isDiscrete = isDiscretePerformanceMetric(values);
+    const relativeMargin = isDiscrete
+        ? 0
+        : (options.relativeMargin ?? DEFAULT_PERFORMANCE_RELATIVE_MARGIN);
+    const absoluteMarginMs = isDiscrete
+        ? 0
+        : (options.absoluteMarginMs ?? DEFAULT_PERFORMANCE_ABSOLUTE_MARGIN_MS);
+    const thresholdMs = isDiscrete
+        ? historicalMax
+        : Math.max(centerValue + k * spread, historicalMax) * (1 + relativeMargin) +
+          absoluteMarginMs;
     return {
+        kind: isDiscrete ? 'discrete' : 'continuous',
         median: roundTo(centerValue, 3),
         mad: roundTo(spread, 3),
         k,
-        thresholdMs: roundTo(centerValue + k * spread, 3),
+        relativeMargin,
+        absoluteMarginMs,
+        historicalMaxMs: roundTo(historicalMax, 3),
+        thresholdMs: roundTo(thresholdMs, 3),
         sampleCount: values.length,
     };
 }
@@ -185,7 +334,7 @@ export function comparePerformanceSamplesToBaseline(
             missingFromCurrent.push(metric);
             continue;
         }
-        const { median: baselineMedianMs, thresholdMs } = baseline.metrics[metric];
+        const { kind, median: baselineMedianMs, thresholdMs } = baseline.metrics[metric];
         const deltaPercent =
             baselineMedianMs === 0
                 ? currentMs === 0
@@ -194,6 +343,7 @@ export function comparePerformanceSamplesToBaseline(
                 : ((currentMs - baselineMedianMs) / baselineMedianMs) * 100;
         rows.push({
             metric,
+            kind,
             currentMs,
             baselineMedianMs,
             thresholdMs,
@@ -238,11 +388,11 @@ export function formatPerformanceGateTable(result: PerformanceGateResult): strin
         );
     }
     const lines = [
-        '| Metric | Current | Baseline median | Threshold (median + k·MAD) | Δ vs baseline | Status |',
-        '| --- | ---: | ---: | ---: | ---: | --- |',
+        '| Metric | Kind | Current | Baseline median | Threshold | Δ vs baseline | Status |',
+        '| --- | --- | ---: | ---: | ---: | ---: | --- |',
         ...result.rows.map(
             (row) =>
-                `| ${row.metric} | ${formatMs(row.currentMs)} | ${formatMs(row.baselineMedianMs)} | ` +
+                `| ${row.metric} | ${row.kind} | ${formatMs(row.currentMs)} | ${formatMs(row.baselineMedianMs)} | ` +
                 `${formatMs(row.thresholdMs)} | ${row.deltaPercent >= 0 ? '+' : ''}${row.deltaPercent.toFixed(1)}% | ` +
                 `${row.status === 'regressed' ? '🔴 regressed' : '🟢 ok'} |`,
         ),
