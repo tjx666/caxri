@@ -82,10 +82,13 @@ names are fixed when a generation begins; Caxri does not expose a dynamic rename
 A Shell Terminal can become an Agent Terminal when its unpublished input line launches `claude` or
 `codex`, either directly or through a shell alias. Terminal Host keeps a simple-command candidate in
 memory for a bounded window and confirms aliases from the PTY's active foreground process group using a
-fixed, bounded `ps` query; compound commands and background processes are excluded. Once the provider
-executable is confirmed, Server Core promotes the durable Terminal atomically so its shared icon and
-title update even before the provider writes session metadata. A later same-Project, unclaimed metadata
-session created after command submission supplies the Agent session ID and generated title. Shell input
+fixed, bounded `ps` query; compound commands and background processes are excluded. Every candidate gets
+five one-second probes; only a direct Agent command then keeps probing with backoff until the window closes,
+because a slow exec can outlast the fast retries and metadata never restores a same-provider relaunch's
+process state. Once the provider executable is confirmed, Server Core promotes the durable Terminal
+atomically so its shared icon and title update even before the provider writes session metadata. A later
+same-Project, unclaimed metadata session created after command submission supplies the Agent session ID
+and generated title. Shell input
 and process-list output are never logged or persisted, and ordinary output alone does not infer Agent
 identity.
 

@@ -332,6 +332,10 @@ process.stdout.write('FIXTURE_AGENT_READY\r\n');
         database.close();
     });
 
+    /**
+     * The explicit timeout covers the worst case of each bounded wait below: CLI startup, the independent foreground
+     * barrier, and the longest production backoff between product probes.
+     */
     it('reactivates a same-provider Agent launched manually in the live Shell', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-agent-relaunch-'));
         temporaryDirectories.push(directory);
@@ -371,6 +375,7 @@ process.stdout.write('FIXTURE_AGENT_READY\r\n');
             },
         );
         let output = '';
+        let observedShellPid: number | undefined;
         const shell = createShellFixture(directory);
         const manager = createTestTerminalManager(
             database,
@@ -380,8 +385,10 @@ process.stdout.write('FIXTURE_AGENT_READY\r\n');
             logger,
             {
                 ...shell.options,
-                onOutputActivity: (terminalId, shellPid) =>
-                    coordinator.observeOutput(terminalId, shellPid),
+                onOutputActivity: (terminalId, shellPid) => {
+                    observedShellPid = shellPid;
+                    coordinator.observeOutput(terminalId, shellPid);
+                },
                 spawn: spawnTrackedPty,
             },
         );
@@ -396,22 +403,35 @@ process.stdout.write('FIXTURE_AGENT_READY\r\n');
             expect(manager.write(created.terminal!.id, `${executable}\r`)).toBe(true);
             expect(coordinator.observeInput(created.terminal!.id, `${executable}\r`)).toBe(true);
 
-            // The local fake CLI must execute within the existing five-second bound. Foreground detection samples
-            // the OS process tree separately and can wait for the next production retry, hence its ten-second bound.
             await expect.poll(() => output, { timeout: 5_000 }).toContain('MANUAL_CLAUDE_READY');
-            await expect.poll(() => detectedProviders, { timeout: 10_000 }).toContain('claude');
+            /**
+             * Barrier: an independent process-table read must see the synthetic CLI in the PTY foreground group before
+             * the product is judged. A timeout here means the host had not exposed the process yet (the test waited too
+             * little); a timeout on the next wait means the coordinator missed an Agent the OS already showed. That
+             * product wait gets ten seconds because the longest production backoff between probes is eight.
+             */
+            await expect
+                .poll(
+                    () =>
+                        observedShellPid === undefined
+                            ? undefined
+                            : detectForegroundAgentProvider(observedShellPid),
+                    { timeout: 10_000 },
+                )
+                .toBe('claude');
             await expect
                 .poll(() => database.getTerminal(created.terminal!.id)?.lastAgentProcessState, {
-                    timeout: 5_000,
+                    timeout: 10_000,
                 })
                 .toBe('running');
+            expect(detectedProviders).toContain('claude');
         } finally {
             coordinator.close();
             await manager.shutdown('orderly');
             await drainTrackedPtys();
             database.close();
         }
-    });
+    }, 30_000);
 
     it('ignores input and resize requests that arrive after a Terminal has stopped', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-stale-input-'));
