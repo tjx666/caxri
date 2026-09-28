@@ -243,4 +243,20 @@ describe('mobileUpdateStore', () => {
         expect(listener).toHaveBeenCalledTimes(2);
         unsubscribe();
     });
+
+    it('notifies a later subscriber when an earlier one throws', () => {
+        const failing = vi.fn(() => {
+            throw new Error('mobile update listener failure');
+        });
+        const surviving = vi.fn();
+        const unsubscribeFailing = mobileUpdateStore.subscribe(failing);
+        const unsubscribeSurviving = mobileUpdateStore.subscribe(surviving);
+
+        mobileUpdateStore.setPhase({ kind: 'installing' });
+
+        expect(failing).toHaveBeenCalledTimes(1);
+        expect(surviving).toHaveBeenCalledTimes(1);
+        unsubscribeFailing();
+        unsubscribeSurviving();
+    });
 });

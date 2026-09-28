@@ -100,7 +100,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         eventLoopMonitor.stop();
         await lease.release();
     });
-    const agentEndpoints = new AgentEndpointRegistry(lease.identity.processIdentity);
+    const agentEndpoints = new AgentEndpointRegistry(lease.identity.processIdentity, { logger });
     let server: ControlServer | undefined;
     const { providerMessaging, agentInbox } = createAgentMessaging(agentEndpoints, () => server);
     const endpointControl = createAgentEndpointControl(agentEndpoints);

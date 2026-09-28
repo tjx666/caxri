@@ -143,6 +143,24 @@ describe('view event bridge', () => {
         expect(received).toEqual([]);
     });
 
+    it('delivers to a later subscriber of the same scope when an earlier one throws', () => {
+        startViewEventBridge();
+        const failing = vi.fn(() => {
+            throw new Error('view event listener failure');
+        });
+        const surviving = vi.fn();
+        subscribeViewEvents(scope, failing);
+        subscribeViewEvents(scope, surviving);
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        const viewEvent = event('event-fanout');
+        for (const listener of mocks.listeners) listener(viewEvent);
+
+        expect(failing).toHaveBeenCalledTimes(1);
+        expect(surviving).toHaveBeenCalledExactlyOnceWith(viewEvent);
+        vi.restoreAllMocks();
+    });
+
     it('uses the same key for a Session-scoped event and its matching subscriber', () => {
         expect(
             viewEventScopeKey({

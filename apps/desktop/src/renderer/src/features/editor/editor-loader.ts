@@ -1,3 +1,5 @@
+import { notifyListeners } from '@caxri/utils';
+
 import type * as MonacoApi from '../../lib/monaco';
 import type { CodeEditor } from './code-editor';
 
@@ -58,7 +60,11 @@ function loadDependencies(): Promise<[CodeEditorModule, MonacoModule]> {
 function publishCodeEditor(module: CodeEditorModule): CodeEditorModule {
     if (state.loadedEditor) return module;
     state.loadedEditor = module.CodeEditor;
-    for (const listener of listeners) listener();
+    // Isolates each editor-loaded subscriber so one throwing surface cannot stop the other mounted editors from
+    // observing that the real editor module is ready; Desktop mirrors `console.error` into `logs/desktop.jsonl`.
+    notifyListeners(listeners, undefined, (error) =>
+        console.error('editor.codeEditorLoaded listener failed', error),
+    );
     return module;
 }
 

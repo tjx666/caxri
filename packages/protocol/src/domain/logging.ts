@@ -71,7 +71,9 @@ export const logEventCatalog = {
         transitioned: 'agent_dispatch.transitioned',
     },
     agentEndpoint: {
+        messagingChangedListenerFailed: 'agent_endpoint.messaging_changed_listener_failed',
         retireFailed: 'agent_endpoint.retire_failed',
+        retiredListenerFailed: 'agent_endpoint.retired_listener_failed',
     },
     agentHooks: {
         bridgeStarted: 'agent_hooks.bridge_started',
@@ -106,6 +108,7 @@ export const logEventCatalog = {
     configuration: {
         loadFailed: 'configuration.load_failed',
         pollChangeFailed: 'configuration.poll_change_failed',
+        settingsListenerFailed: 'configuration.settings_listener_failed',
         watchChangeFailed: 'configuration.watch_change_failed',
         watcherError: 'configuration.watcher.error',
         watcherReady: 'configuration.watcher.ready',

@@ -703,6 +703,9 @@ importers:
       '@caxri/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@caxri/utils':
+        specifier: workspace:*
+        version: link:../utils
       ws:
         specifier: 'catalog:'
         version: 8.21.3

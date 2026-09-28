@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import type { StructuredLogger } from '@caxri/system';
+import { describe, expect, it, vi } from 'vitest';
 
 import { AgentEndpointRegistry } from '..';
 
@@ -316,5 +317,63 @@ describe('AgentEndpointRegistry', () => {
         ).toBe(true);
         expect(registry.resolve(endpoint.ref).messaging).toEqual(messaging);
         expect(changed).toEqual(['pull_ready']);
+    });
+
+    it('notifies a later messagingChanged listener when an earlier one throws', () => {
+        const write = vi.fn();
+        const registry = new AgentEndpointRegistry('host-1', {
+            token: () => TOKEN,
+            logger: { write } as unknown as StructuredLogger,
+        });
+        const endpoint = begin(registry);
+        activate(registry, endpoint);
+        const failing = vi.fn(() => {
+            throw new Error('messagingChanged listener failure');
+        });
+        const surviving = vi.fn();
+        registry.onMessagingChanged(failing);
+        registry.onMessagingChanged(surviving);
+        const messaging = {
+            deliveryMode: 'pull' as const,
+            health: 'ready' as const,
+            reason: 'pull_ready' as const,
+            checkedAt: 2,
+            nextAction: 'use_pull' as const,
+        };
+
+        expect(
+            registry.updateMessaging({ ref: endpoint.ref, launchId: 'launch-1', messaging }),
+        ).toBe(true);
+
+        expect(failing).toHaveBeenCalledTimes(1);
+        expect(surviving).toHaveBeenCalledTimes(1);
+        expect(write).toHaveBeenCalledWith(
+            'warn',
+            'agent_endpoint.messaging_changed_listener_failed',
+            { fields: { error: 'messagingChanged listener failure' } },
+        );
+    });
+
+    it('notifies a later retired listener when an earlier one throws', () => {
+        const write = vi.fn();
+        const registry = new AgentEndpointRegistry('host-1', {
+            token: () => TOKEN,
+            logger: { write } as unknown as StructuredLogger,
+        });
+        begin(registry);
+        const failing = vi.fn(() => {
+            throw new Error('retired listener failure');
+        });
+        const surviving = vi.fn();
+        registry.onRetired(failing);
+        registry.onRetired(surviving);
+
+        registry.retireTerminal('terminal-1');
+
+        expect(failing).toHaveBeenCalledTimes(1);
+        expect(surviving).toHaveBeenCalledTimes(1);
+        expect(write).toHaveBeenCalledWith('warn', 'agent_endpoint.retired_listener_failed', {
+            fields: { error: 'retired listener failure' },
+        });
     });
 });
