@@ -147,7 +147,10 @@ _would the user click accept/reject on this?_
    commits, commands, and artifact paths in English. For every temporal check, name the observable
    start marker, end marker, and stop condition before launching. If the claimed ordering has no
    observable product marker, split the evidence into a user outcome and a focused supporting
-   contract instead of starting an open-ended experiment.
+   contract instead of starting an open-ended experiment. A desktop case that imports a theme or
+   must show update UI declares `themeImportFixture` or `updateFixture`; the launcher arms Main
+   fixtures only from these declarations
+   ([references/report.md](references/report.md#initialize-from-the-frozen-plan)).
    Every mobile item also declares `mobileDevice` with `platform`, exact `deviceId`, and
    `appId: "com.caxri.mobile"`; finalization requires a matching
    `assets/<case-id>-mobile-device.json` receipt bound to the frozen commit and declared isolation

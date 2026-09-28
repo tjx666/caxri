@@ -258,6 +258,17 @@ or `agentFixture: "grok-build-v1"` for fake Grok Build. Launch with the matching
 `assets/<case-id>-agent-fixture.json` in the case evidence. Finalization requires the receipt to
 match the frozen id and every fixture launch to have completed owned-profile cleanup.
 
+Two Main fixtures are armed only by the launched case's own declaration, never by a Main-side case
+list. Declare `themeImportFixture: true` for a desktop case that clicks **Import Theme** so the
+file choice comes from the per-profile command file; `init` fails, naming the case id, when a
+desktop item's id, title, method, or expected text mentions theme import or a theme file without
+the declaration. `false` records that the case deliberately does not use the fixture; only such a
+case, launched with the native-dialog authorization marker, may reach the real open panel. Declare
+`updateFixture: "available"` for a desktop case that must show the update notification or dialog;
+Main swaps GitHub discovery for one fixed release and keeps download and install disabled. Both
+declarations are desktop-only, and the launcher re-validates them before any lifecycle receipt is
+written.
+
 An isolated case may retry after a ready launch when setup, fixture preflight, or evidence capture
 fails. Stop and fully clean the previous launch first, then start again with a fresh isolated
 profile. The lifecycle receipt preserves every attempt; finalization accepts the history only when

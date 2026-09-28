@@ -24,6 +24,7 @@ import { app, BrowserWindow, dialog, Menu, powerMonitor, shell } from 'electron'
 
 import { isBenignRendererErrorMessage } from '../shared/renderer-error-policy';
 import { shouldEnableAcceptanceAccessibility } from './acceptance-accessibility';
+import { createAcceptanceUpdateFixture } from './acceptance-update';
 import type { AgentCommanderWindowController } from './agent-commander-window';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import type { AppQuitIntent } from './app-quit';
@@ -68,7 +69,7 @@ import { ProjectRootGrants } from './root-grants';
 import { DesktopServerConnection, resolveDesktopLaunch, wirePowerWake } from './server-connection';
 import { shouldContinueStartup } from './server-startup';
 import { createTestRootPathResolver } from './test-root';
-import { shouldStartAutomaticUpdateCheck, UpdateService, updateStateLogFields } from './updates';
+import { UpdateService, updateStateLogFields } from './updates';
 import {
     createWindowZoomController,
     mainWindowChromeOptions,
@@ -139,7 +140,6 @@ if (ownsProfileInstance) {
     let isForceWindowClose = false;
     let isQuitStarted = false;
     let quitIntent: AppQuitIntent = 'user';
-    let isAutomaticUpdateCheckStarted = false;
     const grantedRoots = new ProjectRootGrants();
     const rendererReadiness = new RendererReadiness();
     const resolveNextTestRootPath = createTestRootPathResolver({ isPackaged: app.isPackaged });
@@ -303,22 +303,7 @@ if (ownsProfileInstance) {
                 durationMs: performance.now() - bootStartedAt,
             });
             if (e2eWindowMode === 'visible') window.show();
-            if (
-                shouldStartAutomaticUpdateCheck({
-                    alreadyStarted: isAutomaticUpdateCheckStarted,
-                    isE2E: process.env.CAXRI_E2E === '1',
-                    isPackaged: app.isPackaged,
-                })
-            ) {
-                isAutomaticUpdateCheckStarted = true;
-                /**
-                 * Update discovery stays off the awaited startup path and never delays the first window;
-                 * `updateService.check()` already publishes failures through its own state, so this is deliberately
-                 * fire-and-forget rather than awaited.
-                 */
-                // eslint-disable-next-line unicorn/prefer-await -- see comment above
-                updateService.check().catch(() => {});
-            }
+            updateService.startAutomaticCheck({ isE2E: process.env.CAXRI_E2E === '1' });
         });
         /**
          * Passive page content never inherits authority from an explicitly trusted Terminal link.
@@ -684,6 +669,11 @@ if (ownsProfileInstance) {
                 });
             }
             updateService = new UpdateService({
+                acceptanceDiscovery: createAcceptanceUpdateFixture({
+                    environment: process.env,
+                    isPackaged: app.isPackaged,
+                    userDataPath,
+                }),
                 currentVersion: caxriVersion,
                 downloadDirectory: join(userDataPath, 'updates'),
                 enabled: app.isPackaged,

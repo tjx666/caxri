@@ -102,14 +102,13 @@ describe('Acceptance Electron launcher seams', () => {
     );
 
     it.each([
-        [undefined, undefined],
-        ['other-case', undefined],
-        ['issue-826-surface-seam', 'issue-826-surface-seam'],
-        ['issue-824-syntax-and-terminal-selection', 'issue-824-syntax-and-terminal-selection'],
-        ['issue-825-include-zero-hit-vsix', 'issue-825-include-zero-hit-vsix'],
-    ])('binds theme import fixture authority to case %s', (caseId, expected) => {
+        ['an undeclared case', 'issue-826-surface-seam', {}, undefined],
+        ['an explicit opt-out', 'new-theme-case', { themeImportFixture: false }, undefined],
+        ['a declared case', 'new-theme-case', { themeImportFixture: true }, 'new-theme-case'],
+    ])('arms theme import for %s from its frozen plan', (_, caseId, declaredFixtures, expected) => {
         const spec = createElectronLaunchSpec({
             caseId,
+            declaredFixtures,
             port: 9222,
             testRootPath: '/tmp/project',
             testRootPaths: ['/tmp/project'],
@@ -118,6 +117,68 @@ describe('Acceptance Electron launcher seams', () => {
             agentEnvironment: { CAXRI_ACCEPTANCE_THEME_IMPORT: 'issue-826-surface-seam' },
         });
         expect(spec.options.env.CAXRI_ACCEPTANCE_THEME_IMPORT).toBe(expected);
+    });
+
+    it.each([
+        ['an undeclared case', {}, undefined],
+        [
+            'a declared case',
+            { updateFixture: 'available' as const },
+            'available:update-notification',
+        ],
+    ])('arms the update fixture for %s from its frozen plan', (_, declaredFixtures, expected) => {
+        const spec = createElectronLaunchSpec({
+            caseId: 'update-notification',
+            declaredFixtures,
+            port: 9222,
+            testRootPath: '/tmp/project',
+            testRootPaths: ['/tmp/project'],
+            userDataDir: '/tmp/caxri-acceptance-owned',
+            environment: { CAXRI_ACCEPTANCE_UPDATE: 'available' },
+            agentEnvironment: { CAXRI_ACCEPTANCE_UPDATE: 'available' },
+        });
+        expect(spec.options.env.CAXRI_ACCEPTANCE_UPDATE).toBe(expected);
+    });
+
+    it.each([
+        ['an authorized, declared native handoff', 'explicit-user-request', false, '1'],
+        ['an undeclared case with the marker', 'explicit-user-request', undefined, undefined],
+        ['a declared handoff without the marker', undefined, false, undefined],
+        ['a forged marker', 'yes', false, undefined],
+    ])(
+        'derives the native theme import capability for %s',
+        (_, marker, themeImportFixture, expected) => {
+            const spec = createElectronLaunchSpec({
+                caseId: 'theme-native-handoff',
+                declaredFixtures: { themeImportFixture },
+                environment: {
+                    CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION: marker,
+                    CAXRI_ACCEPTANCE_NATIVE_THEME_IMPORT: '1',
+                },
+                port: 9222,
+                testRootPath: '/tmp/project',
+                testRootPaths: ['/tmp/project'],
+                userDataDir: '/tmp/caxri-acceptance-owned',
+            });
+            expect(spec.options.env.CAXRI_ACCEPTANCE_NATIVE_THEME_IMPORT).toBe(expected);
+        },
+    );
+
+    it('refuses a declared theme import fixture on a native-dialog launch', () => {
+        expect(() =>
+            createElectronLaunchSpec({
+                caseId: 'new-theme-case',
+                declaredFixtures: { themeImportFixture: true },
+                environment: {
+                    CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION: 'explicit-user-request',
+                },
+                port: 9222,
+                testRootPath: '/tmp/project',
+                testRootPaths: ['/tmp/project'],
+                useTestRootFixture: false,
+                userDataDir: '/tmp/caxri-acceptance-owned',
+            }),
+        ).toThrow('declares themeImportFixture, which needs the default test-root fixture');
     });
 
     it.each([

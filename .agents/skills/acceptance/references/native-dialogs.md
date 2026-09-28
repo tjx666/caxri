@@ -59,7 +59,9 @@ CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION=explicit-user-request \
 ```
 
 An open panel uses its exact product title, semantic `Open` action, and a real non-hidden fixture
-inside the current Acceptance worktree:
+inside the current Acceptance worktree. For **Import Theme**, the frozen plan must declare
+`"themeImportFixture": false` and `start-electron.ts` must run under the same marker; otherwise Main
+rejects the import instead of opening the panel:
 
 ```bash
 CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION=explicit-user-request \
