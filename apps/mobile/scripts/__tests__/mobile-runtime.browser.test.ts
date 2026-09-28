@@ -115,6 +115,7 @@ describe('mobile runtime browser boundaries', () => {
                     export class MobileReconnectError extends Error {}
                     export class MobileVersionMismatchError extends Error {}
                     export const reconnectMobileGateway = async () => { throw new Error('Unexpected reconnect'); };
+                    export const openSocket = async () => { throw new Error('Unexpected update recovery'); };
                     export const pairMobileGateway = async (input) => {
                         const name = input.pairingLink;
                         const connection = { close: () => globalThis.fixture.closed.push(name),
@@ -426,6 +427,7 @@ describe('mobile runtime browser boundaries', () => {
                 export class MobileReconnectError extends Error {}
                 export class MobileVersionMismatchError extends Error {}
                 export const reconnectMobileGateway = async () => { throw new Error('Unexpected reconnect'); };
+                export const openSocket = async () => { throw new Error('Unexpected update recovery'); };
                 export const pairMobileGateway = async () => ({
                     credential: { serverId: 'server-fixture', deviceId: 'device-fixture', generation: 1 },
                     connection: {

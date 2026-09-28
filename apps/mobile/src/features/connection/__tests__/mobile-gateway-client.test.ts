@@ -122,9 +122,31 @@ describe('mobile gateway client', () => {
         await store.save(mobileCredential);
 
         await expect(reconnectMobileGateway(mobileCredential, runtime, store)).rejects.toEqual(
-            expect.objectContaining({ code: 'version-mismatch' }),
+            expect.objectContaining({
+                code: 'version-mismatch',
+                isDesktopNewer: false,
+                supportedVersion: 1,
+            }),
         );
         await expect(store.load()).resolves.toEqual(mobileCredential);
+    });
+
+    it('marks a mismatch from a newer Desktop as one update recovery can fix', async () => {
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket: () =>
+                new VersionMismatchSocket(MOBILE_TRANSPORT_VERSION + 1) as unknown as WebSocket,
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const { store } = memoryStore();
+
+        await expect(reconnectMobileGateway(mobileCredential, runtime, store)).rejects.toEqual(
+            expect.objectContaining({
+                code: 'version-mismatch',
+                isDesktopNewer: true,
+                supportedVersion: MOBILE_TRANSPORT_VERSION + 1,
+            }),
+        );
     });
 
     it('classifies a version-mismatch response as terminal during pairing', async () => {

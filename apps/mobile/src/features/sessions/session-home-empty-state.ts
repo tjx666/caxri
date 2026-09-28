@@ -33,7 +33,8 @@ export const describeSessionHomeEmptyState = ({
     if (status === 'version-mismatch')
         return {
             action: null,
-            body: 'Update this app and Caxri on your computer to the latest build.',
+            // The banner above says which side to update; this body must stay true for either answer.
+            body: 'Sessions appear once this app and Caxri on your computer match.',
             showSpinner: false,
             testID: 'session-list-version-mismatch',
             title: 'Update required',
