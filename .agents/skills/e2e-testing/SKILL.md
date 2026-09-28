@@ -226,20 +226,25 @@ runner and the harness, not real user data:
 - The `.jsonl` log attachments are the raw structured logs (`e2e/support/error-gate.ts` copies the
   file as-is), so their safety comes from the writer: `safeFields()` in
   `packages/system/src/observability/logger.ts` passes every string field through `redactLogValue()`
-  (`packages/system/src/observability/redaction.ts`), which replaces the home directory with `$HOME`
-  and redacts secret-shaped text before anything reaches disk. Re-verify that path, not the narrower
-  receipt parser, after a logger change. The pool receipt is narrower still, and
-  `assertE2EPoolReceipt` rejects an absolute path in it. Both are safe to upload as-is.
+  (`packages/system/src/observability/redaction.ts`), which replaces the process's own home directory
+  with `$HOME` and redacts secret-shaped text before anything reaches disk. Re-verify that path, not
+  the narrower receipt parser, after a logger change. The pool receipt is narrower still, and
+  `assertE2EPoolReceipt` rejects an absolute path in it.
+- Fixture paths are not covered by that home redaction on the self-hosted runner: the job's temp root
+  sits under the runner account's home but outside the E2E process `HOME`, so a fixture path in a log,
+  `error-context.md`, or `trace.zip` still names the runner account. Every CI job log already prints
+  the same root in its step environment, so the artifact adds no new identity; neutralizing it is
+  tracked with the Terminal item below in issue #1461.
 - Screenshots and `trace.zip` render Caxri's UI against synthetic fixtures (fake projects, fake file
   content), so the Editor/File Explorer/diff surfaces they capture are not real user data.
-- The Terminal pane is the one residual risk: it hosts a real PTY shell with the runner's real
+- The Terminal pane is the other residual risk: it hosts a real PTY shell with the runner's real
   environment (`launchCaxriApp` spreads `process.env` into the launched app), so a screenshot or
   trace of a Terminal-focused failure can show the runner's real shell prompt (hostname/account
   name). This is inherent to testing Caxri's PTY integration against a real shell rather than a
   newly introduced leak, and sanitizing every E2E PTY environment (e.g. forcing a scripted prompt) is
   a separate, larger hardening item — accepted here as a known residual, not a blocker for uploading
-  the evidence this issue's acceptance criteria call for. Do not fold it into an unrelated change;
-  raise it as its own issue if it needs to move.
+  the evidence this issue's acceptance criteria call for. Issue #1461 tracks it; do not fold it into
+  an unrelated change.
 
 ### Diagnosing an error-gate notification
 
