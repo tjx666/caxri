@@ -2,6 +2,7 @@ import type { AgentHeldMessage } from '@caxri/protocol';
 import { Inbox } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import { heldMessageDeadlineLabel } from './agent-message-approval-state';
 
 interface AgentMessageApprovalWaitingListProperties {
     approvals: readonly AgentHeldMessage[];
@@ -53,10 +54,7 @@ export function AgentMessageApprovalWaitingList({
                                     className="ml-auto shrink-0 text-[11px] text-muted"
                                     dateTime={new Date(approval.expiresAt).toISOString()}
                                 >
-                                    {`Until ${new Date(approval.expiresAt).toLocaleTimeString([], {
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                    })}`}
+                                    {`Until ${heldMessageDeadlineLabel(approval.expiresAt)}`}
                                 </time>
                             </div>
                             <p className="m-0 truncate text-[11px] text-muted">
