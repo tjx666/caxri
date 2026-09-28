@@ -62,4 +62,22 @@ describe('CI E2E failure artifacts', () => {
             '--reporter=line,./scripts/reporters/e2e-receipt-reporter.ts',
         );
     });
+
+    it('uploads a concurrent pool only once that pool actually started and left its receipt', () => {
+        const document = parse(workflow) as {
+            jobs: { e2e: { steps: Array<{ if?: string; name?: string }> } };
+        };
+        for (const pool of ['parallel-safe', 'desktop-exclusive']) {
+            const upload = document.jobs.e2e.steps.find(
+                (step) => step.name === `Upload ${pool} failure artifacts`,
+            );
+            const condition = String(upload?.if).replaceAll(/\s+/gu, ' ');
+            // The direct pool step always launched the pool, so it uploads unconditionally on failure and keeps
+            // `if-no-files-found: error` meaningful; the concurrent receipt check can fail for a pool that never ran.
+            expect(condition).toContain(`steps.${pool}.outcome == 'failure' ||`);
+            expect(condition).toContain(
+                `steps.${pool}-receipt.outcome == 'failure' && hashFiles('test-results/receipts/${pool}.json') != ''`,
+            );
+        }
+    });
 });

@@ -216,7 +216,9 @@ A failed pool's `e2e-<pool>-failure-artifacts` CI artifact carries both the pool
 (`test-results/receipts/<pool>.json`) and the pool's full Playwright output directory
 (`test-results/<pool>/**`): per-test screenshots, `trace.zip` (retained on failure only), and the
 `caxri-desktop-*.jsonl` / `caxri-server-core-*.jsonl` log attachments below. `.github/workflows/ci.yml`
-owns the exact upload step per pool.
+owns the exact upload step per pool. A pool that concurrent validation aborted before its turn has no
+receipt and uploads nothing; `ci-concurrent-validation.json` in `e2e-auxiliary-failure-artifacts`
+records it as `null`.
 
 **Artifact-content audit (issue #1446).** E2E fixtures are synthetic, so this audit is about the
 runner and the harness, not real user data:
