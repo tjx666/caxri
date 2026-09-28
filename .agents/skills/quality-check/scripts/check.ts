@@ -1,7 +1,7 @@
 import type { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
 import { lstat } from 'node:fs/promises';
-import { extname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
+import { basename, extname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -42,6 +42,11 @@ export interface CheckOptions {
     e2eGrep?: string;
     e2eWaitSeconds?: number;
     files: string[];
+    /**
+     * No selector was passed, so the check picks its own gates: lint, related tests, and a typecheck whenever a changed
+     * path can affect types. An explicit selector runs exactly what it names, which keeps fast iteration fast.
+     */
+    isDefaultSelection: boolean;
     isStaged: boolean;
     knip: boolean;
     lint: boolean;
@@ -271,6 +276,7 @@ export function parseCheckArguments(arguments_: string[]): CheckOptions {
         e2eGrep: undefined,
         e2eWaitSeconds: undefined,
         files: [],
+        isDefaultSelection: false,
         isStaged: false,
         knip: false,
         lint: false,
@@ -294,11 +300,36 @@ export function parseCheckArguments(arguments_: string[]): CheckOptions {
         throw new CheckError('--e2e-wait requires --e2e', 2);
 
     if (!options.e2e && !options.knip && !options.lint && !options.test && !options.type) {
+        options.isDefaultSelection = true;
         options.lint = true;
         options.test = true;
     }
 
     return options;
+}
+
+const TYPE_SOURCE_EXTENSIONS = new Set(['.cts', '.mts', '.ts', '.tsx']);
+const TYPE_INPUT_FILES = new Set(['package.json', 'pnpm-lock.yaml']);
+
+/**
+ * Whether a changed path can change what TypeScript reports: a source, a `tsconfig*.json`, or a manifest or lockfile
+ * that moves a dependency's types. Deleted paths count too, since removing a module breaks every importer.
+ */
+export function canAffectTypes(file: string): boolean {
+    const name = basename(file);
+    return (
+        TYPE_SOURCE_EXTENSIONS.has(extname(name).toLowerCase()) ||
+        TYPE_INPUT_FILES.has(name) ||
+        /^tsconfig.*\.json$/.test(name)
+    );
+}
+
+/**
+ * The default selection adds the repository-wide typecheck (about 16 seconds) only when a changed path can affect
+ * types; lint and related tests alone once passed a change whose type error then failed CI's `checks` job.
+ */
+export function shouldTypecheck(options: CheckOptions, changedFiles: readonly string[]): boolean {
+    return options.type || (options.isDefaultSelection && changedFiles.some(canAffectTypes));
 }
 
 export function selectE2ESpecs(files: string[], hasExplicitFiles: boolean): string[] {
@@ -469,13 +500,13 @@ function parseNullSeparated(value: string): string[] {
 
 export async function discoverChangedFiles(root: string, isStaged: boolean): Promise<string[]> {
     const trackedArguments = isStaged
-        ? ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR', '--']
+        ? ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMRD', '--']
         : [
               'diff',
               (await runCapture('git', ['merge-base', 'origin/main', 'HEAD'], root)).trim(),
               '--name-only',
               '-z',
-              '--diff-filter=ACMR',
+              '--diff-filter=ACMRD',
               '--',
           ];
     const tracked = parseNullSeparated(await runCapture('git', trackedArguments, root));
@@ -708,7 +739,7 @@ async function main(): Promise<void> {
 
     if (options.lint) summaries.push(`lint ${await runLint(root, files)}`);
     if (options.test) summaries.push(`tests ${await runTests(root, files)}`);
-    if (options.type) {
+    if (shouldTypecheck(options, requestedFiles)) {
         await runCapture('bun', ['run', 'typecheck'], root);
         summaries.push('typecheck');
     }
