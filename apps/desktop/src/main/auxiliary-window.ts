@@ -1,6 +1,6 @@
 import type { LogEventName } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import type { BrowserWindowConstructorOptions } from 'electron';
+import type { BrowserWindowConstructorOptions, Rectangle } from 'electron';
 import { BrowserWindow } from 'electron';
 
 import { isBenignRendererErrorMessage } from '../shared/renderer-error-policy';
@@ -109,6 +109,24 @@ export function createAuxiliaryWindow(options: AuxiliaryWindowOptions): BrowserW
     // eslint-disable-next-line unicorn/prefer-await -- see comment above
     window.loadURL(rendererUrl).catch(() => {});
     return window;
+}
+
+/**
+ * Wires an auxiliary window's `moved`/`resized`/`close` events to remember its normal bounds. Shared by the Agent
+ * Commander and Process Explorer controllers so this wiring, and the display-clamped restore it feeds
+ * (`auxiliary-window-bounds.ts`), exist in exactly one place instead of two near-identical copies. `close` also covers
+ * a crash-like destroy that never reaches `moved`/`resized` again.
+ */
+export function trackAuxiliaryWindowBounds(
+    window: BrowserWindow,
+    remember: (bounds: Rectangle) => void,
+): void {
+    const onChange = (): void => {
+        if (!window.isDestroyed()) remember(window.getNormalBounds());
+    };
+    window.on('moved', onChange);
+    window.on('resized', onChange);
+    window.on('close', onChange);
 }
 
 /**

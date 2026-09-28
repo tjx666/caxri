@@ -32,11 +32,18 @@ Workbench, recentering its traffic lights in the zoomed header. View > Zoom In, 
 Actual Size from the focused Commander run on the Workbench, which owns the setting, without
 bringing it forward, so the Commander zooms in place. Zoom is the one command a Workbench modal
 dialog does not block (`allowBehindModal`), so an open dialog the user cannot see never swallows
-it. The Process Explorer does not follow the zoom.
+it. The Process Explorer follows the same app-wide zoom, the same way.
 
 Closing the window leaves the Commander running, so the user reopens it often. The controller
 records the window's bounds after each move and resize and on close, and reopens it there for the
-rest of the app run; an app restart opens it at the default size again.
+rest of the app run. That bounds/open state also survives an app restart: `app.auxiliaryWindowState`
+(`auxiliaryWindowStateSchema`, one combined `app_state` row shared with the Process Explorer) persists
+it at quit, `resolveAuxiliaryWindowBounds` (`auxiliary-window-bounds.ts`) clamps the remembered
+rectangle to whichever display it currently matches so an unplugged monitor never reopens the window
+off-screen, and `reopenAuxiliaryWindowsAtStartup` (`auxiliary-window-lifecycle.ts`) reopens the
+Commander automatically, after the Workbench window and Server are already up, exactly when it was
+still open at the previous quit. The Process Explorer remembers its bounds the same way but never
+reopens itself; the user opens it again through the same entry points as any other launch.
 
 The window runs with the Desktop principal. Main therefore authorizes it separately, through
 `AgentCommanderRendererPolicy` (`agent-commander-policy.ts`) in the `caxri:request` IPC path:

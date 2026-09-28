@@ -10,6 +10,8 @@ import type {
  */
 export const desktopServerOperationIds = [
     'agent.replySummary',
+    'app.auxiliaryWindowState.get',
+    'app.auxiliaryWindowState.update',
     'app.windowState.get',
     'app.windowState.update',
     'bugReport.deliver',
