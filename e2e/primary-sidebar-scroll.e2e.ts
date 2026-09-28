@@ -56,6 +56,11 @@ test('the Primary Sidebar Session list paints a top-edge shadow only after it ha
         await expect
             .poll(() => list.evaluate((element) => element.scrollHeight > element.clientHeight))
             .toBe(true);
+        // Each reveal click scrolls the reveal row, which sits below the fold, into view, so the drained list is left
+        // scrolled; start the shadow assertions from the top edge instead of from wherever the clicks stopped.
+        await list.evaluate((element) => {
+            element.scrollTop = 0;
+        });
         await expect(list).toHaveAttribute('data-scrolled', 'false');
         expect(
             await list.evaluate(
