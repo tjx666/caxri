@@ -30,7 +30,7 @@ const usePanelRead = <Result>(
     });
 };
 
-export const usePanelsList = (sessionId: string) => {
+const usePanelsList = (sessionId: string) => {
     const { request } = useMobileClient();
     return usePanelRead(['list', sessionId], () => request('mobile.panels.list', { sessionId }));
 };
