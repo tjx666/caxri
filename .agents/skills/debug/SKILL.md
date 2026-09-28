@@ -197,6 +197,11 @@ attached window; prefer agent-browser over hand-rolled CDP. Only if attachment m
 back to a raw CDP WebSocket: read the target list from `http://127.0.0.1:$PORT/json/list`, open the
 page target's `webSocketDebuggerUrl`, and drive it with `Runtime.evaluate` from a small Bun script.
 
+Give `agent-browser screenshot` an absolute output path under `/tmp` or the task's artifact
+directory. A relative path resolves against the long-lived agent-browser daemon's working
+directory, not the invoking shell's, so `cd /tmp && agent-browser screenshot panel.png` can still
+drop an untracked image into whichever checkout first started the daemon.
+
 ## Production debugging controls
 
 Every build, packaged included, is already fully instrumented: debug logs, source maps, the Renderer
