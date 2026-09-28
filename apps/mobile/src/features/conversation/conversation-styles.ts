@@ -60,9 +60,12 @@ export const conversationStyles = StyleSheet.create({
         marginTop: 6,
         padding: 10,
     },
-    turnDivider: { alignItems: 'center', flexDirection: 'row', gap: 12, paddingVertical: 4 },
-    turnLine: { flex: 1, height: 1 },
-    turnText: { fontSize: 11 },
+    /**
+     * A small centered caption, like a chat app's time stamp, so turn boundaries stay out of the reading flow.
+     */
+    turnDivider: { alignItems: 'center', paddingVertical: 2 },
+    turnPill: { borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1 },
+    turnText: { fontSize: 11, lineHeight: 15 },
     status: { alignItems: 'center', flex: 1, gap: 12, justifyContent: 'center', padding: 24 },
     statusText: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
     button: {

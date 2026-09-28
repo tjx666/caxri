@@ -24,9 +24,15 @@ Caxri includes normalized app, editor, and Terminal palettes derived from severa
 
 ## JetBrains Mono
 
-Caxri bundles JetBrains Mono Regular, Bold, Italic, and Bold Italic for consistent terminal text rendering.
+Caxri bundles JetBrains Mono Regular, Bold, Italic, and Bold Italic for consistent terminal text rendering; the mobile app bundles the Regular and Bold faces.
 
 Copyright 2020 The JetBrains Mono Project Authors. Licensed under the SIL Open Font License 1.1. The vendored license text is in `licenses/JETBRAINS_MONO_OFL.txt`; the upstream source is <https://github.com/JetBrains/JetBrainsMono>.
+
+## Noto Sans Symbols 2
+
+The Caxri mobile app bundles a subset of Noto Sans Symbols 2 (arrows, technical symbols, geometric shapes, and dingbats) as a terminal fallback for glyphs JetBrains Mono lacks, such as the media-control arrows Agent CLIs print.
+
+Copyright 2022 The Noto Project Authors. Licensed under the SIL Open Font License 1.1. The vendored license text is in `licenses/NOTO_SANS_SYMBOLS_OFL.txt`; the upstream source is <https://github.com/notofonts/symbols>.
 
 ## Nerd Fonts Symbols
 
