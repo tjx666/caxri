@@ -95,11 +95,16 @@ directories.
   across different repositories or release boundaries, when the existing branch cannot safely own
   the change, or when the user explicitly requests it; otherwise ask before splitting. Cancel an
   obsolete run before pushing a replacement so the shared runner performs only useful work.
-- With explicit user authorization, small fixes and minor features may be committed directly on
-  `main` and pushed without a pull request. Documentation-only changes carry that authorization
-  standing: commit them on `main` in the primary checkout and push, with no worktree, pull
-  request, or CI run, as defined in `pull-request`'s fast-merge section. `main` and remote branches
-  can move at any moment.
+- `main` requires the `guards` status check to pass before anything merges, with no bypass for any
+  actor, so a raw `git push` to `main` always fails: GitHub rejects it outright because the pushed
+  commit has never had `guards` run against its exact SHA. Every change, including a one-line
+  documentation fix or a small fix the user explicitly authorized to skip review, goes through a
+  pull request. With explicit user authorization, small fixes and minor features may skip the
+  normal readiness bar and merge as soon as `guards` passes. Documentation-only changes carry that
+  authorization standing: open a pull request (no separate worktree needed for a documentation-only
+  diff) and merge it once `guards` passes, without waiting for the non-required `checks`/`e2e` job,
+  as defined in `pull-request`'s fast-merge section. `main` and remote branches can move at any
+  moment.
 - When you encounter commits you did not author — after a branch switch, fetch, rebase, or a PR
   merge — treat the newest commits as authoritative by default. Rebase or merge onto them and
   resolve conflicts in favor of the latest state. Do not stop to ask, and do not discard the
