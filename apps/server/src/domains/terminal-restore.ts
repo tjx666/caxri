@@ -1,15 +1,13 @@
-import type { ServerEvent } from '@caxri/protocol';
-import { visiblePaneTerminalIds } from '@caxri/protocol';
+import type { AgentLaunchSettings, ServerEvent, TerminalRecord } from '@caxri/protocol';
+import { isDelegationActive, visiblePaneTerminalIds } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+import { delegationResumeLaunch } from './agent-delegation';
 import type { AgentCoordinator } from './agents';
 import type { CaxriDatabase } from './db';
-import type {
-    TerminalManager,
-    TerminalRestoreSupervisor,
-    TerminalWorkingDirectoryIdentity,
-} from './terminal';
+import type { TerminalManager, TerminalWorkingDirectoryIdentity } from './terminal';
+import { TerminalRestoreSupervisor } from './terminal';
 
 interface InterruptedTerminalRestorerOptions {
     coordinator: AgentCoordinator;
@@ -19,7 +17,36 @@ interface InterruptedTerminalRestorerOptions {
     terminalDirectoryIdentity: (path: string) => Promise<TerminalWorkingDirectoryIdentity>;
     terminalRestores: TerminalRestoreSupervisor;
     terminals: TerminalManager;
+    /**
+     * Where delegation task files live, so a restored delegated Agent keeps the directory grant its task launched with.
+     */
+    userDataPath: string;
     visibleGridWaitMs: number;
+}
+
+/**
+ * How a Terminal's delegated Agent comes back. While one of its tasks is still active, only the outer Shell restores:
+ * that task continues through an explicit `--resume`, which must not race a second copy of the same conversation. Once
+ * every task settled, the Agent resumes like any other, with the frozen launch configuration its newest task ran with,
+ * so a restart does not quietly swap in the user's default model or effort. `undefined` means no delegation touched
+ * it.
+ */
+function delegatedAgentRestore(
+    database: CaxriDatabase,
+    terminal: TerminalRecord,
+    userDataPath: string,
+): { launchSettings?: AgentLaunchSettings; shouldRestoreAgent: boolean } | undefined {
+    const tasks = database.agentDelegations.forTerminal(terminal.id);
+    if (tasks.length === 0) return undefined;
+    if (tasks.some((task) => isDelegationActive(task.receipt)))
+        return { shouldRestoreAgent: false };
+    const newest = tasks.reduce((latest, task) =>
+        task.receipt.createdAt > latest.receipt.createdAt ? task : latest,
+    );
+    return {
+        launchSettings: delegationResumeLaunch(newest, userDataPath),
+        shouldRestoreAgent: true,
+    };
 }
 
 export interface TerminalRestoreOptions {
@@ -28,6 +55,20 @@ export interface TerminalRestoreOptions {
      * only the explicit `session.resume` request opts them back in.
      */
     includeDetached?: boolean;
+}
+
+/**
+ * The Agent Commander Session is never selected, so it restores through its own supervisor: sharing the Workbench's
+ * would let the next Session selection abort the Commander's resume.
+ */
+export function createCommanderTerminalRestorer(
+    options: Omit<InterruptedTerminalRestorerOptions, 'terminalRestores'>,
+) {
+    const supervisor = new TerminalRestoreSupervisor(1);
+    return {
+        restore: createInterruptedTerminalRestorer({ ...options, terminalRestores: supervisor }),
+        supervisor,
+    };
 }
 
 export function createInterruptedTerminalRestorer(options: InterruptedTerminalRestorerOptions) {
@@ -39,6 +80,7 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
         terminalDirectoryIdentity,
         terminalRestores,
         terminals,
+        userDataPath,
         visibleGridWaitMs,
     } = options;
     /**
@@ -71,10 +113,9 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
         const restored = await terminalRestores.restore(
             sessionId,
             interrupted.map((terminal) => async (isCurrent, abortSignal) => {
-                // Delegations require an explicit new task on their frozen native session; selection restores only
-                // the outer Shell so a restart cannot replay unknown work or replace the frozen launch configuration.
+                const delegated = delegatedAgentRestore(database, terminal, userDataPath);
                 const shouldRestoreAgent =
-                    !database.agentDelegations.hasTerminal(terminal.id) &&
+                    (delegated?.shouldRestoreAgent ?? true) &&
                     ['detached', 'interrupted', 'running', 'starting', 'suspended'].includes(
                         terminal.lastAgentProcessState ?? 'stopped',
                     );
@@ -100,6 +141,10 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
                         expectedWorkingDirectory,
                         launchAgent: shouldRestoreAgent,
                         resumeAgentSessionId,
+                        ...(shouldRestoreAgent &&
+                            delegated?.launchSettings && {
+                                launchSettings: delegated.launchSettings,
+                            }),
                         shouldStart: isCurrent,
                         abortSignal,
                         waitForAttachedSizeMs: visibleTerminalIds.has(terminal.id)

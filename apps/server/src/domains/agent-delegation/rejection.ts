@@ -2,6 +2,9 @@ import type { AgentDelegationReceipt } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+import type { StoredAgentDelegation } from '../db';
+import type { AgentDelegationServiceOptions } from './service-options';
+
 type DelegationFailure = NonNullable<AgentDelegationReceipt['failure']>;
 
 /**
@@ -162,4 +165,64 @@ export function reportResumeRejection(
     reason: DelegationResumeRejection,
 ): DelegationFailure {
     return report(logger, delegationId, 'resume', reason, delegationResumeRejections[reason]);
+}
+
+/**
+ * The live Terminal reads an admission checks a parent task against. A missing Terminal host reads as no launch, no
+ * epoch, and never idle.
+ */
+type DelegationTarget = Pick<
+    AgentDelegationServiceOptions,
+    'currentLaunchId' | 'database' | 'dispatch' | 'inputEpoch' | 'isIdle'
+>;
+
+/**
+ * The first condition that keeps a follow-up from reaching its parent's live launch, in admission order.
+ */
+export function followUpRejection(
+    parent: StoredAgentDelegation,
+    target: DelegationTarget,
+    isBusy: (terminalId: string) => boolean,
+): DelegationFollowUpRejection | undefined {
+    const { terminalId } = parent.receipt;
+    if (parent.nextDelegationId) return 'parent_chained';
+    if (terminalId && isBusy(terminalId)) return 'terminal_busy';
+    if (!terminalId) return 'no_terminal';
+    if (parent.hasLostTarget) return 'target_lost';
+    if (!parent.launchId) return 'no_launch';
+    if (!parent.providerSessionId) return 'no_provider_session';
+    if (target.currentLaunchId?.(terminalId) !== parent.launchId) return 'launch_replaced';
+    if (parent.hasHumanIntervention) return 'human_intervened';
+    if (parent.inputEpoch === undefined) return 'no_input_epoch';
+    if (target.inputEpoch?.(terminalId) !== parent.inputEpoch) return 'input_epoch_moved';
+    if (!parent.turnId) return 'no_turn';
+    if (!target.isIdle?.(terminalId, parent.launchId, parent.turnId)) return 'target_not_idle';
+    return undefined;
+}
+
+/**
+ * The first condition that keeps an exact resume from relaunching its parent's conversation, in admission order.
+ */
+export function resumeRejection(
+    parent: StoredAgentDelegation,
+    target: DelegationTarget,
+    isBusy: (terminalId: string) => boolean,
+): DelegationResumeRejection | undefined {
+    const { terminalId } = parent.receipt;
+    if (!terminalId) return 'no_terminal';
+    if (!parent.providerSessionId) return 'no_provider_session';
+    if (target.database.getTerminal(terminalId)?.agentSessionId !== parent.providerSessionId)
+        return 'provider_session_replaced';
+    if (parent.nextDelegationId) return 'parent_chained';
+    if (isBusy(terminalId)) return 'terminal_busy';
+    if (parent.hasLostTarget) return 'target_lost';
+    const currentLaunchId = target.currentLaunchId?.(terminalId);
+    if (currentLaunchId && currentLaunchId !== parent.launchId) return 'launch_replaced';
+    if (parent.hasHumanIntervention) return 'human_intervened';
+    if (parent.inputEpoch === undefined) return 'no_input_epoch';
+    if (target.inputEpoch?.(terminalId) !== parent.inputEpoch) return 'input_epoch_moved';
+    if (parent.receipt.status === 'human_intervened' || parent.receipt.failure === 'human_input')
+        return 'parent_human_intervened';
+    if (!target.dispatch.resume) return 'resume_unsupported';
+    return undefined;
 }

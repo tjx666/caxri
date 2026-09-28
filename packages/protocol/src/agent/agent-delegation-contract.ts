@@ -103,27 +103,59 @@ const promptSchema = z
         'Task must be at most 16 KiB and cannot contain terminal control characters',
     );
 
+const agentDelegationCreateFields = {
+    projectId: identifierSchema,
+    sessionId: identifierSchema,
+    provider: delegationProviderSchema.optional(),
+    preset: delegationPresetNameSchema.optional(),
+    model: delegationModelSchema.optional(),
+    effort: delegationEffortSchema.optional(),
+    callerProvider: delegationProviderSchema.optional(),
+    prompt: promptSchema,
+    followUpOf: identifierSchema.optional(),
+    resumeFrom: identifierSchema.optional(),
+};
+
+type DelegationCreateShape = Partial<
+    Record<'effort' | 'followUpOf' | 'model' | 'preset' | 'provider' | 'resumeFrom', unknown>
+>;
+
+const isOneContinuation = (value: DelegationCreateShape) => !(value.followUpOf && value.resumeFrom);
+const isPresetExclusive = (value: DelegationCreateShape) =>
+    !value.preset || (!value.provider && !value.model && !value.effort);
+const hasLaunchSource = (value: DelegationCreateShape) =>
+    Boolean(value.provider ?? value.preset ?? value.followUpOf ?? value.resumeFrom);
+
+/**
+ * A task admitted into one exact Session. This is what the delegation domain stores and authorizes.
+ */
 export const agentDelegationCreateSchema = z
+    .strictObject(agentDelegationCreateFields)
+    .refine(isOneContinuation, 'Choose follow-up or exact resume')
+    .refine(isPresetExclusive, 'A preset owns its provider, model and effort')
+    .refine(hasLaunchSource, 'Choose a provider, preset or saved task');
+
+/**
+ * What a caller sends. `newSession` asks the Agent Commander's own delegation to create the Session it runs in, so the
+ * Session first appears with its Agent Terminal already inside instead of sitting empty while the Commander writes the
+ * next command. It starts a new task, so it cannot continue a saved one.
+ */
+export const agentDelegationCreateRequestSchema = z
     .strictObject({
-        projectId: identifierSchema,
-        sessionId: identifierSchema,
-        provider: delegationProviderSchema.optional(),
-        preset: delegationPresetNameSchema.optional(),
-        model: delegationModelSchema.optional(),
-        effort: delegationEffortSchema.optional(),
-        callerProvider: delegationProviderSchema.optional(),
-        prompt: promptSchema,
-        followUpOf: identifierSchema.optional(),
-        resumeFrom: identifierSchema.optional(),
+        ...agentDelegationCreateFields,
+        sessionId: identifierSchema.optional(),
+        newSession: z.literal(true).optional(),
     })
-    .refine((value) => !(value.followUpOf && value.resumeFrom), 'Choose follow-up or exact resume')
+    .refine(isOneContinuation, 'Choose follow-up or exact resume')
+    .refine(isPresetExclusive, 'A preset owns its provider, model and effort')
+    .refine(hasLaunchSource, 'Choose a provider, preset or saved task')
     .refine(
-        (value) => !value.preset || (!value.provider && !value.model && !value.effort),
-        'A preset owns its provider, model and effort',
+        (value) => Boolean(value.sessionId) !== Boolean(value.newSession),
+        'Choose one Session or a new Session',
     )
     .refine(
-        (value) => Boolean(value.provider ?? value.preset ?? value.followUpOf ?? value.resumeFrom),
-        'Choose a provider, preset or saved task',
+        (value) => !value.newSession || (!value.followUpOf && !value.resumeFrom),
+        'A new Session starts a new task',
     );
 
 export const agentDelegationAnswerSchema = z.strictObject({
@@ -173,7 +205,7 @@ export const agentDelegationMethods = {
     },
     'agent.delegation.create': {
         ...commandPolicy('server', 'control', ['agents.delegate']),
-        params: agentDelegationCreateSchema,
+        params: agentDelegationCreateRequestSchema,
         result: agentDelegationReceiptSchema,
     },
     'agent.delegation.status': {
@@ -218,7 +250,7 @@ export const agentDelegationInternalMethods = {
         ...commandPolicy('server', 'control'),
         params: authoritySchema.extend({
             delegationId: identifierSchema,
-            input: agentDelegationCreateSchema,
+            input: agentDelegationCreateRequestSchema,
         }),
         result: agentDelegationReceiptSchema,
     },
@@ -252,3 +284,4 @@ export function isDelegationActive(receipt: AgentDelegationReceipt): boolean {
 }
 export type AgentDelegationAnswer = z.infer<typeof agentDelegationAnswerSchema>;
 export type AgentDelegationCreate = z.infer<typeof agentDelegationCreateSchema>;
+export type AgentDelegationCreateRequest = z.infer<typeof agentDelegationCreateRequestSchema>;

@@ -1,4 +1,8 @@
-import type { AgentDelegationReceipt, AgentDelegationSettings } from '@caxri/protocol';
+import type {
+    AgentDelegationReceipt,
+    AgentDelegationSettings,
+    FullStateChangeReason,
+} from '@caxri/protocol';
 
 import { AgentDelegationService, createDelegationHandlers } from './agent-delegation';
 import type { AgentDispatchServiceOptions } from './agent-dispatch';
@@ -14,6 +18,7 @@ import {
     readDelegationTranscript,
     readVersion,
 } from './agents';
+import { createCommanderSession, discardCommanderSession } from './commander';
 import { mainOwned } from './service-handlers';
 
 /**
@@ -32,12 +37,29 @@ export function createAgentCommandRuntime(
     },
 ) {
     const dispatchService = new AgentDispatchService(options);
+    const announce = (reason: FullStateChangeReason) =>
+        options.emit({ event: 'state.changed', payload: { kind: 'full', reason } });
     const delegationService = new AgentDelegationService({
         database: options.database,
         delegationSettings: () => options.delegationSettings(),
         dispatch: dispatchService,
         logger: options.logger,
         userDataPath: options.userDataPath,
+        commanderSessions: {
+            create: (projectId) => {
+                const sessionId = createCommanderSession(
+                    options.database,
+                    projectId,
+                    options.logger,
+                );
+                announce('session.create');
+                return sessionId;
+            },
+            discard: (sessionId) =>
+                discardCommanderSession(options.database, sessionId, options.logger, () =>
+                    announce('session.delete'),
+                ),
+        },
         dimensions: (terminalId) => options.terminals.dimensions(terminalId),
         inputEpoch: (terminalId) => options.terminals.inputEpoch(terminalId),
         currentLaunchId: (terminalId) =>

@@ -10,6 +10,7 @@ import { CaxriError } from '@caxri/protocol';
  */
 // react-doctor-disable-next-line react-doctor/no-barrel-import
 import { agentProviders, delegationAdapter } from '../agents';
+import type { StoredAgentDelegation } from '../db';
 
 /**
  * Delegations own native session identity and interactive submission. An ambiguous positional argument or caller-owned
@@ -100,4 +101,24 @@ export async function prepareDelegationLaunch(
         }),
         promptDigest: createHash('sha256').update(pointer).digest('hex'),
     };
+}
+
+/**
+ * The launch that continues a task chain's native conversation: the frozen launch, pointed at the chain's private
+ * directory when the provider keeps resume state there. Session restore and `--resume` share it, so both relaunch the
+ * conversation with the settings the task was admitted with rather than the user's current defaults.
+ */
+export function delegationResumeLaunch(
+    record: StoredAgentDelegation,
+    userDataPath: string,
+): AgentLaunchSettings {
+    const directory = join(
+        userDataPath,
+        'delegations',
+        record.rootDelegationId ?? record.receipt.delegationId,
+    );
+    return (
+        delegationAdapter(record.receipt.provider).resumeLaunch?.(record.frozenLaunch, directory) ??
+        record.frozenLaunch
+    );
 }

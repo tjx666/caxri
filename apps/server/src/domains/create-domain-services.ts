@@ -51,7 +51,10 @@ import {
 } from './terminal-input';
 import { createTerminalMoveHandler } from './terminal-move';
 import { createTerminalRestartHandler } from './terminal-restart';
-import { createInterruptedTerminalRestorer } from './terminal-restore';
+import {
+    createCommanderTerminalRestorer,
+    createInterruptedTerminalRestorer,
+} from './terminal-restore';
 import { resolveTerminalWorkingDirectory } from './terminal-working-directory';
 import * as provenance from './workbench-provenance';
 import { validateWorkbenchRequestContext } from './workbench-request-context';
@@ -345,6 +348,7 @@ export async function createDomainServices(
         send,
         terminalDirectoryIdentity,
         terminals,
+        userDataPath,
         visibleGridWaitMs:
             dependencies.terminalRestoreGridWaitMs ?? VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS,
     };
@@ -355,19 +359,13 @@ export async function createDomainServices(
     const { restoreInterruptedTerminalsInBackground, watchSessionInBackground } =
         createBackgroundTasks(logger, files, git, restoreInterruptedTerminals);
     terminalSuspension.setOnSuspendedSessionReselected(restoreInterruptedTerminalsInBackground);
-    /**
-     * The Agent Commander Session is never selected, so it restores through its own supervisor: sharing the Workbench's
-     * would let the next Session selection abort the Commander's resume.
-     */
-    const commanderRestores = new TerminalRestoreSupervisor(1);
+    const { restore: restoreCommander, supervisor: commanderRestores } =
+        createCommanderTerminalRestorer(restorerOptions);
     const restoreCommanderTerminals = createBackgroundTasks(
         logger,
         files,
         git,
-        createInterruptedTerminalRestorer({
-            ...restorerOptions,
-            terminalRestores: commanderRestores,
-        }),
+        restoreCommander,
     ).restoreInterruptedTerminalsInBackground;
     /**
      * The one place that tells background services which Session is now current. Project Status polls only this
