@@ -5,6 +5,7 @@ import { Tooltip, TooltipProvider } from '../../components/ui/tooltip';
 import { useWorkbenchAppearance } from '../../hooks/use-workbench-appearance';
 import { ConfirmationDialog } from '../confirmations/confirmation-dialog';
 import { ToastOutlet } from '../toasts/toast-outlet';
+import { useWindowZoomFactor } from '../window-zoom/use-window-zoom-factor';
 import { CommanderBoardView } from './commander-board-view';
 import { useAgentCommanderStore } from './commander-client';
 import { stopCommander } from './commander-commands';
@@ -20,6 +21,7 @@ import { useAgentCommander } from './use-agent-commander';
 export function AgentCommanderApp() {
     const { retry, status } = useAgentCommander();
     useWorkbenchAppearance();
+    useWindowZoomFactor();
     useCommanderShortcuts();
     return (
         <TooltipProvider>
@@ -44,13 +46,13 @@ export function AgentCommanderApp() {
 }
 
 /**
- * The window's whole title bar, and its drag region. `pl-[78px]` clears the macOS `hiddenInset` traffic lights, the
- * same clearance the Workbench's collapsed header uses.
+ * The window's whole title bar, and its drag region. Its left padding clears the macOS `hiddenInset` traffic lights,
+ * the same zoom-aware clearance the Workbench's collapsed header uses.
  */
 function AgentCommanderHeader() {
     const workspacePath = useAgentCommanderStore((state) => state.workspacePath);
     return (
-        <header className="agent-commander-header flex h-11 flex-none items-center gap-2 bg-surface pr-3 pl-[78px] [-webkit-app-region:drag]">
+        <header className="agent-commander-header flex h-11 flex-none items-center gap-2 bg-surface pr-3 pl-(--traffic-light-clearance) [-webkit-app-region:drag]">
             <h1 className="m-0 flex-none text-[13px] font-medium">Agent Commander</h1>
             {workspacePath && (
                 <span

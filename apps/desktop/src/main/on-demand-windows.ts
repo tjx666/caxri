@@ -20,6 +20,7 @@ export function createOnDemandWindows(options: {
     mainWindow: () => BrowserWindow | undefined;
     supervisor: DesktopServerConnection;
     windowMode: E2EWindowMode;
+    zoomLevel: () => number;
 }) {
     const { currentDirectory, supervisor, windowMode } = options;
     const agentCommander = new AgentCommanderWindowController({
@@ -30,6 +31,7 @@ export function createOnDemandWindows(options: {
         rendererUrl: process.env.ELECTRON_RENDERER_URL,
         stopCommander: () => supervisor.request('commander.stop'),
         windowMode,
+        zoomLevel: options.zoomLevel,
     });
     const processExplorer: ProcessExplorerWindowController = new ProcessExplorerWindowController({
         currentDirectory,
