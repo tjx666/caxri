@@ -21,6 +21,23 @@ profile Server with the artifact's pinned runtime when none exists. Agent and CI
 start a Server implicitly. The standalone CLI bundle keeps offline introspection available and
 connects to an existing Server without acquiring native dependencies of its own.
 
+## Installing `caxri` on `PATH`
+
+Installing the app does not touch `PATH`. Run `Shell Command: Install 'caxri' Command in PATH`
+from the Command Palette of the packaged app to link `/usr/local/bin/caxri` to that bundle's
+launcher, the same way VS Code installs `code`. `/usr/local/bin` is in macOS's default
+`/etc/paths`, so new login shells find it without editing startup files. When the directory is not
+writable, Caxri explains the change first and then asks for administrator privileges through the
+standard macOS prompt; dismissing either prompt changes nothing. Installing again is a no-op, and a
+link to another Caxri bundle is replaced. An existing regular file at that path is never
+overwritten.
+
+`Shell Command: Uninstall 'caxri' Command from PATH` removes the link only when it points at a
+`Caxri*.app/Contents/Resources/bin/caxri` launcher, so an unrelated `caxri` stays in place. Unpackaged
+development launches have no self-contained launcher and report the install command as
+unavailable. Because the link names the bundle path, it keeps working across in-place app updates
+and dangles only after the app is deleted.
+
 ## Output modes and safety
 
 Human TTY output is concise text. `--json` reserves stdout for one stable JSON value, while

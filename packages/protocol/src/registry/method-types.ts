@@ -163,6 +163,8 @@ export const effectfulCommandRecovery = {
     'updates.download': 'memory',
     'updates.cancel': 'memory',
     'updates.open': 'memory',
+    'shellCommand.install': 'memory',
+    'shellCommand.uninstall': 'memory',
     'project.create': 'durable',
     'project.cancelCreate': 'durable',
     'project.delete': 'memory',
