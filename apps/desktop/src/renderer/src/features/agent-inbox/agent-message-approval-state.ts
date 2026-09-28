@@ -28,7 +28,7 @@ export interface HeldMessageEntry {
  *   ({@link activeHeldMessage}); one request at a time, whatever the queue depth.
  * - Prompting → deferred: {@link deferHeldMessage} (Decide later, Escape, the close button, an outside click).
  * - Deferred → prompting: {@link reviewHeldMessage}, which also wins over queue order so the user returns to the request
- *   they picked rather than the oldest one.
+ *   they picked rather than the oldest one. The status bar's count uses {@link reviewOldestDeferredHeldMessage}.
  * - Prompting → answered: {@link settleHeldMessage} with `confirmed` (Server accepted the approve or deny) or
  *   `final-rejection` (Server can no longer settle it); both drop the message.
  * - Prompting → prompting: {@link settleHeldMessage} with `rejected`, a transient transport failure the user can retry.
@@ -151,6 +151,17 @@ export function reviewHeldMessage<T extends HeldMessageEntry>(
         messages: queue.messages,
         reviewing: messageId,
     };
+}
+
+/**
+ * Brings back the set-aside request that has waited longest, which is what the status bar's count opens. A queue with
+ * nothing set aside comes back unchanged.
+ */
+export function reviewOldestDeferredHeldMessage<T extends HeldMessageEntry>(
+    queue: HeldMessageQueue<T>,
+): HeldMessageQueue<T> {
+    const oldest = deferredHeldMessages(queue).at(0);
+    return oldest ? reviewHeldMessage(queue, oldest.messageId) : queue;
 }
 
 /**

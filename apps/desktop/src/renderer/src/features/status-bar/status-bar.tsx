@@ -24,6 +24,7 @@ import { BranchPicker } from './branch-picker';
 import type { ChipVisibility } from './chip-priority';
 import { resolveChipVisibility } from './chip-priority';
 import { CommanderStatusChip } from './commander-status-chip';
+import { PeerApprovalChip } from './peer-approval-chip';
 import { PermissionAutoAllowChip } from './permission-auto-allow-chip';
 import { RemoteDebuggingChip } from './remote-debugging-chip';
 import { RepoStatusChips } from './repo-status-chips';
@@ -250,6 +251,7 @@ export function StatusBar() {
                         </span>
                     </Tooltip>
                 )}
+                <PeerApprovalChip />
                 <UpdateStatusChip />
                 <CommanderStatusChip />
                 <RemoteDebuggingChip />

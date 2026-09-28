@@ -15,6 +15,7 @@ import {
     removeHeldMessage,
     replaceHeldMessages,
     reviewHeldMessage,
+    reviewOldestDeferredHeldMessage,
     settleHeldMessage,
 } from './agent-message-approval-state';
 
@@ -71,6 +72,23 @@ describe('held message approval queue', () => {
 
         expect(activeHeldMessage(queue)).toBe(second);
         expect(deferredHeldMessages(queue)).toEqual([first]);
+    });
+
+    it('reopens the request that has waited longest, whatever order it was set aside in', () => {
+        const bothDeferred = deferHeldMessage(
+            deferHeldMessage(queueOf(first, second), 'held-2'),
+            'held-1',
+        );
+        const queue = reviewOldestDeferredHeldMessage(bothDeferred);
+
+        expect(activeHeldMessage(queue)).toBe(first);
+        expect(deferredHeldMessages(queue)).toEqual([second]);
+    });
+
+    it('leaves a queue with nothing set aside unchanged when asked to reopen the oldest', () => {
+        const queue = queueOf(first, second);
+
+        expect(reviewOldestDeferredHeldMessage(queue)).toBe(queue);
     });
 
     it('sets a reviewed request aside again without answering it', () => {
