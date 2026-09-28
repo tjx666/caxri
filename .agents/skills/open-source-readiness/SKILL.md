@@ -73,14 +73,19 @@ values in diagnostic output. Two additions belong to publishability specifically
 
 ## Verification
 
-These are the checks that actually found things; each one is worth running before a large or
-fixture-heavy change lands.
+Credential scanning is automatic, not a manual step: `bun run gitleaks` (`scripts/gitleaks-scan.ts`,
+config `.gitleaks.toml`) runs in the pre-commit hook against the staged diff, in CI against the
+commits a push or pull request actually introduced, and in the full CI platform-check manifest
+against the entire history. It fails closed with `--redact`, so a real finding never leaks the
+secret itself in the failure output. Expect false positives from keyboard-shortcut strings
+(`cmd+shift+enter`) and placeholder UUIDs to already be allowlisted in `.gitleaks.toml`, narrowly
+scoped by both path and regex; extend that file the same way for a newly verified false positive,
+never with a blanket allowlist. See the quality-check skill's Guardrails section for the CI wiring.
+
+The remaining checks below actually found things beyond what gitleaks' own rule set covers; each one
+is worth running before a large or fixture-heavy change lands.
 
 ```bash
-# Credentials across the entire history. Expect false positives from keyboard shortcuts
-# (`cmd+shift+enter`) and placeholder UUIDs — read every hit rather than trusting the count.
-gitleaks git --redact -v --no-banner
-
 # Home paths. Several neutral placeholders are already in use (`/Users/me`, `/Users/test`,
 # `/Users/private`); what this looks for is a real account name among them.
 rg -nP '/Users/(?!me\b)[a-z0-9._-]+' --glob '!node_modules'

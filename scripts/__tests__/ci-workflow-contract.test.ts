@@ -11,6 +11,7 @@ import { parse } from 'yaml';
 import { PLATFORM_NEUTRAL_CI_COMMANDS as GO_PLATFORM_NEUTRAL_CI_COMMANDS } from '../../.agents/skills/go/scripts/platform-neutral-gates';
 import { PLATFORM_NEUTRAL_CI_COMMANDS, PLATFORM_NEUTRAL_CI_GATES } from '../ci-platform-gates';
 import { execFileAsync } from '../exec';
+import { EXPECTED_PLATFORM_NEUTRAL_GATE_IDS } from './ci-platform-gates.fixture';
 
 const workflow = await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const releaseWorkflow = await readFile(
@@ -504,17 +505,9 @@ describe('CI workflow contract', () => {
         expect(concurrentValidation).toContain('runE2E(safeEnvironment, processes)');
         expect(concurrentValidation).toContain('concurrent validation exceeded 25 minutes');
         expect(concurrentValidation).toContain('await Promise.all([checksPromise, e2ePromise])');
-        expect(PLATFORM_NEUTRAL_CI_GATES.map(({ id }) => id)).toEqual([
-            'eslint',
-            'oxlint-type-aware',
-            'markdownlint',
-            'knip',
-            'react-doctor',
-            'typescript',
-            'format',
-            'vitest',
-            'bundle-budget',
-        ]);
+        expect(PLATFORM_NEUTRAL_CI_GATES.map(({ id }) => id)).toEqual(
+            EXPECTED_PLATFORM_NEUTRAL_GATE_IDS,
+        );
         expect(new Set(PLATFORM_NEUTRAL_CI_GATES.map(({ id }) => id)).size).toBe(
             PLATFORM_NEUTRAL_CI_GATES.length,
         );

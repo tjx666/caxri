@@ -6,10 +6,10 @@ import process from 'node:process';
 
 import { describe, expect, it } from 'vitest';
 
+import { dirtyLayerReportForFiles } from './changed-file-layers';
 import {
     canAffectTypes,
     directImportTestCandidates,
-    dirtyLayerReportForFiles,
     discoverChangedFiles,
     eslintArguments,
     eslintTargets,
