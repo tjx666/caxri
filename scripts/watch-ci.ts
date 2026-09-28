@@ -10,6 +10,11 @@
  * - Single-poller election: watchers of the same run share `~/.cache/caxri/ci-watch/<runId>.json` (user-level so sessions
  *   in different worktrees still converge). The process holding a fresh heartbeat polls GitHub; every other session
  *   follows the state file at zero API cost and takes over automatically when the heartbeat goes stale.
+ * - Attempt fencing: a rerun keeps the run ID, so the state file records the run attempt. Each watcher polls once itself
+ *   before it may follow, and never adopts a state from an attempt older than one it has seen; otherwise a watcher
+ *   started right after `gh run rerun` would exit on the previous attempt's terminal state. A watcher reports the
+ *   attempt it was watching: one already running when the rerun starts still exits with that attempt's conclusion, so
+ *   watch the new attempt with a new watcher.
  * - Immediate failure notification: the first time any job concludes failed/timed_out/cancelled a macOS notification
  *   fires, without waiting for the whole run to complete. Notified jobs are recorded in the shared state so reruns and
  *   follower sessions do not re-notify.
@@ -56,6 +61,11 @@ export interface WatchedJob {
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
 export interface WatchState {
     /**
+     * GitHub `run_attempt`. A rerun reuses the run ID and starts a new attempt, so a terminal status is only meaningful
+     * together with the attempt it belongs to.
+     */
+    attempt: number;
+    /**
      * Run identity shown in notifications. Each agent session owns one worktree branch, so the branch is what tells the
      * operator which session's delivery the run belongs to; the display title is the PR or commit title.
      */
@@ -91,6 +101,27 @@ export function nextBackoffMs(currentMs: number): number {
 }
 
 /**
+ * Whether this watcher may take the shared state as current instead of polling GitHub itself. Before its own first poll
+ * a watcher does not know the current attempt, so it cannot tell a previous attempt's terminal state from the live one;
+ * a state from an attempt older than one already observed is likewise a stale write, never current.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
+export function canFollowSharedState(
+    state: WatchState | undefined,
+    observedAttempt: number | undefined,
+    nowMs: number,
+    pid: number,
+): state is WatchState {
+    return (
+        state !== undefined &&
+        observedAttempt !== undefined &&
+        state.pollerPid !== pid &&
+        state.attempt >= observedAttempt &&
+        !isHeartbeatStale(state.heartbeatAt, nowMs)
+    );
+}
+
+/**
  * Jobs that newly reached a failing conclusion and have not been notified yet, in job order.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
@@ -107,8 +138,12 @@ export function newlyFailedJobs(alreadyNotified: string[], jobs: WatchedJob[]): 
 }
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
-export function formatRunSummary(state: Pick<WatchState, 'conclusion' | 'jobs' | 'runId'>): string {
-    const lines = [`run ${state.runId}: ${state.conclusion || 'in progress'}`];
+export function formatRunSummary(
+    state: Pick<WatchState, 'attempt' | 'conclusion' | 'jobs' | 'runId'>,
+): string {
+    const run =
+        state.attempt > 1 ? `run ${state.runId} (attempt ${state.attempt})` : `run ${state.runId}`;
+    const lines = [`${run}: ${state.conclusion || 'in progress'}`];
     for (const job of state.jobs) {
         lines.push(`  ${job.name}: ${job.conclusion || job.status}`);
     }
@@ -241,7 +276,9 @@ async function notify({ message, subtitle, title }: CiNotification, url?: string
     }
 }
 
-interface GhRunView {
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
+export interface GhRunView {
+    attempt?: number;
     conclusion?: string;
     displayTitle?: string;
     headBranch?: string;
@@ -260,7 +297,7 @@ async function fetchRun(runId: string): Promise<GhRunView> {
                 'view',
                 runId,
                 '--json',
-                'status,conclusion,jobs,url,headBranch,displayTitle,workflowName',
+                'attempt,status,conclusion,jobs,url,headBranch,displayTitle,workflowName',
             ],
             { timeout: 60_000 },
         );
@@ -277,7 +314,7 @@ async function fetchRun(runId: string): Promise<GhRunView> {
                 'view',
                 runId,
                 '--json',
-                'status,conclusion,url,headBranch,displayTitle,workflowName',
+                'attempt,status,conclusion,url,headBranch,displayTitle,workflowName',
             ],
             { timeout: 60_000 },
         );
@@ -342,8 +379,19 @@ function parseArguments(argv: string[]): CliOptions {
     return options;
 }
 
-async function pollOnce(runId: string, previous: WatchState | undefined): Promise<WatchState> {
-    const view = await fetchRun(runId);
+/**
+ * Folds one `gh run view` result into the shared state this process is about to publish as poller.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
+export function buildWatchState(
+    runId: string,
+    view: GhRunView,
+    previous: WatchState | undefined,
+    poller: Pick<WatchState, 'heartbeatAt' | 'pollerPid'>,
+): WatchState {
+    const attempt = view.attempt ?? 1;
+    // Job lists and failure notifications belong to one attempt: a rerun job that fails again must notify again.
+    const isSameAttempt = previous?.attempt === attempt;
     // A missing jobs array means fetchRun fell back to status-only polling; keep the last known job list instead of
     // erasing it so the printed summary stays informative.
     const jobs: WatchedJob[] = view.jobs
@@ -352,21 +400,31 @@ async function pollOnce(runId: string, previous: WatchState | undefined): Promis
               name: job.name ?? 'unknown job',
               status: job.status ?? '',
           }))
-        : (previous?.jobs ?? []);
-    const state: WatchState = {
+        : isSameAttempt
+          ? previous.jobs
+          : [];
+    return {
+        attempt,
         branch: view.headBranch ?? previous?.branch,
         conclusion: view.conclusion ?? '',
         displayTitle: view.displayTitle ?? previous?.displayTitle,
-        heartbeatAt: new Date().toISOString(),
+        heartbeatAt: poller.heartbeatAt,
         jobs,
-        notifiedFailedJobs: previous?.notifiedFailedJobs ?? [],
-        pollerPid: process.pid,
+        notifiedFailedJobs: isSameAttempt ? previous.notifiedFailedJobs : [],
+        pollerPid: poller.pollerPid,
         runId,
         status: view.status ?? '',
         url: view.url,
         workflowName: view.workflowName ?? previous?.workflowName,
     };
-    const failedJobs = newlyFailedJobs(state.notifiedFailedJobs, jobs);
+}
+
+async function pollOnce(runId: string, previous: WatchState | undefined): Promise<WatchState> {
+    const state = buildWatchState(runId, await fetchRun(runId), previous, {
+        heartbeatAt: new Date().toISOString(),
+        pollerPid: process.pid,
+    });
+    const failedJobs = newlyFailedJobs(state.notifiedFailedJobs, state.jobs);
     if (failedJobs.length > 0) {
         state.notifiedFailedJobs = [...state.notifiedFailedJobs, ...failedJobs];
         await notify(formatCiNotification(state, failedJobs), state.url);
@@ -382,15 +440,12 @@ async function main(): Promise<void> {
 
     let backoffMs = INITIAL_BACKOFF_MS;
     let lastPrinted = '';
+    let observedAttempt: number | undefined;
     for (;;) {
         // eslint-disable-next-line no-await-in-loop -- watch loop: each iteration observes then sleeps
         let state = await readState(runId);
-        // Poll unless another live session already holds the poller role for this run.
-        const isFollower =
-            state !== undefined &&
-            state.pollerPid !== process.pid &&
-            !isHeartbeatStale(state.heartbeatAt, Date.now());
-        if (!isFollower) {
+        // Poll unless another live session already holds the poller role for the current attempt.
+        if (!canFollowSharedState(state, observedAttempt, Date.now(), process.pid)) {
             try {
                 // eslint-disable-next-line no-await-in-loop -- watch loop: polls are inherently sequential
                 state = await pollOnce(runId, state);
@@ -407,18 +462,17 @@ async function main(): Promise<void> {
             }
         }
 
-        if (state) {
-            const summary = formatRunSummary(state);
-            if (summary !== lastPrinted && !options.quiet) {
-                console.log(summary);
-                lastPrinted = summary;
-            }
-            if (state.status === 'completed') {
-                const isOk = state.conclusion === 'success';
-                // eslint-disable-next-line no-await-in-loop -- terminal notification; the loop exits right after
-                await notify(formatCiNotification(state), state.url);
-                process.exit(isOk ? 0 : 1);
-            }
+        observedAttempt = Math.max(observedAttempt ?? 0, state.attempt);
+        const summary = formatRunSummary(state);
+        if (summary !== lastPrinted && !options.quiet) {
+            console.log(summary);
+            lastPrinted = summary;
+        }
+        if (state.status === 'completed') {
+            const isOk = state.conclusion === 'success';
+            // eslint-disable-next-line no-await-in-loop -- terminal notification; the loop exits right after
+            await notify(formatCiNotification(state), state.url);
+            process.exit(isOk ? 0 : 1);
         }
         // eslint-disable-next-line no-await-in-loop -- watch loop: fixed poll cadence
         await sleep(POLL_INTERVAL_MS);
