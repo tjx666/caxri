@@ -65,6 +65,14 @@ describe('surface matrix classification', () => {
         ]);
     });
 
+    it('tags every consumer of the shared Server client library', () => {
+        expect(surfaceIds(['packages/client/src/supervise/client.ts'])).toEqual([
+            'desktop-main',
+            'desktop-preload',
+            'cli',
+        ]);
+    });
+
     it('classifies the CLI app', () => {
         expect(surfaceIds(['apps/cli/src/commands/status.ts'])).toEqual(['cli']);
     });
