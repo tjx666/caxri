@@ -29,7 +29,10 @@ import {
 import { subscribeViewEvents } from '../../view-event-bridge';
 import type { SourceControlClient } from '../../view-operation-client';
 import { controlledViewQueryKey } from '../../view-operation-client';
-import { findSourceControlActionByCommand } from '../source-control-action-resolution';
+import {
+    runSourceControlActionAgainstLatest,
+    SUPERSEDED,
+} from '../source-control-action-resolution';
 import { REFRESHING_ACTION_MESSAGE } from '../source-control-history-state';
 import type { SourceControlPanelState } from '../source-control-panel-state';
 import { resolveSourceControlPanelState } from '../source-control-panel-state';
@@ -39,11 +42,6 @@ import type { SourceControlNavigationScope } from './use-source-control-navigati
 import { useSourceControlNavigation } from './use-source-control-navigation';
 
 type SourceControlMode = SourceControlViewModel['modes'][number];
-
-/**
- * The provider refused an action because its model revision had already moved on; see `ExtensionService.viewOperation`.
- */
-const SUPERSEDED = Symbol('superseded');
 
 function applyActionEffect(effect: SourceControlActionEffect): void {
     if (effect.kind === 'open-editor') openEditorTab(effect.resource);
@@ -271,10 +269,6 @@ export function useSourceControlController(
     const runAction = useCallback(
         async (action: SourceControlAction): Promise<void> => {
             if (action.disabled || !snapshot.data) return;
-            if (snapshot.isFetching) {
-                pushToast('warning', REFRESHING_ACTION_MESSAGE);
-                return;
-            }
             const label =
                 action.errorMessage ??
                 presentation?.actionErrorMessage ??
@@ -288,26 +282,18 @@ export function useSourceControlController(
                         throw error;
                     }
                 });
-            let revision = snapshot.data.revision;
-            let result = await run(action, revision);
-            if (result === SUPERSEDED) {
-                /**
-                 * A background refresh replaced the model between the click and the provider's revision check, so
-                 * nothing ran. Replay the same command once against the model that won; `cancelRefetch: false` joins
-                 * that refresh instead of restarting it.
-                 */
-                const fresh = (await refetchSnapshot({ cancelRefetch: false })).data;
-                const replacement =
-                    fresh && findSourceControlActionByCommand(fresh, action.command);
-                if (fresh && replacement) {
-                    revision = fresh.revision;
-                    result = await run(replacement, revision);
-                }
-                if (result === SUPERSEDED) {
-                    pushToast('warning', REFRESHING_ACTION_MESSAGE);
-                    return;
-                }
+            const outcome = await runSourceControlActionAgainstLatest({
+                action,
+                isRefreshing: snapshot.isFetching,
+                model: snapshot.data,
+                refetch: async () => (await refetchSnapshot({ cancelRefetch: false })).data,
+                run,
+            });
+            if (outcome === SUPERSEDED) {
+                pushToast('warning', REFRESHING_ACTION_MESSAGE);
+                return;
             }
+            const { result, revision } = outcome;
             if (!result || result.revision !== revision) return;
             for (const effect of result.effects) applyActionEffect(effect);
             if (result.refresh) requestRefresh();

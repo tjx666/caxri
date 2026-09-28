@@ -1,7 +1,11 @@
 import type { SourceControlAction, SourceControlViewModel } from '@caxri/protocol';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { findSourceControlActionByCommand } from '../source-control-action-resolution';
+import {
+    findSourceControlActionByCommand,
+    runSourceControlActionAgainstLatest,
+    SUPERSEDED,
+} from '../source-control-action-resolution';
 
 function action(id: string, command: SourceControlAction['command'], isDisabled?: boolean) {
     return {
@@ -94,5 +98,93 @@ describe('findSourceControlActionByCommand', () => {
         expect(findSourceControlActionByCommand(model('2', []), discard)).toBeUndefined();
         expect(findSourceControlActionByCommand(model('2', [retargeted]), discard)).toBeUndefined();
         expect(findSourceControlActionByCommand(model('2', [disabled]), discard)).toBeUndefined();
+    });
+});
+
+describe('runSourceControlActionAgainstLatest', () => {
+    const discard = { id: 'caxri.git.discardAll', arguments: ['repo-1'] };
+    const stale = model('1', [action('action-1', discard)]);
+    const fresh = model('2', [action('action-2', discard)]);
+
+    it('runs the clicked action directly when no refresh is in flight', async () => {
+        const refetch = vi.fn<() => Promise<SourceControlViewModel>>();
+        const run = vi.fn(() => Promise.resolve('ran'));
+
+        await expect(
+            runSourceControlActionAgainstLatest({
+                action: stale.providers[0].groups[0].actions[0],
+                isRefreshing: false,
+                model: stale,
+                refetch,
+                run,
+            }),
+        ).resolves.toEqual({ result: 'ran', revision: '1' });
+        expect(run).toHaveBeenCalledWith(expect.objectContaining({ id: 'action-1' }), '1');
+        expect(refetch).not.toHaveBeenCalled();
+    });
+
+    it('waits for an in-flight refresh and runs the same command against the model it produced', async () => {
+        const run = vi.fn(() => Promise.resolve('ran'));
+
+        await expect(
+            runSourceControlActionAgainstLatest({
+                action: stale.providers[0].groups[0].actions[0],
+                isRefreshing: true,
+                model: stale,
+                refetch: () => Promise.resolve(fresh),
+                run,
+            }),
+        ).resolves.toEqual({ result: 'ran', revision: '2' });
+        expect(run).toHaveBeenCalledOnce();
+        expect(run).toHaveBeenCalledWith(expect.objectContaining({ id: 'action-2' }), '2');
+    });
+
+    it('replays a superseded action against the refreshed model', async () => {
+        const run = vi
+            .fn<
+                (
+                    target: SourceControlAction,
+                    revision: string,
+                ) => Promise<string | typeof SUPERSEDED>
+            >()
+            .mockResolvedValueOnce(SUPERSEDED)
+            .mockResolvedValueOnce('ran');
+
+        await expect(
+            runSourceControlActionAgainstLatest({
+                action: stale.providers[0].groups[0].actions[0],
+                isRefreshing: false,
+                model: stale,
+                refetch: () => Promise.resolve(fresh),
+                run,
+            }),
+        ).resolves.toEqual({ result: 'ran', revision: '2' });
+        expect(run).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'action-2' }), '2');
+    });
+
+    it('gives up when the command vanished or refreshes keep winning', async () => {
+        const run = vi.fn(() => Promise.resolve(SUPERSEDED));
+
+        await expect(
+            runSourceControlActionAgainstLatest({
+                action: stale.providers[0].groups[0].actions[0],
+                isRefreshing: true,
+                model: stale,
+                refetch: () => Promise.resolve(model('2', [])),
+                run,
+            }),
+        ).resolves.toBe(SUPERSEDED);
+        expect(run).not.toHaveBeenCalled();
+
+        await expect(
+            runSourceControlActionAgainstLatest({
+                action: stale.providers[0].groups[0].actions[0],
+                isRefreshing: false,
+                model: stale,
+                refetch: () => Promise.resolve(fresh),
+                run,
+            }),
+        ).resolves.toBe(SUPERSEDED);
+        expect(run).toHaveBeenCalledTimes(3);
     });
 });

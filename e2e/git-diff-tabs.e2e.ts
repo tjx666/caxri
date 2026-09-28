@@ -198,6 +198,66 @@ test('A Source Control action that loses the race to a background refresh still 
     }
 });
 
+test('A Source Control click that lands while the panel is refreshing runs once the refresh completes', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-refreshing-action-e2e-'));
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: root });
+    await writeFile(join(root, 'tracked.txt'), trackedCommitted);
+    await execFileAsync('git', ['add', '.'], { cwd: root });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
+    await writeFile(join(root, 'tracked.txt'), trackedWorking);
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: root,
+    });
+    try {
+        const { page } = running;
+        await createProjectSession(page);
+        await page.getByRole('tab', { name: 'Git', exact: true }).click();
+        const repo = page.locator('.git-repository-section');
+        await repo
+            .getByRole('treeitem', { name: 'tracked.txt', exact: true })
+            .waitFor({ state: 'visible' });
+        await waitForSourceControlReady(page);
+        await running.app.evaluate(({ dialog }) => {
+            dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
+        });
+        /**
+         * A watcher refresh can start between Playwright's readiness check and its click, which is how CI lost a
+         * discard: the click landed mid-refresh and was dropped. Clicking inside the same task that observes the tree
+         * turn busy makes that window deterministic.
+         */
+        const clickedWhileBusy = await page.evaluate(
+            () =>
+                new Promise<boolean>((resolve) => {
+                    const tree = document.querySelector('.git-repositories[role="tree"]')!;
+                    const discard = document.querySelector<HTMLButtonElement>(
+                        'button[aria-label="Discard changes in tracked.txt"]',
+                    )!;
+                    const observer = new MutationObserver(() => {
+                        if (tree.getAttribute('aria-busy') !== 'true') return;
+                        observer.disconnect();
+                        discard.click();
+                        resolve(true);
+                    });
+                    observer.observe(tree, { attributeFilter: ['aria-busy'] });
+                    document
+                        .querySelector<HTMLButtonElement>('button[aria-label="Refresh Git"]')!
+                        .click();
+                }),
+        );
+        expect(clickedWhileBusy).toBe(true);
+        await expect(repo.getByText('Working tree clean.', { exact: true })).toBeVisible();
+        await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('Diff view options control layout, unchanged regions, and whitespace across tabs', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-diff-options-e2e-'));
     const root = join(testDirectory, 'project');
