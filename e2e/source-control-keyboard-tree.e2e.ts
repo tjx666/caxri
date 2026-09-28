@@ -40,13 +40,17 @@ test('Source Control navigates changed files with one tree Tab stop', async () =
         const rows = tree.getByRole('treeitem');
         const provider = tree.locator('[data-row-id^="provider:"]');
         const group = tree.locator('[data-row-id^="group:"]').first();
+        const branch = tree.locator('[data-row-id^="provider-branch:"]');
         const directory = tree.locator('[data-row-id^="directory:"]');
         await expect(directory).toBeVisible();
-        await expect(rows).toHaveCount(25);
+        // Provider, its branch row, the Changes caption, README.md, the directory with 20 files, and the Commits header.
+        await expect(rows).toHaveCount(26);
         await expect(tree.locator('[role="treeitem"][tabindex="0"]')).toHaveCount(1);
 
         await provider.focus();
         await tree.screenshot({ path: test.info().outputPath('tree-focus-1-provider.png') });
+        await running.page.keyboard.press('ArrowDown');
+        await expect(branch).toBeFocused();
         await running.page.keyboard.press('ArrowDown');
         await expect(group).toBeFocused();
         await tree.screenshot({ path: test.info().outputPath('tree-focus-2-group.png') });
@@ -73,19 +77,19 @@ test('Source Control navigates changed files with one tree Tab stop', async () =
             .toBe(1);
         await expectNoContextMenu(running.app);
         await expect(group).toBeFocused();
-        await expect(rows).toHaveCount(25);
+        await expect(rows).toHaveCount(26);
         await expect(tree.locator('[role="treeitem"][tabindex="0"]')).toHaveCount(1);
 
         await running.page.keyboard.press('ArrowDown');
-        await expect(rows.nth(2)).toBeFocused();
+        await expect(rows.nth(3)).toBeFocused();
 
         await directory.focus();
         await running.page.keyboard.press('Alt+Enter');
         await expect(directory).toHaveAttribute('aria-expanded', 'false');
-        await expect(rows).toHaveCount(5);
+        await expect(rows).toHaveCount(6);
         await running.page.keyboard.press('Alt+Enter');
         await expect(directory).toHaveAttribute('aria-expanded', 'true');
-        await expect(rows).toHaveCount(25);
+        await expect(rows).toHaveCount(26);
         await running.page.keyboard.press('ArrowRight');
         await expect(tree.locator('[data-row-id$="nested/file-00.txt"]')).toBeFocused();
         await tree.screenshot({ path: test.info().outputPath('tree-focus-3-file.png') });
