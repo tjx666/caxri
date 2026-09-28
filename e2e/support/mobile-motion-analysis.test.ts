@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { GrayFrame } from './mobile-motion-analysis';
-import { panelTransitions } from './mobile-motion-analysis';
+import { panelTransitions, redShare } from './mobile-motion-analysis';
 
 const geometry = { height: 12, width: 60 };
 const BACKGROUND = 40;
@@ -101,5 +101,34 @@ describe('panel entry analysis', () => {
             geometry,
         );
         expect(transitions.map(({ entry }) => entry)).toEqual(['from-right']);
+    });
+});
+
+describe('swipe action red share', () => {
+    const area = { columns: 10, left: 800, rows: 4, scale: 4, top: 600 };
+    /**
+     * Dracula background with the danger red filling the left `redColumns` sample columns and one white glyph sample.
+     */
+    const frame = (redColumns: number): Uint8Array => {
+        const pixels = new Uint8Array(area.columns * area.rows * 3);
+        for (let index = 0; index < area.columns * area.rows; index += 1) {
+            const isRed = index % area.columns < redColumns;
+            pixels.set(isRed ? [255, 85, 85] : [40, 42, 54], index * 3);
+        }
+        pixels.set([248, 248, 242], 0);
+        return pixels;
+    };
+    const region = { bottom: 616, left: 800, right: 840, top: 600 };
+
+    it('reads a fully revealed action as nearly all red', () => {
+        expect(redShare(frame(10), area, region)).toBeCloseTo(39 / 40);
+    });
+
+    it('reads a half revealed action as half red', () => {
+        expect(redShare(frame(5), area, region)).toBeCloseTo(19 / 40);
+    });
+
+    it('only counts samples inside the region', () => {
+        expect(redShare(frame(5), area, { ...region, left: 820 })).toBe(0);
     });
 });
