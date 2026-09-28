@@ -39,3 +39,11 @@ export function useSessionDiffStat(sessionId: string): SessionDiffStat | undefin
         staleTime: SESSION_DIFF_STATS_REFETCH_INTERVAL_MS,
     }).data;
 }
+
+/**
+ * The row's `+N −M` in words for its accessible description, where bare signed digits would read as arithmetic.
+ */
+export function sessionDiffStatAriaLabel(stat: SessionDiffStat | undefined): string | undefined {
+    if (!stat) return undefined;
+    return `Branch changes: ${stat.additions} ${stat.additions === 1 ? 'line' : 'lines'} added, ${stat.deletions} removed.`;
+}

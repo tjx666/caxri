@@ -20,7 +20,7 @@ import { cn } from '../../lib/utilities';
 import { openSessionPullRequest } from '../session/session-commands';
 import { pullRequestUnavailableLabel } from '../status-bar/pull-request-status-label';
 import { useSessionChanges } from './hooks/use-session-changes';
-import { useSessionDiffStat } from './hooks/use-session-diff-stat';
+import { sessionDiffStatAriaLabel, useSessionDiffStat } from './hooks/use-session-diff-stat';
 import { ProjectIcon } from './project-icon';
 import type { SessionActivityPresentation } from './session-activity';
 import {
@@ -176,8 +176,7 @@ export function SessionActivityCard({
         pullRequestUnavailable && `Pull request unknown. ${pullRequestUnavailable.hint}`,
         worktreeProject && `Working in worktree ${worktreeProject.displayTitle}.`,
         changes?.ariaLabel,
-        diffStat &&
-            `Branch changes: ${diffStat.additions} ${diffStat.additions === 1 ? 'line' : 'lines'} added, ${diffStat.deletions} removed.`,
+        sessionDiffStatAriaLabel(diffStat),
         `Last opened ${lastOpened}.`,
         unread ? `${unread}.` : undefined,
     ]
