@@ -1,6 +1,6 @@
 {
     "name": "@caxri/mobile",
-    "version": "0.0.77",
+    "version": "0.0.78",
     "private": true,
     "description": "Caxri mobile companion for paired Agent Sessions.",
     "main": "expo-router/entry",
