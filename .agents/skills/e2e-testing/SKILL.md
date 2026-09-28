@@ -186,7 +186,7 @@ behavior. When it does, the delivery's own focused specs must also pass two repe
 round. Preserve the case, CI run and
 failure evidence, local reproduction command, result, and whether the case touches the changed
 behavior for
-[issue #877](https://github.com/tjx666/caxri/issues/877), then continue delivery. Create or update
+[issue #1418](https://github.com/tjx666/caxri/issues/1418), then continue delivery. Create or update
 that remote record only when the current request or an active delivery workflow authorizes issue
 mutation; otherwise include copy-ready evidence in the local report. Search existing comments first
 when publication is authorized, and append a new occurrence to the matching case comment instead of
@@ -198,7 +198,7 @@ runs the full unit or E2E suite locally, and never keeps re-dispatching CI, to d
 is intermittent. A local full run occupies the machine the user is working on; only the user's own
 explicit request authorizes one. The suite shares one self-hosted runner with every other session, so chasing an
 intermittent failure in place blocks both the delivery it interrupted and every sibling delivery
-queued behind that runner. Intermittent cases are repaired collectively from the #877 record, where
+queued behind that runner. Intermittent cases are repaired collectively from the #1418 record, where
 one investigation covers every occurrence, instead of once per pull request that happens to hit
 one.
 
