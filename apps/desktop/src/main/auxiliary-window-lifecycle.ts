@@ -5,8 +5,10 @@ import type { ProcessExplorerWindowController } from './process-explorer-window'
  * Reopens the Agent Commander exactly where the app quit if it was open then, restoring its remembered bounds and
  * resuming the Commander via `commander.ensure` (`AgentCommanderWindowController.open`); a closed Commander stays
  * closed. Process Explorer never reopens itself; only its bounds are remembered for the next manual open. Callers run
- * this after the Workbench window and Server startup are already up, so the reopened Commander never races their
- * readiness; see `docs/agent-commander.md`.
+ * this after Server startup is up and the Workbench window's Renderer has actually finished booting, not merely after
+ * `openMainWindow` returns (which only creates the `BrowserWindow` and starts its navigation) — otherwise a reopened
+ * Commander could appear, and possibly steal focus, before the Workbench has anything to show; see
+ * `docs/agent-commander.md`.
  */
 export async function reopenAuxiliaryWindowsAtStartup(
     agentCommander: AgentCommanderWindowController | undefined,
@@ -27,7 +29,19 @@ export async function persistAllWindowState(
     persisters: ReadonlyArray<() => Promise<unknown> | undefined>,
 ): Promise<void> {
     const results = await Promise.allSettled(
-        persisters.map((persist) => persist() ?? Promise.resolve()),
+        persisters.map((persist) => {
+            /**
+             * A persister that throws synchronously, instead of returning a rejected promise, would otherwise throw out
+             * of this `.map()` call itself and abort the whole array before `Promise.allSettled` ever runs, skipping
+             * every persister queued after it. Catching it here turns that throw into one more settled outcome,
+             * preserving the "one failure never drops another's persist" guarantee above.
+             */
+            try {
+                return persist() ?? Promise.resolve();
+            } catch (error) {
+                return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+            }
+        }),
     );
     const failure = results.find(
         (result): result is PromiseRejectedResult => result.status === 'rejected',

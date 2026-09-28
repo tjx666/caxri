@@ -758,6 +758,8 @@ if (ownsProfileInstance) {
             processExplorer.installIpc();
             await menuRefreshController.refresh();
             await openMainWindow();
+            // `openMainWindow` alone only creates the window; wait for its Renderer too (see `reopenAuxiliaryWindowsAtStartup`).
+            await rendererReadiness.wait(mainWindow!.webContents);
             await reopenAuxiliaryWindowsAtStartup(agentCommander, processExplorer);
             secondInstanceFocus.ready();
         })
