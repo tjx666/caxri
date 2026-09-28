@@ -7,55 +7,121 @@ import { dismissContextMenu, isContextMenuItemEnabled } from './native-context-m
 export async function terminalTextBounds(page: Page, text: string) {
     return page.locator('.xterm-rows').evaluate((rows, target) => {
         /**
-         * Finds the text-node offsets spanning `[targetStart, targetStart + target.length)` within `row`.
+         * Finds the text-node offsets spanning `[start, start + length)` within one row's own text nodes. The range
+         * never leaves `row`, so it stays valid even when the DOM order across rows does not match their visual order
+         * (see the sort below): a `Range` only needs its own two boundary points to agree on order, and two offsets
+         * inside the same row's walk always do.
          */
         function findTextNodeRange(
             row: Element,
-            targetStart: number,
+            start: number,
+            length: number,
         ):
             | { start: { node: Node; offset: number }; end: { node: Node; offset: number } }
             | undefined {
             const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
             let offset = 0;
-            let start: { node: Node; offset: number } | undefined;
+            let rangeStart: { node: Node; offset: number } | undefined;
             for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-                const length = node.textContent?.length ?? 0;
-                if (!start && targetStart >= offset && targetStart <= offset + length)
-                    start = { node, offset: targetStart - offset };
-                const targetEnd = targetStart + target.length;
-                if (targetEnd >= offset && targetEnd <= offset + length) {
-                    return start ? { start, end: { node, offset: targetEnd - offset } } : undefined;
-                }
-                offset += length;
+                const nodeLength = node.textContent?.length ?? 0;
+                if (!rangeStart && start >= offset && start <= offset + nodeLength)
+                    rangeStart = { node, offset: start - offset };
+                const end = start + length;
+                if (rangeStart && end >= offset && end <= offset + nodeLength)
+                    return { start: rangeStart, end: { node, offset: end - offset } };
+                offset += nodeLength;
             }
             return undefined;
         }
 
+        /**
+         * Xterm renders cell spaces as non-breaking spaces; normalization preserves one code unit per cell so offsets
+         * computed against the normalized text still index the raw text nodes correctly.
+         */
+        function normalizedRowText(row: Element): string {
+            return row.textContent.replaceAll('\u{A0}', ' ');
+        }
+
+        /**
+         * The renderer keeps a fixed pool of absolutely positioned row elements and rewrites them in place, so
+         * `rows.children`'s DOM order does not reliably track each row's current vertical position. Sorting by the
+         * rendered `y` recovers visual, top-to-bottom order — the same order the product's own link provider reads the
+         * buffer in (`readSoftWrappedLogicalLine` in `terminal-links.ts`) — so consecutive visual rows can be joined
+         * into one logical line here too, and a target that xterm soft-wraps across rows (a long file path in a narrow
+         * pane, for example) is still found instead of silently matching nothing because no single row contains it.
+         */
+        const sortedRows = [...rows.children].toSorted(
+            (a, b) => a.getBoundingClientRect().y - b.getBoundingClientRect().y,
+        );
+        const rowTexts = sortedRows.map((row) => normalizedRowText(row));
+        const rowStarts: number[] = [];
+        let combined = '';
+        for (const rowText of rowTexts) {
+            rowStarts.push(combined.length);
+            combined += rowText;
+        }
+
+        /**
+         * Finds the row carrying the longest slice of one `[start, end)` match, scoped to its own function so the
+         * per-row search below is not a loop nested inside the per-occurrence loop that calls it.
+         */
+        function widestRowBounds(
+            start: number,
+            end: number,
+        ):
+            | { bounds: { x: number; y: number; width: number; height: number }; span: number }
+            | undefined {
+            let widest:
+                | { bounds: { x: number; y: number; width: number; height: number }; span: number }
+                | undefined;
+            for (const [rowIndex, row] of sortedRows.entries()) {
+                const rowStart = rowStarts[rowIndex];
+                const rowEnd = rowStart + rowTexts[rowIndex].length;
+                const overlapStart = Math.max(start, rowStart);
+                const overlapEnd = Math.min(end, rowEnd);
+                if (overlapStart >= overlapEnd) continue;
+                const found = findTextNodeRange(
+                    row,
+                    overlapStart - rowStart,
+                    overlapEnd - overlapStart,
+                );
+                if (!found) continue;
+                const range = document.createRange();
+                range.setStart(found.start.node, found.start.offset);
+                range.setEnd(found.end.node, found.end.offset);
+                const bounds = range.getBoundingClientRect();
+                const span = overlapEnd - overlapStart;
+                /**
+                 * A wrapped match crosses more than one row; prefer whichever row carries the longest slice of the
+                 * target so the click point lands well inside real glyphs instead of right at a wrap edge.
+                 */
+                if (!widest || span > widest.span)
+                    widest = {
+                        bounds: {
+                            x: bounds.x,
+                            y: bounds.y,
+                            width: bounds.width,
+                            height: bounds.height,
+                        },
+                        span,
+                    };
+            }
+            return widest;
+        }
+
         let matched: { x: number; y: number; width: number; height: number } | undefined;
-        for (const row of rows.children) {
-            const rowText = row.textContent;
+        for (
+            let start = combined.indexOf(target);
+            start !== -1;
+            start = combined.indexOf(target, start + 1)
+        ) {
+            const widestOnRow = widestRowBounds(start, start + target.length);
+            if (!widestOnRow) continue;
             /**
-             * Xterm renders cell spaces as non-breaking spaces; normalization preserves one code unit per cell.
+             * The same text can legitimately repeat (an echoed command versus its later output). Prefer the bottom-most
+             * visible occurrence so an earlier echo never wins over later real output.
              */
-            const targetStart = rowText.replaceAll('\u{A0}', ' ').indexOf(target);
-            if (targetStart === -1) continue;
-            const found = findTextNodeRange(row, targetStart);
-            if (!found) continue;
-            const range = document.createRange();
-            range.setStart(found.start.node, found.start.offset);
-            range.setEnd(found.end.node, found.end.offset);
-            const bounds = range.getBoundingClientRect();
-            const candidate = {
-                x: bounds.x,
-                y: bounds.y,
-                width: bounds.width,
-                height: bounds.height,
-            };
-            /**
-             * Xterm can recycle screen rows in a DOM order that differs from their visual order. Prefer the bottom-most
-             * visible occurrence so echoed commands do not win over their later output.
-             */
-            if (!matched || candidate.y > matched.y) matched = candidate;
+            if (!matched || widestOnRow.bounds.y > matched.y) matched = widestOnRow.bounds;
         }
         return matched ?? null;
     }, text);
