@@ -82,6 +82,8 @@ export function SessionRowMenu({
     );
 }
 
+const UNBOUND_AGENT_REASON = 'This Session has no bound Agent conversation yet';
+
 /**
  * A native menu cannot be patched once it is showing, so the grant read gates the whole menu. It is bounded: a slow or
  * stalled Server must not turn a right-click into nothing happening.
@@ -179,6 +181,7 @@ async function sessionRowMenu({
             : {
                   label: 'Detach Agent',
                   disabled: !canDetach,
+                  disabledReason: 'No running Agent Terminal to detach',
                   onSelect: () => detachSession(session.id),
               },
         isAutoAllowGranted && {
@@ -200,11 +203,13 @@ async function sessionRowMenu({
         {
             label: 'Copy Agent Session ID',
             disabled: !boundAgentSessionId,
+            disabledReason: UNBOUND_AGENT_REASON,
             onSelect: () => boundAgentSessionId && copyAgentSessionId(boundAgentSessionId),
         },
         {
             label: 'Copy Transcript Path',
             disabled: !boundAgentSessionId,
+            disabledReason: UNBOUND_AGENT_REASON,
             onSelect: () =>
                 primaryTerminal &&
                 boundAgentSessionId &&

@@ -5,8 +5,10 @@ vi.mock('../../../../lib/caxri', () => ({ caxri: { request: vi.fn() } }));
 
 import type { ContextMenuEntries } from '../../../../lib/context-menu';
 import { serializeContextMenu } from '../../../../lib/context-menu';
+import { FILE_OPERATION_BUSY_REASON, pasteDisabledReason } from '../file-operation-state';
 import type { FileTreeItemMenuOptions } from '../file-tree-item-menu';
 import { fileTreeItemMenu } from '../file-tree-item-menu';
+import { fileTreeRootMenu } from '../file-tree-root-context-menu';
 
 function options(entry: FileEntry, overrides: Partial<FileTreeItemMenuOptions> = {}) {
     return {
@@ -16,7 +18,7 @@ function options(entry: FileEntry, overrides: Partial<FileTreeItemMenuOptions> =
         entry,
         openEntry: vi.fn(),
         parentDirectory: '/project',
-        pasteDisabled: false,
+        pasteDisabledReason: undefined,
         pasteIntoEntry: vi.fn(async () => {}),
         projectId: 'project-1',
         projectRoot: '/project',
@@ -63,14 +65,30 @@ describe('fileTreeItemMenu', () => {
         expect(fileLabels).not.toContain('New File');
     });
 
-    it('keeps Paste and Duplicate visible but disabled, without a shortcut hint for a Paste that cannot run', () => {
+    it('keeps Paste and Duplicate visible but disabled with their reasons, without a shortcut hint for a Paste that cannot run', () => {
         const { items } = serializeContextMenu(
-            fileTreeItemMenu(options(file, { pasteDisabled: true, duplicateBlocked: true })),
+            fileTreeItemMenu(
+                options(file, { pasteDisabledReason: 'Nothing to paste', duplicateBlocked: true }),
+            ),
         );
         const paste = items.find((item) => item.label === 'Paste');
-        expect(paste?.enabled).toBe(false);
+        expect(paste).toMatchObject({ enabled: false, disabledReason: 'Nothing to paste' });
         expect(paste?.shortcut).toBeUndefined();
-        expect(items.find((item) => item.label === 'Duplicate')?.enabled).toBe(false);
+        expect(items.find((item) => item.label === 'Duplicate')).toMatchObject({
+            enabled: false,
+            disabledReason: FILE_OPERATION_BUSY_REASON,
+        });
+    });
+
+    it('offers an enabled Paste with its shortcut and no reason', () => {
+        const { items } = serializeContextMenu(fileTreeItemMenu(options(file)));
+        const paste = items.find((item) => item.label === 'Paste');
+        expect(paste).toMatchObject({ shortcut: 'cmd+v' });
+        expect(paste).not.toHaveProperty('enabled');
+        expect(paste).not.toHaveProperty('disabledReason');
+        expect(items.find((item) => item.label === 'Duplicate')).not.toHaveProperty(
+            'disabledReason',
+        );
     });
 
     it('starts the inline rename from the Rename entry', () => {
@@ -79,5 +97,35 @@ describe('fileTreeItemMenu', () => {
         const rename = items.find((item) => item.label === 'Rename');
         actions.get(rename!.id!)?.();
         expect(menu.startRename).toHaveBeenCalledOnce();
+    });
+});
+
+describe('pasteDisabledReason', () => {
+    it('explains an empty clipboard before a busy target, and nothing while Paste can run', () => {
+        expect(pasteDisabledReason({ isBlocked: true, isClipboardEmpty: true })).toBe(
+            'Nothing to paste',
+        );
+        expect(pasteDisabledReason({ isBlocked: true, isClipboardEmpty: false })).toBe(
+            FILE_OPERATION_BUSY_REASON,
+        );
+        expect(pasteDisabledReason({ isBlocked: false, isClipboardEmpty: false })).toBeUndefined();
+    });
+});
+
+describe('fileTreeRootMenu', () => {
+    it('explains a disabled background Paste', () => {
+        const { items } = serializeContextMenu(
+            fileTreeRootMenu({
+                createRootFile: vi.fn(),
+                createRootFolder: vi.fn(),
+                isRootPasteBlocked: false,
+                isRootPasteEmpty: true,
+                pasteIntoProjectRoot: vi.fn(),
+            }),
+        );
+        expect(items.find((item) => item.label === 'Paste')).toMatchObject({
+            enabled: false,
+            disabledReason: 'Nothing to paste',
+        });
     });
 });
