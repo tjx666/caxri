@@ -36,3 +36,45 @@ export function findSourceControlActionByCommand(
             return candidate.disabled ? undefined : candidate;
     return undefined;
 }
+
+/**
+ * The provider refused an action because its model revision had already moved on; see `ExtensionService.viewOperation`.
+ */
+export const SUPERSEDED = Symbol('superseded');
+
+/**
+ * Bounds replays when refreshes keep landing, e.g. an Agent rewriting files in a loop.
+ */
+const MAX_ACTION_ATTEMPTS = 3;
+
+/**
+ * Runs a clicked action against the latest model instead of dropping it.
+ *
+ * A background refresh — routinely a file watcher — can be in flight when the click lands, or can replace the model
+ * between the click and the provider's revision check. Either way the click's action id belongs to a model about to be
+ * discarded, so this waits for the refresh (`refetch` joins an in-flight one), re-resolves the action by its command,
+ * and runs that. Dropping the click with a warning used to lose a Discard the user plainly asked for.
+ */
+export async function runSourceControlActionAgainstLatest<Result>(input: {
+    action: SourceControlAction;
+    isRefreshing: boolean;
+    model: SourceControlViewModel;
+    refetch: () => Promise<SourceControlViewModel | undefined>;
+    run: (action: SourceControlAction, revision: string) => Promise<Result | typeof SUPERSEDED>;
+}): Promise<typeof SUPERSEDED | { result: Result; revision: string }> {
+    let model: SourceControlViewModel | undefined = input.model;
+    let target: SourceControlAction | undefined = input.action;
+    for (let attempt = 0; attempt < MAX_ACTION_ATTEMPTS; attempt += 1) {
+        if (attempt > 0 || input.isRefreshing) {
+            // Each attempt depends on the model the previous refresh produced, so these awaits are sequential by design.
+            // eslint-disable-next-line no-await-in-loop
+            model = await input.refetch();
+            target = model && findSourceControlActionByCommand(model, input.action.command);
+        }
+        if (!model || !target) return SUPERSEDED;
+        // eslint-disable-next-line no-await-in-loop
+        const result = await input.run(target, model.revision);
+        if (result !== SUPERSEDED) return { result, revision: model.revision };
+    }
+    return SUPERSEDED;
+}
