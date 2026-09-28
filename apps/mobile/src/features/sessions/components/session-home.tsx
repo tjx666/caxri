@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
@@ -12,9 +11,10 @@ import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { AttentionCards } from '../../conversation/attention-cards';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
-import { useOpenSwipeRow } from '../hooks/use-open-swipe-row';
 import { useSessionManagement } from '../hooks/use-session-management';
 import type { SessionListEntry } from '../hooks/use-session-polling';
+import type { SwipeRow } from '../open-swipe-row';
+import { createOpenSwipeRow } from '../open-swipe-row';
 import { activeProjectFilter, filterSessionEntries } from '../project-filter';
 import { createSessionListInteraction } from '../session-list-interaction';
 import type { MobileSessionItem } from '../session-model';
@@ -85,31 +85,24 @@ export const SessionHome = ({
     const management = useSessionManagement();
     const [actionSession, setActionSession] = useState<MobileSessionItem | null>(null);
     const { archive, clearError } = management;
-    const swipe = useOpenSwipeRow();
-    const { closeOpen: closeOpenSwipe } = swipe;
+    const [swipe] = useState(createOpenSwipeRow);
+    const { closeOpen: closeOpenSwipe, hasOpen: hasOpenSwipe } = swipe;
     const handleSwipeOpen = useCallback(
-        (methods: SwipeableMethods): void => {
+        (row: SwipeRow): void => {
             clearError();
-            swipe.handleOpen(methods);
+            swipe.handleOpen(row);
         },
         [clearError, swipe],
-    );
-    const archiveFromSwipe = useCallback(
-        async (sessionId: string): Promise<boolean> => {
-            const done = await archive(sessionId);
-            if (done) swipe.forget();
-            return done;
-        },
-        [archive, swipe],
     );
     /**
      * Like a chat list, the first tap after revealing a row's action dismisses it instead of opening a Session.
      */
     const openSession = useCallback(
         (sessionId: string): void => {
-            if (!closeOpenSwipe()) onOpenSession(sessionId);
+            if (hasOpenSwipe()) closeOpenSwipe();
+            else onOpenSession(sessionId);
         },
-        [closeOpenSwipe, onOpenSession],
+        [closeOpenSwipe, hasOpenSwipe, onOpenSession],
     );
     const openActions = useCallback(
         (session: MobileSessionItem): void => {
@@ -202,9 +195,10 @@ export const SessionHome = ({
                             management.pending.sessionId === item.session.id
                         }
                         enabled={deviceRole === 'control'}
-                        onArchive={archiveFromSwipe}
+                        onArchive={archive}
                         onClose={swipe.handleClose}
                         onOpen={handleSwipeOpen}
+                        onOpenStart={swipe.handleDragStart}
                         sessionId={item.session.id}
                         theme={theme}
                     >
@@ -231,7 +225,7 @@ export const SessionHome = ({
             ),
         [
             activeProjectId,
-            archiveFromSwipe,
+            archive,
             deviceRole,
             handleSwipeOpen,
             layout,
@@ -242,6 +236,7 @@ export const SessionHome = ({
             openTerminal,
             selectedId,
             swipe.handleClose,
+            swipe.handleDragStart,
             theme,
         ],
     );

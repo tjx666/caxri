@@ -74,6 +74,18 @@ describe('mobile Android Acceptance cases', () => {
             recordingOwner: 'scenario',
             scenario: 'terminal-observe-control',
         });
+        expect(mobileAndroidAcceptanceCase('MOB-TERM-SCROLL-FEEL-01')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['screenshot', 'video'],
+            recordingOwner: 'scenario',
+            scenario: 'terminal-scroll-feel',
+        });
+        expect(mobileAndroidAcceptanceCase('MOB-MOTION-02')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['screenshot', 'video'],
+            recordingOwner: 'scenario',
+            scenario: 'motion-swipe-rows',
+        });
         expect(mobileAndroidAcceptanceCase('MOB-TIMELINE-01')).toEqual({
             desktopProfile: 'managed-by-isolated-e2e',
             media: [],
@@ -129,7 +141,11 @@ describe('mobile Android Acceptance cases', () => {
         expect(shouldCaptureAdapterScreenshot('MOB-CONV-01', false)).toBe(false);
         expect(shouldCaptureAdapterScreenshot('MOB-TERM-01', true)).toBe(false);
         expect(shouldCaptureAdapterScreenshot('MOB-TERM-01', false)).toBe(false);
+        expect(shouldCaptureAdapterScreenshot('MOB-TERM-SCROLL-FEEL-01', true)).toBe(false);
         for (const caseId of [
+            'MOB-MOTION-01',
+            'MOB-MOTION-02',
+            'MOB-MOTION-03',
             'MOB-CHANGES-01',
             'MOB-CHANGES-02',
             'MOB-CHANGES-03',
@@ -153,6 +169,9 @@ describe('mobile Android Acceptance cases', () => {
     it('does not pull Terminal video after blocked fixture preflight or failed scenario execution', () => {
         expect(shouldCollectAndroidVideo('MOB-TERM-01', false)).toBe(false);
         expect(shouldCollectAndroidVideo('MOB-TERM-01', true)).toBe(true);
+        expect(shouldCollectAndroidVideo('MOB-TERM-SCROLL-FEEL-01', false)).toBe(false);
+        expect(shouldCollectAndroidVideo('MOB-TERM-SCROLL-FEEL-01', true)).toBe(true);
+        expect(shouldCollectAndroidVideo('MOB-MOTION-02', false)).toBe(true);
         expect(shouldCollectAndroidVideo('MOB-CONV-02', false)).toBe(true);
         expect(shouldCollectAndroidVideo('MOB-CONV-03', true)).toBe(false);
         expect(shouldCollectAndroidVideo('MOB-E2E-01', false)).toBe(false);

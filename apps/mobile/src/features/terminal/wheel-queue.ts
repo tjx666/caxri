@@ -1,3 +1,6 @@
+import type { MobileDeviceRole } from '@caxri/protocol';
+
+import type { TerminalControlTarget } from './control-input';
 import { TERMINAL_WHEEL_MAX_LINES } from './view-scale';
 
 interface TerminalWheel {
@@ -43,5 +46,43 @@ export const createTerminalWheelQueue = (
             // eslint-disable-next-line no-void -- Failures are reported through `onError`.
             if (!isSending) void drain();
         },
+    };
+};
+
+/**
+ * Only a control device may scroll a Terminal application. The Server refuses `mobile.terminal.scroll` from every other
+ * role, so the document is told not to forward drags for them, and a wheel message that still arrives from a view or
+ * reply device is dropped instead of becoming a refused request and an error message.
+ */
+export const canForwardTerminalWheel = (role: MobileDeviceRole | null): boolean =>
+    role === 'control';
+
+/**
+ * Routes the document's forwarded drag frames to `mobile.terminal.scroll`. The queue is created on the first accepted
+ * frame, and each request reads the current control target, so a frame that outlives its stream generation is dropped.
+ *
+ * @returns A handler that reports whether the frame was accepted for the given device role.
+ */
+export const createTerminalWheelForwarder = ({
+    onError,
+    request,
+    target,
+}: {
+    onError: (error: unknown) => void;
+    request: (
+        method: 'mobile.terminal.scroll',
+        parameters: TerminalControlTarget & TerminalWheel,
+    ) => Promise<unknown>;
+    target: () => TerminalControlTarget | null;
+}) => {
+    let queue: ReturnType<typeof createTerminalWheelQueue> | undefined;
+    return (role: MobileDeviceRole | null, wheel: TerminalWheel): boolean => {
+        if (!canForwardTerminalWheel(role)) return false;
+        queue ??= createTerminalWheelQueue(async (next) => {
+            const current = target();
+            if (current) await request('mobile.terminal.scroll', { ...current, ...next });
+        }, onError);
+        queue.add(wheel);
+        return true;
     };
 };

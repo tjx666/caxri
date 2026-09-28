@@ -62,7 +62,7 @@ export const ConversationToolDetail = ({
                             {tool.summary}
                         </Text>
                     )}
-                    <ScrollView>
+                    <ScrollView testID="tool-detail-scroll">
                         <Text selectable style={[styles.detailBody, { color: theme.text }]}>
                             {tool.detail ?? 'No further detail is available.'}
                         </Text>
