@@ -50,7 +50,7 @@ import {
 import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
-import { notifyListeners } from '../state/notify-listeners';
+import { notifyListenersThenRethrow } from '../state/notify-listeners';
 import { BinaryStreamClient } from './binary-stream-client';
 import { discoverDesktopCredential, discoverServerManifest, MAX_MANIFEST_BYTES } from './discovery';
 
@@ -95,21 +95,6 @@ function controlMessageText(data: RawData): string {
     if (Buffer.isBuffer(data)) return data.toString('utf8');
     if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
     return Buffer.concat(data).toString('utf8');
-}
-
-/**
- * Delivers one Server event to every listener, then rethrows the first listener failure.
- *
- * Isolation keeps a throwing listener from starving later ones. Rethrowing afterwards preserves the caller's existing
- * failure path (`receive` closes the transport; the binary stream reports a Terminal transport failure) instead of
- * turning the error into an uncaught exception or silently swallowing it.
- */
-function emitServerEvent<T>(listeners: Iterable<(event: T) => void>, event: T): void {
-    let failure: { error: unknown } | undefined;
-    notifyListeners(listeners, event, (error) => {
-        failure ??= { error };
-    });
-    if (failure) throw failure.error;
 }
 
 /**
@@ -285,7 +270,7 @@ export class ServerClient {
         this.desktopLease = desktopLease;
         if (endpoint && welcome.features?.includes('binary-streams-v1')) {
             this.binaryStreams = new BinaryStreamClient({
-                emitEvent: (event) => emitServerEvent(this.eventListeners, event),
+                emitEvent: (event) => notifyListenersThenRethrow(this.eventListeners, event),
                 endpoint,
                 issueTicket: (id, operation) => this.issueStreamTicket(id, operation),
                 onTerminalTransportFailure: () => this.closeTransport(),
@@ -342,7 +327,7 @@ export class ServerClient {
                 this.socket.close(1000);
                 return;
             } else if (event.success) {
-                emitServerEvent(this.eventListeners, event.data.event);
+                notifyListenersThenRethrow(this.eventListeners, event.data.event);
             } else {
                 const desktopCommand = localServerDesktopCommandSchema.safeParse(raw);
                 if (desktopCommand.success) {
