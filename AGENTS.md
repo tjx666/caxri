@@ -45,6 +45,9 @@ directories.
   Do not defer necessary documentation to a post-delivery permission question. If an authorized
   delivery omitted it, complete it as follow-up work; ask only when a real product decision or
   material scope expansion needs the user's direction.
+- [CONTEXT.md](CONTEXT.md) is the product glossary; use its terms and avoid its `_Avoid_` aliases.
+  [docs/README.md](docs/README.md) indexes every doc by kind. Doc kinds, frontmatter, and
+  retirement follow `write-docs`.
 - Use `.agents/skills/` for agent-discoverable, task-routed execution workflows and the architecture
   or toolchain contracts an agent must load to work safely. Keep reusable automation beside its
   owning skill. Keep each skill description specific enough for reliable routing.
@@ -215,6 +218,7 @@ directories.
 | Substantial new product feature; competing approaches     | `competitors`           |
 | Process, IPC, package, persistence, or toolchain contract | `project-architecture`  |
 | File placement, naming, splits, test location             | `source-layout`         |
+| Adding/editing a doc, ADR, or retiring a plan/spike       | `write-docs`            |
 | React composition, hooks, shared helpers                  | `react`                 |
 | Renderer visual and interaction design                    | `DESIGN.md`             |
 | React render-count audit over CDP with react-scan         | `react-rerender-audit`  |

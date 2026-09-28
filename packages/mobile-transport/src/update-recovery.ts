@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 /**
  * Update recovery lets a paired phone whose transport version no longer matches Desktop fetch the Android update that
- * fixes the mismatch; see `docs/mobile/UPDATE.md`.
+ * fixes the mismatch; see `docs/mobile/update.md`.
  *
  * This module is frozen: `update-recovery-v1` must keep working between a phone built today and every later Desktop,
  * across any number of `MOBILE_TRANSPORT_VERSION` bumps. It therefore imports nothing from the versioned transport

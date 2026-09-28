@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Mobile updates from Desktop
 
 A paired Android phone updates itself from the Desktop it is paired with. Each Desktop release

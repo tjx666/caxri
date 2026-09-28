@@ -14,11 +14,18 @@ Create the `docs/adr/` directory lazily — only when the first ADR is needed.
 
 That's it. An ADR can be a single paragraph. The value is in recording _that_ a decision was made and _why_ — not in filling out sections.
 
+## Frontmatter
+
+Every ADR carries `kind: adr` and a `status` of `proposed`, `accepted`, or `superseded` in YAML
+frontmatter — this is mandatory, not optional. See
+[write-docs](../write-docs/SKILL.md#frontmatter) for the full closed enum and file mechanics. An
+ADR is never rewritten to match a later change of mind: write a new ADR and set the old one's
+`status: superseded`, optionally noting `Amended by: ADR NNNN` in its body.
+
 ## Optional sections
 
 Only include these when they add genuine value. Most ADRs won't need them.
 
-- **Status** frontmatter (`proposed | accepted | deprecated | superseded by ADR-NNNN`) — useful when decisions are revisited
 - **Considered Options** — only when the rejected alternatives are worth remembering
 - **Consequences** — only when non-obvious downstream effects need to be called out
 

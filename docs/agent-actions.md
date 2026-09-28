@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Agent Commands & Skills
 
 Caxri exposes skills and slash commands through one provider-neutral picker. `Command+Shift+A`

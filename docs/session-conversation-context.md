@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Session conversation context
 
 Durable record of how Caxri reads a Session's own Agent conversation to answer three questions the
@@ -6,7 +11,7 @@ is this branch about_, and _which pull request did this Session deliver_. Source
 `apps/server/src/domains/agents/transcript-session-context.ts` and
 `apps/server/src/domains/agents/transcript-pull-requests.ts` (the scanners),
 `apps/server/src/domains/session-context.ts` (the shared reader), and
-`apps/server/src/domains/project-status-linear.ts` (candidate precedence).
+`apps/server/src/domains/project-status/linear.ts` (candidate precedence).
 
 ## The surfaces
 

@@ -1,6 +1,10 @@
+---
+kind: living
+status: current
+---
+
 # Server architecture
 
-- Status: current implementation contract
 - Date: 2026-08-25
 - Scope: current repository, artifact, process, dependency, security, and observability boundaries;
   sections explicitly labeled future describe post-cutover product work
@@ -106,6 +110,10 @@ archive. A self-managed distribution may co-install CLI and Server artifacts, wh
 imports Server source. The standalone Server remains directly runnable without CLI.
 
 ## Server process ownership
+
+For Desktop Main, recovery timers, restart budgets, and other exact implementation-contract detail
+this section does not restate, see
+[Process ownership](../.agents/skills/project-architecture/references/process-model.md).
 
 ```text
 Clients

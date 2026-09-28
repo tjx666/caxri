@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Keybindings
 
 Caxri resolves keyboard shortcuts in the Renderer, from a single user-editable table

@@ -1,5 +1,8 @@
 # Process ownership, runtime profiles, and recovery
 
+For the product-level why behind this topology, see
+[Server architecture](../../../../docs/server-architecture.md#server-process-ownership).
+
 ```text
 Desktop Main
   -> secure BrowserWindow + native dialogs

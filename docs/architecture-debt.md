@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Architecture debt ledger
 
 Persistent record of architecture-debt audit findings for revalidation across runs.

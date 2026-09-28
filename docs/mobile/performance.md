@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Mobile Performance Baseline
 
 ## Release budgets

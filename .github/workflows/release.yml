@@ -96,7 +96,7 @@ jobs:
       - name: Clean previous packaging output
         run: rm -rf release.noindex
 
-      # Desktop serves this APK to paired Android phones (docs/mobile/UPDATE.md). The script
+      # Desktop serves this APK to paired Android phones (docs/mobile/update.md). The script
       # refuses to stage anything but the release-signed APK of this version, and the runner must
       # already hold the Android toolchain: a missing piece fails the release instead of shipping a
       # Desktop without its phone build.

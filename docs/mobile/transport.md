@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Mobile transport
 
 The Mobile gateway is a separate, default-off WebSocket endpoint on a private IPv4 address. Pairing
@@ -8,11 +13,22 @@ sealed with the session key and monotonically increasing counters. A paired phon
 newer Desktop can instead open the frozen, version-independent `update-recovery-v1` exchange as the
 first frame of a new socket; it proves the pairing credential, returns only the Android update
 manifest and download URL, and never becomes an application session. See
-[UPDATE.md](UPDATE.md#update-recovery).
+[update.md](update.md#update-recovery).
 
 The same HTTP server also serves `GET /mobile/update/<token>` for the update APK. That route carries
 no application frames: the bearer token is issued over the sealed channel and the payload is checked
-against a sealed MD5; see [UPDATE.md](UPDATE.md).
+against a sealed MD5; see [update.md](update.md).
+
+## Pairing key agreement
+
+Pairing links expire after two minutes and are single-use. X25519 key agreement, the pairing secret,
+transcript-bound HKDF keys, mutual confirmation, directional AES-256-GCM frames, monotonic counters,
+frame limits, and device generation checks protect the connection (`packages/mobile-transport/src/session-keys.ts`).
+Resulting device credentials live in the operating system secure store; pairing secrets remain in
+memory only. Every mobile mutation is re-authorized by Server Core: Project grants, device
+generation, Primary Agent Terminal identity, waiting state, attention generation,
+control-character rejection, and the 1 KiB reply limit are checked immediately before PTY input, so
+a stale or optimistic client cannot widen its own authority.
 
 ## Application frames
 
@@ -124,7 +140,7 @@ repeated failures increment fixed counters. A cumulative summary is emitted on t
 after a minute, and pending counts are flushed when access is disabled. This bounds log volume
 without hiding repeated admission, authentication, frame, or capacity failures.
 
-The [Conversation guide](CONVERSATION.md) covers the authorized timeline snapshot, cursor recovery,
+The [Conversation guide](conversation.md) covers the authorized timeline snapshot, cursor recovery,
 and native mobile rendering behind the content-free hints.
-The [Changes guide](CHANGES.md) covers authorized Git snapshots, bounded diffs, and the
+The [Changes guide](changes.md) covers authorized Git snapshots, bounded diffs, and the
 content-free `changes.changed` hint.

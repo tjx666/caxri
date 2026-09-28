@@ -1,6 +1,10 @@
+---
+kind: adr
+status: accepted
+---
+
 # One pane tree for Terminals and documents
 
-- Status: accepted
 - Date: 2026-08-21
 - Refs: [#257](https://github.com/tjx666/caxri/issues/257)
 - Amended by: ADR 0005 (target, pending)

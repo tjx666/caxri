@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Mobile Conversation
 
 The mobile Conversation is a read-only projection of the primary Agent Terminal's own record. The
@@ -142,5 +147,5 @@ feature.
   [mobile observer](../../apps/mobile/src/features/conversation/use-conversation-timeline.ts)
 - [Conversation UI](../../apps/mobile/src/features/conversation/conversation-view.tsx)
 
-See [Mobile transport](TRANSPORT.md) for gateway framing, subscription lifecycle, and limits, and
-[Mobile design](DESIGN.md#conversation) for the intended interaction contract.
+See [Mobile transport](transport.md) for gateway framing, subscription lifecycle, and limits, and
+[Mobile design](design.md#conversation) for the intended interaction contract.

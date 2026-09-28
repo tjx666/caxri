@@ -35,7 +35,7 @@ export interface PermissionAutoAllowAccess {
  * ends (an owner-decided "Agent restarts" boundary) or the Session itself is deleted. Question requests are never
  * covered; callers gate that separately (see `shouldAutoAllowAttention`).
  *
- * @see docs/mobile/CONVERSATION.md for the full lifecycle and the owner decision this implements
+ * @see docs/mobile/conversation.md for the full lifecycle and the owner decision this implements
  *   (issue caxri#1295).
  */
 export class AgentAttentionAutoAllow {

@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Bundle size baseline and budget gate
 
 Caxri ships a packaged macOS app whose size is protected by a CI gate. This document records the

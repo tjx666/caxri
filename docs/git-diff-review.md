@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Git diff review comments
 
 Desktop Git diff tabs support Session-scoped comments on either comparison side. Each anchor is isolated by diff source (working tree, pull request, or commit SHA) and file path. Binary and patch-only views do not offer line comments because their display rows are not source-file line numbers. In a single-file or Open Changes diff, hover a line's gutter and click `+`, select lines and use **Add Review Comment** from the editor context menu or Command Palette, or press `Cmd+Shift+M` (a default keybinding for `editor.addReviewComment`, rebindable in Settings like any other command). The card under the selected line accepts `Cmd+Enter` to save and `Escape` to cancel. Comments can be edited or deleted in place. Editing a **sent** or **outdated** comment's text returns it to **pending**, so a correction is sendable again instead of being silently excluded.

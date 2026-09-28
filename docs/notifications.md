@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Notifications
 
 Caxri's notification center lets users revisit recent reminders and failures after a popup

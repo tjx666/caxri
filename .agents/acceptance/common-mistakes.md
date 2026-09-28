@@ -338,7 +338,7 @@ virtualization, development shells, and UI-tree polling dominate several measure
 
 **Works:** Use virtual-device measurements as diagnostics only. A release-performance acceptance
 case names one physical device, current release build, sampling method, repetition count, and budget
-from `docs/mobile/PERFORMANCE.md`.
+from `docs/mobile/performance.md`.
 
 ## Creating an isolated Project through the E2E bridge
 

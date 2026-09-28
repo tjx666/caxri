@@ -1,6 +1,14 @@
+---
+kind: historical
+status: historical
+---
+
 # Server architecture refactor plan
 
-- Status: implemented
+The A0–A7 migration this plan describes is implemented; ADR 0004 through ADR 0008 cite it as their
+implementation plan, which is why it stays instead of being deleted. [Server architecture](./server-architecture.md)
+describes the resulting current architecture; this file is the historical batch-by-batch record.
+
 - Date: 2026-08-25
 - Target: [Target Server architecture](./server-architecture.md)
 - Acceptance: [Architecture refactor behavior parity](./refactor-behavior-parity.md)

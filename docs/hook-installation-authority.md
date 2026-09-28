@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Hook installation authority
 
 Provider settings are shared by Caxri profiles. A profile's requested enablement is durable intent;

@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Caxri Mobile Design
 
 ## Purpose
@@ -47,7 +52,7 @@ shortcuts.
 ## Connectivity
 
 The implemented encrypted frame, subscription, and heartbeat contract is documented in
-[Mobile transport](TRANSPORT.md).
+[Mobile transport](transport.md).
 
 - Accepted gateway addresses are private IPv4 (RFC1918), loopback, and Tailscale IPv4
   (`100.64.0.0/10`). The Server, pairing link, and client apply the same classifier. Tailscale IPv6
@@ -81,7 +86,7 @@ On a healthy network, returning to the foreground shows a fresh (non-stale) Sess
 ## Authority
 
 The implemented device grants, method matrix, and cancellation behavior are documented in
-[Mobile authorization](AUTHORIZATION.md).
+[Mobile authorization](authorization.md).
 
 - A device grant carries a role: `view`, `reply`, or `control`. Each role maps to an explicit method
   set on the Server; every method additionally checks Project scope, Session ownership, and the
@@ -372,6 +377,19 @@ rejected by the Server. `view` and `reply` devices never see the entry point.
   background output must not interrupt TalkBack.
 - Test default and enlarged text on phone and tablet widths before delivery.
 
+## Testing position
+
+- Pure cryptography, frame replay protection, protocol projection, sorting, reconnect state,
+  parsing, and policy checks run in Vitest without React Native mocks.
+- The guarded Android acceptance test launches the real Desktop and Server with a fake Agent, pairs
+  through the encrypted gateway, taps only stable `testID` controls, and proves the exact bounded
+  PTY write and resulting state transition.
+- Device receipts contain only stable identifiers, enabled/clickable flags, counts, and timings.
+  They exclude visible copy, source, Terminal output, Agent transcripts, credentials, and
+  environment data.
+- Android and iOS native builds are both exercised locally. Android currently owns the automated
+  interaction path because ADB offers explicit device selection and deterministic system control.
+
 ## Client data flow
 
 - One connection owner per host owns retry, backoff, and foreground recovery. Query code never
@@ -415,3 +433,11 @@ rejected by the Server. `view` and `reply` devices never see the entry point.
 | Multiple hosts                  | Routes and query keys already carry `hostId`; the UI waits for demand.                                         |
 | Voice beyond system dictation   | The system keyboard's dictation already works in the composer.                                                 |
 | iPad keyboard shortcuts         | Tablet layout ships first; hardware-keyboard behavior follows.                                                 |
+
+## Open verification gates
+
+- Release-build startup and frame benchmarks on at least one Android phone-class device and one iOS
+  simulator/device, with app-owned first-interactive instrumentation.
+- Sleep/wake, network handoff, and reconnect coverage before background notifications.
+- A device automation layer such as Maestro only when a second critical native workflow justifies
+  another dependency and its installation is explicitly approved.
