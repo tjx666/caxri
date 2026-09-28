@@ -146,7 +146,16 @@ so without its own repository the Commander would inherit whichever repository c
 profile: a worktree development profile lives inside the Caxri checkout's `.git`, whose hooks fail
 there. When Git is missing or `git init` fails, the Commander still starts and Server Core logs
 `agent_commander.workspace_repository_failed` with a `git_missing` or `init_failed` reason. It then
-creates any missing Commander row. The Terminal is launched only when
+creates any missing Commander row.
+
+Every launch of the Commander Terminal (first launch, restore, and restart) trusts the workspace for
+that Codex process only, with a `-c projects={ "<workspace>" = { trust_level = "trusted" } }`
+override (`apps/server/src/domains/commander/launch.ts`). Without it the first launch on a machine,
+and on every new development profile, stops at Codex's folder-trust prompt. The workspace holds only
+generated instructions and the Commander's notes, so this grants what answering the prompt would:
+project configuration, hooks, and Codex's sandbox defaults for a trusted project. Nothing is written
+to the user's `~/.codex/config.toml`, so profiles never accumulate trust entries there. The override
+applies only to the Terminal recorded as the Commander, never to delegated or Workbench Agents. The Terminal is launched only when
 it was just created. An existing Terminal that an app restart or suspension interrupted is resumed
 through a dedicated restore supervisor: the Workbench resumes Terminals only for the Session it
 selects, and it never selects the Commander Session. The same restore resumes a Commander the user
@@ -300,6 +309,3 @@ Inside the Commander Terminal, the Commander calls the version-matched CLI throu
 - Completion is not pushed to the Commander. It learns about finished tasks by waiting on all of
   its open tasks at once (`agent delegate wait <id> <id>...`) or by reading the board at the start
   of each turn.
-- The first Commander launch on a machine stops at Codex's own folder-trust prompt for the
-  workspace, which the user answers once in the Commander pane. Caxri does not pre-trust it: trust
-  also enables project configuration, hooks, and sandbox defaults, so it stays the user's decision.
