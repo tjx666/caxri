@@ -44,6 +44,7 @@ import { businessInternalMethods, businessMethods } from '../domain/business-con
 import {
     agentHookHealthMapSchema,
     agentTranscriptSchema,
+    auxiliaryWindowStateSchema,
     canceledResultSchema,
     fileAssetSchema,
     fileDocumentSchema,
@@ -737,6 +738,19 @@ export const internalMethods = {
         ...serverWrite,
         params: persistedWindowStateSchema,
         result: persistedWindowStateSchema,
+    },
+    /**
+     * Cross-restart state for the Agent Commander and Process Explorer windows; only Main ever calls these.
+     */
+    'app.auxiliaryWindowState.get': {
+        ...serverRead,
+        params: noParameters,
+        result: auxiliaryWindowStateSchema,
+    },
+    'app.auxiliaryWindowState.update': {
+        ...serverWrite,
+        params: auxiliaryWindowStateSchema,
+        result: auxiliaryWindowStateSchema,
     },
     ...bugReportInternalMethods,
     'config.paths': {

@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type {
+    AuxiliaryWindowState,
     FullStateChangeReason,
     PersistedWindowState,
     SessionRestorePlacement,
@@ -60,6 +61,10 @@ import { createWorkbenchRootHandlers } from './workbench-root-handlers';
 import { createWorkbenchSnapshots } from './workbench-snapshot';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
+const DEFAULT_AUXILIARY_WINDOW_STATE: AuxiliaryWindowState = {
+    agentCommander: { wasOpenAtQuit: false },
+    processExplorer: {},
+};
 const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
 export async function createDomainServices(
     dependencies: DomainDependencies,
@@ -498,6 +503,12 @@ export async function createDomainServices(
                 isMaximized: state.isMaximized,
                 isFullScreen: state.isFullScreen,
             });
+            return state;
+        },
+        'app.auxiliaryWindowState.get': () =>
+            database.getAppState('auxiliaryWindowState') ?? DEFAULT_AUXILIARY_WINDOW_STATE,
+        'app.auxiliaryWindowState.update': (state) => {
+            database.setAppState('auxiliaryWindowState', state);
             return state;
         },
         ...createWorkbenchRootHandlers(workbenchRoots, mainOwned),
