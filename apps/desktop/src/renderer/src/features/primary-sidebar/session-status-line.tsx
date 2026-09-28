@@ -46,8 +46,12 @@ export function SessionStatusLine({
                 </>
             )}
             <span className="flex-none">{time}</span>
+            {/*
+             * Hidden while the row is hovered: Pin/Archive float over the trailing edge there, and a count painted
+             * beneath them reads as clutter rather than information. The hover card still states it in words.
+             */}
             {diffStat && (
-                <span className="session-diff-stat ml-auto flex flex-none gap-1 pl-2 tabular-nums">
+                <span className="session-diff-stat ml-auto flex flex-none gap-1 pl-2 tabular-nums group-hover/session-row:hidden">
                     <span className="text-success">+{diffStat.additions}</span>
                     <span className="text-danger">−{diffStat.deletions}</span>
                 </span>

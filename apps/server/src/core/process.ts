@@ -81,8 +81,7 @@ const app = await startServerCore({
     logger,
     mobileUpdateDirectory: mobileUpdateDirectoryForServer({
         environment: process.env,
-        ...(serverBundleDirectory.includes('.asar') &&
-            process.resourcesPath && { resourcesPath: process.resourcesPath }),
+        serverBundleDirectory,
     }),
     projectSearch: {
         executablePath: join(serverBundleDirectory, '../runtime/bin/rg'),
