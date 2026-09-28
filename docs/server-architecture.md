@@ -135,8 +135,9 @@ durable command receipts. It dispatches domain work directly without a second ge
 [Visible Agent delegation](agent-delegation.md) adds private task/result ownership and exact native
 turn evidence above process dispatch. Server Core owns continuation admission, human-input fences,
 and explicit resume on a frozen provider conversation. Terminal Host receives the structured launch
-or exact-generation input operation. Session selection restores delegated outer Shells without
-automatically resuming unknown task execution.
+or exact-generation input operation. Session selection restores only the outer Shell
+while a delegated task is still active, and resumes the Agent's conversation once every task
+settled, without resubmitting any task.
 
 ### Terminal Host
 

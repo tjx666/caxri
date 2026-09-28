@@ -195,15 +195,47 @@ describe('Visible same-Terminal follow-up', () => {
         expect(f.resume).not.toHaveBeenCalled();
     });
 
-    it('retains loss of launch ownership when a manual native resume is followed by Server restart', async () => {
+    it('retains loss of launch ownership when a fresh restart is followed by Server restart', async () => {
         const f = await fixture();
+        // A fresh start clears the Terminal's native session before it launches a new conversation.
+        f.database.rebindAgentSession(f.terminal.id, 'claude', 'fresh-native-session');
         f.service.bindEnvironment(f.terminal.id, 'manual-launch', {});
+        expect(f.database.agentDelegations.get(f.id)?.hasLostTarget).toBe(true);
         f.state.launch = undefined;
         f.service.initialize();
         expect(
             await f.service.create(randomUUID(), owner, { ...f.input, resumeFrom: f.id }),
-        ).toMatchObject({ status: 'failed', failure: 'target_changed' });
+        ).toMatchObject({ status: 'failed', failure: 'session_changed' });
         expect(f.resume).not.toHaveBeenCalled();
+    });
+
+    it('keeps a settled task resumable when a later launch resumes its conversation without input', async () => {
+        const f = await fixture();
+        // What selecting the Session does after a Caxri restart: the same native conversation comes back.
+        f.service.bindEnvironment(f.terminal.id, 'restored-launch', {});
+        f.state.launch = 'restored-launch';
+        expect(f.database.agentDelegations.get(f.id)).toMatchObject({
+            launchId: 'restored-launch',
+        });
+        expect(f.database.agentDelegations.get(f.id)?.hasLostTarget).toBeUndefined();
+        const id = randomUUID();
+        await f.service.create(id, owner, { ...f.input, resumeFrom: f.id });
+        expect(f.resume).toHaveBeenCalledWith(
+            id,
+            owner.principal,
+            expect.anything(),
+            expect.objectContaining({ replaceLaunchId: 'restored-launch' }),
+        );
+    });
+
+    it('does not adopt a resumed launch for a task the user took over', async () => {
+        const f = await fixture();
+        f.service.interruptTerminal(f.terminal.id, true);
+        f.service.bindEnvironment(f.terminal.id, 'restored-launch', {});
+        expect(f.database.agentDelegations.get(f.id)).toMatchObject({
+            launchId: 'launch',
+            hasLostTarget: true,
+        });
     });
 
     it('retains human takeover of a completed task when restart resets the in-memory input epoch', async () => {

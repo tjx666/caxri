@@ -7,6 +7,7 @@ import type {
 import { describe, expect, it } from 'vitest';
 
 import {
+    commanderBoardRowsInScope,
     commanderBoardSections,
     commanderPullRequestBadge,
     commanderRowPresentation,
@@ -274,7 +275,23 @@ describe('commanderTaskBadge', () => {
                 failure: 'startup_not_ready',
                 updatedAt: 1,
             })?.title,
-        ).toBe('Commander task task-1: Failed (startup not ready)');
+        ).toBe('The task failed. Reason: startup not ready. Task task-1.');
+    });
+
+    it('tints a takeover and explains that the Commander let the Session go', () => {
+        const badge = commanderTaskBadge({
+            delegationId: 'task-1',
+            status: 'human_intervened',
+            failure: 'human_input',
+            updatedAt: 1,
+        });
+        expect(badge).toMatchObject({
+            icon: 'taken-over',
+            label: 'Taken over by you',
+            toneClassName: 'text-warning',
+        });
+        expect(badge?.title).toContain('no longer drives it');
+        expect(badge?.title).not.toContain('Reason');
     });
 
     it('asks the user to open a Session whose Agent waits at startup', () => {
@@ -286,6 +303,20 @@ describe('commanderTaskBadge', () => {
                 updatedAt: 1,
             }),
         ).toMatchObject({ label: 'Needs you', toneClassName: 'text-warning' });
+    });
+});
+
+describe('commanderBoardRowsInScope', () => {
+    const own = row({ sessionId: 'own', commanderSession: true });
+    const mine = row({ sessionId: 'mine', commanderSession: false });
+    const later = row({ sessionId: 'later', commanderSession: true });
+
+    it("lists only the Commander's own Sessions in its scope, in the Server's order", () => {
+        expect(commanderBoardRowsInScope([own, mine, later], 'commander')).toEqual([own, later]);
+    });
+
+    it('lists every Session in the whole-Workbench scope', () => {
+        expect(commanderBoardRowsInScope([own, mine, later], 'all')).toEqual([own, mine, later]);
     });
 });
 

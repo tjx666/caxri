@@ -48,6 +48,20 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
      * flood the event journal.
      */
     onReceiptChanged?(receipt: AgentDelegationReceipt): void;
+    /**
+     * The Agent Commander's own Sessions, for a `newSession` delegation. Optional so a unit test can omit the
+     * Commander.
+     */
+    commanderSessions?: {
+        /**
+         * Creates an empty Commander Session in a visible top-level Project and returns its ID.
+         */
+        create(projectId: string): string;
+        /**
+         * Removes a Commander Session the delegation just created but never used. Metadata only.
+         */
+        discard(sessionId: string): void;
+    };
     submissionTimeoutMs?: number;
     now?: () => number;
 }

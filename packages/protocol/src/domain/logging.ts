@@ -54,6 +54,18 @@ export const logEventCatalog = {
     },
     agentDelegation: {
         admissionRejected: 'agent_delegation.admission_rejected',
+        /**
+         * A task was admitted. Carries how it targets its Session (`mode`: new, follow-up, or resume; `newSession`),
+         * whether the Agent Commander sent it, and the request's correlation ID, so a delegation can be traced back to
+         * the CLI call that created it. Never the prompt.
+         */
+        requested: 'agent_delegation.requested',
+        /**
+         * A task's receipt `status` or `failure` changed: the delegation lifecycle as a sequence of state transitions,
+         * with the previous status and the time since the task was created. Receipt state only, never prompt or
+         * answer.
+         */
+        transitioned: 'agent_delegation.transitioned',
     },
     agentDispatch: {
         transitioned: 'agent_dispatch.transitioned',
@@ -205,16 +217,39 @@ export const logEventCatalog = {
     agentCommander: {
         consoleError: 'agent_commander.console_error',
         /**
+         * `commander.ensure` finished. `fields.outcome` is `created` (a new Commander Terminal), `restored` (an
+         * interrupted, suspended, or stopped one was resumed), or `running` (nothing to do), with its duration.
+         */
+        ensured: 'agent_commander.ensured',
+        /**
+         * The Commander created a Session to delegate into, or removed one a refused delegation never used.
+         */
+        sessionCreated: 'agent_commander.session_created',
+        sessionDiscarded: 'agent_commander.session_discarded',
+        /**
+         * `commander.stop` parked the Commander Terminal. `fields.outcome` is `stopped` or `not_running`.
+         */
+        stopped: 'agent_commander.stopped',
+        /**
          * A coalesced batch of delegation completion notices was injected into the Commander Terminal. `fields.count`
          * is the number of delegations the single line reports, so this also measures how often coalescing fires.
          */
         completionNoticeDelivered: 'agent_commander.completion_notice_delivered',
         /**
+         * Pending notices are held back by a delivery gate. `fields.reason` is a closed
+         * `CommanderCompletionNoticeDeferral`, logged once per gate change for the current batch.
+         */
+        completionNoticeDeferred: 'agent_commander.completion_notice_deferred',
+        /**
+         * A delegation transition was queued for the Commander Terminal, with the batch's size after queueing.
+         */
+        completionNoticeQueued: 'agent_commander.completion_notice_queued',
+        /**
          * A completion notice batch was consumed (so it will never be retried) but its PTY write was rejected or its
          * delivery could not be confirmed. Carries a closed `fields.reason`
          * (`CommanderCompletionNoticeDeliveryFailure`) distinguishing the two; a gate that simply is not satisfied yet
-         * (a draft, a busy Commander) is not logged because it is the ordinary, frequent path and resolves itself on
-         * the next idle point.
+         * (a draft, a busy Commander) is not a failure; it is `completionNoticeDeferred` at debug level and resolves
+         * itself on the next idle point.
          */
         completionNoticeDeliveryFailed: 'agent_commander.completion_notice_delivery_failed',
         pageException: 'agent_commander.page_exception',
