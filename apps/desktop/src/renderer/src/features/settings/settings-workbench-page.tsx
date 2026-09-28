@@ -107,9 +107,11 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                             key={
                                 controller.notificationsFocusRequestId ??
                                 controller.agentActionsFocusRequest?.id ??
+                                controller.agentExecutableFocusRequest?.id ??
                                 'settings'
                             }
                             agentActionsFocusRequest={controller.agentActionsFocusRequest}
+                            agentExecutableFocusRequest={controller.agentExecutableFocusRequest}
                             notificationsFocusRequestId={controller.notificationsFocusRequestId}
                             agentHookHealth={controller.agentHookHealth}
                             agentSkillHealth={controller.agentSkillHealth}

@@ -531,6 +531,24 @@ export async function openTerminalFileLink(
 }
 
 /**
+ * The Agent Commander's counterpart to {@link openTerminalFileLink}: same resolution, but Main hands the opened file to
+ * a real, visible Session instead of the Commander's own hidden one. Only the Commander Terminal pane calls this (see
+ * `hasWorkbenchLinks` in `terminal-pane-host.ts`); Main independently validates that `terminalId` names the Commander's
+ * own Terminal.
+ */
+export async function openCommanderFileLink(
+    terminalId: string,
+    target: string,
+    location?: EditorNavigationTarget,
+): Promise<MethodResult<'agentCommander.openFileLink'>> {
+    return caxri.request('agentCommander.openFileLink', {
+        terminalId,
+        target,
+        ...(location && { location }),
+    });
+}
+
+/**
  * Resolves a commit reference printed in the Terminal to a repository and SHA, or to the repositories that all contain
  * that reference.
  */

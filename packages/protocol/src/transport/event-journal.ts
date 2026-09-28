@@ -30,6 +30,7 @@ export type TransientServerEvent = Extract<
             | 'projectStatus.alert'
             | 'projectStatus.changed'
             | 'sessionPullRequests.changed'
+            | 'settings.openRequested'
             | 'terminal.output'
             | 'terminal.outputRecovery'
             | 'terminal.sizeOwnership'
@@ -72,6 +73,11 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
     'projectStatus.alert',
     'projectStatus.changed',
     'sessionPullRequests.changed',
+    /**
+     * One-shot: a companion window's Settings deep-link hand-off. Replaying it after a reconnect would re-open Settings
+     * the user may have already closed.
+     */
+    'settings.openRequested',
     'viewContainers.catalogChanged',
     'viewContainers.treeChanged',
     'viewContainers.viewChanged',

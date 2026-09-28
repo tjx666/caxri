@@ -43,7 +43,7 @@ import {
 } from './workbench';
 
 function eventHandlers() {
-    return { onCommand: vi.fn(), onDesktopOpen: vi.fn() };
+    return { onCommand: vi.fn(), onDesktopOpen: vi.fn(), onSettingsTarget: vi.fn() };
 }
 
 // The toast records only the name of its follow-up, so the click below reaches nothing without the window's handler

@@ -8,10 +8,13 @@ import {
     terminalKindSchema,
     terminalRecordSchema,
 } from '../domain/domain.js';
+import { editorNavigationTargetSchema } from '../domain/editor.js';
 import {
     pullRequestUnavailableSchema,
     sessionPullRequestSchema,
 } from '../domain/session-pull-request.js';
+import { settingsTargetSchema } from '../domain/settings-target.js';
+import { terminalFileLinkOpenResultSchema } from '../domain/terminal-file-link.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import {
@@ -220,11 +223,30 @@ export const commanderMethods = {
     },
     /**
      * Brings the Workbench forward with Settings open. The Commander window has no Settings of its own, so its
-     * Terminal's Open Settings, offered when the Agent CLI is missing, hands off here.
+     * Terminal's Open Settings, offered when the Agent CLI is missing, hands off here. An optional `target` scrolls
+     * Settings to one specific row (see `settingsTargetSchema`) instead of landing on its default view; omitting it
+     * matches the plain "Settings…" menu behavior.
      */
     'agentCommander.openSettings': {
         ...commandPolicy('desktop', 'control'),
-        params: noParameters,
+        params: z.object({ target: settingsTargetSchema.optional() }).default({}),
         result: z.null(),
+    },
+    /**
+     * Opens a file link detected in the Commander Terminal, handed to the Workbench because the Commander's own Project
+     * is hidden system state with no editor of its own. Main picks a real, visible Session to open it in rather than
+     * trusting the Commander's own (system) Session — see `pickCommanderFileLinkSession` in
+     * `workbench-root-authority.ts` — so this never grants the Commander window authority over a Project it does not
+     * already have through the Workbench. `terminalId` must be the Commander's own Terminal; the Commander policy
+     * validates that the same way it validates every other `TERMINAL_METHODS` request.
+     */
+    'agentCommander.openFileLink': {
+        ...commandPolicy('desktop', 'control'),
+        params: z.object({
+            terminalId: identifierSchema,
+            target: z.string().min(3).max(4_096),
+            location: editorNavigationTargetSchema.optional(),
+        }),
+        result: terminalFileLinkOpenResultSchema,
     },
 } as const satisfies Record<string, MethodSpec>;
