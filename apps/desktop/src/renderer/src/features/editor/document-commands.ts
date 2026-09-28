@@ -6,6 +6,7 @@ import type {
     SessionState,
 } from '@caxri/protocol';
 import {
+    activePane,
     CaxriError,
     closeTabs,
     findResourceTabs,
@@ -132,53 +133,66 @@ function isDocumentDirty(sessionId: string, path: string, workbenchProjectId?: s
 
 /**
  * `openResource`'s write can lose a race against a brand-new Session's own initial Terminal-attach write and come back
- * `CONFLICT` ("stale revision") even though nothing the caller did was wrong: both writes originate from opening this
+ * `CONFLICT` ("stale revision") even though nothing the caller did was wrong — both writes originate from opening this
  * same Session for the first time (see `pickCommanderFileLinkSession` in Main), and the Session's very first
  * `session.updateState` has nothing to rebase against locally. Retrying once against a refreshed snapshot is safe
- * because opening a resource is idempotent — recomputing `openResource` either reveals the tab this retry adds, or
+ * because opening a resource is idempotent: recomputing `openResource` either reveals the tab this retry adds, or
  * discovers the resource is already open from whichever write actually won (issue #1409).
+ *
+ * Retries only on `onStaleWrite`, never by inferring it from the pane layout — a later command (e.g. a close) can
+ * supersede this attempt before it settles, leaving a genuine failure looking just like a lost race — and bails if the
+ * Session's Workbench Root changed mid-flight. `paneId` is pinned once by the caller instead of re-resolved on every
+ * retry, so a pane switch mid-flight cannot scatter the same file across two panes.
  */
 async function persistOpenedEditorTab(
     sessionId: string,
     path: string,
-    options: { paneId?: string; preview?: boolean },
+    paneId: string,
+    isPreview: boolean,
     next: SessionState,
-    originalPaneLayout: PaneLayout,
     wasOpen: boolean,
     replacedDocuments: EditorDocument[],
     retriesLeft: number,
 ): Promise<void> {
     const workbenchProjectId = next.workbenchProjectId;
-    const persisted = await useWorkbenchStore.getState().patchSessionState(next, undefined, () => {
-        const currentView = useSessionViewStore.getState();
-        if (!wasOpen) currentView.evictDocument(sessionId, path, workbenchProjectId);
-        for (const document of replacedDocuments)
-            currentView.cacheDocument(sessionId, document, workbenchProjectId);
-    });
-    if (persisted || retriesLeft <= 0) return;
-    /**
-     * A genuine (non-conflict) failure already rolled the optimistic layout back to what it was before this attempt —
-     * `patchSessionState` does that, and reports it, synchronously in its own catch handler before its Promise settles.
-     * Only a lost revision race (`CONFLICT`) leaves the optimistic layout in place instead, which is the one case safe
-     * to retry.
-     */
-    if (sessionStateOf(sessionId)?.paneLayout === originalPaneLayout) return;
+    let isStale = false;
+    const persisted = await useWorkbenchStore.getState().patchSessionState(
+        next,
+        undefined,
+        () => {
+            const currentView = useSessionViewStore.getState();
+            if (!wasOpen) currentView.evictDocument(sessionId, path, workbenchProjectId);
+            for (const document of replacedDocuments)
+                currentView.cacheDocument(sessionId, document, workbenchProjectId);
+        },
+        undefined,
+        true,
+        () => {
+            isStale = true;
+        },
+    );
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- isStale is set from the onStaleWrite callback above, across an await
+    if (persisted || !isStale || retriesLeft <= 0) return;
     await refreshWorkbench();
     const current = sessionStateOf(sessionId);
-    if (!current) return;
+    if (!current || current.workbenchProjectId !== workbenchProjectId) return;
+    // The pinned pane already shows this file — the write that won the race added it, nothing left to persist.
+    const alreadyThere = findResourceTabs(current.paneLayout, { kind: 'file', path }).some(
+        (occurrence) => occurrence.pane.id === paneId,
+    );
+    if (alreadyThere) return;
     const opened = openResource(
         current.paneLayout,
         { kind: 'file', path },
-        { paneId: options.paneId, preview: options.preview === true },
+        { paneId, preview: isPreview },
     );
-    // Already open after the refresh — the write that won the race added it, so there is nothing left to persist.
     if (opened === current.paneLayout) return;
     await persistOpenedEditorTab(
         sessionId,
         path,
-        options,
+        paneId,
+        isPreview,
         { ...current, paneLayout: opened },
-        current.paneLayout,
         wasOpen,
         replacedDocuments,
         retriesLeft - 1,
@@ -204,10 +218,13 @@ export function didOpenEditorTabForSession(
     const existing = findResourceTabs(current.paneLayout, { kind: 'file', path });
     const wasOpen = existing.length > 0;
     const wasMounted = existing.some(({ pane, tab }) => pane.activeTabId === tab.id);
+    // Resolved once, the same way `openResource` resolves it internally, so a background retry (see `persistOpenedEditorTab`) can pin this exact pane instead of re-resolving "the active pane" later.
+    const paneId = options.paneId ?? activePane(current.paneLayout).id;
+    const isPreview = options.preview === true;
     const opened = openResource(
         current.paneLayout,
         { kind: 'file', path },
-        { paneId: options.paneId, preview: options.preview === true },
+        { paneId, preview: isPreview },
     );
     const didOpen = wasOpen || opened !== current.paneLayout;
     if (!didOpen) return false;
@@ -240,9 +257,9 @@ export function didOpenEditorTabForSession(
     void persistOpenedEditorTab(
         sessionId,
         path,
-        options,
+        paneId,
+        isPreview,
         { ...current, paneLayout: opened },
-        current.paneLayout,
         wasOpen,
         replacedDocuments,
         1,
