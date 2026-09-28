@@ -19,9 +19,9 @@ import { z } from 'zod';
 import { acceptanceUrl } from '../acceptance-link';
 
 /**
- * Wire shapes and projections for the three external CLIs Project Status reads. Kept beside `./project-status.ts`
- * rather than inside it so the service file stays about orchestration — cache lifetime, refresh generations, and the
- * resident poll — and this file stays about turning `gh`, `linear`, and `vc` output into protocol types.
+ * Wire shapes and projections for the three external CLIs Project Status reads. Kept beside `./index.ts` rather than
+ * inside it so the service file stays about orchestration — cache lifetime, refresh generations, and the resident poll
+ * — and this file stays about turning `gh`, `linear`, and `vc` output into protocol types.
  */
 
 const githubCheckSchema = z.object({

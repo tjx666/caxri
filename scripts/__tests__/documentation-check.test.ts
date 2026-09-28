@@ -9,17 +9,17 @@ import {
     checkLinksAndPaths,
     checkReadmeIndex,
     collectMarkdownFilesRecursive,
-    extractBacktickedRepoPaths,
-    extractRelativeLinks,
-    frozenLedgerEntryLines,
     isGitIgnoredPath,
     isPathPresentCaseSensitive,
+    isSourceFilenameResolvable,
+    listRepoFiles,
     parseCliArguments as parseCliArguments,
     relativeToRepoRoot,
     runDocumentationCheck,
     shouldSkipPathChecks,
     splitFrontmatter,
 } from '../documentation-check';
+import { execFileAsync } from '../exec';
 
 /**
  * The real repository root, used only to exercise `isGitIgnoredPath` against real `.gitignore` rules.
@@ -110,71 +110,6 @@ describe('shouldSkipPathChecks', () => {
     it('does not skip for current status or missing frontmatter', () => {
         expect(shouldSkipPathChecks('---\nkind: living\nstatus: current\n---\n')).toBe(false);
         expect(shouldSkipPathChecks('# No frontmatter\n')).toBe(false);
-    });
-});
-
-describe('extractRelativeLinks', () => {
-    it('extracts a relative link target and strips a trailing anchor', () => {
-        const links = extractRelativeLinks('See [the guide](./guide.md#section) for detail.\n');
-        expect(links).toEqual([{ line: 1, rawTarget: './guide.md#section', target: './guide.md' }]);
-    });
-
-    it('ignores http(s), mailto, and same-document anchor-only links', () => {
-        const source = [
-            '[external](https://example.com/docs)',
-            '[mail](mailto:test@example.com)',
-            '[anchor](#section)',
-        ].join('\n');
-        expect(extractRelativeLinks(source)).toEqual([]);
-    });
-
-    it('does not extract a link written inside a fenced code block', () => {
-        const source = '```md\n[fake](./not-real.md)\n```\n\n[real](./real.md)\n';
-        const links = extractRelativeLinks(source);
-        expect(links).toHaveLength(1);
-        expect(links[0].target).toBe('./real.md');
-        expect(links[0].line).toBe(5);
-    });
-});
-
-describe('extractBacktickedRepoPaths', () => {
-    it('extracts a backticked repository path with an optional :line suffix', () => {
-        const source = 'See `docs/cli.md` and `packages/protocol/src/domain/domain.ts:38`.\n';
-        const tokens = extractBacktickedRepoPaths(source);
-        expect(tokens).toEqual([
-            { line: 1, path: 'docs/cli.md' },
-            { line: 1, path: 'packages/protocol/src/domain/domain.ts' },
-        ]);
-    });
-
-    it('skips a glob or placeholder token even when it starts with a repo prefix', () => {
-        const source =
-            'Matches `docs/**/*.md` and `apps/<workspace>/README.md` and `scripts/*.ts`.\n';
-        expect(extractBacktickedRepoPaths(source)).toEqual([]);
-    });
-
-    it("skips this repository's own illustrative example filename convention", () => {
-        // Matches `scripts/ci-path-policy.ts`'s `CI-E2E-Tests: ["e2e/example.e2e.ts"]` convention.
-        expect(extractBacktickedRepoPaths('See `e2e/example.e2e.ts` for the syntax.\n')).toEqual(
-            [],
-        );
-    });
-
-    it('strips a line-range or comma-joined line-range citation suffix', () => {
-        const source = 'See `apps/server/src/domains/create-domain-services.ts:535-548,628-633`.\n';
-        expect(extractBacktickedRepoPaths(source)).toEqual([
-            { line: 1, path: 'apps/server/src/domains/create-domain-services.ts' },
-        ]);
-    });
-
-    it('ignores backticked paths inside fenced code blocks', () => {
-        const source = '```bash\n# see `docs/fake.md`\n```\n\nReal doc: `docs/cli.md`\n';
-        const tokens = extractBacktickedRepoPaths(source);
-        expect(tokens).toEqual([{ line: 5, path: 'docs/cli.md' }]);
-    });
-
-    it('does not extract a token with no owning repository root prefix', () => {
-        expect(extractBacktickedRepoPaths('Run `bun run dev` from the repo root.\n')).toEqual([]);
     });
 });
 
@@ -276,6 +211,88 @@ describe('checkLinksAndPaths', () => {
         });
         expect(issues).toEqual([]);
     });
+    it('does not flag a broken path inside a RESOLVED ledger entry', async () => {
+        const repoRoot = await createRepoRoot();
+        const source = [
+            '---',
+            'kind: living',
+            'status: current',
+            '---',
+            '',
+            '### AD-example — [RESOLVED · Confirmed defect · M]',
+            '',
+            '- **Evidence:** `apps/renamed-since.ts:5` implemented the fix.',
+            '',
+        ].join('\n');
+        const issues = await checkLinksAndPaths({
+            relativePath: 'docs/architecture-debt.md',
+            repoRoot,
+            source,
+        });
+        expect(issues).toEqual([]);
+    });
+
+    it('reports a broken cross-document or same-document anchor but accepts a valid one', async () => {
+        const repoRoot = await createRepoRoot();
+        await writeRepoFile(repoRoot, 'docs/guide.md', '# Guide\n\n## Remote diagnosis\n');
+        const source = [
+            '# Page',
+            '',
+            '## Local section',
+            '',
+            '[ok](./guide.md#remote-diagnosis) [gone](./guide.md#remote-diagnostics)',
+            '[here](#local-section) [nowhere](#missing-section)',
+        ].join('\n');
+        const issues = await checkLinksAndPaths({ relativePath: 'docs/page.md', repoRoot, source });
+        expect(issues).toEqual([
+            {
+                file: 'docs/page.md',
+                line: 5,
+                message: 'broken link anchor: ./guide.md#remote-diagnostics',
+            },
+            { file: 'docs/page.md', line: 6, message: 'broken link anchor: #missing-section' },
+        ]);
+    });
+
+    it('leaves a GitHub line anchor on a non-Markdown target alone', async () => {
+        const repoRoot = await createRepoRoot();
+        await writeRepoFile(repoRoot, 'scripts/tool.ts', 'export {};\n');
+        const issues = await checkLinksAndPaths({
+            relativePath: 'docs/page.md',
+            repoRoot,
+            source: '[line](../scripts/tool.ts#L1)\n',
+        });
+        expect(issues).toEqual([]);
+    });
+
+    it('reports a bare source filename that no repository file ends with', async () => {
+        const repoRoot = await createRepoRoot();
+        const issues = await checkLinksAndPaths({
+            relativePath: 'docs/page.md',
+            repoFiles: ['apps/server/src/domains/project-status/branch.ts'],
+            repoRoot,
+            source: 'Cached in `branch.ts`; formerly `project-status-branch.ts`.\n',
+        });
+        expect(issues).toEqual([
+            {
+                file: 'docs/page.md',
+                line: 1,
+                message:
+                    'backticked source filename matches no repository file: project-status-branch.ts',
+            },
+        ]);
+    });
+
+    it('does not resolve bare source filenames in a historical doc', async () => {
+        const repoRoot = await createRepoRoot();
+        const issues = await checkLinksAndPaths({
+            relativePath: 'docs/page.md',
+            repoFiles: [],
+            repoRoot,
+            source: '---\nkind: historical\nstatus: historical\n---\n\nWas `gone.ts`.\n',
+        });
+        expect(issues).toEqual([]);
+    });
 });
 
 describe('isGitIgnoredPath', () => {
@@ -303,52 +320,23 @@ describe('isGitIgnoredPath', () => {
     });
 });
 
-describe('frozenLedgerEntryLines', () => {
-    it('freezes lines inside a RESOLVED or STALE ledger entry but not an OPEN one', () => {
-        const source = [
-            '### AD-open-example — [OPEN · Architecture debt · M]',
-            '',
-            '- **Evidence:** `apps/live.ts:1`',
-            '',
-            '### AD-resolved-example — [RESOLVED · Confirmed defect · M]',
-            '',
-            '- **Evidence:** `apps/gone.ts:2`',
-            '',
-            '### AD-stale-example — [STALE · Coverage gap · S]',
-            '',
-            '- **Evidence:** `apps/also-gone.ts:3`',
-            '',
-            '## Next section',
-            '',
-            '- **Evidence:** `apps/after-section.ts:4`',
-            '',
-        ].join('\n');
-        const frozen = frozenLedgerEntryLines(source);
-        expect(frozen.has(3)).toBe(false);
-        expect(frozen.has(7)).toBe(true);
-        expect(frozen.has(11)).toBe(true);
-        expect(frozen.has(15)).toBe(false);
+describe('isSourceFilenameResolvable', () => {
+    it('matches a whole path or a suffix that starts at a path segment boundary', () => {
+        const files = ['apps/server/src/domains/project-status/branch.ts'];
+        expect(isSourceFilenameResolvable(files, 'branch.ts')).toBe(true);
+        expect(isSourceFilenameResolvable(files, 'project-status/branch.ts')).toBe(true);
+        expect(isSourceFilenameResolvable(files, 'status/branch.ts')).toBe(false);
+        expect(isSourceFilenameResolvable(files, 'anch.ts')).toBe(false);
+    });
+});
+
+describe('listRepoFiles', () => {
+    it('lists tracked files in a Git repository', async () => {
+        expect(await listRepoFiles(realRepoRoot)).toContain('scripts/documentation-check.ts');
     });
 
-    it('checkLinksAndPaths does not flag a broken path inside a RESOLVED ledger entry', async () => {
-        const repoRoot = await createRepoRoot();
-        const source = [
-            '---',
-            'kind: living',
-            'status: current',
-            '---',
-            '',
-            '### AD-example — [RESOLVED · Confirmed defect · M]',
-            '',
-            '- **Evidence:** `apps/renamed-since.ts:5` implemented the fix.',
-            '',
-        ].join('\n');
-        const issues = await checkLinksAndPaths({
-            relativePath: 'docs/architecture-debt.md',
-            repoRoot,
-            source,
-        });
-        expect(issues).toEqual([]);
+    it('returns null outside a Git repository', async () => {
+        expect(await listRepoFiles(await createRepoRoot())).toBeNull();
     });
 });
 
@@ -409,6 +397,23 @@ describe('relativeToRepoRoot', () => {
         // Regression for a bug where `join(repoRoot, path)` concatenated an absolute `path` onto `repoRoot` instead
         // of using it as-is, doubling the prefix (e.g. `/repo/repo/docs/cli.md`).
         expect(relativeToRepoRoot('/repo', '/repo/docs/cli.md')).toBe('docs/cli.md');
+    });
+
+    it("resolves a relative --files path against the invoking shell's directory", () => {
+        expect(relativeToRepoRoot('/repo', '../CONTEXT.md', '/repo/docs')).toBe('CONTEXT.md');
+    });
+});
+
+describe('documentation-check CLI', () => {
+    it('keeps the repository root when invoked from a subdirectory', async () => {
+        // Regression: the root used to be `process.cwd()`, so running from `docs/` re-rooted every repository path
+        // under `docs/` and reported each one missing.
+        const { stdout } = await execFileAsync(
+            'bun',
+            [resolve(realRepoRoot, 'scripts/documentation-check.ts'), '--files', 'cli.md'],
+            { cwd: resolve(realRepoRoot, 'docs') },
+        );
+        expect(stdout).toContain('documentation-check: 1 file(s) passed.');
     });
 });
 

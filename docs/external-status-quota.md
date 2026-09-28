@@ -33,7 +33,7 @@ The branch row compares the local branch with the **same-named branch on origin*
 claim to describe a differently named upstream, another remote, or the configured push destination.
 Server reads the branch ref through a quota-governed GitHub GraphQL query and caches the remote
 commit per owner, repository, and branch for five minutes (`RemoteHeadCache` in
-`project-status-branch.ts`). Before the cache, this query ran on every summary refresh — every 20
+`apps/server/src/domains/project-status/branch.ts`). Before the cache, this query ran on every summary refresh — every 20
 seconds while a pull request's checks run — and was ~900 of the ~1,100 `gh` calls Caxri made per
 hour. Local tracking refs are only cache invalidation inputs: a stale ref never proves that a remote
 branch exists, but a moved ref (a local push or fetch) misses the cache immediately. A manual
@@ -49,7 +49,7 @@ branch and check time; results are snapshots governed by the existing summary TT
 
 Local identity costs one `git` process per repository per round. HEAD and the branch come from the
 `git.summary` snapshot the refresh already holds, and origin's URL and default branch are cached per
-repository root for five minutes (`RepoRemoteCache` in `project-status-branch.ts`); a manual
+repository root for five minutes (`RepoRemoteCache` in `apps/server/src/domains/project-status/branch.ts`); a manual
 refresh reads them again. Only the same-named tracking ref is read every round, because a push or
 fetch moves it. Vercel costs two `vc api` calls per repository: HEAD's preview is taken from the
 branch deployment list, and only a HEAD that list does not carry gets its own query.
@@ -117,7 +117,7 @@ query's cost by every candidate returned.
 Session's own transcript created (or, for the primary repository only, last linked), hands a merged or
 closed one over to a different pull request on the current branch, and otherwise discovers by
 branch. `resolve(sessionId)` exposes the same answer to `ProjectStatusService`
-(`project-status-session-pull-request.ts`):
+(`apps/server/src/domains/project-status/session-pull-request.ts`):
 
 - The Status Bar chip reads the Session's pull request by number, even when the Agent opened it from
   another worktree or a child repository. Its body then supplies the Linear and acceptance references,
