@@ -106,6 +106,9 @@ export class AgentCoordinator {
                 this.logger.write('warn', logEventCatalog.agent.processProbeFailed, {
                     fields: { terminalId, error: errorMessage(error, 'unknown') },
                 }),
+            /**
+             * Provider-bearing candidates stay until expiry for hook dedupe and Shell or switch metadata fallback.
+             */
             onExhausted: (terminalId, candidate) => {
                 if (
                     !candidate.provider &&
