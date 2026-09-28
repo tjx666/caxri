@@ -139,6 +139,10 @@ setInterval(() => {
                 .locator('[data-session-status-arc]')
                 .evaluate((element) => element.getAnimations().length),
         ).toBeGreaterThan(0);
+        // The row's second line names what the Agent is doing, in the same success tone as the running arc.
+        const firstStatusLine = firstRow.locator('.session-status-line');
+        await expect(firstStatusLine).toContainText(/^Working·/);
+        await expect(firstStatusLine.locator('.text-success')).toHaveText('Working');
         const [rowBox, statusBox] = await Promise.all([
             firstRow.boundingBox(),
             firstStatus.boundingBox(),
@@ -282,6 +286,7 @@ setInterval(() => {
         await expect(firstStatus).toHaveAccessibleName(
             'Needs attention: Finished. The Agent finished its latest turn.',
         );
+        await expect(firstStatusLine).toContainText(/^Finished·/);
         expect(
             await firstStatus
                 .locator('[data-session-status-ripple]')

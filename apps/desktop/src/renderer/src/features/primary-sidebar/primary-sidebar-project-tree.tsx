@@ -22,6 +22,7 @@ import { useProjectCollapse } from './hooks/use-project-collapse';
 import { useProjectOrder } from './hooks/use-project-order';
 import type { ProjectSessionWindow } from './hooks/use-project-session-windows';
 import { useProjectSessionWindows } from './hooks/use-project-session-windows';
+import { useSessionDiffStatPoll } from './hooks/use-session-diff-stat';
 import { useSessionOrder } from './hooks/use-session-order';
 import { useSessionPullRequestPoll } from './hooks/use-session-pull-request';
 import { useSessionRename } from './hooks/use-session-rename';
@@ -74,6 +75,7 @@ export function PrimarySidebarProjectTree() {
     const [animatedProjectIds, setAnimatedProjectIds] = useState<Set<string>>(() => new Set());
     // Owns the cadence only; each Session row subscribes to its own slice of the snapshot this keeps fresh.
     useSessionPullRequestPoll();
+    useSessionDiffStatPoll();
     const orderedSessions = useMemo(
         () => unpinnedSessions(activeSessionsInSidebarOrder(projects, sessions)),
         [projects, sessions],

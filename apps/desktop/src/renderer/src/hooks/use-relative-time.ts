@@ -82,12 +82,20 @@ function useTickedValue<T>(compute: () => T, isEqual: (a: T, b: T) => boolean): 
 /**
  * A live "3 minutes ago" label for one timestamp, re-rendering the caller only when the wording changes. `undefined`
  * in, `undefined` out, so a caller whose timestamp arrives with a query can still call this unconditionally.
+ *
+ * `style` picks how much width the label may spend; a dense side-bar row passes `narrow` for "3m ago".
  */
-export function useRelativeTime(timestamp: number): string;
-export function useRelativeTime(timestamp: number | undefined): string | undefined;
-export function useRelativeTime(timestamp: number | undefined): string | undefined {
+export function useRelativeTime(timestamp: number, style?: RelativeTimeStyle): string;
+export function useRelativeTime(
+    timestamp: number | undefined,
+    style?: RelativeTimeStyle,
+): string | undefined;
+export function useRelativeTime(
+    timestamp: number | undefined,
+    style: RelativeTimeStyle = 'long',
+): string | undefined {
     return useTickedValue(
-        () => (timestamp === undefined ? undefined : relativeTime(timestamp)),
+        () => (timestamp === undefined ? undefined : relativeTime(timestamp, Date.now(), style)),
         Object.is,
     );
 }
