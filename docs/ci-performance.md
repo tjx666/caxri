@@ -60,7 +60,7 @@ specs failed that no change in that run had touched: `git-diff-tabs` (Monaco dif
 after the click), `terminal-commands` (a split remount that never reset its command tracker), and
 `toasts` (a toast dismiss button that never appeared). All three pass two deterministic local
 repetitions at one worker. They are tracked as load-sensitive cases in
-[issue #877](https://github.com/tjx666/caxri/issues/877).
+[issue #1418](https://github.com/tjx666/caxri/issues/1418).
 
 This is a plausible cause rather than a proven one: the same run also added `agent-delegation` to
 the pool, which raises in-pool CPU load by itself, and an earlier green run overlapped its
