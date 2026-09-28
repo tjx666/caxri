@@ -8,6 +8,7 @@ import {
     externalLinkChoice,
     externalLinkPrompt,
     revokeMobileDevicePrompt,
+    shellCommandElevationPrompt,
     trashPrompt,
     unsavedChangesChoice,
     unsavedChangesPrompt,
@@ -284,5 +285,16 @@ describe('unsaved changes prompt', () => {
         expect(unsavedChangesChoice(0)).toBe('save');
         expect(unsavedChangesChoice(1)).toBe('discard');
         expect(unsavedChangesChoice(2)).toBe('cancel');
+    });
+});
+
+describe('shell command elevation prompt', () => {
+    it('names the link and maps Escape to Cancel before the administrator prompt', () => {
+        const options = shellCommandElevationPrompt('install', '/usr/local/bin/caxri');
+        expect(options.detail).toContain('/usr/local/bin/caxri');
+        expect(options.buttons?.[options.cancelId ?? -1]).toBe('Cancel');
+        expect(shellCommandElevationPrompt('uninstall', '/usr/local/bin/caxri').detail).toContain(
+            'Caxri app itself is not affected',
+        );
     });
 });

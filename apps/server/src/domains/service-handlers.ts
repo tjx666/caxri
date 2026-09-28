@@ -225,6 +225,8 @@ const MAIN_OWNED_METHODS = [
     'updates.download',
     'updates.cancel',
     'updates.open',
+    'shellCommand.install',
+    'shellCommand.uninstall',
     'theme.import',
     'project.query',
     'session.query',

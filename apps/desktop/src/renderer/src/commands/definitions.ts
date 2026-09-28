@@ -325,6 +325,8 @@ export const commandDefinitions: CommandDefinition[] = [
         { allowInEditable: true },
     ),
     fromCatalog('updates.check', (context) => context.updates.check()),
+    fromCatalog('shellCommand.install', (context) => context.shellCommand.install()),
+    fromCatalog('shellCommand.uninstall', (context) => context.shellCommand.uninstall()),
     fromCatalog('pathBrowser.open', (context) => context.dialogs.openPathBrowser(), {
         allowInEditable: true,
     }),

@@ -78,6 +78,8 @@ export const commandIds = [
     'settings.openNotifications',
     'settings.manageTrustedDomains',
     'updates.check',
+    'shellCommand.install',
+    'shellCommand.uninstall',
     'pathBrowser.open',
     'commandPalette.open',
     'processExplorer.open',

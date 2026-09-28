@@ -38,6 +38,7 @@ import {
     MAX_PATH_BROWSER_ENTRIES,
     pathBrowserContractMethods,
 } from '../desktop/path-browser-contract.js';
+import { shellCommandDesktopMethods } from '../desktop/shell-command-contract.js';
 import { bootstrapStateSchema } from '../domain/bootstrap.js';
 import { bugReportInternalMethods, bugReportMethods } from '../domain/bug-report-contract.js';
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
@@ -302,6 +303,7 @@ export const methods = {
     ...desktopHostMethods,
     ...argvDesktopMethods,
     ...gpuDesktopMethods,
+    ...shellCommandDesktopMethods,
     ...contextMenuDesktopMethods,
     'external.open': {
         ...desktopControl,

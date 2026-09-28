@@ -5,3 +5,4 @@ export * from './desktop-contract.js';
 export * from './desktop-launch.js';
 export * from './desktop-server-operations.js';
 export * from './path-browser-contract.js';
+export * from './shell-command-contract.js';

@@ -564,6 +564,20 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'application', group: 0, order: 1 },
     },
     {
+        id: 'shellCommand.install',
+        title: "Install 'caxri' Command in PATH",
+        category: 'Shell Command',
+        description: 'Link the bundled caxri CLI into /usr/local/bin so any terminal can run it',
+        keywords: ['cli', 'terminal', 'symlink'],
+    },
+    {
+        id: 'shellCommand.uninstall',
+        title: "Uninstall 'caxri' Command from PATH",
+        category: 'Shell Command',
+        description: 'Remove the caxri link that points into a Caxri app bundle',
+        keywords: ['cli', 'terminal', 'symlink'],
+    },
+    {
         id: 'pathBrowser.open',
         title: 'Open File by Path',
         category: 'View',

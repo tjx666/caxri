@@ -33,6 +33,7 @@ import {
     externalLinkChoice,
     externalLinkPrompt,
     revokeMobileDevicePrompt,
+    shellCommandElevationPrompt,
     trashPrompt,
     unsavedChangesChoice,
     unsavedChangesPrompt,
@@ -42,6 +43,13 @@ import { openExternalUrl } from './external-links';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 import { currentRequestWindow } from './request-window';
 import type { DesktopServerConnection } from './server-connection';
+import type { ShellCommandEnvironment } from './shell-command';
+import {
+    installShellCommand,
+    runAsAdministrator,
+    SHELL_COMMAND_LINK_PATH,
+    uninstallShellCommand,
+} from './shell-command';
 import type { UpdateService } from './updates';
 import type { createWorkbenchRootAuthority } from './workbench-root-authority';
 
@@ -157,6 +165,21 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
             environment: process.env,
             userDataPath: options.getUserDataPath(),
         });
+    function shellCommandEnvironment(window: BrowserWindow | undefined): ShellCommandEnvironment {
+        return {
+            launcherPath: app.isPackaged ? join(process.resourcesPath, 'bin', 'caxri') : undefined,
+            linkPath: SHELL_COMMAND_LINK_PATH,
+            confirmElevation: async (action) => {
+                const prompt = shellCommandElevationPrompt(action, SHELL_COMMAND_LINK_PATH);
+                const result =
+                    window && !window.isDestroyed()
+                        ? await dialog.showMessageBox(window, prompt)
+                        : await dialog.showMessageBox(prompt);
+                return result.response === 0;
+            },
+            runElevated: runAsAdministrator,
+        };
+    }
     async function handleExternalUrl(
         url: string,
         externalOptions: { allowTrust: boolean; window?: BrowserWindow },
@@ -562,6 +585,10 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return options.getUpdateService().cancel();
             case 'updates.open':
                 return options.getUpdateService().open();
+            case 'shellCommand.install':
+                return installShellCommand(shellCommandEnvironment(mainWindow));
+            case 'shellCommand.uninstall':
+                return uninstallShellCommand(shellCommandEnvironment(mainWindow));
         }
         return assertNever(request);
     };
