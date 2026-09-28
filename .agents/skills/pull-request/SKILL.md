@@ -104,8 +104,12 @@ or cancels the delivery, or a concrete blocker requires their input.
    diff, the never-run list, and the waiver evidence to an independent reviewer (a subagent, or
    another harness through `dianjiang`), then adjudicate between merging and exactly one CI rerun,
    and record the verdict in the PR.
-7. Merge only when explicitly authorized by the user or an active workflow such as `go`. Verify the
-   remote merged state and merge commit before reporting completion.
+7. Merge only when explicitly authorized by the user or an active workflow such as `go`. When a run
+   has finished, gate the merge on its `conclusion` read explicitly in the same command
+   (`gh api repos/<owner>/<repo>/actions/runs/<id> --jq .conclusion` equals `success`) or on a
+   recorded waiver. Never pipe the watcher into `tail` and trust the exit status: without
+   `pipefail` it is `tail`'s, and a red run once merged that way. Verify the remote merged state
+   and merge commit before reporting completion.
 8. After the current task's PR is merged, inspect whether the task is running in the primary
    checkout or a linked worktree. In the primary checkout, normally switch back to `main` and
    fast-forward it to `origin/main`. In a linked worktree, leave its branch and checkout in place;
@@ -116,8 +120,8 @@ or cancels the delivery, or a concrete blocker requires their input.
 ## Fast merge without CI
 
 One self-hosted runner serves every session, and a full pass costs 20-25 minutes of it. Spending
-that on a diff CI cannot meaningfully judge starves every sibling delivery queued behind it. Two
-narrow classes of change therefore skip CI once their own local gates pass:
+that on a diff CI cannot meaningfully judge starves every sibling delivery queued behind it. Three
+classes of change therefore skip CI once their own local gates pass:
 
 - **Documentation only** — `docs/`, `AGENTS.md`, `.agents/**`, or another tracked `.md` that no
   shipped code reads. The owner has granted standing authorization: commit it directly on `main`
@@ -126,6 +130,10 @@ narrow classes of change therefore skip CI once their own local gates pass:
 - **Renderer styling only** — token, spacing, color, or layout values with no behavior change,
   even when the change ships a test alongside them. It still goes through a pull request, which
   may merge without waiting for its checks.
+- **Locally verified code change** — any other diff whose PR `CI-E2E-Tests` specs pass locally
+  and, for a user-visible change, whose behavior was accepted over CDP. A queued run can wait an
+  hour or more behind sibling deliveries, so the owner allows the PR to merge without waiting for
+  its checks. A run that already finished red still blocks unless step 6 waived it.
 
 Run the gates that actually cover the changed files first, and require them to pass:
 
@@ -134,16 +142,17 @@ Run the gates that actually cover the changed files first, and require them to p
 | Any `.md`                          | `bun run lint:markdown`, `bun run format:check`                                      |
 | `.agents/skills/**` or `AGENTS.md` | plus `bunx vitest run scripts/__tests__/skill-invocation.test.ts`                    |
 | Renderer styling                   | `bun run lint`, the change's own test, and the CDP visual check `AGENTS.md` requires |
+| Locally verified code change       | `check --lint --test --type --knip`, the `CI-E2E-Tests` specs, and the CDP check     |
 
 A documentation diff is not automatically test-free: `skill-invocation.test.ts` asserts skill
 frontmatter, the `.claude/skills` symlink, the explicit-only invocation list, and how skills may
 reference one another, so prose edited here can fail a unit test no markdown linter would catch.
 
-One line outside those classes disqualifies the exception. A diff that also touches `apps/`,
+One line outside the first two classes disqualifies them. A diff that also touches `apps/`,
 `packages/`, `extensions/`, `e2e/`, `scripts/`, `tools/`, a workflow YAML, `package.json`, or
 `pnpm-lock.yaml` returns to the normal path — documentation bundled with a code change is a code
-change. For Renderer styling, the exception removes the wait, not the merge authorization step 7
-still requires.
+change and needs the third class's gates. For a PR, the exception removes the wait, not the merge
+authorization step 7 still requires.
 
 Merging does not stop the PR's run, and a documentation push to `main` may start one — a queued job
 keeps its place in line and will still take the runner for a head nobody is waiting on. Cancel it

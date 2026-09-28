@@ -56,6 +56,11 @@ directories.
   use `dianjiang` to consult another agent harness. Keep the consultation read-only unless the
   current request explicitly authorizes the same scoped mutation. Treat the result as evidence.
   Final adjudication stays with the primary agent against current repository state.
+- Judge routine product choices yourself by practicality and extensibility. Caxri's security bar is
+  a single user on their own machine, not a multi-tenant threat model; do not hold back a useful
+  feature over theoretical risk. Escalate only schema design, a large feature needing design,
+  destructive or credential steps, genuinely ambiguous requirements, and steps needing the user's
+  hands.
 - Treat concrete UI improvement feedback with a clear, bounded outcome as an implementation
   request. Proceed through delivery unless the user explicitly asks for discussion or analysis only.
 - A request to review current local work authorizes the primary agent to repair validated P0/P1

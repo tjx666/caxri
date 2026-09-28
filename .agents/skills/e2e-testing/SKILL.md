@@ -235,8 +235,11 @@ bun run build
 CAXRI_E2E_PARALLEL_WORKERS=2 bun run scripts/run-e2e-pools.ts --pool parallel-safe
 ```
 
-Build first and leave the sources alone until the pool ends; editing a source mid-run trips the
-build-freshness guard and turns unrelated specs red with `Error: Build output is stale`. Prefer
+Build first and leave the worktree alone until the pool ends; editing a source mid-run trips the
+build-freshness guard and turns unrelated specs red with `Error: Build output is stale`. Running
+`check` or committing (lint-staged rewrites staged files) trips it the same way. This holds for
+every E2E run in that worktree, including a focused `check --e2e` in the background: do only
+read-only or remote work meanwhile, and stage patches outside the worktree until it ends. Prefer
 stable observable locators and explicit busy-to-ready transitions over arbitrary delays.
 
 The waiver covers only a recorded case that passed both local repetitions. A case that fails
