@@ -41,6 +41,7 @@ import { executeMobileRecoveryScenario } from './support/mobile-recovery-scenari
 import { executeMobileSessionRefreshScenario } from './support/mobile-session-refresh-scenarios.ts';
 import { executeMobileTerminalScenario } from './support/mobile-terminal-scenarios.ts';
 import { executeMobileTerminalScrollFeelScenario } from './support/mobile-terminal-scroll-scenario.ts';
+import { executeMobileTerminalScrollbackScenario } from './support/mobile-terminal-scrollback-scenario.ts';
 import { executeMobileUiAuditScenario } from './support/mobile-ui-audit-scenarios.ts';
 import {
     assertMobileComposerDraft,
@@ -109,6 +110,12 @@ async function enterComposerText(
     );
 }
 
+// These three Terminal cases share one call shape; only which Terminal fixture behavior they drive differs.
+const TERMINAL_SCENARIOS = {
+    'MOB-TERM-01': executeMobileTerminalScenario,
+    'MOB-TERM-SCROLL-FEEL-01': executeMobileTerminalScrollFeelScenario,
+    'MOB-TERM-SCROLLBACK-01': executeMobileTerminalScrollbackScenario,
+} as const;
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the fixture argument.
 test('executes one report-bound Android product scenario', async ({}) => {
     test.skip(!caseId, 'Run through the guarded Android Acceptance adapter');
@@ -478,17 +485,10 @@ test('executes one report-bound Android product scenario', async ({}) => {
             break;
         }
         case 'MOB-TERM-01':
-            test.setTimeout(420_000);
-            await executeMobileTerminalScenario(
-                { ...environment, launchId, sourceCommit, remoteVideoPath },
-                artifacts,
-                capture,
-                finish,
-            );
-            break;
         case 'MOB-TERM-SCROLL-FEEL-01':
+        case 'MOB-TERM-SCROLLBACK-01':
             test.setTimeout(420_000);
-            await executeMobileTerminalScrollFeelScenario(
+            await TERMINAL_SCENARIOS[environment.caseId](
                 { ...environment, launchId, sourceCommit, remoteVideoPath },
                 artifacts,
                 capture,

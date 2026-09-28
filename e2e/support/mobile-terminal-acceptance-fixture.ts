@@ -34,6 +34,11 @@ interface MenuState {
     fullscreen: boolean;
     keyDown: number;
     keyUp: number;
+    /**
+     * Set once input `s` prints its primary-screen scrollback (see `mobile-terminal-scrollback-scenario.ts`, #1272).
+     * Older state snapshots, taken before that key is ever sent, have no such field at all.
+     */
+    scrollback?: { printed: number; total: number } | null;
     selected: number;
     submissions: number;
     wheelDown: number;
@@ -81,6 +86,7 @@ async function createMenuAgent(userData: string, statePath: string) {
 // 为隔离验收输出合成彩色菜单；只修改临时选择状态文件。输入 f 切换 alternate screen 与 SGR 鼠标上报，并统计滚轮。
 // 输入 d 同样进入 alternate screen，但显示可滚动的合成文档：每个滚轮事件移动一行，模拟全屏 Agent 的滚动。
 // 输入 k 进入不开启鼠标上报的 alternate screen 文档，每个上下方向键移动一行，模拟 pager。
+// 输入 s 留在主屏幕（不进入 alternate screen），连续打印多行编号内容，制造超过一屏的真实滚动历史。
 const fs = require('node:fs');
 if (process.argv.includes('--version')) {
   process.stdout.write('codex-cli 0.151.0\n');
@@ -185,6 +191,20 @@ process.stdin.on('data', (chunk) => {
       const mouse = first === 107 ? '' : '\x1b[?1000h\x1b[?1006h';
       process.stdout.write(fullscreen ? '\x1b[?1049h' + mouse : '\x1b[?1006l\x1b[?1000l\x1b[?1049l');
       render();
+      continue;
+    }
+    if (first === 115) {
+      // Stays on the primary screen (no smcup, no mouse reporting) so these lines become real xterm scrollback
+      // instead of redrawing in place like the menu/document above. The count must match SCROLLBACK_LINE_COUNT in
+      // mobile-terminal-scrollback-scenario.ts -- the two run in separate processes and cannot share a constant.
+      const total = 150;
+      for (let index = 1; index <= total; index += 1) {
+        process.stdout.write('Scrollback line ' + String(index).padStart(4, '0') + '\n');
+      }
+      let previous = {};
+      try { previous = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch {}
+      fs.writeFileSync(statePath + '.next', JSON.stringify({ ...previous, scrollback: { printed: total, total } }));
+      fs.renameSync(statePath + '.next', statePath);
       continue;
     }
     if (first !== 13 && first !== 10) continue;
