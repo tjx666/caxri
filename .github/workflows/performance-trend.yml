@@ -40,10 +40,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version-file: .bun-version
+      # The repository's Actions allowlist admits only GitHub-owned actions and `pnpm/setup`, so Bun comes from npm
+      # (preinstalled with the hosted runner's Node.js) at the exact `.bun-version` instead of a setup action.
+      - name: Install the pinned Bun
+        run: |
+          bun_version="$(tr -d '\r\n' < .bun-version)"
+          [[ "$bun_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          npm install --global --no-audit --no-fund "bun@$bun_version"
+          test "$(bun --version)" = "$bun_version"
 
       # `scripts/performance-trend-check.ts` and its `scripts/performance-baseline.ts`/`scripts/performance-trend.ts`
       # dependencies are plain Node/Bun modules with no workspace package imports, so this job needs no
