@@ -96,14 +96,22 @@ describe('GitHub Actions runner archive cache', () => {
                 sha: '043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
             },
             {
-                repository: 'oven-sh/setup-bun',
-                sha: '0c5077e51419868618aeaa5fe8019c62421857d6',
-            },
-            {
                 repository: 'pnpm/setup',
                 sha: 'c8e77b72cd6022852162c92aa10e7e72b7209c9b',
             },
         ]);
+    });
+
+    it('keeps every repository action inside the repository Actions allowlist', async () => {
+        // The repository admits only GitHub-owned actions and `pnpm/setup@*`. A workflow that references anything else
+        // ends in `startup_failure` before any job runs, which for the required `guards` check blocks every merge.
+        const actions = await discoverPinnedActions(repoRoot);
+        expect(
+            actions.filter(
+                ({ repository }) =>
+                    !repository.startsWith('actions/') && repository !== 'pnpm/setup',
+            ),
+        ).toEqual([]);
     });
 
     it('rejects mutable action tags before attempting to populate the cache', async () => {
