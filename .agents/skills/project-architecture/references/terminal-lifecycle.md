@@ -127,3 +127,29 @@ per-ID history. Core never issues such a request: its launch path rechecks the d
 immediately before `terminal.reserve`, and `start` refuses to send once its reserved identity was
 replaced while the reservation settled. The fence is therefore defense in depth for requests
 already in flight; a burst of more than 256 later retirements evicts the oldest IDs first.
+
+`terminal.stop` (`terminal-host/generation-stop.ts`, authorized in `terminal-host/authorization.ts`)
+seals its generation at admission, before it waits for managed Agent cancellation (up to the
+launcher's grace period), because the Host authorizes every concurrent request against that identity
+during the wait. A sealed generation is refused with `sealed` for input, Agent input and submit,
+observer input and scroll, resize, observe and take-over, both signals, and a late `terminal.start`;
+it keeps only view reads and binding (`attach`, `detach`, `snapshot`, `waitForAttachedSize`,
+`textTail`, `resources`), observation release, `reassign`, `recovery.configure`, and a repeated
+`terminal.stop`, because Server Core still re-attaches, reassigns, and retries the restart barrier
+of a stopped Terminal before its next reservation. A repeated stop with the same snapshot policy
+joins the one in flight and shares its final snapshot; one with the other policy runs after it
+settles. The seal is never cleared; the next generation starts from a fresh reservation identity.
+While a sealed generation is still running, its stop has not reached the PTY yet, so
+`terminal.reserve` for the ID is refused with `sealed` too. A failed Agent cancellation is logged
+and the stop still ends the PTY, so a seal cannot strand the Terminal. After the wait, the stop acts
+only if the ID still names the identity it sealed; natural exit, retirement, and Host shutdown
+already disposed of the PTY otherwise. `engine.start` fails with `CONFLICT` instead of adopting a
+live PTY that still owns the ID, and a failed `terminal.start` restores the previous identity and
+colors only if its own reservation is still current.
+
+Server Core keeps its own traffic clear of the seal. `reserve` waits for a failed launch's
+background `discard` stop (`core/terminal-host/discard-stops.ts`) to settle before it asks for the
+next generation, so a quick retry is not refused. Once `restartBarrier` sends its stop, Core drops
+Renderer keystrokes the way it drops input to an exited Terminal and only records resize dimensions
+for the next attachment, instead of turning each into a Host refusal the Renderer would report as an
+error.
