@@ -74,6 +74,12 @@ interface WorkbenchState {
     refresh(): Promise<void>;
     /**
      * Optimistically applies a Session layout/tab/secondarySidebar change and reports persistence.
+     *
+     * `onStaleWrite` fires only for the specific `CONFLICT` ("stale revision") outcome, and only when this write is
+     * still the latest attempt — the one case a caller can safely retry against a refreshed snapshot, because nothing
+     * about the write itself was wrong. It is a distinct signal from `onLatestFailure`, which never fires for this
+     * outcome: a caller must not infer a stale-revision race from the optimistic layout alone, since a later command
+     * that supersedes this attempt can leave the layout looking exactly like an unrelated genuine failure would.
      */
     patchSessionState(
         next: SessionState,
@@ -81,6 +87,7 @@ interface WorkbenchState {
         onLatestFailure?: () => void,
         failureMode?: SessionStateFailureMode,
         shouldReportFailure?: boolean,
+        onStaleWrite?: () => void,
     ): Promise<boolean>;
 }
 
@@ -142,6 +149,7 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
         onLatestFailure,
         failureMode = 'rollback',
         shouldReportFailure = true,
+        onStaleWrite,
     ) {
         const bootstrap = get().bootstrap;
         if (!bootstrap) return false;
@@ -244,8 +252,11 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
                 if (persistedSessionPatches.get(patchKey)?.sendStamp === sendStamp)
                     persistedSessionPatches.delete(patchKey);
                 // This writer reports its own outcome now; the refreshed snapshot is what every later render reads.
-                // eslint-disable-next-line no-void -- intentional floating-promise discard
-                if (isLatestAttempt) void refreshWorkbench();
+                if (isLatestAttempt) {
+                    // eslint-disable-next-line no-void -- intentional floating-promise discard
+                    void refreshWorkbench();
+                    onStaleWrite?.();
+                }
                 return false;
             }
             /**
