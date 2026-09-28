@@ -3,8 +3,8 @@
     "armed": true,
     "source": "runner",
     "spec": "e2e/renderer.performance.e2e.ts",
-    "recordedAt": "2026-09-28T18:14:08.002Z",
-    "commit": "776da574a7ae18e5bb0209a1a95b857acf91ddfb",
+    "recordedAt": "2026-09-28T18:44:36.507Z",
+    "commit": "9febf06752c93db32ff3780d40653fef15dcbc3d",
     "provenance": "98 renderer-performance-receipt artifacts from self-hosted CI runs 35967460812-36421490139 (2026-09-24T07:13:31Z to 2026-09-28T12:48:30Z)",
     "metrics": {
         "durationMs": {
@@ -216,6 +216,17 @@
             "thresholdMs": 1.864,
             "sampleCount": 98
         },
+        "react.surfaces.workbench.baseDurationMaxMs": {
+            "kind": "continuous",
+            "median": 2.4,
+            "mad": 0.3,
+            "k": 5,
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 3.3,
+            "thresholdMs": 5.212,
+            "sampleCount": 98
+        },
         "react.surfaces.secondary-sidebar.profiledRenderCount": {
             "kind": "discrete",
             "median": 4,
@@ -269,6 +280,17 @@
             "absoluteMarginMs": 1,
             "historicalMaxMs": 1.7,
             "thresholdMs": 2.836,
+            "sampleCount": 98
+        },
+        "react.surfaces.secondary-sidebar.baseDurationMaxMs": {
+            "kind": "continuous",
+            "median": 1.8,
+            "mad": 0.2,
+            "k": 5,
+            "relativeMargin": 0.08,
+            "absoluteMarginMs": 1,
+            "historicalMaxMs": 2.9,
+            "thresholdMs": 4.132,
             "sampleCount": 98
         },
         "requests.sessionSelect.count": {
@@ -643,6 +665,16 @@
             "absoluteMarginMs": 0,
             "historicalMaxMs": 0,
             "thresholdMs": 0,
+            "sampleCount": 98
+        }
+    },
+    "excluded": {
+        "react.baseDurationMaxMs": {
+            "historicalMaxMs": 15.5,
+            "sampleCount": 98
+        },
+        "react.surfaces.primary-sidebar.baseDurationMaxMs": {
+            "historicalMaxMs": 15.5,
             "sampleCount": 98
         }
     }

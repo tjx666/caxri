@@ -76,17 +76,28 @@ export const DEFAULT_PERFORMANCE_RELATIVE_MARGIN = 0.08;
 export const DEFAULT_PERFORMANCE_ABSOLUTE_MARGIN_MS = 1;
 
 /**
- * Metric name patterns excluded from the per-run gate and the trend check even when a receipt reports them -- recorded
- * in the baseline for visibility, never compared. `react.baseDurationMaxMs` (and its per-surface variants) estimates
- * the render cost React _would have_ paid without memoization; the 98-receipt historical corpus contains two outliers
- * (11.2ms and 15.5ms against a 3.4-6.8ms bulk) that no plausible margin absorbs without also hiding a real regression
- * of similar size -- see docs/ci-performance.md for the backtest that found them. Add another pattern here only with
- * the same kind of backtest evidence; this is a documented exception, not a place to route every noisy metric.
+ * Exact metric names excluded from the per-run gate and the trend check even when a receipt reports them. Recorded in
+ * the committed baseline's `excluded` map (see `PerformanceBaseline`) for auditability, never compared.
+ * `react.baseDurationMaxMs` and `react.surfaces.primary-sidebar.baseDurationMaxMs` estimate the render cost React
+ * _would have_ paid without memoization on the app's heaviest surface; the 98-receipt historical corpus contains two
+ * outliers (11.2ms and 15.5ms against a 3.4-6.8ms bulk) on exactly these two paths that no plausible margin absorbs
+ * without also hiding a real regression of similar size (1/98 leave-one-out and 2/49 time-split false failures even
+ * with the margin applied) -- see docs/ci-performance.md for the backtest that found them.
+ *
+ * This is deliberately an exact-name list rather than a blanket `baseDurationMaxMs` pattern: the same backtest run
+ * against `react.surfaces.workbench.baseDurationMaxMs` and `react.surfaces.secondary-sidebar.baseDurationMaxMs` --
+ * which have no comparable outliers (max 3.3ms and 2.9ms respectively) -- found 0/98 leave-one-out and 0/49 time-split
+ * false failures without any exclusion, so those two stay gated. Add another name here only with the same kind of
+ * per-metric backtest evidence; this is a documented, narrow exception, not a place to route every noisy metric or
+ * every variant of a noisy metric's family.
  */
-const EXCLUDED_PERFORMANCE_METRIC_PATTERN = /(?:^|\.)baseDurationMaxMs$/u;
+const EXCLUDED_PERFORMANCE_METRIC_NAMES = new Set([
+    'react.baseDurationMaxMs',
+    'react.surfaces.primary-sidebar.baseDurationMaxMs',
+]);
 
 export function isExcludedPerformanceMetric(metric: string): boolean {
-    return EXCLUDED_PERFORMANCE_METRIC_PATTERN.test(metric);
+    return EXCLUDED_PERFORMANCE_METRIC_NAMES.has(metric);
 }
 
 /**
@@ -145,6 +156,14 @@ export interface PerformanceBaseline {
      */
     provenance?: string;
     metrics: Record<string, PerformanceMetricBaseline>;
+    /**
+     * Metrics `isExcludedPerformanceMetric` matched during derivation, keyed by dot-path name, with the raw sample
+     * evidence that justified excluding each one. Never gated or trend-checked, but written here (rather than only to
+     * the derive command's console output) so a contributor reading the committed file -- the only artifact that
+     * survives past that one-time command -- can audit which metrics were deliberately left out and why, without
+     * re-running the derivation. Absent, or an empty object, when no metric was excluded from a given derivation.
+     */
+    excluded?: Record<string, { historicalMaxMs: number; sampleCount: number }>;
 }
 
 export interface PerformanceSamplesReceipt {

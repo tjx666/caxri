@@ -413,12 +413,21 @@ relativeMargin) + absoluteMarginMs`. `k·MAD` (`k = 5`, `DEFAULT_PERFORMANCE_THR
   `interactions.maxDurationMs`): `thresholdMs` is the bare historical maximum, margin `0`. An intended
   increase (a new count that is genuinely supposed to be higher) requires an explicit baseline
   refresh rather than silently widening on its own next time it is sampled.
-- **Excluded**: `react.baseDurationMaxMs` and its per-surface variants (`isExcludedPerformanceMetric`)
-  are recorded in the baseline for visibility but never compared. This metric estimates the render
-  cost React _would have_ paid without memoization; the 98-receipt corpus contains two outliers
-  (11.2ms and 15.5ms against a 3.4-6.8ms bulk) that no plausible margin absorbs without also hiding a
-  real regression of similar size. Add another exclusion only with the same kind of backtest
-  evidence — this is a documented exception, not a place to route every noisy metric.
+- **Excluded**: `react.baseDurationMaxMs` and `react.surfaces.primary-sidebar.baseDurationMaxMs`
+  (`isExcludedPerformanceMetric`, an exact-name list, not a pattern over every `baseDurationMaxMs`
+  variant) are never compared or trend-checked. This metric estimates the render cost React _would
+  have_ paid without memoization; on exactly these two paths, the 98-receipt corpus contains two
+  outliers (11.2ms and 15.5ms against a 3.4-6.8ms bulk) that no plausible margin absorbs without also
+  hiding a real regression of similar size (1/98 leave-one-out and 2/49 time-split false failures even
+  with the margin applied). The same backtest run against `react.surfaces.workbench.baseDurationMaxMs`
+  and `react.surfaces.secondary-sidebar.baseDurationMaxMs` — whose historical maxima are 3.3ms and
+  2.9ms, with no comparable outlier — found 0 false failures on both checks without any exclusion, so
+  those two stay gated instead of being swept into the same exception. An excluded metric's raw
+  evidence (`historicalMaxMs`, `sampleCount`) is written into the committed baseline's own `excluded`
+  map, not only logged by the derive command, so a later reader of `scripts/performance-baseline.json`
+  can audit the exclusion without re-running the derivation. Add another name only with the same kind
+  of per-metric backtest evidence — this is a documented, narrow exception, not a place to route every
+  noisy metric or every variant of a noisy metric's family.
 
 A metric needs at least `MINIMUM_PERFORMANCE_SAMPLE_COUNT` (8) samples before any threshold is
 derived; fewer make even the historical maximum untrustworthy, so the metric is skipped rather than

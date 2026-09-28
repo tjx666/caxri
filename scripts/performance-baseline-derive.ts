@@ -216,18 +216,48 @@ async function currentCommit(): Promise<string> {
     }
 }
 
-async function main(): Promise<void> {
-    const options = parseArguments(process.argv.slice(2));
-    const inputPaths = await resolveInputPaths(options);
-    const contributions = await collectContributions(inputPaths);
+export interface DerivedPerformanceMetrics {
+    metrics: Record<string, ReturnType<typeof derivePerformanceMetricBaseline>>;
+    /**
+     * Same metric names as the keys of `excludedMetrics`, kept as a separate ordered list purely for the console
+     * summary's `join(', ')`.
+     */
+    excluded: string[];
+    /**
+     * Raw sample evidence for each excluded metric, written verbatim into `PerformanceBaseline.excluded` -- see that
+     * field's doc comment for why this must survive into the committed file rather than only this command's stdout.
+     */
+    excludedMetrics: Record<string, { historicalMaxMs: number; sampleCount: number }>;
+    skipped: string[];
+    underSampled: string[];
+}
+
+/**
+ * Pure classification step shared by `main` and its tests: sorts every contributed metric into gated, excluded (with
+ * evidence), skipped (too few samples), or under-sampled-but-armed-anyway, and derives a threshold for every gated one.
+ * Split out from `main` so this decision logic -- in particular that an excluded metric's evidence reaches
+ * `excludedMetrics` -- has a narrower, IO-free surface to test than the full CLI.
+ */
+export function derivePerformanceMetrics(
+    contributions: Partial<Record<string, number[]>>,
+    options: Pick<CliOptions, 'absoluteMarginMs' | 'k' | 'metrics' | 'relativeMargin' | 'source'>,
+): DerivedPerformanceMetrics {
     const selectedMetrics = options.metrics ?? Object.keys(contributions);
     const metrics: Record<string, ReturnType<typeof derivePerformanceMetricBaseline>> = {};
     const skipped: string[] = [];
     const excluded: string[] = [];
+    const excludedMetrics: Record<string, { historicalMaxMs: number; sampleCount: number }> = {};
     const underSampled: string[] = [];
     for (const metric of selectedMetrics) {
         if (!options.metrics && isExcludedPerformanceMetric(metric)) {
             excluded.push(metric);
+            const excludedValues = contributions[metric];
+            if (excludedValues && excludedValues.length > 0) {
+                excludedMetrics[metric] = {
+                    historicalMaxMs: Math.max(...excludedValues),
+                    sampleCount: excludedValues.length,
+                };
+            }
             continue;
         }
         const values = contributions[metric];
@@ -247,6 +277,17 @@ async function main(): Promise<void> {
             absoluteMarginMs: options.absoluteMarginMs,
         });
     }
+    return { metrics, excluded, excludedMetrics, skipped, underSampled };
+}
+
+async function main(): Promise<void> {
+    const options = parseArguments(process.argv.slice(2));
+    const inputPaths = await resolveInputPaths(options);
+    const contributions = await collectContributions(inputPaths);
+    const { metrics, excluded, excludedMetrics, skipped, underSampled } = derivePerformanceMetrics(
+        contributions,
+        options,
+    );
     if (excluded.length > 0) {
         console.log(
             `[performance-baseline-derive] excluded ${excluded.length} metric(s) from gating (see isExcludedPerformanceMetric): ${excluded.join(', ')}`,
@@ -279,6 +320,7 @@ async function main(): Promise<void> {
         commit: await currentCommit(),
         ...(options.provenance && { provenance: options.provenance }),
         metrics,
+        ...(Object.keys(excludedMetrics).length > 0 && { excluded: excludedMetrics }),
     };
     const outPath = resolve(options.out);
     await writeFile(outPath, `${JSON.stringify(baseline, undefined, 4)}\n`, 'utf8');
