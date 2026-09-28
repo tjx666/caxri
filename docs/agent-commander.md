@@ -41,8 +41,9 @@ rest of the app run. That bounds/open state also survives an app restart: `app.a
 it at quit, `resolveAuxiliaryWindowBounds` (`auxiliary-window-bounds.ts`) clamps the remembered
 rectangle to whichever display it currently matches so an unplugged monitor never reopens the window
 off-screen, and `reopenAuxiliaryWindowsAtStartup` (`auxiliary-window-lifecycle.ts`) reopens the
-Commander automatically, after the Workbench window and Server are already up, exactly when it was
-still open at the previous quit. The Process Explorer remembers its bounds the same way but never
+Commander automatically, after the Workbench window's Renderer has actually finished booting (not
+merely created) and Server startup is already up, exactly when it was still open at the previous
+quit. The Process Explorer remembers its bounds the same way but never
 reopens itself; the user opens it again through the same entry points as any other launch.
 
 The window runs with the Desktop principal. Main therefore authorizes it separately, through

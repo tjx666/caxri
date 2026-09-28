@@ -83,4 +83,19 @@ describe('persistAllWindowState', () => {
     it('treats a persister returning undefined as nothing to persist', async () => {
         await expect(persistAllWindowState([() => {}])).resolves.toBeUndefined();
     });
+
+    it('still runs every persister when an earlier one throws synchronously instead of rejecting', async () => {
+        const third = vi.fn().mockResolvedValue(undefined);
+
+        await expect(
+            persistAllWindowState([
+                () => {
+                    throw new Error('destroyed mid-read');
+                },
+                () => Promise.resolve(),
+                third,
+            ]),
+        ).rejects.toThrow('destroyed mid-read');
+        expect(third).toHaveBeenCalledOnce();
+    });
 });

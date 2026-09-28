@@ -163,7 +163,13 @@ export class ProcessExplorerWindowController {
             browserWindow: {
                 ...(this.lastBounds ?? { width: 1_280, height: 760 }),
                 minWidth: 720,
-                minHeight: 420,
+                /**
+                 * Matches `persistedWindowStateSchema.shape.bounds`'s own `height.min(480)`, which
+                 * `auxiliaryWindowStateSchema` reuses for both windows: a smaller minimum here would let the user
+                 * resize down to a height the combined `app.auxiliaryWindowState` row can never validate, silently
+                 * failing to persist bounds for both this window and the Commander.
+                 */
+                minHeight: 480,
                 title: 'Process Explorer — Caxri',
                 backgroundColor: '#282a36',
                 titleBarStyle: 'hiddenInset',
