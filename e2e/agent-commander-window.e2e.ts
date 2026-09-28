@@ -165,3 +165,58 @@ test('Agent Commander window reopens where it was closed', async ({}) => {
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+/**
+ * A Commander window still open when the app quits reopens itself, at the same bounds, the next time the app launches —
+ * cold-start reopen plus cross-restart bounds persistence together; see `reopenAuxiliaryWindowsAtStartup` and
+ * `AgentCommanderWindowController.persistWindowState`.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
+test('Agent Commander window reopens at its remembered bounds across an app restart', async ({}) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-commander-restart-e2e-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: {} },
+    });
+    let running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    const commanderBounds = () =>
+        running.app.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows()
+                .find((window) => window.webContents.getURL().includes('agent-commander.html'))
+                ?.getBounds(),
+        );
+    try {
+        await createShellSession(running.page);
+        await pageRequest(running.page, 'agentCommander.open');
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        const moved = { x: 50, y: 70, width: 1_000, height: 700 };
+        await running.app.evaluate(({ BrowserWindow }, bounds) => {
+            BrowserWindow.getAllWindows()
+                .find((window) => window.webContents.getURL().includes('agent-commander.html'))
+                ?.setBounds(bounds);
+        }, moved);
+        await expect.poll(commanderBounds).toEqual(moved);
+
+        // A real quit (not just closing the window) is what flushes `persistWindowState` at `before-quit`.
+        await running.app.close();
+        running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+
+        // The Commander was still open when the app quit, so it reopens on its own, at the bounds it was left at.
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        await expect.poll(commanderBounds).toEqual(moved);
+        const commander = running.app.windows().find((page) => page !== running.page)!;
+        await expect(commander.locator('.terminal-pane .xterm-rows')).toContainText(
+            'Fake codex ready',
+        );
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(directory, { recursive: true, force: true });
+    }
+});

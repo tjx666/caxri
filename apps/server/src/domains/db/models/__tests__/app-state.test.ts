@@ -19,6 +19,12 @@ describe('parseAppStateValue', () => {
         expect(() => parseAppStateValue('windowState', '{"isMaximized":"yes"}')).toThrow(
             expect.objectContaining({ code: 'VALIDATION' }) as Error,
         );
+        expect(() =>
+            parseAppStateValue(
+                'auxiliaryWindowState',
+                '{"agentCommander":{"wasOpenAtQuit":"yes"}}',
+            ),
+        ).toThrow(expect.objectContaining({ code: 'VALIDATION' }) as Error);
     });
 
     it('returns the parsed value when the cell matches the key schema', () => {
@@ -27,5 +33,11 @@ describe('parseAppStateValue', () => {
         expect(
             parseAppStateValue('windowState', '{"isMaximized":false,"isFullScreen":true}'),
         ).toEqual({ isMaximized: false, isFullScreen: true });
+        expect(
+            parseAppStateValue(
+                'auxiliaryWindowState',
+                '{"agentCommander":{"wasOpenAtQuit":true},"processExplorer":{}}',
+            ),
+        ).toEqual({ agentCommander: { wasOpenAtQuit: true }, processExplorer: {} });
     });
 });

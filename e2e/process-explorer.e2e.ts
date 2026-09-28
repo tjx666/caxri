@@ -2,10 +2,11 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { AppSettings } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-import { createShellSession, launchCaxri, runtimeStatus } from './support/helpers.ts';
+import { createShellSession, launchCaxri, pageRequest, runtimeStatus } from './support/helpers.ts';
 
 test('Process Explorer opens one live Caxri process tree and closes independently', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-process-explorer-e2e-'));
@@ -227,6 +228,80 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         await processPage.close();
         await expect.poll(() => running.app.windows().length).toBe(1);
         await expect(runtimeStatus(running.page)).toHaveAttribute('data-runtime-status', 'ready');
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures; the assertions above already produced the test result.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * Process Explorer follows the app-wide `window.zoomLevel` the same way the Agent Commander does, and remembers its own
+ * bounds across an app restart with the same display-clamped persistence; see
+ * `AgentCommanderWindowController.currentWindowState` and `docs/agent-commander.md`. It never reopens itself at
+ * startup, unlike the Commander.
+ */
+test('Process Explorer follows the app zoom and remembers its bounds across a restart', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-process-explorer-state-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    let running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const mainZoomLevel = () =>
+        running.app.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows()
+                .find((window) => !window.webContents.getURL().includes('process-explorer.html'))
+                ?.webContents.getZoomLevel(),
+        );
+    const explorerZoomLevel = () =>
+        running.app.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows()
+                .find((window) => window.webContents.getURL().includes('process-explorer.html'))
+                ?.webContents.getZoomLevel(),
+        );
+    const explorerBounds = () =>
+        running.app.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows()
+                .find((window) => window.webContents.getURL().includes('process-explorer.html'))
+                ?.getBounds(),
+        );
+    try {
+        await createShellSession(running.page);
+        const settings = await pageRequest<{ value: AppSettings }>(running.page, 'settings.get');
+        settings.value['window.zoomLevel'] = 1;
+        await pageRequest(running.page, 'settings.update', {
+            source: JSON.stringify(settings.value),
+        });
+        expect(running.app.windows().length).toBe(1);
+        // Wait for the setting to actually reach Main's zoom controller before opening a window that reads it once at
+        // creation; the request resolving does not guarantee the `settings.changed` event has been applied yet.
+        await expect.poll(mainZoomLevel).toBe(1);
+
+        await pageRequest(running.page, 'processExplorer.open');
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        await expect.poll(explorerZoomLevel).toBe(1);
+
+        const moved = { x: 30, y: 45, width: 960, height: 620 };
+        await running.app.evaluate(({ BrowserWindow }, bounds) => {
+            BrowserWindow.getAllWindows()
+                .find((window) => window.webContents.getURL().includes('process-explorer.html'))
+                ?.setBounds(bounds);
+        }, moved);
+        await expect.poll(explorerBounds).toEqual(moved);
+
+        await running.app.close();
+        running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+        // Process Explorer never reopens itself at startup, unlike the Commander.
+        expect(running.app.windows().length).toBe(1);
+
+        await pageRequest(running.page, 'processExplorer.open');
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        await expect.poll(explorerBounds).toEqual(moved);
+        await expect.poll(explorerZoomLevel).toBe(1);
     } finally {
         try {
             await running.app.close();
