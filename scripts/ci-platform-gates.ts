@@ -1,11 +1,14 @@
 type PlatformNeutralCIGateId =
     | 'bundle-budget'
+    | 'docs-check'
     | 'eslint'
     | 'format'
+    | 'gitleaks'
     | 'knip'
     | 'markdownlint'
     | 'oxlint-type-aware'
     | 'react-doctor'
+    | 'source-size-ratchet'
     | 'typescript'
     | 'vitest';
 
@@ -88,6 +91,11 @@ const metricGate = ({
  * receiptCommand preserves the exact shell contract used by Go's local CI fallback.
  */
 export const PLATFORM_NEUTRAL_CI_GATES = [
+    directGate({
+        id: 'gitleaks',
+        label: 'gitleaks',
+        script: 'gitleaks',
+    }),
     metricGate({
         extraArguments: (environment) => ['--concurrency', environment.ESLINT_CONCURRENCY ?? 'off'],
         id: 'eslint',
@@ -109,6 +117,16 @@ export const PLATFORM_NEUTRAL_CI_GATES = [
         id: 'markdownlint',
         label: 'markdownlint',
         script: 'lint:markdown',
+    }),
+    directGate({
+        id: 'docs-check',
+        label: 'documentation check',
+        script: 'docs-check',
+    }),
+    directGate({
+        id: 'source-size-ratchet',
+        label: 'source-size ratchet',
+        script: 'source-size-ratchet',
     }),
     directGate({
         id: 'knip',

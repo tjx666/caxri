@@ -28,6 +28,9 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
 - `--lint` applies ESLint, oxlint type-aware (`.oxlintrc.json`, TS files only), and Prettier fixes
   to supported files. Always inspect the resulting diff. Appending file paths to `bun run format`
   does not narrow formatting; use `bun run --silent check <files...> --lint` for a focused pass.
+  When the changed set includes source files, `--lint` also runs the source-size ratchet; when it
+  includes Markdown, `--lint` also runs the documentation check. Neither autofixes -- see
+  "Guardrails" below to interpret a failure.
 - `--test` runs changed test files, the existing bounded colocated/domain candidates, and Vitest
   suites that statically import a changed source through a relative path, tsconfig alias, or
   workspace package export. Discovery crosses at most two pure re-export barrels, including
@@ -91,3 +94,39 @@ Use these when a focused `check` is the wrong width, not as the default after ev
   variable on its own judgement or on another agent's verdict, including while repairing CI. Use
   `bun run check <changed files>` or name the test files with
   `bunx vitest run <file>` instead.
+
+## Guardrails
+
+Three gates run automatically -- inside `check --lint`, in the pre-commit hook, and in CI -- so a
+contributor never has to remember to invoke them by hand. Each is also its own `bun run` script for
+a standalone or repository-wide run.
+
+- **`bun run gitleaks`** scans for committed secrets with `.gitleaks.toml` (extends gitleaks' default
+  ruleset with narrowly path- and regex-scoped allowlists for this repository's known non-secret
+  false positives, e.g. keyboard-shortcut strings). The pre-commit hook scans the Git index
+  (`--staged`); CI scans the commits a push or pull request actually introduced
+  (`GITLEAKS_BASE_REVISION`/`GITLEAKS_HEAD_REVISION`), falling back to the full history when no base
+  revision is available (the first push to a branch, a schedule run, or `workflow_dispatch`). A
+  finding fails closed with `--redact`, so the failure output never leaks the secret itself. To fix:
+  rotate and remove a real secret; for a verified false positive, extend `.gitleaks.toml` with a
+  narrowly scoped allowlist entry (never a blanket one) and explain why in a comment.
+  `scripts/prepare-gitleaks.ts` provisions the pinned binary (checksum-verified download, cached
+  under `.cache/tool-cache` locally or `$RUNNER_TOOL_CACHE/caxri` in CI) whenever it is not already
+  on `PATH` at the pinned version.
+- **`bun run source-size-ratchet`** compares each changed source file's working-tree line count
+  against its line count at the merge base with `origin/main` (`--base <ref>` to override). It fails
+  when a file already at or above 600 lines grew further, or a new path (including a rename target)
+  lands at or above 600 lines -- using Git rename detection so a pure move never counts as growth. It
+  never fails a file that shrank, even while still above 600 lines: it is a growth ratchet, not a
+  restatement of ESLint's absolute `max-lines: 800` ceiling. To fix: split the flagged file by
+  responsibility into smaller, cohesively-owned files (see the source-layout skill) -- do not
+  compress it to fit.
+- **`bun run docs-check`** (`scripts/documentation-check.ts`) validates the documentation this
+  repository always keeps consistent (frontmatter, cross-references, repository-relative links,
+  README index completeness). It always runs unscoped, even from a focused invocation, both because
+  it is cheap (well under a second) and because a scoped run would miss an index gap the changed
+  Markdown itself did not touch. `check --lint` and the pre-commit hook run it whenever the changed
+  or staged set includes a `.md` file.
+
+All three also sit in the full CI platform-check manifest (`scripts/ci-platform-gates.ts`), so
+`bun run scripts/ci-platform-checks.ts` exercises them even outside a diff.

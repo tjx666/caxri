@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { EXPECTED_PLATFORM_NEUTRAL_GATE_IDS } from '../../../../../scripts/__tests__/ci-platform-gates.fixture';
 import {
     assertCanonicalPlatformNeutralGate,
     PLATFORM_NEUTRAL_CI_COMMANDS,
@@ -8,17 +9,9 @@ import {
 
 describe('canonical platform-neutral gates', () => {
     it('keeps stable unique IDs paired with every exact fallback command', () => {
-        expect(PLATFORM_NEUTRAL_CI_GATES.map(({ id }) => id)).toEqual([
-            'eslint',
-            'oxlint-type-aware',
-            'markdownlint',
-            'knip',
-            'react-doctor',
-            'typescript',
-            'format',
-            'vitest',
-            'bundle-budget',
-        ]);
+        expect(PLATFORM_NEUTRAL_CI_GATES.map(({ id }) => id)).toEqual(
+            EXPECTED_PLATFORM_NEUTRAL_GATE_IDS,
+        );
         expect(new Set(PLATFORM_NEUTRAL_CI_GATES.map(({ id }) => id)).size).toBe(
             PLATFORM_NEUTRAL_CI_GATES.length,
         );

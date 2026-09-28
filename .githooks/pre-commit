@@ -2,3 +2,14 @@
 set -e
 
 bun run lint:staged
+
+# Scans the Git index -- the same diff this commit is about to create -- independent of lint-staged's per-file-type
+# routing, so a secret is caught even in a file type lint-staged does not otherwise touch. `--redact` keeps a real
+# secret out of terminal scrollback even when this fails.
+bun run gitleaks -- --staged
+
+# Runs unscoped on purpose: README-index completeness and cross-document links are repository-wide properties that a
+# per-file run cannot see, and the full pass stays well under a second.
+if git diff --cached --name-only --diff-filter=ACM -- '*.md' | grep -q .; then
+    bun run docs-check
+fi
