@@ -476,10 +476,12 @@ jobs:
           # The receipt alone only names a failure; the per-test directory underneath carries the screenshot, trace,
           # and content-free `caxri-desktop-*.jsonl`/`caxri-server-core-*.jsonl` log attachments a case actually
           # needs to diagnose without re-running it (see docs/ci-performance.md and .agents/skills/e2e-testing).
+          # `run-e2e-pools.ts` now writes the receipt on every exit path, including a SIGTERM abort, so an upload that
+          # finds no files at all is itself an evidence-capture defect and stays a hard error.
           path: |
             test-results/receipts/parallel-safe.json
             test-results/parallel-safe/**
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
       - name: Upload desktop-exclusive failure artifacts
         if: >-
@@ -493,7 +495,7 @@ jobs:
           path: |
             test-results/receipts/desktop-exclusive.json
             test-results/desktop-exclusive/**
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
       - name: Upload control failure artifacts
         if: always() && steps.control.outcome == 'failure'
@@ -503,7 +505,7 @@ jobs:
           path: |
             test-results/receipts/control.json
             test-results/control/**
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
       - name: Upload auxiliary E2E failure artifacts
         if: >-
