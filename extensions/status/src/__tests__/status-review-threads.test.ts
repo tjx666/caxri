@@ -52,7 +52,10 @@ describe('Status extension review threads', () => {
             description: 'Please rename this helper.',
             command: { arguments: [`${pullRequestUrl}#discussion_r1`] },
         });
-        const { rows } = inline.item.tooltip as TreeItemRichTooltip;
+        const { description, markdown, rows } = inline.item.tooltip as TreeItemRichTooltip;
+        // The hover card renders the authored Markdown with its paragraph breaks instead of a flattened excerpt.
+        expect(markdown).toBe('Please rename\n\nthis helper.');
+        expect(description).toBeUndefined();
         expect(rows).toContainEqual({ label: 'file', value: 'src/app.ts' });
         expect(rows).toContainEqual({ label: 'author', value: '@reviewer' });
         expect(general.item.label).toBe('General');

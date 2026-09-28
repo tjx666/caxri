@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     extensionManifestSchema,
     extensionTreeViewStatesSchema,
+    MAX_TREE_ITEM_TOOLTIP_MARKDOWN,
     sourceControlActionResultSchema,
     sourceControlHistoryPageSchema,
     sourceControlViewModelSchema,
@@ -102,6 +103,31 @@ describe('extension view contracts', () => {
                     ],
                 },
             }).success,
+        ).toBe(false);
+    });
+
+    it('accepts a bounded Markdown tooltip body that replaces the plain description', () => {
+        const baseItem = {
+            handle: 'id:thread',
+            label: 'app.ts:12',
+            accessibilityLabel: 'app.ts:12',
+            collapsibleState: 'none' as const,
+        };
+        const tooltip = (fields: Record<string, string>) => ({
+            ...baseItem,
+            tooltip: { kind: 'rich', title: 'app.ts:12', ...fields },
+        });
+        const oversized = 'x'.repeat(MAX_TREE_ITEM_TOOLTIP_MARKDOWN + 1);
+        expect(treeItemSchema.parse(tooltip({ markdown: 'Rename `helper`.' })).tooltip).toEqual({
+            kind: 'rich',
+            title: 'app.ts:12',
+            markdown: 'Rename `helper`.',
+            rows: [],
+        });
+        expect(treeItemSchema.safeParse(tooltip({ markdown: oversized })).success).toBe(false);
+        expect(
+            treeItemSchema.safeParse(tooltip({ description: 'plain', markdown: '**rich**' }))
+                .success,
         ).toBe(false);
     });
 

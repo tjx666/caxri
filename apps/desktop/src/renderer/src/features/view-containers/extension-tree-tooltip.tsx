@@ -18,6 +18,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
+import { ExtensionTreeTooltipMarkdown } from './extension-tree-tooltip-markdown';
 
 type RichTooltip = Exclude<TreeItemDto['tooltip'], string | undefined>;
 
@@ -184,6 +185,12 @@ export function ExtensionTreeTooltip({
                     <p className="mt-1 mb-0 text-[12px] leading-5 wrap-anywhere text-muted">
                         {tooltip.description}
                     </p>
+                )}
+                {tooltip.markdown && (
+                    <ExtensionTreeTooltipMarkdown
+                        source={tooltip.markdown}
+                        onOpenUrl={openTooltipUrl}
+                    />
                 )}
                 {tooltip.rows.length > 0 && (
                     <ul className="mt-2 mb-0 list-disc space-y-1 pl-5 text-[12px] leading-5">
