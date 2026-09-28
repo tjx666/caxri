@@ -155,3 +155,72 @@ export function conversationVariedAgentRecords(start: number, count: number): un
         };
     });
 }
+
+/**
+ * One finished Bash call whose output is several sheet heights long, so the tool detail body must scroll. Eighty short
+ * lines stay under the 2,048-character detail cap of the mobile timeline contract, so none of them is cut off.
+ */
+export function conversationLongToolRecords(): unknown[] {
+    const output = Array.from(
+        { length: 80 },
+        (_, index) => `Synthetic output line ${String(index + 1).padStart(2, '0')}`,
+    ).join('\n');
+    return [
+        {
+            type: 'user',
+            uuid: 'synthetic-long-tool-user',
+            timestamp: '2026-01-01T00:00:00.000Z',
+            message: {
+                id: 'synthetic-long-tool-message-user',
+                content: [{ type: 'text', text: 'Run the synthetic long command.' }],
+            },
+        },
+        {
+            type: 'assistant',
+            uuid: 'synthetic-long-tool-call',
+            timestamp: '2026-01-01T00:00:01.000Z',
+            message: {
+                id: 'synthetic-long-tool-message-call',
+                content: [
+                    {
+                        type: 'tool_use',
+                        id: 'synthetic-long-tool',
+                        name: 'Bash',
+                        input: { command: 'seq 80' },
+                    },
+                ],
+            },
+        },
+        {
+            type: 'user',
+            uuid: 'synthetic-long-tool-result',
+            timestamp: '2026-01-01T00:00:02.000Z',
+            message: {
+                id: 'synthetic-long-tool-message-result',
+                content: [
+                    {
+                        type: 'tool_result',
+                        tool_use_id: 'synthetic-long-tool',
+                        content: output,
+                        is_error: false,
+                    },
+                ],
+            },
+        },
+        {
+            type: 'assistant',
+            uuid: 'synthetic-long-tool-reply',
+            timestamp: '2026-01-01T00:00:03.000Z',
+            message: {
+                id: 'synthetic-long-tool-message-reply',
+                content: [{ type: 'text', text: 'The synthetic command printed eighty lines.' }],
+            },
+        },
+        {
+            type: 'system',
+            subtype: 'turn_duration',
+            timestamp: '2026-01-01T00:00:04.000Z',
+            durationMs: 4_000,
+        },
+    ];
+}

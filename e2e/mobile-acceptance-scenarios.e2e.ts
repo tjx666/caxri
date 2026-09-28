@@ -34,11 +34,13 @@ import {
     countByteSequence,
     executeMobileEndToEndScenario,
 } from './support/mobile-end-to-end-scenarios.ts';
+import { executeMobileMotionScenario } from './support/mobile-motion-scenarios.ts';
 import { executeMobileNewSessionScenario } from './support/mobile-new-session-scenarios.ts';
 import { executeMobileProjectPanelsScenario } from './support/mobile-project-panels-scenarios.ts';
 import { executeMobileRecoveryScenario } from './support/mobile-recovery-scenarios.ts';
 import { executeMobileSessionRefreshScenario } from './support/mobile-session-refresh-scenarios.ts';
 import { executeMobileTerminalScenario } from './support/mobile-terminal-scenarios.ts';
+import { executeMobileTerminalScrollFeelScenario } from './support/mobile-terminal-scroll-scenario.ts';
 import { executeMobileUiAuditScenario } from './support/mobile-ui-audit-scenarios.ts';
 import {
     assertMobileComposerDraft,
@@ -484,6 +486,15 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 finish,
             );
             break;
+        case 'MOB-TERM-SCROLL-FEEL-01':
+            test.setTimeout(420_000);
+            await executeMobileTerminalScrollFeelScenario(
+                { ...environment, launchId, sourceCommit, remoteVideoPath },
+                artifacts,
+                capture,
+                finish,
+            );
+            break;
         case 'MOB-COMPOSER-01': {
             const fixture = await createMobileAcceptanceFixture({
                 mode: 'waiting',
@@ -639,6 +650,11 @@ test('executes one report-bound Android product scenario', async ({}) => {
             break;
         case 'MOB-CONV-05':
             await executeMobileConversationTransitionScenario(environment, artifacts);
+            break;
+        case 'MOB-MOTION-01':
+        case 'MOB-MOTION-02':
+        case 'MOB-MOTION-03':
+            await executeMobileMotionScenario(environment, artifacts);
             break;
         case 'MOB-TIMELINE-01':
         case 'MOB-CONV-01':

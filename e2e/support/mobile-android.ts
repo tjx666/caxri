@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -244,6 +245,19 @@ export async function pullMobileFramebufferRecording(
     }
 }
 
+/**
+ * Copies a finished recording for a scenario's own analysis and leaves the device file in place, because the Android
+ * Acceptance runner still collects it as the case's video after the scenario returns.
+ */
+export async function copyMobileFramebufferRecording(
+    serial: string,
+    remotePath: string,
+    localPath: string,
+): Promise<void> {
+    await mkdir(dirname(localPath), { recursive: true });
+    await runMobileDeviceCommand(adb, ['-s', serial, 'pull', remotePath, localPath]);
+}
+
 export async function mobileSemantics(serial: string): Promise<MobileSemanticNode[]> {
     const source = await runMobileDeviceCommand(
         'bun',
@@ -350,6 +364,39 @@ export async function openMobilePairingLink(serial: string, pairingLink: string)
     } catch {
         throw new Error('The pairing link could not be delivered');
     }
+}
+
+/**
+ * Hashes only the framebuffer rows and columns inside `bounds`, so a status-bar clock or an unrelated animation
+ * elsewhere on screen cannot make two frames of an unchanged region look different. Raw `screencap` output is a small
+ * header followed by RGBA pixels; the header length differs across Android releases, so it is derived from the size.
+ */
+export async function mobileRegionFingerprint(
+    serial: string,
+    bounds: { bottom: number; left: number; right: number; top: number },
+): Promise<string> {
+    const result = await execFileAsync(adb, ['-s', serial, 'exec-out', 'screencap'], {
+        cwd: projectRoot,
+        encoding: 'buffer',
+        maxBuffer: 32 * 1024 * 1024,
+    });
+    const frame = result.stdout;
+    const width = frame.readUInt32LE(0);
+    const height = frame.readUInt32LE(4);
+    const header = frame.length - width * height * 4;
+    if (header < 12 || header > 16)
+        throw new Error('Android raw framebuffer has an unknown layout');
+    const hash = createHash('sha256');
+    for (let row = Math.max(0, bounds.top); row < Math.min(height, bounds.bottom); row += 1) {
+        const start = header + (row * width + Math.max(0, bounds.left)) * 4;
+        hash.update(
+            frame.subarray(
+                start,
+                start + (Math.min(width, bounds.right) - Math.max(0, bounds.left)) * 4,
+            ),
+        );
+    }
+    return hash.digest('hex');
 }
 
 export async function captureMobileFramebuffer(serial: string, path: string): Promise<void> {
