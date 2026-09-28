@@ -8,6 +8,17 @@ import { execFileAsync } from '@caxri/system';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, pageRequest, runtimeStatus } from './support/helpers.ts';
 
+const MEMORY_UNITS: Record<string, number> = { B: 1 / 1024 / 1024, KB: 1 / 1024, MB: 1, GB: 1024 };
+
+/**
+ * Reads a formatted memory cell (`512 KB`, `641.7 MB`, `1.2 GB`) back into MB so sort order can be compared.
+ */
+function parseMemory(text: string): number {
+    const match = /^([\d.]+)\s*([KMG]?B)$/.exec(text.trim());
+    if (!match) throw new Error(`Unexpected memory cell: ${text}`);
+    return Number(match[1]) * MEMORY_UNITS[match[2]];
+}
+
 test('Process Explorer opens one live Caxri process tree and closes independently', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-process-explorer-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -50,32 +61,56 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         ).toBeVisible();
         const grid = processPage.getByRole('treegrid', { name: 'Caxri processes' });
         await expect(grid.getByRole('columnheader')).toHaveCount(4);
-        await expect(grid).toContainText('caxri');
-        await expect(
-            grid.locator('.process-name-cell[data-process-name="server-core"]'),
-        ).toHaveCount(1);
-        await expect(
-            grid.locator('.process-name-cell[data-process-name="extension-host"]'),
-        ).toHaveCount(1);
-        await expect(
-            grid.locator('.process-name-cell[data-process-name="terminal-host"]'),
-        ).toHaveCount(1);
-        await expect(grid).not.toContainText('/bundles/extension-host.js');
-        await expect(grid).not.toContainText('/bundles/terminal-host.js');
-        await expect(grid).toContainText(/\/(?:bin\/)?(?:zsh|bash|sh)/);
+        const summary = processPage.getByRole('region', { name: 'Resource summary' });
+        await expect(summary).toContainText(/CPU [\d.]+%/);
+        await expect(summary).toContainText(/Memory [\d.]+ [KMG]B \/ [\d.]+ [KMG]B/);
+        await expect(summary).toContainText(/Processes \d+/);
+        /**
+         * Caxri's own processes read as role labels, never artifact paths, and the Terminal the Session runs is grouped
+         * under that Session instead of nested five levels deep under Main.
+         */
+        const rowNamed = (name: string) =>
+            grid.locator(
+                `.process-row:not([data-process-kind="group"]):has(.process-name-cell[data-process-name="${name}"])`,
+            );
+        await Promise.all(
+            ['Caxri', 'Server Core', 'Extension Host', 'Terminal Host'].map((name) =>
+                expect(rowNamed(name)).toHaveCount(1),
+            ),
+        );
+        await expect(grid).not.toContainText('/bundles/');
+        await expect(grid.locator('[data-process-row-id="group:sessions"]')).toHaveCount(1);
+        const terminalRow = grid.locator('.process-row[data-process-kind="terminal"]');
+        await expect(terminalRow).toHaveCount(1);
+        await expect(terminalRow).toHaveAttribute('aria-expanded', 'false');
+        const shellRow = grid.locator(
+            '.process-row:has(.process-name-cell[data-process-name="zsh"], .process-name-cell[data-process-name="bash"], .process-name-cell[data-process-name="sh"])',
+        );
+        await expect(shellRow).toHaveCount(0);
+        await terminalRow.click();
+        await expect(terminalRow).toHaveAttribute('aria-expanded', 'true');
+        await expect(shellRow.first()).toBeVisible();
         const expandedRowCount = await processPage.locator('.process-row').count();
-        expect(expandedRowCount).toBeGreaterThan(3);
+        expect(expandedRowCount).toBeGreaterThan(6);
 
-        const rootProcess = processPage.locator('.process-name-cell[data-process-name="caxri"]');
-        await rootProcess.click({ modifiers: ['Alt'] });
-        await expect(processPage.locator('.process-row')).toHaveCount(1);
-        await rootProcess.click();
-        const partiallyExpandedRowCount = await processPage.locator('.process-row').count();
-        expect(partiallyExpandedRowCount).toBeGreaterThan(1);
-        expect(partiallyExpandedRowCount).toBeLessThan(expandedRowCount);
-        await rootProcess.click();
-        await expect(processPage.locator('.process-row')).toHaveCount(1);
-        await rootProcess.click({ modifiers: ['Alt'] });
+        const caxriGroup = grid.locator('[data-process-row-id="group:caxri"]');
+        await caxriGroup.click();
+        const collapsedRowCount = await processPage.locator('.process-row').count();
+        expect(collapsedRowCount).toBeLessThan(expandedRowCount - 3);
+        await caxriGroup.click();
+        await expect(processPage.locator('.process-row')).toHaveCount(expandedRowCount);
+
+        /**
+         * The filter matches names, PIDs, and command lines, and keeps each match's Session or group above it.
+         */
+        const filter = processPage.getByRole('searchbox', { name: 'Filter processes' });
+        await filter.fill('terminal host');
+        await expect(rowNamed('Terminal Host')).toHaveCount(1);
+        await expect(rowNamed('Server Core')).toHaveCount(0);
+        await filter.fill('no such process anywhere');
+        await expect(processPage.getByText(/No processes match/)).toBeVisible();
+        await filter.press('Escape');
+        await expect(filter).toHaveValue('');
         await expect(processPage.locator('.process-row')).toHaveCount(expandedRowCount);
 
         const sampledAt = Number(
@@ -162,25 +197,29 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         await retry.press('Enter');
         await expect(processPage.locator('.process-error')).toHaveCount(0);
         await expect(processPage.locator('.process-row')).toHaveCount(expandedRowCount);
-        await expect(processPage.getByText(/Updated .*Refreshes every 2 seconds/)).toBeVisible();
+        await expect(processPage.getByText('Live · updates every 2 seconds')).toBeVisible();
+        await expect(processPage.getByText(/^Updated /)).toBeVisible();
 
         /**
          * Header sorting reorders siblings without flattening the tree.
          */
-        const memoryHeader = grid.getByRole('columnheader', { name: 'Memory (MB)' });
-        const sortByMemory = grid.getByRole('button', { name: 'Sort by Memory (MB)' });
+        const memoryHeader = grid.getByRole('columnheader', { name: 'Memory' });
+        const sortByMemory = grid.getByRole('button', { name: 'Sort by Memory' });
         await expect(memoryHeader).toHaveAttribute('aria-sort', 'none');
         await sortByMemory.click();
         await expect(memoryHeader).toHaveAttribute('aria-sort', 'descending');
         expect(await processPage.locator('.process-row[aria-level="3"]').count()).toBeGreaterThan(
             0,
         );
-        const memoryColumn = await processPage
-            .locator('.process-row[aria-level="2"] [role="gridcell"]:nth-child(3)')
-            .allInnerTexts();
-        expect(memoryColumn.map(Number)).toEqual(
-            memoryColumn.map(Number).toSorted((left, right) => right - left),
-        );
+        const memoryColumn = (
+            await grid
+                .locator(
+                    '.process-row[aria-level="2"]:not([data-process-kind="session"]) [role="gridcell"]:nth-child(3)',
+                )
+                .allInnerTexts()
+        ).map(parseMemory);
+        expect(memoryColumn.length).toBeGreaterThan(3);
+        expect(memoryColumn).toEqual(memoryColumn.toSorted((left, right) => right - left));
         await sortByMemory.click();
         await expect(memoryHeader).toHaveAttribute('aria-sort', 'ascending');
 
@@ -190,10 +229,10 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
          */
         const nameColumnWidth = (): Promise<number> =>
             grid
-                .getByRole('columnheader', { name: 'Process Name' })
+                .getByRole('columnheader', { name: 'Name' })
                 .evaluate((element) => Math.round(element.getBoundingClientRect().width));
         const autoFittedNameWidth = await nameColumnWidth();
-        const resizer = grid.getByRole('separator', { name: 'Resize Process Name column' });
+        const resizer = grid.getByRole('separator', { name: 'Resize Name column' });
         const resizerBox = (await resizer.boundingBox())!;
         const resizerY = resizerBox.y + resizerBox.height / 2;
         await processPage.mouse.move(resizerBox.x + resizerBox.width / 2, resizerY);
@@ -207,11 +246,11 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         await expect.poll(nameColumnWidth).toBe(autoFittedNameWidth);
 
         /**
-         * A leaf row has no children to expand and therefore renders no control at all: the tooltip carrying its
-         * untruncated command line hangs off the row, so hovering anywhere on the row still explains it.
+         * A plain process shows only its executable; the tooltip carrying its untruncated command line hangs off the
+         * row, so hovering anywhere on the row still explains it.
          */
-        await grid.locator('.process-name-cell[data-process-name="extension-host"]').hover();
-        await expect(processPage.locator('.tooltip-popup')).toHaveText('extension-host');
+        await shellRow.first().locator('.process-name-cell').hover();
+        await expect(processPage.locator('.tooltip-popup')).toContainText(/(?:zsh|bash|sh)/);
         await processPage.mouse.move(4, 4);
         await expect(processPage.locator('.tooltip-popup')).toHaveCount(0);
 
@@ -224,6 +263,15 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         await childProcessAction.press('Space');
         await expect.poll(() => running.app.windows().length).toBe(2);
         await expect.poll(() => processPage.evaluate(() => document.hasFocus())).toBe(true);
+
+        /**
+         * Delete on a focused Terminal row stops (suspends) that Terminal; its row leaves the Sessions group on the
+         * next sample while the Session itself survives.
+         */
+        await terminalRow.focus();
+        await terminalRow.press('Delete');
+        await expect(terminalRow).toHaveCount(0);
+        await expect(grid.locator('[data-process-row-id="group:sessions"]')).toHaveCount(0);
 
         await processPage.close();
         await expect.poll(() => running.app.windows().length).toBe(1);

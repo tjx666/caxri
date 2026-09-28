@@ -33,6 +33,7 @@ export type TransientServerEvent = Extract<
             | 'settings.openRequested'
             | 'terminal.output'
             | 'terminal.outputRecovery'
+            | 'terminal.resourceAlert'
             | 'terminal.sizeOwnership'
             | 'viewContainers.catalogChanged'
             | 'viewContainers.treeChanged'
@@ -49,6 +50,11 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
     'agent.permissionAutoAllowChanged',
     'terminal.output',
     'terminal.outputRecovery',
+    /**
+     * Replaying a resource alert after a reconnect would re-notify an episode the user may already have dismissed; the
+     * live reading stays available in the status bar and Process Explorer.
+     */
+    'terminal.resourceAlert',
     'terminal.sizeOwnership',
     'agent.messaging.changed',
     'agent.message.held',

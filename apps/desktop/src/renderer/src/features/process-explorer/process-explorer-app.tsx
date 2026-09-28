@@ -2,12 +2,14 @@ import type { KeyboardEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ProcessExplorerSnapshot } from '@desktop-shared/process-explorer';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Search } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import { Input, InputGroup } from '../../components/ui/input';
 import { Tooltip, TooltipProvider } from '../../components/ui/tooltip';
 import { useContainerWidth } from '../../hooks/use-container-width';
 import { createVisibilityAwarePoll } from '../../lib/poll-scheduler';
+import { formatCpuPercent, formatMemoryMb } from '../../lib/resource-usage-format';
 import { applyCssTheme } from '../../lib/theme-css';
 import { cn } from '../../lib/utilities';
 import {
@@ -20,11 +22,14 @@ import { ProcessTableHeader } from './process-table-header';
 import type { ProcessRowVerticalKey, ProcessTreeRow } from './process-tree';
 import {
     buildProcessTree,
+    filterProcessTree,
     flattenProcessTree,
     nextProcessRowIndex,
+    processExplorerTotals,
     processRowHorizontalIntent,
-    rovingProcessRowPid,
-    setProcessSubtreeCollapsed,
+    rovingProcessRowId,
+    setProcessNodeExpanded,
+    setProcessSubtreeExpanded,
 } from './process-tree';
 import { useProcessTableState } from './use-process-table-state';
 
@@ -45,14 +50,18 @@ function isProcessVerticalKey(key: string): key is ProcessRowVerticalKey {
 
 export function ProcessExplorerApp() {
     const [snapshot, setSnapshot] = useState<ProcessExplorerSnapshot>();
-    const [collapsed, setCollapsed] = useState<Set<number>>(() => new Set());
+    /**
+     * Rows the user flipped away from their default disclosure; see `isProcessNodeExpanded`.
+     */
+    const [toggled, setToggled] = useState<Set<string>>(() => new Set());
+    const [filter, setFilter] = useState('');
     const [error, setError] = useState<string>();
     const [refreshing, setRefreshing] = useState(false);
     const refreshInFlight = useRef(false);
     /**
      * The last row the user focused, which owns the grid's roving Tab stop until that process leaves the sample.
      */
-    const [focusedPid, setFocusedPid] = useState<number>();
+    const [focusedId, setFocusedId] = useState<string>();
     const rowsReference = useRef<HTMLDivElement>(null);
     const table = useProcessTableState();
     /**
@@ -110,8 +119,13 @@ export function ProcessExplorerApp() {
         };
     }, [refresh]);
     const roots = useMemo(
-        () => buildProcessTree(snapshot?.processes ?? [], table.sort),
-        [snapshot?.processes, table.sort],
+        () => (snapshot ? buildProcessTree(snapshot, table.sort) : []),
+        [snapshot, table.sort],
+    );
+    const visibleRoots = useMemo(() => filterProcessTree(roots, filter), [filter, roots]);
+    const totals = useMemo(
+        () => processExplorerTotals(snapshot?.processes ?? []),
+        [snapshot?.processes],
     );
     const widths = useMemo(
         () => resolveProcessColumnWidths(table.widths, gridWidth),
@@ -119,32 +133,43 @@ export function ProcessExplorerApp() {
     );
     /**
      * The rows on screen, flattened once so the grid's single roving Tab stop and its arrow keys walk exactly what is
-     * rendered.
+     * rendered. A filter opens every row so no match hides inside a folded Terminal.
      */
-    const rows = useMemo(() => flattenProcessTree(roots, collapsed), [collapsed, roots]);
-    const rovingPid = rovingProcessRowPid(rows, focusedPid);
-    const focusRow = (pid: number): void =>
+    const rows = useMemo(
+        () => flattenProcessTree(visibleRoots, toggled, filter.trim().length > 0),
+        [filter, toggled, visibleRoots],
+    );
+    const rovingId = rovingProcessRowId(rows, focusedId);
+    const focusRow = (id: string): void =>
         rowsReference.current
-            ?.querySelector<HTMLElement>(`[data-process-pid="${CSS.escape(String(pid))}"]`)
+            ?.querySelector<HTMLElement>(`[data-process-row-id="${CSS.escape(id)}"]`)
             ?.focus();
-    const setRowCollapsed = (
-        row: ProcessTreeRow,
-        isCollapsed: boolean,
-        isRecursive = false,
-    ): void =>
-        setCollapsed((current) => {
-            if (isRecursive) return setProcessSubtreeCollapsed(current, row.node, isCollapsed);
-            const next = new Set(current);
-            if (isCollapsed) next.add(row.node.pid);
-            else next.delete(row.node.pid);
-            return next;
-        });
+    const setRowExpanded = (row: ProcessTreeRow, isExpanded: boolean, isRecursive = false): void =>
+        setToggled((current) =>
+            isRecursive
+                ? setProcessSubtreeExpanded(current, row.node, isExpanded)
+                : setProcessNodeExpanded(current, row.node, isExpanded),
+        );
     const toggle = (row: ProcessTreeRow, isRecursive: boolean): void =>
-        setRowCollapsed(row, !collapsed.has(row.node.pid), isRecursive);
+        setRowExpanded(row, !row.isExpanded, isRecursive);
+    const stopTerminal = (terminalId: string, name: string): void => {
+        async function runStop(): Promise<void> {
+            try {
+                await globalThis.processExplorer.stopTerminal(terminalId);
+            } catch (error_: unknown) {
+                console.error('processExplorer.stopTerminal failed', error_);
+                setError(`Unable to stop ${name}. Try again.`);
+                return;
+            }
+            refresh();
+        }
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, runStop reports its own failure
+        void runStop();
+    };
     /**
      * The process list is a single Tab stop, so these keys are the only way to reach a row that is not the current one:
-     * Up/Down/Home/End walk the visible rows, Left/Right collapse, expand, climb to the parent process, or step into
-     * the first child, and Enter/Space flip the focused process the way clicking it does.
+     * Up/Down/Home/End walk the visible rows, Left/Right collapse, expand, climb to the parent row, or step into the
+     * first child, Enter/Space flip the focused row the way clicking it does, and Delete stops a focused Terminal.
      */
     const handleRowKeyDown = (event: KeyboardEvent<HTMLDivElement>, row: ProcessTreeRow): void => {
         if (event.altKey || event.metaKey || event.ctrlKey) return;
@@ -154,30 +179,35 @@ export function ProcessExplorerApp() {
             const nextIndex = nextProcessRowIndex(rows, index, event.key);
             if (nextIndex === undefined) return;
             event.preventDefault();
-            focusRow(rows[nextIndex].node.pid);
+            focusRow(rows[nextIndex].node.id);
             return;
         }
         if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
             const intent = processRowHorizontalIntent(rows, index, event.key);
-            if (intent.collapsed !== undefined) {
+            if (intent.expanded !== undefined) {
                 event.preventDefault();
-                setRowCollapsed(row, intent.collapsed);
+                setRowExpanded(row, intent.expanded);
             }
             if (intent.focusIndex !== undefined) {
                 event.preventDefault();
-                focusRow(rows[intent.focusIndex].node.pid);
+                focusRow(rows[intent.focusIndex].node.id);
             }
             return;
         }
         if ((event.key === 'Enter' || event.key === ' ') && row.isExpandable) {
             event.preventDefault();
             toggle(row, false);
+            return;
+        }
+        if ((event.key === 'Delete' || event.key === 'Backspace') && row.node.terminalId) {
+            event.preventDefault();
+            stopTerminal(row.node.terminalId, row.node.name);
         }
     };
     return (
         <TooltipProvider>
             <main
-                className="process-explorer grid h-full w-full grid-rows-[42px_minmax(0,1fr)_28px] bg-background"
+                className="process-explorer grid h-full w-full grid-rows-[42px_auto_minmax(0,1fr)_28px] bg-background"
                 data-sampled-at={snapshot?.sampledAt}
             >
                 <header className="process-titlebar relative flex items-center justify-center bg-title-bar-active-background px-12 pl-[84px] text-title-bar-active-foreground [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground">
@@ -202,6 +232,52 @@ export function ProcessExplorerApp() {
                         </button>
                     </Tooltip>
                 </header>
+                <section
+                    className="process-summary flex items-center gap-5 border-b border-border px-4 py-2.5 text-[12px] text-muted"
+                    aria-label="Resource summary"
+                >
+                    <span>
+                        CPU{' '}
+                        <strong className="font-semibold text-foreground tabular-nums">
+                            {snapshot ? formatCpuPercent(totals.cpuPercent) : '—'}
+                        </strong>
+                    </span>
+                    <span>
+                        Memory{' '}
+                        <strong className="font-semibold text-foreground tabular-nums">
+                            {snapshot ? formatMemoryMb(totals.memoryMb) : '—'}
+                        </strong>
+                        {snapshot && snapshot.systemMemoryMb > 0 && (
+                            <span className="tabular-nums">
+                                {' '}
+                                / {formatMemoryMb(snapshot.systemMemoryMb)}
+                            </span>
+                        )}
+                    </span>
+                    <span>
+                        Processes{' '}
+                        <strong className="font-semibold text-foreground tabular-nums">
+                            {snapshot ? totals.processCount : '—'}
+                        </strong>
+                    </span>
+                    <InputGroup appearance="workbench" size="dense" className="ml-auto w-60">
+                        <Search aria-hidden="true" className="shrink-0 text-muted" size={13} />
+                        <Input
+                            appearance="embedded"
+                            size="dense"
+                            type="search"
+                            placeholder="Filter"
+                            aria-label="Filter processes"
+                            value={filter}
+                            onChange={(event) => setFilter(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (!filter || event.key !== 'Escape') return;
+                                event.preventDefault();
+                                setFilter('');
+                            }}
+                        />
+                    </InputGroup>
+                </section>
                 <div
                     ref={gridReference}
                     className="process-grid min-h-0 overflow-auto"
@@ -224,12 +300,12 @@ export function ProcessExplorerApp() {
                             className="process-rows"
                             role="presentation"
                             onFocusCapture={(event) => {
-                                const pid =
+                                const id =
                                     event.target instanceof HTMLElement
-                                        ? event.target.closest<HTMLElement>('[data-process-pid]')
-                                              ?.dataset.processPid
+                                        ? event.target.closest<HTMLElement>('[data-process-row-id]')
+                                              ?.dataset.processRowId
                                         : undefined;
-                                if (pid) setFocusedPid(Number(pid));
+                                if (id) setFocusedId(id);
                             }}
                         >
                             {!snapshot && !error && (
@@ -258,12 +334,18 @@ export function ProcessExplorerApp() {
                                     No Caxri processes found.
                                 </div>
                             )}
+                            {snapshot && roots.length > 0 && rows.length === 0 && (
+                                <div className={processMessageClassName}>
+                                    No processes match “{filter.trim()}”.
+                                </div>
+                            )}
                             {rows.map((row) => (
                                 <ProcessRow
-                                    key={row.node.pid}
-                                    isRoving={row.node.pid === rovingPid}
+                                    key={row.node.id}
+                                    isRoving={row.node.id === rovingId}
                                     row={row}
                                     onKeyDown={handleRowKeyDown}
+                                    onStopTerminal={stopTerminal}
                                     onToggle={toggle}
                                 />
                             ))}
@@ -275,11 +357,20 @@ export function ProcessExplorerApp() {
                  * over the user for as long as the window is open while saying nothing they asked for. The table
                  * already reports sampling through `aria-busy`, and this line stays readable on demand.
                  */}
-                <footer className="flex items-center px-3 text-[11px] text-muted">
-                    {snapshot
-                        ? `Updated ${new Date(snapshot.sampledAt).toLocaleTimeString('en-US')}. `
-                        : 'No current sample. '}
-                    Refreshes every {SAMPLE_INTERVAL_MS / 1_000} seconds.
+                <footer className="flex items-center gap-1.5 border-t border-border px-3 text-[11px] text-muted">
+                    <span
+                        aria-hidden="true"
+                        className={cn(
+                            'size-1.5 rounded-full',
+                            snapshot && !error ? 'bg-success' : 'bg-muted',
+                        )}
+                    />
+                    Live · updates every {SAMPLE_INTERVAL_MS / 1_000} seconds
+                    <span className="ml-auto tabular-nums">
+                        {snapshot
+                            ? `Updated ${new Date(snapshot.sampledAt).toLocaleTimeString('en-US')}`
+                            : 'No current sample'}
+                    </span>
                 </footer>
             </main>
         </TooltipProvider>

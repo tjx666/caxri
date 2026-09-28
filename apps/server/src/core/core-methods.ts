@@ -112,11 +112,13 @@ export const coreForwardedMethods = [
     'terminal.prepareLongPaste',
     'terminal.moveToNewSession',
     'terminal.resize',
+    'terminal.processes',
     'terminal.resources',
     'terminal.referenceContext',
     'terminal.restart',
     'terminal.runningCount',
     'terminal.snapshot',
+    'terminal.suspend',
     'theme.get',
     'theme.update',
 ] as const satisfies readonly ServerMethod[];

@@ -5,7 +5,7 @@ import type {
     SessionState,
     TerminalRecord,
 } from '@caxri/protocol';
-import { agentProviderCatalog, assertNever } from '@caxri/protocol';
+import { assertNever } from '@caxri/protocol';
 import { isEqual } from 'es-toolkit';
 
 import {
@@ -16,6 +16,8 @@ import {
 import { gpuIncidentBudget } from '../features/gpu/gpu-incident-budget';
 import { gpuRecoveryNotificationCoordinator } from '../features/gpu/gpu-recovery-notifications';
 import { beginRendererPerformanceRequest } from '../features/renderer-performance/controller';
+import { reportTerminalOutputRecovery } from '../features/terminal/terminal-output-recovery-notice';
+import { reportTerminalResourceAlert } from '../features/terminal/terminal-resource-alerts';
 import {
     dismissWorkbenchRootCandidate,
     showWorkbenchRootCandidate,
@@ -709,25 +711,12 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                     event.payload.correlationId,
                 );
                 return;
-            case 'terminal.outputRecovery': {
-                const providerName = agentProviderCatalog[event.payload.provider].displayName;
-                if (event.payload.status === 'recovered')
-                    pushToast(
-                        'success',
-                        `Sent Esc and continue to ${providerName} after a matched recovery rule.`,
-                        {
-                            type: 'agent-recovery',
-                            action: { id: 'settings.open' },
-                        },
-                    );
-                else
-                    pushToast(
-                        'error',
-                        `Automatic recovery paused for ${providerName} after 3 attempts in 10 minutes.`,
-                        { action: { id: 'settings.open' } },
-                    );
+            case 'terminal.outputRecovery':
+                reportTerminalOutputRecovery(event.payload);
                 return;
-            }
+            case 'terminal.resourceAlert':
+                reportTerminalResourceAlert(event.payload);
+                return;
             case 'agent.automaticNamingUnavailable': {
                 reportAutomaticNamingNotices(
                     [event.payload],
