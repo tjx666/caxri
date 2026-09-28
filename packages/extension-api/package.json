@@ -1,6 +1,6 @@
 {
     "name": "caxri",
-    "version": "0.0.75",
+    "version": "0.0.76",
     "description": "Public ESM API for Caxri extensions.",
     "repository": {
         "type": "git",
