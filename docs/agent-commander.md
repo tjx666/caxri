@@ -282,8 +282,12 @@ Inside the Commander Terminal, the Commander calls the version-matched CLI throu
 
 ## Known limits and follow-ups
 
-- Commander identity lives in an `app_state` cell rather than a Project column. A durable
-  `projects` role column was deferred because it changes the table definition.
+- Commander identity lives in an `app_state` cell rather than a Project column, by decision.
+  `agentCommanderRows` (`apps/server/src/domains/db/commander-rows.ts`) checks that the Project,
+  Session, and Terminal still belong together, every Workbench list excludes the stored Project ID,
+  and `commander.ensure` rebuilds a missing record. A `projects` role column would add a migration
+  without fixing a known defect. Revisit it when a second kind of system Project appears or a real
+  integrity defect does.
 - The board uses the cached pull-request snapshot and does not refresh pull requests row by row.
 - Stopping the Commander ends its current turn. Reopening resumes the conversation, not the turn.
 - There is no setting to stop the Commander whenever its window closes. The status bar chip and the
