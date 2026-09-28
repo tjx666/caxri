@@ -157,16 +157,17 @@ async function tabSwitching(environment: ScenarioEnvironment, artifacts: string[
 }
 
 /**
- * Share of an Archive action at which a newly swiped row reads as half open.
+ * Share of an Archive action at which its row reads as open rather than sliding. When the newly swiped row is this far
+ * open, the previously open row must already be below it.
  */
 const HALF_REVEALED = 0.5;
 
 /**
- * By the time the newly swiped row is half open, the previously open row must have dropped below this fraction of its
- * own fully open share. It starts closing when the new drag starts, so the two cross while both slide; closing only
- * when the new row is released would leave it fully open for the whole drag.
+ * The second swipe drags slowly so its start and its release are far apart in the recording: a row that closes when the
+ * next drag starts is gone before the next row is half open, while one that waits for the release stays fully open
+ * through the drag.
  */
-const CLOSING_BELOW = 0.8;
+const SLOW_SWIPE_MS = 1000;
 
 /**
  * Keeps at most one Session row open: starting to swipe a second row closes the first, a tap on another row closes the
@@ -234,7 +235,7 @@ async function swipeRows(environment: ScenarioEnvironment, artifacts: string[]) 
         await pause(SETTLE_MS);
         await capture(environment, 'first-row-open', artifacts);
 
-        await swipeRowBoundsLeft(serial, second.bounds);
+        await swipeRowBoundsLeft(serial, second.bounds, SLOW_SWIPE_MS);
         const secondOpen = await waitForMobile(
             () => mobileSemantics(serial),
             (nodes) =>
@@ -303,9 +304,9 @@ async function swipeRows(environment: ScenarioEnvironment, artifacts: string[]) 
             if (!secondHalfOpen || peak(0) < HALF_REVEALED)
                 throw new Error('The recording does not show both Archive actions opening');
             const firstWhenSecondHalfOpen = secondHalfOpen.shares[0];
-            if (firstWhenSecondHalfOpen >= CLOSING_BELOW * peak(0))
+            if (firstWhenSecondHalfOpen >= HALF_REVEALED)
                 throw new Error(
-                    `The open Session row had not started closing (${firstWhenSecondHalfOpen.toFixed(2)} revealed) when the next row was half open`,
+                    `The open Session row was still ${firstWhenSecondHalfOpen.toFixed(2)} revealed when the next row was half open`,
                 );
             const bothRowsPeak = Math.max(0, ...samples.map(({ shares }) => Math.min(...shares)));
             await finish(environment, artifacts, {
@@ -318,10 +319,10 @@ async function swipeRows(environment: ScenarioEnvironment, artifacts: string[]) 
                      * Share of the first row's Archive action in the first frame where the second row is half open.
                      */
                     firstRowWhenSecondHalfOpen: Number(firstWhenSecondHalfOpen.toFixed(2)),
-                    firstRowLimit: Number((CLOSING_BELOW * peak(0)).toFixed(2)),
                     halfRevealed: HALF_REVEALED,
                     peaks: [Number(peak(0).toFixed(2)), Number(peak(1).toFixed(2))],
                     recordedFrames: samples.length,
+                    secondSwipeMs: SLOW_SWIPE_MS,
                 },
                 openRows: {
                     afterSecondSwipe: 1,
