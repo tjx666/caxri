@@ -36,12 +36,13 @@ describe('mainWindowChromeOptions', () => {
 describe('createWindowZoomController', () => {
     function fakeWindow() {
         const setZoomLevel = vi.fn();
+        const setWindowButtonPosition = vi.fn();
         const window = {
             isDestroyed: () => false,
             webContents: { setZoomLevel },
-            setWindowButtonPosition: vi.fn(),
+            setWindowButtonPosition,
         } as unknown as BrowserWindow;
-        return { window, setZoomLevel };
+        return { window, setZoomLevel, setWindowButtonPosition };
     }
 
     it('applies a settings write only when the zoom level changed', async () => {
@@ -49,7 +50,7 @@ describe('createWindowZoomController', () => {
         let level = 2;
         const controller = createWindowZoomController({
             loadLevel: () => Promise.resolve(level),
-            window: () => window,
+            windows: () => [window],
         });
 
         await expect(controller.load()).resolves.toBe(2);
@@ -61,10 +62,31 @@ describe('createWindowZoomController', () => {
         await vi.waitFor(() => expect(setZoomLevel).toHaveBeenCalledWith(3));
     });
 
+    it('zooms every window that follows the app zoom, and remembers the level for the next one', async () => {
+        const workbench = fakeWindow();
+        const commander = fakeWindow();
+        let level = 0;
+        const controller = createWindowZoomController({
+            loadLevel: () => Promise.resolve(level),
+            windows: () => [workbench.window, undefined, commander.window],
+        });
+        await controller.load();
+
+        level = -1;
+        controller.refresh();
+
+        await vi.waitFor(() => expect(commander.setZoomLevel).toHaveBeenCalledWith(-1));
+        expect(workbench.setZoomLevel).toHaveBeenCalledWith(-1);
+        expect(commander.setWindowButtonPosition).toHaveBeenCalledWith(
+            trafficLightPositionForZoom(zoomFactorForLevel(-1)),
+        );
+        expect(controller.level()).toBe(-1);
+    });
+
     it('keeps the current level when the settings read fails', async () => {
         const controller = createWindowZoomController({
             loadLevel: () => Promise.reject(new Error('offline')),
-            window: () => {},
+            windows: () => [],
         });
 
         await expect(controller.load()).resolves.toBe(0);

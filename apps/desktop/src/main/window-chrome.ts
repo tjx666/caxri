@@ -75,6 +75,10 @@ export interface WindowZoomController {
      */
     load(): Promise<number>;
     /**
+     * The level last loaded or applied, for a window created after startup.
+     */
+    level(): number;
+    /**
      * Re-reads the level after a settings write and applies it only when it changed.
      */
     refresh(): void;
@@ -82,11 +86,13 @@ export interface WindowZoomController {
 
 /**
  * `settings.changed` names no key, so the controller compares each reload against the last applied level and leaves the
- * window alone for every unrelated settings write. A failed read keeps the current level.
+ * windows alone for every unrelated settings write. A failed read keeps the current level. `window.zoomLevel` is one
+ * app-wide setting, so every window that shares the Workbench's 44px drag header follows it: the Workbench and the
+ * Agent Commander.
  */
 export function createWindowZoomController(options: {
     loadLevel: () => Promise<number>;
-    window: () => BrowserWindow | undefined;
+    windows: () => ReadonlyArray<BrowserWindow | undefined>;
 }): WindowZoomController {
     let applied = 0;
     const read = async (): Promise<number> => {
@@ -101,6 +107,7 @@ export function createWindowZoomController(options: {
             applied = await read();
             return applied;
         },
+        level: () => applied,
         refresh() {
             // A synchronous event listener; `read` already falls back on failure, so this is deliberately
             // fire-and-forget rather than awaited.
@@ -108,8 +115,7 @@ export function createWindowZoomController(options: {
             void read().then((level) => {
                 if (level === applied) return;
                 applied = level;
-                const window = options.window();
-                if (window) applyWindowZoom(window, level);
+                for (const window of options.windows()) if (window) applyWindowZoom(window, level);
             });
         },
     };

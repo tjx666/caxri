@@ -8,6 +8,7 @@ import type { BrowserWindow, WebContents } from 'electron';
 import { AgentCommanderRendererPolicy } from './agent-commander-policy';
 import { createAuxiliaryWindow, isAuxiliaryWindowRevealed } from './auxiliary-window';
 import { resolveRendererEntryUrl } from './renderer-entry';
+import { trafficLightPositionForZoom, zoomFactorForLevel } from './window-chrome';
 import type { E2EWindowMode } from './window-mode';
 import type { CompanionRendererPolicy } from './workbench-ipc';
 
@@ -19,6 +20,10 @@ interface AgentCommanderWindowOptions {
     rendererUrl?: string;
     stopCommander: () => Promise<unknown>;
     windowMode: E2EWindowMode;
+    /**
+     * The app-wide `window.zoomLevel` Main last applied, which a newly opened window starts at.
+     */
+    zoomLevel: () => number;
 }
 
 /**
@@ -52,12 +57,19 @@ export class AgentCommanderWindowController {
     }
 
     /**
+     * The window while it is open, which also follows the app-wide window zoom.
+     */
+    openWindow(): BrowserWindow | undefined {
+        return this.window?.isDestroyed() ? undefined : this.window;
+    }
+
+    /**
      * The Workbench IPC companion contract for this window.
      */
     companion(): CompanionRendererPolicy {
         return {
             renderer: () => this.renderer(),
-            window: () => (this.window?.isDestroyed() ? undefined : this.window),
+            window: () => this.openWindow(),
             admit: (raw) => this.policy.admit(raw),
             observeReply: (raw, reply) => this.policy.observeReply(raw, reply),
             onEventsReady: () => {
@@ -129,6 +141,7 @@ export class AgentCommanderWindowController {
         if (isAuxiliaryWindowRevealed(this.window, this.options.windowMode === 'visible')) return;
         const logger = this.options.logger();
         if (!logger) return;
+        const zoomFactor = zoomFactorForLevel(this.options.zoomLevel());
         const window = createAuxiliaryWindow({
             browserWindow: {
                 width: 1_320,
@@ -138,11 +151,17 @@ export class AgentCommanderWindowController {
                 title: 'Agent Commander — Caxri',
                 backgroundColor: '#282a36',
                 titleBarStyle: 'hiddenInset',
+                /**
+                 * The header is the Workbench's 44px drag header, so the traffic lights sit where they do there, and
+                 * the window opens at the app zoom instead of flashing at 100% first.
+                 */
+                trafficLightPosition: trafficLightPositionForZoom(zoomFactor),
                 webPreferences: {
                     preload: join(this.options.currentDirectory, '../preload/index.cjs'),
                     contextIsolation: true,
                     nodeIntegration: false,
                     sandbox: true,
+                    zoomFactor,
                 },
             },
             events: logEventCatalog.agentCommander,

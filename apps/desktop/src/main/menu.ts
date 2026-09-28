@@ -24,6 +24,10 @@ export interface AppMenuOptions {
      * Restores, shows, and focuses the Workbench window.
      */
     focusWorkbench: () => void;
+    /**
+     * Whether a window other than the Workbench follows the app-wide `window.zoomLevel`, as the Agent Commander does.
+     */
+    isFollowingAppZoom: (window: BaseWindow) => boolean;
 }
 
 /**
@@ -33,21 +37,30 @@ export interface AppMenuOptions {
 const APP_LEVEL_SHORTCUTS = new Set<CommandId>(['settings.open']);
 
 /**
+ * `window.zoomLevel` is one app-wide setting that the Workbench Renderer writes. A window that follows it zooms along
+ * with the Workbench, so a zoom command from there runs on the Workbench without bringing it forward: the change is
+ * visible in the window the user is looking at.
+ */
+const WINDOW_ZOOM_COMMANDS = new Set<CommandId>(['view.zoomIn', 'view.zoomOut', 'view.resetZoom']);
+
+/**
  * Where a command-backed item runs while another Caxri window, such as the Agent Commander or the Process Explorer, is
  * focused. Every command acts on the Workbench, which the user is not looking at: Close Tab would close a Workbench tab
  * and Restart Terminal would restart a Workbench Terminal, out of sight. So Close Tab closes the focused window, the
- * way it does in every macOS app; a shortcut typed there is dropped, because it was meant for that window, unless it is
- * app-level; and an item picked from the menu bar brings the Workbench forward first, so the user sees what it
- * changes.
+ * way it does in every macOS app; a zoom command runs in place when that window follows the app zoom; a shortcut typed
+ * there is dropped, because it was meant for that window, unless it is app-level; and an item picked from the menu bar
+ * brings the Workbench forward first, so the user sees what it changes.
  */
 function commandTarget(
     commandId: CommandId,
     focused: BaseWindow | undefined,
     workbench: BaseWindow | undefined,
     isViaAccelerator: boolean,
+    isFollowingAppZoom: (window: BaseWindow) => boolean,
 ): 'close-focused' | 'drop' | 'focus-workbench' | 'workbench' {
     if (!focused || !workbench || focused === workbench) return 'workbench';
     if (commandId === 'workbench.closeActiveTab') return 'close-focused';
+    if (WINDOW_ZOOM_COMMANDS.has(commandId) && isFollowingAppZoom(focused)) return 'workbench';
     return isViaAccelerator && !APP_LEVEL_SHORTCUTS.has(commandId) ? 'drop' : 'focus-workbench';
 }
 
@@ -133,6 +146,7 @@ export function buildAppMenuTemplate({
     stopAgentCommander,
     workbenchWindow,
     focusWorkbench,
+    isFollowingAppZoom,
 }: AppMenuOptions): MenuItemConstructorOptions[] {
     const command = (definition: CommandDefinition): MenuItemConstructorOptions => ({
         id: `command.${definition.id}`,
@@ -166,7 +180,15 @@ export function buildAppMenuTemplate({
             if (definition.id === 'agentCommander.stop') return stopAgentCommander();
             const isViaAccelerator = event.triggeredByAccelerator === true;
             const workbench = workbenchWindow();
-            switch (commandTarget(definition.id, focused, workbench, isViaAccelerator)) {
+            switch (
+                commandTarget(
+                    definition.id,
+                    focused,
+                    workbench,
+                    isViaAccelerator,
+                    isFollowingAppZoom,
+                )
+            ) {
                 case 'close-focused':
                     return focused?.close();
                 case 'drop':
