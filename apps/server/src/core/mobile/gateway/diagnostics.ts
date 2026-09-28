@@ -2,6 +2,8 @@ import type { MobilePairingOutcomeReason } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
+import type { MobileUpdateRecoveryOutcome } from './update-recovery';
+
 const emptyCounts = () => ({
     admissionAddress: 0,
     admissionCapacity: 0,
@@ -106,6 +108,18 @@ export class MobileGatewayDiagnostics {
             fields: { reason },
         });
         if (this.now() - this.#lastSummaryAt >= 60_000) this.flush();
+    }
+
+    /**
+     * Recovery is human-paced (a phone stuck on an old transport) and each attempt is already bounded by TCP admission,
+     * so every outcome logs immediately, like pairing.
+     */
+    updateRecovery(outcome: MobileUpdateRecoveryOutcome): void {
+        this.logger?.write(
+            outcome === 'accepted' || outcome === 'no-bundle' ? 'info' : 'warn',
+            logEventCatalog.mobileGateway.updateRecovery,
+            { fields: { outcome } },
+        );
     }
 
     gatewayEnabled(): void {

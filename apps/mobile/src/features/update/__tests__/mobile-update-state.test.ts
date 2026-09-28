@@ -4,10 +4,13 @@ import { describe, expect, it, vi } from 'vitest';
 import type { MobileUpdateInstallPorts, MobileUpdatePhase } from '../mobile-update-state';
 import {
     installMobileUpdate,
+    mobileUpdateBannerKind,
+    mobileUpdateBannerView,
     mobileUpdateSizeLabel,
     mobileUpdateStatusLabel,
     mobileUpdateStore,
     newerMobileUpdate,
+    preparedMobileUpdateFromRecovery,
 } from '../mobile-update-state';
 
 const bundle = {
@@ -47,6 +50,115 @@ const ports = (
     };
     return { discard, launchInstaller, value };
 };
+
+describe('mobileUpdateBannerKind', () => {
+    const idle: MobileUpdatePhase = { kind: 'idle' };
+    const base = {
+        canRetryCheck: false,
+        isChecking: false,
+        isDismissed: false,
+        isRecovering: false,
+        phase: idle,
+        status: 'connected' as const,
+        update: bundle,
+    };
+
+    it('offers a dismissible update while connected and hides it after Later', () => {
+        expect(mobileUpdateBannerKind(base)).toBe('available');
+        expect(mobileUpdateBannerKind({ ...base, isDismissed: true })).toBeNull();
+        expect(
+            mobileUpdateBannerKind({
+                ...base,
+                isDismissed: true,
+                phase: { kind: 'downloading', fraction: 0.4 },
+            }),
+        ).toBe('available');
+        expect(mobileUpdateBannerKind({ ...base, update: undefined })).toBeNull();
+    });
+
+    it('requires the newer Desktop build during a mismatch and ignores Later', () => {
+        const mismatch = { ...base, isRecovering: true, status: 'version-mismatch' as const };
+        expect(mobileUpdateBannerKind(mismatch)).toBe('required');
+        expect(mobileUpdateBannerKind({ ...mismatch, isDismissed: true })).toBe('required');
+        expect(mobileUpdateBannerKind({ ...mismatch, isChecking: true, update: undefined })).toBe(
+            'checking',
+        );
+    });
+
+    it('offers to ask again when recovery could not reach the newer Desktop', () => {
+        const failed = {
+            ...base,
+            canRetryCheck: true,
+            isRecovering: true,
+            status: 'version-mismatch' as const,
+            update: undefined,
+        };
+        expect(mobileUpdateBannerKind(failed)).toBe('unreachable');
+        expect(mobileUpdateBannerKind({ ...failed, isChecking: true })).toBe('checking');
+        // A rejected pairing is not retryable; asking again cannot change the answer.
+        expect(mobileUpdateBannerKind({ ...failed, canRetryCheck: false })).toBe('mismatch');
+    });
+
+    it('falls back to the manual mismatch notice when recovery has no newer build', () => {
+        const mismatch = { ...base, status: 'version-mismatch' as const, update: undefined };
+        expect(mobileUpdateBannerKind(mismatch)).toBe('mismatch');
+        expect(mobileUpdateBannerKind({ ...mismatch, isRecovering: true })).toBe('mismatch');
+        // An older Desktop cannot hold the fix, so a stale connected-mode offer never turns into a requirement.
+        expect(mobileUpdateBannerKind({ ...mismatch, update: bundle })).toBe('mismatch');
+    });
+});
+
+describe('mobileUpdateBannerView', () => {
+    const idle: MobileUpdatePhase = { kind: 'idle' };
+
+    it('offers a dismissible update while connected', () => {
+        expect(mobileUpdateBannerView('available', idle, bundle)).toEqual({
+            action: 'install',
+            actionLabel: 'Update',
+            canDismiss: true,
+            detail: 'Version 0.0.75 from your computer · 42 MB',
+            isFailure: false,
+            isRequired: false,
+            title: 'Update available',
+        });
+    });
+
+    it('requires the update without Later and hides actions while busy', () => {
+        expect(mobileUpdateBannerView('required', idle, bundle)).toMatchObject({
+            action: 'install',
+            canDismiss: false,
+            detail: 'This computer runs a newer Caxri. Update this app to reconnect.',
+            title: 'Update required',
+        });
+        expect(mobileUpdateBannerView('checking', idle, undefined)).toMatchObject({
+            action: null,
+            detail: 'This computer runs a newer Caxri. Update this app to reconnect.',
+        });
+        expect(
+            mobileUpdateBannerView('required', { kind: 'downloading', fraction: 0.5 }, bundle),
+        ).toMatchObject({ action: null, detail: 'Downloading 50%' });
+    });
+
+    it('retries the question, not the install, when recovery could not reach Desktop', () => {
+        expect(mobileUpdateBannerView('unreachable', idle, undefined)).toMatchObject({
+            action: 'retry-check',
+            actionLabel: 'Retry',
+            canDismiss: false,
+            detail: "Couldn't reach your computer for the update.",
+            isFailure: true,
+        });
+        expect(
+            mobileUpdateBannerView('required', { kind: 'failed', message: 'Try again.' }, bundle),
+        ).toMatchObject({ action: 'install', actionLabel: 'Retry', detail: 'Try again.' });
+    });
+});
+
+describe('preparedMobileUpdateFromRecovery', () => {
+    it('hands the recovered download to the install workflow and refuses an empty answer', () => {
+        expect(preparedMobileUpdateFromRecovery(prepared)).toEqual(prepared);
+        expect(() => preparedMobileUpdateFromRecovery({ bundle: null })).toThrow();
+    });
+});
 
 describe('newerMobileUpdate', () => {
     it('offers only a strictly newer bundle for a known installed build', () => {

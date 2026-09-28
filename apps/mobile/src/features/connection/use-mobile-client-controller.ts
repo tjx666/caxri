@@ -2,7 +2,10 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import type { AppStateStatus } from 'react-native';
 import { AppState } from 'react-native';
 
-import type { MobileSubscriptionResource } from '@caxri/mobile-transport';
+import type {
+    MobileSubscriptionResource,
+    MobileUpdateRecoveryPayload,
+} from '@caxri/mobile-transport';
 import type { CaxriMethod, MethodResult, ParametersArgument } from '@caxri/protocol';
 import * as Device from 'expo-device';
 import * as Network from 'expo-network';
@@ -32,6 +35,7 @@ import {
     foregroundRecoveryAction,
     observeMobileConnectionTermination,
 } from './reconnect-lifecycle';
+import { recoverMobileUpdate } from './recover-mobile-update';
 import { useMobileReconnect } from './use-mobile-reconnect';
 
 export interface MobileClientContextValue {
@@ -44,6 +48,11 @@ export interface MobileClientContextValue {
     getLastSeenAt: () => number | null;
     pair: (pairingLink: string) => Promise<void>;
     paired: boolean;
+    /**
+     * Present only while a newer Desktop refuses this app's transport version: proves the stored pairing over the
+     * frozen recovery exchange and returns the Android update Desktop ships, with a fresh download URL.
+     */
+    recoverUpdate: (() => Promise<MobileUpdateRecoveryPayload>) | null;
     request: <M extends CaxriMethod>(
         method: M,
         ...arguments_: ParametersArgument<M>
@@ -92,6 +101,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
     const [retryToken, setRetryToken] = useState(0);
     const [credentialLoadAttempt, setCredentialLoadAttempt] = useState(0);
     const [status, setStatus] = useState<MobileConnectionStatus>('booting');
+    const [isDesktopNewer, setIsDesktopNewer] = useState(false);
     const [isForeground, setIsForeground] = useState(AppState.currentState === 'active');
     const connection = useRef<MobileGatewayConnection | null>(null);
     const [pairingAttempts] = useState(createPairingAttemptOwner);
@@ -215,6 +225,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
     const rejectReconnection = useCallback((error: unknown): void => {
         if (error instanceof MobileVersionMismatchError) {
             setRetryAttempt(0);
+            setIsDesktopNewer(error.isDesktopNewer);
             setStatus('version-mismatch');
             return;
         }
@@ -341,6 +352,8 @@ export const useMobileClientController = (): MobileClientContextValue => {
                 setStatus('connected');
             } catch (error) {
                 if (!isCurrent()) throw error;
+                // A rejected pairing link holds no credential to recover with.
+                setIsDesktopNewer(false);
                 setStatus(
                     error instanceof MobileVersionMismatchError
                         ? 'version-mismatch'
@@ -448,6 +461,14 @@ export const useMobileClientController = (): MobileClientContextValue => {
         [isForeground, probeCurrentConnection, replaceConnection, setLastSeenAt],
     );
 
+    const recoverUpdate = useMemo(
+        () =>
+            credential && status === 'version-mismatch' && isDesktopNewer
+                ? () => recoverMobileUpdate(credential, expoMobileGatewayRuntime)
+                : null,
+        [credential, isDesktopNewer, status],
+    );
+
     const value = useMemo<MobileClientContextValue>(
         () => ({
             cancelPairing,
@@ -461,6 +482,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             getLastSeenAt,
             pair,
             paired: credential !== null,
+            recoverUpdate,
             request,
             retryConnection,
             retryCredentialLoad,
@@ -476,6 +498,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             isForeground,
             getLastSeenAt,
             pair,
+            recoverUpdate,
             request,
             retryConnection,
             retryCredentialLoad,

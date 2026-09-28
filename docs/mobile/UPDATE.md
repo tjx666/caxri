@@ -15,6 +15,14 @@ site to follow Desktop.
    size and MD5, and opens the Android package installer. Android asks once for the
    "install unknown apps" permission for Caxri.
 4. A failed or incomplete download says so and offers **Retry**; nothing is installed.
+5. When a Desktop upgrade raised the mobile transport version, the phone's reconnect is refused
+   before authentication. The phone then asks that Desktop for its build through update recovery
+   (below). If Desktop ships a newer build, Sessions shows **Update required** with "This computer
+   runs a newer Caxri. Update this app to reconnect." and an **Update** action that uses the same
+   download, progress, verification, and installer flow; there is no **Later**. The updated app
+   restarts and reconnects normally. When the question itself fails, for example on a timeout, the
+   banner says so and offers **Retry**. Without a newer build, or when Desktop rejects the pairing,
+   the banner asks to update both sides manually.
 
 Development clients (`__DEV__`) and iOS never check for updates: a debug-signed client cannot
 accept the release-signed APK.
@@ -37,6 +45,48 @@ APK in 64 KiB frames with pure-JS crypto is too slow on a phone.
 Every download attempt logs `mobile_gateway.update_download` with `outcome`
 (`served | unknownToken | expired | unauthorized | capacity | interrupted`), `bytes`, and
 `durationMs`.
+
+## Update recovery
+
+A version mismatch refuses the phone before authentication, so the sealed channel above is not
+available. `update-recovery-v1` is a separate, frozen exchange on the same gateway WebSocket
+endpoint. It never changes when `MOBILE_TRANSPORT_VERSION` is bumped: its schemas and crypto live in
+`packages/mobile-transport/src/update-recovery.ts`, import nothing from the versioned transport
+contract, and ignore unknown fields so later Desktops can extend it additively. A breaking change
+needs a new protocol identifier served beside v1.
+
+1. The phone receives `version-mismatch` with a `supportedVersion` newer than its own. Only then,
+   and only with a stored pairing, it opens a new socket and sends
+   `update-recovery-hello {deviceId, generation, clientNonce}`.
+2. Desktop answers every well-formed hello with `update-recovery-challenge {serverNonce}`, so the
+   challenge never reveals whether the device is paired.
+3. The phone derives a one-exchange key with HKDF-SHA256 from its pairing credential, salted with
+   a hash of the Desktop `serverId`, `deviceId`, `generation`, and both nonces, and sends
+   `update-recovery-proof {proof}`, an HMAC with that key.
+4. Desktop re-reads the device record, verifies the proof in constant time, and re-checks the
+   record after reading the bundle. A device whose revocation has started counts as revoked even
+   before the registry write finishes, and starting a revocation also drops that device's live
+   download URLs. It then sends one `update-recovery-result {payload, proof}` and
+   closes. `payload` is the exact JSON text of `{bundle, url, expiresAt}` (or `{bundle: null}`)
+   and `proof` authenticates it, so a LAN peer cannot substitute the URL or MD5. The URL is the same
+   ten-minute, per-device token `mobile.update.prepare` issues.
+5. An unpaired, revoked, stale-generation, or wrongly proven device receives the same
+   `update-recovery-rejected` and no URL. A captured proof never verifies again because each
+   exchange uses a fresh server nonce.
+
+The recovery socket never becomes an application session: it cannot reach the command dispatcher,
+subscriptions, or any data beyond the manifest and that device's own download URL. The check and
+the **Update** action each run their own exchange, so the URL used for the download is always
+fresh. Desktop issues a URL only to a proven device, but it does not keep the URL secret: like the
+ordinary download, whose `GET` carries the same token in the clear, it crosses the LAN
+unencrypted, so a peer that observes the exchange can fetch the APK until the token expires. That
+is acceptable because the APK is not confidential; its integrity rests on the authenticated MD5
+and Android's signing-certificate check.
+
+Every exchange logs `mobile_gateway.update_recovery` with one closed `outcome`: `accepted`,
+`no-bundle`, `unpaired`, `revoked`, `stale-generation`, `bad-proof`, `invalid-frame`,
+`unavailable`, or `bundle-error`. The phone always sees the same rejection; only the log tells the
+reasons apart.
 
 ## Versioning
 
@@ -93,6 +143,8 @@ offers no update.
 
 ## Non-goals
 
-- A phone whose transport protocol no longer matches Desktop cannot connect, so it cannot receive
-  the update that would fix it; reinstall with `adb` in that case.
+- Update recovery works only for a phone build that already ships `update-recovery-v1`. A phone
+  installed before it cannot recover after a transport bump and needs one manual reinstall, for
+  example with `adb`.
+- An unpaired phone, including one scanning a pairing link from a newer Desktop, cannot recover.
 - Only `arm64-v8a` is bundled. Other ABIs keep the manual flow in `APK-SIZE.md`.

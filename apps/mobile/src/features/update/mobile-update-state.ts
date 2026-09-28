@@ -1,4 +1,7 @@
+import type { MobileUpdateRecoveryPayload } from '@caxri/mobile-transport';
 import type { MobileUpdateBundle, MobileUpdatePrepareResult } from '@caxri/protocol';
+
+import type { MobileConnectionStatus } from '../connection/connection-state';
 
 export type MobileUpdatePhase =
     | { kind: 'idle' }
@@ -17,6 +20,45 @@ export const newerMobileUpdate = (
         ? bundle
         : undefined;
 
+/**
+ * Update recovery returns the manifest and a download URL in one authenticated answer; the install workflow consumes it
+ * in the shape `mobile.update.prepare` returns.
+ */
+export const preparedMobileUpdateFromRecovery = (
+    payload: MobileUpdateRecoveryPayload,
+): MobileUpdatePrepareResult => {
+    if (payload.bundle === null)
+        throw new Error('Caxri on your computer has no update for this app.');
+    return { bundle: payload.bundle, expiresAt: payload.expiresAt, url: payload.url };
+};
+
+/**
+ * `available` offers a newer build while connected. During a version mismatch, `required` offers the build a newer
+ * Desktop ships, `checking` waits for its answer, and `unreachable` offers to ask again after the question itself
+ * failed; `mismatch` has no build to offer and asks for a manual update.
+ */
+export type MobileUpdateBannerKind =
+    'available' | 'checking' | 'mismatch' | 'required' | 'unreachable';
+
+export const mobileUpdateBannerKind = (input: {
+    canRetryCheck: boolean;
+    isChecking: boolean;
+    isDismissed: boolean;
+    isRecovering: boolean;
+    phase: MobileUpdatePhase;
+    status: MobileConnectionStatus;
+    update: MobileUpdateBundle | undefined;
+}): MobileUpdateBannerKind | null => {
+    if (input.status === 'version-mismatch') {
+        if (input.isRecovering && input.update) return 'required';
+        if (input.isRecovering && input.isChecking) return 'checking';
+        if (input.isRecovering && input.canRetryCheck) return 'unreachable';
+        return 'mismatch';
+    }
+    if (!input.update || (input.isDismissed && input.phase.kind === 'idle')) return null;
+    return 'available';
+};
+
 export const mobileUpdateSizeLabel = (sizeBytes: number): string =>
     `${Math.max(1, Math.round(sizeBytes / (1_024 * 1_024)))} MB`;
 
@@ -31,6 +73,58 @@ export const mobileUpdateStatusLabel = (phase: MobileUpdatePhase): string | unde
         case 'idle':
             return undefined;
     }
+};
+
+const mobileUpdateBannerDetail = (
+    kind: Exclude<MobileUpdateBannerKind, 'mismatch'>,
+    phase: MobileUpdatePhase,
+    update: MobileUpdateBundle | undefined,
+): string => {
+    const status = mobileUpdateStatusLabel(phase);
+    if (status) return status;
+    if (kind === 'unreachable') return "Couldn't reach your computer for the update.";
+    if (kind !== 'available' || !update)
+        return 'This computer runs a newer Caxri. Update this app to reconnect.';
+    return `Version ${update.version} from your computer · ${mobileUpdateSizeLabel(update.sizeBytes)}`;
+};
+
+export interface MobileUpdateBannerView {
+    /**
+     * `null` while nothing can be done: recovery is still asking, or an install is downloading or opening.
+     */
+    action: 'install' | 'retry-check' | null;
+    actionLabel: 'Retry' | 'Update';
+    /**
+     * Only an optional update offers "Later"; a required one is the app's only way to reconnect.
+     */
+    canDismiss: boolean;
+    /**
+     * The install progress or failure once one started, otherwise why to update.
+     */
+    detail: string;
+    isFailure: boolean;
+    isRequired: boolean;
+    title: 'Update available' | 'Update required';
+}
+
+export const mobileUpdateBannerView = (
+    kind: Exclude<MobileUpdateBannerKind, 'mismatch'>,
+    phase: MobileUpdatePhase,
+    update: MobileUpdateBundle | undefined,
+): MobileUpdateBannerView => {
+    const isRequired = kind !== 'available';
+    const isFailure = phase.kind === 'failed' || kind === 'unreachable';
+    const isBusy =
+        kind === 'checking' || phase.kind === 'downloading' || phase.kind === 'installing';
+    return {
+        action: isBusy ? null : kind === 'unreachable' ? 'retry-check' : 'install',
+        actionLabel: isFailure ? 'Retry' : 'Update',
+        canDismiss: !isRequired,
+        detail: mobileUpdateBannerDetail(kind, phase, update),
+        isFailure,
+        isRequired,
+        title: isRequired ? 'Update required' : 'Update available',
+    };
 };
 
 export interface MobileUpdateInstallPorts {

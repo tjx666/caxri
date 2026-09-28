@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useRouter } from 'expo-router';
@@ -21,11 +21,11 @@ const styles = StyleSheet.create({
     safeArea: { flex: 1 },
     split: { flex: 1, flexDirection: 'row' },
     divider: { width: StyleSheet.hairlineWidth },
-    versionBanner: { borderBottomWidth: 1, gap: 3, paddingHorizontal: 16, paddingVertical: 12 },
-    versionTitle: { fontSize: 14, fontWeight: '700' },
-    versionBody: { fontSize: 13, lineHeight: 18 },
 });
 
+/**
+ * A version mismatch is not a connection problem the Retry banner can fix; `MobileUpdateBanner` explains it instead.
+ */
 const SessionsScreenStatus = ({
     fresh,
     onRetry,
@@ -36,37 +36,14 @@ const SessionsScreenStatus = ({
     onRetry: () => void;
     status: MobileConnectionStatus;
     theme: ReturnType<typeof useMobileTheme>;
-}) => (
-    <>
-        {!fresh && status !== 'version-mismatch' ? (
-            <ConnectionBanner
-                onRetry={onRetry}
-                status={status === 'unverified' ? 'unverified' : 'stale'}
-                theme={theme}
-            />
-        ) : null}
-        {status === 'version-mismatch' ? (
-            <View
-                style={[
-                    styles.versionBanner,
-                    { backgroundColor: theme.surface, borderColor: theme.border },
-                ]}
-                testID="mobile-version-mismatch"
-            >
-                <Text
-                    accessibilityRole="alert"
-                    style={[styles.versionTitle, { color: theme.text }]}
-                >
-                    Update required
-                </Text>
-                <Text style={[styles.versionBody, { color: theme.muted }]}>
-                    This app and Caxri on your computer use different versions. Update both to the
-                    latest build.
-                </Text>
-            </View>
-        ) : null}
-    </>
-);
+}) =>
+    !fresh && status !== 'version-mismatch' ? (
+        <ConnectionBanner
+            onRetry={onRetry}
+            status={status === 'unverified' ? 'unverified' : 'stale'}
+            theme={theme}
+        />
+    ) : null;
 
 const SessionsScreenLayout = ({
     detail,

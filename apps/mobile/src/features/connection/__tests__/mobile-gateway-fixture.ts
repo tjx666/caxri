@@ -296,8 +296,11 @@ export class FakeGatewaySocket extends EventTarget {
 }
 
 export class VersionMismatchSocket extends EventTarget {
-    constructor() {
+    readonly #supportedVersion: number;
+
+    constructor(supportedVersion = 1) {
         super();
+        this.#supportedVersion = supportedVersion;
         queueMicrotask(() => this.dispatchEvent(new Event('open')));
     }
 
@@ -309,7 +312,10 @@ export class VersionMismatchSocket extends EventTarget {
         queueMicrotask(() =>
             this.dispatchEvent(
                 new MessageEvent('message', {
-                    data: JSON.stringify({ type: 'version-mismatch', supportedVersion: 1 }),
+                    data: JSON.stringify({
+                        type: 'version-mismatch',
+                        supportedVersion: this.#supportedVersion,
+                    }),
                 }),
             ),
         );
