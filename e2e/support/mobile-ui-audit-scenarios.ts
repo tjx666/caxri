@@ -197,12 +197,13 @@ async function projectIcons(
 }
 
 /**
- * Drags a Session row leftward from its right side, away from the system Back gesture edges, to reveal its action.
+ * Drags a Session row leftward from its right side, away from the system Back gesture edges, to reveal its action. The
+ * caller passes bounds it already knows, so no semantic read has to run right before the gesture.
  */
-export async function swipeRowLeft(serial: string, rowId: string): Promise<void> {
-    const row = (await mobileSemantics(serial)).find(({ checkId }) => checkId === rowId);
-    const bounds = row && androidBounds(row.bounds);
-    if (!bounds) throw new Error('Synthetic Session row is unavailable');
+export async function swipeRowBoundsLeft(
+    serial: string,
+    bounds: { bottom: number; left: number; right: number; top: number },
+): Promise<void> {
     const y = Math.floor((bounds.top + bounds.bottom) / 2);
     const width = bounds.right - bounds.left;
     await adbShell(serial, [
@@ -214,6 +215,16 @@ export async function swipeRowLeft(serial: string, rowId: string): Promise<void>
         String(y),
         '300',
     ]);
+}
+
+/**
+ * Reads the current bounds of the Session row `rowId`, then swipes it like `swipeRowBoundsLeft`.
+ */
+async function swipeRowLeft(serial: string, rowId: string): Promise<void> {
+    const row = (await mobileSemantics(serial)).find(({ checkId }) => checkId === rowId);
+    const bounds = row && androidBounds(row.bounds);
+    if (!bounds) throw new Error('Synthetic Session row is unavailable');
+    await swipeRowBoundsLeft(serial, bounds);
 }
 
 const sessionTitle = async (fixture: MobileAcceptanceFixture, sessionId: string) => {
