@@ -21,8 +21,8 @@ bun run release:prepare -- patch # also accepts minor, major, or an explicit new
 version="$(node -p 'require("./package.json").version')"
 git add package.json packages/agent-skills/package.json packages/agent-skills/src/version.ts \
   packages/client/package.json packages/extension-api/package.json apps/cli/package.json \
-  apps/cli/src/version.ts apps/desktop/package.json apps/server/package.json \
-  extensions/{fixture,git,status}/package.json
+  apps/cli/src/version.ts apps/desktop/package.json apps/mobile/package.json \
+  apps/server/package.json extensions/{fixture,git,status}/package.json
 git commit -m "release: v${version}"
 git push origin main
 ```
