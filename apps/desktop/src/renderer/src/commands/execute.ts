@@ -437,7 +437,9 @@ export function executeCommand(
 
 /**
  * Entry point for shortcuts and the native menu. App-wide commands must not mutate workbench state behind a modal
- * dialog, which is why the guard lives here and not in {@link executeCommand}.
+ * dialog, which is why the guard lives here and not in {@link executeCommand}. A command marked `allowBehindModal`, such
+ * as window zoom, still runs: it changes the window, dialog included, and the Agent Commander routes its zoom here
+ * while a Workbench dialog it cannot see may be open.
  *
  * This is also the single authority for the editable-focus shortcut policy (DESIGN.md Interaction rules) on the native
  * menu path. `useCommandShortcuts` already applies the same gate — using `event.target` — before ever calling
@@ -456,7 +458,8 @@ export function runCommand(
     arguments_?: unknown,
     options?: { viaAccelerator?: boolean },
 ): void {
-    if (useDialogStore.getState().isModalOpen()) return;
+    if (useDialogStore.getState().isModalOpen() && !getRegisteredCommand(command)?.allowBehindModal)
+        return;
     if (options?.viaAccelerator) {
         const definition = getRegisteredCommand(command);
         if (isEditableEventTarget(document.activeElement)) {

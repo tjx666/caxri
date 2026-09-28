@@ -166,7 +166,7 @@ export function dispatchGlobalKeydown(
     if (isEditable && definition && !definition.allowInEditable) return;
     event.preventDefault();
     event.stopPropagation();
-    if (useDialogStore.getState().isModalOpen()) return;
+    if (useDialogStore.getState().isModalOpen() && !definition?.allowBehindModal) return;
     if (definition)
         runCommand(
             commandId as CommandId,
