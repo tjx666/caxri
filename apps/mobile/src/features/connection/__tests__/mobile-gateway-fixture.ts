@@ -331,6 +331,37 @@ export class NeverOpenSocket extends EventTarget {
     }
 }
 
+/**
+ * Mirrors React Native Android, whose native module registers a socket only when it opens: `close()` while CONNECTING
+ * is silently ignored and the socket still opens later (https://github.com/facebook/react-native/issues/35554). A test
+ * drives the late open with `open()`.
+ */
+export class AndroidConnectingSocket extends EventTarget {
+    #state: 'closed' | 'connecting' | 'open' = 'connecting';
+    readonly sent: string[] = [];
+
+    get isClosed(): boolean {
+        return this.#state === 'closed';
+    }
+
+    close(): void {
+        if (this.#state !== 'open') return;
+        this.#state = 'closed';
+        this.dispatchEvent(new Event('close'));
+    }
+
+    open(): void {
+        if (this.#state !== 'connecting') throw new Error('Socket is not connecting.');
+        this.#state = 'open';
+        this.dispatchEvent(new Event('open'));
+    }
+
+    send(data: string): void {
+        if (this.#state !== 'open') throw new Error('INVALID_STATE_ERR');
+        this.sent.push(data);
+    }
+}
+
 export class UnverifiedReconnectSocket extends EventTarget {
     constructor() {
         super();
@@ -403,6 +434,14 @@ export const memoryStore = () => {
         values,
     };
 };
+
+/**
+ * Drains every queued microtask, so a socket event's full async continuation has run before the test asserts.
+ */
+export const flushTasks = (): Promise<void> =>
+    new Promise((resolve) => {
+        setTimeout(resolve, 0);
+    });
 
 export const observeSettlement = async (
     operation: Promise<unknown>,
