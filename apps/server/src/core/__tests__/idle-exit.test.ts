@@ -5,6 +5,9 @@ import {
     createIdleExitConnectionTracker,
     createIdleExitMonitor,
     DEFAULT_IDLE_EXIT_MS,
+    IDLE_EXIT_ENVIRONMENT_KEY,
+    MIN_IDLE_EXIT_MS,
+    resolveIdleExitThresholdMs,
 } from '../idle-exit';
 
 const THRESHOLD_MS = 1_000;
@@ -228,5 +231,59 @@ describe('createIdleExitConnectionTracker', () => {
             tracker.updateControlCount(1);
             tracker.updateMobileCount(2);
         }).not.toThrow();
+    });
+});
+
+describe('resolveIdleExitThresholdMs', () => {
+    function withEnvironment(value: string | undefined): NodeJS.ProcessEnv {
+        return value === undefined ? {} : { [IDLE_EXIT_ENVIRONMENT_KEY]: value };
+    }
+
+    it('returns undefined when the override is not set', () => {
+        expect(resolveIdleExitThresholdMs(withEnvironment(undefined))).toBeUndefined();
+    });
+
+    it.each([
+        ['the floor itself', String(MIN_IDLE_EXIT_MS), MIN_IDLE_EXIT_MS],
+        ['a value above the floor', '60000', 60_000],
+        ['the largest safe integer', String(Number.MAX_SAFE_INTEGER), Number.MAX_SAFE_INTEGER],
+    ])('accepts %s', (_description, source, expected) => {
+        expect(resolveIdleExitThresholdMs(withEnvironment(source))).toBe(expected);
+    });
+
+    it.each([
+        ['empty string', ''],
+        ['zero', '0'],
+        ['a leading zero', '01000'],
+        ['a negative number', '-1000'],
+        ['a decimal', '1000.5'],
+        ['leading whitespace', ' 1000'],
+        ['trailing whitespace', '1000 '],
+        ['a non-numeric string', 'abc'],
+        ['hexadecimal', '0x3e8'],
+        ['a plus sign', '+1000'],
+    ])('rejects %s', (_description, source) => {
+        expect(() => resolveIdleExitThresholdMs(withEnvironment(source))).toThrow(
+            `${IDLE_EXIT_ENVIRONMENT_KEY} must be an integer of at least ${MIN_IDLE_EXIT_MS}`,
+        );
+    });
+
+    it.each([
+        ['just below the floor', String(MIN_IDLE_EXIT_MS - 1)],
+        ['a single digit above zero', '1'],
+    ])('rejects a value below the floor: %s', (_description, source) => {
+        expect(() => resolveIdleExitThresholdMs(withEnvironment(source))).toThrow(
+            `${IDLE_EXIT_ENVIRONMENT_KEY} must be an integer of at least ${MIN_IDLE_EXIT_MS}`,
+        );
+    });
+
+    it('rejects a value beyond Number.MAX_SAFE_INTEGER even though it matches the digit format', () => {
+        // The regex alone would accept an arbitrarily long digit string; the safe-integer check is what actually
+        // bounds it, since `Number()` silently rounds a too-large digit string instead of throwing.
+        expect(() =>
+            resolveIdleExitThresholdMs(withEnvironment('99999999999999999999999')),
+        ).toThrow(
+            `${IDLE_EXIT_ENVIRONMENT_KEY} must be an integer of at least ${MIN_IDLE_EXIT_MS}`,
+        );
     });
 });

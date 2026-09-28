@@ -179,12 +179,13 @@ export function createIdleExitConnectionTracker(): IdleExitConnectionTracker {
  * `CAXRI_E2E`, so `switch-worktree dev` live verification can use it too). There is no user-facing setting for this
  * value — see `DEFAULT_IDLE_EXIT_MS`'s rationale.
  */
-const IDLE_EXIT_ENVIRONMENT_KEY = 'CAXRI_SERVER_IDLE_EXIT_MS';
+export const IDLE_EXIT_ENVIRONMENT_KEY = 'CAXRI_SERVER_IDLE_EXIT_MS';
 /**
  * Floor for the override: low enough for a fast live-verification loop, high enough that a mistyped `1` or `10` cannot
- * make Server Core exit before its own startup sequence finishes observing the first connection.
+ * make Server Core exit before its own startup sequence finishes observing the first connection. Exported so tests can
+ * reference the same value rather than duplicating the literal.
  */
-const MIN_IDLE_EXIT_MS = 1_000;
+export const MIN_IDLE_EXIT_MS = 1_000;
 
 export function resolveIdleExitThresholdMs(environment: NodeJS.ProcessEnv): number | undefined {
     const source = environment[IDLE_EXIT_ENVIRONMENT_KEY];
