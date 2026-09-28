@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { GitHubPullRequestStore } from '../external-status';
-import type { VercelDeploymentStore } from '../project-status-vercel-store';
+import type { VercelDeploymentStore } from '../project-status';
 import {
     isSameCommit,
     pullRequestOrigin,

@@ -9,7 +9,7 @@ import type { GitService } from '../git';
 import { currentGitRequestSignal } from '../git/request-signal';
 import type { createIntrospectionServices } from '../introspection';
 import type { ProjectStatusService } from '../project-status';
-import { VercelDeploymentStore } from '../project-status-vercel-store';
+import { VercelDeploymentStore } from '../project-status';
 import { createServiceHandlers } from '../service-handlers';
 
 describe('Runtime service handler cancellation', () => {

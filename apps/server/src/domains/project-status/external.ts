@@ -5,8 +5,8 @@ import { join } from 'node:path';
 
 import type { ProjectStatusDeployment, ProjectStatusError } from '@caxri/protocol';
 
-import type { CliFailureKind, ExternalStatusSource } from './external-status';
-import { retryTimeLabel } from './retry-time';
+import type { CliFailureKind, ExternalStatusSource } from '../external-status';
+import { retryTimeLabel } from '../retry-time';
 
 export interface VercelLink {
     project: string;

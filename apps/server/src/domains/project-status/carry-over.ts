@@ -1,6 +1,6 @@
 import type { ProjectStatusRepository, ProjectStatusSummary } from '@caxri/protocol';
 
-import type { BranchPublicationContext } from './project-status-branch';
+import type { BranchPublicationContext } from './branch';
 
 export interface PreparedRepo {
     context: BranchPublicationContext;

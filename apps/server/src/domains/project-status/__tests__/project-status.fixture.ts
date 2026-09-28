@@ -6,7 +6,7 @@ import type { GitSummary } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { vi } from 'vitest';
 
-import type { ExternalStatusRunner } from '../external-status';
+import type { ExternalStatusRunner } from '../../external-status';
 
 const temporaryDirectories: string[] = [];
 const loggers: StructuredLogger[] = [];

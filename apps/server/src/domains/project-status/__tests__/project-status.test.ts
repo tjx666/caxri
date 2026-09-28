@@ -2,9 +2,9 @@ import type { GitSummary, ServerEvent } from '@caxri/protocol';
 import { defaultAppSettings } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ExternalStatusRunner } from '../external-status';
-import { ExternalStatusCliError } from '../external-status';
-import { ProjectStatusService } from '../project-status';
+import type { ExternalStatusRunner } from '../../external-status';
+import { ExternalStatusCliError } from '../../external-status';
+import { ProjectStatusService } from '..';
 import {
     checkPayload,
     cleanupProjectStatusFixtures,

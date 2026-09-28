@@ -5,11 +5,11 @@ import type {
     ProjectStatusOverviewAcceptance,
 } from '@caxri/protocol';
 
-import type { AcceptanceReference } from './acceptance-link';
-import { acceptanceUrl, findAcceptanceLinks } from './acceptance-link';
-import type { AcceptanceStore } from './external-status';
-import { ExternalStatusCliError } from './external-status';
-import { projectStatusCliError } from './project-status-external';
+import type { AcceptanceReference } from '../acceptance-link';
+import { acceptanceUrl, findAcceptanceLinks } from '../acceptance-link';
+import type { AcceptanceStore } from '../external-status';
+import { ExternalStatusCliError } from '../external-status';
+import { projectStatusCliError } from './external';
 
 /**
  * How many reports one branch may lead with. The status bar renders the first and counts the rest; a branch delivering

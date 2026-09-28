@@ -2,10 +2,10 @@ import type { GitRepositorySummary, ProjectStatusRepository } from '@caxri/proto
 import { parseGitHubRemote } from '@caxri/utils';
 import { z } from 'zod';
 
-import type { ExternalStatusRunner } from './external-status';
-import { ExternalStatusCliError } from './external-status';
-import { projectStatusCliError } from './project-status-external';
-import { parseExternalJson } from './project-status-parse';
+import type { ExternalStatusRunner } from '../external-status';
+import { ExternalStatusCliError } from '../external-status';
+import { projectStatusCliError } from './external';
+import { parseExternalJson } from './parse';
 
 type Publication = NonNullable<ProjectStatusRepository['publication']>;
 

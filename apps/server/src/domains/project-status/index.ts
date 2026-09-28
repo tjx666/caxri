@@ -1,11 +1,9 @@
 import type {
-    AppSettings,
     GitRepositorySummary as GitRepoSummary,
     ProjectStatusError,
     ProjectStatusOverview,
     ProjectStatusRepository as ProjectStatusRepo,
     ProjectStatusSummary,
-    ServerEvent,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -13,7 +11,7 @@ import { logEventCatalog } from '@caxri/system';
 import { parseGitHubRemote, rememberBounded } from '@caxri/utils';
 import { ProjectStatusSummaryErrorMessage as statusError } from 'caxri';
 
-import type { ExternalStatusRunner, ExternalStatusSource } from './external-status';
+import type { ExternalStatusRunner, ExternalStatusSource } from '../external-status';
 import {
     AcceptanceStore,
     ExternalStatusCliError,
@@ -22,40 +20,41 @@ import {
     isNoPullRequest,
     LinearIssueStore,
     runExternalStatusCommand,
-} from './external-status';
-import type { GitService } from './git';
-import { loadOverviewAcceptances, loadPullRequestAcceptances } from './project-status-acceptance';
-import { ProjectStatusAlertTracker } from './project-status-alerts';
-import type { BranchPublicationContext } from './project-status-branch';
+} from '../external-status';
+import type { GitService } from '../git';
+import type { SessionTranscriptContext } from '../session-context';
+import { SingleFlight } from '../single-flight';
+import { loadOverviewAcceptances, loadPullRequestAcceptances } from './acceptance';
+import { ProjectStatusAlertTracker } from './alerts';
+import type { BranchPublicationContext } from './branch';
 import {
     prepareStatusRepo,
     readBranchPublication,
     RemoteHeadCache,
     RepoRemoteCache as RepoRemoteCache,
-} from './project-status-branch';
-import type { PreparedRepo, PreparedSummary, SummaryCacheEntry } from './project-status-carry-over';
-import { pendingSummaryEntry } from './project-status-carry-over';
-import { projectStatusCliError } from './project-status-external';
-import { loadOverviewLinearIssues, loadPullRequestLinearIssues } from './project-status-linear';
-import { parseGitHubPullRequest } from './project-status-parse';
-import { ReviewThreadStore } from './project-status-review-threads';
-import type {
-    PullRequestTarget,
-    SessionPullRequestResolver,
-} from './project-status-session-pull-request';
+} from './branch';
+import type { PreparedRepo, PreparedSummary, SummaryCacheEntry } from './carry-over';
+import { pendingSummaryEntry } from './carry-over';
+import { projectStatusCliError } from './external';
+import { loadOverviewLinearIssues, loadPullRequestLinearIssues } from './linear';
+import type { ProjectStatusServiceOptions } from './options';
+import { parseGitHubPullRequest } from './parse';
+import { ReviewThreadStore } from './review-threads';
+import type { PullRequestTarget, SessionPullRequestResolver } from './session-pull-request';
 import {
     loadOverviewPullRequest,
     repoPullRequestNumber,
     resolvePullRequestTarget,
-} from './project-status-session-pull-request';
-import { loadVercelDeployments } from './project-status-vercel';
-import { VercelDeploymentStore } from './project-status-vercel-store';
-import type { WatchOutcome } from './project-status-watch';
-import { deliveryKeys, DeliveryWatch, isInFlight } from './project-status-watch';
-import type { SessionTranscriptContext } from './session-context';
-import { SingleFlight } from './single-flight';
+} from './session-pull-request';
+import { loadVercelDeployments } from './vercel';
+import { VercelDeploymentStore } from './vercel-store';
+import type { WatchOutcome } from './watch';
+import { deliveryKeys, DeliveryWatch, isInFlight } from './watch';
 
-export { extractLinearReferences } from './project-status-external';
+export { extractLinearReferences } from './external';
+export type { ProjectStatusServiceOptions } from './options';
+export { parseGitHubPullRequest } from './parse';
+export { VercelDeploymentStore } from './vercel-store';
 export { parseGitHubRemote } from '@caxri/utils';
 
 const SUMMARY_CACHE_LIMIT = 128;
@@ -79,44 +78,6 @@ const SUMMARY_FAILURE_CACHE_TTL_MS = 5 * 60_000;
 const POLL_MIN_DELAY_MS = 15_000;
 const POLL_MAX_DELAY_MS = 5 * 60_000;
 type RepoContext = BranchPublicationContext;
-
-export interface ProjectStatusServiceOptions {
-    cacheLimit?: number;
-    cacheTtlMs?: number;
-    emit?: (event: ServerEvent) => void;
-    failureCacheTtlMs?: number;
-    /**
-     * Server-wide pull-request projection. Sharing one store with the sidebar sweep and Source Control is what keeps
-     * the status bar, the Status panel, and the badges on a single `gh pr view` per pull request.
-     */
-    github?: GitHubPullRequestStore;
-    now?: () => number;
-    /**
-     * Server-wide Vercel projection shared with the PrimarySidebar's delivery badge, for the same reason `github` is
-     * shared: one production query per repository instead of one per reader.
-     */
-    vercel?: VercelDeploymentStore;
-    /**
-     * Every Session whose delivery failures should raise a notification — in practice every unarchived Session. Without
-     * it only the selected Session is watched.
-     */
-    listWatchedSessions?: () => readonly string[];
-    /**
-     * Reads the clues this Session's own Agent conversation produced, so the status bar can name the issue a branch is
-     * about even when the pull request body never said it. A Server assembled without it simply drops that source.
-     */
-    sessionContext?: (sessionId: string) => Promise<SessionTranscriptContext | undefined>;
-    /**
-     * Reads current settings for `projectStatus.ignoredChecks` and `projectStatus.notifications.enabled`. A Server
-     * assembled without it behaves as if no check is ignored and no alert is wanted.
-     */
-    settings?: () => AppSettings;
-    /**
-     * Injected in tests so a polling interval can be advanced deterministically instead of waited out.
-     */
-    setTimer?: (callback: () => void, delayMs: number) => NodeJS.Timeout;
-    clearTimer?: (timer: NodeJS.Timeout) => void;
-}
 
 export class ProjectStatusService {
     private readonly requests = new SingleFlight<string, ProjectStatusSummary>();

@@ -6,11 +6,11 @@ import type { GitSummary } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ExternalStatusRunner } from '../external-status';
-import { LinearIssueStore } from '../external-status';
-import { ProjectStatusService } from '../project-status';
-import { loadOverviewLinearIssues } from '../project-status-linear';
-import type { SessionTranscriptContext } from '../session-context';
+import type { ExternalStatusRunner } from '../../external-status';
+import { LinearIssueStore } from '../../external-status';
+import type { SessionTranscriptContext } from '../../session-context';
+import { ProjectStatusService } from '..';
+import { loadOverviewLinearIssues } from '../linear';
 
 const temporaryDirectories: string[] = [];
 const loggers: StructuredLogger[] = [];

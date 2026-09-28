@@ -3,11 +3,11 @@ import { homedir } from 'node:os';
 import type { ProjectStatusState } from '@caxri/protocol';
 import { rememberBounded } from '@caxri/utils';
 
-import type { ExternalStatusRunner } from './external-status';
-import type { VercelLink } from './project-status-external';
-import { vcListArguments } from './project-status-external';
-import { parseVercelList } from './project-status-parse';
-import { findVercelLink, mapProjectStatusDeployment } from './project-status-vercel';
+import type { ExternalStatusRunner } from '../external-status';
+import type { VercelLink } from './external';
+import { vcListArguments } from './external';
+import { parseVercelList } from './parse';
+import { findVercelLink, mapProjectStatusDeployment } from './vercel';
 
 /**
  * Production moves only when something is merged and rebuilt, so a minute-old answer is still the right one to draw a

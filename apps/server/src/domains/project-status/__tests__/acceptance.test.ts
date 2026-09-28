@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { AcceptanceStore, ExternalStatusCliError } from '../external-status';
+import { AcceptanceStore, ExternalStatusCliError } from '../../external-status';
 import {
     collectAcceptanceCandidates,
     loadOverviewAcceptances,
     loadPullRequestAcceptances,
-} from '../project-status-acceptance';
+} from '../acceptance';
 
 const ID = 'a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d';
 const OTHER = 'f0e1d2c3-b4a5-4968-8778-695a4b3c2d1e';

@@ -1,15 +1,15 @@
 import { rememberBounded } from '@caxri/utils';
 import { describe, expect, it } from 'vitest';
 
-import { extractLinearReferences, parseGitHubRemote } from '../project-status';
-import type { VercelLink } from '../project-status-external';
+import { extractLinearReferences, parseGitHubRemote } from '..';
+import type { VercelLink } from '../external';
 import {
     LINEAR_ISSUE_QUERY,
     linearStateColor,
     parseGitHubPullRequest,
     parseVercelList,
-} from '../project-status-parse';
-import { mapProjectStatusDeployment } from '../project-status-vercel';
+} from '../parse';
+import { mapProjectStatusDeployment } from '../vercel';
 
 describe('Vercel deployment details', () => {
     it.each(['CANCELED', 'ERROR', 'READY', 'BUILDING'])(
