@@ -30,6 +30,7 @@ catalog:
   oxlint: ^1.83.0
   oxlint-tsgolint: ^7.0.2002
   prettier-plugin-tailwindcss: ^0.8.1
+  prism-react-renderer: ^2.4.1
   react-qr-code: ^2.2.0
   react-scan: ^0.5.7
   semver: ^7.8.5

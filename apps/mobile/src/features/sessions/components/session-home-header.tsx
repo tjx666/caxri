@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Archive, EllipsisVertical, FolderPlus, Settings } from 'lucide-react-native';
+import { Archive, EllipsisVertical, FolderPlus, Settings, Unlink } from 'lucide-react-native';
 
 import { IconButton } from '../../../components/icon-button';
 import { PopoverMenu } from '../../../components/popover-menu';
@@ -49,12 +49,14 @@ const styles = StyleSheet.create({
 
 const MenuAction = ({
     icon: Icon,
+    isDestructive = false,
     label,
     onPress,
     testID,
     theme,
 }: {
     icon: typeof Archive;
+    isDestructive?: boolean;
     label: string;
     onPress: () => void;
     testID: string;
@@ -69,8 +71,10 @@ const MenuAction = ({
         ]}
         testID={testID}
     >
-        <Icon color={theme.muted} size={18} />
-        <Text style={[styles.menuText, { color: theme.text }]}>{label}</Text>
+        <Icon color={isDestructive ? theme.danger : theme.muted} size={18} />
+        <Text style={[styles.menuText, { color: isDestructive ? theme.danger : theme.text }]}>
+            {label}
+        </Text>
     </Pressable>
 );
 
@@ -79,6 +83,7 @@ export const SessionHomeHeader = ({
     hostDisplayName,
     onAddProject,
     onChooseProject,
+    onForgetComputer,
     onOpenArchived,
     onOpenSettings,
     projects,
@@ -92,6 +97,7 @@ export const SessionHomeHeader = ({
      */
     onAddProject?: () => void;
     onChooseProject: (projectId: string | null) => void;
+    onForgetComputer: () => void;
     onOpenArchived: () => void;
     onOpenSettings: () => void;
     projects: Project[];
@@ -201,6 +207,17 @@ export const SessionHomeHeader = ({
                         onOpenSettings();
                     }}
                     testID="settings-action"
+                    theme={theme}
+                />
+                <MenuAction
+                    icon={Unlink}
+                    isDestructive
+                    label="Forget This Computer"
+                    onPress={() => {
+                        closeMenu();
+                        onForgetComputer();
+                    }}
+                    testID="forget-computer-menu-action"
                     theme={theme}
                 />
             </PopoverMenu>

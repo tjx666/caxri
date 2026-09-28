@@ -21,8 +21,8 @@ export const sessionDetailStyles = StyleSheet.create({
         paddingHorizontal: 14,
     },
     menuActionText: { fontSize: 15 },
+    tabStrip: { borderBottomWidth: 1, flexGrow: 0 },
     tabs: {
-        borderBottomWidth: 1,
         flexDirection: 'row',
         gap: 6,
         paddingBottom: 8,

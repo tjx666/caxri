@@ -12,7 +12,7 @@ import { useSegmentEntering } from '../hooks/use-segment-entering';
 import type { MobileSessionItem } from '../session-model';
 import { isMobileTerminalStopped } from '../session-model';
 import type { SessionSegment } from '../session-ui-state';
-import { isSideSessionSegment } from '../session-ui-state';
+import { isPanelSessionSegment, isSideSessionSegment } from '../session-ui-state';
 import { sessionDetailStyles as styles } from './session-detail-styles';
 
 /**
@@ -36,32 +36,37 @@ const conversationAwareEntering = (
 
 export const SessionDetailBody = ({
     changesPanel,
-    panels,
+    panelView,
     conversationTimeline,
     deviceRole,
     isConnected,
     isVisible,
     onSegmentChange,
     segment,
+    segments,
     session,
     theme,
     wideBackgroundSegment,
     wideChanges,
 }: {
     changesPanel: ReactNode;
-    panels: ReactNode;
+    /**
+     * The selected Project view, when a panel tab is open.
+     */
+    panelView: ReactNode;
     conversationTimeline: ReturnType<typeof useConversationTimeline>;
     deviceRole: 'view' | 'reply' | 'control' | null;
     isConnected: boolean;
     isVisible: boolean;
     onSegmentChange: (segment: SessionSegment) => void;
     segment: SessionSegment;
+    segments: readonly SessionSegment[];
     session: MobileSessionItem;
     theme: MobileTheme;
     wideBackgroundSegment: 'conversation' | 'terminal';
     wideChanges: boolean;
 }) => {
-    const segmentEntering = useSegmentEntering(segment);
+    const segmentEntering = useSegmentEntering(segment, segments);
     const { bodyEntering, conversationEnterFrom } = conversationAwareEntering(
         segment,
         conversationTimeline.items.length > 0,
@@ -121,7 +126,7 @@ export const SessionDetailBody = ({
             )}
         </View>
     );
-    const side = segment === 'panels' ? panels : changesPanel;
+    const side = isPanelSessionSegment(segment) ? panelView : changesPanel;
     if (wideChanges && isSideSessionSegment(segment)) {
         return (
             <View style={styles.bodyRow}>

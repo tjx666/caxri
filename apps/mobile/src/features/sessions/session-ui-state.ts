@@ -2,31 +2,51 @@ import { shouldFallbackToTerminal } from '../conversation/conversation-model';
 import type { ConversationTimelineState } from '../conversation/use-conversation-timeline';
 import type { MobileTerminal } from './session-model';
 
-export type SessionSegment = 'conversation' | 'terminal' | 'changes' | 'panels';
+/**
+ * A Project view mirrored from Desktop's right sidebar (Files, Status, or an extension panel), keyed by its panel id.
+ * Each one is its own top-level tab instead of a nested Project tab, so a view is one tap away.
+ */
+export type PanelSessionSegment = `panel:${string}`;
+
+export type SessionSegment = 'conversation' | 'terminal' | 'changes' | PanelSessionSegment;
 
 /**
- * Tab order in the Session header, left to right.
+ * The fixed tabs in the Session header, left to right. Panel tabs follow them in the Server's panel order.
  */
-export const SESSION_SEGMENTS: readonly SessionSegment[] = [
-    'conversation',
-    'terminal',
-    'changes',
-    'panels',
-];
+export const SESSION_SEGMENTS = ['conversation', 'terminal', 'changes'] as const;
+
+export const panelSessionSegment = (panelId: string): PanelSessionSegment => `panel:${panelId}`;
+
+export const isPanelSessionSegment = (segment: SessionSegment): segment is PanelSessionSegment =>
+    segment.startsWith('panel:');
+
+export const panelIdOfSegment = (segment: PanelSessionSegment): string =>
+    segment.slice('panel:'.length);
 
 /**
  * Which way the tab strip moved, so the incoming panel can slide in from that side: `1` toward a later tab, `-1` toward
- * an earlier one, and `0` when nothing changed.
+ * an earlier one, and `0` when nothing changed. A panel tab missing from `order` (still loading) counts as last.
  */
-export const sessionSegmentDirection = (from: SessionSegment, to: SessionSegment): -1 | 0 | 1 =>
-    Math.sign(SESSION_SEGMENTS.indexOf(to) - SESSION_SEGMENTS.indexOf(from)) as -1 | 0 | 1;
+export const sessionSegmentDirection = (
+    from: SessionSegment,
+    to: SessionSegment,
+    order: readonly SessionSegment[],
+): -1 | 0 | 1 => {
+    const position = (segment: SessionSegment): number => {
+        const index = order.indexOf(segment);
+        return index === -1 ? order.length : index;
+    };
+    return from === to ? 0 : (Math.sign(position(to) - position(from)) as -1 | 0 | 1);
+};
 
 /**
  * Side segments inspect the workspace rather than the Agent. On a wide tablet they open beside the last content
  * segment, so switching to one must remember which content segment to keep showing.
  */
-export const isSideSessionSegment = (segment: SessionSegment): segment is 'changes' | 'panels' =>
-    segment === 'changes' || segment === 'panels';
+export const isSideSessionSegment = (
+    segment: SessionSegment,
+): segment is 'changes' | PanelSessionSegment =>
+    segment === 'changes' || isPanelSessionSegment(segment);
 
 /**
  * Whether the selected Session's detail is on screen. A phone shows it only on its own route; a tablet shows it beside

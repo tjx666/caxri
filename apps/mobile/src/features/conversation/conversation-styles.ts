@@ -51,7 +51,9 @@ export const conversationStyles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 8,
     },
-    eventSummary: { flex: 1, fontSize: 13, lineHeight: 18, minWidth: 0 },
+    eventSummaryFrame: { flex: 1, minWidth: 0 },
+    eventSummary: { fontSize: 13, lineHeight: 18 },
+    eventSummaryProbe: { left: 0, opacity: 0, position: 'absolute', right: 0, top: 0 },
     eventDetail: {
         borderRadius: 8,
         fontFamily: 'monospace',
