@@ -6,6 +6,8 @@ import { useMobileClient } from '../connection/mobile-client-provider';
 import {
     applyLatestConversationPage,
     applyOlderConversationPage,
+    CONVERSATION_BLUR_GRACE_MS,
+    isConversationObservableThroughBlur,
     visibleConversationStatus,
 } from './conversation-model';
 import { startConversationReader } from './conversation-observation';
@@ -55,9 +57,24 @@ export const useConversationTimeline = ({
     const storedState = record.sessionId === sessionId ? record.state : initialState();
     const observable =
         enabled && sessionId !== null && isForeground && connectionStatus === 'connected';
+    const [isStaleAfterBlur, setIsStaleAfterBlur] = useState(false);
+    /**
+     * Both branches go through a timer, including the immediate `0`ms reset on regaining observability, so neither
+     * commits state synchronously in the effect body (matches the `setTimeout(tick, 0)` used for the same reason in
+     * `sessions-screen.tsx`). Regardless of the previous value, an unmount or a re-run from a new `observable` value
+     * clears whichever timer is still pending.
+     */
+    useEffect(() => {
+        const timer = setTimeout(
+            () => setIsStaleAfterBlur(!observable),
+            observable ? 0 : CONVERSATION_BLUR_GRACE_MS,
+        );
+        return () => clearTimeout(timer);
+    }, [observable]);
+    const isVisiblyObservable = isConversationObservableThroughBlur(observable, isStaleAfterBlur);
     const state = {
         ...storedState,
-        status: visibleConversationStatus(storedState.status, observable),
+        status: visibleConversationStatus(storedState.status, isVisiblyObservable),
         isLoadingOlder: observable && storedState.isLoadingOlder,
     };
 
