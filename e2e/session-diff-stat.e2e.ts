@@ -58,6 +58,15 @@ test('Session row shows its Workbench Root’s line diff and follows working-tre
             .locator('.session-primary-sidebar')
             .screenshot({ path: test.info().outputPath('session-row-diff-stat.png') });
 
+        // Pin/Archive float over the trailing edge on hover, so the count steps aside instead of painting beneath them.
+        await row.hover();
+        await expect(diffStat).toBeHidden();
+        await page
+            .locator('.session-primary-sidebar')
+            .screenshot({ path: test.info().outputPath('session-row-diff-stat-hover.png') });
+        await page.mouse.move(0, 0);
+        await expect(diffStat).toBeVisible();
+
         await execFileAsync('git', ['checkout', '--', 'README.md'], { cwd: repo });
         await rm(join(repo, 'notes.md'));
         await expect(diffStat).toHaveCount(0, { timeout: 15_000 });

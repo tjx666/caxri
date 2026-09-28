@@ -5,7 +5,10 @@ status: current
 
 # Mobile transport
 
-The Mobile gateway is a separate, default-off WebSocket endpoint on a private IPv4 address. Pairing
+The Mobile gateway is a separate, default-off WebSocket endpoint on a private IPv4 address. Once the
+owner turns it on, the device registry remembers that choice (`accessEnabled`) and the next Server
+start reopens the gateway on its own; turning it off clears the flag. A failed reopen logs
+`mobile_gateway.access_persistence` and leaves access off, as the Settings switch then shows. Pairing
 and reconnect use the versioned encrypted handshake in `@caxri/mobile-transport`. Version 3 adds
 Terminal observer snapshots, Host output sequences, and generation-fenced control. A mismatched `hello` receives a plaintext
 `version-mismatch` frame before authentication; all application frames after authentication are

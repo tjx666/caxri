@@ -7,8 +7,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { TerminalExecutionPort } from '../../../domains/terminal';
 import type { ServerDomainService } from '../../domain-service';
-import { mobileHostDisplayName, openMobileAccessController } from '../access-controller';
+import { openMobileAccessController } from '../access-controller';
 import { MobileDeviceRegistry } from '../device-registry';
+import { mobileHostDisplayName } from '../host-display-name';
 import { isMobileGatewayMethodAllowedForRole } from '../role-methods';
 
 const temporaryDirectories: string[] = [];

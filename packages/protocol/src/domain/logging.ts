@@ -21,6 +21,11 @@ export const logEventCatalog = {
         updateRecovery: 'mobile_gateway.update_recovery',
         enabled: 'mobile_gateway.enabled',
         disabled: 'mobile_gateway.disabled',
+        /**
+         * The remembered mobile-access switch: `restored` or `restore-failed` when a Server start reopens the gateway,
+         * `write-failed` when the owner's switch could not be saved for the next start.
+         */
+        accessPersistence: 'mobile_gateway.access_persistence',
         connectionEstablished: 'mobile_gateway.connection_established',
         connectionEnded: 'mobile_gateway.connection_ended',
         pairingOutcome: 'mobile_gateway.pairing_outcome',
