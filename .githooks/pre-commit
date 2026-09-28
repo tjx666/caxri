@@ -13,3 +13,10 @@ bun run gitleaks -- --staged
 if git diff --cached --name-only --diff-filter=ACM -- '*.md' | grep -q .; then
     bun run docs-check
 fi
+
+# The ratchet compares the branch against its merge base with `origin/main`, so it also catches an earlier commit on
+# this branch that grew a file past 600 lines. Running it here stops that growth before CI's full platform checks
+# are the first to see it.
+if git diff --cached --name-only --diff-filter=ACMR -- '*.ts' '*.tsx' '*.mts' '*.cts' '*.js' | grep -q .; then
+    bun run source-size-ratchet
+fi
