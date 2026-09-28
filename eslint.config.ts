@@ -73,9 +73,10 @@ export default defineConfig(
          * filter of its own, ESLint would try to parse native helpers with the TypeScript parser and crash. Shell and
          * Swift sources have their own compilers and were never meant to be JS/TS-linted; binary font assets, such as
          * the mobile Terminal fonts under `apps/mobile/scripts/terminal-fonts/`, fail with "Parsing error: Invalid
-         * character".
+         * character"; SVG assets, such as the mobile file-icon overrides under
+         * `apps/mobile/scripts/file-icon-overrides/`, fail with "Parsing error: '>' expected".
          */
-        '**/*.{sh,swift,ttf,otf,woff,woff2}',
+        '**/*.{sh,svg,swift,ttf,otf,woff,woff2}',
         /**
          * Negative fixtures for `scripts/__tests__/eslint-toolchain-contract.test.ts`: they exist solely to trip
          * specific rules and would otherwise fail this repository's own `--max-warnings=0` gate. The contract test

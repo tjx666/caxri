@@ -151,7 +151,12 @@ evidence rather than automated test or Acceptance evidence.
   per-test artifacts, and group repeated failures by stable error identity before repair begins.
   A `passed` receipt does not by itself prove a green pool: every child must also exit zero and
   every dispatched spec must reach the receipt, or the runner marks it `failed` with
-  `abortedInvocations` / `missingSpecs`.
+  `abortedInvocations` / `missingSpecs`. A sibling `checks` failure (or the shared 25-minute
+  concurrent-validation deadline) can also `SIGTERM` a pool mid-run; `run-e2e-pools.ts` survives long
+  enough to write a partial receipt with `abortReason` (`SIGINT` | `SIGTERM`) instead of losing
+  whatever already failed, distinguishing specs that finished, the invocation the signal actually
+  killed (`abortedInvocations`), and specs that never ran at all (folded into `missingSpecs`); see
+  issue #1446.
 - An interrupted local pool leaves Electron and Playwright processes behind. Clear them with
   `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts stop`, never with a name match:
   `pkill -f "Caxri.app"` also matches the installed `/Applications/Caxri.app` and has already
@@ -206,6 +211,40 @@ CI retains screenshots, traces, the final viewport/grid, fixture ready markers, 
 Main/Runtime logs for failures. Keep the failed CI run red while diagnosing it.
 Use a distinct `CAXRI_E2E_OUTPUT_DIR` for each local reproduction and verification round when comparing
 failures; Playwright clears its output directory at startup, including a preceding pool's evidence.
+
+A failed pool's `e2e-<pool>-failure-artifacts` CI artifact carries both the pool receipt
+(`test-results/receipts/<pool>.json`) and the pool's full Playwright output directory
+(`test-results/<pool>/**`): per-test screenshots, `trace.zip` (retained on failure only), and the
+`caxri-desktop-*.jsonl` / `caxri-server-core-*.jsonl` log attachments below. `.github/workflows/ci.yml`
+owns the exact upload step per pool. A pool that concurrent validation aborted before its turn has no
+receipt and uploads nothing; `ci-concurrent-validation.json` in `e2e-auxiliary-failure-artifacts`
+records it as `null`.
+
+**Artifact-content audit (issue #1446).** E2E fixtures are synthetic, so this audit is about the
+runner and the harness, not real user data:
+
+- The `.jsonl` log attachments are the raw structured logs (`e2e/support/error-gate.ts` copies the
+  file as-is), so their safety comes from the writer: `safeFields()` in
+  `packages/system/src/observability/logger.ts` passes every string field through `redactLogValue()`
+  (`packages/system/src/observability/redaction.ts`), which replaces the process's own home directory
+  with `$HOME` and redacts secret-shaped text before anything reaches disk. Re-verify that path, not
+  the narrower receipt parser, after a logger change. The pool receipt is narrower still, and
+  `assertE2EPoolReceipt` rejects an absolute path in it.
+- Fixture paths are not covered by that home redaction on the self-hosted runner: the job's temp root
+  sits under the runner account's home but outside the E2E process `HOME`, so a fixture path in a log,
+  `error-context.md`, or `trace.zip` still names the runner account. Every CI job log already prints
+  the same root in its step environment, so the artifact adds no new identity; neutralizing it is
+  tracked with the Terminal item below in issue #1461.
+- Screenshots and `trace.zip` render Caxri's UI against synthetic fixtures (fake projects, fake file
+  content), so the Editor/File Explorer/diff surfaces they capture are not real user data.
+- The Terminal pane is the other residual risk: it hosts a real PTY shell with the runner's real
+  environment (`launchCaxriApp` spreads `process.env` into the launched app), so a screenshot or
+  trace of a Terminal-focused failure can show the runner's real shell prompt (hostname/account
+  name). This is inherent to testing Caxri's PTY integration against a real shell rather than a
+  newly introduced leak, and sanitizing every E2E PTY environment (e.g. forcing a scripted prompt) is
+  a separate, larger hardening item — accepted here as a known residual, not a blocker for uploading
+  the evidence this issue's acceptance criteria call for. Issue #1461 tracks it; do not fold it into
+  an unrelated change.
 
 ### Diagnosing an error-gate notification
 

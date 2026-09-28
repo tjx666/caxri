@@ -6,8 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
-import type { MobileConnectionStatus } from '../../connection/connection-state';
-import { isConnectionFresh } from '../../connection/connection-state';
+import type { ConnectionClock, MobileConnectionStatus } from '../../connection/connection-state';
+import { initialConnectionClock, isConnectionFresh } from '../../connection/connection-state';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { mobileLayoutMode } from '../../layout/layout-mode';
@@ -89,10 +89,13 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
     const { getLastSeenAt, retryConnection, status } = useMobileClient();
     const { hostId, sessions } = useHostSessions();
     const { selectSession } = sessions;
-    const [{ now, lastSeenAt }, setClock] = useState<{ now: number; lastSeenAt: number | null }>({
-        now: 0,
-        lastSeenAt: null,
-    });
+    /**
+     * Lazy-initialized so the first paint already reflects the client's current `lastSeenAt` instead of the
+     * guaranteed-stale `null` placeholder (see `initialConnectionClock`).
+     */
+    const [{ now, lastSeenAt }, setClock] = useState<ConnectionClock>(() =>
+        initialConnectionClock(getLastSeenAt),
+    );
 
     useEffect(() => {
         const tick = (): void => setClock({ now: Date.now(), lastSeenAt: getLastSeenAt() });

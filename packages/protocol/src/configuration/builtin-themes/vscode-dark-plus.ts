@@ -41,7 +41,7 @@ export const vscodeDarkPlusTheme: ThemeTokens = {
          * so the four fills below come from the importer's fallback rather than from that file. They used to collapse
          * onto one `elevated` grey, which left hover, keyboard focus, and selection indistinguishable; the fallback now
          * reproduces the registry's own values, so the preset and an import of Dark+'s own source still agree. See
-         * `listStateDefaults` in `apps/server/src/domains/theme-colors.ts` and issue #1006.
+         * `listStateDefaults` in `apps/server/src/domains/theme/theme-colors.ts` and issue #1006.
          */
         listHoverBackground: '#2a2d2e',
         listHoverForeground: '#d4d4d4',

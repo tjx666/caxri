@@ -10,28 +10,43 @@ content falls back to normal main-push CI. After that gate succeeds, the release
 DMG and creates the matching Git tag and GitHub Release. Runner labels, availability, and recovery are owned by
 [`docs/self-hosted-runner.md`](docs/self-hosted-runner.md).
 
+`main` requires the `guards` status check to pass before anything merges
+([ADR 0011](docs/adr/0011-required-merge-guards.md)), with no bypass for any actor, so the release
+commit can no longer be pushed to `main` directly — it goes through a pull request like any other
+change.
+
 ## Create a release
 
 Update the root application version before committing. The public API, Agent skill package, CLI
 workspace, bundled extension versions, bundled extension `engines.caxri` ranges, and version
-sources must move in lockstep. The preparation command validates that contract before writing:
+sources must move in lockstep. The preparation command validates that contract before writing, and
+still requires a clean `main` synchronized with its upstream — create the release branch after it
+runs, not before:
 
 ```bash
 bun run release:prepare -- patch # also accepts minor, major, or an explicit newer SemVer
 version="$(node -p 'require("./package.json").version')"
+git checkout -b "release/v${version}"
 git add package.json packages/agent-skills/package.json packages/agent-skills/src/version.ts \
   packages/client/package.json packages/extension-api/package.json apps/cli/package.json \
   apps/cli/src/version.ts apps/desktop/package.json apps/mobile/package.json \
   apps/server/package.json extensions/{fixture,git,status}/package.json
 git commit -m "release: v${version}"
-git push origin main
+git push -u origin "release/v${version}"
+gh pr create --title "release: v${version}" --body "" --base main
+# wait for the `guards` status check to pass, then squash-merge with the exact release subject so
+# `.github/workflows/release.yml` and scripts/ci-retry-policy.ts's exact-release check still match:
+gh pr merge --squash --subject "release: v${version}" --body ""
 ```
 
 The preparation command refuses a dirty worktree, a branch other than `main`, or a local `main`
 that does not match its configured upstream. It validates every current version source before
 writing, updates all coupled manifests, extension compatibility ranges, and TypeScript constants,
 and restores already-written files if a later write fails. It never commits, tags, pushes, or
-publishes; those remain explicit steps because the release commit triggers remote publication.
+publishes; those remain explicit steps because the release commit triggers remote publication. A
+squash-merge produces one new commit on `main` with the exact chosen subject and the same file-set
+diff as the branch's single commit, so it satisfies `isVerifiedReleaseCommit`'s exact-subject and
+exact-file-set check exactly like the old direct push did.
 
 The lightweight CI run rechecks both the trusted exact-release event and the exact prepared output
 without repeating platform checks or E2E. The downstream workflow rejects a release when the commit

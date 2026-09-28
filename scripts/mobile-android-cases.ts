@@ -121,6 +121,12 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'terminal-scroll-feel',
     },
+    'MOB-TERM-SCROLLBACK-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'terminal-scrollback',
+    },
     'MOB-COMPOSER-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot', 'video'],
@@ -331,6 +337,12 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'ui-audit-settings',
     },
+    'MOB-UI-08': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'ui-audit-rename-keyboard-avoidance',
+    },
 } as const satisfies Record<
     string,
     {
@@ -374,6 +386,7 @@ export function shouldCaptureAdapterScreenshot(caseId: string, isLifecycleReady:
         definition.scenario !== 'conversation-shell-fallback' &&
         definition.scenario !== 'terminal-observe-control' &&
         definition.scenario !== 'terminal-scroll-feel' &&
+        definition.scenario !== 'terminal-scrollback' &&
         !caseId.startsWith('MOB-CHANGES-') &&
         !caseId.startsWith('MOB-MOTION-') &&
         !caseId.startsWith('MOB-UI-') &&
@@ -393,6 +406,7 @@ export function shouldCollectAndroidVideo(caseId: string, isScenarioSucceeded: b
         (![
             'terminal-observe-control',
             'terminal-scroll-feel',
+            'terminal-scrollback',
             'journey-phone',
             'cross-device-new-session',
         ].includes(definition.scenario) ||

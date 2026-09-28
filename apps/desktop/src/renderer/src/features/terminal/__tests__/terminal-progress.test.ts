@@ -38,6 +38,25 @@ describe('TerminalProgressRegistry', () => {
         expect(listener).toHaveBeenCalledTimes(1);
     });
 
+    it('notifies a later subscriber when an earlier one throws', () => {
+        const harness = createHarness();
+        const registry = new TerminalProgressRegistry(harness.requestFrame, harness.cancelFrame);
+        const failing = vi.fn(() => {
+            throw new Error('progress listener failure');
+        });
+        const surviving = vi.fn();
+        registry.subscribe('terminal-a', failing);
+        registry.subscribe('terminal-a', surviving);
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        registry.update('terminal-a', { state: 1, value: 12 });
+        harness.flushFrame();
+
+        expect(failing).toHaveBeenCalledTimes(1);
+        expect(surviving).toHaveBeenCalledTimes(1);
+        vi.restoreAllMocks();
+    });
+
     it('keeps Terminal progress isolated and ignores malformed updates', () => {
         const harness = createHarness();
         const registry = new TerminalProgressRegistry(harness.requestFrame, harness.cancelFrame);

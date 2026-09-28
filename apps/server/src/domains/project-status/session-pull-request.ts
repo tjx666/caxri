@@ -5,11 +5,12 @@ import { logEventCatalog } from '@caxri/system';
 import type { GitHubPullRequestStore } from '../external-status';
 import {
     isNoPullRequest,
+    parseExternalJson,
     pullRequestUnavailable as describePullRequestUnavailable,
 } from '../external-status';
 import { pullRequestOrigin } from '../session-pull-request-deployment';
 import type { SessionPullRequestResolution } from '../session-pull-request-parse';
-import { githubPullRequestSchema, parseExternalJson } from './parse';
+import { githubPullRequestSchema } from './parse';
 
 /**
  * Reads the pull request a Session delivers from `SessionPullRequestService`, the one owner of that answer. The sidebar

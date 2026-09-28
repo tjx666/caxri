@@ -80,6 +80,10 @@ describe('GitHub Actions runner archive cache', () => {
     it('keeps every repository action on an immutable commit SHA', async () => {
         await expect(discoverPinnedActions(repoRoot)).resolves.toEqual([
             {
+                repository: 'actions/cache',
+                sha: '55cc8345863c7cc4c66a329aec7e433d2d1c52a9',
+            },
+            {
                 repository: 'actions/checkout',
                 sha: '3d3c42e5aac5ba805825da76410c181273ba90b1',
             },
@@ -96,6 +100,18 @@ describe('GitHub Actions runner archive cache', () => {
                 sha: 'c8e77b72cd6022852162c92aa10e7e72b7209c9b',
             },
         ]);
+    });
+
+    it('keeps every repository action inside the repository Actions allowlist', async () => {
+        // The repository admits only GitHub-owned actions and `pnpm/setup@*`. A workflow that references anything else
+        // ends in `startup_failure` before any job runs, which for the required `guards` check blocks every merge.
+        const actions = await discoverPinnedActions(repoRoot);
+        expect(
+            actions.filter(
+                ({ repository }) =>
+                    !repository.startsWith('actions/') && repository !== 'pnpm/setup',
+            ),
+        ).toEqual([]);
     });
 
     it('rejects mutable action tags before attempting to populate the cache', async () => {

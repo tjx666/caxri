@@ -1,5 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react';
 
+import { notifyListeners } from '@caxri/utils';
 import { clamp } from 'es-toolkit';
 
 export type TerminalProgress =
@@ -81,7 +82,11 @@ export class TerminalProgressRegistry {
 
     private notify(terminalId: string): void {
         const listeners = this.listeners.get(terminalId) ?? [];
-        for (const listener of listeners) listener();
+        // Isolates each Terminal progress subscriber so one throwing panel cannot stop this Terminal's other panels
+        // from observing the update; Desktop mirrors `console.error` into `logs/desktop.jsonl`.
+        notifyListeners(listeners, undefined, (error) =>
+            console.error('terminal.progress listener failed', error),
+        );
     }
 
     get(terminalId: string): TerminalProgress | undefined {

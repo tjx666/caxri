@@ -1,6 +1,36 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { areLabelsEqual, nextTickedValue } from './use-relative-time';
+import {
+    areLabelsEqual,
+    nextTickedValue,
+    RELATIVE_TIME_TICK_MS,
+    subscribeToRelativeTimeClock,
+} from './use-relative-time';
+
+describe('Relative-time shared clock', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+    });
+
+    it('notifies a later subscriber on the same tick when an earlier one throws', () => {
+        vi.useFakeTimers();
+        const failing = vi.fn(() => {
+            throw new Error('relative time tick listener failure');
+        });
+        const surviving = vi.fn();
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const unsubscribeFailing = subscribeToRelativeTimeClock(failing);
+        const unsubscribeSurviving = subscribeToRelativeTimeClock(surviving);
+
+        vi.advanceTimersByTime(RELATIVE_TIME_TICK_MS);
+
+        expect(failing).toHaveBeenCalledTimes(1);
+        expect(surviving).toHaveBeenCalledTimes(1);
+        unsubscribeFailing();
+        unsubscribeSurviving();
+    });
+});
 
 describe('Relative-time tick publication', () => {
     it('keeps the value already on screen when the new one means the same thing', () => {

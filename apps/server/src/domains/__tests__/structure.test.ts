@@ -54,20 +54,6 @@ function importSpecifiers(path: string, source: string): string[] {
     return specifiers;
 }
 
-/**
- * `external-status`'s Acceptance and Linear stores reach past `project-status`'s barrel into its leaf `parse` module.
- * `project-status/index.ts` itself depends on `external-status`'s barrel to build `ProjectStatusService`, so routing
- * these two imports through the `project-status` barrel would close that into a real circular dependency, which
- * `import-x/no-cycle` and the empty `transitionalCycleAllowances` contract in `scripts/architecture-boundaries.ts`
- * forbid introducing. `parse.ts` holds no import back into `external-status`, so this deep import stays acyclic. Keep
- * this allowlist exact (importer -> specifier) rather than widening it to a domain pair, so a new deep import between
- * these two domains still fails here for review.
- */
-const DEEP_CROSS_DOMAIN_IMPORT_ALLOWLIST = new Set([
-    'external-status/acceptance.ts -> ../project-status/parse',
-    'external-status/linear.ts -> ../project-status/parse',
-]);
-
 function findCrossDomainImports(
     importer: string,
     source: string,
@@ -84,9 +70,7 @@ function findCrossDomainImports(
         const targetDomain = targetRelative.split(sep)[0];
         if (targetDomain === importerDomain || !directDomains.has(targetDomain)) continue;
         if (target === join(domainsRoot, targetDomain)) continue;
-        const violation = `${importerRelative} -> ${specifier}`;
-        if (DEEP_CROSS_DOMAIN_IMPORT_ALLOWLIST.has(violation)) continue;
-        violations.push(violation);
+        violations.push(`${importerRelative} -> ${specifier}`);
     }
     return violations;
 }
@@ -135,20 +119,39 @@ describe('Runtime domain structure', () => {
         expect(violations, 'cross-domain imports must target the domain root').toEqual([]);
     });
 
+    it('keeps external-status independent of project-status, including through the barrel', async () => {
+        /**
+         * `project-status` reads external-status's barrel to build `ProjectStatusService`, so the reverse import would
+         * close a real circular dependency. Unlike the general cross-domain guard above, this direction is banned even
+         * at the domain root: `external-status` resolves `linear`, `lh acceptance`, and `gh` on demand for whichever
+         * domain asks, and must stay usable without ever knowing `project-status` exists.
+         */
+        const externalStatusRoot = join(domainsRoot, 'external-status');
+        const importers = await listProductionModules(externalStatusRoot);
+        const violations = (
+            await Promise.all(
+                importers.map(async (importer) => {
+                    const source = await readFile(importer, 'utf8');
+                    return importSpecifiers(importer, source)
+                        .filter((specifier) => specifier.includes('project-status'))
+                        .map((specifier) => `${relative(domainsRoot, importer)} -> ${specifier}`);
+                }),
+            )
+        ).flat();
+
+        expect(violations, 'external-status must never import project-status').toEqual([]);
+    });
+
     it('rejects a third flat module that shares another flat module as a name prefix', async () => {
         /**
          * `source-layout` scales a cohesive cluster into its own directory once it reaches three modules. A flat
          * `foo.ts` base file next to two or more `foo-*.ts` siblings directly under `domains/` is exactly that cluster
-         * still sitting flat (this is how `project-status.ts` plus its twelve `project-status-*.ts` siblings looked
-         * before they moved into `domains/project-status/`). Families that predate this guard and have not been folded
-         * into a directory yet are listed here explicitly so a _fourth_ file in the same family still fails instead of
-         * silently growing.
+         * still sitting flat (this is how `project-status.ts` plus its twelve `project-status-*.ts` siblings, and later
+         * `theme.ts` plus `theme-colors.ts` and `theme-import-source.ts`, looked before each family moved into its own
+         * `domains/` directory). Families that predate this guard and have not been folded into a directory yet are
+         * listed here explicitly so a _fourth_ file in the same family still fails instead of silently growing.
          */
-        const allowedFlatFamilies = new Set([
-            // `theme.ts`, `theme-colors.ts`, `theme-import-source.ts`: three flat modules today, tracked here
-            // rather than folded into `domains/theme/` in the same change that added this guard.
-            'theme',
-        ]);
+        const allowedFlatFamilies = new Set<string>();
         const rootEntries = await readdir(domainsRoot, { withFileTypes: true });
         const flatModuleStems = rootEntries
             .filter((entry) => entry.isFile() && isProductionTypeScript(entry.name))

@@ -46,16 +46,19 @@ import {
 } from '../../stores/workbench';
 import { closeTerminal } from '../terminal/terminal-commands';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
-import { beginFileOpenIntent, isCurrentFileOpenIntent } from './editor-open-intent';
+import {
+    beginFileOpenIntent,
+    isCurrentFileOpenIntent,
+    supersedePendingFileOpens,
+} from './editor-open-intent';
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
 import { focusEditor, queueEditorNavigation, revealEditorNavigation } from './editor-reveal';
-
-interface PendingDocumentOperation {
-    discarded: boolean;
-    path: string;
-    sessionId: string;
-    workbenchProjectId?: string;
-}
+import {
+    discardPendingDocumentOperations,
+    finishDocumentOperation,
+    remapPendingDocumentOperations,
+    trackDocumentOperation,
+} from './pending-document-operations';
 
 interface OpenFileOptions {
     focus?: boolean;
@@ -65,49 +68,6 @@ interface OpenFileOptions {
      */
     paneId?: string;
     preview?: boolean;
-}
-
-/**
- * Reads and writes can finish after a rename, move, or Trash request. Tracking only active work lets file mutations
- * remap or invalidate it without retaining an unbounded path history.
- */
-const pendingDocumentOperations = new Set<PendingDocumentOperation>();
-
-function trackDocumentOperation(sessionId: string, path: string): PendingDocumentOperation {
-    const workbenchProjectId = getBootstrap()?.sessions.find(
-        (session) => session.id === sessionId,
-    )?.workbenchProjectId;
-    const operation = { discarded: false, path, sessionId, workbenchProjectId };
-    pendingDocumentOperations.add(operation);
-    return operation;
-}
-
-function remapPendingDocumentOperations(
-    sessionId: string,
-    workbenchProjectId: string,
-    previousPath: string,
-    nextPath: string,
-): void {
-    for (const operation of pendingDocumentOperations) {
-        if (
-            operation.sessionId === sessionId &&
-            operation.workbenchProjectId === workbenchProjectId &&
-            isPathAtOrBelow(operation.path, previousPath)
-        )
-            operation.path = remapPath(operation.path, previousPath, nextPath);
-    }
-}
-
-/**
- * Deliberately not narrowed by Workbench Root, unlike {@link remapPendingDocumentOperations} beside it. A rename is
- * root-relative — the same absolute path means a different destination per root — but a Trash is not: the path names
- * one file on disk, and an in-flight read or write of a file that just went to the Trash is stale under every root.
- */
-function discardPendingDocumentOperations(sessionId: string, path: string): void {
-    for (const operation of pendingDocumentOperations) {
-        if (operation.sessionId === sessionId && isPathAtOrBelow(operation.path, path))
-            operation.discarded = true;
-    }
 }
 
 function sessionStateOf(sessionId: string): SessionState | undefined {
@@ -268,10 +228,15 @@ export function didOpenEditorTabForSession(
 
 /**
  * Opens an editor tab in the currently selected Session.
+ *
+ * The tab activates synchronously, so it supersedes any file open still awaiting `files.read`: otherwise a Settings
+ * shortcut pressed right after a File Explorer click opens Settings, then the late read re-activates the file on top of
+ * it.
  */
 export function openEditorTab(path: string, options: { preview?: boolean } = {}): void {
     const session = getSelectedSession();
     if (!session) return;
+    supersedePendingFileOpens();
     didOpenEditorTabForSession(session.id, path, options);
 }
 
@@ -325,7 +290,7 @@ export async function cacheDocument(
             }
         });
     } finally {
-        pendingDocumentOperations.delete(operation);
+        finishDocumentOperation(operation);
     }
     return failure;
 }
@@ -402,7 +367,7 @@ export async function openFileForSession(
         });
         return opened ?? false;
     } finally {
-        pendingDocumentOperations.delete(operation);
+        finishDocumentOperation(operation);
     }
 }
 
@@ -497,7 +462,7 @@ async function didSaveDocumentAt(sessionId: string, path: string): Promise<boole
             },
         );
     } finally {
-        pendingDocumentOperations.delete(operation);
+        finishDocumentOperation(operation);
     }
     return isSaved;
 }

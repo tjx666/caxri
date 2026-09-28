@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { CaxriError } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { draculaTheme, importTheme, MAX_THEME_IMPORT_FILE_BYTES } from '../theme';
+import { draculaTheme, importTheme, MAX_THEME_IMPORT_FILE_BYTES } from '..';
 
 const temporaryDirectories: string[] = [];
 

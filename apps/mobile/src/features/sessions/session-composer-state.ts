@@ -1,4 +1,5 @@
 import { formatByteSize } from '../../lib/format-size';
+import { notifyListeners } from '../../lib/notify-listeners';
 import type { MobileSessionItem } from './session-model';
 
 type PrimaryAgentEndpoint = NonNullable<MobileSessionItem['primaryAgentEndpoint']>;
@@ -155,7 +156,9 @@ export class SessionComposerDeliveryStore {
     set(key: string, state: ComposerDelivery): void {
         this.#states.set(key, state);
         const listeners = this.#listeners.get(key) ?? [];
-        for (const listener of listeners) listener();
+        // Isolates each composer subscriber so one throwing screen cannot stop the rest from observing this delivery
+        // state. Mobile has no structured-log sink to report into yet, so the failure is isolated silently.
+        notifyListeners(listeners, undefined);
     }
 
     subscribe(key: string, listener: () => void): () => void {

@@ -6,6 +6,7 @@ import type {
     CommandAdapter,
     ProtocolEventEnvelope,
     ServerEvent,
+    ServerIdleExitReason,
     ServerOperationRequest,
     ServerRequest,
 } from '@caxri/protocol';
@@ -40,6 +41,7 @@ import { ServerDesktopRouter } from './desktop-router';
 import { createExtensionService } from './extensions/create-service';
 import { readActiveExtensionContext, routeExtensionDomainEvent } from './extensions/domain-events';
 import type { ExtensionService } from './extensions/service';
+import { createIdleExitConnectionTracker, createIdleExitMonitor } from './idle-exit';
 import {
     isMobileControlRequest,
     openMobileAccessController,
@@ -60,6 +62,8 @@ import {
     RequestCancellationRegistry,
 } from './request-cancellation';
 import type { ServerCore, ServerCoreOptions } from './server-core-contract';
+import type { CommandStopFallbackReference } from './server-core-control-callbacks';
+import { createServerCoreControlCallbacks } from './server-core-control-callbacks';
 import { createTerminalExecution } from './terminal-host/create-execution';
 import { invokeTerminalSend } from './terminal-send';
 
@@ -84,10 +88,13 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         userDataPath: options.userDataPath,
         version: options.version,
     });
+    // Fed by `ControlServer` and `MobileGateway` below into one aggregate for `docs/adr/0010-server-core-idle-exit.md`.
+    const idleExitConnections = createIdleExitConnectionTracker();
     const mobileAccess = await openMobileAccessController({
         logger,
         directory: lease.paths.directory,
         ...(options.mobileHostDisplayName && { hostDisplayName: options.mobileHostDisplayName }),
+        onConnectionCountChanged: (count) => idleExitConnections.updateMobileCount(count),
         registryPath: lease.paths.mobileDevices,
         ...(options.mobileUpdateDirectory && { updateDirectory: options.mobileUpdateDirectory }),
         onOpenError: async () => {
@@ -100,7 +107,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         eventLoopMonitor.stop();
         await lease.release();
     });
-    const agentEndpoints = new AgentEndpointRegistry(lease.identity.processIdentity);
+    const agentEndpoints = new AgentEndpointRegistry(lease.identity.processIdentity, { logger });
     let server: ControlServer | undefined;
     const { providerMessaging, agentInbox } = createAgentMessaging(agentEndpoints, () => server);
     const endpointControl = createAgentEndpointControl(agentEndpoints);
@@ -133,7 +140,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         return desktopRouter;
     };
     let stopPromise: Promise<void> | undefined;
-    let commandStopFallback: NodeJS.Immediate | undefined;
+    const commandStopFallbackReference: CommandStopFallbackReference = { current: undefined };
     const mutationAdmission = new MutationAdmission();
     const { promise: stopped, resolve: resolveStopped } = Promise.withResolvers<void>();
     const { promise: stopping, resolve: resolveStopping } = Promise.withResolvers<void>();
@@ -205,6 +212,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     const stop = (reason = 'requested'): Promise<void> => {
         mutationAdmission.close();
         resolveStopping();
+        idleExitConnections.stop();
         // Lands even if Terminal Host exits (OS SIGTERM to the tree) before `domainService.shutdown()` runs below.
         terminalExecution.markCoreStopping?.();
         stopPromise ??= (async () => {
@@ -571,7 +579,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                         /**
                          * Stop even if the requesting client disconnects before its reply can flush.
                          */
-                        commandStopFallback ??= setImmediate(async () => {
+                        commandStopFallbackReference.current ??= setImmediate(async () => {
                             try {
                                 await stop('command');
                             } catch (error) {
@@ -583,7 +591,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                                 });
                             }
                         });
-                        commandStopFallback.unref();
+                        commandStopFallbackReference.current.unref();
                         return { stopping: true, activePtyCount: health.activePtyCount };
                     } finally {
                         if (!isAccepted) mutationAdmission.reopen();
@@ -678,6 +686,23 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             serverId: protocolIdentity.serverId,
             userDataPath: lease.paths.userDataPath,
         });
+        idleExitConnections.bind(
+            createIdleExitMonitor({
+                ...(options.idleExitThresholdMs !== undefined && {
+                    thresholdMs: options.idleExitThresholdMs,
+                }),
+                logger,
+                isBusy: async () => (await domainService.request('app.health')).activePtyCount > 0,
+                onIdleExit: ({ deferralCount, idleDurationMs }) => {
+                    const reason: ServerIdleExitReason = 'idle-timeout';
+                    logger.write('info', logEventCatalog.serverCore.idleExitTriggered, {
+                        fields: { deferralCount, idleDurationMs, reason },
+                    });
+                    // eslint-disable-next-line no-void -- fire-and-forget shutdown from an internal timer callback
+                    void stop(reason);
+                },
+            }),
+        );
         server = new ControlServer({
             adapters: {
                 durableReceipts: protocolRecovery,
@@ -715,57 +740,19 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 logger.write('info', logEventCatalog.serverCore.clientCount, {
                     fields: { clientCount },
                 });
+                idleExitConnections.updateControlCount(clientCount);
             },
-            onDesktopUnavailable: async () => {
-                try {
-                    await domainService.request('terminal.detachAll');
-                } catch {
-                    // Best-effort detach: domain services already report Desktop as unavailable.
-                }
-            },
-            onReplyFlushed: async (request, reply, context) => {
-                if (
-                    request.method === 'agent.message.wait' ||
-                    request.method === 'agent.message.check'
-                ) {
-                    if (reply.ok) agentInbox.confirmWait(request.id, context);
-                    else agentInbox.cancelWait(request.id);
-                }
-                if (request.method === 'host.stop' && reply.ok) {
-                    if (commandStopFallback) clearImmediate(commandStopFallback);
-                    commandStopFallback = undefined;
-                    try {
-                        await stop('command');
-                    } catch (error) {
-                        logger.write('error', logEventCatalog.serverCore.stopFailed, {
-                            fields: {
-                                message: error instanceof Error ? error.message : String(error),
-                            },
-                        });
-                    }
-                }
-            },
-            onRequestDisconnected: async (requestId, context) => {
-                agentInbox.cancelWait(requestId);
-                const key = principalRequestKey(context, requestId);
-                requestCancellations.disconnect(key);
-                const waitIds = dispatchWaitIds.get(key) ?? new Set<string>();
-                await Promise.all(
-                    [...waitIds].map(async (waitId) => {
-                        try {
-                            await domainService.request('agent.dispatch.cancelWaitInternal', {
-                                waitId,
-                            });
-                        } catch {
-                            // Best-effort cancel: the wait may have already resolved.
-                        }
-                    }),
-                );
-            },
-            refreshContext: (context) =>
-                context.principal.kind === 'delegation-client'
-                    ? delegationAccess.refresh(context.principal)
-                    : agentEndpoints.refresh(context),
+            ...createServerCoreControlCallbacks({
+                agentEndpoints,
+                agentInbox,
+                commandStopFallbackReference,
+                delegationAccess,
+                dispatchWaitIds,
+                domainService,
+                logger,
+                requestCancellations,
+                stop,
+            }),
         });
         desktopRouter = new ServerDesktopRouter({
             bridge: {

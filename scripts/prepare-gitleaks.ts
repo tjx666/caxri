@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
 
 /**
- * Provisions the pinned `gitleaks` binary for both local hooks and CI. The self-hosted CI runner has no package manager
- * (no Homebrew, no mise) and gitleaks is not an npm package, so this repository owns the download the same way
- * `electron:install` and Playwright's browser install already own their own binaries. A local machine that already has
- * the pinned version on `PATH` (the common case: it is installed there via Homebrew) skips the network round trip
- * entirely.
+ * Provisions the pinned `gitleaks` binary for local hooks and both CI surfaces: the self-hosted macOS runner and the
+ * GitHub-hosted Linux `guards` job. Neither has a package manager that ships gitleaks (no Homebrew, no mise, no npm
+ * package), so this repository owns the download the same way `electron:install` and Playwright's browser install
+ * already own their own binaries. A local machine that already has the pinned version on `PATH` (the common case: it is
+ * installed there via Homebrew) skips the network round trip entirely.
  */
 
 import { execFile } from 'node:child_process';
@@ -39,12 +39,15 @@ const GITLEAKS_VERSION = '8.30.1';
 /**
  * Sha256 checksums copied verbatim from the pinned release's published checksums file
  * (https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1), so a corrupted or tampered download fails closed instead
- * of silently running an unverified binary. Caxri only ships macOS builds (see stack-baseline's target platform), so
- * only the two Mac architectures are pinned. Not exported: see `GITLEAKS_VERSION`'s comment above.
+ * of silently running an unverified binary. Caxri ships macOS builds (see stack-baseline's target platform) and also
+ * runs this script on the Linux-hosted `guards` CI job (`.github/workflows/guards.yml`), so both Mac architectures and
+ * both Linux architectures are pinned. Not exported: see `GITLEAKS_VERSION`'s comment above.
  */
 const GITLEAKS_RELEASE_CHECKSUMS: Readonly<Record<string, string>> = Object.freeze({
     'darwin-arm64': 'b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5',
     'darwin-x64': 'dfe101a4db2255fc85120ac7f3d25e4342c3c20cf749f2c20a18081af1952709',
+    'linux-arm64': 'e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080',
+    'linux-x64': '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb',
 });
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/prepare-gitleaks.test.ts
@@ -59,13 +62,13 @@ export interface GitleaksReleaseTarget {
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/prepare-gitleaks.test.ts
 export function gitleaksReleaseKey({ arch, platform }: GitleaksReleaseTarget): string {
-    if (platform !== 'darwin') {
+    if (platform !== 'darwin' && platform !== 'linux') {
         throw new Error(`Unsupported platform for gitleaks provisioning: ${platform}`);
     }
     if (arch !== 'arm64' && arch !== 'x64') {
         throw new Error(`Unsupported architecture for gitleaks provisioning: ${arch}`);
     }
-    return `darwin-${arch}`;
+    return `${platform}-${arch}`;
 }
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/prepare-gitleaks.test.ts

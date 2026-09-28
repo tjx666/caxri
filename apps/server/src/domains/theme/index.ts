@@ -17,8 +17,8 @@ import { contrastRatio, relativeLuminance } from '@caxri/utils';
 import { parse as parsePlist } from 'plist';
 import YAML from 'yaml';
 
-import type { BoundedRegularFileReadOptions } from './bounded-file-reader';
-import { readBoundedRegularFileText } from './bounded-file-reader';
+import type { BoundedRegularFileReadOptions } from '../bounded-file-reader';
+import { readBoundedRegularFileText } from '../bounded-file-reader';
 import {
     applyVsCodeControlColors,
     applyVsCodeTokenColors,

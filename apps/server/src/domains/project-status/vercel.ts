@@ -9,7 +9,7 @@ import type {
 } from '@caxri/protocol';
 import { rememberBounded } from '@caxri/utils';
 
-import { ExternalStatusCliError } from '../external-status';
+import { ExternalStatusCliError, parseExternalJson } from '../external-status';
 import type { BranchPublicationContext } from './branch';
 import type { VercelLink } from './external';
 import {
@@ -19,7 +19,7 @@ import {
     vcListArguments,
     vercelInspectorUrl,
 } from './external';
-import { parseExternalJson, parseVercelList, vercelTeamListSchema } from './parse';
+import { parseVercelList, vercelTeamListSchema } from './parse';
 
 /**
  * Caps the process-lifetime project-link cache so long-running sessions can't grow it unbounded.

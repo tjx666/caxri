@@ -94,6 +94,12 @@ describe('isRatchetCandidatePath', () => {
             false,
         );
     });
+
+    it('rejects a generated data manifest that ESLint still lints but this ratchet cannot ask to be split', () => {
+        expect(
+            isRatchetCandidatePath('apps/mobile/src/features/panels/file-icons.generated.ts'),
+        ).toBe(false);
+    });
 });
 
 describe('parseNameStatusRecords', () => {

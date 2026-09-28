@@ -18,6 +18,7 @@ import {
 
 import { createDesktopLauncher } from './desktop-launcher';
 import { extensionRootsForServer } from './extensions/discovery';
+import { resolveIdleExitThresholdMs } from './idle-exit';
 import { mobileUpdateDirectoryForServer } from './mobile/update-bundle';
 import { startServerCore } from './server-core';
 
@@ -74,6 +75,7 @@ const app = await startServerCore({
         ...(serverBundleDirectory.includes('.asar') &&
             process.resourcesPath && { resourcesPath: process.resourcesPath }),
     }),
+    idleExitThresholdMs: resolveIdleExitThresholdMs(process.env),
     includeTestExtensions: process.env.CAXRI_E2E === '1',
     ...(process.env.CAXRI_E2E === '1' && {
         mobileHostDisplayName: process.env.CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME,
