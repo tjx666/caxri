@@ -1,8 +1,9 @@
 /**
  * Validates the documentation contract defined by `.agents/skills/write-docs/SKILL.md`: closed-enum frontmatter on
- * every `docs/**\/*.md` file, `docs/README.md` index completeness, relative Markdown link/anchor targets, and
- * backticked repository paths. `CONTEXT.md` and `AGENTS.md` get link/path checks only — they carry no frontmatter and
- * are not part of the `docs/` index.
+ * every `docs/**\/*.md` file, `docs/README.md` index completeness, relative Markdown link targets and their `#heading`
+ * anchors (same-document ones included), backticked repository paths, and backticked TypeScript source filenames
+ * written without a repository root. `CONTEXT.md` and `AGENTS.md` get link/path checks only — they carry no frontmatter
+ * and are not part of the `docs/` index.
  *
  * Every filesystem existence check walks each path segment through `readdir` instead of `existsSync`, because macOS's
  * default case-insensitive-but-preserving filesystem would silently accept a stale-cased reference (e.g.
@@ -17,6 +18,14 @@ import process from 'node:process';
 
 import { parse as parseYaml } from 'yaml';
 
+import {
+    collectMarkdownAnchors,
+    decodeFragment,
+    extractBacktickedRepoPaths,
+    extractBacktickedSourceFilenames,
+    extractRelativeLinks,
+    frozenLedgerEntryLines,
+} from './documentation-references';
 import { execFileAsync } from './exec';
 
 export interface DocumentationCheckIssue {
@@ -41,19 +50,6 @@ export type DocumentStatus = (typeof DOC_STATUS_VALUES)[number];
  * Statuses whose whole point is to describe paths and decisions that may no longer exist.
  */
 const SKIP_PATH_CHECK_STATUSES = new Set<string>(['historical', 'superseded']);
-
-const REPO_PATH_PREFIXES = [
-    'apps/',
-    'packages/',
-    'extensions/',
-    'e2e/',
-    'scripts/',
-    'tools/',
-    '.agents/',
-    'docs/',
-    'build/',
-    'skills/',
-];
 
 const DOCS_INDEX_RELATIVE_PATH = 'docs/README.md';
 const ALWAYS_CHECKED_ROOT_FILES = ['CONTEXT.md', 'AGENTS.md'];
@@ -141,115 +137,25 @@ export function shouldSkipPathChecks(source: string): boolean {
     return Boolean(frontmatter?.status && SKIP_PATH_CHECK_STATUSES.has(frontmatter.status));
 }
 
-const LEDGER_ENTRY_HEADING = /^###\s+(?:\S.*)?\[(?:RESOLVED|STALE)\b/;
-const ANY_HEADING = /^#{1,6}\s+/;
-
 /**
- * Returns the 1-indexed line numbers inside a `### <id> — [RESOLVED ...]` or `[STALE ...]` entry — the
- * `audit-architecture-debt` skill's ledger format used by `docs/architecture-debt.md`. That skill's own reference doc
- * (`.agents/skills/audit-architecture-debt/references/debt-ledger.md`) only refreshes evidence for revalidated `OPEN`
- * entries; a `RESOLVED`/`STALE` entry's `Evidence:` citation is a point-in-time record of the commit that resolved or
- * last verified it, and the ledger's own maintenance policy is to "refresh semantic evidence, not paths" for those, so
- * a later rename or deletion of the cited file is expected, not drift for this checker to flag.
+ * Lists tracked plus untracked-but-not-ignored files, so a source file the current change adds resolves before it is
+ * staged. Returns `null` outside a Git repository, where a bare filename has nothing to resolve against.
  */
-export function frozenLedgerEntryLines(source: string): Set<number> {
-    const frozen = new Set<number>();
-    let isInFrozenEntry = false;
-    source.split('\n').forEach((line, index) => {
-        if (LEDGER_ENTRY_HEADING.test(line)) isInFrozenEntry = true;
-        else if (ANY_HEADING.test(line)) isInFrozenEntry = false;
-        if (isInFrozenEntry) frozen.add(index + 1);
-    });
-    return frozen;
+export async function listRepoFiles(repoRoot: string): Promise<string[] | null> {
+    try {
+        const { stdout } = await execFileAsync(
+            'git',
+            ['ls-files', '--cached', '--others', '--exclude-standard'],
+            { cwd: repoRoot, maxBuffer: 16 * 1024 * 1024 },
+        );
+        return stdout.split('\n').filter((line) => line.length > 0);
+    } catch {
+        return null;
+    }
 }
 
-/**
- * Blanks fenced ````` code-block lines so example commands and ASCII diagrams never produce false-positive path
- * findings, while keeping every line number stable.
- */
-export function stripFencedCodeBlocks(source: string): string {
-    const lines = source.split('\n');
-    let isInFence = false;
-    return lines
-        .map((line) => {
-            if (/^\s{0,3}```/.test(line)) {
-                isInFence = !isInFence;
-                return '';
-            }
-            return isInFence ? '' : line;
-        })
-        .join('\n');
-}
-
-export interface RelativeLinkTarget {
-    line: number;
-    rawTarget: string;
-    target: string;
-}
-
-/**
- * Extracts `[text](target)` / `![alt](target)` links whose target is not an external URL, a mailto link, or a
- * same-document `#anchor`.
- */
-export function extractRelativeLinks(source: string): RelativeLinkTarget[] {
-    const withoutFences = stripFencedCodeBlocks(source);
-    const links: RelativeLinkTarget[] = [];
-    withoutFences.split('\n').forEach((line, index) => {
-        for (const match of line.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
-            const rawTarget = match[1].trim();
-            const target = rawTarget.split(/\s+/, 1)[0];
-            if (!target || target.startsWith('#')) continue;
-            if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue; // any URI scheme (http(s), mailto, ...)
-            links.push({ line: index + 1, rawTarget, target: target.split('#', 1)[0] });
-        }
-    });
-    return links.filter((link) => link.target.length > 0);
-}
-
-function isPlaceholderOrGlob(token: string): boolean {
-    if (/[*?<>{}[\]$]|\.\.\.\B/.test(token)) return true;
-    // `example` is this repository's own illustrative-filename convention (see
-    // `scripts/ci-path-policy.ts`'s `CI-E2E-Tests: ["e2e/example.e2e.ts"]` JSDoc and its test
-    // fixtures), not a stale reference to a real spec.
-    return /(?:^|\/)example\./i.test(token);
-}
-
-export interface RepoPathToken {
-    line: number;
-    path: string;
-}
-
-/**
- * Returns the repo-relative path a single space-delimited backticked candidate names, or `null` when it is not one (a
- * glob, a `<placeholder>`, or a token with no owning repository root prefix).
- */
-function repoPathFromCandidate(candidate: string): string | null {
-    const token = candidate.replace(/^[(["'{]+/, '').replace(/[)\]"'},;.]+$/, '');
-    if (isPlaceholderOrGlob(token)) return null;
-    if (REPO_PATH_PREFIXES.every((prefix) => !token.startsWith(prefix))) return null;
-    // Strips an optional trailing `:123`, `:123-456`, or comma-joined list of either (e.g.
-    // `:535-548,628-633`), the citation format `docs/architecture-debt.md` uses.
-    return token.replace(/:\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$/, '');
-}
-
-/**
- * Extracts backticked tokens that begin with an owning repository root and are not obviously a glob or a
- * `<placeholder>`.
- */
-export function extractBacktickedRepoPaths(source: string): RepoPathToken[] {
-    const withoutFences = stripFencedCodeBlocks(source);
-    const results: RepoPathToken[] = [];
-    withoutFences.split('\n').forEach((line, index) => {
-        for (const match of line.matchAll(/`([^`]+)`/g)) {
-            const content = match[1].trim();
-            const candidates = /\s/.test(content) ? content.split(/\s+/) : [content];
-            for (const candidate of candidates) {
-                const path = repoPathFromCandidate(candidate);
-                if (path) results.push({ line: index + 1, path });
-            }
-        }
-    });
-    return results;
+export function isSourceFilenameResolvable(repoFiles: readonly string[], suffix: string) {
+    return repoFiles.some((file) => file === suffix || file.endsWith(`/${suffix}`));
 }
 
 /**
@@ -310,29 +216,70 @@ export interface CheckFileOptions {
      */
     relativePath: string;
     repoRoot: string;
+    /**
+     * Result of `listRepoFiles`, shared across files by `runDocumentationCheck`; listed on demand when omitted.
+     */
+    repoFiles?: readonly string[] | null;
     source: string;
+}
+
+async function readAnchors(
+    repoRoot: string,
+    relativePath: string,
+): Promise<Set<string> | undefined> {
+    try {
+        return collectMarkdownAnchors(await readFile(join(repoRoot, relativePath), 'utf8'));
+    } catch {
+        // An acceptable-but-absent target (a gitignored path) has no anchors to compare against.
+        return undefined;
+    }
 }
 
 export async function checkLinksAndPaths({
     relativePath,
     repoRoot,
+    repoFiles,
     source,
 }: CheckFileOptions): Promise<DocumentationCheckIssue[]> {
     const issues: DocumentationCheckIssue[] = [];
     const relativeFileDirectory = dirname(relativePath);
     const frozenLines = frozenLedgerEntryLines(source);
+    const anchorsByTarget = new Map<string, Set<string> | undefined>([
+        [relativePath, collectMarkdownAnchors(source)],
+    ]);
 
     for (const link of extractRelativeLinks(source)) {
         if (frozenLines.has(link.line)) continue;
-        const targetRelativeToRepoRoot = link.target.startsWith('/')
-            ? link.target.slice(1)
-            : relative(repoRoot, join(repoRoot, relativeFileDirectory, link.target));
-        // eslint-disable-next-line no-await-in-loop -- a doc has few links; sequential keeps issues in document order
-        if (!(await isPathAcceptable(repoRoot, targetRelativeToRepoRoot))) {
+        let targetRelativeToRepoRoot = relativePath;
+        if (link.target !== '') {
+            targetRelativeToRepoRoot = link.target.startsWith('/')
+                ? link.target.slice(1)
+                : relative(repoRoot, join(repoRoot, relativeFileDirectory, link.target));
+            // eslint-disable-next-line no-await-in-loop -- a doc has few links; sequential keeps issues in document order
+            if (!(await isPathAcceptable(repoRoot, targetRelativeToRepoRoot))) {
+                issues.push({
+                    file: relativePath,
+                    line: link.line,
+                    message: `broken relative link target: ${link.rawTarget}`,
+                });
+                continue;
+            }
+        }
+        // Only Markdown has heading anchors; `#L42` on a source file is GitHub's line-link syntax.
+        if (!link.fragment || !targetRelativeToRepoRoot.endsWith('.md')) continue;
+        if (!anchorsByTarget.has(targetRelativeToRepoRoot)) {
+            anchorsByTarget.set(
+                targetRelativeToRepoRoot,
+                // eslint-disable-next-line no-await-in-loop -- memoized per target; a doc links few distinct files
+                await readAnchors(repoRoot, targetRelativeToRepoRoot),
+            );
+        }
+        const anchors = anchorsByTarget.get(targetRelativeToRepoRoot);
+        if (anchors && !anchors.has(decodeFragment(link.fragment))) {
             issues.push({
                 file: relativePath,
                 line: link.line,
-                message: `broken relative link target: ${link.rawTarget}`,
+                message: `broken link anchor: ${link.rawTarget}`,
             });
         }
     }
@@ -348,6 +295,23 @@ export async function checkLinksAndPaths({
                     message: `backticked repository path does not exist: ${token.path}`,
                 });
             }
+        }
+
+        const filenames = extractBacktickedSourceFilenames(source).filter(
+            (token) => !frozenLines.has(token.line),
+        );
+        let files: readonly string[] | null = null;
+        if (filenames.length > 0)
+            files = repoFiles === undefined ? await listRepoFiles(repoRoot) : repoFiles;
+        const unresolvedFilenames = files
+            ? filenames.filter((token) => !isSourceFilenameResolvable(files, token.suffix))
+            : [];
+        for (const token of unresolvedFilenames) {
+            issues.push({
+                file: relativePath,
+                line: token.line,
+                message: `backticked source filename matches no repository file: ${token.suffix}`,
+            });
         }
     }
 
@@ -407,6 +371,7 @@ export async function defaultCheckedFiles(repoRoot: string): Promise<string[]> {
 export async function checkDocumentationFile(
     repoRoot: string,
     relativePath: string,
+    repoFiles?: readonly string[] | null,
 ): Promise<DocumentationCheckIssue[]> {
     const source = await readFile(join(repoRoot, relativePath), 'utf8');
     const issues: DocumentationCheckIssue[] = [];
@@ -419,7 +384,7 @@ export async function checkDocumentationFile(
     ) {
         issues.push(...checkFrontmatter(relativePath, source));
     }
-    issues.push(...(await checkLinksAndPaths({ relativePath, repoRoot, source })));
+    issues.push(...(await checkLinksAndPaths({ relativePath, repoRoot, repoFiles, source })));
     return issues;
 }
 
@@ -428,9 +393,10 @@ export async function runDocumentationCheck(
     relativePaths: string[],
 ): Promise<DocumentationCheckIssue[]> {
     const issues: DocumentationCheckIssue[] = [];
+    const repoFiles = await listRepoFiles(repoRoot);
     for (const relativePath of relativePaths) {
         // eslint-disable-next-line no-await-in-loop -- sequential keeps output ordered by input file order
-        issues.push(...(await checkDocumentationFile(repoRoot, relativePath)));
+        issues.push(...(await checkDocumentationFile(repoRoot, relativePath, repoFiles)));
     }
 
     const checkedSet = new Set(relativePaths);
@@ -458,19 +424,30 @@ export function parseCliArguments(argv: string[]): { files?: string[] } {
 }
 
 /**
- * `resolve()` (unlike `join()`) treats an already-absolute `path` as the final result instead of concatenating it onto
- * `repoRoot`, so a caller passing `--files` an absolute path is not doubled up (e.g. `--files` from a shell completion,
- * or another script that always passes absolute paths).
+ * Resolves a `--files` path against `baseDirectory` (the invoking shell's cwd) and re-expresses it relative to
+ * `repoRoot`. `resolve()` (unlike `join()`) treats an already-absolute `path` as the final result, so a caller passing
+ * an absolute path (a shell completion, or another script) is not doubled up.
  */
-export function relativeToRepoRoot(repoRoot: string, path: string): string {
-    return relative(repoRoot, resolve(repoRoot, path)).replaceAll('\\', '/');
+export function relativeToRepoRoot(
+    repoRoot: string,
+    path: string,
+    baseDirectory: string = repoRoot,
+): string {
+    return relative(repoRoot, resolve(baseDirectory, path)).replaceAll('\\', '/');
 }
 
+/**
+ * Resolved from this script's own location, not `process.cwd()`: every link and backticked path is repository-relative,
+ * so running from a subdirectory must not re-root the whole check there.
+ */
+const scriptRepoRoot = resolve(import.meta.dirname, '..');
+
 async function main(argv: string[]): Promise<number> {
-    const repoRoot = process.cwd();
+    const repoRoot = scriptRepoRoot;
     const { files } = parseCliArguments(argv);
-    const inputFiles = files ?? (await defaultCheckedFiles(repoRoot));
-    const relativePaths = inputFiles.map((path) => relativeToRepoRoot(repoRoot, path));
+    const relativePaths = files
+        ? files.map((path) => relativeToRepoRoot(repoRoot, path, process.cwd()))
+        : await defaultCheckedFiles(repoRoot);
     const issues = await runDocumentationCheck(repoRoot, relativePaths);
     for (const issue of issues)
         process.stdout.write(`${issue.file}:${issue.line} ${issue.message}\n`);

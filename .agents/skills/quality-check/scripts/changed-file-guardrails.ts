@@ -15,9 +15,8 @@ export interface ChangedFileGuardrailOptions {
 
 /**
  * Runs the in-scope guardrails and returns their names, in run order, for the caller's own check summary.
- * documentation-check always runs unscoped (not `--files`) even though only Markdown changed: its `--files` mode
- * mis-resolves an absolute path (a bug in a file this skill does not own), and an unscoped run is cheap while also
- * catching README-index gaps a scoped run would miss.
+ * documentation-check always runs unscoped (not `--files`) even though only Markdown changed: an unscoped run is cheap
+ * and also catches README-index gaps and cross-document link or anchor breaks a scoped run would miss.
  */
 export async function runChangedFileGuardrails(
     options: ChangedFileGuardrailOptions,
