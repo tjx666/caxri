@@ -115,6 +115,12 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'terminal-observe-control',
     },
+    'MOB-TERM-SCROLL-FEEL-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'terminal-scroll-feel',
+    },
     'MOB-COMPOSER-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot', 'video'],
@@ -186,6 +192,24 @@ const androidCases = {
         media: ['screenshot', 'video'],
         recordingOwner: 'scenario',
         scenario: 'conversation-open-return',
+    },
+    'MOB-MOTION-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'motion-tab-switch',
+    },
+    'MOB-MOTION-02': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'motion-swipe-rows',
+    },
+    'MOB-MOTION-03': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'motion-tool-detail-sheet',
     },
     'MOB-TIMELINE-01': {
         desktopProfile: 'managed-by-isolated-e2e',
@@ -349,7 +373,9 @@ export function shouldCaptureAdapterScreenshot(caseId: string, isLifecycleReady:
         definition.media.includes('screenshot') &&
         definition.scenario !== 'conversation-shell-fallback' &&
         definition.scenario !== 'terminal-observe-control' &&
+        definition.scenario !== 'terminal-scroll-feel' &&
         !caseId.startsWith('MOB-CHANGES-') &&
+        !caseId.startsWith('MOB-MOTION-') &&
         !caseId.startsWith('MOB-UI-') &&
         !caseId.startsWith('MOB-E2E-') &&
         caseId !== 'MOB-CROSS-01' &&
@@ -364,9 +390,12 @@ export function shouldCollectAndroidVideo(caseId: string, isScenarioSucceeded: b
     const definition = mobileAndroidAcceptanceCase(caseId);
     return (
         definition.media.includes('video') &&
-        (!['terminal-observe-control', 'journey-phone', 'cross-device-new-session'].includes(
-            definition.scenario,
-        ) ||
+        (![
+            'terminal-observe-control',
+            'terminal-scroll-feel',
+            'journey-phone',
+            'cross-device-new-session',
+        ].includes(definition.scenario) ||
             isScenarioSucceeded)
     );
 }
