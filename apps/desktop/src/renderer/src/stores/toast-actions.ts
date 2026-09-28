@@ -63,7 +63,9 @@ export type ToastActionId = keyof ToastActionParameters;
 
 /**
  * One follow-up as a notification carries it. `accessibleLabel` is the screen-reader name when the visible one is too
- * short to stand alone — three `Retry` buttons in the history are three different retries.
+ * short to stand alone — three `Retry` buttons in the history are three different retries. It starts with the visible
+ * label word for word (WCAG 2.5.3, Label in Name): a voice-control user says what the button shows, and a name that
+ * rewords it leaves that command matching nothing.
  */
 export type ToastAction = {
     [Id in ToastActionId]: ToastActionParameters[Id] extends undefined
