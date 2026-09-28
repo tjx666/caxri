@@ -53,12 +53,18 @@ export const RATCHET_SOURCE_ROOTS = [
 ];
 
 /**
- * Generated or vendored paths under `RATCHET_SOURCE_ROOTS` that ESLint's own `globalIgnores` (`eslint.config.ts`) also
- * excludes from lint, narrowed to the extensions and roots this ratchet actually scans. This mirrors that subset as a
- * static list instead of importing `eslint.config.ts` directly: that file is not owned by this script, its ignore list
- * mixes in extensions and roots this ratchet never scans anyway (e.g. `**\/*.{sh,swift}`, `competitors/**`, which sit
- * outside `RATCHET_SOURCE_ROOTS`), and a static list avoids paying ESLint's module-graph load cost on every ratchet
- * run. Re-check this list by hand against `eslint.config.ts`'s `globalIgnores` array when either changes.
+ * Paths under `RATCHET_SOURCE_ROOTS` this ratchet exempts, for two distinct reasons:
+ *
+ * - Generated or vendored paths ESLint's own `globalIgnores` (`eslint.config.ts`) also excludes from lint entirely,
+ *   narrowed to the extensions and roots this ratchet actually scans. This mirrors that subset as a static list instead
+ *   of importing `eslint.config.ts` directly: that file is not owned by this script, its ignore list mixes in
+ *   extensions and roots this ratchet never scans anyway (e.g. `**\/*.{sh,swift}`, `competitors/**`, which sit outside
+ *   `RATCHET_SOURCE_ROOTS`), and a static list avoids paying ESLint's module-graph load cost on every ratchet run.
+ *   Re-check this subset by hand against `eslint.config.ts`'s `globalIgnores` array when either changes.
+ * - Mechanically generated data manifests that ESLint still lints (they are ordinary, Prettier-formatted TypeScript), but
+ *   whose growth this ratchet's own remedy -- "split it by responsibility" -- cannot act on: the whole file is one
+ *   generated `Record<string, string>` export, regenerated in full by its owning build script from a curated name list.
+ *   Its size tracks that list's length, not hand-maintained complexity.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/source-size-ratchet.test.ts
 export const RATCHET_IGNORE_PATH_PREFIXES = [
@@ -68,6 +74,9 @@ export const RATCHET_IGNORE_PATH_PREFIXES = [
     // Negative lint fixtures: deliberately malformed, never meant to satisfy this or any other size guard.
     'scripts/fixtures/eslint/',
     'scripts/fixtures/markdown/',
+    // Generated file-icon manifest: regenerated in full by `apps/mobile/scripts/build-file-icons.ts` from a curated
+    // name list; "split by responsibility" does not apply to a single generated lookup table.
+    'apps/mobile/src/features/panels/file-icons.generated.ts',
     // Bundled/vendored design-prototype runtime assets `build-runtime.ts` writes and caches.
     '.agents/skills/design-prototype/assets/',
 ];

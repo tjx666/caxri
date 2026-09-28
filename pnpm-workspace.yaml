@@ -35,6 +35,7 @@ catalog:
   react-scan: ^0.5.7
   semver: ^7.8.5
   sonda: ^0.14.0
+  svgo: ^4.1.0
   ws: ^8.21.3
   zod: ^4.6.5
 

@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import { readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -11,6 +12,8 @@ import {
     getIconForFolder,
 } from '@yutengjing/vscode-icons';
 import { format, resolveConfig } from 'prettier';
+
+import { compressIconSvg, resolveIconSvgSource, selectIconsWithinBudget } from './file-icon-budget';
 
 /**
  * Desktop ships all ~1,550 vscode-icons SVGs (8 MB) as static files. A phone bundle cannot carry that, so this script
@@ -299,6 +302,12 @@ const iconsDirectory = join(
     dirname(require.resolve('@yutengjing/vscode-icons/assets/manifest.json')),
     'icons',
 );
+/**
+ * A few curated icons stay over budget even after svgo (an embedded raster, or dozens of isometric-shading paths).
+ * Those names are hand-simplified here instead, redrawn to stay visually recognizable at file-tree size. Everything
+ * else loads straight from the vendored `@yutengjing/vscode-icons` package.
+ */
+const overridesDirectory = fileURLToPath(new URL('file-icon-overrides/', import.meta.url));
 const destination = fileURLToPath(
     new URL('../src/features/panels/file-icons.generated.ts', import.meta.url),
 );
@@ -323,7 +332,12 @@ const svgSources = new Map<string, string>();
 const loadSvg = async (file: string): Promise<string> => {
     const cached = svgSources.get(file);
     if (cached !== undefined) return cached;
-    const svg = minify(await readFile(join(iconsDirectory, file), 'utf8'));
+    const raw = await resolveIconSvgSource(
+        file,
+        (name) => readFile(join(overridesDirectory, name), 'utf8'),
+        (name) => readFile(join(iconsDirectory, name), 'utf8'),
+    );
+    const svg = minify(compressIconSvg(raw, file));
     svgSources.set(file, svg);
     return svg;
 };
@@ -343,19 +357,14 @@ const keep = async (
     entries: Array<[string, string | undefined]>,
     fallback: string,
 ): Promise<Record<string, string>> => {
-    const checked = await Promise.all(
-        entries.map(async ([name, icon]) => {
-            if (!icon || icon === fallback) return null;
-            const bytes = Buffer.byteLength(await loadSvg(icon));
-            if (bytes > MAX_ICON_BYTES) {
-                oversizeIcons.push({ bytes, icon, name });
-                return null;
-            }
-            return [name, icon] as [string, string];
-        }),
+    const { kept, oversize } = await selectIconsWithinBudget(
+        entries,
+        fallback,
+        MAX_ICON_BYTES,
+        async (icon) => Buffer.byteLength(await loadSvg(icon)),
     );
-    const kept = checked.filter((entry): entry is [string, string] => entry !== null);
-    return sorted(kept);
+    oversizeIcons.push(...oversize);
+    return sorted([...kept]);
 };
 
 const fileExtensions = await keep(
@@ -416,11 +425,17 @@ if (oversizeIcons.length > 0) {
         else byIcon.set(icon, { bytes, names: [name] });
     }
     const budget = `${MAX_ICON_BYTES / 1_024} KB`;
-    console.log(
-        `${byIcon.size} icon(s) over the ${budget} budget fell back to the default icon (largest first):`,
+    console.error(
+        `ERROR: ${byIcon.size} icon(s) exceed the ${budget} budget after svgo compression and fell back to the ` +
+            `default icon (largest first). Compression and the file-icon-overrides/ replacements are expected to ` +
+            `cover every curated name; add or update an override for each icon below instead of accepting the ` +
+            `fallback silently.`,
     );
     const byIconDescending = [...byIcon].toSorted((left, right) => right[1].bytes - left[1].bytes);
     for (const [icon, { bytes, names }] of byIconDescending) {
-        console.log(`  ${icon} — ${Math.round(bytes / 1_024)} KB — ${names.join(', ')}`);
+        console.error(`  ${icon} — ${Math.round(bytes / 1_024)} KB — ${names.join(', ')}`);
     }
+    // Fail the build loudly instead of shipping a silent icon regression; the generated file above is still written
+    // so the app keeps working with the default-icon fallback while a maintainer fixes the oversized entry.
+    process.exitCode = 1;
 }
