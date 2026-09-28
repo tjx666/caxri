@@ -10,7 +10,10 @@ import { formatByteSize } from '../../lib/format-size';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { MobileGatewayRequestError } from '../connection/mobile-gateway-client';
+import { fileLanguage } from './file-language';
 import { FileTypeIcon } from './file-type-icon';
+import { FilesBreadcrumb } from './files-breadcrumb';
+import { HighlightedCode } from './highlighted-code';
 import { PanelStatus, PendingPanelStatus } from './panel-status';
 import { panelsStyles as styles } from './panels-styles';
 import { useFileRead, useFilesList } from './use-panels';
@@ -68,18 +71,27 @@ const FileRow = memo(
 const FilePreview = ({
     deviceRole,
     entry,
+    folders,
     onBack,
     sessionId,
     theme,
 }: {
     deviceRole: 'view' | 'reply' | 'control' | null;
     entry: FileEntry;
-    onBack: () => void;
+    /**
+     * The open folder path above the previewed file.
+     */
+    folders: FileEntry[];
+    /**
+     * Closes the preview, optionally returning to an ancestor folder picked from the breadcrumb.
+     */
+    onBack: (depth?: number) => void;
     sessionId: string;
     theme: MobileTheme;
 }) => {
     const { request } = useMobileClient();
     const file = useFileRead(sessionId, entry.path);
+    const language = fileLanguage(entry.name);
     const [draft, setDraft] = useState<string | null>(null);
     const expectedContentHash = useRef<string | null>(null);
     const [saving, setSaving] = useState(false);
@@ -117,16 +129,16 @@ const FilePreview = ({
     };
     /**
      * Leaving the preview with an unsaved draft would discard it silently, so an in-progress edit is confirmed before
-     * the Back action navigates away.
+     * the Back action or a breadcrumb navigates away.
      */
-    const confirmBack = (): void => {
+    const confirmBack = (depth?: number): void => {
         if (draft === null) {
-            onBack();
+            onBack(depth);
             return;
         }
         Alert.alert('Discard unsaved changes?', undefined, [
             { text: 'Keep editing', style: 'cancel' },
-            { text: 'Discard', style: 'destructive', onPress: onBack },
+            { text: 'Discard', style: 'destructive', onPress: () => onBack(depth) },
         ]);
     };
     const body = (() => {
@@ -217,7 +229,7 @@ const FilePreview = ({
                                 style={[styles.previewText, { color: theme.text }]}
                                 testID="files-preview-text"
                             >
-                                {document.content}
+                                <HighlightedCode code={document.content} language={language} />
                             </Text>
                         </ScrollView>
                     </ScrollView>
@@ -231,6 +243,10 @@ const FilePreview = ({
                         style={[styles.previewText, { color: theme.text, flex: 1 }]}
                         testID="files-editor"
                         textAlignVertical="top"
+                        /**
+                         * The draft stays plain text. Highlighted spans as `TextInput` children re-render per keystroke
+                         * and Android moves the caret, so a second typed character lands elsewhere in the file.
+                         */
                         value={draft}
                     />
                 )}
@@ -243,14 +259,15 @@ const FilePreview = ({
                 <IconButton
                     accessibilityLabel="Back to folder"
                     icon={ChevronLeft}
-                    onPress={confirmBack}
+                    onPress={() => confirmBack()}
                     testID="files-preview-back"
                     theme={theme}
                 />
-                <FileTypeIcon entry={entry} size={18} theme={theme} />
-                <Text numberOfLines={1} style={[styles.crumbText, { color: theme.text }]}>
-                    {entry.name}
-                </Text>
+                <FilesBreadcrumb
+                    onSelect={confirmBack}
+                    segments={[...folders, entry]}
+                    theme={theme}
+                />
             </View>
             {body}
         </View>
@@ -291,7 +308,11 @@ export const FilesPanel = ({
             <FilePreview
                 deviceRole={deviceRole}
                 entry={preview}
-                onBack={() => setPreview(null)}
+                folders={stack}
+                onBack={(depth) => {
+                    setPreview(null);
+                    if (depth !== undefined) setStack((current) => current.slice(0, depth));
+                }}
                 sessionId={sessionId}
                 theme={theme}
             />
@@ -307,9 +328,11 @@ export const FilesPanel = ({
                         testID="files-up"
                         theme={theme}
                     />
-                    <Text numberOfLines={1} style={[styles.crumbText, { color: theme.text }]}>
-                        {stack.map((entry) => entry.name).join(' / ')}
-                    </Text>
+                    <FilesBreadcrumb
+                        onSelect={(depth) => setStack((current) => current.slice(0, depth))}
+                        segments={stack}
+                        theme={theme}
+                    />
                 </View>
             ) : null}
             <FlatList

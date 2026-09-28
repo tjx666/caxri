@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { KeyboardAvoidingView, Platform, Text } from 'react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
@@ -5,9 +6,16 @@ import { ChangesPanel } from '../../changes/changes-panel';
 import { COMMIT_DRAFT } from '../../changes/changes-view';
 import { useChangesList } from '../../changes/use-changes';
 import type { useConversationTimeline } from '../../conversation/use-conversation-timeline';
-import { PanelsView } from '../../panels/panels-view';
+import { ProjectPanelView } from '../../panels/panels-view';
+import { useSessionPanels } from '../../panels/use-panels';
 import type { MobileSessionItem } from '../session-model';
 import type { SessionSegment } from '../session-ui-state';
+import {
+    isPanelSessionSegment,
+    panelIdOfSegment,
+    panelSessionSegment,
+    SESSION_SEGMENTS,
+} from '../session-ui-state';
 import { SessionDetailBody } from './session-detail-body';
 import { SessionDetailComposer } from './session-detail-composer';
 import { SessionDetailHeader } from './session-detail-header';
@@ -57,6 +65,14 @@ export const SessionDetail = ({
     wideBackgroundSegment: 'conversation' | 'terminal';
 }) => {
     const changes = useChangesList(isVisible, session.id);
+    const panels = useSessionPanels(session.id);
+    const segments = useMemo<SessionSegment[]>(
+        () => [
+            ...SESSION_SEGMENTS.filter((option) => hasConversation || option !== 'conversation'),
+            ...(panels.panels ?? []).map((panel) => panelSessionSegment(panel.id)),
+        ],
+        [hasConversation, panels.panels],
+    );
     const changesPanel = (
         <ChangesPanel
             key={session.id}
@@ -78,12 +94,13 @@ export const SessionDetail = ({
         >
             <SessionDetailHeader
                 changesCount={changes.state.snapshot?.changedFileCount ?? null}
-                hasConversation={hasConversation}
                 isConnected={isConnected}
                 onBack={onBack}
                 onMarkRead={onMarkRead}
                 onSegmentChange={onSegmentChange}
+                panels={panels.panels}
                 segment={segment}
+                segments={segments}
                 session={session}
                 theme={theme}
             />
@@ -101,13 +118,24 @@ export const SessionDetail = ({
             ) : null}
             <SessionDetailBody
                 changesPanel={changesPanel}
-                panels={<PanelsView deviceRole={deviceRole} sessionId={session.id} theme={theme} />}
+                panelView={
+                    isPanelSessionSegment(segment) ? (
+                        <ProjectPanelView
+                            deviceRole={deviceRole}
+                            panelId={panelIdOfSegment(segment)}
+                            panels={panels}
+                            sessionId={session.id}
+                            theme={theme}
+                        />
+                    ) : null
+                }
                 conversationTimeline={conversationTimeline}
                 deviceRole={deviceRole}
                 isConnected={isConnected}
                 isVisible={isVisible}
                 onSegmentChange={onSegmentChange}
                 segment={segment}
+                segments={segments}
                 session={session}
                 theme={theme}
                 wideBackgroundSegment={wideBackgroundSegment}
@@ -117,7 +145,8 @@ export const SessionDetail = ({
              * Panels only browse, and a control device types into the Terminal directly once it takes over. A reply
              * device keeps the composer on the Terminal because it is that device's only way to answer the Agent.
              */}
-            {segment === 'panels' || (segment === 'terminal' && deviceRole === 'control') ? null : (
+            {isPanelSessionSegment(segment) ||
+            (segment === 'terminal' && deviceRole === 'control') ? null : (
                 <SessionDetailComposer
                     deviceRole={deviceRole}
                     draft={draft}

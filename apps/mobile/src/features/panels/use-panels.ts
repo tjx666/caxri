@@ -1,6 +1,11 @@
+import { useMemo } from 'react';
+
+import type { MethodResult } from '@caxri/protocol';
 import { useQuery } from '@tanstack/react-query';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
+
+export type Panel = MethodResult<'mobile.panels.list'>['panels'][number];
 
 /**
  * Every Panels read is a one-shot, read-only request: nothing here subscribes, so Refresh or re-entering a view is how
@@ -25,7 +30,7 @@ const usePanelRead = <Result>(
     });
 };
 
-export const usePanelsList = (sessionId: string) => {
+const usePanelsList = (sessionId: string) => {
     const { request } = useMobileClient();
     return usePanelRead(['list', sessionId], () => request('mobile.panels.list', { sessionId }));
 };
@@ -58,4 +63,29 @@ export const useFileRead = (sessionId: string, path: string | null) => {
         () => request('mobile.files.read', { sessionId, path: path! }),
         path !== null,
     );
+};
+
+/**
+ * Desktop's Git view is left out: the Session's Changes tab already shows the same data, and a second entry would read
+ * as a different view.
+ */
+const withoutChanges = (panels: readonly Panel[]): Panel[] =>
+    panels
+        .map((panel) => ({
+            ...panel,
+            views: panel.views.filter((view) => view.kind !== 'changes'),
+        }))
+        .filter((panel) => panel.views.length > 0);
+
+/**
+ * The Project views this Session can open on the phone, in Desktop's sidebar order. Each becomes a top-level Session
+ * tab.
+ */
+export const useSessionPanels = (sessionId: string) => {
+    const query = usePanelsList(sessionId);
+    const panels = useMemo(
+        () => (query.data ? withoutChanges(query.data.panels) : undefined),
+        [query.data],
+    );
+    return { panels, query };
 };

@@ -1,6 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import type { ReactNode } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import Constants from 'expo-constants';
@@ -11,6 +11,7 @@ import { IconButton } from '../../components/icon-button';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileTheme } from '../../theme/use-mobile-theme';
 import { useMobileClient } from '../connection/mobile-client-provider';
+import { useConfirmForgetComputer } from '../connection/use-confirm-forget-computer';
 import { useHostSessions } from '../sessions/components/host-sessions-provider';
 import { MobileUpdateSettingsRow } from '../update/mobile-update-settings-row';
 import { useMobileUpdate } from '../update/use-mobile-update';
@@ -74,28 +75,12 @@ const Row = ({
 export const SettingsScreen = () => {
     const router = useRouter();
     const theme = useMobileTheme();
-    const { forgetDevice, status } = useMobileClient();
+    const { status } = useMobileClient();
     const { sessions } = useHostSessions();
     const mobileUpdate = useMobileUpdate();
     const { update } = mobileUpdate;
     const role = sessions.deviceRole ? DEVICE_ROLE_DETAILS[sessions.deviceRole] : null;
-    const confirmForget = (): void => {
-        Alert.alert(
-            'Forget this computer?',
-            `This phone stops connecting to ${sessions.hostDisplayName}. Pair again from Desktop to reconnect.`,
-            [
-                { style: 'cancel', text: 'Cancel' },
-                {
-                    onPress: () => {
-                        // eslint-disable-next-line no-void -- Forgetting redirects to pairing on success.
-                        void forgetDevice();
-                    },
-                    style: 'destructive',
-                    text: 'Forget',
-                },
-            ],
-        );
-    };
+    const confirmForget = useConfirmForgetComputer(sessions.hostDisplayName);
     return (
         <SafeAreaView
             edges={['top', 'right', 'bottom', 'left']}

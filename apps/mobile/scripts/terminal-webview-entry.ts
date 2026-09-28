@@ -25,17 +25,39 @@ const stage = document.querySelector<HTMLElement>('#stage');
 const frame = document.querySelector<HTMLElement>('#frame');
 if (!viewport || !stage || !frame) throw new Error('Terminal document is incomplete');
 
+/**
+ * Mirrors Desktop's bundled terminal stack. The embedded faces are declared by the build script; `Caxri Symbols` covers
+ * glyphs such as Claude Code's `⏵⏵` mode marker that neither JetBrains Mono nor Android's system fonts provide.
+ */
+const TERMINAL_FONT_FAMILY = '"Caxri JetBrains Mono", "Caxri Symbols", monospace';
+
 const terminal = new Terminal({
     cols: 80,
     rows: 24,
     disableStdin: true,
     scrollback: 3_000,
-    fontFamily: 'monospace',
+    fontFamily: TERMINAL_FONT_FAMILY,
     fontSize: 14,
-    lineHeight: 1.2,
+    /**
+     * Desktop's line height. Taller rows leave gaps between the block elements Agent CLIs draw their logos with,
+     * because the DOM renderer draws them from the font instead of as custom cell-filling glyphs.
+     */
+    lineHeight: 1,
     theme: bridgeWindow.__CAXRI_TERMINAL_THEME__,
 });
 terminal.open(stage);
+/**
+ * Xterm measures the cell once at open, before the data-URL faces finish decoding. Reassigning the family after they
+ * load makes it measure JetBrains Mono's cell instead of the fallback's.
+ */
+// eslint-disable-next-line no-void -- The fallback face renders until this resolves; nothing awaits it.
+void Promise.all([
+    document.fonts.load('400 14px "Caxri JetBrains Mono"'),
+    document.fonts.load('700 14px "Caxri JetBrains Mono"'),
+]).then(() => {
+    terminal.options.fontFamily = 'monospace';
+    terminal.options.fontFamily = TERMINAL_FONT_FAMILY;
+});
 
 const post = (message: Record<string, unknown>): void => {
     bridgeWindow.ReactNativeWebView?.postMessage(

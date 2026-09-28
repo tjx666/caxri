@@ -52,7 +52,10 @@ export const ConversationToolGroup = ({
                     status={status === 'failed' ? 'succeeded' : status}
                     theme={theme}
                 />
-                <Text numberOfLines={1} style={[styles.toolSubject, { color: theme.text }]}>
+                <Text
+                    numberOfLines={expanded ? undefined : 1}
+                    style={[styles.toolSubject, { color: theme.text }]}
+                >
                     {group.summary}
                 </Text>
                 {status === 'failed' ? <CircleAlert color={theme.danger} size={15} /> : null}

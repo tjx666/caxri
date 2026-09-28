@@ -10,6 +10,7 @@ import {
     rememberSessionSegment,
     resolveSessionConversationSegment,
     selectSessionProject,
+    SESSION_SEGMENTS,
     sessionSegmentDirection,
 } from '../session-ui-state';
 
@@ -139,19 +140,20 @@ describe('host Session UI state', () => {
         ).toEqual(second.contentSegmentBySession);
     });
 
-    it('treats Panels like Changes as a side view over the remembered content', () => {
-        expect(isSideSessionSegment('panels')).toBe(true);
+    it('treats Project view tabs like Changes as a side view over the remembered content', () => {
+        expect(isSideSessionSegment('panel:caxri.files')).toBe(true);
         expect(isSideSessionSegment('changes')).toBe(true);
         expect(isSideSessionSegment('terminal')).toBe(false);
         const state = rememberSessionSegment(
             emptyHostSessionUiState(),
             'one',
-            'panels',
+            'panel:caxri.files',
             'conversation',
         );
         expect(state.contentSegmentBySession).toEqual({ one: 'conversation' });
         expect(
-            rememberSessionSegment(state, 'one', 'panels', 'changes').contentSegmentBySession,
+            rememberSessionSegment(state, 'one', 'panel:caxri.project-status', 'changes')
+                .contentSegmentBySession,
         ).toEqual({ one: 'conversation' });
     });
 
@@ -162,9 +164,18 @@ describe('host Session UI state', () => {
     });
 
     it('reports the tab strip direction for the incoming panel', () => {
-        expect(sessionSegmentDirection('conversation', 'changes')).toBe(1);
-        expect(sessionSegmentDirection('panels', 'terminal')).toBe(-1);
-        expect(sessionSegmentDirection('terminal', 'terminal')).toBe(0);
+        const order = [
+            ...SESSION_SEGMENTS,
+            'panel:caxri.files',
+            'panel:caxri.project-status',
+        ] as const;
+        expect(sessionSegmentDirection('conversation', 'changes', order)).toBe(1);
+        expect(sessionSegmentDirection('panel:caxri.files', 'terminal', order)).toBe(-1);
+        expect(
+            sessionSegmentDirection('panel:caxri.project-status', 'panel:caxri.files', order),
+        ).toBe(-1);
+        expect(sessionSegmentDirection('changes', 'panel:not-loaded-yet', order)).toBe(1);
+        expect(sessionSegmentDirection('terminal', 'terminal', order)).toBe(0);
     });
 
     it('hides a covered or unrouted phone detail', () => {

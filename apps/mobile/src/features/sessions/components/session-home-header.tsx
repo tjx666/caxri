@@ -1,9 +1,11 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Archive, EllipsisVertical, FolderPlus, Settings } from 'lucide-react-native';
+import { Archive, EllipsisVertical, FolderPlus, Settings, Unlink } from 'lucide-react-native';
 
 import { IconButton } from '../../../components/icon-button';
+import { PopoverMenu } from '../../../components/popover-menu';
+import { usePopoverAnchor } from '../../../components/use-popover-anchor';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileConnectionStatus } from '../../connection/connection-state';
 import type { useSessionPolling } from '../hooks/use-session-polling';
@@ -26,17 +28,6 @@ const styles = StyleSheet.create({
     heading: { flexShrink: 1, fontSize: 20, fontWeight: '700' },
     connectionDot: { borderRadius: 4, height: 8, marginRight: 10, width: 8 },
     headingRow: { alignItems: 'center', flex: 1, flexDirection: 'row', minWidth: 0 },
-    menu: {
-        borderRadius: 12,
-        borderWidth: 1,
-        boxShadow: '0px 6px 16px rgba(0, 0, 0, 0.4)',
-        minWidth: 220,
-        paddingVertical: 4,
-        position: 'absolute',
-        right: 12,
-        top: 54,
-        zIndex: 2,
-    },
     menuAction: {
         alignItems: 'center',
         flexDirection: 'row',
@@ -58,12 +49,14 @@ const styles = StyleSheet.create({
 
 const MenuAction = ({
     icon: Icon,
+    isDestructive = false,
     label,
     onPress,
     testID,
     theme,
 }: {
     icon: typeof Archive;
+    isDestructive?: boolean;
     label: string;
     onPress: () => void;
     testID: string;
@@ -78,8 +71,10 @@ const MenuAction = ({
         ]}
         testID={testID}
     >
-        <Icon color={theme.muted} size={18} />
-        <Text style={[styles.menuText, { color: theme.text }]}>{label}</Text>
+        <Icon color={isDestructive ? theme.danger : theme.muted} size={18} />
+        <Text style={[styles.menuText, { color: isDestructive ? theme.danger : theme.text }]}>
+            {label}
+        </Text>
     </Pressable>
 );
 
@@ -88,6 +83,7 @@ export const SessionHomeHeader = ({
     hostDisplayName,
     onAddProject,
     onChooseProject,
+    onForgetComputer,
     onOpenArchived,
     onOpenSettings,
     projects,
@@ -101,13 +97,16 @@ export const SessionHomeHeader = ({
      */
     onAddProject?: () => void;
     onChooseProject: (projectId: string | null) => void;
+    onForgetComputer: () => void;
     onOpenArchived: () => void;
     onOpenSettings: () => void;
     projects: Project[];
     status: MobileConnectionStatus;
     theme: MobileTheme;
 }) => {
-    const [isMenuOpen, setMenuOpen] = useState(false);
+    const menuAnchor = useRef<View>(null);
+    const menu = usePopoverAnchor(menuAnchor);
+    const { close: closeMenu } = menu;
     const projectChoices: ProjectChoice[] = [{ id: null, displayTitle: 'All' }, ...projects];
     const renderProject = useCallback(
         ({ item }: { item: ProjectChoice }) => {
@@ -160,57 +159,68 @@ export const SessionHomeHeader = ({
                         {hostDisplayName}
                     </Text>
                 </View>
-                <IconButton
-                    accessibilityHint="Opens computer actions."
-                    accessibilityLabel="Computer menu"
-                    expanded={isMenuOpen}
-                    icon={EllipsisVertical}
-                    onPress={() => setMenuOpen((current) => !current)}
-                    testID="forget-device-button"
-                    theme={theme}
-                />
-            </View>
-            {isMenuOpen ? (
-                <View
-                    style={[
-                        styles.menu,
-                        { backgroundColor: theme.surface, borderColor: theme.border },
-                    ]}
-                >
-                    {onAddProject ? (
-                        <MenuAction
-                            icon={FolderPlus}
-                            label="Add Project"
-                            onPress={() => {
-                                setMenuOpen(false);
-                                onAddProject();
-                            }}
-                            testID="add-project-action"
-                            theme={theme}
-                        />
-                    ) : null}
-                    <MenuAction
-                        icon={Archive}
-                        label="Archived Sessions"
-                        onPress={() => {
-                            setMenuOpen(false);
-                            onOpenArchived();
-                        }}
-                        testID="archived-sessions-action"
-                        theme={theme}
-                    />
-                    <MenuAction
-                        icon={Settings}
-                        label="Settings"
-                        onPress={() => {
-                            setMenuOpen(false);
-                            onOpenSettings();
-                        }}
-                        testID="settings-action"
+                <View collapsable={false} ref={menuAnchor}>
+                    <IconButton
+                        accessibilityHint="Opens computer actions."
+                        accessibilityLabel="Computer menu"
+                        expanded={menu.isOpen}
+                        icon={EllipsisVertical}
+                        onPress={menu.open}
+                        testID="forget-device-button"
                         theme={theme}
                     />
                 </View>
-            ) : null}
+            </View>
+            <PopoverMenu
+                closeLabel="Close computer menu"
+                onClose={closeMenu}
+                placement={menu.placement}
+                theme={theme}
+            >
+                {onAddProject ? (
+                    <MenuAction
+                        icon={FolderPlus}
+                        label="Add Project"
+                        onPress={() => {
+                            closeMenu();
+                            onAddProject();
+                        }}
+                        testID="add-project-action"
+                        theme={theme}
+                    />
+                ) : null}
+                <MenuAction
+                    icon={Archive}
+                    label="Archived Sessions"
+                    onPress={() => {
+                        closeMenu();
+                        onOpenArchived();
+                    }}
+                    testID="archived-sessions-action"
+                    theme={theme}
+                />
+                <MenuAction
+                    icon={Settings}
+                    label="Settings"
+                    onPress={() => {
+                        closeMenu();
+                        onOpenSettings();
+                    }}
+                    testID="settings-action"
+                    theme={theme}
+                />
+                <MenuAction
+                    icon={Unlink}
+                    isDestructive
+                    label="Forget This Computer"
+                    onPress={() => {
+                        closeMenu();
+                        onForgetComputer();
+                    }}
+                    testID="forget-computer-menu-action"
+                    theme={theme}
+                />
+            </PopoverMenu>
             <FlatList
                 contentContainerStyle={styles.chips}
                 data={projectChoices}

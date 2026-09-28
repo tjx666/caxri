@@ -62,27 +62,49 @@ export const ConversationSystemEvent = ({
     theme: MobileTheme;
 }) => {
     const [isExpanded, setExpanded] = useState(false);
+    const [isTruncated, setTruncated] = useState(false);
     const { Icon, color } = eventIcon(event, theme);
     const hasDetail = event.detail !== undefined;
+    /**
+     * A long summary cut to one line (a `/rename` with its full title) is only readable expanded, so it expands even
+     * without detail.
+     */
+    const canExpand = hasDetail || isTruncated;
     const Chevron = isExpanded ? ChevronDown : ChevronRight;
     return (
         <View style={styles.message} testID={`conversation-event-${event.id}`}>
             <Pressable
                 accessibilityLabel={`${eventLabel[event.kind]}${event.status ? `, ${event.status}` : ''}: ${event.summary}`}
-                accessibilityRole={hasDetail ? 'button' : 'text'}
-                accessibilityState={hasDetail ? { expanded: isExpanded } : undefined}
-                disabled={!hasDetail}
+                accessibilityRole={canExpand ? 'button' : 'text'}
+                accessibilityState={canExpand ? { expanded: isExpanded } : undefined}
+                disabled={!canExpand}
                 onPress={() => setExpanded((value) => !value)}
                 style={[styles.eventRow, { borderColor: theme.border }]}
             >
                 <Icon color={color} size={16} />
-                <Text
-                    numberOfLines={isExpanded ? undefined : 1}
-                    style={[styles.eventSummary, { color: theme.muted }]}
-                >
-                    {event.summary}
-                </Text>
-                {hasDetail ? <Chevron color={theme.muted} size={16} /> : null}
+                <View style={styles.eventSummaryFrame}>
+                    <Text
+                        numberOfLines={isExpanded ? undefined : 1}
+                        style={[styles.eventSummary, { color: theme.muted }]}
+                    >
+                        {event.summary}
+                    </Text>
+                    {/*
+                     * An invisible unclamped copy at the same width reports whether the visible line is cut off; a
+                     * clamped Text's own layout does not say so consistently across platforms.
+                     */}
+                    <Text
+                        accessible={false}
+                        importantForAccessibility="no-hide-descendants"
+                        onTextLayout={({ nativeEvent }) =>
+                            setTruncated(nativeEvent.lines.length > 1)
+                        }
+                        style={[styles.eventSummary, styles.eventSummaryProbe]}
+                    >
+                        {event.summary}
+                    </Text>
+                </View>
+                {canExpand ? <Chevron color={theme.muted} size={16} /> : null}
             </Pressable>
             {isExpanded && hasDetail ? (
                 <Text

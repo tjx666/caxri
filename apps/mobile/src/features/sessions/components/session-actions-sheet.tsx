@@ -63,7 +63,7 @@ const SessionActionsBody = ({
         >
             {(dismiss) => (
                 <>
-                    <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>
+                    <Text numberOfLines={3} style={[styles.title, { color: theme.text }]}>
                         {mode === 'rename' ? 'Rename Session' : session.displayTitle}
                     </Text>
                     <Text numberOfLines={1} style={[styles.subtitle, { color: theme.muted }]}>
