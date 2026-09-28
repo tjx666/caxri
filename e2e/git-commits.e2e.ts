@@ -88,7 +88,7 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
                 );
             });
         expect(countsFit).toBe(true);
-        // Folder name outranks the branch: an overflowing name means the branch has already given way.
+        // The name and the branch sit on their own lines, so neither shrinks to make room for the other.
         const nestedLayout = await nestedSection
             .locator('.git-repository-row')
             .first()
@@ -97,18 +97,15 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
                 const branch = row.querySelector('.git-repository-branch');
                 if (!(name instanceof HTMLElement) || !(branch instanceof HTMLElement)) return null;
                 return {
-                    branchClientWidth: branch.clientWidth,
-                    nameClientWidth: name.clientWidth,
-                    nameOverflow: name.scrollWidth - name.clientWidth,
+                    branchTop: branch.getBoundingClientRect().top,
+                    nameBottom: name.getBoundingClientRect().bottom,
+                    nameLeft: name.getBoundingClientRect().left,
+                    branchLeft: branch.getBoundingClientRect().left,
                 };
             });
         expect(nestedLayout).not.toBeNull();
-        expect(nestedLayout?.nameClientWidth ?? 0).toBeGreaterThan(
-            nestedLayout?.branchClientWidth ?? 0,
-        );
-        if ((nestedLayout?.nameOverflow ?? 0) > 1) {
-            expect(nestedLayout?.branchClientWidth ?? 0).toBeLessThanOrEqual(24);
-        }
+        expect(nestedLayout!.branchTop).toBeGreaterThanOrEqual(nestedLayout!.nameBottom - 1);
+        expect(Math.abs(nestedLayout!.branchLeft - nestedLayout!.nameLeft)).toBeLessThanOrEqual(1);
 
         await primary.getByRole('treeitem', { name: /Commits/ }).click();
         await expect(primary.locator('.commit-row')).toHaveCount(5);
