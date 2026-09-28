@@ -20,6 +20,7 @@ import {
 } from '../domain/domain.js';
 import { editorNavigationTargetSchema } from '../domain/editor.js';
 import { lowCostSandboxFailureReasonSchema } from '../domain/low-cost-generation.js';
+import { settingsTargetSchema } from '../domain/settings-target.js';
 import {
     extensionIdSchema,
     extensionViewChangeSchema,
@@ -350,6 +351,13 @@ export const serverEventPayloads = {
         command: commandIdSchema,
         viaAccelerator: z.boolean().optional(),
     }),
+    /**
+     * Main-originated request to open Settings scrolled to one specific row. `command.execute` cannot carry this: its
+     * `CommandId` bus is zero-argument by design (menu items and keyboard shortcuts), so a companion window's targeted
+     * Settings hand-off (see `agentCommander.openSettings`) gets its own event instead of growing a payload onto every
+     * command.
+     */
+    'settings.openRequested': z.object({ target: settingsTargetSchema }),
 } as const;
 
 type ServerEventName = keyof typeof serverEventPayloads;

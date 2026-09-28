@@ -1,7 +1,5 @@
 import type {
     BootstrapState,
-    CommandId,
-    EditorNavigationTarget,
     ServerEvent,
     SessionRecord,
     SessionState,
@@ -28,6 +26,7 @@ import { reportAutomaticNamingNotices } from './automatic-naming-notice';
 import { recordNotification, syncNotificationSettings } from './notifications';
 import { mergeStructurally } from './structural-sharing';
 import { describeFailure, isCancelledRequest, pushToast } from './toasts';
+import type { WorkbenchEventHandlers } from './workbench-event-handlers';
 import { reportWorkbenchRootChange } from './workbench-root-notice';
 import {
     applyPendingSessionPatches,
@@ -595,24 +594,6 @@ function currentWorkbenchProjectId(sessionId: string): string | undefined {
         .bootstrap?.sessions.find((session) => session.id === sessionId)?.workbenchProjectId;
 }
 
-export interface WorkbenchEventHandlers {
-    /**
-     * Runs a command id pushed by the native menu, honouring the modal guard. `wasViaAccelerator` forwards whether the
-     * menu item fired from its keyboard accelerator rather than a mouse/touch click, so the caller can apply the
-     * editable-focus shortcut policy only to the accelerator path.
-     */
-    onCommand(command: CommandId, wasViaAccelerator: boolean): void;
-    /**
-     * Applies an authenticated Server open request after Main redeemed its one-use target. `options.focusEditor` is the
-     * opening caller's intent, forwarded unchanged from `desktop.openFile`.
-     */
-    onDesktopOpen(
-        sessionId: string,
-        path?: string,
-        options?: { focusEditor?: boolean; location?: EditorNavigationTarget },
-    ): void;
-}
-
 /**
  * The single `onEvent` subscription for Server-driven workbench state. Every listener that used to live inside App's
  * mount effect dispatches into this store instead. Unhandled events must be listed as explicit no-ops so a new Server
@@ -694,6 +675,9 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                     ...(event.payload.location && { location: event.payload.location }),
                     ...(event.payload.focusEditor && { focusEditor: true }),
                 });
+                return;
+            case 'settings.openRequested':
+                handlers.onSettingsTarget(event.payload.target);
                 return;
             case 'workbench.candidate':
                 showWorkbenchRootCandidate(event.payload);

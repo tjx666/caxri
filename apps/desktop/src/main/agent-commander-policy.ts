@@ -30,9 +30,11 @@ const ADMITTED_METHODS = new Set<string>([
 /**
  * Terminal requests the window may send, and only for the Commander Terminal it learned from `commander.ensure` or
  * `commander.snapshot`. `terminal.restart` backs the pane's own Resume and Restart actions; `terminal.referenceContext`
- * is the read the pane issues on mount to resolve file links.
+ * is the read the pane issues on mount to resolve file links; `agentCommander.openFileLink` hands a detected file link
+ * to the Workbench (see that method's JSDoc for why this cannot grant cross-Project authority).
  */
 const TERMINAL_METHODS = new Set<string>([
+    'agentCommander.openFileLink',
     'terminal.attach',
     'terminal.detach',
     'terminal.input',

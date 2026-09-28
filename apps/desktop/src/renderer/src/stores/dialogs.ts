@@ -8,6 +8,7 @@ export type SettingsView =
     | 'keybindings'
     | 'trusted-domains'
     | 'agent-actions'
+    | 'agent-executable'
     | 'hardware-acceleration'
     | 'remote-debugging'
     | 'notifications'
