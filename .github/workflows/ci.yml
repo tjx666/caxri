@@ -448,6 +448,20 @@ jobs:
           path: test-results/receipts/renderer-performance.json
           if-no-files-found: error
           retention-days: 7
+      # Additive to the fixed thresholds `renderer-performance` already asserts: this compares the same receipt
+      # against the noise-derived committed baseline (see docs/ci-performance.md). It runs whenever the benchmark
+      # produced a receipt at all -- including when a fixed-threshold assertion above already failed -- so the two
+      # signals stay independent. `scripts/performance-baseline.json` starts unarmed (see that file's `armed` field),
+      # so this step only records until a maintainer arms it from real runner samples; it never silently reports a
+      # pass while unarmed.
+      - name: Run Renderer performance baseline gate
+        id: renderer-performance-baseline
+        if: always() && steps.renderer-performance.outcome != 'skipped'
+        env:
+          CI_CHANGED_FILES: ${{ needs.retry-policy.outputs.changed_files }}
+        run: >-
+          bun run scripts/performance-baseline-gate.ts --receipt
+          test-results/receipts/renderer-performance.json --baseline scripts/performance-baseline.json
       - name: Upload parallel-safe failure artifacts
         if: >-
           always() && (

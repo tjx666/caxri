@@ -370,6 +370,109 @@ wall time alone hides it.
   workflow-dispatch controls for same-head measurement; real watcher, process-global, bridge, and
   Git suites stay in `serial-native`.
 
+## Performance regression baseline
+
+The fixed thresholds `renderer-performance` asserts catch a large, sudden regression but never a
+steady creep — a change that costs 3% every time never crosses a fixed number. `Run Renderer
+performance baseline gate` runs immediately after that step and additively compares the same
+receipt against a noise-derived, committed baseline, `scripts/performance-baseline.json`. The two
+checks are independent: a fixed-threshold failure does not suppress the baseline gate, and vice
+versa.
+
+### Design: median + k·MAD
+
+`scripts/performance-baseline.ts` derives one metric's threshold as `median + k · MAD` (median
+absolute deviation), not mean + standard deviation: a single outlier sample barely moves a median or
+its MAD, while it drags a mean- and stddev-based threshold far past the outlier itself. `k` defaults
+to 5 (`DEFAULT_PERFORMANCE_THRESHOLD_K`) — deliberately generous, so the gate catches a real, repeated
+regression rather than ordinary machine jitter on a shared runner. A metric needs at least
+`MINIMUM_PERFORMANCE_SAMPLE_COUNT` (8) samples before a threshold is derived at all; fewer samples
+make the MAD estimate unreliable, so the metric is skipped rather than gated on noise.
+
+### Armed vs. unarmed: why this never silently passes
+
+`scripts/performance-baseline.json` carries an explicit `armed` boolean. Only `armed: true` lets the
+gate fail a build; an unarmed baseline still runs the comparison and prints a full before/after table
+(state `unarmed`), but never fails CI on it. `scripts/performance-baseline-derive.ts` hardcodes
+`armed: options.source === 'runner'`, so a baseline derived from `--source local` samples can never
+be armed by construction — a contributor's own Mac, shared with sibling agent sessions and under
+different thermal and load conditions than the self-hosted CI runner, is evidence for the
+statistical method, never a stand-in for the runner's own noise. The committed baseline starts
+`armed: false` until a maintainer seeds it from real runner samples (below). A missing or
+metric-less baseline reports `no-baseline`; a run whose changed files are not performance-relevant
+(see `isPerformanceRelevantPath` in `scripts/ci-path-policy.ts`) reports `skipped`. An armed baseline
+whose metric names have zero overlap with the current run — every one of them renamed or restructured
+away, for example a benchmark spec reshaping its JSON payload — reports `drifted` rather than
+`passed`: `rows` is empty, so a naive "any row regressed" check is vacuously false, and `drifted` exists
+precisely so that vacuous truth is never mistaken for a clean run. `drifted` does not fail the build
+(re-deriving the baseline is an operator action, not a regression), but it also never renders as
+`PASSED` in the job log or step summary, and the table always names the vanished metrics. None of
+`unarmed`, `no-baseline`, `skipped`, or `drifted` ever reports as a `passed` comparison — the job log
+and step summary always show which of these five states produced the outcome.
+
+### Refreshing the baseline
+
+Refreshing is always this explicit, reviewable command — nothing writes
+`scripts/performance-baseline.json` implicitly:
+
+```bash
+bun run performance:baseline:collect -- --spec e2e/renderer.performance.e2e.ts --iterations 10 \
+  --env CAXRI_RENDERER_BENCHMARK=1 --env CAXRI_E2E_OUTPUT_DIR=test-results/renderer-performance \
+  --out test-results/receipts/performance-baseline-samples.json
+bun run performance:baseline:derive -- --source local --spec e2e/renderer.performance.e2e.ts \
+  --input test-results/receipts/performance-baseline-samples.json --out scripts/performance-baseline.json
+```
+
+The Renderer scenario needs a profiling build first
+(`CAXRI_REACT_PROFILING=1 bun run build`); a stale bundle measures the wrong code. A `--source
+local` derive always writes `armed: false`, so this recipe is a way to validate the statistical
+method and preview the resulting thresholds, never a way to arm the runner gate.
+
+### Arming the gate from CI samples, without runner SSH
+
+The self-hosted runner is a single shared machine; no session or contributor runs commands on it
+directly to collect samples. Instead, every `e2e` job that reaches `renderer-performance` already
+uploads its receipt as the `renderer-performance-receipt` artifact. Once enough green `main` runs
+have accumulated (at least `MINIMUM_PERFORMANCE_SAMPLE_COUNT`, more for a stable MAD), a maintainer
+arms the baseline by downloading those artifacts and deriving from them with `--source runner`:
+
+```bash
+mkdir -p /tmp/performance-runs
+for run_id in <run-id-1> <run-id-2> <run-id-3> …; do
+  gh run download "$run_id" --name renderer-performance-receipt \
+    --dir "/tmp/performance-runs/$run_id"
+done
+
+args=(--source runner --spec e2e/renderer.performance.e2e.ts --out scripts/performance-baseline.json)
+for receipt in /tmp/performance-runs/*/renderer-performance.json; do
+  args+=(--input "$receipt")
+done
+bun run performance:baseline:derive -- "${args[@]}"
+```
+
+Commit the resulting `scripts/performance-baseline.json`. Its `armed: true` and `source: "runner"`
+are then load-bearing: the next CI run compares against a real runner-noise threshold and can fail
+the job. Re-run the same recipe against a fresh window of runs to refresh the baseline as the
+product's genuine performance profile shifts — never hand-edit the JSON file.
+
+### Scope: which changes pay for the comparison
+
+`Run Renderer performance baseline gate` only compares when `CI_CHANGED_FILES` (the same
+`needs.retry-policy.outputs.changed_files` the `checks` job already reads) intersects
+`isPerformanceRelevantPath`: Desktop main/preload/renderer source, Server source, the shared
+Client/protocol/system packages, a performance E2E spec, or the baseline's own script/JSON files.
+An unrelated change (docs, an extension, a CLI-only fix) never pays for a comparison that cannot
+regress what the baseline measures. Outside CI, or when there is no changed-files signal to reason
+about at all, the gate always compares — an operator running it by hand wants a real answer, not a
+skip.
+
+### Cost
+
+The gate step itself reads two small JSON files and does no build or Electron launch; its own cost
+is sub-second. It is gated on `renderer-performance` having produced a receipt at all (`if: always()
+&& steps.renderer-performance.outcome != 'skipped'`), so it adds no new build, no new Electron
+launch, and no new CI minutes beyond that near-instant read-and-compare.
+
 ## Comparison contract
 
 Freeze exact head, manifest, Node/pnpm versions, lockfile hash, runner label, workflow inputs, cache
