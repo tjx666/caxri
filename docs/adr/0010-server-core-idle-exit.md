@@ -14,21 +14,25 @@ force-killed, crashes, or restarts mid-stop never runs that path: Server Core, T
 keep running as `PPID=1` orphans indefinitely — one observed case survived roughly 41 hours with no Project, Session,
 or Desktop connection at all.
 
-**Decision**: once the Desktop lease has expired and no authenticated connection of any kind (Desktop, Mobile, Agent,
-or CLI) has existed continuously for `DEFAULT_IDLE_EXIT_MS` (30 minutes — long enough to outlive an ordinary Desktop
-restart or update-relaunch gap, short enough to bound an abandoned orphan's resource cost), Server Core exits through
-its normal shutdown path: snapshot every live Terminal, then stop Terminal Host and Extension Host. This applies to
-packaged builds too, since ADR 0004 already makes the Server independently deployable and Mobile-only access must not
-be starved by treating "no Desktop" as the exit signal on its own. The threshold is never a user-facing setting — it
-is overridable only through the internal `CAXRI_SERVER_IDLE_EXIT_MS` environment seam
+**Decision**: once the aggregate authenticated connection count across every transport (Desktop, Mobile, Agent, or
+CLI) has stayed at zero continuously for `DEFAULT_IDLE_EXIT_MS` (30 minutes — long enough to outlive an ordinary
+Desktop restart or update-relaunch gap, short enough to bound an abandoned orphan's resource cost), Server Core exits
+through its normal shutdown path: snapshot every live Terminal, then stop Terminal Host and Extension Host. The sweep
+never reads the Desktop lease directly — a connected Desktop occupies one of the counted control connections, so the
+lease expiring (or the socket simply dropping) already zeroes that connection the same instant, with no separate lease
+check needed. This applies to packaged builds too, since ADR 0004 already makes the Server independently deployable
+and Mobile-only access must not be starved by treating "no Desktop" as the exit signal on its own. The threshold is
+never a user-facing setting — it is overridable only through the internal `CAXRI_SERVER_IDLE_EXIT_MS` environment seam
 (`apps/server/src/core/idle-exit.ts`), which `switch-worktree dev` live verification uses to shorten the wait.
 
-The sweep never fires while at least one Terminal PTY is active (`app.health.activePtyCount > 0`). Terminal Host does
-not distinguish a busy Agent from an ordinary running shell command at this layer, and an unattended idle-exit sweep
-has nobody to ask for confirmation the way the interactive `host.stop` command does when it hits the same signal — so
-both cases defer identically, logged with the closed reason `active-pty`, and the sweep rechecks after another full
-threshold window. A failed health check during the check is also treated as busy, for the same reason: defer, don't
-guess.
+The sweep never fires while at least one Terminal PTY is active (`app.health.activePtyCount > 0`), the same signal the
+interactive `host.stop` command checks: it throws `CONFLICT` unless the caller passes `confirmLivePtys`
+(`apps/server/src/core/server-core.ts`), because stopping live PTYs always needs an explicit confirmation from
+somebody. An unattended idle-exit sweep has nobody to ask, so it defers instead of guessing — logged with the closed
+reason `active-pty` — and rechecks after another full threshold window. A failed health check during the check is also
+treated as busy, for the same reason. The consequence is deliberate and permanent: a Server whose Sessions still own
+live PTYs never idle-exits on its own, however long it sits at zero connections; `switch-worktree`'s
+`orphans`/`doctor` commands remain the discovery path for that case.
 
 ## Considered options
 
