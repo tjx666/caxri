@@ -12,7 +12,7 @@ import { useResourceExplorerClient } from '../../controlled-view-context';
 import { didTrashFile, duplicateFile, moveFile, pasteFile, rememberFile } from '../file-actions';
 import type { FileClipboardEntry } from '../file-clipboard';
 import { useFileClipboardStore } from '../file-clipboard';
-import { useIsPathBlockedByFileOperations } from '../file-operation-state';
+import { pasteDisabledReason, useIsPathBlockedByFileOperations } from '../file-operation-state';
 import type { EditRequest } from '../file-tree-item-types';
 import { useFileTreeNavigator } from '../file-tree-navigation-context';
 import {
@@ -64,7 +64,10 @@ export interface UseFileTreeItemInteractionsResult {
     openEntry: () => void;
     parentDirectory: string;
     pasteBlocked: boolean;
-    pasteDisabled: boolean;
+    /**
+     * Why Paste cannot run into this row's directory, or `undefined` while it can.
+     */
+    pasteDisabledReason: string | undefined;
     pasteIntoEntry: () => Promise<void>;
     /**
      * Target of the row's `aria-describedby`, carrying whatever the row's own name cannot say: a symlink's reason for
@@ -119,7 +122,6 @@ export function useFileTreeItemInteractions({
     const pasteDirectory = entry.kind === 'directory' ? entry.path : parentDirectory;
     const isClipboardEmpty = !clipboard || clipboard.projectId !== projectId;
     const isPasteBlocked = useIsPathBlockedByFileOperations(projectId, pasteDirectory);
-    const isPasteDisabled = isClipboardEmpty || isPasteBlocked;
     const isDuplicateBlocked = useIsPathBlockedByFileOperations(projectId, parentDirectory);
     const isDragBlocked =
         useIsPathBlockedByFileOperations(projectId, entry.path) || isDuplicateBlocked;
@@ -338,7 +340,7 @@ export function useFileTreeItemInteractions({
         openEntry,
         parentDirectory,
         pasteBlocked: isPasteBlocked,
-        pasteDisabled: isPasteDisabled,
+        pasteDisabledReason: pasteDisabledReason({ isBlocked: isPasteBlocked, isClipboardEmpty }),
         pasteIntoEntry,
         rowDescriptionId,
         rowRef: rowReference,

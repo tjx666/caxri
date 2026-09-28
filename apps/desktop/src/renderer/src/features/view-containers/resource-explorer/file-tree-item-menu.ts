@@ -11,6 +11,7 @@ import {
 import { openFilePreview } from '../../preview/preview-commands';
 import { canPreviewPath } from '../../preview/preview-registry';
 import { rememberFile } from './file-actions';
+import { FILE_OPERATION_BUSY_REASON } from './file-operation-state';
 
 export interface FileTreeItemMenuOptions {
     confirmTrash: () => Promise<void>;
@@ -19,7 +20,10 @@ export interface FileTreeItemMenuOptions {
     entry: FileEntry;
     openEntry: () => void;
     parentDirectory: string;
-    pasteDisabled: boolean;
+    /**
+     * Why Paste cannot run here; the entry is enabled only while this is `undefined`.
+     */
+    pasteDisabledReason: string | undefined;
     pasteIntoEntry: () => Promise<void>;
     projectId: string;
     projectRoot: string;
@@ -39,7 +43,7 @@ export function fileTreeItemMenu({
     entry,
     openEntry,
     parentDirectory,
-    pasteDisabled,
+    pasteDisabledReason,
     pasteIntoEntry,
     projectId,
     projectRoot,
@@ -76,16 +80,22 @@ export function fileTreeItemMenu({
             onSelect: () => rememberFile(projectId, entry.path, 'copy'),
         },
         /**
-         * Always shown so Paste's availability is discoverable from the mouse menu instead of only surfacing through a
-         * Cmd+V error toast.
+         * Always shown so Paste's availability, and why it is unavailable, is discoverable from the mouse menu instead
+         * of only surfacing through a Cmd+V error toast.
          */
         {
             label: 'Paste',
-            disabled: pasteDisabled,
-            shortcut: pasteDisabled ? undefined : 'cmd+v',
+            disabled: pasteDisabledReason !== undefined,
+            disabledReason: pasteDisabledReason,
+            shortcut: pasteDisabledReason === undefined ? 'cmd+v' : undefined,
             onSelect: pasteIntoEntry,
         },
-        { label: 'Duplicate', disabled: duplicateBlocked, onSelect: duplicateEntry },
+        {
+            label: 'Duplicate',
+            disabled: duplicateBlocked,
+            disabledReason: FILE_OPERATION_BUSY_REASON,
+            onSelect: duplicateEntry,
+        },
         { label: 'Copy Path', onSelect: () => copyFilePath(entry.path) },
         { label: 'Copy Relative Path', onSelect: () => copyFilePath(entry.path, projectRoot) },
         CONTEXT_MENU_SEPARATOR,

@@ -163,7 +163,6 @@ export interface ResourceExplorerController {
      * only feedback a re-read gives when the tree comes back unchanged.
      */
     isRefreshing: boolean;
-    isRootPasteDisabled: boolean;
     isRootPasteEmpty: boolean;
     isRootPasteBlocked: boolean;
     onProjectRootDragOver: (event: DragEvent) => void;
@@ -374,7 +373,6 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         },
         isCancelRevealed,
         isRefreshing,
-        isRootPasteDisabled: isRootPasteEmpty || isRootPasteBlocked,
         isRootPasteEmpty,
         isRootPasteBlocked,
         onProjectRootDragOver: (event) => {

@@ -3,23 +3,31 @@ import type { ContextMenuItemSpec } from '@caxri/protocol';
 import { tryCommand } from '../stores/toasts';
 import { caxri } from './caxri';
 
+interface ContextMenuAvailability {
+    disabled?: boolean;
+    /**
+     * Why a disabled entry cannot run, in a short sentence. A native menu has no tooltip, so Main shows it with the
+     * entry itself (see `buildContextMenuTemplate`); it is dropped while the entry is enabled.
+     */
+    disabledReason?: string;
+}
+
 /**
  * One entry of a native right-click menu. Menus are plain data built at the moment the menu opens, so a builder reads
  * live state directly instead of subscribing to it for a menu that is not showing.
  */
 export type ContextMenuEntry =
     | { type: 'separator' }
-    | {
+    | ({
           type?: 'item';
           label: string;
           onSelect: () => unknown;
-          disabled?: boolean;
           /**
            * A keybinding `key` string shown right-aligned as the entry's shortcut hint; it never registers the key.
            */
           shortcut?: string;
-      }
-    | { type: 'submenu'; label: string; disabled?: boolean; entries: ContextMenuEntries };
+      } & ContextMenuAvailability)
+    | ({ type: 'submenu'; label: string; entries: ContextMenuEntries } & ContextMenuAvailability);
 
 /**
  * Falsy slots let a builder write conditional entries inline (`isDirectory && {...}`).
@@ -31,6 +39,14 @@ export const CONTEXT_MENU_SEPARATOR = { type: 'separator' } as const satisfies C
 export interface SerializedContextMenu {
     items: ContextMenuItemSpec[];
     actions: Map<number, () => unknown>;
+}
+
+function availability({
+    disabled,
+    disabledReason,
+}: ContextMenuAvailability): Pick<ContextMenuItemSpec, 'disabledReason' | 'enabled'> {
+    if (!disabled) return {};
+    return disabledReason ? { enabled: false, disabledReason } : { enabled: false };
 }
 
 /**
@@ -55,7 +71,7 @@ export function serializeContextMenu(entries: ContextMenuEntries): SerializedCon
                     type: 'submenu',
                     label: entry.label,
                     submenu,
-                    ...(entry.disabled && { enabled: false }),
+                    ...availability(entry),
                 });
                 continue;
             }
@@ -65,7 +81,7 @@ export function serializeContextMenu(entries: ContextMenuEntries): SerializedCon
                 type: 'item',
                 id,
                 label: entry.label,
-                ...(entry.disabled && { enabled: false }),
+                ...availability(entry),
                 ...(entry.shortcut && { shortcut: entry.shortcut }),
             });
         }

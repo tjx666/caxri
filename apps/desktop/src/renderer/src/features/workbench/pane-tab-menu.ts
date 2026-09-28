@@ -1,5 +1,10 @@
 import type { PaneLayout, PaneSplitSide, PaneTabCloseMode } from '@caxri/protocol';
-import { findTab, paneSplitBlockedReason, paneTabIdsToClose } from '@caxri/protocol';
+import {
+    findTab,
+    MAX_PANE_LAYOUT_PANES,
+    paneSplitBlockedReason,
+    paneTabIdsToClose,
+} from '@caxri/protocol';
 
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
@@ -34,6 +39,12 @@ const splitLabels: Record<PaneSplitSide, string> = {
     down: 'Split Down',
 };
 
+const splitDisabledReasons = {
+    'missing': 'This tab is no longer open',
+    'only-tab': 'Open another tab in this pane first',
+    'pane-limit': `A Workbench holds at most ${MAX_PANE_LAYOUT_PANES} panes`,
+} as const;
+
 /**
  * The context menu every pane tab gets, whatever it holds.
  *
@@ -56,9 +67,9 @@ export function paneTabMenu({
     resourceEntries?: ContextMenuEntries;
     tabId: string;
 }): ContextMenuEntries {
-    const isSplitBlocked = paneLayout
-        ? paneSplitBlockedReason(paneLayout, tabId, paneId) !== undefined
-        : true;
+    const splitBlockedReason = paneLayout
+        ? paneSplitBlockedReason(paneLayout, tabId, paneId)
+        : 'missing';
     const isTerminalTab =
         paneLayout && findTab(paneLayout, tabId)?.tab.resource.kind === 'terminal';
     return [
@@ -70,7 +81,8 @@ export function paneTabMenu({
         CONTEXT_MENU_SEPARATOR,
         ...(['left', 'right', 'up', 'down'] as const).map((side) => ({
             label: splitLabels[side],
-            disabled: isSplitBlocked,
+            disabled: splitBlockedReason !== undefined,
+            disabledReason: splitBlockedReason && splitDisabledReasons[splitBlockedReason],
             onSelect: () => splitPaneTab(tabId, paneId, side),
         })),
         ...(resourceEntries ? [CONTEXT_MENU_SEPARATOR, ...resourceEntries] : []),
