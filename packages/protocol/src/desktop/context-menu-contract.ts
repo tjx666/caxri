@@ -21,6 +21,11 @@ export interface ContextMenuItemSpec {
     label?: string;
     enabled?: boolean;
     /**
+     * Why the entry is disabled. A native menu shows no tooltip, so Main renders this beside the label itself; it is
+     * ignored while the entry is enabled.
+     */
+    disabledReason?: string;
+    /**
      * A keybinding `key` string (`cmd+shift+c`, `cmd+k cmd+s`) shown as a hint only. Main renders a single chord as a
      * native accelerator that is never registered, and appends a chord sequence to the label because an accelerator
      * cannot express one.
@@ -34,6 +39,7 @@ function contextMenuItemSchema(depth: number): z.ZodType<ContextMenuItemSpec> {
         id: z.number().int().nonnegative().optional(),
         label: z.string().min(1).max(512).optional(),
         enabled: z.boolean().optional(),
+        disabledReason: z.string().min(1).max(512).optional(),
         shortcut: z.string().min(1).max(128).optional(),
     });
     const leaf = z.discriminatedUnion('type', [

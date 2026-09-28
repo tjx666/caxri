@@ -1107,11 +1107,16 @@ popup itself hold focus until then.
   command palette could otherwise advertise a chord that worked from anywhere.
 - Right-click menus are native OS menus. A surface attaches one with `useContextMenu` or
   `ContextMenuTrigger` and a builder that returns plain entries when the menu opens; Main shows it
-  through `contextMenu.show` and hands back only the chosen entry, whose action runs after the menu
-  closes. Entries carry a `shortcut` hint from the live keybinding table (`readCommandShortcut`)
-  instead of a literal, and a chord sequence renders inside the label because a native accelerator
-  cannot express one. A native menu has no tooltip, so a disabled entry's label must stand on its
-  own. Menus opened by a button stay Base UI `Menu` overlays.
+  through `contextMenu.show` and hands back only the chosen entry, once the menu has closed, so an
+  action that opens an inline input (Rename, New File) keeps focus there. Entries carry a `shortcut`
+  hint from the live keybinding table (`readCommandShortcut`) instead of a literal, and a chord
+  sequence renders inside the label because a native accelerator cannot express one. A native menu
+  has no tooltip, so a disabled entry that is not self-explanatory carries a short `disabledReason`
+  sentence ("Nothing to paste"): macOS 14.4 and later show it as a smaller second line under the
+  label, and earlier releases append it after an em dash. Keep the label itself the plain command
+  name. Main shows a reason shared by adjacent disabled entries (the four Split directions) once, on
+  the first, so a builder still gives each of them the reason. Menus opened by a button stay Base UI
+  `Menu` overlays.
 - Interface zoom is `window.zoomLevel` (20% per step, the same scale as VS Code), changed from
   View › Zoom In (`Command+=`), Zoom Out (`Command+-`), and Reset Zoom. Main applies it as page
   zoom and re-centers the native traffic lights in the zoomed header; any title-bar clearance

@@ -38,9 +38,11 @@ Closing the window leaves the Commander running, so the user reopens it often. T
 records the window's bounds after each move and resize and on close, and reopens it there for the
 rest of the app run. That bounds/open state also survives an app restart: `app.auxiliaryWindowState`
 (`auxiliaryWindowStateSchema`, one combined `app_state` row shared with the Process Explorer) persists
-it at quit, `resolveAuxiliaryWindowBounds` (`auxiliary-window-bounds.ts`) clamps the remembered
-rectangle to whichever display it currently matches so an unplugged monitor never reopens the window
-off-screen, and `reopenAuxiliaryWindowsAtStartup` (`auxiliary-window-lifecycle.ts`) reopens the
+it at quit, `AuxiliaryWindowBoundsMemory` (`auxiliary-window-bounds.ts`) clamps the remembered
+rectangle to whichever display it currently matches every time the window opens — not only at
+launch — so a monitor unplugged while the app keeps running never reopens the window off-screen,
+while the unclamped rectangle is kept so the window returns once that monitor is back, and
+`reopenAuxiliaryWindowsAtStartup` (`auxiliary-window-lifecycle.ts`) reopens the
 Commander automatically, after the Workbench window's Renderer has actually finished booting (not
 merely created) and Server startup is already up, exactly when it was still open at the previous
 quit. The Process Explorer remembers its bounds the same way but never

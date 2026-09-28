@@ -9,6 +9,7 @@ import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 import {
     chooseContextMenuItem,
+    contextMenuItemDisabledReason,
     contextMenuLabels,
     dismissContextMenu,
     isContextMenuItemEnabled,
@@ -163,6 +164,9 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
             expect.arrayContaining(['Move to New Session', 'Close to the Right']),
         );
         expect(await isContextMenuItemEnabled(running.app, 'Split Right')).toBe(false);
+        expect(await contextMenuItemDisabledReason(running.app, 'Split Right')).toBe(
+            'Open another tab in this pane first',
+        );
         await dismissContextMenu(running.app);
 
         const fileTab = await openAndPinFile(running.page, 'notes.ts');

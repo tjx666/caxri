@@ -164,6 +164,7 @@ function TerminalPaneTab({
                         {
                             label: 'Move to New Session',
                             disabled: isOnlySessionTerminal,
+                            disabledReason: 'This is the only tab open in this session',
                             onSelect: () =>
                                 moveTerminalToNewSession(terminal.id, isOnlySessionTerminal),
                         },
