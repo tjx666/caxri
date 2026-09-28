@@ -13,8 +13,7 @@ import {
     isAuxiliaryWindowRevealed,
     trackAuxiliaryWindowBounds,
 } from './auxiliary-window';
-import type { AuxiliaryWindowBounds } from './auxiliary-window-bounds';
-import { resolveAuxiliaryWindowBounds } from './auxiliary-window-bounds';
+import { AuxiliaryWindowBoundsMemory } from './auxiliary-window-bounds';
 import { resolveRendererEntryUrl } from './renderer-entry';
 import { trafficLightPositionForZoom, zoomFactorForLevel } from './window-chrome';
 import type { E2EWindowMode } from './window-mode';
@@ -55,9 +54,13 @@ export class AgentCommanderWindowController {
      * Where the last window stood. The Commander outlives its window and the user reopens it often, so a reopen puts it
      * back instead of at the default size in the middle of the screen. Recorded after every move and resize as well as
      * on close, because a crash loop destroys the window without a `close` event. Seeded from the previous quit's
-     * persisted state by `loadPersistedState()`, so it also survives an app restart.
+     * persisted state by `loadPersistedState()`, so it also survives an app restart, and clamped to the attached
+     * displays on every open.
      */
-    private lastBounds?: AuxiliaryWindowBounds;
+    private readonly boundsMemory = new AuxiliaryWindowBoundsMemory(
+        { width: 1_320, height: 820 },
+        (rectangle) => screen.getDisplayMatching(rectangle),
+    );
     readonly policy: AgentCommanderRendererPolicy;
 
     constructor(private readonly options: AgentCommanderWindowOptions) {
@@ -146,18 +149,16 @@ export class AgentCommanderWindowController {
     }
 
     /**
-     * Loads bounds/open state persisted at the previous quit, clamps the bounds to a currently attached display, and
-     * returns whether the Commander was open then — the cold-start signal `index.ts` uses to decide whether to reopen
-     * it once the Workbench is ready. A failed read (Server unreachable, corrupted state) keeps the window's built-in
-     * default bounds and answers `false`, so a boot-time hiccup never blocks startup on reopening an optional window.
+     * Loads bounds/open state persisted at the previous quit and returns whether the Commander was open then — the
+     * cold-start signal `index.ts` uses to decide whether to reopen it once the Workbench is ready. The bounds are
+     * clamped to the attached displays when the window opens, not here. A failed read (Server unreachable, corrupted
+     * state) keeps the window's built-in default bounds and answers `false`, so a boot-time hiccup never blocks startup
+     * on reopening an optional window.
      */
     async loadPersistedState(): Promise<boolean> {
         try {
             const state = await this.options.loadWindowState();
-            if (state.bounds)
-                this.lastBounds = resolveAuxiliaryWindowBounds(state.bounds, (rectangle) =>
-                    screen.getDisplayMatching(rectangle),
-                );
+            if (state.bounds) this.boundsMemory.remember(state.bounds);
             return state.wasOpenAtQuit;
         } catch {
             return false;
@@ -173,7 +174,7 @@ export class AgentCommanderWindowController {
         const bounds =
             this.window && !this.window.isDestroyed()
                 ? this.window.getNormalBounds()
-                : this.lastBounds;
+                : this.boundsMemory.current();
         return { bounds, wasOpenAtQuit: this.openWindow() !== undefined };
     }
 
@@ -209,7 +210,7 @@ export class AgentCommanderWindowController {
         const zoomFactor = zoomFactorForLevel(this.options.zoomLevel());
         const window = createAuxiliaryWindow({
             browserWindow: {
-                ...(this.lastBounds ?? { width: 1_320, height: 820 }),
+                ...this.boundsMemory.boundsForOpen(),
                 minWidth: 760,
                 minHeight: 480,
                 title: 'Agent Commander — Caxri',
@@ -249,9 +250,7 @@ export class AgentCommanderWindowController {
             this.isEventsReady = false;
             this.releaseTerminal();
         });
-        trackAuxiliaryWindowBounds(window, (bounds) => {
-            this.lastBounds = bounds;
-        });
+        trackAuxiliaryWindowBounds(window, (bounds) => this.boundsMemory.remember(bounds));
         window.on('closed', () => {
             if (this.window !== window) return;
             this.window = undefined;
