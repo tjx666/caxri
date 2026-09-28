@@ -99,6 +99,28 @@ export function trashPrompt(item: {
 }
 
 /**
+ * Precedes the macOS administrator prompt, which on its own only says that osascript wants to make changes; this is
+ * where the user learns what will change and why a password is needed. Mirrors VS Code's shell command prompt.
+ */
+export function shellCommandElevationPrompt(
+    action: 'install' | 'uninstall',
+    linkPath: string,
+): MessageBoxOptions {
+    const isInstall = action === 'install';
+    return {
+        type: 'info',
+        title: isInstall ? "Install 'caxri' Command" : "Uninstall 'caxri' Command",
+        message: `Caxri will now prompt for administrator privileges to ${isInstall ? 'install' : 'uninstall'} the 'caxri' shell command.`,
+        detail: isInstall
+            ? `${linkPath} will link to the caxri launcher inside this Caxri app.`
+            : `${linkPath} will be removed. The Caxri app itself is not affected.`,
+        buttons: ['OK', 'Cancel'],
+        defaultId: 0,
+        cancelId: 1,
+    };
+}
+
+/**
  * Deleting a Project or a Session removes Caxri metadata only. The detail line says so explicitly because the verb is
  * the same one file managers use for erasing files.
  */

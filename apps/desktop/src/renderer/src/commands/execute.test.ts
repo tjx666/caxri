@@ -201,6 +201,10 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             },
             diagnostics: { export: record('diagnostics.export') },
             updates: { check: record('updates.check') },
+            shellCommand: {
+                install: record('shellCommand.install'),
+                uninstall: record('shellCommand.uninstall'),
+            },
         },
     };
 }
