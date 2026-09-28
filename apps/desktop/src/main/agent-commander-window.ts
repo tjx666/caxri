@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
-import type { BrowserWindow, WebContents } from 'electron';
+import type { BrowserWindow, Rectangle, WebContents } from 'electron';
 
 import { AgentCommanderRendererPolicy } from './agent-commander-policy';
 import { createAuxiliaryWindow, isAuxiliaryWindowRevealed } from './auxiliary-window';
@@ -34,6 +34,12 @@ interface AgentCommanderWindowOptions {
 export class AgentCommanderWindowController {
     private window?: BrowserWindow;
     private isEventsReady = false;
+    /**
+     * Where the last window stood. The Commander outlives its window and the user reopens it often, so a reopen puts it
+     * back instead of at the default size in the middle of the screen. Kept for this app run only. It is recorded after
+     * every move and resize as well as on close, because a crash loop destroys the window without a `close` event.
+     */
+    private lastBounds?: Rectangle;
     readonly policy: AgentCommanderRendererPolicy;
 
     constructor(private readonly options: AgentCommanderWindowOptions) {
@@ -144,8 +150,7 @@ export class AgentCommanderWindowController {
         const zoomFactor = zoomFactorForLevel(this.options.zoomLevel());
         const window = createAuxiliaryWindow({
             browserWindow: {
-                width: 1_320,
-                height: 820,
+                ...(this.lastBounds ?? { width: 1_320, height: 820 }),
                 minWidth: 760,
                 minHeight: 480,
                 title: 'Agent Commander — Caxri',
@@ -185,6 +190,12 @@ export class AgentCommanderWindowController {
             this.isEventsReady = false;
             this.releaseTerminal();
         });
+        const rememberBounds = () => {
+            this.lastBounds = window.getNormalBounds();
+        };
+        window.on('moved', rememberBounds);
+        window.on('resized', rememberBounds);
+        window.on('close', rememberBounds);
         window.on('closed', () => {
             if (this.window !== window) return;
             this.window = undefined;
