@@ -134,9 +134,10 @@ added without moving screens. Query keys include the same host identity.
 - The host menu contains `Add Project` (control devices only) and `Forget this computer`.
 - Do not reorder rows while the user is touching or scrolling the list; reconcile after the
   interaction ends.
-- On a control device, swiping a row left reveals its `Archive` action. At most one row stays
-  open: opening another row, tapping a different row, or scrolling the list closes it, and the tap
-  that closes a row does not open that Session. Android Acceptance `MOB-MOTION-02` records this.
+- On a control device, swiping a row left reveals its `Archive` action. At most one row shows its
+  action: starting to swipe another row, tapping a different row, or scrolling the list closes the
+  open row, and the tap that closes a row does not open that Session. Android Acceptance
+  `MOB-MOTION-02` records this.
 - Empty state: `No Sessions yet` / `Start one here or on your computer.` with a `New Session` action.
 
 ## Session screen
