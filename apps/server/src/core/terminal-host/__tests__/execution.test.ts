@@ -23,7 +23,7 @@ function generationCount(execution: RemoteTerminalExecution): number {
  */
 describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
     it('releases generations after 200 permanently closed Terminals and shutdown', async () => {
-        const { execution } = createExecution();
+        const { control, execution } = createExecution();
         for (let index = 0; index < 200; index += 1) {
             const record = { ...terminal, id: `terminal-${index}` };
             // eslint-disable-next-line no-await-in-loop -- each Terminal is fully started before permanent closure
@@ -39,6 +39,8 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
             execution.close(record.id);
         }
         expect(generationCount(execution)).toBe(0);
+        await vi.waitFor(() => expect(control.requestCount('terminal.retire')).toBe(200));
+        expect(control.requestCount('terminal.stop')).toBe(0);
 
         await execution.reserve(terminal);
         await execution.start({
@@ -702,13 +704,11 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
         await vi.waitFor(() =>
             expect(control.requests.at(-1)!.request.method).toBe('terminal.input'),
         );
-        expect(control.requests.some(({ request }) => request.method === 'terminal.stop')).toBe(
-            false,
-        );
+        expect(control.requestCount('terminal.retire')).toBe(0);
 
         control.releaseInput();
         await vi.waitFor(() =>
-            expect(control.requests.at(-1)!.request.method).toBe('terminal.stop'),
+            expect(control.requests.at(-1)!.request.method).toBe('terminal.retire'),
         );
     });
 });

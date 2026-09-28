@@ -139,6 +139,9 @@ owner manifest for diagnostics, but the current lifecycle deliberately remains c
 generation never adopts PTYs from another Terminal Host or Server Core generation. A Terminal Host loss
 invalidates its live PTYs, and a Server Core shutdown terminates its Terminal Host after bounded snapshot
 capture. Compatible discovery, adoption, and live Terminal continuity are future P1/P5 capabilities.
+Per-Terminal PTY generations are fenced on both sides: Terminal Host keeps a baseline only for IDs
+Server Core can relaunch and fences permanently closed IDs after `terminal.retire`, as specified in
+[terminal-lifecycle.md](../.agents/skills/project-architecture/references/terminal-lifecycle.md).
 
 ### Extension Host
 

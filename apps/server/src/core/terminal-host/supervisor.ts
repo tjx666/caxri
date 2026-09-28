@@ -503,6 +503,10 @@ export class TerminalHostSupervisor extends EventTarget {
         return this.sendRequest(owned, request, scope, signal);
     }
 
+    isRunning(): boolean {
+        return this.state === 'ready' && this.owned !== undefined;
+    }
+
     processId(): number | undefined {
         return this.owned?.child.pid;
     }
