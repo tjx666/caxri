@@ -53,7 +53,7 @@ owner's startup or transport action, not an implicit privilege fallback.
 
 ## Read Project state and debug safely
 
-Use the Endpoint-scoped selectors returned by `agent-context`:
+Use the Endpoint-scoped selectors returned by `caxri agent-context`:
 
 ```bash
 caxri project current --json

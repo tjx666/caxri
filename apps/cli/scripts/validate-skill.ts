@@ -10,21 +10,39 @@ function tokenize(command: string): string[] {
 }
 
 /**
+ * Resolves the command path of an inline mention the way the CLI does, dropping global options such as `--json`
+ * wherever they appear. A placeholder value (`--timeout <milliseconds>`) fails that option's own validation; the raw
+ * words still resolve because command lookup matches by prefix.
+ */
+function mentionedCommandPath(words: readonly string[]): string[] {
+    try {
+        return parseCliArguments(words).tokens;
+    } catch {
+        return [...words];
+    }
+}
+
+/**
  * Collects inline code spans that name a command in prose. They carry placeholders such as `<id>`, so only their
- * command path can be resolved, not their arguments. A span qualifies when it starts with `caxri` or with a CLI root
- * followed by more words: a lone root such as `commander` is a capability name, while a bare group such as `agent
- * dispatch` must fail because it names no runnable command.
+ * command path can be resolved, not their arguments. A span qualifies when it starts with `caxri`, or when it starts
+ * with any command path word and has more words: a bare group such as `agent dispatch` or a shorthand such as `stop
+ * <id>` must fail because neither names a runnable command. A lone word is indistinguishable from a capability or field
+ * name (`commander`, `status`), so a one-word command is written with the `caxri` prefix. Markdown lets an inline span
+ * wrap across lines, so a span may contain newlines.
  */
 function inlineCommandMentions(skill: string): string[][] {
-    const roots = new Set<string>(CLI_COMMANDS.map((command) => command.path[0]));
+    const commandWords = new Set<string>(CLI_COMMANDS.flatMap((command) => command.path));
     return skill
         .replaceAll(/^```[^\n]*\n[\s\S]*?\n```$/gmu, '')
-        .matchAll(/`([^`\n]+)`/gu)
+        .matchAll(/`([^`]+)`/gu)
         .map((match) => tokenize(match[1]))
-        .flatMap((tokens) => {
-            if (tokens[0] === 'caxri') return tokens.length > 1 ? [tokens.slice(1)] : [];
-            return roots.has(tokens[0]) && tokens.length > 1 ? [tokens] : [];
+        .flatMap((words) => {
+            if (words[0] === 'caxri') return [mentionedCommandPath(words.slice(1))];
+            return commandWords.has(words[0]) && words.length > 1
+                ? [mentionedCommandPath(words)]
+                : [];
         })
+        .filter((path) => path.length > 0)
         .toArray();
 }
 
