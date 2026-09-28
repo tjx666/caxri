@@ -80,6 +80,10 @@ describe('GitHub Actions runner archive cache', () => {
     it('keeps every repository action on an immutable commit SHA', async () => {
         await expect(discoverPinnedActions(repoRoot)).resolves.toEqual([
             {
+                repository: 'actions/cache',
+                sha: '55cc8345863c7cc4c66a329aec7e433d2d1c52a9',
+            },
+            {
                 repository: 'actions/checkout',
                 sha: '3d3c42e5aac5ba805825da76410c181273ba90b1',
             },
@@ -90,6 +94,10 @@ describe('GitHub Actions runner archive cache', () => {
             {
                 repository: 'actions/upload-artifact',
                 sha: '043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
+            },
+            {
+                repository: 'oven-sh/setup-bun',
+                sha: '0c5077e51419868618aeaa5fe8019c62421857d6',
             },
             {
                 repository: 'pnpm/setup',
