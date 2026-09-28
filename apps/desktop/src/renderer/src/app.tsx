@@ -34,6 +34,7 @@ import { ToastOutlet } from './features/toasts/toast-outlet';
 import { UpdateDialog } from './features/updates/update-dialog';
 import { useFileMutationReconciliation } from './features/view-containers/resource-explorer/file-operation-reconciliation';
 import { startViewEventBridge } from './features/view-containers/view-event-bridge';
+import { useWindowZoomFactor } from './features/window-zoom/use-window-zoom-factor';
 import { LoadingScreen } from './features/workbench/loading-screen';
 import { PanelDivider } from './features/workbench/panel-divider';
 import { WorkbenchColumn } from './features/workbench/workbench-column';
@@ -55,7 +56,7 @@ import {
     useChromeLayoutStore,
     useChromeViewportClamp,
 } from './stores/chrome-layout';
-import { useIsFullScreen, useSettings } from './stores/selectors';
+import { useIsFullScreen } from './stores/selectors';
 import {
     initializeWorkbench,
     subscribeWorkbenchEvents,
@@ -101,7 +102,6 @@ function useRuntimeAttachment(): void {
 
 export function App() {
     const isAttached = useWorkbenchStore((state) => state.bootstrap !== undefined);
-    const zoomLevel = useSettings()?.['window.zoomLevel'] ?? 0;
     const primarySidebarWidth = useChromeLayoutStore((state) => state.primarySidebarWidth);
     const secondarySidebarWidth = useChromeLayoutStore((state) => state.secondarySidebarWidth);
     const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
@@ -126,17 +126,7 @@ export function App() {
     useGitDecorationSync();
     useChromeViewportClamp();
     useWorkbenchAppearance();
-    /**
-     * Page zoom scales every CSS pixel but not the native traffic lights, so the header clearances reserved for them
-     * divide by this factor to stay the lights' physical width. Main applies the zoom itself; this mirrors the same
-     * setting with the same 20%-per-step formula (`zoomFactorForLevel` in `main/window-chrome.ts`).
-     */
-    useEffect(() => {
-        document.documentElement.style.setProperty(
-            '--window-zoom-factor',
-            String(1.2 ** zoomLevel),
-        );
-    }, [zoomLevel]);
+    useWindowZoomFactor();
     useEffect(() => {
         if (!isAttached) return;
         return scheduleCodeEditorPreload();

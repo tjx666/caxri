@@ -53,6 +53,7 @@ import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 import { createMainMethodHandler } from './main-methods';
 import { buildAppMenuTemplate } from './menu';
+import { createMenuKeybindingFailureInjection } from './menu-keybinding-failure';
 import { createMenuRefreshController } from './menu-refresh';
 import { createOnDemandWindows } from './on-demand-windows';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
@@ -168,7 +169,7 @@ if (ownsProfileInstance) {
     });
     const windowZoom = createWindowZoomController({
         loadLevel: async () => (await supervisor.request('settings.get')).value['window.zoomLevel'],
-        window: () => mainWindow,
+        windows: () => [mainWindow, agentCommander?.openWindow()],
     });
     function sendEvent(event: ServerEvent): void {
         eventRelay.send(event);
@@ -585,29 +586,9 @@ if (ownsProfileInstance) {
         });
     }
 
-    let isMenuKeybindingFailureInjected = false;
+    const injectMenuKeybindingFailure = createMenuKeybindingFailureInjection();
     async function loadMenuKeybindings(): Promise<Keybinding[]> {
-        const keybindings = (await supervisor.request('keybindings.get')).value;
-        const failureKey =
-            process.env.CAXRI_E2E === '1'
-                ? process.env.CAXRI_E2E_FAIL_MENU_KEYBINDINGS_GET_COPY_KEY
-                : undefined;
-        if (
-            !isMenuKeybindingFailureInjected &&
-            failureKey &&
-            keybindings.some(
-                (binding) => binding.command === 'terminal.copy' && binding.key === failureKey,
-            )
-        ) {
-            /**
-             * Acceptance needs a deterministic one-shot read failure after the new value is durable. Matching the
-             * configured fixture key avoids startup-attempt counting, which varies when Server is already ready.
-             */
-            isMenuKeybindingFailureInjected = true;
-            process.env.CAXRI_E2E_MENU_KEYBINDINGS_GET_FAILURE_INJECTED = '1';
-            throw new CaxriError('UNAVAILABLE', 'Injected E2E menu keybinding read failure');
-        }
-        return keybindings;
+        return injectMenuKeybindingFailure((await supervisor.request('keybindings.get')).value);
     }
 
     function installMenu(keybindings: Keybinding[]): void {
@@ -624,6 +605,7 @@ if (ownsProfileInstance) {
                     },
                     workbenchWindow: () =>
                         mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+                    isFollowingAppZoom: (window) => window === agentCommander?.openWindow(),
                     focusWorkbench: () => {
                         // eslint-disable-next-line no-void -- best effort: the command reaches the Workbench whether or not it came forward
                         void focusMainWindow().catch(() => {});
@@ -737,6 +719,7 @@ if (ownsProfileInstance) {
                 mainWindow: () => mainWindow,
                 supervisor,
                 windowMode: e2eWindowMode,
+                zoomLevel: () => windowZoom.level(),
             }));
             supervisor.onEvent(sendEvent);
             wirePowerWake(powerMonitor, () => (quitIntent = 'system-shutdown'), supervisor);

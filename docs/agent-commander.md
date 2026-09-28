@@ -26,6 +26,12 @@ Explorer:
 - Hangs are observed.
 - Crash recovery is bounded, and a crash loop destroys only the Commander window.
 
+The window follows the app-wide `window.zoomLevel` setting. It opens at the current level, and
+`createWindowZoomController` (`window-chrome.ts`) applies every later change to it along with the
+Workbench, recentering its traffic lights in the zoomed header. View > Zoom In, Zoom Out, and
+Actual Size from the focused Commander run on the Workbench, which owns the setting, without
+bringing it forward, so the Commander zooms in place. The Process Explorer does not follow the zoom.
+
 The window runs with the Desktop principal. Main therefore authorizes it separately, through
 `AgentCommanderRendererPolicy` (`agent-commander-policy.ts`) in the `caxri:request` IPC path:
 

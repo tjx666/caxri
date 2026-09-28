@@ -23,6 +23,7 @@ describe('application menu', () => {
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
         });
 
         expect(submenu(template, 'Project').map((item) => item.id)).not.toContain(
@@ -39,6 +40,7 @@ describe('application menu', () => {
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
         });
         const actual = template.flatMap((menu) =>
             Array.isArray(menu.submenu)
@@ -69,6 +71,7 @@ describe('application menu', () => {
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
         });
         const view = submenu(template, 'View');
         const click = (id: string) =>
@@ -98,6 +101,7 @@ describe('application menu', () => {
                 openProcessExplorer: vi.fn(),
                 workbenchWindow: () => workbench as BaseWindow,
                 focusWorkbench,
+                isFollowingAppZoom: (window) => Object.is(window, commander),
             });
             const item = submenu(template, menu).find((candidate) => candidate.id === id);
             if (!item?.click) throw new Error(`Missing ${id}`);
@@ -138,6 +142,19 @@ describe('application menu', () => {
             expect(focusWorkbench).not.toHaveBeenCalled();
         });
 
+        it('zooms from the Commander without bringing the Workbench forward', () => {
+            const { dispatchCommand, press, select } = menuItem('View', 'command.view.zoomIn');
+
+            press();
+            select();
+
+            expect(dispatchCommand.mock.calls).toEqual([
+                ['view.zoomIn', true],
+                ['view.zoomIn', false],
+            ]);
+            expect(focusWorkbench).not.toHaveBeenCalled();
+        });
+
         it('still opens Settings in the Workbench from its shortcut', () => {
             const { dispatchCommand, press } = menuItem('Caxri', 'command.settings.open');
 
@@ -170,6 +187,7 @@ describe('application menu', () => {
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
         });
         const item = submenu(template, 'Terminal').find(
             (candidate) => candidate.id === 'command.terminal.new',
@@ -197,6 +215,7 @@ describe('application menu', () => {
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
         });
         const item = submenu(template, 'Terminal').find(
             (candidate) => candidate.id === 'command.terminal.clear',
@@ -222,6 +241,7 @@ describe('application menu', () => {
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
         });
         const item = submenu(template, 'Terminal').find(
             (candidate) => candidate.id === 'command.terminal.new',
@@ -243,6 +263,7 @@ describe('application menu', () => {
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
         });
         const item = submenu(template, 'Terminal').find(
             (candidate) => candidate.id === 'command.terminal.new',
@@ -270,6 +291,7 @@ describe('application menu', () => {
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
         });
         const item = submenu(template, 'Terminal').find(
             (candidate) => candidate.id === `command.${command}`,
@@ -288,6 +310,7 @@ describe('application menu', () => {
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
         });
         const item = submenu(template, 'Terminal').find(
             (candidate) => candidate.id === 'command.terminal.copy',
@@ -308,6 +331,7 @@ describe('application menu', () => {
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
         });
         const item = submenu(template, 'Terminal').find(
             (candidate) => candidate.id === 'command.terminal.copy',
@@ -328,6 +352,7 @@ describe('application menu', () => {
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
         });
         const item = submenu(template, 'Terminal').find(
             (candidate) => candidate.id === 'command.terminal.copy',
@@ -355,6 +380,7 @@ describe('application menu', () => {
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
         });
         const accelerators = template.flatMap((menu) =>
             Array.isArray(menu.submenu)
@@ -383,6 +409,7 @@ describe('application menu', () => {
             openProcessExplorer,
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
         });
         const item = submenu(template, 'Help').find(
             (candidate) => candidate.id === 'command.processExplorer.open',
@@ -402,6 +429,7 @@ describe('application menu', () => {
             openProcessExplorer: vi.fn(),
             workbenchWindow: vi.fn(),
             focusWorkbench: vi.fn(),
+            isFollowingAppZoom: () => false,
         });
         const help = submenu(template, 'Help');
 
