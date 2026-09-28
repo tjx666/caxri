@@ -4,7 +4,10 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createAcceptanceThemeImportFixture } from '../acceptance-theme-import';
+import {
+    admitAcceptanceThemeImport,
+    createAcceptanceThemeImportFixture,
+} from '../acceptance-theme-import';
 
 const caseId = 'issue-826-surface-seam';
 const directories: string[] = [];
@@ -16,25 +19,87 @@ afterEach(async () => {
     directories.length = 0;
 });
 
+const armed = {
+    CAXRI_ACCEPTANCE: '1',
+    CAXRI_E2E: '1',
+    CAXRI_ACCEPTANCE_THEME_IMPORT: caseId,
+    CAXRI_TEST_ROOT_PATH: '/unused',
+};
+
+describe('Acceptance theme import admission', () => {
+    it('leaves the real panel in charge outside Acceptance, even with a stray fixture variable', () => {
+        expect(admitAcceptanceThemeImport({})).toEqual({ kind: 'native' });
+        expect(admitAcceptanceThemeImport({ ...armed, CAXRI_ACCEPTANCE: undefined })).toEqual({
+            kind: 'native',
+        });
+    });
+
+    it('admits any well-formed case the launcher armed from its frozen plan', () => {
+        expect(admitAcceptanceThemeImport(armed)).toEqual({ kind: 'fixture', caseId });
+        expect(
+            admitAcceptanceThemeImport({ ...armed, CAXRI_ACCEPTANCE_THEME_IMPORT: 'new-case-1' }),
+        ).toEqual({ kind: 'fixture', caseId: 'new-case-1' });
+    });
+
+    it.each([
+        [
+            'an undeclared case',
+            { CAXRI_ACCEPTANCE: '1', CAXRI_E2E: '1', CAXRI_TEST_ROOT_PATH: '/unused' },
+            'undeclared-case',
+        ],
+        [
+            'the raw native-dialog marker alone',
+            {
+                CAXRI_ACCEPTANCE: '1',
+                CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION: 'explicit-user-request',
+                CAXRI_E2E: '1',
+            },
+            'undeclared-case',
+        ],
+        [
+            'a forged native capability',
+            { CAXRI_ACCEPTANCE: '1', CAXRI_ACCEPTANCE_NATIVE_THEME_IMPORT: 'true', CAXRI_E2E: '1' },
+            'undeclared-case',
+        ],
+        [
+            'a malformed case id',
+            { ...armed, CAXRI_ACCEPTANCE_THEME_IMPORT: '../other case' },
+            'invalid-case-id',
+        ],
+        ['an empty case id', { ...armed, CAXRI_ACCEPTANCE_THEME_IMPORT: '' }, 'invalid-case-id'],
+        ['a missing E2E gate', { ...armed, CAXRI_E2E: undefined }, 'missing-gate'],
+        ['a missing test root', { ...armed, CAXRI_TEST_ROOT_PATH: undefined }, 'missing-gate'],
+    ])('rejects %s inside Acceptance', (_, environment, reason) => {
+        expect(admitAcceptanceThemeImport(environment)).toEqual({ kind: 'rejected', reason });
+    });
+
+    it('keeps the native handoff the launcher derived for an explicitly authorized, declared case', () => {
+        expect(
+            admitAcceptanceThemeImport({
+                CAXRI_ACCEPTANCE: '1',
+                CAXRI_ACCEPTANCE_NATIVE_THEME_IMPORT: '1',
+                CAXRI_E2E: '1',
+            }),
+        ).toEqual({ kind: 'native' });
+    });
+});
+
 describe('Acceptance theme import fixture', () => {
-    it('is disabled outside the fixed isolated case', () => {
+    it('stays out of the way outside Acceptance', () => {
         expect(
             createAcceptanceThemeImportFixture({
-                environment: { CAXRI_ACCEPTANCE: '1', CAXRI_E2E: '1' },
+                environment: { CAXRI_E2E: '1', CAXRI_ACCEPTANCE_THEME_IMPORT: caseId },
                 userDataPath: '/unused',
             }),
         ).toBeUndefined();
-        expect(
-            createAcceptanceThemeImportFixture({
-                environment: {
-                    CAXRI_ACCEPTANCE: '1',
-                    CAXRI_E2E: '1',
-                    CAXRI_ACCEPTANCE_THEME_IMPORT: 'other-case',
-                    CAXRI_TEST_ROOT_PATH: '/unused',
-                },
-                userDataPath: '/unused',
-            }),
-        ).toBeUndefined();
+    });
+
+    it('fails an undeclared Acceptance import instead of opening the native panel', async () => {
+        const fixture = createAcceptanceThemeImportFixture({
+            environment: { CAXRI_ACCEPTANCE: '1', CAXRI_E2E: '1', CAXRI_TEST_ROOT_PATH: '/unused' },
+            userDataPath: '/unused',
+        });
+        await expect(fixture?.choose()).rejects.toThrow('did not declare themeImportFixture');
     });
 
     it('selects only a regular file inside the test root and records each selection once', async () => {
