@@ -7,6 +7,7 @@ import process from 'node:process';
 import { describe, expect, it } from 'vitest';
 
 import {
+    canAffectTypes,
     directImportTestCandidates,
     dirtyLayerReportForFiles,
     discoverChangedFiles,
@@ -23,6 +24,7 @@ import {
     runLint,
     selectE2ESpecs,
     selectedTestCandidates,
+    shouldTypecheck,
     testCandidatesForFile,
     VITEST_SOURCE_ROOTS,
 } from './check';
@@ -52,7 +54,7 @@ describe('final lint validation', () => {
 });
 
 describe('changed-file discovery', () => {
-    it('includes committed branch changes while preserving staged and untracked selection', async () => {
+    it('includes committed branch changes and deletions while preserving staged and untracked selection', async () => {
         const root = await mkdtemp(join(tmpdir(), 'caxri-check-'));
         const git = (...arguments_: string[]): void => {
             execFileSync('git', arguments_, { cwd: root, stdio: 'ignore' });
@@ -62,7 +64,8 @@ describe('changed-file discovery', () => {
             git('config', 'user.name', 'Check Test');
             git('config', 'user.email', 'check@example.invalid');
             await writeFile(join(root, 'base.ts'), 'export const base = 1;\n');
-            git('add', 'base.ts');
+            await writeFile(join(root, 'removed.ts'), 'export const removed = 1;\n');
+            git('add', 'base.ts', 'removed.ts');
             git('commit', '-m', 'base');
             git('update-ref', 'refs/remotes/origin/main', 'HEAD');
             expect(await discoverChangedFiles(root, false)).toEqual([]);
@@ -70,6 +73,7 @@ describe('changed-file discovery', () => {
             git('switch', '-c', 'feature');
             await writeFile(join(root, 'committed.ts'), 'export const committed = 1;\n');
             git('add', 'committed.ts');
+            git('rm', '-q', 'removed.ts');
             git('commit', '-m', 'feature');
             await writeFile(join(root, 'staged.ts'), 'export const staged = 1;\n');
             git('add', 'staged.ts');
@@ -79,6 +83,7 @@ describe('changed-file discovery', () => {
             expect(await discoverChangedFiles(root, false)).toEqual([
                 'base.ts',
                 'committed.ts',
+                'removed.ts',
                 'staged.ts',
                 'untracked.ts',
             ]);
@@ -213,6 +218,7 @@ describe('parseCheckArguments', () => {
             e2eGrep: undefined,
             e2eWaitSeconds: undefined,
             files: ['apps/desktop/src/main/index.ts'],
+            isDefaultSelection: true,
             isStaged: false,
             knip: false,
             lint: true,
@@ -227,6 +233,7 @@ describe('parseCheckArguments', () => {
             e2eGrep: undefined,
             e2eWaitSeconds: undefined,
             files: [],
+            isDefaultSelection: false,
             isStaged: true,
             knip: false,
             lint: false,
@@ -241,6 +248,7 @@ describe('parseCheckArguments', () => {
             e2eGrep: undefined,
             e2eWaitSeconds: undefined,
             files: [],
+            isDefaultSelection: false,
             isStaged: false,
             knip: true,
             lint: false,
@@ -262,6 +270,7 @@ describe('parseCheckArguments', () => {
             e2eGrep: 'launches the workbench',
             e2eWaitSeconds: undefined,
             files: ['e2e/smoke.e2e.ts'],
+            isDefaultSelection: false,
             isStaged: false,
             knip: false,
             lint: false,
@@ -285,6 +294,46 @@ describe('parseCheckArguments', () => {
         );
         expect(() => parseCheckArguments(['--e2e', '--e2e-wait', '301'])).toThrow(
             '--e2e-wait requires an integer from 1 to 300 seconds',
+        );
+    });
+});
+
+describe('default typecheck selection', () => {
+    it('treats sources, tsconfig files, and dependency manifests as type inputs', () => {
+        expect(
+            [
+                'apps/server/src/index.ts',
+                'apps/desktop/src/renderer/src/app.tsx',
+                'scripts/build.mts',
+                'packages/protocol/tsconfig.json',
+                'tsconfig.node.json',
+                'apps/cli/package.json',
+                'pnpm-lock.yaml',
+            ].every(canAffectTypes),
+        ).toBe(true);
+        expect(
+            [
+                'docs/agent-commander.md',
+                'apps/desktop/src/renderer/src/app.css',
+                'config.json',
+            ].some(canAffectTypes),
+        ).toBe(false);
+    });
+
+    it('adds the typecheck to the default selection only when a changed path affects types', () => {
+        const defaults = parseCheckArguments([]);
+        expect(shouldTypecheck(defaults, ['docs/agent-commander.md'])).toBe(false);
+        expect(
+            shouldTypecheck(defaults, ['docs/agent-commander.md', 'apps/server/src/removed.ts']),
+        ).toBe(true);
+    });
+
+    it('runs exactly what an explicit selector names', () => {
+        expect(shouldTypecheck(parseCheckArguments(['--lint']), ['apps/server/src/index.ts'])).toBe(
+            false,
+        );
+        expect(shouldTypecheck(parseCheckArguments(['--type']), ['docs/agent-commander.md'])).toBe(
+            true,
         );
     });
 });
