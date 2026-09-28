@@ -168,6 +168,12 @@ export interface CommandDefinition {
      */
     allowInEditable?: boolean;
     /**
+     * Keeps the command reachable while a modal dialog is open. Defaults to false: a modal blocks commands that would
+     * change Workbench state behind it. Only a command that acts on the window itself, such as zoom, which the dialog
+     * follows too, opts in.
+     */
+    allowBehindModal?: boolean;
+    /**
      * Marks a destructive command whose confirmation is already handled inside `run` (native dialog).
      */
     confirm?: boolean;

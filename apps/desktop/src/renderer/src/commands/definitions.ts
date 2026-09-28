@@ -13,7 +13,9 @@ const SESSION_MRU_MODIFIERS: ReadonlySet<unknown> = new Set(['Alt', 'Control', '
 function fromCatalog(
     id: CommandId,
     run: (context: CommandContext, arguments_?: unknown) => void,
-    extra?: Partial<Pick<CommandDefinition, 'allowInEditable' | 'confirm' | 'when'>>,
+    extra?: Partial<
+        Pick<CommandDefinition, 'allowBehindModal' | 'allowInEditable' | 'confirm' | 'when'>
+    >,
 ): CommandDefinition {
     const catalog = getCommandDefinition(id);
     return defineCommand({ id, title: catalog.title, category: catalog.category, run, ...extra });
@@ -292,7 +294,10 @@ export const commandDefinitions: CommandDefinition[] = [
             ['view.resetZoom', 'reset'],
         ] as const
     ).map(([id, step]) =>
-        fromCatalog(id, (context) => context.windows.zoom(step), { allowInEditable: true }),
+        fromCatalog(id, (context) => context.windows.zoom(step), {
+            allowBehindModal: true,
+            allowInEditable: true,
+        }),
     ),
     fromCatalog('settings.open', (context) => context.dialogs.openSettings(), {
         allowInEditable: true,
