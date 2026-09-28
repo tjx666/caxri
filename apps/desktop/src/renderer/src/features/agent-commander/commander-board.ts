@@ -54,6 +54,24 @@ export function commanderBoardSections(
 }
 
 /**
+ * Which Sessions the Commander window lists. `commander`, the default, is only the Sessions the Commander created: the
+ * Workbench already shows every Session, and the user's hand-run Sessions mixed in here buried the work the Commander
+ * dispatched. `all` is the whole Workbench, a toggle away. The Server's board (and `caxri commander board`) always
+ * covers every Session, so the Commander itself still sees the whole Workbench.
+ */
+export type CommanderBoardScope = 'all' | 'commander';
+
+/**
+ * The rows a scope shows, keeping the Server's order.
+ */
+export function commanderBoardRowsInScope(
+    rows: readonly CommanderBoardRow[],
+    scope: CommanderBoardScope,
+): readonly CommanderBoardRow[] {
+    return scope === 'all' ? rows : rows.filter((row) => row.commanderSession);
+}
+
+/**
  * Applies a fresh `session.pullRequests` snapshot to the rows of the named Sessions only, the way the Server's
  * `commanderBoard` projection would have filled their `pullRequest` and `pullRequestUnavailable` fields.
  *
@@ -230,32 +248,108 @@ export function commanderPullRequestBadge({
 }
 
 /**
+ * The shape a task chip draws, so each status is recognizable before its label is read.
+ */
+export type CommanderTaskIconId =
+    'answered' | 'blocked' | 'failed' | 'running' | 'starting' | 'stopped' | 'taken-over';
+
+/**
  * The task label collapses the delegation lifecycle into what the user acts on. Only a task that needs someone is
- * tinted: a blocked task waits for an answer (usually the Commander's), and a failed one must be retried. `completed`
- * reads `Answered`, not `Done`: it means the Agent gave its final answer, which the Commander still has to verify.
+ * tinted: a blocked task waits for an answer (usually the Commander's), a failed one must be retried, and a taken-over
+ * one is out of the Commander's hands until the user hands it back. `completed` reads `Answered`, not `Done`: it means
+ * the Agent gave its final answer, which the Commander still has to verify.
  */
 const TASK_PRESENTATION: Record<
     AgentDelegationReceipt['status'],
-    { label: string; tone: SessionActivityPresentation['tone'] }
+    {
+        description: string;
+        icon: CommanderTaskIconId;
+        label: string;
+        tone: SessionActivityPresentation['tone'];
+    }
 > = {
-    answer_unavailable: { label: 'Failed', tone: 'danger' },
-    awaiting_ready: { label: 'Starting', tone: 'neutral' },
-    blocked: { label: 'Blocked', tone: 'warning' },
-    collecting: { label: 'Running', tone: 'neutral' },
-    completed: { label: 'Answered', tone: 'neutral' },
-    failed: { label: 'Failed', tone: 'danger' },
-    human_intervened: { label: 'Taken over', tone: 'neutral' },
-    interrupted: { label: 'Stopped', tone: 'neutral' },
-    launching: { label: 'Starting', tone: 'neutral' },
-    requested: { label: 'Starting', tone: 'neutral' },
-    running: { label: 'Running', tone: 'neutral' },
-    submitting: { label: 'Starting', tone: 'neutral' },
+    answer_unavailable: {
+        description: 'The Agent finished, but its answer could not be read back.',
+        icon: 'failed',
+        label: 'Failed',
+        tone: 'danger',
+    },
+    awaiting_ready: {
+        description: 'The Agent is starting and has not begun the task yet.',
+        icon: 'starting',
+        label: 'Starting',
+        tone: 'neutral',
+    },
+    blocked: {
+        description: 'The Agent stopped to ask a question, usually one the Commander answers.',
+        icon: 'blocked',
+        label: 'Blocked',
+        tone: 'warning',
+    },
+    collecting: {
+        description: 'The Agent finished its turn; the Commander is reading its answer.',
+        icon: 'running',
+        label: 'Running',
+        tone: 'neutral',
+    },
+    completed: {
+        description:
+            'The Agent gave its final answer. The Commander still verifies it before reporting.',
+        icon: 'answered',
+        label: 'Answered',
+        tone: 'neutral',
+    },
+    failed: {
+        description: 'The task failed.',
+        icon: 'failed',
+        label: 'Failed',
+        tone: 'danger',
+    },
+    human_intervened: {
+        description:
+            'You typed into this Session while the task ran, so it is yours now. The Commander no longer drives it or sends it follow-ups.',
+        icon: 'taken-over',
+        label: 'Taken over by you',
+        tone: 'warning',
+    },
+    interrupted: {
+        description: 'The task stopped before the Agent finished.',
+        icon: 'stopped',
+        label: 'Stopped',
+        tone: 'neutral',
+    },
+    launching: {
+        description: 'The Commander is launching an Agent for this task.',
+        icon: 'starting',
+        label: 'Starting',
+        tone: 'neutral',
+    },
+    requested: {
+        description: 'The Commander is launching an Agent for this task.',
+        icon: 'starting',
+        label: 'Starting',
+        tone: 'neutral',
+    },
+    running: {
+        description: 'The Agent is working on the task.',
+        icon: 'running',
+        label: 'Running',
+        tone: 'neutral',
+    },
+    submitting: {
+        description: 'The Commander is handing the task to the Agent.',
+        icon: 'starting',
+        label: 'Starting',
+        tone: 'neutral',
+    },
 };
 
 interface CommanderTaskBadge {
+    icon: CommanderTaskIconId;
     label: string;
     /**
-     * Names the delegation so the user can find it in the Commander conversation, plus the failure reason.
+     * What the status means for the user, the failure reason, and the delegation ID so the user can find the task in
+     * the Commander conversation.
      */
     title: string;
     toneClassName: string;
@@ -270,15 +364,21 @@ export function commanderTaskBadge(
     if (!task) return undefined;
     if (task.status === 'blocked' && task.failure === 'startup_waiting')
         return {
+            icon: 'blocked',
             label: 'Needs you',
-            title: `Commander task ${task.delegationId}: the Agent is waiting at startup, usually on a first-run prompt such as folder trust or sign-in. Open the Session to answer it; the task continues on its own.`,
+            title: `The Agent is waiting at startup, usually on a first-run prompt such as folder trust or sign-in. Open the Session to answer it; the task continues on its own. Task ${task.delegationId}.`,
             toneClassName: TONE_TEXT_CLASSNAME.warning,
         };
-    const { label, tone } = TASK_PRESENTATION[task.status];
-    const reason = task.failure ? ` (${task.failure.replaceAll('_', ' ')})` : '';
+    const { description, icon, label, tone } = TASK_PRESENTATION[task.status];
+    // A takeover's reason is the takeover itself; every other failure names its cause.
+    const reason =
+        task.failure && task.status !== 'human_intervened'
+            ? ` Reason: ${task.failure.replaceAll('_', ' ')}.`
+            : '';
     return {
+        icon,
         label,
-        title: `Commander task ${task.delegationId}: ${label}${reason}`,
+        title: `${description}${reason} Task ${task.delegationId}.`,
         toneClassName: TONE_TEXT_CLASSNAME[tone],
     };
 }

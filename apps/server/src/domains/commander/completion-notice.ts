@@ -25,6 +25,32 @@ export interface CommanderCompletionNoticeEntry {
  */
 export type CommanderCompletionNoticeDeliveryFailure = 'rejected' | 'unconfirmed';
 
+/**
+ * Which delivery gate is holding the pending notices back. Logged once per change for the current batch, so a report
+ * that the Commander "never heard back" names the gate without logging every lifecycle signal.
+ */
+export type CommanderCompletionNoticeDeferral =
+    /**
+     * The Terminal the notice would go to is not the recorded Commander Terminal.
+     */
+    | 'not_commander_terminal'
+    /**
+     * No finished turn is proven idle yet: the Commander is mid-turn, or its last turn was already used by a notice.
+     */
+    | 'commander_busy'
+    /**
+     * The finished turn has no recorded start, or started on another launch.
+     */
+    | 'turn_baseline_missing'
+    /**
+     * Someone typed into the Commander since its turn started; delivering would press Enter on their draft.
+     */
+    | 'draft_input'
+    /**
+     * The Commander is waiting on a permission prompt.
+     */
+    | 'awaiting_permission';
+
 const STATUS_LABEL: Record<CommanderCompletionNoticeStatus, string> = {
     completed: 'completed',
     failed: 'failed',
@@ -142,8 +168,36 @@ export class CommanderCompletionNotifier {
      * the Commander is already idle (no new `turnFinished` signal will fire to trigger that check).
      */
     private lastFinishedTurn: { launchId: string; turnId: string } | undefined;
+    /**
+     * When the oldest pending notice was queued, for the delivered event's wait time.
+     */
+    private oldestPendingAt: number | undefined;
+    /**
+     * The deferral last logged for the current batch, so each gate change is logged once rather than per signal.
+     */
+    private loggedDeferral: CommanderCompletionNoticeDeferral | undefined;
 
     constructor(private readonly options: CommanderCompletionNotifierOptions) {}
+
+    private deferral(terminalId: string): CommanderCompletionNoticeDeferral | undefined {
+        const rows = this.options.database.agentCommanderRows();
+        if (!rows?.terminalId || rows.terminalId !== terminalId) return 'not_commander_terminal';
+        const finished = this.lastFinishedTurn;
+        if (!finished || !this.options.hasIdleProof(terminalId, finished.launchId, finished.turnId))
+            return 'commander_busy';
+        const baseline = this.turnStartBaseline;
+        if (!baseline || baseline.launchId !== finished.launchId) return 'turn_baseline_missing';
+        if (this.options.inputEpoch(terminalId) !== baseline.epoch) return 'draft_input';
+        const session = this.options.database.getSession(rows.sessionId);
+        /**
+         * Only a pending permission/attention prompt blocks delivery. `hasUnread` is deliberately not a gate: every
+         * settled Commander turn raises `completed` attention on its own Session, and nothing marks that Session read
+         * because the Commander window is never a Workbench selection, so it would withhold every notice after the
+         * Commander's first turn.
+         */
+        if (!session || session.lastActivityState === 'waiting') return 'awaiting_permission';
+        return undefined;
+    }
 
     private reportDeliveryFailed(reason: CommanderCompletionNoticeDeliveryFailure): void {
         this.options.logger?.write(
@@ -154,28 +208,25 @@ export class CommanderCompletionNotifier {
     }
 
     /**
-     * Attempts to deliver every currently pending notice as one coalesced line. Returns without effect, and without
-     * logging, whenever a gate simply is not satisfied yet: that is the ordinary, frequent path while the Commander is
-     * mid-turn, and it resolves itself the next time a turn settles or a new notice arrives.
+     * Attempts to deliver every currently pending notice as one coalesced line. Returns without effect whenever a gate
+     * is not satisfied yet: the ordinary path while the Commander is mid-turn, which resolves itself the next time a
+     * turn settles or a new notice arrives. Each change of the holding gate is logged once per batch.
      */
     private tryFlush(terminalId: string): void {
         if (this.pending.size === 0) return;
-        const rows = this.options.database.agentCommanderRows();
-        if (!rows?.terminalId || rows.terminalId !== terminalId) return;
-        const finished = this.lastFinishedTurn;
-        if (!finished || !this.options.hasIdleProof(terminalId, finished.launchId, finished.turnId))
+        const deferral = this.deferral(terminalId);
+        if (deferral) {
+            if (deferral !== this.loggedDeferral) {
+                this.loggedDeferral = deferral;
+                this.options.logger?.write(
+                    'debug',
+                    logEventCatalog.agentCommander.completionNoticeDeferred,
+                    { fields: { reason: deferral, pendingCount: this.pending.size } },
+                );
+            }
             return;
-        const baseline = this.turnStartBaseline;
-        if (!baseline || baseline.launchId !== finished.launchId) return;
-        if (this.options.inputEpoch(terminalId) !== baseline.epoch) return;
-        const session = this.options.database.getSession(rows.sessionId);
-        /**
-         * Only a pending permission/attention prompt blocks delivery. `hasUnread` is deliberately not a gate: every
-         * settled Commander turn raises `completed` attention on its own Session, and nothing marks that Session read
-         * because the Commander window is never a Workbench selection, so it would withhold every notice after the
-         * Commander's first turn.
-         */
-        if (!session || session.lastActivityState === 'waiting') return;
+        }
+        const finished = this.lastFinishedTurn!;
         const entries = this.pending.values().toArray();
         /**
          * Consume before sending: even a write whose outcome is never confirmed must not be retried, so at-most-once
@@ -183,6 +234,9 @@ export class CommanderCompletionNotifier {
          * consume-before-send comment for the identical reason.
          */
         this.pending.clear();
+        const waitMs = Math.round(performance.now() - (this.oldestPendingAt ?? performance.now()));
+        this.oldestPendingAt = undefined;
+        this.loggedDeferral = undefined;
         /**
          * Also consume the finished-turn identity this flush just proved idle against. The write below never bumps
          * `inputEpoch` and does not invalidate `hasIdleProof`, so without this a second delegation reaching this method
@@ -201,7 +255,7 @@ export class CommanderCompletionNotifier {
             this.options.logger?.write(
                 'info',
                 logEventCatalog.agentCommander.completionNoticeDelivered,
-                { fields: { count: entries.length } },
+                { fields: { count: entries.length, waitMs } },
             );
     }
 
@@ -240,10 +294,19 @@ export class CommanderCompletionNotifier {
         const notifiedRevision = this.notifiedRevisions.get(receipt.delegationId) ?? 0;
         if (receipt.revision <= notifiedRevision) return;
         this.notifiedRevisions.set(receipt.delegationId, receipt.revision);
+        this.oldestPendingAt ??= performance.now();
         this.pending.set(receipt.delegationId, {
             delegationId: receipt.delegationId,
             sessionId: receipt.sessionId,
             status,
+        });
+        this.options.logger?.write('debug', logEventCatalog.agentCommander.completionNoticeQueued, {
+            fields: {
+                delegationId: receipt.delegationId,
+                sessionId: receipt.sessionId,
+                status,
+                pendingCount: this.pending.size,
+            },
         });
         this.tryFlush(rows.terminalId);
     }

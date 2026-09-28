@@ -266,3 +266,48 @@ export function resolveDelegationAdmission(options: {
         parentDelegationId: previous?.receipt.parentDelegationId ?? parent?.receipt.delegationId,
     };
 }
+
+/**
+ * The durable record of a newly admitted task, before anything launches. A follow-up or resume continues its parent's
+ * native conversation and transcript position; a new task gets a fresh conversation.
+ */
+export function admittedDelegation(options: {
+    id: string;
+    now: number;
+    authority: DelegationAuthority;
+    input: AgentDelegationCreate;
+    fingerprint: string;
+    admission: ReturnType<typeof resolveDelegationAdmission>;
+    previous: StoredAgentDelegation | undefined;
+}): StoredAgentDelegation {
+    const { id, now, authority, input, admission, previous } = options;
+    const provider = admission.selection.provider;
+    return {
+        receipt: {
+            delegationId: id,
+            projectId: input.projectId,
+            sessionId: input.sessionId,
+            callerTerminalId: authority.callerTerminalId,
+            followUpOf: input.followUpOf,
+            resumeFrom: input.resumeFrom,
+            provider,
+            selection: admission.selection,
+            depth: admission.depth,
+            parentDelegationId: admission.parentDelegationId,
+            status: 'requested',
+            revision: 1,
+            createdAt: now,
+            updatedAt: now,
+        },
+        principal: authority.principal,
+        input,
+        fingerprint: options.fingerprint,
+        frozenLaunch: admission.frozenLaunch,
+        frozenInstructions: admission.frozenInstructions,
+        providerSessionId:
+            previous?.providerSessionId ?? delegationAdapter(provider).createSessionId(),
+        transcriptOffset: previous?.transcriptOffset,
+        rootDelegationId: previous?.rootDelegationId ?? previous?.receipt.delegationId ?? id,
+        promptDigest: '',
+    };
+}

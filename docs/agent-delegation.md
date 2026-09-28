@@ -306,8 +306,15 @@ It can also recover a stopped Terminal. It never resubmits the previous task: th
 new instructions that account for uncertain prior effects. Human takeover or another launch fences
 both continuation operations. Each task retains its own answer and correlation evidence.
 
-After Server restart, selecting a delegated Session restores the outer Shell only. Native Agent
-resume requires the explicit operation above. The authenticated profile owner can recover saved
+After a Caxri restart, selecting a delegated Session restores it the way it was. While one of its
+tasks is still active, only the outer Shell comes back, and that task continues only through the
+explicit `--resume` above. Once every task settled (a restart itself settles an active task as
+`interrupted`/`host_reset`), the Agent resumes its native conversation like any other Agent Terminal,
+with the frozen launch settings of its newest task rather than the user's current defaults
+(`apps/server/src/domains/terminal-restore.ts`). That restored launch is the same conversation with
+nothing new typed into it, so the newest settled task adopts it (`bindEnvironment`): its owner can
+still `--resume` it, which replaces the restored launch. Typing into the Terminal revokes that
+durably, and a fresh restart starts a different conversation, which fences every earlier task. The authenticated profile owner can recover saved
 tasks; managed caller authority remains generation-scoped, so a newly launched caller does not
 inherit the previous caller's delegation ownership.
 

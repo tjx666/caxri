@@ -239,6 +239,19 @@ into one of six groups, in this order: `attention`, `working`, `waiting`, `faile
   started often left no Session activity to group by.
   `Answered` means the Agent gave its final answer, not that the Commander verified it.
 
+The window lists only the Commander's own Sessions by default: the Workbench already shows every
+Session, and the user's hand-run Sessions mixed into this board buried the work the Commander
+dispatched. A `Commander` / `All` toggle above the board, each with its count, switches to every
+Session and back; the choice is remembered in the window's local storage
+(`use-commander-board-scope.ts`). In the `All` scope each Commander row leads its chip with
+`Commander`. The Server's board, and `caxri commander board`, always cover every Session, so the
+Commander itself still sees the whole Workbench.
+
+Each Commander task shows as one bordered chip with a status icon and label. A takeover reads
+`Taken over by you` with a hand icon and a warning tint, because it means the Commander has let the
+Session go: the user typed into it, and the Commander no longer drives it or sends it follow-ups.
+The chip's tooltip explains the status, names the failure reason, and ends with the delegation ID.
+
 The board never waits on GitHub. The window refetches the board, debounced, on every `state.changed`,
 and polls it every 10 seconds while visible so cached pull request and CI state keeps moving even
 when an event is missed. A `sessionPullRequests.changed` event does not refetch the board: the
@@ -293,6 +306,28 @@ before its epoch bump is observed). Pending notices live only in Server Core mem
 one does not survive a Codex relaunch or a Server restart, and `commander board` plus the delegation
 CLI reads are the compensation for that loss.
 
+## Observability
+
+Every step of a Commander workflow leaves a content-free log line in Server Core's
+`<userData>/logs/server-core.jsonl`, readable with `caxri logs query` (see [CLI](cli.md)). Together
+they reconstruct a bug report without Terminal output or transcripts:
+
+| Event                                          | Meaning                                                                                                                           |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `ipc.request`                                  | Every CLI call the Commander makes (`commander.board`, `agent.delegation.*`), with its duration and correlation ID (debug level). |
+| `agent_commander.ensured`                      | `commander.ensure` finished: `outcome` `created`, `restored`, or `running`, the prior Terminal state, and the duration.           |
+| `agent_commander.stopped`                      | `commander.stop` parked the Commander (`stopped`) or found nothing running (`not_running`).                                       |
+| `agent_commander.session_created`/`_discarded` | A Commander Session was created, or removed because its delegation was refused before launch.                                     |
+| `agent_delegation.requested`                   | A task was admitted: `mode` (`new`, `follow_up`, `resume`), whether the Commander sent it, its Session, and its parent task.      |
+| `agent_delegation.transitioned`                | Every receipt `status`/`failure` change, with the previous status, the task's age, and whether it came from restart recovery.     |
+| `agent_delegation.admission_rejected`          | Why a follow-up or resume was refused, as a closed reason.                                                                        |
+| `agent_commander.completion_notice_queued`     | A settled task was queued for the Commander Terminal, with the batch size (debug).                                                |
+| `agent_commander.completion_notice_deferred`   | Which gate holds the batch back (`commander_busy`, `draft_input`, `awaiting_permission`, ...), once per change (debug).           |
+| `agent_commander.completion_notice_delivered`  | The coalesced line was written, with its task count and how long the oldest entry waited.                                         |
+
+The delegation ID links them: the Commander's `agent delegate create` returns it, and every
+transition and notice names it.
+
 ## How the Commander works
 
 The generated `AGENTS.md` (`COMMANDER_INSTRUCTIONS` in
@@ -307,6 +342,10 @@ delegation.
 - **Dispatch.** Each task gets its own Commander Session and task file. The task tells the Agent to
   follow the target repository's own `AGENTS.md` and delivery flow, work on its own branch, deliver a
   pull request with green checks, and not merge, release, or deploy unless the user asked.
+- **Continuing after a restart.** A follow-up reaches only a running Agent. When one fails with
+  `target_changed` or `target_not_ready` because the Agent exited or Caxri restarted, the Commander
+  sends the same prompt with `--resume`, which relaunches the Agent on the same conversation. A task
+  the user typed into is theirs and is not continued.
 - **Bug reports.** A bug task must reproduce first and finish with the reproduction, the root cause
   with file references, the fix, evidence (a test, measurements, or screenshots), and the blast
   radius. When a report lacks reproduction or evidence, the Commander sends a follow-up before it
@@ -361,9 +400,20 @@ Session from a shell.
 
 ```bash
 caxri commander board --json
+caxri agent delegate create --project <project-id> --new-session --prompt-file task.md --provider codex --json
+caxri agent delegate create --project <project-id> --session <session-id> --prompt-file task.md --resume <delegation-id> --json
 caxri commander session create --project <project-id> --json
-caxri agent delegate create --project <project-id> --session <session-id> --prompt-file task.md --provider codex --json
 ```
+
+`--new-session` is the Commander's normal way to dispatch. It creates the Commander Session inside
+the same request that launches its Agent (`AgentDelegationService.create`), so the Workbench first
+sees the Session with its Agent Terminal already in it. Before it, the Commander ran
+`commander session create` and then `agent delegate create --session` as two tool calls, and the
+Session sat empty for as long as the Commander took to write the second one. Only the recorded
+Commander caller may pass it. A retry of the same request reuses the Session its first attempt
+created, and a request refused before any task was recorded removes that empty Session again
+(metadata only). `commander session create` still exists for a Session the Commander wants to prepare
+without a task.
 
 Inside the Commander Terminal, the Commander calls the version-matched CLI through
 `node "$CAXRI_CLI_PATH"` using its Endpoint credentials. A human owner is asked to confirm
@@ -384,8 +434,8 @@ Inside the Commander Terminal, the Commander calls the version-matched CLI throu
 - The Commander runs with the user's own Codex configuration, including its sandbox mode. Endpoint
   capabilities are product authorization, not a filesystem sandbox for processes of the same OS
   user.
-- The Commander delegates only into empty Sessions it created. It cannot yet queue work into an
-  existing Session, and it does not own a persistent to-do queue.
+- The Commander delegates only into Sessions it created, normally with `--new-session`. It cannot
+  yet queue work into a user's Session, and it does not own a persistent to-do queue.
 - A completion notice's pending queue is in-memory only (see "Completion notices" below), so an
   undelivered notice does not survive a Codex relaunch or a Server restart. `commander board` and
   `agent delegate status`/`agent delegate wait` remain the recovery path for that gap, the same way

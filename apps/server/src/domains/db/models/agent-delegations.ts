@@ -68,17 +68,6 @@ export class AgentDelegationsModel {
         return row ? storedDelegationSchema.parse(JSON.parse(row.recordJson)) : undefined;
     }
 
-    hasTerminal(terminalId: string): boolean {
-        return (
-            this.database
-                .select({ id: agentDelegations.id })
-                .from(agentDelegations)
-                .where(eq(agentDelegations.terminalId, terminalId))
-                .limit(1)
-                .get() !== undefined
-        );
-    }
-
     /**
      * Child task IDs name files inside their root task, never independently owned top-level directories.
      */
