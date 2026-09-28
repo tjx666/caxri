@@ -64,6 +64,21 @@ test('Terminal links delay contextual hover hints and reserve the pointer cursor
         const wrappedLastBounds = await terminalTextBounds(running.page, wrappedLastFragment);
         if (!wrappedLastBounds) throw new Error('Wrapped Terminal file-link row was not found');
         expect(wrappedLastBounds.y).toBeGreaterThan(wrappedFirstBounds.y);
+        /**
+         * `wrappedFileLink` itself spans the same soft wrap `wrappedFirstFragment`/`wrappedLastFragment` sit on either
+         * side of. Searching for the whole, unsplit string exercises `terminalTextBounds` joining consecutive rows into
+         * one logical line instead of only ever matching a fragment confined to a single row — the gap that let a real,
+         * longer wrapped path (an absolute temp-directory file link, for example) go unfound in CI while the same case
+         * always passed locally against a narrower path that happened to fit on one row
+         * (github.com/tjx666/caxri/issues/1418).
+         */
+        const wrappedFullBounds = await terminalTextBounds(running.page, wrappedFileLink);
+        if (!wrappedFullBounds)
+            throw new Error(
+                'Terminal text bounds must locate a link that spans a soft wrap, not just a one-row fragment of it',
+            );
+        expect(wrappedFullBounds.y).toBeGreaterThanOrEqual(wrappedFirstBounds.y);
+        expect(wrappedFullBounds.y).toBeLessThanOrEqual(wrappedLastBounds.y);
         await running.page.mouse.move(
             wrappedLastBounds.x + wrappedLastBounds.width / 2,
             wrappedLastBounds.y + wrappedLastBounds.height / 2,
