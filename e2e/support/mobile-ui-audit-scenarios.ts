@@ -203,6 +203,7 @@ async function projectIcons(
 export async function swipeRowBoundsLeft(
     serial: string,
     bounds: { bottom: number; left: number; right: number; top: number },
+    durationMs = 300,
 ): Promise<void> {
     const y = Math.floor((bounds.top + bounds.bottom) / 2);
     const width = bounds.right - bounds.left;
@@ -213,7 +214,7 @@ export async function swipeRowBoundsLeft(
         String(y),
         String(Math.floor(bounds.left + width * 0.3)),
         String(y),
-        '300',
+        String(durationMs),
     ]);
 }
 
