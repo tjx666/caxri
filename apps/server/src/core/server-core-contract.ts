@@ -19,6 +19,12 @@ export interface ServerCoreOptions {
     executable?: string;
     extensionHostPath?: string;
     extensionRoots?: string[];
+    /**
+     * Test seam for the idle-exit sweep interval (see `docs/adr/0010-server-core-idle-exit.md`); production always uses
+     * `DEFAULT_IDLE_EXIT_MS`. `apps/server/src/core/process.ts` also reads the internal `CAXRI_SERVER_IDLE_EXIT_MS`
+     * environment override into this field — never a user-facing setting.
+     */
+    idleExitThresholdMs?: number;
     includeTestExtensions?: boolean;
     launchDesktop?: () => Promise<void>;
     logger?: StructuredLogger;

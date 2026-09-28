@@ -35,18 +35,13 @@ import {
     isCaxriMethod,
     isConcurrentRead,
     isDesktopServerOperation,
-    SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY,
 } from '@caxri/protocol';
 import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
-import {
-    computeBuildFingerprint,
-    e2eAgentPolicyEnvironment,
-    EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY,
-    logEventCatalog,
-} from '@caxri/system';
+import { computeBuildFingerprint, logEventCatalog } from '@caxri/system';
 import type { PowerMonitor } from 'electron';
 
 import { activeDesktopCommand, runDesktopCommand } from './desktop-command-scope';
+import { buildServerLaunchEnvironment } from './server-launch-environment';
 import type { ServerBuildIdentity } from './server-staleness';
 import { isServerBuildStale } from './server-staleness';
 
@@ -183,53 +178,12 @@ export class DesktopServerConnection extends EventTarget {
     private serverLaunchOptions(): ServerLaunchOptions {
         return {
             artifactRoot: this.options.serverArtifactRoot,
-            environment: {
-                [SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY]: JSON.stringify(this.options.desktopLaunch),
-                ...e2eAgentPolicyEnvironment(this.options.e2eAgentPolicy),
-                ...(process.env.CAXRI_E2E_WINDOW_MODE && {
-                    CAXRI_E2E_WINDOW_MODE: process.env.CAXRI_E2E_WINDOW_MODE,
-                }),
-                ...(process.env.CAXRI_E2E_WORKER_NAMESPACE && {
-                    CAXRI_E2E_WORKER_NAMESPACE: process.env.CAXRI_E2E_WORKER_NAMESPACE,
-                }),
-                ...(process.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS && {
-                    CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS:
-                        process.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS,
-                }),
-                ...(process.env.CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS && {
-                    CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS:
-                        process.env.CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS,
-                }),
-                ...(process.env.CAXRI_E2E === '1' && {
-                    CAXRI_E2E_MOBILE_PAIRING_RESULT_DELAY:
-                        process.env.CAXRI_E2E_MOBILE_PAIRING_RESULT_DELAY,
-                    CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE:
-                        process.env.CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE,
-                }),
-                ...(process.env.CAXRI_E2E === '1' &&
-                    process.env.CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME && {
-                        CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME:
-                            process.env.CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME,
-                    }),
-                ...(process.env[EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY] && {
-                    [EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY]:
-                        process.env[EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY],
-                }),
-                // Lets an unpackaged Desktop serve a locally built Android update (docs/mobile/update.md).
-                ...(process.env.CAXRI_MOBILE_UPDATE_DIRECTORY && {
-                    CAXRI_MOBILE_UPDATE_DIRECTORY: process.env.CAXRI_MOBILE_UPDATE_DIRECTORY,
-                }),
-                ...(process.env.CAXRI_TEST_ROOT_PATH && {
-                    CAXRI_TEST_ROOT_PATH: process.env.CAXRI_TEST_ROOT_PATH,
-                }),
-                ...(process.env.CAXRI_TEST_ROOT_PATHS && {
-                    CAXRI_TEST_ROOT_PATHS: process.env.CAXRI_TEST_ROOT_PATHS,
-                }),
-                ...(this.options.agentHooksPath && {
-                    CAXRI_AGENT_HOOKS_PATH: this.options.agentHooksPath,
-                }),
-                CAXRI_CLI_PATH: this.options.cliPath,
-            },
+            environment: buildServerLaunchEnvironment({
+                agentHooksPath: this.options.agentHooksPath,
+                cliPath: this.options.cliPath,
+                desktopLaunch: this.options.desktopLaunch,
+                e2eAgentPolicy: this.options.e2eAgentPolicy,
+            }),
         };
     }
 

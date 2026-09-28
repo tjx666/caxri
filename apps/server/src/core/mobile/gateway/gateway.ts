@@ -4,11 +4,7 @@ import type { IncomingMessage, Server } from 'node:http';
 import { createServer } from 'node:http';
 import type { Socket } from 'node:net';
 
-import type {
-    HandshakeTranscript,
-    MobileClientHello,
-    MobileSubscriptionResource,
-} from '@caxri/mobile-transport';
+import type { HandshakeTranscript, MobileClientHello } from '@caxri/mobile-transport';
 import {
     decodeHex,
     deriveMobileSessionKeys,
@@ -32,23 +28,16 @@ import {
 } from '@caxri/mobile-transport';
 import type {
     CommandDispatcher,
-    CommandDispatcherOptions,
     CommandExecutionContext,
     MobileAccessStatus,
     Principal,
     ServerEvent,
 } from '@caxri/protocol';
 import { CaxriError, createCommandDispatcher } from '@caxri/protocol';
-import type { StructuredLogger } from '@caxri/system';
 import type WebSocket from 'ws';
 import { WebSocketServer } from 'ws';
 
-import type { TerminalExecutionPort } from '../../../domains/terminal';
-import type {
-    MobileDeviceRecord,
-    MobileDeviceRegistry,
-    MobileDeviceSummary,
-} from '../device-registry';
+import type { MobileDeviceRecord, MobileDeviceSummary } from '../device-registry';
 import type { MobileUpdateSource } from '../update-bundle';
 import { selectMobileGatewayAddresses } from './address-selection';
 import {
@@ -63,7 +52,7 @@ import { authenticateConnection } from './authenticate-connection';
 import { bindMobileGatewayServer } from './bind';
 import type { MobileGatewayFailureReason } from './diagnostics';
 import { MobileGatewayDiagnostics } from './diagnostics';
-import type { MobileAppOptions } from './frame-router';
+import type { MobileGatewayOptions } from './gateway-options';
 import type { GatewaySession } from './gateway-session';
 import { dummyCandidate } from './handshake-candidate';
 import { MobilePairingLedger } from './pairing-ledger';
@@ -85,45 +74,6 @@ const HANDSHAKE_TIMEOUT_MS = 10_000;
  * Marker for `MobileReplayGuard`'s counter-sequence rejection so it logs as `replayRejected`, not `invalidFrame`.
  */
 class MobileFrameReplayRejected extends Error {}
-
-export interface MobileGatewayOptions {
-    logger?: Pick<StructuredLogger, 'write'>;
-    adapters: CommandDispatcherOptions;
-    authorizePairedDeviceMethod: (principal: Principal, method: string) => void;
-    authorizeSubscription: (
-        principal: Principal,
-        resource: MobileSubscriptionResource,
-    ) => Promise<void>;
-    beginConversationSubscription?: MobileAppOptions['beginConversationSubscription'];
-    bootId: string;
-    now?: () => number;
-    protocolIdentity: { serverId: string; stateEpoch: string };
-    random?: (bytes: number) => Uint8Array;
-    registry: MobileDeviceRegistry;
-    matchesSubscriptionEvent: (
-        principal: Principal,
-        resource: MobileSubscriptionResource,
-        event: ServerEvent,
-    ) => Promise<boolean>;
-    terminalExecution?: TerminalExecutionPort;
-    /**
-     * Peer address override for loopback tests.
-     */
-    sourceAddress?: (socket: Socket) => string | undefined;
-    /**
-     * Test seam; production always selects one private IPv4 interface.
-     */
-    selectAddress?: () => string;
-    /**
-     * Test seam for driving a real handshake timeout without a 10-second wait; production always uses the default.
-     */
-    handshakeTimeoutMs?: number;
-    /**
-     * The Android bundle shipped with this Desktop, read directly by update recovery so that path never enters the
-     * command dispatcher. Absent means recovery answers "no bundle".
-     */
-    updateSource?: () => Promise<MobileUpdateSource | undefined>;
-}
 
 /**
  * Default-off LAN transport for one Server profile. The loopback control transport is never reused.
@@ -214,6 +164,20 @@ export class MobileGateway {
                 .length,
             pendingPairingCount: this.#pairings.size,
         };
+    }
+
+    /**
+     * Total authenticated ("ready") Mobile connections across every paired device. Handshakes still in progress do not
+     * count — matching `onConnectionCountChanged`, which only fires once a session actually reaches this set.
+     */
+    connectionCount(): number {
+        let total = 0;
+        for (const sockets of this.#activeByDevice.values()) total += sockets.size;
+        return total;
+    }
+
+    #notifyConnectionCount(): void {
+        this.#options.onConnectionCountChanged?.(this.connectionCount());
     }
 
     hasAttentionRecipient(projectId: string): boolean {
@@ -380,6 +344,7 @@ export class MobileGateway {
             );
         this.#activeByDevice.delete(deviceId);
         this.#updateDownloads.revokeDevice(deviceId);
+        this.#notifyConnectionCount();
         return revoked;
     }
 
@@ -395,6 +360,7 @@ export class MobileGateway {
         this.#sockets.clear();
         this.#tcpSockets.clear();
         this.#activeByDevice.clear();
+        this.#notifyConnectionCount();
         const server = this.#server;
         this.#server = undefined;
         this.#addresses = undefined;
@@ -445,8 +411,9 @@ export class MobileGateway {
             if (session.readyAt !== undefined)
                 this.#diagnostics.connectionEnded(session.deviceId, this.#now() - session.readyAt);
             const active = this.#activeByDevice.get(session.deviceId);
-            active?.delete(socket);
+            const removed = active?.delete(socket) ?? false;
             if (active?.size === 0) this.#activeByDevice.delete(session.deviceId);
+            if (removed) this.#notifyConnectionCount();
         };
         socket.on('close', remove);
         socket.on('error', () => terminate('transportError'));
@@ -537,6 +504,7 @@ export class MobileGateway {
                         new Map<WebSocket, GatewaySession>();
                     active.set(socket, session);
                     this.#activeByDevice.set(session.deviceId, active);
+                    this.#notifyConnectionCount();
                     return;
                 }
                 this.#handleSealed(session, raw);
