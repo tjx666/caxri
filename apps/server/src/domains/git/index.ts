@@ -459,10 +459,10 @@ export class GitService {
 
     /**
      * Count/branch projection sharing the exact snapshot generation of `git.summary` without the `files[]` payload; it
-     * joins the same producer instead of running a second `git status`.
+     * joins the same producer instead of running a second `git status`; `isForced` first bumps the generation.
      */
-    async overview(sessionId: string): Promise<GitOverview> {
-        const summary = await this.summary(sessionId, 0, 'overview');
+    async overview(sessionId: string, isForced = false): Promise<GitOverview> {
+        const summary = await this.repositoryService.summary(sessionId, 0, 'overview', isForced);
         return {
             isRepository: summary.isRepository,
             ...(summary.error !== undefined && { error: summary.error }),

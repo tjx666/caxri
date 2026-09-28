@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../lib/caxri', () => ({ caxri: mocks }));
 
+import { sessionChangesQueryParameters } from '../features/primary-sidebar/session-changes';
 import { projectSearchQueryKey } from '../features/project-search/project-search-query';
 import type { ExtensionTreeScope } from '../features/view-containers/extension-tree-client';
 import { cacheTreeChildren } from '../features/view-containers/extension-tree-client';
@@ -126,6 +127,28 @@ describe('invalidation predicates match factory-built query keys', () => {
         } as ServerEvent);
 
         expect(isInvalidated(queryClient, key)).toBe(true);
+    });
+
+    it('leaves the Session card’s refreshing Git overview to its stale time instead of looping on its own git.changed', () => {
+        const queryClient = new QueryClient();
+        const watched = caxriQueryKey(
+            'git.overview',
+            sessionChangesQueryParameters(SESSION_ID, 'watched'),
+        );
+        const refreshing = caxriQueryKey(
+            'git.overview',
+            sessionChangesQueryParameters(SESSION_ID, 'unwatched'),
+        );
+        queryClient.setQueryData(watched, { isRepository: true, repositories: [] });
+        queryClient.setQueryData(refreshing, { isRepository: true, repositories: [] });
+
+        emit(queryClient, {
+            event: 'git.changed',
+            payload: { sessionIds: [SESSION_ID] },
+        } as ServerEvent);
+
+        expect(isInvalidated(queryClient, watched)).toBe(true);
+        expect(isInvalidated(queryClient, refreshing)).toBe(false);
     });
 
     it('invalidates the Project Status summary and overview reads its own change event names', () => {

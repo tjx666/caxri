@@ -231,6 +231,10 @@ function invalidateFileDependentQueries(
  * {@link invalidateFileDependentQueries}, this runs unconditionally on every `git.changed` push — the Server already
  * coalesces bursts of repository activity into one event before emitting it, so no additional client-side debounce is
  * needed here.
+ *
+ * A refreshing `git.overview` read (`refresh: true`) is skipped. Every one of its fetches forces a new generation, and
+ * a forced production announces itself with `git.changed` (#1321); invalidating the reader on its own announcement
+ * would refetch, force, and announce again for as long as it stays mounted. Its freshness is its `staleTime` instead.
  */
 function invalidateGitChangedQueries(
     queryClient: QueryClient,
@@ -242,12 +246,13 @@ function invalidateGitChangedQueries(
         predicate: (query) => {
             const [, parameters] = query.queryKey as [
                 CaxriMethod,
-                { sessionId?: string } | undefined,
+                { refresh?: unknown; sessionId?: string } | undefined,
             ];
             return (
                 isQueryMethod(query.queryKey, ...SESSION_SCOPED_GIT_METHODS) &&
                 parameters?.sessionId !== undefined &&
-                sessionIds.includes(parameters.sessionId)
+                sessionIds.includes(parameters.sessionId) &&
+                !(isQueryMethod(query.queryKey, 'git.overview') && parameters.refresh === true)
             );
         },
     });
