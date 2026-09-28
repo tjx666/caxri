@@ -212,6 +212,47 @@ collection, a rejected follow-up) change no Session or Terminal record. Saves th
 bookkeeping stay silent, as does Server restart recovery: Desktop windows reload their state on
 reconnect, and a later `status` or `wait` reads the recovered receipt directly.
 
+### Completion notices
+
+`CommanderCompletionNotifier` (`apps/server/src/domains/commander/completion-notice.ts`) pushes a
+delegation's completion, failure, or need for input straight into the Commander Terminal, so the
+Commander no longer has to poll `agent delegate wait` in a loop to learn that a task it dispatched
+is done. This is a Server Core-owned exception to the peer-message rule described in
+[Agent messaging](../.agents/skills/project-architecture/references/agent-messaging.md): the text
+is Server-generated only (a delegation ID, a Session ID, and a closed status word), never a
+transcript or Agent-authored text, and it can never grant a permission, change a setting, or invoke
+a slash command.
+
+A transition only reaches the Terminal once every one of these holds, reusing exactly the fence
+`AgentDelegationService` already applies before resuming a follow-up (`service.ts` ~260-300, 764):
+
+- the finished turn's idle proof (`AgentCoordinator.hasIdleProof`) matches the exact launch and turn
+  that just settled, proving Codex actually finished a real turn rather than a permission dialog or
+  an unfinished native operation;
+- the Terminal's input epoch (`TerminalManager.inputEpoch`) is unchanged since that turn **started**,
+  so a draft typed mid-turn, or typed into the Commander after it went idle, defers delivery instead
+  of risking an unwanted Enter. The injected write itself never bumps this epoch;
+- the Commander's own Session carries no unread or pending permission/attention state.
+
+A transition that arrives while any of these fails stays queued and is retried the next time the
+Commander reaches a clean idle point; several transitions queued at once coalesce into one line. A
+successful delivery also consumes the settled-turn identity it just proved idle against, so at most
+one line is ever injected per proven-idle turn: the injected write never bumps the input epoch and
+does not invalidate the idle proof, so without consuming that identity a second, closely timed
+transition could otherwise reuse it and write a second time before Codex has actually started a fresh
+turn to read the first line. `hasUnread` can also clear through `session.markRead`, a plain IPC
+mutation with no lifecycle signal of its own; `CommanderCompletionNotifier.retryPending()` is called
+from that handler so a notice withheld only by a since-cleared unread flag is not left pending
+forever.
+
+Delivery is deduplicated by delegation ID and the receipt revision that produced it, and is fenced to
+the Commander Terminal's current launch, so a Codex relaunch mid-flight cannot double-send: at most
+one notice per settled transition, never two. The residual risk is the same in-flight-keystroke race
+every exact-launch write already accepts (a keystroke sent in the same event-loop turn as the write,
+before its epoch bump is observed). Pending notices live only in Server Core memory: an undelivered
+one does not survive a Codex relaunch or a Server restart, and `commander board` plus the delegation
+CLI reads are the compensation for that loss.
+
 ## How the Commander works
 
 The generated `AGENTS.md` (`COMMANDER_INSTRUCTIONS` in
@@ -306,6 +347,7 @@ Inside the Commander Terminal, the Commander calls the version-matched CLI throu
   user.
 - The Commander delegates only into empty Sessions it created. It cannot yet queue work into an
   existing Session, and it does not own a persistent to-do queue.
-- Completion is not pushed to the Commander. It learns about finished tasks by waiting on all of
-  its open tasks at once (`agent delegate wait <id> <id>...`) or by reading the board at the start
-  of each turn.
+- A completion notice's pending queue is in-memory only (see "Completion notices" below), so an
+  undelivered notice does not survive a Codex relaunch or a Server restart. `commander board` and
+  `agent delegate status`/`agent delegate wait` remain the recovery path for that gap, the same way
+  they were the Commander's only path before this feature.
