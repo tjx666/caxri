@@ -282,9 +282,18 @@ describe('AgentHookManager', () => {
         try {
             await manager.initialize(settings);
             /**
-             * Allow the native watcher to deliver any event queued by the initial atomic install.
+             * The native watcher can still deliver the initial atomic install's event after `initialize` resolves, and
+             * its latency is not bounded under a loaded host; a fixed 250ms grace let that one event land inside the
+             * measured window. Wait until reconciles go quiet instead, then measure.
              */
-            await new Promise((resolve) => setTimeout(resolve, 250));
+            await vi.waitUntil(
+                async () => {
+                    const calls = inspect.mock.calls.length;
+                    await new Promise((resolve) => setTimeout(resolve, 600));
+                    return inspect.mock.calls.length === calls;
+                },
+                { timeout: 5_000 },
+            );
             const callsAfterInitialize = inspect.mock.calls.length;
 
             await new Promise((resolve) => setTimeout(resolve, 1_100));

@@ -1,4 +1,14 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, unlink, writeFile } from 'node:fs/promises';
+import {
+    chmod,
+    mkdir,
+    mkdtemp,
+    readFile,
+    rename,
+    rm,
+    unlink,
+    utimes,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -16,6 +26,13 @@ test('a missing file save shows a safe reason and retries after the file is rest
     const path = join(root, 'note.txt');
     await mkdir(root);
     await writeFile(path, 'original\n');
+    /**
+     * Rewriting a restored file gives it a new mtime, which Caxri treats as an external change that replaces even a
+     * dirty buffer; whether that reload beat the Retry click used to decide this test. A whole-second mtime can be
+     * restored exactly, so the restored file is the same disk state the buffer was read from.
+     */
+    const mtimeSeconds = 1_700_000_000;
+    await utimes(path, mtimeSeconds, mtimeSeconds);
     const running = await launchCaxri({
         userDataDir: join(testDirectory, 'profile'),
         testRootPath: root,
@@ -40,7 +57,10 @@ test('a missing file save shows a safe reason and retries after the file is rest
         await expect(retry).toBeVisible();
         await failure.screenshot({ path: test.info().outputPath('save-enoent-toast.png') });
 
-        await writeFile(path, 'original\n');
+        const restored = join(testDirectory, 'note-restored.txt');
+        await writeFile(restored, 'original\n');
+        await utimes(restored, mtimeSeconds, mtimeSeconds);
+        await rename(restored, path);
         await retry.click();
         await expect.poll(() => readFile(path, 'utf8')).toContain('updated');
     } finally {
