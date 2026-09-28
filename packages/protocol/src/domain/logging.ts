@@ -382,6 +382,17 @@ export const logEventCatalog = {
         domainsReady: 'server_core.domains_ready',
         eventRejected: 'server_core.event_rejected',
         eventRecovery: 'server_core.event_recovery',
+        /**
+         * One record per idle-exit recheck that found live work and postponed shutdown; see
+         * `ServerIdleExitDeferralReason` for the closed cause and `docs/adr/0010-server-core-idle-exit.md` for the
+         * policy this defers.
+         */
+        idleExitDeferred: 'server_core.idle_exit_deferred',
+        /**
+         * The one record per idle-exit transition that actually stops the process; carries the closed
+         * `ServerIdleExitReason`, the idle duration, and how many prior checks deferred during this idle window.
+         */
+        idleExitTriggered: 'server_core.idle_exit_triggered',
         ready: 'server_core.ready',
         recoveryReady: 'server_core.recovery_ready',
         socketTerminated: 'server_core.socket_terminated',
@@ -503,3 +514,18 @@ export type PathBrowserSearchFailureReason = 'disconnected' | 'io' | 'other' | '
  * after the fact.
  */
 export type MobilePairingOutcomeReason = 'expired' | 'not-found' | 'started' | 'succeeded';
+
+/**
+ * Closed reason set for `server_core.idle_exit_triggered`. A single member today, kept as a named union (rather than a
+ * literal `'idle-timeout'` inlined at the one call site) so a later idle-exit trigger — e.g. an explicit operator
+ * request — extends this type instead of widening an untyped string.
+ */
+export type ServerIdleExitReason = 'idle-timeout';
+
+/**
+ * Closed reason set for `server_core.idle_exit_deferred`. `'active-pty'` covers both a busy Agent and an ordinary live
+ * shell: Terminal Host does not distinguish the two at this layer, and an idle-exit sweep has nobody to ask for
+ * confirmation the way the interactive `host.stop` command does when it hits the same `activePtyCount > 0` signal (see
+ * `apps/server/src/core/server-core.ts`), so it must always be conservative and defer.
+ */
+export type ServerIdleExitDeferralReason = 'active-pty';

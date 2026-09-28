@@ -74,6 +74,7 @@ rewritten, only superseded.
 | [0007](adr/0007-remote-access-and-project-authorization.md)   | Remote access and Project authorization               |
 | [0008](adr/0008-agent-native-observability.md)                | Agent-native observability and diagnostics            |
 | [0009](adr/0009-session-activity-recency.md)                  | Session Activity owns Primary Sidebar recency         |
+| [0010](adr/0010-server-core-idle-exit.md)                     | Server Core idle-exit policy                          |
 
 ## Historical
 

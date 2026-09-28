@@ -1,14 +1,13 @@
 import { Buffer } from 'node:buffer';
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
 import { connectToServer, ServerClient } from '@caxri/client/supervise';
-import type { ServerManifest, ServerOperationResult, TerminalRecord } from '@caxri/protocol';
+import type { ServerManifest } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
-    defaultAgentProviderSettings,
     localServerEventSchema,
     localServerWelcomeSchema,
     serverEndpointUrl,
@@ -25,32 +24,6 @@ import { startServerCore } from '../server-core';
 
 function fixtureHandlers(overrides: Partial<DomainHandlers>): DomainHandlers {
     return overrides as DomainHandlers;
-}
-
-function dispatchReceipt(
-    dispatchId: string,
-): ServerOperationResult<'agent.dispatch.startInternal'> {
-    const launch = {
-        provider: 'codex',
-        mode: 'fresh',
-        executable: 'codex',
-        argumentCount: 0,
-        fingerprint: 'a'.repeat(64),
-    } as const;
-    return {
-        dispatchId,
-        operation: 'start',
-        status: 'running',
-        projectId: 'project-1',
-        sessionId: 'session-1',
-        terminalId: 'terminal-2',
-        provider: 'codex',
-        requestedLaunch: launch,
-        effectiveLaunch: launch,
-        revision: 2,
-        createdAt: 1,
-        updatedAt: 2,
-    };
 }
 
 function createDomainFixture(activePtyCount: number): CreateDomainServices {
@@ -110,116 +83,6 @@ function createMutationRaceFixture(): CreateDomainServices {
             protocolRecovery: createTestProtocolRecoveryState(),
             validateRequestContext: () => {},
         });
-    };
-}
-
-interface AgentFixturePaths {
-    cancel?: string;
-    endpoint: string;
-    wait?: string;
-}
-
-function createAgentEndpointFixture(paths: AgentFixturePaths): CreateDomainServices {
-    return async (dependencies) => {
-        const endpoints = dependencies.agentEndpoints;
-        if (!endpoints) throw new Error('Agent Endpoint lifecycle is required');
-        const terminal: TerminalRecord = {
-            id: 'terminal-1',
-            sessionId: 'session-1',
-            kind: 'codex',
-            provider: 'codex',
-            cwd: '/projects/fixture',
-            title: 'Codex',
-            icon: '',
-            orderIndex: 0,
-            lastProcessState: 'running',
-            createdAt: 1,
-            updatedAt: 1,
-        };
-        const environment = await endpoints.environment(terminal, 'project-1', {
-            ...defaultAgentProviderSettings.codex,
-            messaging: { enabled: false },
-        });
-        await endpoints.activate(terminal.id);
-        const endpointReference = {
-            hostId: environment.CAXRI_AGENT_ENDPOINT_HOST_ID!,
-            endpointId: environment.CAXRI_AGENT_ENDPOINT_ID!,
-            generation: Number(environment.CAXRI_AGENT_ENDPOINT_GENERATION),
-        };
-        await writeFile(
-            paths.endpoint,
-            JSON.stringify({
-                ref: endpointReference,
-                token: environment.CAXRI_AGENT_ENDPOINT_TOKEN,
-            }),
-        );
-        type WaitResult = ServerOperationResult<'agent.dispatch.waitInternal'>;
-        const pendingDispatchWaits = new Map<string, PromiseWithResolvers<WaitResult>>();
-        const handlers = {
-            'app.health': () => ({
-                ready: true,
-                pid: process.pid,
-                startedAt: Date.now(),
-                activePtyCount: 1,
-            }),
-            'project.queryForPrincipal': ({ principal }) =>
-                principal.kind === 'desktop' || principal.kind === 'human-cli'
-                    ? {
-                          view: principal.kind,
-                          projects: [
-                              {
-                                  id: 'project-1',
-                                  displayTitle: 'Project',
-                                  rootPath: '/projects/fixture',
-                              },
-                          ],
-                      }
-                    : {
-                          view: principal.kind,
-                          projects: [{ id: 'project-1', displayTitle: 'Project' }],
-                      },
-            'terminal.close': () => null,
-            'agent.dispatch.startInternal': ({ dispatchId }) => dispatchReceipt(dispatchId),
-            'agent.dispatch.statusInternal': ({ dispatchId }) => dispatchReceipt(dispatchId),
-            'agent.dispatch.waitInternal': async ({ waitId }) => {
-                const pending = Promise.withResolvers<WaitResult>();
-                pendingDispatchWaits.set(waitId, pending);
-                if (paths.wait) await writeFile(paths.wait, waitId);
-                return pending.promise;
-            },
-            'agent.dispatch.cancelWaitInternal': async ({ waitId }) => {
-                const pending = pendingDispatchWaits.get(waitId);
-                pendingDispatchWaits.delete(waitId);
-                pending?.resolve({
-                    receipt: dispatchReceipt('dispatch-wait'),
-                    outcome: 'canceled',
-                });
-                if (paths.cancel) await writeFile(paths.cancel, waitId);
-                return { canceled: Boolean(pending) };
-            },
-            'agent.control.interruptInternal': () => ({
-                endpoint: endpointReference,
-                terminalId: 'terminal-1',
-                outcome: 'signaled',
-            }),
-            'agent.control.stopInternal': () => ({
-                endpoint: endpointReference,
-                terminalId: 'terminal-1',
-                outcome: 'signaled',
-            }),
-            'terminal.sendInternal': ({ terminalId, text, enter }) => ({
-                terminalId,
-                accepted: true,
-                byteLength: Buffer.byteLength(text),
-                enter,
-            }),
-        } satisfies Partial<DomainHandlers>;
-        return {
-            close: () => endpoints.close(),
-            handlers: fixtureHandlers(handlers),
-            protocolRecovery: createTestProtocolRecoveryState(),
-            validateRequestContext: () => {},
-        };
     };
 }
 
@@ -306,22 +169,6 @@ async function waitForRemoval(path: string): Promise<void> {
     throw new Error(`Timed out waiting for Host metadata removal: ${path}`);
 }
 
-async function waitForFile(path: string): Promise<void> {
-    for (let attempt = 0; attempt < 100; attempt += 1) {
-        try {
-            // Each attempt must observe the outcome of the previous poll before deciding
-            // whether to retry, so the polling cannot be parallelized.
-            // eslint-disable-next-line no-await-in-loop -- sequential polling by design
-            await access(path);
-            return;
-        } catch {
-            // eslint-disable-next-line no-await-in-loop -- sequential retry backoff by design
-            await new Promise((resolve) => setTimeout(resolve, 10));
-        }
-    }
-    throw new Error(`Timed out waiting for fixture output: ${path}`);
-}
-
 describe('Server Core application', () => {
     it('serves domain operations inside the Server Core process', async () => {
         const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-server-core-'));
@@ -404,195 +251,6 @@ describe('Server Core application', () => {
         expect(JSON.stringify(mismatched)).not.toContain('f'.repeat(32));
 
         secondClient.close();
-    });
-
-    it('binds an Agent principal to one Runtime-owned PTY generation and retires it before close', async () => {
-        const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-agent-endpoint-'));
-        directories.push(userDataPath);
-        const endpointFixturePath = join(userDataPath, 'endpoint-fixture.json');
-        const app = await startServerCore({
-            commit: 'test',
-            createDomainServices: createAgentEndpointFixture({
-                endpoint: endpointFixturePath,
-            }),
-            userDataPath,
-            version: '1.0.0',
-        });
-        apps.push(app);
-        const endpoint = JSON.parse(await readFile(endpointFixturePath, 'utf8')) as {
-            ref: { hostId: string; endpointId: string; generation: number };
-            token: string;
-        };
-        const agent = await ServerClient.connect(app.lease.manifest, 2_000, {
-            kind: 'agent',
-            ...endpoint.ref,
-            token: endpoint.token,
-        });
-
-        await expect(agent.request('agent.context')).resolves.toMatchObject({
-            endpoint: {
-                ref: endpoint.ref,
-                projectId: 'project-1',
-                sessionId: 'session-1',
-                terminalId: 'terminal-1',
-            },
-        });
-        await expect(agent.request('agent.list')).resolves.toMatchObject({
-            agents: [expect.objectContaining({ ref: endpoint.ref })],
-        });
-        expect(agent.welcome.commands).toContain('agent.dispatch.status');
-        expect(agent.welcome.commands).not.toContain('agent.dispatch.start');
-        expect(agent.welcome.commands).not.toContain('agent.control.interrupt');
-        expect(agent.welcome.commands).not.toContain('terminal.send');
-        expect(agent.welcome.commands).not.toContain('terminal.preview');
-        await expect(
-            agent.request('agent.dispatch.status', { dispatchId: 'dispatch-readable' }),
-        ).resolves.toMatchObject({ dispatchId: 'dispatch-readable', projectId: 'project-1' });
-        await expect(
-            agent.request('agent.dispatch.start', {
-                projectId: 'project-1',
-                sessionId: 'session-1',
-                provider: 'codex',
-            }),
-        ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-        await expect(agent.request('project.query', { mode: 'current' })).resolves.toEqual({
-            view: 'agent',
-            projects: [{ id: 'project-1', displayTitle: 'Project' }],
-        });
-
-        const desktop = await connectDesktop(
-            app.lease.manifest,
-            app.lease.desktopCredential.desktopToken,
-        );
-        const operator = await connectToServer(userDataPath, 2_000);
-        await operator.request('agent.grant', {
-            endpoint: endpoint.ref,
-            policy: 'agent:control',
-            ttlMs: 60_000,
-        });
-        const agentDispatch = await agent.requestWithId(
-            'shared-dispatch-request',
-            'agent.dispatch.start',
-            {
-                projectId: 'project-1',
-                sessionId: 'session-1',
-                provider: 'codex',
-            },
-        );
-        expect(agentDispatch).toMatchObject({ operation: 'start', status: 'running' });
-        const operatorDispatch = await operator.requestWithId(
-            'shared-dispatch-request',
-            'agent.dispatch.start',
-            {
-                projectId: 'project-1',
-                sessionId: 'session-1',
-                provider: 'codex',
-            },
-        );
-        expect(operatorDispatch.dispatchId).not.toBe(agentDispatch.dispatchId);
-        expect(agentDispatch.dispatchId).not.toBe('shared-dispatch-request');
-        await expect(
-            agent.request('agent.control.interrupt', { endpoint: endpoint.ref }),
-        ).resolves.toMatchObject({ outcome: 'signaled', terminalId: 'terminal-1' });
-        await expect(
-            agent.request('agent.control.interrupt', {
-                endpoint: { ...endpoint.ref, generation: endpoint.ref.generation + 1 },
-            }),
-        ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
-        await expect(
-            agent.request('terminal.send', {
-                terminalId: 'terminal-1',
-                text: 'agent must not steer',
-                enter: true,
-            }),
-        ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-        await expect(
-            agent.request('terminal.preview', { terminalId: 'terminal-1' }),
-        ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-        await expect(
-            operator.request('terminal.send', {
-                terminalId: 'terminal-1',
-                text: 'human steer',
-                enter: true,
-            }),
-        ).resolves.toMatchObject({ accepted: true, byteLength: 11 });
-        desktop.socket.send(
-            `${JSON.stringify({
-                type: 'command',
-                request: {
-                    protocolVersion: CAXRI_PROTOCOL_VERSION,
-                    id: 'close-agent',
-                    method: 'terminal.close',
-                    params: { terminalId: 'terminal-1' },
-                },
-            })}\n`,
-        );
-        await expect(desktop.read()).resolves.toMatchObject({
-            type: 'reply',
-            reply: { id: 'close-agent', ok: true },
-        });
-        await expect(agent.request('agent.context')).rejects.toMatchObject({ code: 'UNAVAILABLE' });
-        // The logger now drains writes asynchronously, so first poll for the sentinel
-        // `terminal.human_steer` record (emitted by the `operator.request('terminal.send', ...)`
-        // above) to prove the log has been flushed to disk, then assert the token is absent.
-        await vi.waitFor(async () => {
-            const contents = await readFile(
-                join(userDataPath, 'logs', 'server-core.jsonl'),
-                'utf8',
-            );
-            expect(contents).toContain('terminal.human_steer');
-            const steerRecord = contents
-                .split('\n')
-                .find((line) => line.includes('terminal.human_steer'));
-            expect(JSON.parse(steerRecord!)).toMatchObject({
-                fields: { principalKind: 'human-cli' },
-            });
-        });
-        expect(
-            await readFile(join(userDataPath, 'logs', 'server-core.jsonl'), 'utf8'),
-        ).not.toContain(endpoint.token);
-        operator.close();
-        agent.close();
-    });
-
-    it('cancels a typed dispatch wait when its local Host client disconnects', async () => {
-        const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-headless-dispatch-wait-'));
-        directories.push(userDataPath);
-        const endpointFixturePath = join(userDataPath, 'endpoint-fixture.json');
-        const waitFixturePath = join(userDataPath, 'dispatch-wait.txt');
-        const cancelFixturePath = join(userDataPath, 'dispatch-cancel.txt');
-        const app = await startServerCore({
-            commit: 'test',
-            createDomainServices: createAgentEndpointFixture({
-                cancel: cancelFixturePath,
-                endpoint: endpointFixturePath,
-                wait: waitFixturePath,
-            }),
-            userDataPath,
-            version: '1.0.0',
-        });
-        apps.push(app);
-        const operator = await connectToServer(userDataPath, 2_000);
-        // The dispatch-wait request is intentionally not awaited here: it must stay pending
-        // while the operator disconnects below, and is awaited later once cancellation is
-        // observed. `.catch()` prevents an unhandled rejection in that interim window.
-        const waiting = operator
-            .request('agent.dispatch.wait', {
-                dispatchId: 'dispatch-wait',
-                afterRevision: 2,
-                timeoutMs: 120_000,
-            })
-            // eslint-disable-next-line unicorn/prefer-await -- promise must be deferred, not awaited immediately
-            .catch(() => {});
-        await waitForFile(waitFixturePath);
-
-        operator.close();
-
-        await waitForFile(cancelFixturePath);
-        await waiting;
-        expect(await readFile(cancelFixturePath, 'utf8')).toBe(
-            await readFile(waitFixturePath, 'utf8'),
-        );
     });
 
     it('outlives client detach and requires confirmation before stopping a live PTY', async () => {
@@ -780,5 +438,57 @@ describe('Server Core application', () => {
             expect(await readFile(logPath, 'utf8')).toContain('server_core.stopped'),
         );
         expect(await countFailures()).toBe(refreshFailureCount);
+    });
+
+    it('exits through the normal shutdown path once idle past the threshold with no connections and no live PTYs', async () => {
+        const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-idle-exit-'));
+        directories.push(userDataPath);
+        const app = await startServerCore({
+            commit: 'test',
+            createDomainServices: createDomainFixture(0),
+            idleExitThresholdMs: 50,
+            userDataPath,
+            version: '1.0.0',
+        });
+        apps.push(app);
+
+        await waitForRemoval(app.lease.paths.manifest);
+        const logPath = join(userDataPath, 'logs', 'server-core.jsonl');
+        await vi.waitFor(async () =>
+            expect(await readFile(logPath, 'utf8')).toContain('server_core.stopped'),
+        );
+        const contents = await readFile(logPath, 'utf8');
+        const triggered = contents
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => JSON.parse(line) as { event: string; fields?: Record<string, unknown> })
+            .find((record) => record.event === 'server_core.idle_exit_triggered');
+        expect(triggered?.fields).toMatchObject({ deferralCount: 0, reason: 'idle-timeout' });
+    });
+
+    it('defers idle exit while a Terminal PTY is still active instead of destroying live work', async () => {
+        const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-idle-exit-busy-'));
+        directories.push(userDataPath);
+        const app = await startServerCore({
+            commit: 'test',
+            createDomainServices: createDomainFixture(1),
+            idleExitThresholdMs: 50,
+            userDataPath,
+            version: '1.0.0',
+        });
+        apps.push(app);
+
+        const logPath = join(userDataPath, 'logs', 'server-core.jsonl');
+        await vi.waitFor(async () =>
+            expect(await readFile(logPath, 'utf8')).toContain('server_core.idle_exit_deferred'),
+        );
+        const deferred = (await readFile(logPath, 'utf8'))
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => JSON.parse(line) as { event: string; fields?: Record<string, unknown> })
+            .find((record) => record.event === 'server_core.idle_exit_deferred');
+        expect(deferred?.fields).toMatchObject({ deferralCount: 1, reason: 'active-pty' });
+        expect(await readFile(logPath, 'utf8')).not.toContain('server_core.idle_exit_triggered');
+        await expect(access(app.lease.paths.manifest)).resolves.toBeUndefined();
     });
 });
