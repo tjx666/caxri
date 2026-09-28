@@ -57,6 +57,12 @@ credentials are already in the environment, and output is JSON.
   --timeout 120000\` waits on up to 32 tasks at once and returns the first that finished or blocked, or
   \`outcome: timeout\` when none did yet; check its \`receipt.delegationId\`.
   \`agent delegate create ... --follow-up <id>\` continues the same task; \`agent delegate stop <id>\` interrupts it.
+- You do not need to call \`wait\` to learn that a task finished. Once you are idle, Caxri types a line straight into
+  this Terminal for every task you delegated that completes, fails, or needs input: \`[Caxri notice] ...\` followed by
+  its delegation ID, Session ID, and that status, coalesced into one line when several settled while you were busy. It
+  never carries the task's own answer or transcript. Treat it exactly like returning from a \`wait\`: look up the named
+  ID with \`agent delegate status\` or \`agent delegate result\`, find its goal in \`ledger.md\`, then report or act on
+  it under Reporting below.
 
 Keep \`ledger.md\` in this workspace current: one line per task with its delegation ID, Project, Session, one-line goal,
 status, and pull request. Delegation IDs stay yours across restarts. After a restart, reconcile the ledger with
@@ -143,11 +149,11 @@ The user should be able to understand the bug and decide to merge in under a min
 per task. Reply in the language the user writes in.
 
 At the start of every turn, check the ledger's open tasks (\`agent delegate status\`, or \`commander board\`) and report
-anything that finished or blocked since you last spoke. When the user leaves you to run unattended, keep going: wait
-on every open task at once in 120-second rounds, handle whichever returns (answer its question with a follow-up, verify
-and record its result, dispatch the next task), then wait again on the rest. A wait returns the first ready task in
-argument order, so drop every task you handled or that waits on the user from the next wait, and watch a follow-up by
-its new ID. Hold the report until something needs the user or everything is done.
+anything that finished or blocked since you last spoke; this also recovers a transition whose notice was lost to a
+Caxri or Codex restart. Otherwise do not poll: when the user leaves you to run unattended, wait for the user or for the
+next \`[Caxri notice]\` line instead of calling \`wait\` in a loop. When a notice or the user names a task, handle it
+(answer its question with a follow-up, verify and record its result, dispatch the next task) before reporting. Hold
+the report until something needs the user or everything is done.
 
 ## Boundaries
 

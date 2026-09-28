@@ -20,6 +20,7 @@ import { AgentAttentionRequests, CompactionReadiness, LongPasteService } from '.
 import { createBackgroundTasks, refreshWatchSessionInBackground } from './background-tasks';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import { commanderLaunchArguments } from './commander';
+import { CommanderCompletionNotifier } from './commander/completion-notice';
 import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
@@ -83,6 +84,7 @@ export async function createDomainServices(
     const attentionRequests = new AgentAttentionRequests();
     const suspensionState: { service?: TerminalSuspensionService } = {};
     const delegationState: { service?: AgentDelegationService } = {};
+    const commanderNotifierState: { service?: CommanderCompletionNotifier } = {};
     const compactionReadiness = new CompactionReadiness();
     const agentRuntime = await createAgentRuntime({
         attentionRequests,
@@ -95,7 +97,10 @@ export async function createDomainServices(
             if (!signal.agentTurnContinues) suspensionState.service?.observeLifecycle(signal);
             delegationState.service?.observe(signal, 'evidence');
         },
-        onLifecycleApplied: (signal) => delegationState.service?.observe(signal),
+        onLifecycleApplied: (signal) => {
+            delegationState.service?.observe(signal);
+            commanderNotifierState.service?.onLifecycleApplied(signal);
+        },
         send,
         userDataPath,
         watchHub,
@@ -415,9 +420,24 @@ export async function createDomainServices(
         terminals,
         userDataPath,
         agentEnvironment,
+        onDelegationReceiptChanged: (receipt) =>
+            commanderNotifierState.service?.notifyReceiptChanged(receipt),
     });
     agentDispatchState.service = agentCommands.dispatchService;
     delegationState.service = agentCommands.delegationService;
+    /**
+     * Constructed only once the exact-launch write path it fences against exists. `write` binds `origin: 'delegation'`
+     * so the injected notice line itself never bumps the input epoch a later notice's own draft fence reads.
+     */
+    commanderNotifierState.service = new CommanderCompletionNotifier({
+        database,
+        hasIdleProof: (terminalId, launchId, turnId) =>
+            coordinator.hasIdleProof(terminalId, launchId, turnId),
+        inputEpoch: (terminalId) => terminals.inputEpoch(terminalId),
+        logger,
+        write: (terminalId, data, launchId, onDelivered) =>
+            terminals.writeAgentExact(terminalId, data, launchId, 'delegation', onDelivered),
+    });
     const sessionSelections = new SessionSelectionQueue();
     let isClosed = false;
     async function close(): Promise<void> {
@@ -544,11 +564,17 @@ export async function createDomainServices(
             }),
         'session.markRead': ({ sessionId, attentionEpoch }) => {
             const result = database.markSessionAttentionRead(sessionId, attentionEpoch);
-            if (result.acknowledged)
+            if (result.acknowledged) {
                 send({
                     event: 'state.changed',
                     payload: { kind: 'records', sessionIds: [sessionId], terminalIds: [] },
                 });
+                /**
+                 * Clearing `hasUnread` here is the only path that can unblock a pending completion notice without any
+                 * Agent lifecycle signal firing afterward (see `CommanderCompletionNotifier.retryPending`).
+                 */
+                commanderNotifierState.service?.retryPending();
+            }
             return {
                 acknowledged: result.acknowledged,
                 sessionId: result.session.id,
