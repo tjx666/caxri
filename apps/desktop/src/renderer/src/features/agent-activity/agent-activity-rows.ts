@@ -4,7 +4,10 @@ import type { SessionActivityPresentation } from '../primary-sidebar/session-act
 import { sessionActivityPresentation } from '../primary-sidebar/session-activity';
 import type { SessionStatus } from '../primary-sidebar/session-status';
 import { sessionStatus } from '../primary-sidebar/session-status';
-import { sessionAgentTerminal } from '../session/session-agent-terminal';
+import {
+    indexedSessionAgentTerminal,
+    sessionTerminalIndex,
+} from '../session/session-agent-terminal';
 import { isWithinFinishedRetention } from './agent-activity-retention';
 
 export type AgentActivityGroupId =
@@ -190,6 +193,12 @@ function groupForSession(
  * Archived Sessions are excluded, and a Session whose Project is not in `projects` is dropped: the PrimarySidebar hides
  * auto-registered worktree Projects, and a row naming a Project the user never added would be unreachable from here.
  * Rows inside a group keep Session activity recency, so the most recent event in a group is always its first row.
+ *
+ * Terminals are grouped by Session once per call, so one projection is linear in Sessions plus Terminals. It has two
+ * callers and neither runs while the queue is off screen: `AgentActivityView` exists only while the Primary Side Bar
+ * shows Activity (`PrimarySidebar` unmounts the body it hides, and `App` unmounts a collapsed side bar), and
+ * `session.focusNextAttention` computes its own copy from the store on demand, so the shortcut still works when the
+ * queue was never opened (issue caxri#1111).
  */
 export function agentActivityGroups({
     now,
@@ -205,12 +214,13 @@ export function agentActivityGroups({
     terminals: readonly TerminalRecord[];
 }): AgentActivityGroup[] {
     const projectsById = new Map(projects.map((project) => [project.id, project]));
+    const terminalsBySession = sessionTerminalIndex(terminals);
     const rowsByGroup = new Map<AgentActivityGroupId, AgentActivityRow[]>();
     for (const session of sessions) {
         if (session.archivedAt !== undefined) continue;
         const project = projectsById.get(session.projectId);
         if (project === undefined) continue;
-        const terminal = sessionAgentTerminal(session, terminals);
+        const terminal = indexedSessionAgentTerminal(session, terminalsBySession);
         const status = sessionStatus(session, terminal);
         const groupId = groupForSession(
             session,
