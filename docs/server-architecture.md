@@ -143,9 +143,12 @@ settled, without resubmitting any task.
 An explicit Desktop quit already stops an idle Server Core directly (see
 [Process ownership](../.agents/skills/project-architecture/references/process-model.md)), but a force-killed, crashed,
 or mid-restart Desktop never runs that path. Server Core additionally self-terminates through its normal shutdown path
-once the Desktop lease has expired and no authenticated connection of any kind has existed for a fixed idle threshold,
-deferring while any Terminal PTY is active. [ADR 0010](./adr/0010-server-core-idle-exit.md) records the policy and why
-the threshold is an internal seam, never a user setting.
+once the aggregate authenticated connection count across every transport has stayed at zero for a fixed idle
+threshold, deferring while any Terminal PTY is active — the same signal the interactive `host.stop` command requires
+explicit confirmation to override, so a Server whose Sessions still own live PTYs never idle-exits on its own.
+[ADR 0010](./adr/0010-server-core-idle-exit.md) records the policy — including why counting connections directly
+already covers a Desktop lease expiring, with no separate lease check — and why the threshold is an internal seam,
+never a user setting.
 
 ### Terminal Host
 
