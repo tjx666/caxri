@@ -109,3 +109,21 @@ Server Core retains each reusable Terminal's PTY generation across natural exit,
 for that same ID, so none of those paths may reset it. Only permanent Terminal closure, which deletes
 the durable record and never reuses its ID, releases the Core generation entry; Core shutdown clears
 all entries. A late Host start response must not recreate an entry after permanent closure.
+
+Terminal Host keeps the mirror ledger (`terminal-host/generation-ledger.ts`): the last started
+generation per reusable ID, so `terminal.reserve` must name exactly the next one. A Host with no entry
+for an ID, such as a replacement Host after a crash, accepts Core's first positive generation. The two
+Host-facing stop paths are distinct signals: `terminal.stop` (restart barrier with `persistSnapshot:
+true`, or `discard` with `false`) keeps the baseline, while permanent closure sends the server-scoped
+`terminal.retire { terminalId }`. Core sends it even when the PTY already exited and no identity
+remains, skipping it only when no Host is running. Retirement drops the ledger entry, the Host
+identity, and the PTY, and adds the ID to a FIFO fence of `RETIRED_TERMINAL_FENCE_LIMIT` (256) IDs;
+a fenced ID's reserve or start fails with `retired`. Removing the entry without the fence would let a
+late reserve fall back to the no-baseline rule.
+
+`terminal.start` also requires a matching not-yet-running reservation on the same Host boot, so a
+start whose reservation was discarded, retired, or lost with a previous Host fails without any
+per-ID history. Core never issues such a request: its launch path rechecks the durable record
+immediately before `terminal.reserve`, and `start` refuses to send once its reserved identity was
+replaced while the reservation settled. The fence is therefore defense in depth for requests
+already in flight; a burst of more than 256 later retirements evicts the oldest IDs first.

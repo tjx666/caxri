@@ -2,7 +2,7 @@ import type { TerminalRecord } from '@caxri/protocol';
 import { MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import type { TerminalHostRequestEnvelope } from '../protocol';
+import type { TerminalHostAuthority, TerminalHostRequestEnvelope } from '../protocol';
 import {
     authorizeTerminalHostRequest,
     isBoundedTerminalHostMessage,
@@ -54,9 +54,20 @@ function startEnvelope(): TerminalHostRequestEnvelope {
     });
 }
 
+function reserveEnvelope(ptyGeneration = 1): TerminalHostRequestEnvelope {
+    const envelope = startEnvelope();
+    return terminalHostRequestEnvelopeSchema.parse({
+        ...envelope,
+        id: 'request-reserve',
+        scope: { ...envelope.scope, ptyGeneration },
+        request: { method: 'terminal.reserve', params: terminal },
+    });
+}
+
 const liveAuthority = {
     bootId,
     credential,
+    isRetired: () => false,
     launchGeneration: () => 1,
     terminal: (terminalId: string) =>
         terminalId === terminal.id
@@ -68,6 +79,17 @@ const liveAuthority = {
                   agentProcessId: 123,
                   running: true,
               }
+            : undefined,
+};
+
+/**
+ * Terminal Host state between `terminal.reserve` and `terminal.start` for generation 1.
+ */
+const reservedAuthority = {
+    ...liveAuthority,
+    terminal: (terminalId: string) =>
+        terminalId === terminal.id
+            ? { sessionId: terminal.sessionId, ptyGeneration: 1, running: false }
             : undefined,
 };
 
@@ -124,8 +146,87 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
         ).toBe(false);
     });
 
-    it('accepts a bounded launch plan bound to the exact Server and Terminal generation', () => {
-        expect(authorizeTerminalHostRequest(startEnvelope(), liveAuthority)).toEqual({ ok: true });
+    it('accepts a bounded launch plan bound to the exact reserved Server and Terminal generation', () => {
+        expect(authorizeTerminalHostRequest(startEnvelope(), reservedAuthority)).toEqual({
+            ok: true,
+        });
+    });
+
+    it('rejects a start that no reservation on this Host boot covers', () => {
+        expect(authorizeTerminalHostRequest(startEnvelope(), liveAuthority)).toEqual({
+            ok: false,
+            reason: 'generation',
+        });
+        expect(
+            authorizeTerminalHostRequest(startEnvelope(), { ...liveAuthority, terminal: () => {} }),
+        ).toEqual({ ok: false, reason: 'terminal' });
+    });
+
+    it('requires a reservation to name exactly the next generation after a started baseline', () => {
+        const authority = { ...liveAuthority, launchGeneration: () => 3 };
+        expect(authorizeTerminalHostRequest(reserveEnvelope(3), authority)).toEqual({ ok: true });
+        expect(authorizeTerminalHostRequest(reserveEnvelope(2), authority)).toEqual({
+            ok: false,
+            reason: 'generation',
+        });
+        expect(authorizeTerminalHostRequest(reserveEnvelope(4), authority)).toEqual({
+            ok: false,
+            reason: 'generation',
+        });
+    });
+
+    it('fences reserve and start for a permanently retired Terminal at any generation', () => {
+        const retired: TerminalHostAuthority = {
+            ...reservedAuthority,
+            isRetired: (terminalId: string) => terminalId === terminal.id,
+            launchGeneration: () => {},
+        };
+        expect(authorizeTerminalHostRequest(reserveEnvelope(1), retired)).toEqual({
+            ok: false,
+            reason: 'retired',
+        });
+        expect(authorizeTerminalHostRequest(reserveEnvelope(42), retired)).toEqual({
+            ok: false,
+            reason: 'retired',
+        });
+        expect(authorizeTerminalHostRequest(startEnvelope(), retired)).toEqual({
+            ok: false,
+            reason: 'retired',
+        });
+    });
+
+    it('accepts retirement only as a server-scoped lifecycle request', () => {
+        const base = startEnvelope();
+        const retire = terminalHostRequestEnvelopeSchema.parse({
+            ...base,
+            id: 'request-retire',
+            scope: { scope: 'server', capability: 'terminal.lifecycle' },
+            request: { method: 'terminal.retire', params: { terminalId: terminal.id } },
+        });
+        expect(authorizeTerminalHostRequest(retire, liveAuthority)).toEqual({ ok: true });
+        expect(
+            authorizeTerminalHostRequest(
+                terminalHostRequestEnvelopeSchema.parse({ ...retire, scope: base.scope }),
+                liveAuthority,
+            ),
+        ).toEqual({ ok: false, reason: 'scope' });
+        expect(
+            authorizeTerminalHostRequest(
+                terminalHostRequestEnvelopeSchema.parse({
+                    ...retire,
+                    scope: { scope: 'server', capability: 'terminal.inspect' },
+                }),
+                liveAuthority,
+            ),
+        ).toEqual({ ok: false, reason: 'capability' });
+        expect(
+            terminalHostRequestEnvelopeSchema.safeParse({
+                ...retire,
+                request: { ...retire.request, params: { terminalId: terminal.id, extra: true } },
+            }).success,
+        ).toBe(false);
+        expect(isTerminalHostResult('terminal.retire', { retired: true })).toBe(true);
+        expect(isTerminalHostResult('terminal.retire', { retired: false })).toBe(false);
     });
 
     it('uses the shared private Terminal input frame limit', () => {
@@ -311,14 +412,12 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
         expect(isTerminalHostResult('terminal.agent.signal', { accepted: true })).toBe(true);
     });
 
-    it("accepts Core's first positive generation when a replacement Host has no baseline", () => {
-        const envelope = startEnvelope();
-        if (envelope.scope.scope !== 'terminal') throw new Error('Expected Terminal scope');
-        envelope.scope.ptyGeneration = 7;
+    it("reserves Core's first positive generation when a replacement Host has no baseline", () => {
         expect(
-            authorizeTerminalHostRequest(envelope, {
+            authorizeTerminalHostRequest(reserveEnvelope(7), {
                 bootId,
                 credential,
+                isRetired: () => false,
                 launchGeneration: () => {},
                 terminal: () => {},
             }),
@@ -341,7 +440,7 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
             ...patch,
             scope: { ...envelope.scope, ...scopePatch },
         });
-        expect(authorizeTerminalHostRequest(candidate, liveAuthority)).toEqual({
+        expect(authorizeTerminalHostRequest(candidate, reservedAuthority)).toEqual({
             ok: false,
             reason,
         });

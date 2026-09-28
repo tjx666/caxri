@@ -118,8 +118,10 @@ describe('architecture-a3b-terminal-host: TerminalHostSupervisor', () => {
             restartCount: 0,
             pendingRequestCount: 0,
         });
+        expect(supervisor.isRunning()).toBe(false);
         await becomeReady(child, supervisor);
 
+        expect(supervisor.isRunning()).toBe(true);
         expect(forkProcess).toHaveBeenCalledOnce();
         const launchOptions = forkProcess.mock.calls[0][2] as {
             env: Record<string, string>;
@@ -149,6 +151,7 @@ describe('architecture-a3b-terminal-host: TerminalHostSupervisor', () => {
         expect(typeof readyDiagnostics.startedAt).toBe('number');
         await supervisor.shutdown();
         expect(supervisor.diagnostics().state).toBe('stopped');
+        expect(supervisor.isRunning()).toBe(false);
     });
 
     it('rejects a structurally valid reply with the wrong method result', async () => {
@@ -321,6 +324,7 @@ describe('architecture-a3b-terminal-host: TerminalHostSupervisor', () => {
         await expect(request).rejects.toMatchObject({ code: 'UNAVAILABLE' });
         expect(onExit).toHaveBeenCalledWith({ code: 9, signal: null });
         expect(supervisor.processId()).toBeUndefined();
+        expect(supervisor.isRunning()).toBe(false);
         const failedDiagnostics = supervisor.diagnostics();
         expect(failedDiagnostics).toMatchObject({
             state: 'failed',

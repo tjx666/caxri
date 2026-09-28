@@ -1,154 +1,21 @@
 import { Buffer } from 'node:buffer';
-import { mkdtempSync, rmSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 
-import type { TerminalRecord } from '@caxri/protocol';
-import type { ObservationContext } from '@caxri/system';
-import { StructuredLogger } from '@caxri/system';
+import type { TerminalRecord, TerminalSnapshot } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { TerminalExecutionStart } from '../engine/engine';
-import type { TerminalHostMessage, TerminalHostRequestEnvelope } from '../protocol';
-import { TERMINAL_HOST_PROTOCOL_VERSION, terminalHostRequestEnvelopeSchema } from '../protocol';
-import type { ManagedAgentExecutionOwner, TerminalExecutionOwner } from '../runtime';
-import { TerminalHostRuntime } from '../runtime';
+import type { ManagedAgentExecutionOwner } from '../runtime';
+import {
+    cleanupRuntimeFixtures,
+    createRuntime,
+    emptySnapshot,
+    fakeEngine,
+    privateRequest,
+    reserveLaunch,
+    terminal,
+} from './runtime-fixtures';
 
-const credential = 'a'.repeat(64);
-const bootId = 'b'.repeat(32);
-const terminal: TerminalRecord = {
-    id: 'terminal-1',
-    sessionId: 'session-1',
-    cwd: '/project',
-    kind: 'shell',
-    title: 'Shell',
-    icon: 'terminal',
-    orderIndex: 0,
-    lastProcessState: 'starting',
-    createdAt: 1,
-    updatedAt: 1,
-};
-const temporaryDirectories: string[] = [];
-const loggers: StructuredLogger[] = [];
-
-function privateRequest(
-    request: TerminalHostRequestEnvelope['request'],
-    scope: TerminalHostRequestEnvelope['scope'],
-    id: string,
-    observation?: ObservationContext,
-): TerminalHostRequestEnvelope {
-    return terminalHostRequestEnvelopeSchema.parse({
-        type: 'request',
-        protocolVersion: TERMINAL_HOST_PROTOCOL_VERSION,
-        id,
-        ...(observation && { observation }),
-        bootId,
-        credential,
-        scope,
-        request,
-    });
-}
-
-function fakeEngine() {
-    const attach = vi.fn(() => Promise.resolve({ snapshot: null, wasAttached: false }));
-    const snapshot = vi.fn(() => Promise.resolve(null));
-    const start = vi.fn<(input: TerminalExecutionStart) => number>(() => 42);
-    const write = vi.fn(() => true);
-    const writeWithCompletion = vi.fn(() => Promise.resolve(true));
-    return {
-        attach,
-        snapshot,
-        start,
-        write,
-        writeWithCompletion,
-        owner: {
-            attach,
-            close: vi.fn(),
-            detachAllViews: vi.fn(),
-            detachView: vi.fn(),
-            observe: vi.fn(() =>
-                Promise.resolve({
-                    snapshot: {
-                        terminalId: terminal.id,
-                        encodingVersion: 1,
-                        cols: 80,
-                        rows: 24,
-                        lineCount: 0,
-                        byteCount: 0,
-                        payload: '',
-                        updatedAt: 1,
-                    },
-                    nextSequence: 0,
-                }),
-            ),
-            unobserve: vi.fn(),
-            takeOver: vi.fn(() => ({ expiresAt: Date.now() + 12_000 })),
-            renewTakeOver: vi.fn(() => ({ expiresAt: Date.now() + 12_000 })),
-            releaseTakeOver: vi.fn(),
-            processId: vi.fn(() => 42),
-            reassignSession: vi.fn(),
-            reconcileOutputRecoverySettings: vi.fn(),
-            resize: vi.fn(() => true),
-            resources: vi.fn(() => Promise.resolve(null)),
-            restartBarrier: vi.fn(),
-            runningCount: vi.fn(() => 1),
-            scroll: vi.fn(() => true),
-            shutdown: vi.fn<TerminalExecutionOwner['shutdown']>(() => []),
-            signalExact: vi.fn(() => true),
-            snapshot,
-            start,
-            waitForAttachedSize: vi.fn(async () => {}),
-            write,
-            writeWithCompletion,
-        },
-    };
-}
-
-function createRuntime(
-    engine: TerminalExecutionOwner,
-    agentLauncher?: ManagedAgentExecutionOwner,
-): {
-    logger: StructuredLogger;
-    messages: TerminalHostMessage[];
-    runtime: TerminalHostRuntime;
-    protocolViolation: ReturnType<typeof vi.fn>;
-} {
-    const directory = mkdtempSync(join(tmpdir(), 'caxri-terminal-host-runtime-'));
-    temporaryDirectories.push(directory);
-    const messages: TerminalHostMessage[] = [];
-    const protocolViolation = vi.fn();
-    const logger = new StructuredLogger(join(directory, 'logs'), 'terminal-host');
-    loggers.push(logger);
-    return {
-        logger,
-        messages,
-        protocolViolation,
-        runtime: new TerminalHostRuntime({
-            appVersion: '0.0.18',
-            bootId,
-            buildId: 'build-1',
-            commit: 'deadbeef',
-            credential,
-            agentLauncher,
-            engine,
-            logger,
-            onProtocolViolation: protocolViolation,
-            send: (message) => messages.push(message),
-        }),
-    };
-}
-
-afterEach(async () => {
-    /**
-     * Await the async writers before deleting their directories, which otherwise races with log creation in CI.
-     */
-    await Promise.all(loggers.map((logger) => logger.flush()));
-    loggers.length = 0;
-    for (const directory of temporaryDirectories)
-        rmSync(directory, { force: true, recursive: true });
-    temporaryDirectories.length = 0;
-});
+afterEach(cleanupRuntimeFixtures);
 
 describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
     it('keeps a mobile observer and size lease separate from the desktop attachment', async () => {
@@ -160,6 +27,7 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
             terminalId: terminal.id,
             ptyGeneration: 1,
         };
+        await reserveLaunch(runtime, scope);
         await runtime.accept(
             privateRequest(
                 {
@@ -203,7 +71,7 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
             { cols: 42, rows: 20 },
             12_000,
         );
-        expect(messages.filter((message) => message.type === 'reply')).toHaveLength(3);
+        expect(messages.filter((message) => message.type === 'reply')).toHaveLength(4);
         expect(engine.owner.attach).not.toHaveBeenCalled();
     });
     it('keeps Agent credentials in the one-time child plan and projects child exit separately', async () => {
@@ -240,6 +108,7 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
             ptyGeneration: 1,
         } as const;
 
+        await reserveLaunch(runtime, lifecycleScope, agentTerminal);
         await runtime.accept(
             privateRequest(
                 {
@@ -426,8 +295,9 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
             terminalId: terminal.id,
             ptyGeneration: 1,
         } as const;
-        const start = (ptyGeneration: number, id: string) =>
-            runtime.accept(
+        const start = async (ptyGeneration: number, id: string) => {
+            await reserveLaunch(runtime, { ...lifecycleScope, ptyGeneration });
+            await runtime.accept(
                 privateRequest(
                     {
                         method: 'terminal.start',
@@ -442,6 +312,7 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
                     id,
                 ),
             );
+        };
 
         await start(1, 'start-1');
         await runtime.accept(
@@ -468,7 +339,7 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
 
     it('rejects observation while a stopped PTY is still capturing its restart snapshot', async () => {
         const engine = fakeEngine();
-        const capture = Promise.withResolvers<null>();
+        const capture = Promise.withResolvers<TerminalSnapshot>();
         engine.owner.restartBarrier.mockReturnValue(capture.promise);
         const { messages, runtime } = createRuntime(engine.owner);
         const scope = {
@@ -477,6 +348,7 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
             terminalId: terminal.id,
             ptyGeneration: 1,
         };
+        await reserveLaunch(runtime, scope);
         await runtime.accept(
             privateRequest(
                 {
@@ -511,7 +383,7 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
                 ok: false,
             }),
         );
-        capture.resolve(null);
+        capture.resolve(emptySnapshot);
         await stopping;
     });
 
@@ -591,6 +463,7 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
             terminalId: terminal.id,
             ptyGeneration: 1,
         } as const;
+        await reserveLaunch(runtime, lifecycleScope);
         await runtime.accept(
             privateRequest(
                 {
@@ -642,6 +515,7 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
             throw new Error('private-environment-value');
         });
         const { logger, runtime } = createRuntime(engine.owner);
+        await reserveLaunch(runtime, { ptyGeneration: 1, terminalId: terminal.id });
         await runtime.accept(
             privateRequest(
                 {
