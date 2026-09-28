@@ -384,6 +384,22 @@ export const persistedWindowStateSchema = z.object({
     isFullScreen: z.boolean(),
 });
 
+/**
+ * Cross-restart bounds/open state for the two Main-owned auxiliary windows, persisted together as one `app_state` row.
+ * `bounds` is absent before a window has ever been positioned; only the Commander remembers `wasOpenAtQuit`, since only
+ * it reopens itself at the next launch.
+ */
+export const auxiliaryWindowStateSchema = z.object({
+    agentCommander: z.object({
+        bounds: persistedWindowStateSchema.shape.bounds.optional(),
+        wasOpenAtQuit: z.boolean(),
+    }),
+    processExplorer: z.object({
+        bounds: persistedWindowStateSchema.shape.bounds.optional(),
+    }),
+});
+export type AuxiliaryWindowState = z.infer<typeof auxiliaryWindowStateSchema>;
+
 export const keybindingWhenSchema = z.enum(['terminalFocus']);
 
 export const keybindingSchema = z

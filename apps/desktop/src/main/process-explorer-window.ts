@@ -1,21 +1,28 @@
 import { join } from 'node:path';
 
-import type { RendererErrorKind, ThemeTokens } from '@caxri/protocol';
+import type { AuxiliaryWindowState, RendererErrorKind, ThemeTokens } from '@caxri/protocol';
 import { isRendererErrorKind, RENDERER_ERROR_CHANNELS } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
-import { ipcMain } from 'electron';
+import { ipcMain, screen } from 'electron';
 
 import type { ProcessExplorerSnapshot } from '../shared/process-explorer';
 import { processExplorerSnapshotSchema } from '../shared/process-explorer';
 import { PROCESS_EXPLORER_CHANNELS } from '../shared/process-explorer-channels';
-import { createAuxiliaryWindow, isAuxiliaryWindowRevealed } from './auxiliary-window';
+import {
+    createAuxiliaryWindow,
+    isAuxiliaryWindowRevealed,
+    trackAuxiliaryWindowBounds,
+} from './auxiliary-window';
+import type { AuxiliaryWindowBounds } from './auxiliary-window-bounds';
+import { resolveAuxiliaryWindowBounds } from './auxiliary-window-bounds';
 import type { ProcessExplorerSampler } from './process-explorer';
 import {
     assertTrustedProcessExplorerSender,
     resolveProcessExplorerRendererUrl,
 } from './process-explorer-window-helpers';
+import { trafficLightPositionForZoom, zoomFactorForLevel } from './window-chrome';
 import type { E2EWindowMode } from './window-mode';
 
 interface ProcessExplorerWindowOptions {
@@ -26,14 +33,32 @@ interface ProcessExplorerWindowOptions {
     forceRenderError?: boolean;
     logger: StructuredLogger;
     isPackaged: boolean;
+    /**
+     * Reads bounds persisted at the previous quit; see `AgentCommanderWindowOptions.loadWindowState`.
+     */
+    loadWindowState: () => Promise<AuxiliaryWindowState['processExplorer']>;
     rendererUrl?: string;
+    /**
+     * Persists bounds; called once, from quit.
+     */
+    saveWindowState: (state: AuxiliaryWindowState['processExplorer']) => Promise<unknown>;
     sampler: ProcessExplorerSampler;
     theme: () => Promise<ThemeTokens>;
     windowMode: E2EWindowMode;
+    /**
+     * The app-wide `window.zoomLevel` Main last applied, which a newly opened window starts at; see
+     * `AgentCommanderWindowOptions.zoomLevel`.
+     */
+    zoomLevel: () => number;
 }
 
 export class ProcessExplorerWindowController {
     private window?: BrowserWindow;
+    /**
+     * Where the last window stood, in memory for this run and seeded from the previous quit's persisted state by
+     * `loadPersistedState()`; see the identical field on `AgentCommanderWindowController`.
+     */
+    private lastBounds?: AuxiliaryWindowBounds;
 
     constructor(private readonly options: ProcessExplorerWindowOptions) {}
 
@@ -85,22 +110,74 @@ export class ProcessExplorerWindowController {
         return this.window.webContents.getOSProcessId();
     }
 
+    /**
+     * The window while it is open, which also follows the app-wide window zoom; see
+     * `AgentCommanderWindowController.openWindow`.
+     */
+    openWindow(): BrowserWindow | undefined {
+        return this.window?.isDestroyed() ? undefined : this.window;
+    }
+
+    /**
+     * Loads bounds persisted at the previous quit and clamps them to a currently attached display; see
+     * `AgentCommanderWindowController.loadPersistedState`. Unlike the Commander, Process Explorer never reopens itself
+     * at startup, so there is no boolean to return.
+     */
+    async loadPersistedState(): Promise<void> {
+        try {
+            const state = await this.options.loadWindowState();
+            if (state.bounds)
+                this.lastBounds = resolveAuxiliaryWindowBounds(state.bounds, (rectangle) =>
+                    screen.getDisplayMatching(rectangle),
+                );
+        } catch {
+            // Keep the window's built-in default bounds.
+        }
+    }
+
+    /**
+     * The window's current (or last remembered) bounds, computed synchronously so the Agent Commander's own
+     * `persistWindowState()` can fold this half into the same combined `app.auxiliaryWindowState` row; see
+     * `AgentCommanderWindowController.currentWindowState` and `on-demand-windows.ts`.
+     */
+    currentWindowState(): AuxiliaryWindowState['processExplorer'] {
+        const bounds =
+            this.window && !this.window.isDestroyed()
+                ? this.window.getNormalBounds()
+                : this.lastBounds;
+        return { bounds };
+    }
+
+    /**
+     * Persists the window's current (or last remembered) bounds; see
+     * `AgentCommanderWindowController.persistWindowState`.
+     */
+    async persistWindowState(): Promise<void> {
+        await this.options.saveWindowState(this.currentWindowState());
+    }
+
     open(): void {
         if (isAuxiliaryWindowRevealed(this.window, this.options.windowMode === 'visible')) return;
+        const zoomFactor = zoomFactorForLevel(this.options.zoomLevel());
         const window = createAuxiliaryWindow({
             browserWindow: {
-                width: 1_280,
-                height: 760,
+                ...(this.lastBounds ?? { width: 1_280, height: 760 }),
                 minWidth: 720,
                 minHeight: 420,
                 title: 'Process Explorer — Caxri',
                 backgroundColor: '#282a36',
                 titleBarStyle: 'hiddenInset',
+                /**
+                 * Same reasoning as the Agent Commander window: the header is the Workbench's zoomed 44px drag header,
+                 * and the window opens at the app zoom instead of flashing at 100% first.
+                 */
+                trafficLightPosition: trafficLightPositionForZoom(zoomFactor),
                 webPreferences: {
                     preload: join(this.options.currentDirectory, '../preload/process-explorer.cjs'),
                     contextIsolation: true,
                     nodeIntegration: false,
                     sandbox: true,
+                    zoomFactor,
                 },
             },
             events: logEventCatalog.processExplorer,
@@ -109,6 +186,9 @@ export class ProcessExplorerWindowController {
             showOnReady: this.options.windowMode === 'visible',
         });
         this.window = window;
+        trackAuxiliaryWindowBounds(window, (bounds) => {
+            this.lastBounds = bounds;
+        });
         window.on('closed', () => {
             if (this.window === window) this.window = undefined;
         });

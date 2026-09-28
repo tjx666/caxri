@@ -34,6 +34,10 @@ import {
     notifyAppQuitStopFailure,
 } from './app-quit';
 import { updateArgvConfig } from './argv-config';
+import {
+    persistAllWindowState,
+    reopenAuxiliaryWindowsAtStartup,
+} from './auxiliary-window-lifecycle';
 import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
 import { createDesktopActions } from './desktop-actions';
@@ -169,7 +173,7 @@ if (ownsProfileInstance) {
     });
     const windowZoom = createWindowZoomController({
         loadLevel: async () => (await supervisor.request('settings.get')).value['window.zoomLevel'],
-        windows: () => [mainWindow, agentCommander?.openWindow()],
+        windows: () => [mainWindow, agentCommander?.openWindow(), processExplorer.openWindow()],
     });
     function sendEvent(event: ServerEvent): void {
         eventRelay.send(event);
@@ -207,8 +211,14 @@ if (ownsProfileInstance) {
         notifyStopFailure: () => notifyAppQuitStopFailure(dialog, mainWindow),
         persistWindowState: async () => {
             const window = mainWindow;
-            if (window && !window.isDestroyed())
-                await supervisor.request('app.windowState.update', readWindowState(window));
+            await persistAllWindowState([
+                () =>
+                    window && !window.isDestroyed()
+                        ? supervisor.request('app.windowState.update', readWindowState(window))
+                        : undefined,
+                () => agentCommander?.persistWindowState(),
+                () => processExplorer.persistWindowState(),
+            ]);
         },
         quitIntent: () => quitIntent,
         readStatus: () => supervisor.request('host.status'),
@@ -748,6 +758,7 @@ if (ownsProfileInstance) {
             processExplorer.installIpc();
             await menuRefreshController.refresh();
             await openMainWindow();
+            await reopenAuxiliaryWindowsAtStartup(agentCommander, processExplorer);
             secondInstanceFocus.ready();
         })
         // eslint-disable-next-line unicorn/prefer-await -- see comment above

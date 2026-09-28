@@ -1,5 +1,6 @@
 import process from 'node:process';
 
+import type { AuxiliaryWindowState } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
 import { app } from 'electron';
@@ -23,12 +24,36 @@ export function createOnDemandWindows(options: {
     zoomLevel: () => number;
 }) {
     const { currentDirectory, supervisor, windowMode } = options;
+    /**
+     * The previous quit's combined bounds/open state, fetched at most once and shared by both controllers'
+     * `loadWindowState`: each window only needs its own half, but they persist to one Server row (see
+     * `auxiliaryWindowStateSchema`), so there is exactly one read here to match the one write below.
+     */
+    let auxiliaryWindowStatePromise: Promise<AuxiliaryWindowState> | undefined;
+    const auxiliaryWindowState = (): Promise<AuxiliaryWindowState> =>
+        (auxiliaryWindowStatePromise ??= supervisor.request('app.auxiliaryWindowState.get'));
+    /**
+     * Set right after Process Explorer's own construction below. Declared first only so the Agent Commander's
+     * `saveWindowState` can fold in Process Explorer's half of the combined row without a circular `const` initializer;
+     * by the time either `saveWindowState` actually runs (at quit), both controllers already exist.
+     */
+    let processExplorerState: () => AuxiliaryWindowState['processExplorer'] = () => ({});
     const agentCommander = new AgentCommanderWindowController({
         currentDirectory,
         detachTerminal: (terminalId) => supervisor.request('terminal.detach', { terminalId }),
         isPackaged: app.isPackaged,
+        loadWindowState: async () => (await auxiliaryWindowState()).agentCommander,
         logger: () => options.logger,
         rendererUrl: process.env.ELECTRON_RENDERER_URL,
+        /**
+         * Folds in Process Explorer's own current state so one window's persistence never clobbers the other's half of
+         * the combined row; see `ProcessExplorerWindowController.currentWindowState`.
+         */
+        saveWindowState: (state) =>
+            supervisor.request('app.auxiliaryWindowState.update', {
+                agentCommander: state,
+                processExplorer: processExplorerState(),
+            }),
         stopCommander: () => supervisor.request('commander.stop'),
         windowMode,
         zoomLevel: options.zoomLevel,
@@ -40,7 +65,13 @@ export function createOnDemandWindows(options: {
             process.env.CAXRI_TEST_PROCESS_EXPLORER_RENDER_ERROR === '1',
         logger: options.logger,
         isPackaged: app.isPackaged,
+        loadWindowState: async () => (await auxiliaryWindowState()).processExplorer,
         rendererUrl: process.env.ELECTRON_RENDERER_URL,
+        saveWindowState: (state) =>
+            supervisor.request('app.auxiliaryWindowState.update', {
+                agentCommander: agentCommander.currentWindowState(),
+                processExplorer: state,
+            }),
         sampler: new ProcessExplorerSampler({
             rootPid: process.pid,
             serverPid: () => supervisor.serverProcessId(),
@@ -74,6 +105,8 @@ export function createOnDemandWindows(options: {
         }),
         theme: async () => (await supervisor.request('theme.get')).value,
         windowMode,
+        zoomLevel: options.zoomLevel,
     });
+    processExplorerState = () => processExplorer.currentWindowState();
     return { agentCommander, processExplorer };
 }

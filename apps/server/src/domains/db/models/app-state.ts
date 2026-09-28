@@ -1,4 +1,9 @@
-import { CaxriError, identifierSchema, persistedWindowStateSchema } from '@caxri/protocol';
+import {
+    auxiliaryWindowStateSchema,
+    CaxriError,
+    identifierSchema,
+    persistedWindowStateSchema,
+} from '@caxri/protocol';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -13,6 +18,11 @@ const appStateValueSchemas = {
         isMaximized: true,
         isFullScreen: true,
     }),
+    /**
+     * The Agent Commander and Process Explorer windows' cross-restart bounds and open state, see
+     * `auxiliaryWindowStateSchema`. Kept as one row since Main persists both windows together at quit.
+     */
+    auxiliaryWindowState: auxiliaryWindowStateSchema,
     activeThemeId: z.string().min(1),
     externalDelegationSessions: z.record(z.string(), identifierSchema),
     /**

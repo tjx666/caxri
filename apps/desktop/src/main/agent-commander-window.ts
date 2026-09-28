@@ -1,12 +1,20 @@
 import { join } from 'node:path';
 
+import type { AuxiliaryWindowState } from '@caxri/protocol';
 import { isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
-import type { BrowserWindow, Rectangle, WebContents } from 'electron';
+import type { BrowserWindow, WebContents } from 'electron';
+import { screen } from 'electron';
 
 import { AgentCommanderRendererPolicy } from './agent-commander-policy';
-import { createAuxiliaryWindow, isAuxiliaryWindowRevealed } from './auxiliary-window';
+import {
+    createAuxiliaryWindow,
+    isAuxiliaryWindowRevealed,
+    trackAuxiliaryWindowBounds,
+} from './auxiliary-window';
+import type { AuxiliaryWindowBounds } from './auxiliary-window-bounds';
+import { resolveAuxiliaryWindowBounds } from './auxiliary-window-bounds';
 import { resolveRendererEntryUrl } from './renderer-entry';
 import { trafficLightPositionForZoom, zoomFactorForLevel } from './window-chrome';
 import type { E2EWindowMode } from './window-mode';
@@ -16,8 +24,17 @@ interface AgentCommanderWindowOptions {
     currentDirectory: string;
     detachTerminal: (terminalId: string) => Promise<unknown>;
     isPackaged: boolean;
+    /**
+     * Reads bounds/open state persisted at the previous quit. Failure (e.g. Server not yet reachable) is handled by the
+     * caller, matching every other Main-only Server prefetch.
+     */
+    loadWindowState: () => Promise<AuxiliaryWindowState['agentCommander']>;
     logger: () => StructuredLogger | undefined;
     rendererUrl?: string;
+    /**
+     * Persists bounds/open state; called once, from quit.
+     */
+    saveWindowState: (state: AuxiliaryWindowState['agentCommander']) => Promise<unknown>;
     stopCommander: () => Promise<unknown>;
     windowMode: E2EWindowMode;
     /**
@@ -36,10 +53,11 @@ export class AgentCommanderWindowController {
     private isEventsReady = false;
     /**
      * Where the last window stood. The Commander outlives its window and the user reopens it often, so a reopen puts it
-     * back instead of at the default size in the middle of the screen. Kept for this app run only. It is recorded after
-     * every move and resize as well as on close, because a crash loop destroys the window without a `close` event.
+     * back instead of at the default size in the middle of the screen. Recorded after every move and resize as well as
+     * on close, because a crash loop destroys the window without a `close` event. Seeded from the previous quit's
+     * persisted state by `loadPersistedState()`, so it also survives an app restart.
      */
-    private lastBounds?: Rectangle;
+    private lastBounds?: AuxiliaryWindowBounds;
     readonly policy: AgentCommanderRendererPolicy;
 
     constructor(private readonly options: AgentCommanderWindowOptions) {
@@ -128,6 +146,47 @@ export class AgentCommanderWindowController {
     }
 
     /**
+     * Loads bounds/open state persisted at the previous quit, clamps the bounds to a currently attached display, and
+     * returns whether the Commander was open then — the cold-start signal `index.ts` uses to decide whether to reopen
+     * it once the Workbench is ready. A failed read (Server unreachable, corrupted state) keeps the window's built-in
+     * default bounds and answers `false`, so a boot-time hiccup never blocks startup on reopening an optional window.
+     */
+    async loadPersistedState(): Promise<boolean> {
+        try {
+            const state = await this.options.loadWindowState();
+            if (state.bounds)
+                this.lastBounds = resolveAuxiliaryWindowBounds(state.bounds, (rectangle) =>
+                    screen.getDisplayMatching(rectangle),
+                );
+            return state.wasOpenAtQuit;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * The window's current (or last remembered) bounds and whether it is open right now, computed synchronously so the
+     * Process Explorer's own `persistWindowState()` can fold this half into the same combined
+     * `app.auxiliaryWindowState` row without an extra Server round trip; see `on-demand-windows.ts`.
+     */
+    currentWindowState(): AuxiliaryWindowState['agentCommander'] {
+        const bounds =
+            this.window && !this.window.isDestroyed()
+                ? this.window.getNormalBounds()
+                : this.lastBounds;
+        return { bounds, wasOpenAtQuit: this.openWindow() !== undefined };
+    }
+
+    /**
+     * Persists the window's current (or last remembered) bounds and whether it is open right now. Called once, from
+     * quit, alongside the main window's own realtime-persisted bounds: an optional window the user may never reopen
+     * does not need a debounced write on every drag, only a value available at the next launch.
+     */
+    async persistWindowState(): Promise<void> {
+        await this.options.saveWindowState(this.currentWindowState());
+    }
+
+    /**
      * Closes the window first so it never shows its own Terminal going away, then stops the Commander on the Server.
      * Reopening the window runs `commander.ensure`, which resumes the same Codex conversation.
      */
@@ -190,12 +249,9 @@ export class AgentCommanderWindowController {
             this.isEventsReady = false;
             this.releaseTerminal();
         });
-        const rememberBounds = () => {
-            this.lastBounds = window.getNormalBounds();
-        };
-        window.on('moved', rememberBounds);
-        window.on('resized', rememberBounds);
-        window.on('close', rememberBounds);
+        trackAuxiliaryWindowBounds(window, (bounds) => {
+            this.lastBounds = bounds;
+        });
         window.on('closed', () => {
             if (this.window !== window) return;
             this.window = undefined;
