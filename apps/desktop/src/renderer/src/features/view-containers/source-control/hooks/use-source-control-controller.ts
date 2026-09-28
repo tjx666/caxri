@@ -8,7 +8,7 @@ import type {
     SourceControlViewModel,
     SourceControlViewState,
 } from '@caxri/protocol';
-import { isVirtualEditorTabPath } from '@caxri/protocol';
+import { isCaxriError, isVirtualEditorTabPath } from '@caxri/protocol';
 import { queryOptions, useQuery } from '@tanstack/react-query';
 
 import {
@@ -29,6 +29,7 @@ import {
 import { subscribeViewEvents } from '../../view-event-bridge';
 import type { SourceControlClient } from '../../view-operation-client';
 import { controlledViewQueryKey } from '../../view-operation-client';
+import { findSourceControlActionByCommand } from '../source-control-action-resolution';
 import { REFRESHING_ACTION_MESSAGE } from '../source-control-history-state';
 import type { SourceControlPanelState } from '../source-control-panel-state';
 import { resolveSourceControlPanelState } from '../source-control-panel-state';
@@ -38,6 +39,11 @@ import type { SourceControlNavigationScope } from './use-source-control-navigati
 import { useSourceControlNavigation } from './use-source-control-navigation';
 
 type SourceControlMode = SourceControlViewModel['modes'][number];
+
+/**
+ * The provider refused an action because its model revision had already moved on; see `ExtensionService.viewOperation`.
+ */
+const SUPERSEDED = Symbol('superseded');
 
 function applyActionEffect(effect: SourceControlActionEffect): void {
     if (effect.kind === 'open-editor') openEditorTab(effect.resource);
@@ -261,6 +267,7 @@ export function useSourceControlController(
                   ),
         [providerGeneration, requestRefresh, session, updateNavigation, viewId],
     );
+    const refetchSnapshot = snapshot.refetch;
     const runAction = useCallback(
         async (action: SourceControlAction): Promise<void> => {
             if (action.disabled || !snapshot.data) return;
@@ -268,13 +275,39 @@ export function useSourceControlController(
                 pushToast('warning', REFRESHING_ACTION_MESSAGE);
                 return;
             }
-            const revision = snapshot.data.revision;
-            const result = await tryCommand(
+            const label =
                 action.errorMessage ??
-                    presentation?.actionErrorMessage ??
-                    'Source Control action failed',
-                () => client.action({ actionId: action.id, revision }),
-            );
+                presentation?.actionErrorMessage ??
+                'Source Control action failed';
+            const run = (target: SourceControlAction, revision: string) =>
+                tryCommand(label, async () => {
+                    try {
+                        return await client.action({ actionId: target.id, revision });
+                    } catch (error) {
+                        if (isCaxriError(error) && error.code === 'CONFLICT') return SUPERSEDED;
+                        throw error;
+                    }
+                });
+            let revision = snapshot.data.revision;
+            let result = await run(action, revision);
+            if (result === SUPERSEDED) {
+                /**
+                 * A background refresh replaced the model between the click and the provider's revision check, so
+                 * nothing ran. Replay the same command once against the model that won; `cancelRefetch: false` joins
+                 * that refresh instead of restarting it.
+                 */
+                const fresh = (await refetchSnapshot({ cancelRefetch: false })).data;
+                const replacement =
+                    fresh && findSourceControlActionByCommand(fresh, action.command);
+                if (fresh && replacement) {
+                    revision = fresh.revision;
+                    result = await run(replacement, revision);
+                }
+                if (result === SUPERSEDED) {
+                    pushToast('warning', REFRESHING_ACTION_MESSAGE);
+                    return;
+                }
+            }
             if (!result || result.revision !== revision) return;
             for (const effect of result.effects) applyActionEffect(effect);
             if (result.refresh) requestRefresh();
@@ -285,6 +318,7 @@ export function useSourceControlController(
             requestRefresh,
             snapshot.data,
             snapshot.isFetching,
+            refetchSnapshot,
         ],
     );
     const selectMode = useCallback(

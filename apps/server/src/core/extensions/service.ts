@@ -642,14 +642,22 @@ export class ExtensionService extends EventTarget {
              * retirement: Extension-only GENERATION_EXPIRED is not a public wire code, so letting it escape would decay
              * to INTERNAL and turn recovery races into false faults.
              */
-            if (this.states.get(extension.extensionId)?.generation === generation)
+            const isSameGeneration =
+                this.states.get(extension.extensionId)?.generation === generation;
+            if (isSameGeneration)
                 assertActiveViewContext(parameters.context, await this.options.activeContext());
             const failure = extensionFailure(error);
-            if (
-                isExtensionViewReadOperation(parameters.operation) &&
-                failure.code === 'GENERATION_EXPIRED'
-            )
-                throw new CaxriError('CANCELLED', failure.message);
+            if (failure.code === 'GENERATION_EXPIRED') {
+                if (isExtensionViewReadOperation(parameters.operation))
+                    throw new CaxriError('CANCELLED', failure.message);
+                /**
+                 * Same generation and scope: the provider refused a mutation against a revision a concurrent snapshot
+                 * replaced, before running anything: contention the Renderer re-resolves, not a fault (as INTERNAL it
+                 * toasted whenever a click raced a watcher refresh). A turned-over generation stays a fault.
+                 */
+                const message = 'Source Control changed before the action ran';
+                if (isSameGeneration) throw new CaxriError('CONFLICT', message);
+            }
             throw error;
         }
         if (this.states.get(extension.extensionId)?.generation !== generation) {

@@ -348,7 +348,7 @@ describe('ExtensionService generation lifecycle', () => {
         },
     );
 
-    it('classifies superseded controlled reads as cancellation without hiding action expiry', async () => {
+    it('classifies superseded controlled reads as cancellation and superseded actions as a conflict', async () => {
         const service = new ExtensionService({
             ...observationIdentity,
             appVersion: '0.0.17',
@@ -414,8 +414,9 @@ describe('ExtensionService generation lifecycle', () => {
                 },
             }),
         ).rejects.toMatchObject({
-            code: 'GENERATION_EXPIRED',
-            message: 'Source Control action expired',
+            // Not CANCELLED: the Renderer must learn that the click did nothing, and re-resolves it on the fresh model.
+            code: 'CONFLICT',
+            message: 'Source Control changed before the action ran',
         });
 
         const pending = Promise.withResolvers<unknown>();
