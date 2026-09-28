@@ -24,6 +24,11 @@ export interface TerminalManagerOptions {
         kind: TerminalKind,
         launchSettings?: AgentLaunchSettings,
     ) => Promise<string>;
+    /**
+     * Server-owned arguments for one Terminal's managed Agent, added after the provider's own on every launch, restore,
+     * and restart. They sit outside the user's launch settings, so a delegation's frozen settings never drop them.
+     */
+    agentLaunchArguments?: (record: TerminalRecord) => readonly string[];
     agentLaunchSettings?: (provider: AgentProvider) => AgentLaunchSettings;
     agentOutputRecoverySettings?: (provider: AgentProvider) => AgentOutputRecoverySettings;
     agentEnvironment?: () => Promise<NodeJS.ProcessEnv>;
