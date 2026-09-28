@@ -16,14 +16,28 @@ import { SessionRowTrigger } from './session-row-trigger';
 
 interface ActiveSessionRowProperties {
     sessionOrder: SessionOrderController;
-    visibleSessions: readonly SessionRecord[];
+    /**
+     * The rows this row's list shows, in order, for `Alt+Arrow` reordering.
+     */
+    visibleSessionIds: readonly string[];
     focusRenameInput: (element: HTMLInputElement | null) => void;
-    onBeginRename: () => void;
+    /**
+     * The list's shared handler; the row supplies its own Session and row id, so every row receives the same function.
+     */
+    onBeginRename: (sessionId: string, displayTitle: string, rowId: string) => void;
     onBlurRename: () => void;
     onCancelRename: () => void;
     onCommitRename: () => void;
     onRenameValueChange: (value: string) => void;
-    project: ProjectRecord;
+    /**
+     * The owning Project's title, icon, id, and root — passed as fields rather than as its record. The record is
+     * replaced whenever the Project's `lastOpenedAt` moves, which every Session switch inside it does, and a record
+     * prop would render every row of that Project again for a timestamp no row shows (issue #1356).
+     */
+    projectDisplayTitle: string;
+    projectIcon: ProjectRecord['icon'];
+    projectId: string;
+    projectRootPath: string;
     /**
      * Names the owning Project beside the title, and tells assistive technology which copy of a doubly listed Session
      * this row is. Set only in the Pinned group, where rows arrive from several Projects at once and the title alone no
@@ -58,17 +72,27 @@ interface ActiveSessionRowProperties {
  * in each — so everything that varies between the two copies (its tree row id, whether the owning Project is named) is
  * a prop rather than a second component: two row implementations would drift, and this row already carries the drag
  * source, the hover card, the context menu, and the tree semantics.
+ *
+ * Both lists render it through `memo`. Each list renders its rows from one `.map()`, which React Compiler caches as a
+ * whole, so any change to the list's inputs — a Session switch moves the selection and replaces the opened Session's
+ * record — recreates every row element. The memo boundary lets a row whose props kept their identity skip rendering,
+ * which on a switch is every row but the two whose selection moved, and its props are shaped for exactly that: shared
+ * handlers, an id list keyed by content, and the Project as fields (issue #1356). A new prop derived per render from a
+ * list or a record would quietly undo it.
  */
 export function ActiveSessionRow({
     sessionOrder,
-    visibleSessions,
+    visibleSessionIds,
     focusRenameInput,
     onBeginRename,
     onBlurRename,
     onCancelRename,
     onCommitRename,
     onRenameValueChange,
-    project,
+    projectDisplayTitle,
+    projectIcon,
+    projectId,
+    projectRootPath,
     showProjectName,
     renameError,
     renameValue,
@@ -81,6 +105,15 @@ export function ActiveSessionRow({
     terminals,
     worktreeProject,
 }: ActiveSessionRowProperties) {
+    const project = {
+        displayTitle: projectDisplayTitle,
+        icon: projectIcon,
+        id: projectId,
+        rootPath: projectRootPath,
+    };
+    const beginRename = (): void => {
+        onBeginRename(session.id, session.displayTitle, rowId ?? session.id);
+    };
     /**
      * Read here rather than handed down from the sidebar root: the snapshot is refreshed on a timer, and a row that
      * takes its own slice stays quiet through every refresh that did not touch this Session.
@@ -103,8 +136,8 @@ export function ActiveSessionRow({
             renaming={renaming}
             roving={roving}
             sessionOrder={sessionOrder}
-            visibleSessions={visibleSessions}
-            onBeginRename={onBeginRename}
+            visibleSessionIds={visibleSessionIds}
+            onBeginRename={beginRename}
             onFocusChange={setFocused}
         >
             {/* The Agent's lifecycle rides on its own icon; the trailing track keeps only delivery state. */}
@@ -151,7 +184,7 @@ export function ActiveSessionRow({
                             aria-hidden="true"
                             className="session-project min-w-0 flex-1 basis-0 overflow-hidden text-[11px] whitespace-nowrap text-muted"
                         >
-                            {project.displayTitle}
+                            {projectDisplayTitle}
                         </span>
                     )}
                 </span>
@@ -210,7 +243,7 @@ export function ActiveSessionRow({
     if (renaming) return row;
     return (
         <SessionRowMenu
-            onBeginRename={onBeginRename}
+            onBeginRename={beginRename}
             onOpenChange={setMenuOpen}
             project={project}
             pullRequest={pullRequest}

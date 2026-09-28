@@ -143,7 +143,10 @@ export function SessionActivityCard({
      * user walking the tree could not tell which one they had reached.
      */
     inPinnedGroup?: boolean;
-    project: ProjectRecord;
+    /**
+     * The owning Project, as the fields the card shows.
+     */
+    project: Pick<ProjectRecord, 'displayTitle' | 'icon'>;
     pullRequest?: SessionPullRequest;
     pullRequestUnavailable?: PullRequestUnavailable;
     session: SessionRecord;

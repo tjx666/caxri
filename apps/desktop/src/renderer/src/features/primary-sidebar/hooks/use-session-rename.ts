@@ -46,6 +46,12 @@ export function useSessionRename(
     const renamingRowIdReference = useRef<string | undefined>(undefined);
     const restoreFocusRowIdReference = useRef<string | undefined>(undefined);
     const restoreFocusVisibleReference = useRef(false);
+    /**
+     * Commit and blur compare the draft with the Session's current title. Read through a ref rather than closed over:
+     * the list is replaced on every Session switch (the Server stamps the opened Session's `lastOpenedAt`), and
+     * handlers rebuilt from it would reach every row as new props and render all of them again (issue #1356).
+     */
+    const latestSessions = useLatestReference(sessions);
 
     const focusRenameInput = useCallback((element: HTMLInputElement | null) => {
         element?.focus();
@@ -105,24 +111,28 @@ export function useSessionRename(
             setRenameError('Session name is required');
             return;
         }
-        const currentTitle = sessions.find((session) => session.id === sessionId)?.displayTitle;
+        const currentTitle = latestSessions.current.find(
+            (session) => session.id === sessionId,
+        )?.displayTitle;
         finishRename(sessionId, true);
         // Fire-and-forget: `didRenameSession` funnels its own failures into a toast.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         if (displayTitle !== currentTitle) void didRenameSession(sessionId, displayTitle);
-    }, [renameValue, sessions, finishRename]);
+    }, [renameValue, latestSessions, finishRename]);
 
     const blurRename = useCallback((): void => {
         const sessionId = renamingSessionIdReference.current;
         if (!sessionId) return;
         const displayTitle = renameValue.trim();
-        const currentTitle = sessions.find((session) => session.id === sessionId)?.displayTitle;
+        const currentTitle = latestSessions.current.find(
+            (session) => session.id === sessionId,
+        )?.displayTitle;
         finishRename(sessionId, false);
         // Fire-and-forget: `didRenameSession` funnels its own failures into a toast.
         if (displayTitle && displayTitle !== currentTitle)
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void didRenameSession(sessionId, displayTitle);
-    }, [renameValue, sessions, finishRename]);
+    }, [renameValue, latestSessions, finishRename]);
 
     const onRenameValueChange = useCallback((value: string): void => {
         setRenameValue(value);
@@ -137,7 +147,6 @@ export function useSessionRename(
     const renameRequest = useDialogStore((state) => state.renameSessionRequest);
     const latestBeginRename = useLatestReference(beginRename);
     const latestRevealSessionRow = useLatestReference(revealSessionRow);
-    const latestSessions = useLatestReference(sessions);
     useEffect(() => {
         if (!renameRequest) return;
         const session = latestSessions.current.find(
@@ -162,11 +171,11 @@ export function useSessionRename(
     }, [renameRequest?.id]);
 
     /**
-     * Memoized for the same reason as `useSessionOrder`'s return (issue #1108): every consumer down to each Session
-     * card receives these methods as props, and a fresh controller object on every render of the Project tree —
-     * including a plain Session switch, which never touches renaming — defeated each card's own render-skip regardless
-     * of whether its own content changed. React Compiler does not help here either: it refuses to optimize any function
-     * containing an ESLint rule suppression, and the effect above carries one.
+     * Memoized for the same reason as `useSessionOrder`'s return (issues #1108 and #1356): every Session row receives
+     * these methods as props, and a fresh controller object on every render of the Project tree — including a plain
+     * Session switch, which never touches renaming — would render every row again whether or not its own content
+     * changed. React Compiler does not help here either: it refuses to optimize any function containing an ESLint rule
+     * suppression, and the effect above carries one.
      */
     return useMemo(
         () => ({

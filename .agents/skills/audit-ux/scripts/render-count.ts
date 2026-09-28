@@ -25,7 +25,7 @@ const HELP = `Count Caxri Renderer renders per component instance over CDP.
 
 Usage:
   render-count.ts boot   [--port PORT] [--label NAME] [--seconds ${DEFAULT_MAX_SECONDS}] [--settle-ms ${DEFAULT_SETTLE_MS}] [--limit ${DEFAULT_TABLE_LIMIT}] [--json FILE]
-  render-count.ts sample [--port PORT] [--label NAME] [--click SELECTOR] [--seconds ${DEFAULT_MAX_SECONDS}] [--settle-ms ${DEFAULT_SETTLE_MS}] [--limit ${DEFAULT_TABLE_LIMIT}] [--json FILE]
+  render-count.ts sample [--port PORT] [--label NAME] [--click SELECTOR] [--within COMPONENT] [--seconds ${DEFAULT_MAX_SECONDS}] [--settle-ms ${DEFAULT_SETTLE_MS}] [--limit ${DEFAULT_TABLE_LIMIT}] [--json FILE]
 
   boot    reloads the window with the collector armed before any page script, so the first-paint storm is measured.
   sample  arms the collector on the loaded window and counts what the scenario causes.
@@ -38,6 +38,8 @@ Options:
   --port       CDP port of the dev instance (default ${DEFAULT_PORT}; CAXRI_DEV_CDP_PORT sets it at launch).
   --label      Scenario name recorded in the report, e.g. "session-switch".
   --click      CSS selector clicked once right after arming, for a single-interaction scenario.
+  --within     Component name, e.g. "PrimarySidebar": the table keeps only instances that are that component or render
+               beneath it, and the header adds the whole-window totals of the same interaction for comparison.
   --seconds    Upper bound on the sample window (1-${MAX_SAMPLE_SECONDS}).
   --settle-ms  Quiet period that ends the sample (100-30000).
   --limit      Rows printed in the table (the JSON report always keeps every instance).
@@ -53,6 +55,11 @@ export interface RenderCountOptions {
     port: number;
     seconds: number;
     settleMs: number;
+    /**
+     * Component name that scopes the table to one surface's subtree. The whole-window totals of the same interaction
+     * are still reported beside it, so a surface's share is read from one sample instead of two different clicks.
+     */
+    within?: string;
 }
 
 export interface RenderInstanceRow {
@@ -63,6 +70,10 @@ export interface RenderInstanceRow {
     mounts: number;
     name: string;
     updates: number;
+    /**
+     * Whether the instance is the `--within` component or renders beneath it. Absent when no scope was requested.
+     */
+    within?: boolean;
 }
 
 export interface RenderSample {
@@ -115,6 +126,7 @@ const ALLOWED_OPTIONS = new Set([
     '--port',
     '--seconds',
     '--settle-ms',
+    '--within',
 ]);
 
 export function parseRenderCountOptions(argv: string[]): RenderCountOptions | 'help' {
@@ -160,6 +172,8 @@ export function parseRenderCountOptions(argv: string[]): RenderCountOptions | 'h
     };
     if (click) options.click = click;
     if (json) options.json = resolve(process.cwd(), json);
+    const within = values.get('--within');
+    if (within) options.within = within;
     return options;
 }
 
@@ -208,13 +222,34 @@ export function summarizeRenderSample(rows: RenderInstanceRow[]): RenderSummary 
     };
 }
 
+/**
+ * Splits one sample into the `--within` surface and the whole window, so both numbers describe the same interaction.
+ */
+export function scopeRenderSample(
+    rows: RenderInstanceRow[],
+    within: string | undefined,
+): { scoped: RenderSummary; window?: RenderSummary } {
+    if (!within) return { scoped: summarizeRenderSample(rows) };
+    return {
+        scoped: summarizeRenderSample(rows.filter((row) => row.within === true)),
+        window: summarizeRenderSample(rows),
+    };
+}
+
 export function formatRenderTable(
     summary: RenderSummary,
     sample: Pick<RenderSample, 'settled' | 'windowMs'>,
-    { label, limit }: { label: string; limit: number },
+    {
+        label,
+        limit,
+        scope,
+    }: { label: string; limit: number; scope?: { name: string; window: RenderSummary } },
 ): string {
+    const scopeHeader = scope
+        ? ` within=${scope.name} (window: instances=${scope.window.instances} commits=${scope.window.commits} mounts=${scope.window.mounts} updates=${scope.window.updates})`
+        : '';
     const lines = [
-        `scenario=${label} windowMs=${sample.windowMs} settled=${sample.settled ? 'yes' : 'no'} instances=${summary.instances} commits=${summary.commits} mounts=${summary.mounts} updates=${summary.updates} hidden=${summary.hiddenInstances}`,
+        `scenario=${label} windowMs=${sample.windowMs} settled=${sample.settled ? 'yes' : 'no'} instances=${summary.instances} commits=${summary.commits} mounts=${summary.mounts} updates=${summary.updates} hidden=${summary.hiddenInstances}${scopeHeader}`,
         'mounts\tupdates\tfirstMs\tlastMs\thidden\tinstance',
     ];
     for (const row of summary.rows.slice(0, limit)) {
@@ -391,10 +426,31 @@ const PROGRESS_SOURCE = `
 })();
 `;
 
-const REPORT_SOURCE = `
+/**
+ * Builds the report expression. `within` is matched by walking each instance's `return` chain for a component of that
+ * name, so the scope follows React's tree rather than the DOM: a portal (a menu or tooltip popup) still counts toward
+ * the Session row that rendered it, which is where its update cost comes from.
+ */
+function reportSource(within: string | undefined): string {
+    return `
 (() => {
   const state = globalThis.__CAXRI_RENDER_AUDIT__;
   if (!state) return JSON.stringify({ missing: true });
+  const within = ${JSON.stringify(within ?? null)};
+  const nameOf = (fiber) => {
+    const type = fiber.type;
+    if (typeof type === 'string') return type;
+    return type?.displayName || type?.name || type?.render?.displayName || type?.render?.name || '';
+  };
+  const isWithin = (fiber) => {
+    let node = fiber;
+    let guard = 0;
+    while (node && guard++ < 2000) {
+      if (nameOf(node) === within) return true;
+      node = node.return;
+    }
+    return false;
+  };
   const elementOf = (fiber) => {
     let node = fiber;
     let guard = 0;
@@ -418,6 +474,7 @@ const REPORT_SOURCE = `
       mounts: row.mounts,
       name: row.name,
       updates: row.updates,
+      ...(within === null ? {} : { within: row.fiber ? isWithin(row.fiber) : false }),
     });
     // Release the audit's fiber references so a sampled subtree cannot be retained after the report.
     row.fiber = null;
@@ -432,6 +489,7 @@ const REPORT_SOURCE = `
   });
 })();
 `;
+}
 
 async function evaluate<T>(client: CdpConnection, expression: string): Promise<T> {
     const response = await client.request<{
@@ -518,7 +576,7 @@ export async function collectRenderSample(
             }
         }
         const settled = await didSampleSettle(client, options);
-        const raw = await evaluate<string>(client, REPORT_SOURCE);
+        const raw = await evaluate<string>(client, reportSource(options.within));
         const parsed = JSON.parse(raw) as Omit<RenderSample, 'settled'> & { missing?: boolean };
         if (parsed.missing) throw new Error('The render collector is not installed in this window');
         if (!parsed.armed) {
@@ -548,7 +606,7 @@ async function main(): Promise<void> {
         return;
     }
     const sample = await collectRenderSample(options);
-    const summary = summarizeRenderSample(sample.rows);
+    const { scoped: summary, window } = scopeRenderSample(sample.rows, options.within);
     if (options.json) {
         await mkdir(dirname(options.json), { recursive: true });
         await writeFile(
@@ -558,6 +616,7 @@ async function main(): Promise<void> {
                     label: options.label,
                     settled: sample.settled,
                     summary,
+                    ...(options.within && { within: options.within, window }),
                     windowMs: sample.windowMs,
                 },
                 null,
@@ -566,14 +625,20 @@ async function main(): Promise<void> {
             'utf8',
         );
     }
-    console.log(formatRenderTable(summary, sample, options));
+    console.log(
+        formatRenderTable(summary, sample, {
+            ...options,
+            ...(options.within && window && { scope: { name: options.within, window } }),
+        }),
+    );
     if (sample.collectorError) console.error(`collector error: ${sample.collectorError}`);
     if (!sample.isWorkbenchReady) {
         throw new Error(
             'The Workbench never rendered during this sample; the counts describe the loading shell, not the product',
         );
     }
-    if (summary.commits === 0) {
+    // A scoped surface that stayed still is a result, not a missed click, so only the whole window proves the click.
+    if ((window ?? summary).commits === 0) {
         throw new Error(
             'No render was recorded, which means the interaction never reached React — check the --click target instead of reporting the scenario as free',
         );
