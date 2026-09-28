@@ -41,14 +41,13 @@
  * Sonner lays every child (icon, content, cancel/action buttons) out as one flex row by default, so a message long
  * enough to need an action button had nowhere to shrink but its own text column (issue: text wrapped into a narrow
  * strip beside a fixed-width button). The grid below keeps the icon and message text on row 1 across the full card
- * width, and — because `[data-button]`/`[data-action]` are the only children still explicitly placed in column 2 with
- * no row set — the auto-placement algorithm drops them to row 2 whenever row 1's cell is already taken, so an action
- * button always lands on its own row under the text instead of squeezing it. The close button stays `position:
+ * width (spanning the trailing button columns), and the buttons sit on row 2 — a secondary `[data-cancel]` in column 3,
+ * the primary `[data-action]` in column 4 — so they always land on their own row under the text instead of squeezing it. The close button stays `position:
  * absolute` (Sonner's own layout), just re-anchored to the top-right corner instead of Sonner's default top-left.
  */
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto 1fr auto auto;
     column-gap: 8px;
     row-gap: 8px;
     align-items: start;
@@ -87,7 +86,7 @@
 }
 
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-content] {
-    grid-column: 2;
+    grid-column: 2 / -1;
     width: 100%;
 }
 
@@ -97,12 +96,17 @@
 }
 
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-button] {
-    grid-column: 2;
+    grid-row: 2;
+    grid-column: 4;
     justify-self: end;
     margin: 0;
     color: var(--foreground);
     background: var(--elevated);
     border: 1px solid var(--border);
+}
+
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-cancel] {
+    grid-column: 3;
 }
 
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-close-button] {

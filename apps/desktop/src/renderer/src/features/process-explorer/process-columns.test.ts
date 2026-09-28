@@ -13,9 +13,9 @@ import {
 describe('resolveProcessColumnWidths', () => {
     it('stretches an untouched name column to fill the measured row', () => {
         expect(resolveProcessColumnWidths({}, 1_000)).toEqual({
-            name: 660,
-            cpu: 110,
-            memory: 140,
+            name: 704,
+            cpu: 96,
+            memory: 110,
             pid: 90,
         });
     });

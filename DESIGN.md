@@ -269,7 +269,9 @@ Acceptance outranks Linear because it reports whether the current work passed, w
 the reviewer does next; the pull request survives longest because it is the branch's identity.
 The right side follows the active tab: a normal file shows
 current-line blame, selection, cursor position, and language; a Terminal shows Terminal progress,
-process-tree memory, and child count. Blame lives here and nowhere else. The editor header once
+process-tree memory, and child count. The memory chip turns `--danger` while that Terminal's tree is
+above the shared resource-alert thresholds (see `docs/process-explorer.md`), and its tooltip names
+the CPU reading and the threshold, so a runaway Agent is visible before its alert toast fires. Blame lives here and nowhere else. The editor header once
 carried the file's last commit too, and on any line belonging to that commit the two read
 word-for-word the same; the status bar's is the finer answer, it follows the cursor, and it does not
 take width from the breadcrumbs. Transient Agent operations stay with the owning work tab
@@ -710,7 +712,7 @@ literal.
 Intentionally instant: initial bootstrap/restore, Session switches, tab-panel activation, Agent
 state transitions, Project drag settlement, folder glyph changes, Terminal panes/output, data refreshes, and tree-item
 disclosures in Files, Source Control, and extension-contributed trees. Do not stagger rows or neighboring tabs.
-The Process Explorer window is out of scope (separate style layer, read-only diagnostics).
+The Process Explorer window is out of scope (separate style layer, diagnostics; see `docs/process-explorer.md`).
 
 The Session status icon is the narrow state-motion exception: unread attention pings so a newly
 actionable event is noticeable, and running spins an arc around the Agent icon. Amber always pings —
@@ -867,11 +869,11 @@ validated remote pull request head, and states any commits absent from that pull
 This count never borrows the branch's tracking-upstream state, which can point at a different ref.
 A repository with no pull request keeps the heading
 `Pull Request Changes` in Pull Request mode: leaving it at `Changes` made its zero read as a clean
-working tree instead of an absent pull request. On a repository row the folder name outranks the
-branch, matching VS Code's SCM provider row: the name takes its content width and the branch
-ellipsizes in the leftover space. Counts sit outside that leftover box as `shrink-0` so they still
-outrank both — they are stated nowhere else on the row. A name that is still too wide after the
-branch has given way ellipsizes too, never by pushing the counts out of the row.
+working tree instead of an absent pull request. A repository row is one line: the folder name, its kind, and its
+counts. The branch (or whatever reference the provider describes) is the section's first child row,
+its glyph in the group captions' chevron column, so a long worktree name and a long branch each get
+a full row instead of ellipsizing each other. Counts are `shrink-0` after the name, which ellipsizes
+first rather than pushing them out of the row.
 
 **Git diff exclusions** — `git.diffExclude` hides matching repository-relative paths from Git
 change lists and from `Open Changes`; it ships filtering test files out by default, because a

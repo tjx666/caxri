@@ -23,6 +23,7 @@ export interface ToastActionParameters {
         workbenchProjectId?: string;
         tabId?: string;
     };
+    'processExplorer.open': undefined;
     'session.unarchive': { sessionId: string };
     'settings.open': undefined;
     'settings.openHardwareAcceleration': undefined;
@@ -35,6 +36,12 @@ export interface ToastActionParameters {
         split?: PaneSplitSide;
     };
     'terminal.refresh': undefined;
+    /**
+     * Stops a Terminal whose process tree is using too many resources. `processId` pins the offer to the PTY the alert
+     * measured: once that process is gone the runaway is over, and stopping whatever replaced it would be a new
+     * decision.
+     */
+    'terminal.stopRunaway': { terminalId: string; processId: number };
     'terminal.restart': {
         terminalId: string;
         /**
@@ -79,6 +86,7 @@ export type ToastAction = {
 export const toastActionLabels: Record<ToastActionId, string> = {
     'diagnostics.copyFailure': 'Copy details',
     'editor.retrySave': 'Retry',
+    'processExplorer.open': 'View details',
     'session.unarchive': 'Undo',
     'settings.open': 'Open Settings',
     'settings.openHardwareAcceleration': 'Open Settings',
@@ -86,6 +94,7 @@ export const toastActionLabels: Record<ToastActionId, string> = {
     'terminal.create': 'Retry',
     'terminal.refresh': 'Refresh',
     'terminal.restart': 'Retry',
+    'terminal.stopRunaway': 'Stop',
     'updates.show': 'Show Update',
     'workbench.undoFollowedRoot': 'Undo',
 };

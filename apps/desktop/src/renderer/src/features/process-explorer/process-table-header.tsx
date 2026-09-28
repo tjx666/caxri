@@ -142,7 +142,12 @@ export function ProcessTableHeader({
                     >
                         <button
                             type="button"
-                            className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 border-0 bg-transparent px-3 text-left text-[12px] font-semibold text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground"
+                            className={cn(
+                                'flex min-w-0 flex-1 cursor-pointer items-center gap-1 border-0 bg-transparent px-3 text-left text-[12px] font-semibold text-muted hover:text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground',
+                                // Numeric cells are right-aligned so digits line up; their headers follow.
+                                column.isNumeric && 'flex-row-reverse text-right',
+                                isSorted && 'text-foreground',
+                            )}
                             aria-label={`Sort by ${column.label}`}
                             onClick={() => onSort(column.key)}
                         >

@@ -1,3 +1,4 @@
+import { isTerminalResourceUsageHigh, TERMINAL_RESOURCE_ALERT_THRESHOLDS } from '@caxri/protocol';
 import {
     CircleAlert,
     Gauge,
@@ -12,6 +13,7 @@ import { usePolledQuery } from '@/hooks/use-polled-query';
 
 import { executeCommand } from '../../commands/execute';
 import { StructuredTooltip } from '../../components/structured-tooltip';
+import { formatCpuPercent, formatMemoryMb } from '../../lib/resource-usage-format';
 import { cn } from '../../lib/utilities';
 import { openHardwareAccelerationSettings } from '../gpu/gpu-commands';
 import { useIsHardwareAccelerationOff } from '../gpu/use-is-hardware-acceleration-off';
@@ -27,7 +29,6 @@ import {
 } from '../terminal/terminal-renderer-status';
 import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
-import { terminalMemoryLabel } from './terminal-memory-label';
 
 const openProcessExplorer = (): void => executeCommand('processExplorer.open');
 
@@ -129,17 +130,35 @@ function TerminalUsageStatus({
     ).data;
     if (!usage) return null;
     const childLabel = `${usage.childProcessCount} ${usage.childProcessCount === 1 ? 'child process' : 'child processes'}`;
-    const memoryLabel = terminalMemoryLabel(usage.memoryMb);
+    const memoryLabel = formatMemoryMb(usage.memoryMb);
+    const cpuLabel = formatCpuPercent(usage.cpuPercent);
+    /**
+     * The same thresholds Server Core alerts on, so the chip turns red exactly when a resource alert would be justified
+     * for this Terminal — without waiting for the alert's consecutive-sample confirmation.
+     */
+    const isHigh = isTerminalResourceUsageHigh(usage);
     return (
         <>
             {showMemory && (
                 <StatusItem
-                    ariaLabel={`Open Process Explorer — Terminal memory: ${memoryLabel}`}
+                    ariaLabel={`Open Process Explorer — Terminal memory: ${memoryLabel}${isHigh ? ', high resource use' : ''}`}
+                    className={cn(isHigh && 'text-danger')}
                     icon={<MemoryStick />}
                     title={
                         <StructuredTooltip
-                            title={`Terminal memory: ${memoryLabel}`}
-                            notes={["Resident memory of this Terminal's whole process tree"]}
+                            title={
+                                isHigh
+                                    ? `High resource use: ${memoryLabel}, ${cpuLabel} CPU`
+                                    : `Terminal memory: ${memoryLabel}`
+                            }
+                            notes={[
+                                `Resident memory of this Terminal's whole process tree; CPU ${cpuLabel}`,
+                                ...(isHigh
+                                    ? [
+                                          `Above ${formatMemoryMb(TERMINAL_RESOURCE_ALERT_THRESHOLDS.memoryMb)} memory or ${TERMINAL_RESOURCE_ALERT_THRESHOLDS.cpuPercent}% CPU`,
+                                      ]
+                                    : []),
+                            ]}
                             hint="Click to open Process Explorer"
                         />
                     }

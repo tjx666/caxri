@@ -30,9 +30,9 @@ export interface ProcessColumnDefinition {
 }
 
 export const PROCESS_COLUMNS: readonly ProcessColumnDefinition[] = [
-    { isNumeric: false, key: 'name', label: 'Process Name', minWidth: 160, width: 420 },
-    { isNumeric: true, key: 'cpu', label: 'CPU (%)', minWidth: 64, width: 110 },
-    { isNumeric: true, key: 'memory', label: 'Memory (MB)', minWidth: 80, width: 140 },
+    { isNumeric: false, key: 'name', label: 'Name', minWidth: 160, width: 420 },
+    { isNumeric: true, key: 'cpu', label: 'CPU', minWidth: 64, width: 96 },
+    { isNumeric: true, key: 'memory', label: 'Memory', minWidth: 80, width: 110 },
     { isNumeric: true, key: 'pid', label: 'PID', minWidth: 56, width: 90 },
 ];
 
@@ -42,8 +42,14 @@ export const PROCESS_COLUMNS: readonly ProcessColumnDefinition[] = [
  */
 export const PROCESS_COLUMN_MAX_WIDTH = 1_600;
 export const PROCESS_COLUMN_RESIZE_STEP = 16;
-export const PROCESS_TABLE_STATE_STORAGE_KEY = 'caxri.process-explorer.table.v1';
-export const DEFAULT_PROCESS_SORT: ProcessSort = { column: 'pid', direction: 'ascending' };
+/**
+ * V2 since the grouped layout: the v1 default sorted by PID, which says nothing once rows are Sessions and Terminals.
+ */
+export const PROCESS_TABLE_STATE_STORAGE_KEY = 'caxri.process-explorer.table.v2';
+/**
+ * Heaviest first: the window is opened to find what is using the machine.
+ */
+export const DEFAULT_PROCESS_SORT: ProcessSort = { column: 'cpu', direction: 'descending' };
 
 /**
  * A column absent from this map has never been dragged: it renders at its definition width, and `name` auto-fits.

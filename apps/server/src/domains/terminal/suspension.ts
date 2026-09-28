@@ -109,7 +109,7 @@ export class TerminalSuspensionService {
      */
     private async suspendTerminal(
         terminalId: string,
-        reason: TerminalSuspensionReason | 'archived' | 'detached',
+        reason: TerminalSuspensionReason | 'archived' | 'detached' | 'requested',
     ): Promise<boolean> {
         const isAutomaticSweep = reason === 'idle' || reason === 'untouched';
         // Closes the gap between one decision's teardown and the next: skip outright if the selection already
@@ -264,6 +264,17 @@ export class TerminalSuspensionService {
     sweep(): Promise<string[]> {
         this.sweeping ??= this.runSweep();
         return this.sweeping;
+    }
+
+    /**
+     * Parks one Terminal because the user asked to stop it — the resource alert's `Stop`. It resumes through the same
+     * interrupted-restore path as an idle suspension, so the Agent conversation is not lost.
+     */
+    async suspendOnRequest(terminalId: string): Promise<boolean> {
+        if (this.options.terminals.processId(terminalId) === undefined) return false;
+        const suspended = await this.suspendTerminal(terminalId, 'requested');
+        if (suspended) this.publish([terminalId]);
+        return suspended;
     }
 
     /**

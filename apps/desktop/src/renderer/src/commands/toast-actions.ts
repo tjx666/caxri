@@ -6,6 +6,7 @@ import {
     confirmTurnOffHardwareAcceleration,
     openHardwareAccelerationSettings,
 } from '../features/gpu/gpu-commands';
+import { openProcessExplorer } from '../features/process-explorer/process-explorer-commands';
 import { unarchiveSession } from '../features/session/session-commands';
 import { createTerminalForSession } from '../features/terminal/terminal-commands';
 import { terminalToastActionHandlers } from '../features/terminal/terminal-toast-actions';
@@ -44,6 +45,7 @@ export const toastActionHandlers: ToastActionHandlers = {
         unavailable: saveRetryUnavailableReason,
         run: retrySaveDocument,
     },
+    'processExplorer.open': { run: openProcessExplorer },
     'session.unarchive': {
         // An archived Session can still be deleted outright, and restoring one that is gone would report a low-level
         // failure for something the user already did on purpose.

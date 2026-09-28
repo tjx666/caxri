@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 
 import type { AuxiliaryWindowState, RendererErrorKind, ThemeTokens } from '@caxri/protocol';
-import { isRendererErrorKind, RENDERER_ERROR_CHANNELS } from '@caxri/protocol';
+import { identifierSchema, isRendererErrorKind, RENDERER_ERROR_CHANNELS } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
@@ -42,6 +42,10 @@ interface ProcessExplorerWindowOptions {
      */
     saveWindowState: (state: AuxiliaryWindowState['processExplorer']) => Promise<unknown>;
     sampler: ProcessExplorerSampler;
+    /**
+     * Suspends one running Terminal through Server Core; see `terminal.suspend`.
+     */
+    stopTerminal: (terminalId: string) => Promise<{ suspended: boolean }>;
     theme: () => Promise<ThemeTokens>;
     windowMode: E2EWindowMode;
     /**
@@ -94,6 +98,13 @@ export class ProcessExplorerWindowController {
                     fields: { processes: snapshot.processes.length },
                 });
                 return snapshot;
+            },
+        );
+        ipcMain.handle(
+            PROCESS_EXPLORER_CHANNELS.stopTerminal,
+            (event, terminalId: unknown): Promise<{ suspended: boolean }> => {
+                assertTrustedProcessExplorerSender(this.window?.webContents, event.sender);
+                return this.options.stopTerminal(identifierSchema.parse(terminalId));
             },
         );
         ipcMain.handle(PROCESS_EXPLORER_CHANNELS.theme, (event) => {

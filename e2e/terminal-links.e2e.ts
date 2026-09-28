@@ -521,9 +521,9 @@ test('Terminal references open configured issues and an authorized Git commit', 
                 name: `Commit Changes (${sha.slice(0, 7)})`,
             }),
         ).toHaveAttribute('aria-pressed', 'true');
-        // The row keeps the branch in its visible slot, so the subject of the commit the link selected reaches the
-        // user through the meta span's accessible name and — the native `title` having given way to the panel's own
-        // popup — through a real hover over the row.
+        // The branch row keeps the branch in its visible slot, so the subject of the commit the link selected reaches
+        // the user through the meta span's accessible name and — the native `title` having given way to the panel's own
+        // popup — through a real hover over the repository row.
         const meta = running.page.locator('.git-repository-section .git-repository-meta');
         await expect(meta).toHaveAccessibleName(/first reference commit/);
         await running.page.locator('.git-repository-section .git-repository-row').first().hover();

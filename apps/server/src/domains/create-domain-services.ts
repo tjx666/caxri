@@ -41,9 +41,11 @@ import {
     ShellIntegrationService,
     terminalDirectoryIdentity,
     TerminalManager,
+    TerminalResourceMonitor,
     TerminalRestoreSupervisor,
     TerminalSuspensionService,
 } from './terminal';
+import { createTerminalHandlers } from './terminal-handlers';
 import {
     createTerminalAgentExactInputHandler,
     createTerminalBinaryInputHandler,
@@ -242,6 +244,13 @@ export async function createDomainServices(
         watchHub,
     });
     suspensionState.service = terminalSuspension;
+    const terminalResourceMonitor = new TerminalResourceMonitor({
+        database,
+        logger,
+        send,
+        terminals,
+        watchHub,
+    });
     const vercel = new VercelDeploymentStore(externalStatus.run);
     const projectStatus = new ProjectStatusService(git, logger, externalStatus.run, {
         emit: send,
@@ -451,6 +460,7 @@ export async function createDomainServices(
         terminalRestores.close();
         commanderRestores.close();
         await terminalSuspension.close();
+        await terminalResourceMonitor.close();
         coordinator.close();
         longPastes.close();
         unsubscribeTerminalSettings();
@@ -659,10 +669,6 @@ export async function createDomainServices(
             send,
             terminals,
         }),
-        'terminal.resize': ({ terminalId, cols, rows }) => {
-            terminals.resize(terminalId, cols, rows);
-            return null;
-        },
         'terminal.close': ({ terminalId }) =>
             mobileTerminalMutations.run(terminalId, () => {
                 const sessionId = database.getTerminal(terminalId)?.sessionId;
@@ -673,19 +679,6 @@ export async function createDomainServices(
                 sendFullStateChange('terminal.close');
                 return null;
             }),
-        'terminal.attach': ({ cols, rows, terminalId }) =>
-            terminals.attach(
-                terminalId,
-                cols === undefined || rows === undefined ? undefined : { cols, rows },
-            ),
-        'terminal.detach': ({ terminalId }) => {
-            terminals.detachView(terminalId);
-            return null;
-        },
-        'terminal.detachAll': () => {
-            terminals.detachAllViews();
-            return null;
-        },
         'terminal.restart': createTerminalRestartHandler({
             coordinator,
             database,
@@ -693,10 +686,12 @@ export async function createDomainServices(
             terminalDirectoryIdentity,
             terminals,
         }),
-        'terminal.snapshot': ({ terminalId }) => terminals.snapshot(terminalId),
-        'terminal.preview': ({ terminalId }) => terminals.preview(terminalId),
-        'terminal.runningCount': ({ sessionId }) => terminals.runningCount(sessionId),
-        'terminal.resources': ({ terminalId }) => terminals.resources(terminalId),
+        ...createTerminalHandlers({
+            database,
+            resourceMonitor: terminalResourceMonitor,
+            terminals,
+            terminalSuspension,
+        }),
         'terminal.queryForPrincipal': ({ principal, query }) =>
             introspection.records.terminal(query, principal),
         'terminal.terminateAll': async () => {
@@ -754,6 +749,7 @@ export async function createDomainServices(
     };
     observeSelectedSession(selectedSessionId());
     terminalSuspension.start();
+    terminalResourceMonitor.start();
     // Background Terminal restore preserves the three-second startup gate.
     const initialSessionId = selectedSessionId();
     if (initialSessionId) {
