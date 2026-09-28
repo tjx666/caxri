@@ -62,4 +62,22 @@ describe('preview scroll sync', () => {
         expect(leaving).not.toHaveBeenCalled();
         unsubscribeStaying();
     });
+
+    it('delivers a position to a later listener when an earlier one throws', () => {
+        const failing = vi.fn(() => {
+            throw new Error('scroll listener failure');
+        });
+        const surviving = vi.fn();
+        const unsubscribeFailing = subscribeSourceScroll('/p/fanout.md', failing);
+        const unsubscribeSurviving = subscribeSourceScroll('/p/fanout.md', surviving);
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        publishSourceScroll('/p/fanout.md', 3);
+
+        expect(failing).toHaveBeenCalledTimes(1);
+        expect(surviving).toHaveBeenCalledExactlyOnceWith(3);
+        unsubscribeFailing();
+        unsubscribeSurviving();
+        vi.restoreAllMocks();
+    });
 });

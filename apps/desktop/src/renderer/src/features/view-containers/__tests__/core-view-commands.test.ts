@@ -47,6 +47,29 @@ describe('Workbench Core view commands', () => {
         expect(sessionA).toHaveBeenCalledExactlyOnceWith(command);
     });
 
+    it('delivers a live command to a later subscriber when an earlier one throws', () => {
+        const command = {
+            arguments: [],
+            commandId: 'workbench.example.refresh',
+            contextKey: 'session-a:project-a',
+            role: 'resource.refresh' as const,
+            viewId: 'workbench.example.view',
+        };
+        const failing = vi.fn(() => {
+            throw new Error('core view command listener failure');
+        });
+        const surviving = vi.fn();
+        subscribeCoreViewCommands(command.viewId, command.contextKey, failing);
+        subscribeCoreViewCommands(command.viewId, command.contextKey, surviving);
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        dispatchCoreViewCommand(command);
+
+        expect(failing).toHaveBeenCalledTimes(1);
+        expect(surviving).toHaveBeenCalledExactlyOnceWith(command);
+        vi.restoreAllMocks();
+    });
+
     it('evicts the oldest pending view key once the pending-key cap is reached', () => {
         const first = {
             arguments: [],

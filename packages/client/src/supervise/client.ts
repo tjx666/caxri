@@ -7,7 +7,6 @@ import type {
     CaxriMethod,
     DesktopLease,
     DesktopLeaseRevocationReason,
-    DesktopOperation,
     DesktopServerOperation,
     DesktopServerOperationArguments,
     DesktopServerOperationResult,
@@ -18,7 +17,6 @@ import type {
     ParametersArgument,
     ProtocolWelcome,
     ServerControlEndpoint,
-    ServerDesktopCredential,
     ServerManifest,
 } from '@caxri/protocol';
 import {
@@ -47,12 +45,18 @@ import {
     serverEndpointUrl,
     toWireError,
 } from '@caxri/protocol';
+import { notifyListeners, notifyListenersThenRethrow } from '@caxri/utils';
 import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
-import { notifyListenersThenRethrow } from '../state/notify-listeners';
 import { BinaryStreamClient } from './binary-stream-client';
+import type { PendingRequest, ServerClientCredential } from './client-support';
+import { controlMessageText } from './client-support';
 import { discoverDesktopCredential, discoverServerManifest, MAX_MANIFEST_BYTES } from './discovery';
+
+// Re-exported so `@caxri/client/supervise` consumers keep importing this type from `client.js`, unchanged by the
+// `client-support.js` split.
+export type { ServerClientCredential } from './client-support';
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 /**
@@ -64,38 +68,6 @@ const DEFAULT_TIMEOUT_MS = 15_000;
  * other half of this fix.
  */
 const DESKTOP_LEASE_RENEW_MS = 20_000;
-interface PendingRequest {
-    parse(value: unknown): unknown;
-    reject(error: Error): void;
-    resolve(value: unknown): void;
-    timer?: NodeJS.Timeout;
-}
-
-export type ServerClientCredential =
-    | { kind: 'operator' }
-    | { kind: 'delegation-client'; clientId: string; generation: number; token: string }
-    | {
-          kind: 'agent';
-          hostId: string;
-          endpointId: string;
-          generation: number;
-          token: string;
-      }
-    | {
-          kind: 'desktop';
-          desktopId: string;
-          credential: ServerDesktopCredential;
-          handleCommand(
-              operation: DesktopOperation,
-              consumeTarget: () => Promise<DesktopTargetPayload>,
-          ): Promise<unknown>;
-      };
-
-function controlMessageText(data: RawData): string {
-    if (Buffer.isBuffer(data)) return data.toString('utf8');
-    if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
-    return Buffer.concat(data).toString('utf8');
-}
 
 /**
  * Authenticated local client shared by the CLI command surface and its future Agent adapter.
@@ -450,7 +422,13 @@ export class ServerClient {
         this.binaryStreams?.close(error);
         const listeners = [...this.closeListeners];
         this.closeListeners.clear();
-        for (const listener of listeners) listener(this.closeReason, this.closeCode);
+        // `notifyListeners` isolates each close listener so a throwing one cannot stop the rest from observing this
+        // connection's close; this class has no injected logger, so a failure is isolated silently here rather than
+        // reported, matching this file's existing `notifyListenersThenRethrow` event delivery (no reporter either).
+        notifyListeners(
+            listeners.map((listener) => () => listener(this.closeReason, this.closeCode)),
+            undefined,
+        );
     }
 
     /**

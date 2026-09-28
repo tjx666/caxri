@@ -1,6 +1,5 @@
-import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { mkdir, open, realpath } from 'node:fs/promises';
+import { mkdir, realpath } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
 import type {
@@ -27,7 +26,6 @@ import {
     errorMessage,
     findKeybindingConflicts,
     inspectableSettingsSchema,
-    MAX_CONFIGURATION_SOURCE_BYTES,
     MAX_TRUSTED_DOMAINS,
     MAX_TRUSTED_FOLDERS,
     normalizeTrustedDomainRule,
@@ -36,6 +34,7 @@ import {
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, parseJsonc, redactLogValue } from '@caxri/system';
+import { notifyListeners } from '@caxri/utils';
 import { applyEdits, modify } from 'jsonc-parser';
 
 import { atomicWrite } from './atomic-file';
@@ -45,6 +44,7 @@ import {
     prepareSettingsSource,
     prepareThemeSource,
 } from './config-reconcile';
+import { ConfigSourceReadError, readBoundedConfigSource } from './config-source';
 import { draculaTheme, importTheme, serializeTheme } from './theme';
 import type { WatchHandle } from './watch-hub';
 import { WatchHub } from './watch-hub';
@@ -54,16 +54,6 @@ type ConfigKind = 'settings' | 'keybindings' | 'theme';
 interface PreparedConfig {
     apply(): void;
     source: string;
-}
-
-class ConfigSourceReadError extends Error {
-    constructor(
-        message: string,
-        readonly revision: string,
-    ) {
-        super(message);
-        this.name = 'ConfigurationSourceReadError';
-    }
 }
 
 const WATCH_SETTLE_DELAY_MS = 100;
@@ -86,52 +76,6 @@ interface ConfigServiceOptions {
      * Controlled filesystem seam for lifecycle tests; production retains atomic replacement.
      */
     writeConfigSource?: (path: string, source: string) => Promise<void>;
-}
-
-async function readBoundedConfigSource(path: string): Promise<string> {
-    const file = await open(path, 'r');
-    try {
-        const metadata = await file.stat();
-        const revision = [
-            metadata.dev,
-            metadata.ino,
-            metadata.size,
-            metadata.mtimeMs,
-            metadata.ctimeMs,
-        ].join(':');
-        if (!metadata.isFile()) {
-            throw new ConfigSourceReadError('Configuration source is not a regular file', revision);
-        }
-        if (metadata.size > MAX_CONFIGURATION_SOURCE_BYTES) {
-            throw new ConfigSourceReadError(
-                `Configuration source exceeds the ${MAX_CONFIGURATION_SOURCE_BYTES} byte configuration source limit`,
-                revision,
-            );
-        }
-
-        /**
-         * The extra byte detects growth between stat and read without loading the full file.
-         */
-        const buffer = Buffer.allocUnsafe(MAX_CONFIGURATION_SOURCE_BYTES + 1);
-        let bytesRead = 0;
-        while (bytesRead < buffer.length) {
-            // Each read's offset depends on the byte count already read, so the reads are
-            // inherently sequential and cannot be batched with Promise.all.
-            // eslint-disable-next-line no-await-in-loop -- sequential-by-offset read, see comment above
-            const result = await file.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead);
-            if (result.bytesRead === 0) break;
-            bytesRead += result.bytesRead;
-        }
-        if (bytesRead > MAX_CONFIGURATION_SOURCE_BYTES) {
-            throw new ConfigSourceReadError(
-                `Configuration source exceeds the ${MAX_CONFIGURATION_SOURCE_BYTES} byte configuration source limit`,
-                revision,
-            );
-        }
-        return buffer.subarray(0, bytesRead).toString('utf8');
-    } finally {
-        await file.close();
-    }
 }
 
 export class ConfigService {
@@ -421,7 +365,13 @@ export class ConfigService {
     }
 
     private notifySettings(): void {
-        for (const listener of this.settingsListeners) listener(this.settings);
+        // Isolates each settings subscriber so one throwing listener cannot stop the rest from observing this
+        // settings change; only the failure reason is logged, never the settings payload.
+        notifyListeners(this.settingsListeners, this.settings, (error) =>
+            this.logger?.write('warn', logEventCatalog.configuration.settingsListenerFailed, {
+                fields: { error: errorMessage(error, 'unknown') },
+            }),
+        );
     }
 
     /**

@@ -142,6 +142,24 @@ describe('Session Composer state', () => {
         expect(second).not.toHaveBeenCalled();
     });
 
+    it('notifies a later subscriber when an earlier one throws', () => {
+        const store = new SessionComposerDeliveryStore();
+        const failing = vi.fn(() => {
+            throw new Error('composer listener failure');
+        });
+        const surviving = vi.fn();
+        const key = 'host-one\u{0}session-fanout';
+        const unsubscribeFailing = store.subscribe(key, failing);
+        const unsubscribeSurviving = store.subscribe(key, surviving);
+
+        store.set(key, { kind: 'sending', mutationId: 'attempt-one', text: 'hello' });
+
+        expect(failing).toHaveBeenCalledTimes(1);
+        expect(surviving).toHaveBeenCalledTimes(1);
+        unsubscribeFailing();
+        unsubscribeSurviving();
+    });
+
     it('reuses the unknown attempt ID only while the draft is unchanged', () => {
         const generate = vi.fn(() => 'attempt-two');
         const unknown = { kind: 'unknown', mutationId: 'attempt-one', text: 'hello' } as const;

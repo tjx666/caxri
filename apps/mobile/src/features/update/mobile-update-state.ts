@@ -1,6 +1,7 @@
 import type { MobileUpdateRecoveryPayload } from '@caxri/mobile-transport';
 import type { MobileUpdateBundle, MobileUpdatePrepareResult } from '@caxri/protocol';
 
+import { notifyListeners } from '../../lib/notify-listeners';
 import type { MobileConnectionStatus } from '../connection/connection-state';
 
 export type MobileUpdatePhase =
@@ -225,7 +226,10 @@ class MobileUpdateStore {
 
     #update(snapshot: MobileUpdateSnapshot): void {
         this.#snapshot = snapshot;
-        for (const listener of this.#listeners) listener();
+        // Isolates each subscriber so one throwing screen (the Sessions banner or the Settings row) cannot stop the
+        // other from observing this update. Mobile has no structured-log sink to report into yet, so the failure is
+        // isolated silently rather than reported.
+        notifyListeners(this.#listeners, undefined);
     }
 }
 

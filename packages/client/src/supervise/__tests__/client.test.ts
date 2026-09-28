@@ -98,6 +98,21 @@ describe('ServerClient close notification', () => {
         expect(listener).toHaveBeenCalledTimes(1);
     });
 
+    it('notifies a later onClose listener when an earlier one throws', () => {
+        const { client, socket } = createAttachedClient();
+        const failing = vi.fn(() => {
+            throw new Error('close listener failure');
+        });
+        const surviving = vi.fn();
+        client.onClose(failing);
+        client.onClose(surviving);
+
+        socket.emit('close');
+
+        expect(failing).toHaveBeenCalledTimes(1);
+        expect(surviving).toHaveBeenCalledTimes(1);
+    });
+
     it('fires a listener registered after closure synchronously', () => {
         const { client, socket } = createAttachedClient();
         socket.emit('close');

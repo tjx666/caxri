@@ -1,4 +1,5 @@
 import type { ExtensionViewActionRole } from '@caxri/protocol';
+import { notifyListeners } from '@caxri/utils';
 
 const MAX_PENDING_CORE_VIEW_COMMANDS = 64;
 const MAX_PENDING_CORE_VIEW_COMMAND_KEYS = 64;
@@ -42,7 +43,11 @@ export function dispatchCoreViewCommand(command: CoreViewCommand): void {
         enqueuePending(key, command);
         return;
     }
-    for (const listener of current) listener(command);
+    // Isolates each Core View command subscriber so one throwing view controller cannot stop the command's other
+    // subscribers from observing it; Desktop mirrors `console.error` into `logs/desktop.jsonl`.
+    notifyListeners(current, command, (error) =>
+        console.error('coreViewCommands.dispatch listener failed', error),
+    );
 }
 
 export function subscribeCoreViewCommands(

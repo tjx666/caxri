@@ -188,4 +188,21 @@ describe('TerminalRendererStatusRegistry', () => {
         registry.clear('t2');
         expect(registry.get('t2')).toBeUndefined();
     });
+
+    it('notifies a later subscriber when an earlier one throws', () => {
+        const registry = new TerminalRendererStatusRegistry();
+        const failing = vi.fn(() => {
+            throw new Error('renderer status listener failure');
+        });
+        const surviving = vi.fn();
+        registry.subscribe('t1', failing);
+        registry.subscribe('t1', surviving);
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        registry.publish('t1', status({ mode: 'dom', reason: 'disabled' }));
+
+        expect(failing).toHaveBeenCalledTimes(1);
+        expect(surviving).toHaveBeenCalledTimes(1);
+        vi.restoreAllMocks();
+    });
 });

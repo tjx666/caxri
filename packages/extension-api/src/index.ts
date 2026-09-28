@@ -1,6 +1,10 @@
+import type { CancellationToken, DisposableLike, Event } from './events.js';
+import { Disposable } from './events.js';
 import type { SourceControlProvider } from './view-providers.js';
 import type { WorkspaceGit } from './workspace.js';
 
+export type { CancellationToken, DisposableLike, Event } from './events.js';
+export { CancellationTokenSource, Disposable, EventEmitter } from './events.js';
 export type {
     ControlledViewProviderResult,
     SourceControlAction,
@@ -42,85 +46,6 @@ export type GlobPatternSettings = Readonly<Record<string, boolean>>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- The published stub preserves the signature replaced by the Extension Host.
 export function isGlobMatch(_relativePath: string, _patterns: GlobPatternSettings): boolean {
     return unavailable('isGlobMatch');
-}
-
-export interface DisposableLike {
-    dispose(): void;
-}
-
-export class Disposable implements DisposableLike {
-    static from(...disposables: readonly DisposableLike[]): Disposable {
-        return new Disposable(() => {
-            for (const disposable of disposables) disposable.dispose();
-        });
-    }
-
-    private isDisposed = false;
-
-    constructor(private readonly callOnDispose: () => void = () => {}) {}
-
-    dispose(): void {
-        if (this.isDisposed) return;
-        this.isDisposed = true;
-        this.callOnDispose();
-    }
-}
-
-export interface CancellationToken {
-    readonly isCancellationRequested: boolean;
-    readonly onCancellationRequested: Event<void>;
-}
-
-export type Event<T> = (listener: (event: T) => unknown) => Disposable;
-
-export class EventEmitter<T> implements DisposableLike {
-    private readonly listeners = new Set<(event: T) => unknown>();
-    private isDisposed = false;
-
-    readonly event: Event<T> = (listener) => {
-        if (this.isDisposed) return new Disposable();
-        this.listeners.add(listener);
-        return new Disposable(() => this.listeners.delete(listener));
-    };
-
-    fire(event: T): void {
-        if (this.isDisposed) return;
-        for (const listener of this.listeners) listener(event);
-    }
-
-    dispose(): void {
-        this.isDisposed = true;
-        this.listeners.clear();
-    }
-}
-
-export class CancellationTokenSource implements DisposableLike {
-    // eslint-disable-next-line unicorn/prefer-event-target -- The public API intentionally mirrors VS Code's EventEmitter contract.
-    private readonly cancellation = new EventEmitter<void>();
-    private isCancelled = false;
-    readonly token: CancellationToken;
-
-    constructor() {
-        // eslint-disable-next-line unicorn/no-this-assignment, @typescript-eslint/no-this-alias -- The token getter must retain the source identity while exposing a stable public token object.
-        const source = this;
-        this.token = {
-            get isCancellationRequested() {
-                return source.isCancelled;
-            },
-            onCancellationRequested: this.cancellation.event,
-        };
-    }
-
-    cancel(): void {
-        if (this.isCancelled) return;
-        this.isCancelled = true;
-        this.cancellation.fire();
-    }
-
-    dispose(): void {
-        this.cancel();
-        this.cancellation.dispose();
-    }
 }
 
 export class ThemeIcon {

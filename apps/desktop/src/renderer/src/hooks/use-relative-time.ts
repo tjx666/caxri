@@ -1,7 +1,7 @@
 import { useRef, useSyncExternalStore } from 'react';
 
 import type { RelativeTimeStyle } from '@caxri/utils';
-import { relativeTime } from '@caxri/utils';
+import { notifyListeners, relativeTime } from '@caxri/utils';
 
 /**
  * How often every relative-time label on screen is re-checked. Half a minute is the coarsest cadence that still turns
@@ -23,7 +23,11 @@ const clock: { timer?: ReturnType<typeof setInterval> } = {};
 export function subscribeToRelativeTimeClock(listener: () => void): () => void {
     listeners.add(listener);
     clock.timer ??= setInterval(() => {
-        for (const notify of listeners) notify();
+        // Isolates each tick subscriber so one throwing label cannot stop the window's other relative-time labels from
+        // turning over on this shared timer; Desktop mirrors `console.error` into `logs/desktop.jsonl`.
+        notifyListeners(listeners, undefined, (error) =>
+            console.error('relativeTime.tick listener failed', error),
+        );
     }, RELATIVE_TIME_TICK_MS);
     return () => {
         listeners.delete(listener);

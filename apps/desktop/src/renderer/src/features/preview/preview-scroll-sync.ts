@@ -1,3 +1,5 @@
+import { notifyListeners } from '@caxri/utils';
+
 /**
  * Carries the source editor's topmost visible line to any preview showing the same document.
  *
@@ -15,7 +17,11 @@ export function publishSourceScroll(path: string, topLine: number): void {
     if (!subscribers) return;
     if (latest.get(path) === topLine) return;
     latest.set(path, topLine);
-    for (const listener of subscribers) listener(topLine);
+    // Isolates each preview subscriber so one throwing preview pane cannot stop this document's other previews from
+    // observing the scroll position; Desktop mirrors `console.error` into `logs/desktop.jsonl`.
+    notifyListeners(subscribers, topLine, (error) =>
+        console.error('preview.sourceScroll listener failed', error),
+    );
 }
 
 export function subscribeSourceScroll(path: string, listener: ScrollListener): () => void {

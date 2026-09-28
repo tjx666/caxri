@@ -1,4 +1,4 @@
-import { createRecoveringEventClient, notifyListeners } from '@caxri/client/state';
+import { createRecoveringEventClient } from '@caxri/client/state';
 import type {
     CaxriBridge,
     CaxriMethod,
@@ -10,6 +10,7 @@ import type {
     TransientServerEvent,
 } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION, fromWireError } from '@caxri/protocol';
+import { notifyListeners } from '@caxri/utils';
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 /**

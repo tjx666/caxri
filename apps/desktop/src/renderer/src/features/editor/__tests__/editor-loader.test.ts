@@ -49,4 +49,21 @@ describe('editor-loader', () => {
         await vi.waitFor(() => expect(mocks.warmMonacoEditor).toHaveBeenCalledTimes(1));
         cancel();
     });
+
+    it('notifies a later subscriber when an earlier one throws', async () => {
+        const { loadCodeEditor, subscribeLoadedCodeEditor } = await import('../editor-loader');
+        const failing = vi.fn(() => {
+            throw new Error('editor loaded listener failure');
+        });
+        const surviving = vi.fn();
+        subscribeLoadedCodeEditor(failing);
+        subscribeLoadedCodeEditor(surviving);
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        await loadCodeEditor();
+
+        expect(failing).toHaveBeenCalledTimes(1);
+        expect(surviving).toHaveBeenCalledTimes(1);
+        vi.restoreAllMocks();
+    });
 });

@@ -1,5 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 
+import { notifyListeners } from '@caxri/utils';
+
 import type { TerminalGpuAcceleration, TerminalRendererStatus } from './terminal-renderer';
 
 export interface TerminalRendererIndicator {
@@ -136,7 +138,11 @@ export class TerminalRendererStatusRegistry {
 
     private notify(terminalId: string): void {
         const listeners = this.listeners.get(terminalId) ?? [];
-        for (const listener of listeners) listener();
+        // Isolates each Terminal renderer-status subscriber so one throwing panel cannot stop this Terminal's other
+        // panels from observing the transition; Desktop mirrors `console.error` into `logs/desktop.jsonl`.
+        notifyListeners(listeners, undefined, (error) =>
+            console.error('terminal.rendererStatus listener failed', error),
+        );
     }
 
     // eslint-disable-next-line unicorn/consistent-boolean-name -- retry performs recovery and returns its outcome; it is not a predicate
