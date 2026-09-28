@@ -184,6 +184,7 @@ describe('pnpm workspace contract', () => {
             'oxlint',
             'oxlint-tsgolint',
             'prettier-plugin-tailwindcss',
+            'prism-react-renderer',
             'react-qr-code',
             'react-scan',
             'semver',
