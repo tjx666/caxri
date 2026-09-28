@@ -46,7 +46,7 @@ async function captures(path: string): Promise<EndpointCapture[]> {
     }
 }
 
-test('Peer Inbox delivers, holds, denies, fences restart, and keeps bodies out of persistence', async () => {
+test('Peer Inbox delivers, holds, defers, denies, fences restart, and keeps bodies out of persistence', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-inbox-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -245,6 +245,71 @@ process.stdin.resume();
             )
             .toBe('refused');
 
+        /**
+         * Escape sets a request aside instead of answering it, so its sender keeps waiting and the status bar has to
+         * say so while the dialog is gone (issue caxri#1355). The waiting list's badge and the status bar count read
+         * one queue, so they are asserted to move together, and the count reopens the request that has waited longest.
+         */
+        const approvalCount = running.page.locator('footer.statusbar .statusbar-peer-approval');
+        const waitingList = running.page.getByTestId('agent-message-approval-waiting-list');
+        const deferredBodies = [
+            'peer-message-deferred-first sentinel',
+            'peer-message-deferred-second sentinel',
+        ] as const;
+        const peerSender = sender;
+        const receiverReference = receiverCapture.context.endpoint.ref;
+        async function sendAndDefer(body: string, deferredCount: number): Promise<string> {
+            const { messageId } = await peerSender.request('agent.message.send', {
+                to: receiverReference,
+                body,
+            });
+            await expect(approval.getByTestId('agent-message-body')).toContainText(body);
+            await running.page.keyboard.press('Escape');
+            await expect(approval).toHaveCount(0);
+            await expect(approvalCount).toHaveText(
+                `${deferredCount} ${deferredCount === 1 ? 'message' : 'messages'} awaiting approval`,
+            );
+            await expect(waitingList.getByRole('listitem')).toHaveCount(deferredCount);
+            return messageId;
+        }
+        await sendAndDefer(deferredBodies[0], 1);
+        const secondDeferredId = await sendAndDefer(deferredBodies[1], 2);
+        await running.page.screenshot({
+            path: test.info().outputPath('peer-approval-count-2.png'),
+        });
+        await approvalCount.click();
+        await expect(approval.getByTestId('agent-message-body')).toContainText(deferredBodies[0]);
+        await expect(approvalCount).toHaveText('1 message awaiting approval');
+        await approval.getByRole('button', { name: 'Approve message' }).click();
+        await expect(
+            receiver.request('agent.message.wait', { timeoutMs: 1_000 }),
+        ).resolves.toMatchObject({ message: { body: deferredBodies[0], origin: 'peer' } });
+        await expect(approval).toHaveCount(0);
+        await expect(approvalCount).toHaveText('1 message awaiting approval');
+        await expect(approvalCount).toHaveAccessibleName(
+            '1 peer message is waiting for your approval. Click to review the oldest one.',
+        );
+        await running.page.screenshot({
+            path: test.info().outputPath('peer-approval-count-1.png'),
+        });
+        await approvalCount.focus();
+        await running.page.keyboard.press('Enter');
+        await expect(approval.getByTestId('agent-message-body')).toContainText(deferredBodies[1]);
+        await approval.getByRole('button', { name: 'Deny' }).click();
+        await expect
+            .poll(
+                async () =>
+                    (
+                        await peerSender.request('agent.message.receipt', {
+                            messageId: secondDeferredId,
+                        })
+                    ).status,
+            )
+            .toBe('refused');
+        await expect(approval).toHaveCount(0);
+        await expect(approvalCount).toHaveCount(0);
+        await expect(waitingList).toHaveCount(0);
+
         const racedBody = 'peer-message-stale-approval sentinel';
         const raced = await sender.request('agent.message.send', {
             to: receiverCapture.context.endpoint.ref,
@@ -369,7 +434,14 @@ process.stdin.resume();
         } catch {
             terminalInput = Buffer.alloc(0);
         }
-        for (const body of [directBody, checkBody, heldBody, racedBody, staleBody]) {
+        for (const body of [
+            directBody,
+            checkBody,
+            heldBody,
+            ...deferredBodies,
+            racedBody,
+            staleBody,
+        ]) {
             expect(database.includes(Buffer.from(body))).toBe(false);
             expect(serverCoreLog).not.toContain(body);
             expect(JSON.stringify(diagnostics)).not.toContain(body);

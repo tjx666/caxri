@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { usePolledQuery } from '../../hooks/use-polled-query';
@@ -10,6 +12,13 @@ import { CommanderBoardItem } from './commander-board-item';
  * cached snapshot, which refreshes without emitting a board event.
  */
 const BOARD_POLL_INTERVAL_MS = 10_000;
+
+/**
+ * Memoized so a pull-request change renders only the rows it names: the patch keeps every other row's object and the
+ * board's `generatedAt` (issue caxri#1411). A poll still renders every row, because its new `generatedAt` moves each
+ * row's relative time.
+ */
+const MemoizedCommanderBoardItem = memo(CommanderBoardItem);
 
 /**
  * Every Workbench Session grouped by what it needs, in the Activity view's order. Read-only: a row hands its Session to
@@ -72,7 +81,7 @@ export function CommanderBoardView() {
                     </h2>
                     <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
                         {section.rows.map((row) => (
-                            <CommanderBoardItem
+                            <MemoizedCommanderBoardItem
                                 key={row.sessionId}
                                 now={data.generatedAt}
                                 row={row}

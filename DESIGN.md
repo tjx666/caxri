@@ -297,6 +297,12 @@ The `Always Allow` chip is the same kind of standing mode: it appears only while
 Session holds a mobile-granted "Always allow in this Session" permission grant, stays `--muted`, and
 revokes the grant on click, so a Session that silently allows every Agent permission request is
 never invisible on the Desktop.
+A peer message the user set aside with Decide later keeps its sender waiting, so the right rail
+counts those requests (`2 messages awaiting approval`) until the last one is approved, denied, or
+expires, and hides at zero. It keeps the clickable item's default foreground and never takes
+`--warning`: a decision waiting on the user is not a degradation. Click or Enter reopens the
+approval dialog on the request that has waited longest; the dialog, its waiting list, and the chip
+read one queue, so they cannot disagree about what is still pending.
 An open debugging channel earns the same kind of permanent muted slot, for the opposite reason: Caxri
 ships accepting Chrome DevTools Protocol connections on loopback, and a capability that lets any local
 program read every window and act as the user must be disclosed where the user can see it without

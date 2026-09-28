@@ -1,11 +1,14 @@
 import type {
     AgentActivityState,
     AgentDelegationReceipt,
+    CommanderBoard,
     CommanderBoardGroupId,
     CommanderBoardRow,
     ProcessState,
+    SessionPullRequests,
 } from '@caxri/protocol';
 import { agentProviderCatalog, commanderBoardGroupIds } from '@caxri/protocol';
+import { isEqual, omit } from 'es-toolkit';
 
 import type { AgentActivityGlyphId } from '../agent-activity/agent-activity-glyph';
 import type { SessionActivityPresentation } from '../primary-sidebar/session-activity';
@@ -48,6 +51,42 @@ export function commanderBoardSections(
         const groupRows = rowsByGroup.get(id);
         return groupRows ? [{ id, label: GROUP_LABELS[id], rows: groupRows }] : [];
     });
+}
+
+/**
+ * Applies a fresh `session.pullRequests` snapshot to the rows of the named Sessions only, the way the Server's
+ * `commanderBoard` projection would have filled their `pullRequest` and `pullRequestUnavailable` fields.
+ *
+ * Every other row keeps its object, and so does a named row whose pull request did not actually change; a board whose
+ * rows all stayed the same comes back as the same object. React Query hands that identity straight to the board, so a
+ * pull-request change re-renders the rows it touched and nothing else (issue caxri#1411). A named Session that is not
+ * on the board is skipped: the Server decides which Sessions get a row, and the board's own poll adds it.
+ */
+export function patchCommanderBoardPullRequests(
+    board: CommanderBoard,
+    snapshot: SessionPullRequests,
+    sessionIds: ReadonlySet<string>,
+): CommanderBoard {
+    const rows = board.rows.map((row) => {
+        if (!sessionIds.has(row.sessionId)) return row;
+        // The record omits every Session without a pull request, which its index type does not admit.
+        const pullRequest = snapshot.pullRequests[row.sessionId] as
+            CommanderBoardRow['pullRequest'] | undefined;
+        const pullRequestUnavailable = snapshot.unavailable?.[row.sessionId];
+        if (
+            isEqual(row.pullRequest, pullRequest) &&
+            isEqual(row.pullRequestUnavailable, pullRequestUnavailable)
+        )
+            return row;
+        return {
+            ...omit(row, ['pullRequest', 'pullRequestUnavailable']),
+            ...(pullRequest && { pullRequest }),
+            ...(pullRequestUnavailable && { pullRequestUnavailable }),
+        };
+    });
+    return rows.some((row, index) => row !== board.rows[index])
+        ? { ...board, pullRequestsRefreshedAt: snapshot.refreshedAt, rows }
+        : board;
 }
 
 /**
