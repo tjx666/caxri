@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { AgentHeldMessageDetail } from '@caxri/protocol';
 
-import { Button } from '../../components/ui/button';
+import { Alert } from '../../components/ui/alert';
 import {
     Dialog,
     DialogContent,
@@ -11,18 +11,22 @@ import {
     DialogTitle,
 } from '../../components/ui/dialog';
 import { describeFailure, pushToast } from '../../stores/toasts';
+import { AgentMessageApprovalActions } from './agent-message-approval-actions';
+import { AgentMessageApprovalBody } from './agent-message-approval-body';
 import { getHeldAgentMessage, settleHeldAgentMessage } from './agent-message-approval-client';
 import {
-    activeHeldMessage,
+    acknowledgeExpiredHeldMessage,
     deferHeldMessage,
     deferredHeldMessages,
     heldMessageActionResultForError,
     loadHeldMessageDetail,
+    presentedHeldMessage,
     removeHeldMessage,
     reviewHeldMessage,
     settleHeldMessage,
 } from './agent-message-approval-state';
 import { updateHeldMessageQueue, useHeldMessageQueueStore } from './agent-message-approval-store';
+import { AgentMessageApprovalSummary } from './agent-message-approval-summary';
 import { AgentMessageApprovalWaitingList } from './agent-message-approval-waiting-list';
 
 /**
@@ -44,6 +48,11 @@ function approvalConfirmButton(popup: HTMLElement | null): HTMLButtonElement | n
  *
  * The queue itself lives in `useHeldMessageQueueStore`, fed by `subscribeHeldMessageQueue` from the App, so the status
  * bar reads the same requests this dialog and its waiting list do.
+ *
+ * A request that expires while it is on screen — its approval window closed, or the Server voided it because the
+ * receiving Agent restarted — stays on screen, marked expired, with Dismiss as its only action (see
+ * `HeldMessageQueue.expired`): the reader learns that what they were reading is void instead of watching it vanish, or
+ * be replaced by the next request mid-decision.
  */
 export function AgentMessageApprovalDialog() {
     const queue = useHeldMessageQueueStore((state) => state.queue);
@@ -52,7 +61,9 @@ export function AgentMessageApprovalDialog() {
     const [detailAttempt, setDetailAttempt] = useState(0);
     const [pending, setPending] = useState(false);
     const contentReference = useRef<HTMLDivElement>(null);
-    const current = activeHeldMessage(queue);
+    const presented = presentedHeldMessage(queue);
+    const current = presented?.message;
+    const isExpired = presented?.isExpired === true;
     const waiting = deferredHeldMessages(queue);
     const currentMessageId = current?.messageId;
     const readyDetail =
@@ -138,11 +149,19 @@ export function AgentMessageApprovalDialog() {
         return () => popup.removeEventListener('focus', handOverFocus);
     }, [isBodyLoading]);
 
-    const endpointReference = useMemo(() => {
-        if (!current) return '';
-        const { hostId, endpointId, generation } = current.from.ref;
-        return `${hostId}:${endpointId}:${generation}`;
-    }, [current]);
+    /**
+     * Expiry removes Approve and Deny from under the reader, and a removed button drops focus to the document body —
+     * outside the dialog's focus trap. Dismiss takes the confirming slot, so hand focus to it unless the user is
+     * already on another control in the dialog.
+     */
+    useEffect(() => {
+        if (!isExpired) return;
+        const popup = contentReference.current;
+        if (!popup) return;
+        const focused = document.activeElement;
+        if (focused !== popup && popup.contains(focused)) return;
+        approvalConfirmButton(popup)?.focus();
+    }, [isExpired]);
 
     /**
      * Retires the presentation without answering: the message stays held, the sender stays pending, and the request
@@ -151,6 +170,13 @@ export function AgentMessageApprovalDialog() {
     function deferCurrent(): void {
         if (!currentMessageId) return;
         updateHeldMessageQueue((existing) => deferHeldMessage(existing, currentMessageId));
+    }
+
+    /**
+     * An expired request has nothing left to set aside, so every way out of its notice just acknowledges it.
+     */
+    function dismissExpired(): void {
+        updateHeldMessageQueue(acknowledgeExpiredHeldMessage);
     }
 
     async function settle(action: 'approve' | 'deny'): Promise<void> {
@@ -181,8 +207,10 @@ export function AgentMessageApprovalDialog() {
             <Dialog
                 open={Boolean(current)}
                 onOpenChange={(nextOpen) => {
+                    if (nextOpen) return;
+                    if (isExpired) dismissExpired();
                     // Escape, the close button, and an outside click all mean "not now", never "no".
-                    if (!nextOpen) deferCurrent();
+                    else deferCurrent();
                 }}
             >
                 {current && (
@@ -190,7 +218,7 @@ export function AgentMessageApprovalDialog() {
                         ref={contentReference}
                         // Closing this dialog sets the request aside; it does not refuse it. The X's glyph cannot carry
                         // that distinction, so its accessible name has to.
-                        closeLabel="Decide later"
+                        closeLabel={isExpired ? 'Dismiss' : 'Decide later'}
                         data-testid="agent-message-approval-dialog"
                         initialFocus={() => {
                             const confirm = approvalConfirmButton(contentReference.current);
@@ -203,96 +231,47 @@ export function AgentMessageApprovalDialog() {
                         }}
                     >
                         <DialogHeader>
-                            <DialogTitle>Peer message approval</DialogTitle>
-                            <DialogDescription>
-                                This is inert Agent-to-Agent text. Approving delivers only this
-                                message and does not grant permissions, change settings, or execute
-                                a command.
-                            </DialogDescription>
+                            <DialogTitle>
+                                {isExpired ? 'Peer message expired' : 'Peer message approval'}
+                            </DialogTitle>
+                            {/* Expired, there is no approving left to explain; the notice below says what happened instead. */}
+                            {!isExpired && (
+                                <DialogDescription>
+                                    This is inert Agent-to-Agent text. Approving delivers only this
+                                    message and does not grant permissions, change settings, or
+                                    execute a command.
+                                </DialogDescription>
+                            )}
                         </DialogHeader>
                         <div className="space-y-3 p-4">
-                            <dl className="grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-1 text-[11px]">
-                                <dt className="text-muted">Sender</dt>
-                                <dd className="m-0 truncate">{current.from.name}</dd>
-                                <dt className="text-muted">Project</dt>
-                                <dd className="m-0 truncate">{current.from.projectId}</dd>
-                                <dt className="text-muted">Provider</dt>
-                                <dd className="m-0">{current.from.provider}</dd>
-                                <dt className="text-muted">Permission</dt>
-                                <dd className="m-0">{current.from.permissionClass}</dd>
-                                <dt className="text-muted">Endpoint</dt>
-                                <dd className="m-0 truncate font-mono" title={endpointReference}>
-                                    {endpointReference}
-                                </dd>
-                            </dl>
-                            {/*
-                             * The three body states are loading, unreadable, and read. There is no empty state: the
-                             * protocol rejects an empty body (`agentMessageBodySchema`), so a blank panel here would
-                             * always be a failed read wearing the wrong clothes.
-                             */}
-                            <div className="min-h-24 rounded border border-border bg-background p-3 text-[11px] leading-5">
-                                {readyDetail ? (
-                                    <pre
-                                        data-testid="agent-message-body"
-                                        className="m-0 max-h-48 overflow-auto font-mono break-words whitespace-pre-wrap text-foreground"
-                                    >
-                                        {readyDetail.body}
-                                    </pre>
-                                ) : detailFailed ? (
-                                    <div role="alert" data-testid="agent-message-body-error">
-                                        <p className="m-0 text-danger">
-                                            The complete message could not be read.
-                                        </p>
-                                        <p className="m-0 mt-1 text-muted">
-                                            Approve and Deny stay available without it — approving
-                                            only delivers this message and grants nothing. Retry
-                                            loads the full text if you want to read it first.
-                                        </p>
-                                        <Button
-                                            variant="secondary"
-                                            size="sm"
-                                            className="mt-2"
-                                            onClick={() => {
-                                                setDetailFailed(false);
-                                                setDetailAttempt((attempt) => attempt + 1);
-                                            }}
-                                        >
-                                            Retry
-                                        </Button>
-                                    </div>
-                                ) : (
-                                    <p className="m-0 text-muted">Loading the complete message…</p>
-                                )}
-                            </div>
-                            <p className="m-0 text-[11px] text-muted">
-                                Decide later, Escape, and closing this dialog all leave the request
-                                waiting. None of them answers the sender.
-                            </p>
-                            <div className="flex justify-end gap-2">
-                                <Button variant="ghost" disabled={pending} onClick={deferCurrent}>
-                                    Decide later
-                                </Button>
-                                <Button
-                                    variant="secondary"
-                                    disabled={pending}
-                                    onClick={() => {
-                                        // eslint-disable-next-line no-void -- intentional floating-promise discard, settle() reports its own errors via toast
-                                        void settle('deny');
-                                    }}
-                                >
-                                    Deny
-                                </Button>
-                                <Button
-                                    data-approval-confirm
-                                    disabled={pending || isBodyLoading}
-                                    onClick={() => {
-                                        // eslint-disable-next-line no-void -- intentional floating-promise discard, settle() reports its own errors via toast
-                                        void settle('approve');
-                                    }}
-                                >
-                                    Approve message
-                                </Button>
-                            </div>
+                            {isExpired && (
+                                <Alert variant="warning" data-testid="agent-message-expired">
+                                    This request expired before it was answered. It can no longer be
+                                    approved or denied, and the message was not delivered.
+                                </Alert>
+                            )}
+                            <AgentMessageApprovalSummary message={current} isExpired={isExpired} />
+                            <AgentMessageApprovalBody
+                                body={readyDetail?.body}
+                                failed={detailFailed}
+                                isExpired={isExpired}
+                                preview={current.preview}
+                                onRetry={() => {
+                                    setDetailFailed(false);
+                                    setDetailAttempt((attempt) => attempt + 1);
+                                }}
+                            />
+                            <AgentMessageApprovalActions
+                                isBodyLoading={isBodyLoading}
+                                isExpired={isExpired}
+                                pending={pending}
+                                onDefer={deferCurrent}
+                                onDismiss={dismissExpired}
+                                onSettle={(action) => {
+                                    // eslint-disable-next-line no-void -- intentional floating-promise discard, settle() reports its own errors via toast
+                                    void settle(action);
+                                }}
+                            />
                         </div>
                     </DialogContent>
                 )}

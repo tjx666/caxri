@@ -71,6 +71,12 @@ yet. `settled=no` in the header means the window closed while renders were still
 `--seconds` before reading those counts as complete. `--json FILE` keeps every instance; the table
 is truncated by `--limit`.
 
+`--within COMPONENT` scopes the table and the header to one surface, such as `PrimarySidebar`: an
+instance counts when it is that component or renders beneath it in the Fiber tree, so portaled
+content such as a row's hover card stays with its row. The header keeps the whole-window totals in
+parentheses. Scope every sample whose question is about one surface; a window total mixes in the
+pane subtree a switch legitimately mounts and hides a sidebar change inside it.
+
 The `boot` command additionally refuses to settle until `.workbench` exists, because startup has
 quiet gaps while it waits on the Server and settling inside one would describe the loading shell.
 
@@ -156,6 +162,10 @@ mounts  updates  firstMs  lastMs  hidden  instance
 - **Stale collector.** react-scan installs one instrumentation per document, so a collector from an
   earlier build of this script cannot be swapped in place. `sample` then fails with
   `STALE_COLLECTOR`; run `boot` once to reload the window.
+- **The first sample after arming is all mounts.** react-scan reports every Fiber it has not seen
+  yet as a mount, so the first `sample` in a window reads like a full remount (hundreds of mounts,
+  zero updates) whatever the interaction did. Take one throwaway sample first and compare only the
+  ones after it.
 - **Repeated `sample` runs share the window.** Arming resets the counters, so consecutive samples
   are independent — but the app state is not. A scenario that changed the active Session changed the
   starting point of the next sample.
@@ -211,47 +221,68 @@ Session-switch sample entirely. What remains is tracked rather than unexplained:
 - The 51 mounts are the `PaneView` subtree of a Session not yet in the workbench's recently used
   keep-alive set; a switch between retained Sessions should mount nothing, so mounts there are a
   finding.
-- The ~200 remaining updates are the 5 Session cards and their menu wrappers. Issue #1108 named the
-  cause: recorded here because the first answer was wrong in an instructive way — "`app.bootstrap`
-  is replaced wholesale, so every derived array is a new reference" is false.
-  `stores/structural-sharing.test.ts` proves the real merge function keeps `sessions`/`projects`
-  reference-stable across a snapshot that only changes `selectedSessionId`, so `bootstrap` was never
-  the source. A cause that sounds mechanical is still a guess until the reference is actually
-  compared, and §7 is what that rule exists for.
+- The ~200 remaining updates were the 5 Session cards and their menu wrappers. Issue #1108 took
+  two wrong answers before issue #1356 measured the right one, and both are instructive.
 
-  The real cause: `primary-sidebar/hooks/use-session-order.ts` and `use-session-rename.ts` each
-  returned a fresh object literal on every call — every property, including the `startDrag` /
-  `dragOver` / `keyDown` / `drop` / `beginRename` / `cancelRename` / `commitRename` methods, was a
-  new closure identity on every render of `PrimarySidebarProjectTree`, which itself re-renders on
-  every Session switch because it reads `selectedSessionId`. Those objects and methods are passed
-  straight down as props to `ProjectGroupList`/`PinnedSessionGroup` and each Session card, so a
-  switch invalidated every card's own render-skip regardless of whether its content changed — even
-  though `ActiveSessionRow`, the card component itself, compiles cleanly under React Compiler
-  (verified by running `babel-plugin-react-compiler` directly against it: zero bailouts) and would
-  otherwise have skipped the re-render.
+  The first wrong answer: "`app.bootstrap` is replaced wholesale, so every derived array is a new
+  reference". False — `mergeStructurally` keeps every unchanged record's identity. The second wrong
+  answer over-corrected: a structural-sharing test that only changed `selectedSessionId` "proved"
+  `sessions`/`projects` survive a switch. A real switch does more than that: the Server stamps
+  `lastOpenedAt` on the opened Session and on its Project, so both arrays and those two records
+  arrive as new objects, while every other record and `terminals` keep their identity.
+  `stores/structural-sharing.test.ts` now locks that real shape. A synthetic snapshot proves only
+  what it contains; compare against the payload the interaction actually produces.
 
-  Confirmed React Compiler does **not** cover either hook — not assumed, verified by transforming
-  both files with the exact `babel-plugin-react-compiler` version this repo pins and reading the
-  `CompileError`/bailout events from its `logger` option:
-  - `use-session-order.ts`: an arrow function written as a destructuring default
-    (`groupOf = (session) => session.projectId`) hits
-    `BuildHIR::node.lowerReorderableExpression: Expression type 'ArrowFunctionExpression' cannot be
-safely reordered`; independently, `persist`'s `try { … } finally { … }` with no `catch` hits
-    `BuildHIR::lowerStatement: Handle TryStatement without a catch clause`. Either bailout alone
-    disqualifies the whole hook.
-  - `use-session-rename.ts`: the compiler's blanket policy disqualifies any function containing an
-    ESLint rule suppression — this hook has one `eslint-disable-next-line react-hooks/exhaustive-deps`
-    (a deliberate one; not something to remove for this).
+  Issue #1108 then wrapped `use-session-order.ts` and `use-session-rename.ts` in
+  `useCallback`/`useMemo`, because React Compiler bails out of both (a destructuring-default arrow
+  and a `try`/`finally` without `catch` in one, an ESLint suppression in the other; verified by
+  running the pinned `babel-plugin-react-compiler` with a `logger`). That landed as #1354 without a
+  re-sample, on the claim that the card component compiles cleanly and "would otherwise have
+  skipped the re-render".
 
-  Fix landed: both hooks now wrap their inline methods in `useCallback` and their returned
-  controller object in `useMemo`, with `react-hooks/exhaustive-deps` verifying every dependency
-  array by lint rather than by hand. The two call sites that passed an inline arrow as `groupOf`
-  (the hook's own default, and `use-pinned-session-group.ts`'s Pinned-group override) were hoisted
-  to named module-level functions, since a fresh function passed in on every render would have
-  defeated the new memoization from the outside. Numbers not yet re-sampled here: this fix was made
-  without dev-app/CDP access, so the `session-switch` row above still needs one
-  `render-count.ts sample --label session-switch` pass on this branch to confirm the instance/update
-  counts actually drop and record the after numbers next to the `726 → 229` row.
+### Measuring #1354 (issue #1356)
+
+Method: 1 Project with 5 Shell Sessions, window 1440×900 (inner 1440×837 at 2×), each build on its
+own isolated dev instance. Visit Sessions 2, 3, 4, 5, then 1, so the keep-alive set is {1, 5, 4};
+discard one warm-up sample (§5); then sample `--label session-switch --within PrimarySidebar
+--seconds 30` for three retained switches (to 1, 5, 1) and one cold switch (to 2).
+
+| Build                        | Sidebar, retained switch | Window, retained switch   | Sidebar, cold switch |
+| ---------------------------- | ------------------------ | ------------------------- | -------------------- |
+| Before #1354 (`0403756e5`)   | 88 / 88 / 88             | 177 / 200 / 177 instances | 88                   |
+| After #1354 (`0fb1845cb`)    | 88 / 88 / 88             | 177 / 200 / 177 instances | 80                   |
+| `main` at the start of #1356 | 86 / 86 / 86             | 175 / 198 / 175 instances | 82                   |
+| #1356 fix                    | 49 / 49 / 49             | 138 / 161 / 138 instances | 49                   |
+
+Every sidebar instance in those rows is an update: a switch mounts nothing in the sidebar. **#1354
+changed nothing**; its memoization was sound but everything it keyed on still moved. Five
+identities reached every row on each switch:
+
+1. The `useSessionOrder` controller and the rename handlers depended on the `sessions` array, which
+   the `lastOpenedAt` stamp replaces, so the memoized objects were rebuilt anyway.
+2. Each row received the whole `project` record, which the same stamp replaces.
+3. Each row received an inline `onBeginRename` closure.
+4. Each row received its own freshly filtered `visibleSessions` array.
+5. There was no `memo` boundary. React Compiler caches a parent's `.map()` block as a whole, so
+   when any input of that block changes — and `selectedSessionId` always does — every row element
+   is recreated and every compiled child renders again. A cleanly compiled child skips nothing on
+   its own; only a `memo` boundary compares its props.
+
+The fix: stable handlers read the current list through `useLatestReference` (a layout effect, so
+no event reads a stale list) instead of depending on it; rows get the Project's display fields
+instead of the record, the shared `onBeginRename` instead of a per-row closure, and one
+content-keyed `visibleSessionIds` array per list (`useVisibleSessionIds`); both lists render
+`memo(ActiveSessionRow)`. `session-order.test.ts` locks the id-list key across a record
+replacement.
+
+What still renders is expected: the two rows whose `selected` flipped (`ActiveSessionRow` 5 → 2,
+and the same for `SessionRowTrigger`, `SessionRowMenu`, `SessionActivityCard`; `HoverCard` and
+`ContextMenuTrigger` 6 → 3 with the Project row's own), the Project heading whose record the Server
+stamped, and the tree shell that reads `selectedSessionId`. The whole-window mounts (18 or 41 on a
+retained switch, 136 on the cold one) belong to the pane, not the sidebar, and did not change.
+
+The lesson for the next render fix: re-sample before calling it done, and scope the sample to the
+surface under repair. A cause is confirmed by the count dropping, not by the code looking memoized.
 
 ## 7. Naming the cause
 

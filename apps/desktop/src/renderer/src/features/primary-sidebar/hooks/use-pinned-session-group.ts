@@ -70,12 +70,11 @@ export function usePinnedSessionGroup({
     sessions,
 }: PinnedSessionGroupInput): PinnedSessionGroupModel {
     const pinned = useMemo(() => pinnedSessions(sessions), [sessions]);
-    const sessionOrder = useSessionOrder(pinned, {
+    const { controller: sessionOrder, sessions: groupSessions } = useSessionOrder(pinned, {
         dropTargetAt: pinnedSessionDropTarget,
         groupOf: pinnedGroupOf,
         reorder: didReorderPinnedSession,
     });
-    const groupSessions = sessionOrder.sessions;
     /**
      * Kept in memory only, like each Project's window: a relaunch starts from the short list again.
      */

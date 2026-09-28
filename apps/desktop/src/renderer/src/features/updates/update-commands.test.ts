@@ -175,7 +175,7 @@ describe('automatic discovery', () => {
         // after the toast expired, and a screen reader hears which release three `Show Update` buttons each mean.
         expect(options?.action).toEqual({
             id: 'updates.show',
-            accessibleLabel: 'Show the update to Caxri 1.1.0',
+            accessibleLabel: 'Show Update for Caxri 1.1.0',
         });
         unsubscribe();
     });

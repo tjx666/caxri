@@ -51,13 +51,10 @@ describe('mergeStructurally', () => {
     });
 
     /**
-     * Issue #1108's step 1: prove `app.bootstrap`'s reference stability across a Session switch, deterministically
-     * rather than by reading a live snapshot over CDP. `workbench.ts` runs every incoming bootstrap through this exact
-     * function (`mergeStructurally(previous.bootstrap, next)`), so this is the real merge, not a simulation of it — a
-     * switch only ever changes `selectedSessionId`, and the Server always re-sends the full record set alongside it, so
-     * `sessions` and `projects` arrive as new but deeply-equal arrays on every refresh. The sibling keys must keep
-     * their previous reference: **stable**. The 5 Session cards' residual updates are not explained by a bootstrap
-     * reference change; see `use-session-order.ts`/`use-session-rename.ts` for the actual cause.
+     * Issue #1108's step 1: `workbench.ts` runs every incoming bootstrap through this exact function
+     * (`mergeStructurally(previous.bootstrap, next)`), so this is the real merge, not a simulation of it. The Server
+     * re-sends the full record set on every refresh, and a refresh that changes nothing but `selectedSessionId` keeps
+     * every collection's reference.
      */
     it('keeps sessions and projects stable across a bootstrap refresh that only changes the selected Session', () => {
         const previous = {
@@ -80,6 +77,42 @@ describe('mergeStructurally', () => {
         expect(merged.sessions).toBe(previous.sessions);
         expect(merged.projects).toBe(previous.projects);
         expect(merged.sessionStates).toBe(previous.sessionStates);
+        expect(merged.terminals).toBe(previous.terminals);
+    });
+
+    /**
+     * Issue #1356: a real Session switch is not the refresh above. Selecting a Session stamps its `lastOpenedAt` and
+     * its Project's, so `sessions` and `projects` do change reference on every switch — along with the two records
+     * whose timestamp moved. Anything a Session row receives therefore cannot be derived from those arrays or records
+     * by identity alone: the rows stay quiet only because the handlers read them through refs, the id lists are keyed
+     * by content, and the Project reaches each row as fields.
+     */
+    it('replaces only the opened Session and its Project across a real Session switch', () => {
+        const previous = {
+            selectedSessionId: 'session-a',
+            sessions: [
+                { id: 'session-a', displayTitle: 'First', lastOpenedAt: 1 },
+                { id: 'session-b', displayTitle: 'Second', lastOpenedAt: 1 },
+            ],
+            projects: [
+                { id: 'project-a', displayTitle: 'Caxri', lastOpenedAt: 1 },
+                { id: 'project-b', displayTitle: 'Docs', lastOpenedAt: 1 },
+            ],
+            terminals: [{ id: 'terminal-a', title: 'Shell' }],
+        };
+        const next = structuredClone(previous);
+        next.selectedSessionId = 'session-b';
+        next.sessions[1].lastOpenedAt = 2;
+        next.projects[0].lastOpenedAt = 2;
+
+        const merged = mergeStructurally(previous, next);
+
+        expect(merged.sessions).not.toBe(previous.sessions);
+        expect(merged.sessions[0]).toBe(previous.sessions[0]);
+        expect(merged.sessions[1]).not.toBe(previous.sessions[1]);
+        expect(merged.projects).not.toBe(previous.projects);
+        expect(merged.projects[0]).not.toBe(previous.projects[0]);
+        expect(merged.projects[1]).toBe(previous.projects[1]);
         expect(merged.terminals).toBe(previous.terminals);
     });
 });

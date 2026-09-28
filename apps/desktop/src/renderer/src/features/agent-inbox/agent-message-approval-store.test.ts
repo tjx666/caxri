@@ -131,6 +131,18 @@ describe('held message queue store', () => {
         stopWatching();
     });
 
+    it('keeps the presented request on screen as expired when the Server reports its expiry', async () => {
+        const first = held('held-1', NOW - 2_000);
+        const second = held('held-2', NOW - 1_000);
+        unsubscribe = await subscribeWith([first, second]);
+
+        emit(receiptEvent('held-1', 'expired'));
+
+        expect(queue().expired).toEqual(first);
+        expect(queue().messages).toEqual([second]);
+        expect(activeHeldMessage(queue())).toBeUndefined();
+    });
+
     it('keeps a request whose receipt still reports it held', async () => {
         unsubscribe = await subscribeWith([held('held-1', NOW - 1_000)]);
 

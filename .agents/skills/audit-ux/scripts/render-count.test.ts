@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { RenderInstanceRow } from './render-count';
-import { formatRenderTable, parseRenderCountOptions, summarizeRenderSample } from './render-count';
+import {
+    formatRenderTable,
+    parseRenderCountOptions,
+    scopeRenderSample,
+    summarizeRenderSample,
+} from './render-count';
 
 function row(overrides: Partial<RenderInstanceRow> & { name: string }): RenderInstanceRow {
     return {
@@ -58,6 +63,14 @@ describe('render-count options', () => {
         );
     });
 
+    it('scopes a sample to one surface only when a component name is given', () => {
+        expect(parseRenderCountOptions(['sample', '--within', 'PrimarySidebar'])).toMatchObject({
+            command: 'sample',
+            within: 'PrimarySidebar',
+        });
+        expect(parseRenderCountOptions(['sample'])).not.toHaveProperty('within');
+    });
+
     it('returns help for no arguments so a bare run explains itself', () => {
         expect(parseRenderCountOptions([])).toBe('help');
         expect(parseRenderCountOptions(['sample', '--help'])).toBe('help');
@@ -98,6 +111,40 @@ describe('render-count summary', () => {
         ]);
 
         expect(summary.hiddenInstances).toBe(1);
+    });
+});
+
+describe('render-count scope', () => {
+    it('keeps the surface subtree in the table and the whole window beside it', () => {
+        const { scoped, window } = scopeRenderSample(
+            [
+                row({ mounts: 0, name: 'ActiveSessionRow', updates: 2, within: true }),
+                row({ instance: 2, mounts: 0, name: 'PaneView', updates: 5, within: false }),
+            ],
+            'PrimarySidebar',
+        );
+
+        expect(scoped).toMatchObject({ commits: 2, instances: 1, updates: 2 });
+        expect(window).toMatchObject({ commits: 7, instances: 2, updates: 7 });
+        expect(
+            formatRenderTable(
+                scoped,
+                { settled: true, windowMs: 1800 },
+                {
+                    label: 'session-switch',
+                    limit: 5,
+                    scope: { name: 'PrimarySidebar', window: window! },
+                },
+            ),
+        ).toContain('within=PrimarySidebar (window: instances=2 commits=7 mounts=0 updates=7)');
+    });
+
+    it('summarizes the whole sample when no scope was requested', () => {
+        const rows = [row({ name: 'PaneView', updates: 3 })];
+
+        expect(scopeRenderSample(rows, undefined)).toEqual({
+            scoped: summarizeRenderSample(rows),
+        });
     });
 });
 

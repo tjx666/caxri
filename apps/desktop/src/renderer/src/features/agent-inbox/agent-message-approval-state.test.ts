@@ -4,13 +4,16 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { HeldMessageEntry, HeldMessageQueue } from './agent-message-approval-state';
 import {
+    acknowledgeExpiredHeldMessage,
     activeHeldMessage,
     deferHeldMessage,
     deferredHeldMessages,
     emptyHeldMessageQueue,
+    expireHeldMessage,
     expireHeldMessages,
     heldMessageActionResultForError,
     loadHeldMessageDetail,
+    presentedHeldMessage,
     receiveHeldMessage,
     removeHeldMessage,
     replaceHeldMessages,
@@ -107,6 +110,75 @@ describe('held message approval queue', () => {
         expect(queue.messages).toEqual([second]);
         expect(queue.deferred).toEqual([]);
         expect(deferredHeldMessages(queue)).toEqual([]);
+    });
+
+    it('keeps the request on screen, marked expired, when its window closes while it is being asked about', () => {
+        const queue = expireHeldMessages(queueOf(first, second), first.expiresAt);
+
+        // The Server no longer holds it, so it leaves the queue like any other expiry…
+        expect(queue.messages).toEqual([second]);
+        // …but the modal keeps showing it as void instead of vanishing under the reader.
+        expect(presentedHeldMessage(queue)).toEqual({ isExpired: true, message: first });
+    });
+
+    it('does not swap the next request in under an expired notice until it is acknowledged', () => {
+        const expired = expireHeldMessages(queueOf(first, second), first.expiresAt);
+
+        expect(activeHeldMessage(expired)).toBeUndefined();
+        const acknowledged = acknowledgeExpiredHeldMessage(expired);
+        expect(presentedHeldMessage(acknowledged)).toEqual({ isExpired: false, message: second });
+    });
+
+    it('treats the Server expiry receipt for the presented request like the local tick', () => {
+        const queue = expireHeldMessage(queueOf(first, second), 'held-1');
+
+        expect(queue.messages).toEqual([second]);
+        expect(presentedHeldMessage(queue)).toEqual({ isExpired: true, message: first });
+        // Whichever of the two arrives second finds nothing left to expire.
+        expect(expireHeldMessages(queue, first.expiresAt)).toBe(queue);
+        expect(expireHeldMessage(queue, 'held-1')).toBe(queue);
+    });
+
+    it('lets a request set aside expire without an expired notice', () => {
+        const deferred = deferHeldMessage(queueOf(first, second), 'held-1');
+
+        expect(expireHeldMessage(deferred, 'held-1').expired).toBeUndefined();
+        expect(expireHeldMessages(deferred, first.expiresAt).expired).toBeUndefined();
+    });
+
+    it('keeps the expired notice while other requests arrive, settle, or get set aside', () => {
+        const third = held('held-3', 3_000);
+        const expired = expireHeldMessages(queueOf(first, second), first.expiresAt);
+        const queue = deferHeldMessage(
+            removeHeldMessage(receiveHeldMessage(expired, third), 'held-2'),
+            'held-3',
+        );
+
+        expect(queue.expired).toBe(first);
+        expect(replaceHeldMessages(queue, [third]).expired).toBe(first);
+    });
+
+    it('drops the expired notice when the Server says the request was answered in time after all', () => {
+        const expired = expireHeldMessages(queueOf(first, second), first.expiresAt);
+
+        expect(settleHeldMessage(expired, 'held-1', 'confirmed').expired).toBeUndefined();
+        expect(removeHeldMessage(expired, 'held-1').expired).toBeUndefined();
+        // A final rejection is the Server agreeing the request is gone, so the notice stays.
+        expect(settleHeldMessage(expired, 'held-1', 'final-rejection').expired).toBe(first);
+    });
+
+    it('clears the expired notice when the user picks a request from the waiting list', () => {
+        const deferred = deferHeldMessage(queueOf(first, second), 'held-2');
+        const expired = expireHeldMessages(deferred, first.expiresAt);
+        const queue = reviewHeldMessage(expired, 'held-2');
+
+        expect(presentedHeldMessage(queue)).toEqual({ isExpired: false, message: second });
+    });
+
+    it('leaves a queue without an expired notice unchanged on acknowledgement', () => {
+        const queue = queueOf(first);
+
+        expect(acknowledgeExpiredHeldMessage(queue)).toBe(queue);
     });
 
     it('leaves the queue untouched when the expiry tick finds nothing expired', () => {

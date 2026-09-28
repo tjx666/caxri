@@ -32,8 +32,11 @@ export interface HeldMessageEntry {
  * - Prompting → answered: {@link settleHeldMessage} with `confirmed` (Server accepted the approve or deny) or
  *   `final-rejection` (Server can no longer settle it); both drop the message.
  * - Prompting → prompting: {@link settleHeldMessage} with `rejected`, a transient transport failure the user can retry.
- * - Any → gone: {@link removeHeldMessage} (a receipt settled it elsewhere) or {@link expireHeldMessages} (the approval
- *   window ran out). Neither is an answer either.
+ * - Any → gone: {@link removeHeldMessage} (a receipt settled it elsewhere) or {@link expireHeldMessages} /
+ *   {@link expireHeldMessage} (the approval window ran out). Neither is an answer either.
+ * - Prompting → expired: when the window closes on the request the modal is asking about, it leaves `messages` like any
+ *   other expiry but stays on screen as {@link HeldMessageQueue.expired} until {@link acknowledgeExpiredHeldMessage}. A
+ *   request that expires while set aside only leaves the waiting list, which already shows its deadline.
  */
 export interface HeldMessageQueue<T extends HeldMessageEntry> {
     readonly messages: readonly T[];
@@ -46,6 +49,14 @@ export interface HeldMessageQueue<T extends HeldMessageEntry> {
      * that was clicked instead of the oldest unanswered request.
      */
     readonly reviewing?: string;
+    /**
+     * The request the modal was asking about when its approval window closed. The Server no longer holds it — it can be
+     * neither approved nor denied, and it was not delivered — yet the modal keeps it on screen, marked expired, until
+     * the user acknowledges that. Dropping it silently made the dialog vanish, or swap to the next queued request,
+     * under a reader who was still deciding; the swap could even land a reflexive Approve on a message they never read.
+     * While it is set, {@link activeHeldMessage} prompts for nothing else.
+     */
+    readonly expired?: T;
 }
 
 export const emptyHeldMessageQueue: HeldMessageQueue<never> = { deferred: [], messages: [] };
@@ -65,7 +76,41 @@ function withoutStaleReferences<T extends HeldMessageEntry>(
     const live = new Set(messages.map((message) => message.messageId));
     const deferred = queue.deferred.filter((messageId) => live.has(messageId));
     const reviewing = queue.reviewing && live.has(queue.reviewing) ? queue.reviewing : undefined;
-    return { deferred, messages, ...(reviewing && { reviewing }) };
+    return {
+        deferred,
+        messages,
+        ...(reviewing && { reviewing }),
+        ...(queue.expired && { expired: queue.expired }),
+    };
+}
+
+function withoutMessage<T extends HeldMessageEntry>(
+    queue: HeldMessageQueue<T>,
+    messageId: string,
+): HeldMessageQueue<T> {
+    if (queue.messages.every((message) => message.messageId !== messageId)) return queue;
+    return withoutStaleReferences(
+        queue.messages.filter((message) => message.messageId !== messageId),
+        queue,
+    );
+}
+
+/**
+ * Drops the given expired requests, keeping the one the modal was presenting on screen as
+ * {@link HeldMessageQueue.expired}.
+ */
+function withoutExpired<T extends HeldMessageEntry>(
+    queue: HeldMessageQueue<T>,
+    expiredIds: ReadonlySet<string>,
+): HeldMessageQueue<T> {
+    const presented = activeHeldMessage(queue);
+    const next = withoutStaleReferences(
+        queue.messages.filter((message) => !expiredIds.has(message.messageId)),
+        queue,
+    );
+    return presented && expiredIds.has(presented.messageId)
+        ? { ...next, expired: presented }
+        : next;
 }
 
 /**
@@ -92,17 +137,17 @@ export function receiveHeldMessage<T extends HeldMessageEntry>(
 }
 
 /**
- * Drops a message that left the held state elsewhere (a receipt, another window, the sender withdrawing it).
+ * Drops a message that left the held state elsewhere (a receipt, another window, the sender withdrawing it). A receipt
+ * that settles the request shown as expired means the Server answered it before the window closed after all — the local
+ * tick only ran ahead of it — so the expired notice would now be wrong and goes too.
  */
 export function removeHeldMessage<T extends HeldMessageEntry>(
     queue: HeldMessageQueue<T>,
     messageId: string,
 ): HeldMessageQueue<T> {
-    if (queue.messages.every((message) => message.messageId !== messageId)) return queue;
-    return withoutStaleReferences(
-        queue.messages.filter((message) => message.messageId !== messageId),
-        queue,
-    );
+    if (queue.expired?.messageId === messageId)
+        return withoutMessage(acknowledgeExpiredHeldMessage(queue), messageId);
+    return withoutMessage(queue, messageId);
 }
 
 /**
@@ -113,11 +158,34 @@ export function expireHeldMessages<T extends HeldMessageEntry>(
     queue: HeldMessageQueue<T>,
     now: number,
 ): HeldMessageQueue<T> {
-    if (queue.messages.every((message) => !(message.expiresAt <= now))) return queue;
-    return withoutStaleReferences(
-        queue.messages.filter((message) => message.expiresAt > now),
-        queue,
-    );
+    const expired = queue.messages.filter((message) => message.expiresAt <= now);
+    if (expired.length === 0) return queue;
+    return withoutExpired(queue, new Set(expired.map((message) => message.messageId)));
+}
+
+/**
+ * The Server's `expired` receipt for one message, which can arrive before the local tick notices.
+ */
+export function expireHeldMessage<T extends HeldMessageEntry>(
+    queue: HeldMessageQueue<T>,
+    messageId: string,
+): HeldMessageQueue<T> {
+    if (queue.messages.every((message) => message.messageId !== messageId)) return queue;
+    return withoutExpired(queue, new Set([messageId]));
+}
+
+/**
+ * The user read the expired notice. The modal is free to ask about the next request, if any.
+ */
+export function acknowledgeExpiredHeldMessage<T extends HeldMessageEntry>(
+    queue: HeldMessageQueue<T>,
+): HeldMessageQueue<T> {
+    if (!queue.expired) return queue;
+    return {
+        deferred: queue.deferred,
+        messages: queue.messages,
+        ...(queue.reviewing && { reviewing: queue.reviewing }),
+    };
 }
 
 /**
@@ -135,11 +203,13 @@ export function deferHeldMessage<T extends HeldMessageEntry>(
         deferred: wasDeferred ? queue.deferred : [...queue.deferred, messageId],
         messages: queue.messages,
         ...(reviewing && { reviewing }),
+        ...(queue.expired && { expired: queue.expired }),
     };
 }
 
 /**
- * Brings a set-aside request back to the modal, ahead of queue order.
+ * Brings a set-aside request back to the modal, ahead of queue order. Picking a request is also a clear sign the user
+ * has moved past an expired notice, so it does not linger over the request they asked for.
  */
 export function reviewHeldMessage<T extends HeldMessageEntry>(
     queue: HeldMessageQueue<T>,
@@ -180,29 +250,52 @@ export function heldMessageActionResultForError(error: unknown): HeldMessageActi
 /**
  * Retains a held message until Server confirms its transition. A rejected Desktop request can be a transient transport
  * failure, so removing it would leave the user unable to retry the decision.
+ *
+ * A confirmed answer to a request already shown as expired means the Server accepted it inside the window, so the
+ * notice goes; a final rejection is the Server agreeing the request is gone, so the notice stays.
  */
 export function settleHeldMessage<T extends HeldMessageEntry>(
     queue: HeldMessageQueue<T>,
     messageId: string,
     result: HeldMessageActionResult,
 ): HeldMessageQueue<T> {
-    return result === 'confirmed' || result === 'final-rejection'
-        ? removeHeldMessage(queue, messageId)
-        : queue;
+    if (result === 'confirmed') return removeHeldMessage(queue, messageId);
+    if (result === 'final-rejection') return withoutMessage(queue, messageId);
+    return queue;
 }
 
 /**
- * The single request the modal asks about: the one the user came back to, otherwise the oldest never set aside.
+ * The single request the modal asks about: the one the user came back to, otherwise the oldest never set aside. Nothing
+ * while an expired notice is still on screen.
  */
 export function activeHeldMessage<T extends HeldMessageEntry>(
     queue: HeldMessageQueue<T>,
 ): T | undefined {
+    if (queue.expired) return undefined;
     const deferred = new Set(queue.deferred);
     const reviewing =
         queue.reviewing && !deferred.has(queue.reviewing)
             ? queue.messages.find((message) => message.messageId === queue.reviewing)
             : undefined;
     return reviewing ?? queue.messages.find((message) => !deferred.has(message.messageId));
+}
+
+/**
+ * What the modal shows: the expired notice until it is acknowledged, otherwise the request it asks about.
+ */
+export function presentedHeldMessage<T extends HeldMessageEntry>(
+    queue: HeldMessageQueue<T>,
+): { isExpired: boolean; message: T } | undefined {
+    if (queue.expired) return { isExpired: true, message: queue.expired };
+    const active = activeHeldMessage(queue);
+    return active && { isExpired: false, message: active };
+}
+
+/**
+ * The wall-clock time an approval window closes, as every approval surface prints it.
+ */
+export function heldMessageDeadlineLabel(expiresAt: number): string {
+    return new Date(expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 /**

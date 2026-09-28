@@ -58,7 +58,10 @@ export function SessionRowMenu({
      */
     onMarkRead?: () => void;
     onOpenChange?: (isOpen: boolean) => void;
-    project: ProjectRecord;
+    /**
+     * The fields the menu's Project actions act on.
+     */
+    project: Pick<ProjectRecord, 'id' | 'rootPath'>;
     pullRequest?: SessionPullRequest;
     session: SessionRecord;
     terminals: TerminalRecord[];
@@ -121,7 +124,7 @@ async function sessionRowMenu({
 }: {
     onBeginRename?: () => void;
     onMarkRead?: () => void;
-    project: ProjectRecord;
+    project: Pick<ProjectRecord, 'id' | 'rootPath'>;
     pullRequest?: SessionPullRequest;
     session: SessionRecord;
     terminals: TerminalRecord[];
