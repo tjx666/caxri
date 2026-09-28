@@ -17,6 +17,7 @@ import {
 import { verifyTerminalFixturePreflightReceipt } from './fixture-preflight';
 import { validateReportMediaEvidence } from './media-integrity';
 import { mobileDeviceSchema, validateMobileCaseEvidence } from './mobile-report';
+import { planFixtureFields, validatePlanFixtureDeclarations } from './plan-fixtures';
 import { changedPathsBetween } from './rebind-delta';
 import {
     BLOCKED_REASONS,
@@ -85,6 +86,7 @@ const planItemSchema = z
         surface: z.enum(PRODUCT_SURFACES).default('desktop'),
         title: z.string().min(1),
         verifier: z.enum(['agent', 'program', 'llm']).default('agent'),
+        ...planFixtureFields,
     })
     .superRefine((item, context) => {
         if (item.surface === 'mobile' && !item.mobileDevice) {
@@ -170,6 +172,7 @@ export async function loadAcceptanceCasePlan(
         .parse(raw);
     const item = plan.find(({ id }) => id === caseId);
     if (!item) throw new Error(`Acceptance case ${caseId} is not present in the frozen plan`);
+    validatePlanFixtureDeclarations([item]);
     return { commit, directory, item };
 }
 export function validateAcceptanceCaseLaunch(
@@ -238,6 +241,7 @@ export async function initializeReport(input: InitializeReportInput): Promise<st
     const directory = resolveReportDirectory(input.directory);
     const parsedPlan = normalizePlanLanguage(z.array(planItemSchema).min(1).parse(input.plan));
     assertUniqueAcceptanceCaseIds(parsedPlan, 'plan');
+    validatePlanFixtureDeclarations(parsedPlan);
     const requirement = validateHumanText(input.requirement, 'requirement');
     const title = validateHumanText(input.title, 'title');
     const entry = validateHumanText(input.entry, 'entry');

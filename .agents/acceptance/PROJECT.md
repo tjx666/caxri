@@ -55,16 +55,31 @@ Android, and iOS Simulator product surfaces.
   UI may the agent prefix each native command with
   `CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION=explicit-user-request` and add `--native-dialog`;
   the launcher and native helpers otherwise fail closed.
-  For the cases listed in `acceptanceThemeImportCaseIds`
-  (`apps/desktop/src/main/acceptance-theme-import.ts`), which is the single source the launcher
-  reads, the launcher enables a narrower theme-file selection fixture. Read that list there rather
-  than from a copy here: a case missing from it opens a real macOS panel instead of failing.
-  Put the import file inside the first `--test-root`, then write
+  A case that clicks **Import Theme** declares `"themeImportFixture": true` in the frozen plan; the
+  launcher then enables a narrower theme-file selection fixture for exactly that case.
+  `report.ts init` refuses a desktop item whose id, title, method, or expected text mentions theme
+  import without the declaration (use `false` when the case deliberately does not use the fixture), and
+  Main rejects an unarmed Acceptance **Import Theme** with an error instead of opening the real
+  macOS panel. Only a case declaring `false`, launched with the native-dialog authorization marker,
+  may reach the real panel; the marker alone never does. A `true` case cannot use
+  `--native-dialog`. Put the import file inside the first `--test-root`, then write
   `{ "caseId": "<current case>", "relativePath": "<path within test root>", "sequence": 1 }`
   to `acceptance-theme-import-command.json` in the owned runtime's `userDataDir` before clicking
   **Import Theme**. Increase `sequence` for each selection. Main records
   `acceptance-theme-import-receipt.jsonl`; copy it into the case assets before stopping the app.
   This controls only the file choice, not the import or its native dialog appearance.
+
+- **Update notification:** unpackaged Acceptance builds never contact the release service. A case
+  that must show update UI declares `"updateFixture": "available"`; the launcher arms
+  `CAXRI_ACCEPTANCE_UPDATE` for exactly that case, and Main
+  (`apps/desktop/src/main/acceptance-update.ts`) replaces only GitHub release discovery with the
+  fixed release `999.0.0`. The launch check then publishes it through the real update state path,
+  so the Renderer's notification and **Check for Updates** dialog render normally. The fixture is
+  served once per launch; later checks re-read that state. Download and install stay disabled and
+  report an error if clicked. A packaged build or a launch outside the Acceptance and E2E gates
+  ignores the variable; inside Acceptance any other value shows a check error. Main appends the
+  served case to `acceptance-update-receipt.jsonl` in the owned `userDataDir`; copy it into the
+  case assets as proof the update was the fixture, not a real release.
 
 - **Restart with the same isolated profile:** create an empty temporary directory whose basename
   starts with `caxri-acceptance-user-<profile-id-length>-<profile-id>-`, pass the same `--case-id`,
