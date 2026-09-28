@@ -44,9 +44,9 @@ promotion never receives an Endpoint. These bearer capabilities are a product au
 not a sandbox from same-user code that can independently read the private owner manifest.
 
 The canonical provider-neutral Agent guide lives at `skills/caxri-cli/SKILL.md`. The CLI build
-validates its executable examples and capability marker against the same command registry, then
-embeds the exact skill files in the standalone artifact with CLI/protocol compatibility metadata and
-a content hash. Offline `skills list|get|status` never opens the Server transport or emits local paths.
+validates its executable examples, inline command mentions, and capability marker against the same
+command registry, then embeds the exact skill files in the standalone artifact with CLI/protocol
+compatibility metadata and a content hash. Offline `skills list|get|status` never opens the Server transport or emits local paths.
 Explicit install/update operations target only the documented Project-local or user-global skill
 directory for the selected Codex or Claude provider. A complete immutable release is written beside
 the Provider-visible entry before one relative directory symlink publishes it; update atomically

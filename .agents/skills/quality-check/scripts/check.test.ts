@@ -434,8 +434,11 @@ describe('testCandidatesForFile', () => {
         expect(testCandidatesForFile('.agents/skills/competitors/SKILL.md')).toContain(
             'scripts/__tests__/skill-invocation.test.ts',
         );
-        expect(testCandidatesForFile('skills/caxri-cli/SKILL.md')).toContain(
-            'apps/cli/src/__tests__/skills.integration.test.ts',
+        expect(testCandidatesForFile('skills/caxri-cli/SKILL.md')).toEqual(
+            expect.arrayContaining([
+                'apps/cli/src/__tests__/skills.integration.test.ts',
+                'apps/cli/scripts/validate-skill.test.ts',
+            ]),
         );
         expect(testCandidatesForFile('.agents/skills/debug/agents/openai.yaml')).toContain(
             'scripts/__tests__/skill-invocation.test.ts',
