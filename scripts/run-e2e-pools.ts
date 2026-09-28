@@ -19,6 +19,7 @@ import { createE2EPoolPlan } from '../e2e/support/pools';
 import { waitForChildExit } from './exec';
 import type {
     E2EAbortedInvocation,
+    E2EPoolAbortReason,
     E2EPoolReceipt,
     E2ETestReceipt,
 } from './reporters/e2e-receipt-reporter';
@@ -31,6 +32,35 @@ import {
 const projectRoot = resolve(import.meta.dirname, '..');
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
 export type E2EPool = 'control' | 'desktop-exclusive' | 'parallel-safe';
+
+/**
+ * Set once by {@link installAbortHandlers} when this process receives an {@link E2EPoolAbortReason} signal, grouped
+ * behind a single object so functions below mutate a property instead of reassigning a top-level binding
+ * (`unicorn/no-top-level-assignment-in-function`). Module state is enough here: `run-e2e-pools.ts` is a one-shot CLI
+ * process, `main` calls `installAbortHandlers` exactly once, and every reader is downstream of that same event loop
+ * turn.
+ */
+const poolAbortState: { reason: E2EPoolAbortReason | undefined } = { reason: undefined };
+
+/**
+ * Node's default disposition for `SIGINT`/`SIGTERM` is to terminate the process immediately.
+ * `ci-concurrent-validation.ts` relies on exactly that to kill a sibling component's process group when a checks
+ * failure (or the shared execution deadline) aborts the run — see `ConcurrentValidationProcesses.abort`. Left
+ * unhandled, this process dies mid-invocation without writing anything, so whatever E2E failure already happened has no
+ * CI-downloadable evidence (issue #1446). Registering a handler here suppresses that default: the in-flight
+ * `runInvocation` await still resolves once the signalled Playwright child exits, and the invocation loop in `runPool`
+ * checks {@link poolAbortState} before starting another one instead of continuing the pool. A ~2s `SIGKILL` follows the
+ * `SIGTERM` (`ConcurrentValidationProcesses`'s force timer), so everything after the signal — reading whatever receipt
+ * the current invocation wrote, synthesizing the partial pool receipt, and writing it to disk — has to fit in that
+ * window.
+ */
+function installAbortHandlers(): void {
+    for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+        process.on(signal, () => {
+            poolAbortState.reason ??= signal;
+        });
+    }
+}
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
 export function resolveParallelWorkers(environment: NodeJS.ProcessEnv): number {
@@ -244,6 +274,38 @@ export function resolvePoolOutcome(
     };
 }
 
+/**
+ * Builds the partial pool receipt {@link poolAbortState} makes `runPool` write instead of the normal outcome.
+ * `executedInvocations`/`exitCodes` cover only invocations the loop actually started, so {@link resolvePoolOutcome}
+ * still tells a signal-killed invocation's specs (`abortedInvocations`, since its process exited non-zero) apart from
+ * ones the reporter already settled. `neverRunSpecs` covers invocations the loop chose not to start at all once the
+ * signal arrived; those are folded into `missingSpecs` too — the receipt has no test entries for them either way — but
+ * deliberately kept out of `abortedInvocations`, which means "this invocation's process exited non-zero" and never-
+ * started work did not do that. The result is always non-zero and the status always `failed`: an aborted pool never
+ * finished proving its own completeness, even on the rare signal that lands after everything already passed.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
+export function finalizeAbortedPool(
+    receipt: E2EPoolReceipt,
+    executedInvocations: readonly E2EPoolInvocation[],
+    exitCodes: readonly number[],
+    neverRunSpecs: readonly string[],
+    abortReason: E2EPoolAbortReason,
+): { receipt: E2EPoolReceipt; result: number } {
+    const outcome = resolvePoolOutcome(receipt, executedInvocations, exitCodes);
+    const missingSpecs = [
+        ...new Set([...(outcome.receipt.missingSpecs ?? []), ...neverRunSpecs.map(specIdentity)]),
+    ];
+    const aborted: E2EPoolReceipt = {
+        ...outcome.receipt,
+        abortReason,
+        ...(missingSpecs.length > 0 && { missingSpecs }),
+        status: 'failed',
+    };
+    assertE2EPoolReceipt(aborted);
+    return { receipt: aborted, result: outcome.result || 1 };
+}
+
 async function writeReceipt(path: string, receipt: E2EPoolReceipt): Promise<void> {
     await mkdir(resolve(path, '..'), { recursive: true });
     const temporary = `${path}.${process.pid}.tmp`;
@@ -280,28 +342,52 @@ async function runPool(
         (_invocation, index) => `test-results/receipts/${pool}-${index}.json`,
     );
     const exitCodes: number[] = [];
+    let executedCount = 0;
     // Only one Electron/Desktop-driving Playwright invocation may run at a time (see
     // AGENTS.md: "Never run Electron desktop tasks concurrently"), so pool invocations
-    // must execute sequentially rather than via Promise.all.
-    for (const [index, invocation] of invocations.entries()) {
+    // must execute sequentially rather than via Promise.all. Checking poolAbortState.reason before
+    // each invocation, instead of only after the loop, keeps this process from spawning fresh work
+    // once ci-concurrent-validation.ts has already signalled an abort (see installAbortHandlers).
+    for (const invocation of invocations) {
+        if (poolAbortState.reason) break;
         // eslint-disable-next-line no-await-in-loop -- sequential Electron desktop invocations only
         const code = await runInvocation(
             invocation,
             pool,
             workers,
-            receiptPaths[index],
+            receiptPaths[executedCount],
             coordinatorToken,
         );
         exitCodes.push(code);
+        executedCount += 1;
     }
+    const executedInvocations = invocations.slice(0, executedCount);
+    const neverRunSpecs = invocations.slice(executedCount).flatMap(({ specs }) => specs);
     const receipts = await Promise.all(
-        receiptPaths.map((path) => readInvocationReceipt(path, pool)),
+        receiptPaths.slice(0, executedCount).map((path) => readInvocationReceipt(path, pool)),
     );
-    const receipt = combinePoolReceipts(pool, receipts);
+    const now = new Date().toISOString();
+    const baseReceipt =
+        receipts.length > 0
+            ? combinePoolReceipts(pool, receipts)
+            : createE2EPoolReceipt({ finishedAt: now, pool, startedAt: now, tests: [] });
+    const abortReasonAfterMainLoop = poolAbortState.reason;
+    if (abortReasonAfterMainLoop) {
+        const outcome = finalizeAbortedPool(
+            baseReceipt,
+            executedInvocations,
+            exitCodes,
+            neverRunSpecs,
+            abortReasonAfterMainLoop,
+        );
+        await writeReceipt(finalReceiptPath, outcome.receipt);
+        return outcome;
+    }
     const censusReceipts: E2EPoolReceipt[] = [];
     const censusInvocations: E2EPoolInvocation[] = [];
-    const unknownTests = censusTargets(receipt.tests).entries();
+    const unknownTests = censusTargets(baseReceipt.tests).entries();
     for (const [index, test] of unknownTests) {
+        if (poolAbortState.reason) break;
         const censusPath = `test-results/receipts/${pool}-census-${index}.json`;
         const line = /:(\d+):\d+$/u.exec(test.location)?.[1];
         const censusInvocation = { specs: [`${specIdentity(test.location)}:${line ?? '1'}`] };
@@ -322,11 +408,21 @@ async function runPool(
         // eslint-disable-next-line no-await-in-loop -- reads the receipt just written by the preceding sequential invocation
         censusReceipts.push(await readInvocationReceipt(censusPath, pool));
     }
-    const outcome = resolvePoolOutcome(
-        mergeCensusReceipts(receipt, censusReceipts),
-        [...invocations, ...censusInvocations],
-        exitCodes,
-    );
+    const merged = mergeCensusReceipts(baseReceipt, censusReceipts);
+    const allInvocations = [...executedInvocations, ...censusInvocations];
+    const abortReasonAfterCensus = poolAbortState.reason;
+    if (abortReasonAfterCensus) {
+        const outcome = finalizeAbortedPool(
+            merged,
+            allInvocations,
+            exitCodes,
+            neverRunSpecs,
+            abortReasonAfterCensus,
+        );
+        await writeReceipt(finalReceiptPath, outcome.receipt);
+        return outcome;
+    }
+    const outcome = resolvePoolOutcome(merged, allInvocations, exitCodes);
     await writeReceipt(finalReceiptPath, outcome.receipt);
     assertE2EPoolCensusComplete(outcome.receipt);
     return outcome;
@@ -414,6 +510,7 @@ function slowestSpecSummary(receipt: E2EPoolReceipt, workers: number): string[] 
 }
 
 async function main(): Promise<void> {
+    installAbortHandlers();
     const pool = parseE2EPool(process.argv.slice(2));
     /**
      * Every pool hands Playwright an explicit spec list, which the `globalSetup` guard reads as a focused run. Refuse
@@ -449,7 +546,13 @@ async function main(): Promise<void> {
         } finally {
             await releaseDesktopLease(coordinator);
         }
-        await assertParallelLeasesReleased(parallelWorkers);
+        /**
+         * A pool the abort path stopped early may still have a worker mid-teardown when its process group is signalled;
+         * that is an expected side effect of the abort, not a new lease leak to fail on top of it.
+         */
+        if (!execution.receipt.abortReason) {
+            await assertParallelLeasesReleased(parallelWorkers);
+        }
     } else {
         execution = await runPool(invocations, pool, 1);
     }
