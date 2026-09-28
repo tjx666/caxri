@@ -19,6 +19,7 @@ import { isRestoringPickerFocus } from '../../lib/picker-final-focus';
 import { cn } from '../../lib/utilities';
 import { openSessionPullRequest } from '../session/session-commands';
 import { pullRequestUnavailableLabel } from '../status-bar/pull-request-status-label';
+import { useSessionChanges } from './hooks/use-session-changes';
 import { ProjectIcon } from './project-icon';
 import type { SessionActivityPresentation } from './session-activity';
 import {
@@ -172,6 +173,8 @@ export function SessionActivityCard({
     const pullRequestPresentation = pullRequest
         ? sessionPullRequestPresentation(pullRequest)
         : undefined;
+    const visible = open && !suppressed;
+    const changes = useSessionChanges(session, visible);
     const accessibleDescription = [
         // The pin has no visible mark on the row itself — it is the group the row sits in — and a pinned Session is
         // listed only there, so this sentence is the only thing that says the row is pinned at all.
@@ -182,12 +185,12 @@ export function SessionActivityCard({
         !pullRequestUnavailable && pullRequestPresentation?.ariaLabel,
         pullRequestUnavailable && `Pull request unknown. ${pullRequestUnavailable.hint}`,
         worktreeProject && `Working in worktree ${worktreeProject.displayTitle}.`,
+        changes?.ariaLabel,
         `Last opened ${lastOpened}.`,
         unread ? `${unread}.` : undefined,
     ]
         .filter(Boolean)
         .join(' ');
-    const visible = open && !suppressed;
 
     useEffect(() => {
         if (!visible) return;
@@ -261,6 +264,14 @@ export function SessionActivityCard({
                         <span className="flex-none">Worktree</span>
                         <span className="min-w-0 truncate text-right text-foreground">
                             {worktreeProject.displayTitle}
+                        </span>
+                    </div>
+                )}
+                {changes && (
+                    <div className="session-card-changes mt-2 flex items-center justify-between gap-3 text-[11px] text-muted">
+                        <span className="flex-none">Changes</span>
+                        <span className="text-right text-foreground tabular-nums">
+                            {changes.value}
                         </span>
                     </div>
                 )}

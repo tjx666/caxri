@@ -69,7 +69,15 @@ export const gitMethods = {
     },
     'git.overview': {
         ...serverRead,
-        params: z.object({ sessionId: identifierSchema }),
+        params: z.object({
+            sessionId: identifierSchema,
+            /**
+             * Re-read working-tree status instead of joining the cached snapshot. Only the selected Session's Workbench
+             * Root is file-watched, so a plain edit elsewhere never advances that root's snapshot on its own; a reader
+             * of another Session's count asks for a fresh one (issue #859).
+             */
+            refresh: z.boolean().default(false),
+        }),
         result: gitOverviewSchema,
     },
     'git.branches': {

@@ -375,9 +375,9 @@ the tree's single Tab stop. The Portal
 card opens to the PrimarySidebar's right after a short hover delay (or immediately on intentional keyboard focus),
 collision-shifts within the viewport, and shows only the full title, Project, primary Agent,
 activity explanation, the pull request when one exists, the `Worktree` the Session works in when
-that is not its own Project root, `Last opened`, and unread-attention metadata. Opening a modal closes
-the card and gives the modal ownership of Escape. Canceling a picker restores the exact opening
-control without reopening its detail card; a command's explicit focus handoff takes precedence.
+that is not its own Project root, `Changes`, `Last opened`, and unread-attention metadata. Opening a
+modal closes the card and gives the modal ownership of Escape. Canceling a picker restores the exact
+opening control without reopening its detail card; a command's explicit focus handoff takes precedence.
 If the opening control disappeared, restore the current workbench Terminal when available.
 All non-archived Project and
 Session names and navigation icons use `--foreground`, including inactive rows. Overflowing Session
@@ -447,6 +447,19 @@ A Session working in a Git worktree rather than its Project root carries no mark
 daily use a leading worktree glyph added a column without changing what the user did next. The
 worktree name stays in the Session hover card and the row's accessible description.
 
+`Changes` is the one place a Session other than the selected one shows its uncommitted work: the
+count of working-tree changes across that Session's own Workbench Root repositories. The copy names
+the working tree, never the Session's Agent, because several Sessions can share one root and any of
+them — or the user — may have made the edits. The row is absent when the tree is clean, when the root
+is not a repository, and when the read fails, the same way zero hides the Git tab badge. It is
+absent for the selected Session too: the Git tab badge already carries that Session's exact count on
+the same screen. The count never reaches the row's status track, the Files tree, or any Workbench
+badge. It is read only while the card is open, for at most one card at a time, and trusted for 30
+seconds; nothing polls it, so the sidebar never holds a Git read per row. A Session sharing the
+selected Session's root follows `git.changed`; any other root has no file watcher to advance it, so
+opening its card asks Git for a fresh snapshot instead of showing a count frozen at the moment the
+user switched away.
+
 Adopting a worktree as a Workbench Root auto-registers a Project for it, and that Project never
 occupies a top-level slot in the PrimarySidebar. The list shows the Projects the user added; a
 worktree is a property of the Session working in it, which the Session's hover card already
@@ -492,7 +505,9 @@ current Workbench Root's repositories, including hidden and truncated entries. E
 view's description reaches the accessible description and the tab tooltip whatever the chip shows, so
 a displaced tally stays announced and stays hoverable. Badge reads activate declared providers even
 before their views open. Zero, no selected Session, and unavailable extension states hide the badge;
-counts never carry across Workbench scopes.
+counts never carry across Workbench scopes. A Session hover card's `Changes` row does not cross that
+line: the card is explicitly about the Session it names, and the count it shows is that Session's
+own Workbench Root, never the selected one's.
 
 **Trees** — a tree is `role="tree"` with `role="treeitem"` rows, and the role sits on the element
 that takes focus, never on a layout wrapper around it: `aria-level`, `aria-selected`, and the roving
