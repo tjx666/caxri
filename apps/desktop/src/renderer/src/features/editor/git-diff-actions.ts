@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
+import { notifyListeners } from '@caxri/utils';
 import type { MonacoDiffEditor } from '@monaco-editor/react';
 import type { editor as Monaco } from 'monaco-editor';
 
@@ -55,7 +56,11 @@ function registrationKey(tabPath: string, paneId: string): string {
 function notify(key: string): void {
     const listeners = subscribers.get(key);
     if (!listeners) return;
-    for (const listener of listeners) listener();
+    // Isolates each diff-action subscriber so one throwing toolbar cannot stop this diff's other subscribers from
+    // observing the update; Desktop mirrors `console.error` into `logs/desktop.jsonl`.
+    notifyListeners(listeners, undefined, (error) =>
+        console.error('editor.gitDiffActions listener failed', error),
+    );
 }
 
 function updateSnapshot(key: string, registration: DiffEditorRegistration): void {

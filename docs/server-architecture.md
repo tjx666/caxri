@@ -24,6 +24,7 @@ The irreversible choices are recorded in:
 - [ADR 0006: Durable changefeed and streaming protocol](./adr/0006-durable-changefeed-and-streaming-protocol.md)
 - [ADR 0007: Remote access and Project authorization](./adr/0007-remote-access-and-project-authorization.md)
 - [ADR 0008: Agent-native observability](./adr/0008-agent-native-observability.md)
+- [ADR 0010: Server Core idle-exit policy](./adr/0010-server-core-idle-exit.md)
 
 ### Frozen compatibility identifiers
 
@@ -138,6 +139,16 @@ and explicit resume on a frozen provider conversation. Terminal Host receives th
 or exact-generation input operation. Session selection restores only the outer Shell
 while a delegated task is still active, and resumes the Agent's conversation once every task
 settled, without resubmitting any task.
+
+An explicit Desktop quit already stops an idle Server Core directly (see
+[Process ownership](../.agents/skills/project-architecture/references/process-model.md)), but a force-killed, crashed,
+or mid-restart Desktop never runs that path. Server Core additionally self-terminates through its normal shutdown path
+once the aggregate authenticated connection count across every transport has stayed at zero for a fixed idle
+threshold, deferring while any Terminal PTY is active — the same signal the interactive `host.stop` command requires
+explicit confirmation to override, so a Server whose Sessions still own live PTYs never idle-exits on its own.
+[ADR 0010](./adr/0010-server-core-idle-exit.md) records the policy — including why counting connections directly
+already covers a Desktop lease expiring, with no separate lease check — and why the threshold is an internal seam,
+never a user setting.
 
 ### Terminal Host
 

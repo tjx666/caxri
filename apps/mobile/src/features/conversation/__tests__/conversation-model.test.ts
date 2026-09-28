@@ -5,6 +5,7 @@ import {
     applyLatestConversationPage,
     applyOlderConversationPage,
     groupConversationItems,
+    isConversationObservableThroughBlur,
     mergeLatestConversationItems,
     prependConversationPage,
     shouldFallbackToTerminal,
@@ -168,5 +169,30 @@ describe('Conversation projection', () => {
         expect(visibleConversationStatus('missing', false)).toBe('missing');
         expect(visibleConversationStatus('unsupported', true)).toBe('unsupported');
         expect(visibleConversationStatus('available', false)).toBe('stale');
+    });
+
+    it('rides out a brief loss of observability instead of flashing stale mid pop-transition (#1329)', () => {
+        // Still observable: whether the grace timer already elapsed is irrelevant.
+        expect(isConversationObservableThroughBlur(true, false)).toBe(true);
+        expect(isConversationObservableThroughBlur(true, true)).toBe(true);
+        // Unobservable, but the hook's timer has not yet committed to stale (a pop transition finishes
+        // well inside this window).
+        expect(isConversationObservableThroughBlur(false, false)).toBe(true);
+        // The timer fired: a sustained loss of observability finally reads as stale-worthy.
+        expect(isConversationObservableThroughBlur(false, true)).toBe(false);
+        // Feeding the debounced signal into `visibleConversationStatus` is the actual guard the hook
+        // wires up: the transient blur keeps the last real status, the sustained one falls back to stale.
+        expect(
+            visibleConversationStatus(
+                'available',
+                isConversationObservableThroughBlur(false, false),
+            ),
+        ).toBe('available');
+        expect(
+            visibleConversationStatus(
+                'available',
+                isConversationObservableThroughBlur(false, true),
+            ),
+        ).toBe('stale');
     });
 });

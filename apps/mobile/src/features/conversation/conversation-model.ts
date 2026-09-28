@@ -123,6 +123,22 @@ export const visibleConversationStatus = (
     isObservable || shouldFallbackToTerminal(status) ? status : 'stale';
 
 /**
+ * A back-navigation pop keeps the leaving Session screen mounted and visible while it slides off, and React Navigation
+ * blurs it (`isFocused` -> false) at the very start of that transition. Feeding that immediate blur into
+ * `visibleConversationStatus` inserts the "Reconnect to update Conversation" row below the list mid-transition -- a
+ * re-layout of a screen the user is already leaving (#1329). `isStaleAfterBlur` is a timer the hook only commits to
+ * `true` after this many milliseconds of continuous non-observability, so a pop transition (well under it) finishes
+ * before the row would ever render, while a real backgrounding or a screen left covered still falls back to `stale`
+ * once the window elapses.
+ */
+export const CONVERSATION_BLUR_GRACE_MS = 500;
+
+export const isConversationObservableThroughBlur = (
+    isObservable: boolean,
+    isStaleAfterBlur: boolean,
+): boolean => isObservable || !isStaleAfterBlur;
+
+/**
  * FlashList measures autoscroll thresholds in viewport lengths; share that unit with the Jump control.
  * https://github.com/Shopify/flash-list/blob/v2.0.2/src/recyclerview/hooks/useBoundDetection.ts
  */

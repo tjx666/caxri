@@ -39,6 +39,7 @@ export const testProjectNames = [
 ];
 const serialNativeTestPrefix = [
     'apps/server/src/domains/__tests__/agent-hooks.integration.test.ts',
+    'apps/server/src/domains/__tests__/configuration-fanout.test.ts',
     'apps/server/src/domains/__tests__/configuration.test.ts',
     'apps/server/src/domains/agents/hooks/__tests__/manager-observability.integration.test.ts',
     'apps/server/src/domains/agents/hooks/__tests__/manager.integration.test.ts',

@@ -1,0 +1,94 @@
+name: Performance trend
+
+# Detects a gradual Renderer performance creep (the issue #1439 motivating case: a steady 3-5% cost increase per
+# change, too small for any single run to cross the per-run baseline gate's margin -- see docs/ci-performance.md)
+# by comparing the median of the most recent `renderer-performance-receipt` artifacts against the committed
+# baseline. Deliberately a separate, GitHub-hosted-runner workflow rather than a `ci.yml` step: it needs no
+# Electron launch and no self-hosted `caxri-ci` time, and it must stay out of the required PR guards -- this
+# workflow never runs on `pull_request` and nothing makes it a required status check.
+on:
+  schedule:
+    # 18:00 UTC = 02:00 Asia/Shanghai, offset from `ci.yml`'s 00:00 UTC nightly full suite so the two never compete
+    # for GitHub's shared Actions capacity even though they run on different runner pools.
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+    inputs:
+      window:
+        description: Rolling window size (most recent renderer-performance-receipt artifacts to compare)
+        required: false
+        default: '20'
+      alarm_ratio:
+        description: Alarm when the rolling median exceeds the baseline median by more than this ratio (e.g. 0.02 for 2%)
+        required: false
+        default: '0.02'
+
+concurrency:
+  group: performance-trend
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  trend-check:
+    name: Gradual-creep trend check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      # The repository's Actions allowlist admits only GitHub-owned actions and `pnpm/setup`, so Bun comes from npm
+      # (preinstalled with the hosted runner's Node.js) at the exact `.bun-version` instead of a setup action.
+      - name: Install the pinned Bun
+        run: |
+          bun_version="$(tr -d '\r\n' < .bun-version)"
+          [[ "$bun_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          npm install --global --no-audit --no-fund "bun@$bun_version"
+          test "$(bun --version)" = "$bun_version"
+
+      # `scripts/performance-trend-check.ts` and its `scripts/performance-baseline.ts`/`scripts/performance-trend.ts`
+      # dependencies are plain Node/Bun modules with no workspace package imports, so this job needs no
+      # `pnpm install` -- only Bun itself, to run the TypeScript entrypoint directly.
+      - name: Download recent renderer-performance receipts
+        id: fetch-receipts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CAXRI_TREND_WINDOW: ${{ github.event.inputs.window || '20' }}
+        run: |
+          set -euo pipefail
+          receipts_dir="$RUNNER_TEMP/performance-trend-receipts"
+          mkdir -p "$receipts_dir"
+
+          # Newest first, skip expired (7-day retention, see the `renderer-performance-receipt` upload in ci.yml),
+          # take the requested window. A median is order-independent, so only "these are the N most recent" matters
+          # here -- scripts/performance-trend-check.ts does not re-sort or re-select what this step hands it.
+          mapfile -t artifacts < <(
+            gh api "repos/${{ github.repository }}/actions/artifacts?name=renderer-performance-receipt&per_page=100" \
+              --paginate --jq '.artifacts[] | select(.expired == false) | "\(.created_at) \(.id) \(.workflow_run.id)"' \
+              | sort -r \
+              | head -n "$CAXRI_TREND_WINDOW"
+          )
+
+          for line in "${artifacts[@]}"; do
+            read -r _created_at artifact_id run_id <<< "$line"
+            gh run download "$run_id" --name renderer-performance-receipt --dir "$receipts_dir/$artifact_id" || \
+              echo "::warning::failed to download renderer-performance-receipt artifact $artifact_id from run $run_id"
+          done
+
+          count=$(find "$receipts_dir" -name renderer-performance.json | wc -l | tr -d ' ')
+          echo "receipt_count=$count" >> "$GITHUB_OUTPUT"
+          echo "receipts_dir=$receipts_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Run performance trend check
+        env:
+          CAXRI_TREND_WINDOW: ${{ github.event.inputs.window || '20' }}
+          CAXRI_TREND_ALARM_RATIO: ${{ github.event.inputs.alarm_ratio || '0.02' }}
+        run: >-
+          bun run performance:trend:check --
+          --baseline scripts/performance-baseline.json
+          --receipts-dir "${{ steps.fetch-receipts.outputs.receipts_dir }}"
+          --window "$CAXRI_TREND_WINDOW"
+          --alarm-ratio "$CAXRI_TREND_ALARM_RATIO"

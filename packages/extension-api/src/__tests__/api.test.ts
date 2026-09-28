@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import caxri, {
     CancellationTokenSource,
@@ -61,6 +61,22 @@ describe('caxri public API runtime', () => {
         expect(values).toEqual([1]);
         expect(tokenSource.token.isCancellationRequested).toBe(true);
         expect(cancellations).toBe(1);
+    });
+
+    it('delivers an event to a later listener when an earlier one throws', () => {
+        // eslint-disable-next-line unicorn/prefer-event-target -- Verify the VS Code-compatible EventEmitter behavior exposed by the public API.
+        const emitter = new EventEmitter<number>();
+        const failing = vi.fn(() => {
+            throw new Error('extension listener failure');
+        });
+        const surviving = vi.fn();
+        emitter.event(failing);
+        emitter.event(surviving);
+
+        emitter.fire(1);
+
+        expect(failing).toHaveBeenCalledTimes(1);
+        expect(surviving).toHaveBeenCalledExactlyOnceWith(1);
     });
 
     it('fails clearly when the runtime stub is used outside the Extension Host', () => {

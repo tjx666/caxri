@@ -119,21 +119,28 @@ or cancels the delivery, or a concrete blocker requires their input.
 
 ## Fast merge without CI
 
-One self-hosted runner serves every session, and a full pass costs 20-25 minutes of it. Spending
-that on a diff CI cannot meaningfully judge starves every sibling delivery queued behind it. Three
-classes of change therefore skip CI once their own local gates pass:
+`main` requires the `guards` status check (gitleaks, `docs-check`, `source-size-ratchet` on a
+GitHub-hosted runner, see [ADR 0011](../../../docs/adr/0011-required-merge-guards.md)) to pass
+before anything merges, and that requirement applies with no bypass — a raw `git push` to `main` is
+rejected outright, so every change, including a one-line documentation fix, goes through a pull
+request. What "fast merge" skips is the separate self-hosted `checks`/`e2e` job: one self-hosted
+runner serves every session, and a full pass costs 20-25 minutes of it, so spending that on a diff CI
+cannot meaningfully judge starves every sibling delivery queued behind it. Three classes of change
+therefore skip waiting on `checks`/`e2e` once their own local gates and `guards` pass:
 
 - **Documentation only** — `docs/`, `AGENTS.md`, `.agents/**`, or another tracked `.md` that no
-  shipped code reads. The owner has granted standing authorization: commit it directly on `main`
-  in the primary checkout and push, with no worktree, branch, or pull request. If `main` moved,
-  `git pull --ff-only` first and rerun the gates.
+  shipped code reads. Open a pull request from a branch (no separate worktree needed for a
+  documentation-only diff) and merge it as soon as `guards` reports success, without waiting for
+  `checks`/`e2e`.
 - **Renderer styling only** — token, spacing, color, or layout values with no behavior change,
-  even when the change ships a test alongside them. It still goes through a pull request, which
-  may merge without waiting for its checks.
+  even when the change ships a test alongside them. Same as above: open the pull request and merge
+  once `guards` passes.
 - **Locally verified code change** — any other diff whose PR `CI-E2E-Tests` specs pass locally
-  and, for a user-visible change, whose behavior was accepted over CDP. A queued run can wait an
-  hour or more behind sibling deliveries, so the owner allows the PR to merge without waiting for
-  its checks. A run that already finished red still blocks unless step 6 waived it.
+  and, for a user-visible change, whose behavior was accepted over CDP. A queued `checks`/`e2e` run
+  can wait an hour or more behind sibling deliveries, so the owner allows the PR to merge once
+  `guards` passes, without waiting for `checks`/`e2e`. A `checks`/`e2e` run that already finished
+  red still blocks unless step 6 waived it; `guards` itself never gets waived — its failure means
+  fix the diff, not merge around it.
 
 Run the gates that actually cover the changed files first, and require them to pass:
 
@@ -154,9 +161,9 @@ One line outside the first two classes disqualifies them. A diff that also touch
 change and needs the third class's gates. For a PR, the exception removes the wait, not the merge
 authorization step 7 still requires.
 
-Merging does not stop the PR's run, and a documentation push to `main` may start one — a queued job
-keeps its place in line and will still take the runner for a head nobody is waiting on. Cancel it
-explicitly:
+Merging does not stop the PR's run, and merging a documentation PR to `main` may start one — a
+queued job keeps its place in line and will still take the runner for a head nobody is waiting on.
+Cancel it explicitly:
 
 ```bash
 gh api -X POST repos/tjx666/caxri/actions/runs/<run-id>/cancel

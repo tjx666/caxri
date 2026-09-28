@@ -23,7 +23,11 @@ import {
     agentEndpointRetireParamsSchema as agentEndpointRetireParametersSchema,
     capabilityIds,
     CaxriError,
+    errorMessage,
+    logEventCatalog,
 } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
+import { notifyListeners } from '@caxri/utils';
 
 const ENDPOINT_TTL_MS = 24 * 60 * 60 * 1_000;
 const MAX_RETIRED_ENDPOINTS = 256;
@@ -62,6 +66,11 @@ export interface AgentEndpointCredential {
 }
 
 export interface AgentEndpointRegistryOptions {
+    /**
+     * Reports a retired/messagingChanged listener's failure, isolated so it cannot stop delivery to the rest. Only the
+     * failure reason is logged, never the endpoint summary.
+     */
+    logger?: StructuredLogger;
     now?: () => number;
     token?: () => string;
 }
@@ -116,6 +125,7 @@ export class AgentEndpointRegistry {
     private readonly byEndpoint = new Map<string, StoredEndpoint>();
     private readonly byTerminal = new Map<string, StoredEndpoint>();
     private readonly generations = new Map<string, GenerationRecord>();
+    private readonly logger?: StructuredLogger;
     private readonly messagingChangedListeners = new Set<AgentEndpointMessagingChangedListener>();
     private readonly retiredListeners = new Set<AgentEndpointRetiredListener>();
     private readonly retired = new Map<string, AgentEndpointSummary>();
@@ -128,6 +138,7 @@ export class AgentEndpointRegistry {
     ) {
         this.now = options.now ?? Date.now;
         this.token = options.token ?? (() => randomBytes(32).toString('hex'));
+        this.logger = options.logger;
     }
 
     private exact(reference: AgentEndpointReference): StoredEndpoint {
@@ -208,7 +219,13 @@ export class AgentEndpointRegistry {
         this.retired.set(record.summary.ref.endpointId, record.summary);
         while (this.retired.size > MAX_RETIRED_ENDPOINTS)
             this.retired.delete(this.retired.keys().next().value!);
-        for (const listener of this.retiredListeners) listener(record.summary);
+        // Isolates each retired-endpoint subscriber so one throwing listener cannot stop the rest from observing this
+        // retirement; only the failure reason is logged, never the endpoint summary.
+        notifyListeners(this.retiredListeners, record.summary, (error) =>
+            this.logger?.write('warn', logEventCatalog.agentEndpoint.retiredListenerFailed, {
+                fields: { error: errorMessage(error, 'unknown') },
+            }),
+        );
     }
 
     begin(raw: AgentEndpointBeginParameters): AgentEndpointBeginResult {
@@ -405,7 +422,20 @@ export class AgentEndpointRegistry {
             return false;
         const previous = record.summary.messaging;
         record.summary = { ...record.summary, messaging: input.messaging };
-        for (const listener of this.messagingChangedListeners) listener(record.summary, previous);
+        // Isolates each messaging-changed subscriber so one throwing listener cannot stop the rest from observing this
+        // change; only the failure reason is logged, never the endpoint summary.
+        notifyListeners(
+            [...this.messagingChangedListeners].map(
+                (listener) => () => listener(record.summary, previous),
+            ),
+            undefined,
+            (error) =>
+                this.logger?.write(
+                    'warn',
+                    logEventCatalog.agentEndpoint.messagingChangedListenerFailed,
+                    { fields: { error: errorMessage(error, 'unknown') } },
+                ),
+        );
         return true;
     }
 

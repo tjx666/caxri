@@ -1,4 +1,5 @@
 import type { BootstrapState } from '@caxri/protocol';
+import { settingsTabPath } from '@caxri/protocol';
 import { afterEach, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -10,7 +11,7 @@ vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 import { useSessionViewStore } from '../../../stores/session-view';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import { selectPaneTab } from '../../workbench/pane-actions';
-import { openFileForSession } from '../document-commands';
+import { openEditorTab, openFileForSession } from '../document-commands';
 
 function installTabs(paths: readonly string[], activeIndex: number): void {
     useWorkbenchStore.setState({
@@ -49,6 +50,13 @@ function activeTabId(): string | undefined {
     return root?.type === 'pane' ? root.activeTabId : undefined;
 }
 
+function activeTabPath(): string | undefined {
+    const root = useWorkbenchStore.getState().bootstrap?.sessionStates[0]?.paneLayout.root;
+    if (root?.type !== 'pane') return undefined;
+    const active = root.tabs.find((tab) => tab.id === root.activeTabId);
+    return active?.resource.kind === 'file' ? active.resource.path : undefined;
+}
+
 afterEach(() => {
     mocks.request.mockReset();
     useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0 });
@@ -82,4 +90,19 @@ it('activates the opened file when nothing else was selected meanwhile', async (
         '/project/short.ts',
     );
     expect(activeTabId()).toBe('tab-1');
+});
+
+it('keeps a Settings tab opened by a shortcut while an earlier file open was still reading', async () => {
+    installTabs(['/project/long.ts', '/project/short.ts'], 0);
+    const read = Promise.withResolvers<unknown>();
+    mocks.request.mockImplementation((method) =>
+        method === 'files.read' ? read.promise : Promise.resolve(null),
+    );
+
+    const opening = openFileForSession('session-1', '/project/short.ts');
+    openEditorTab(settingsTabPath());
+    read.resolve({ content: 'short', mtimeMs: 1, path: '/project/short.ts', size: 5 });
+
+    await expect(opening).resolves.toBe(false);
+    expect(activeTabPath()).toBe(settingsTabPath());
 });

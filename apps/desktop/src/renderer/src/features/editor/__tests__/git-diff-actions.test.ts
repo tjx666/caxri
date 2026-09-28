@@ -93,6 +93,27 @@ describe('Git diff editor actions', () => {
         unsubscribe();
     });
 
+    it('notifies a later subscriber when an earlier one throws', () => {
+        const fake = fakeDiffEditor();
+        const failing = vi.fn(() => {
+            throw new Error('diff actions listener failure');
+        });
+        const surviving = vi.fn();
+        const unsubscribeFailing = subscribeDiffEditorActions('/diff', 'pane-1', failing);
+        const unsubscribeSurviving = subscribeDiffEditorActions('/diff', 'pane-1', surviving);
+        const unregister = registerDiffEditorActions('/diff', 'pane-1', fake.editor);
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        fake.setChanges(true);
+
+        expect(failing).toHaveBeenCalledTimes(1);
+        expect(surviving).toHaveBeenCalledTimes(1);
+        unregister();
+        unsubscribeFailing();
+        unsubscribeSurviving();
+        vi.restoreAllMocks();
+    });
+
     it('keeps split-pane diff registrations independent', () => {
         const first = fakeDiffEditor();
         const second = fakeDiffEditor();

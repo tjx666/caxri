@@ -1,4 +1,5 @@
 import type { ServerEvent } from '@caxri/protocol';
+import { notifyListeners } from '@caxri/utils';
 
 import { caxri } from '../../lib/caxri';
 
@@ -68,7 +69,11 @@ function deliver(event: ViewChangedEvent): void {
         enqueuePending(key, event);
         return;
     }
-    for (const listener of current) listener(event);
+    // Isolates each view-container subscriber so one throwing view controller cannot stop the event's other
+    // subscribers from observing it; Desktop mirrors `console.error` into `logs/desktop.jsonl`.
+    notifyListeners(current, event, (error) =>
+        console.error('viewContainers.viewChanged listener failed', error),
+    );
 }
 
 /**

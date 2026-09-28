@@ -3,8 +3,8 @@ import { rememberBounded } from '@caxri/utils';
 import { z } from 'zod';
 
 import type { ExternalStatusCommandTelemetry, ExternalStatusRunner } from '../external-status';
+import { parseExternalJson } from '../external-status';
 import { SingleFlight } from '../single-flight';
-import { parseExternalJson } from './parse';
 
 type PullRequest = ProjectStatusRepository['pullRequest'];
 

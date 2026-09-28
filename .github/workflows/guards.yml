@@ -1,0 +1,102 @@
+name: Guards
+
+# Deliberately no `paths` filter on either trigger: a required status check that some commits never
+# request never reports at all, and GitHub then blocks the merge forever waiting for it. This job
+# must run, and report a conclusion, for every push and pull request against `main` -- see
+# `docs/adr/0011-required-merge-guards.md`.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, converted_to_draft, ready_for_review]
+
+concurrency:
+  group: guards-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Required status check context on `main` (see the ruleset applied by
+  # scripts/apply-required-status-check-ruleset.ts). Keep this job name literal -- unlike ci.yml's
+  # templated job names, a required check must report under one stable context string across every
+  # run. Runs on a disposable GitHub-hosted runner, not the trusted self-hosted fleet: it only reads
+  # the diff and a pinned public binary, so it carries none of ci.yml's self-hosted trust-boundary
+  # risk and needs none of that gating.
+  guards:
+    name: guards
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # gitleaks' full-history fallback and source-size-ratchet's `origin/main` merge-base both
+          # need real history, not the single-commit default shallow clone.
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - id: tool_versions
+        name: Read pnpm and Node.js versions
+        run: |
+          read_tool_version() {
+            sed -nE "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\"([^\"]+)\"[[:space:]]*$/\1/p" mise.toml
+          }
+          node_version="$(read_tool_version node)"
+          pnpm_version="$(read_tool_version pnpm)"
+          [[ "$node_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          [[ "$pnpm_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          echo "node=$node_version" >> "$GITHUB_OUTPUT"
+          echo "pnpm=$pnpm_version" >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/setup@c8e77b72cd6022852162c92aa10e7e72b7209c9b # v2
+        with:
+          version: ${{ steps.tool_versions.outputs.pnpm }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ steps.tool_versions.outputs.node }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      # The repository's Actions allowlist admits only GitHub-owned actions and `pnpm/setup`, and a workflow that
+      # references anything else fails at startup without reporting this required check. Bun therefore comes from
+      # npm at the exact `.bun-version` instead of a third-party setup action.
+      - name: Install the pinned Bun
+        run: |
+          bun_version="$(tr -d '\r\n' < .bun-version)"
+          [[ "$bun_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          npm install --global --no-audit --no-fund "bun@$bun_version"
+          test "$(bun --version)" = "$bun_version"
+
+      - name: Cache the pinned gitleaks binary
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.tool_cache }}/caxri/gitleaks
+          key: gitleaks-${{ runner.os }}-${{ hashFiles('scripts/prepare-gitleaks.ts') }}
+
+      - name: Install docs-check's dependencies only
+        # `--filter @caxri/workspace` installs only the root workspace's own devDependencies (the
+        # `yaml` package documentation-check.ts needs), not every app's and package's dependency
+        # tree -- gitleaks and source-size-ratchet import nothing beyond Node builtins and this
+        # repository's own scripts/exec.ts. `--ignore-scripts` skips postinstall binary downloads
+        # (Electron, Playwright, node-pty) this job never runs.
+        run: pnpm install --filter @caxri/workspace --frozen-lockfile --ignore-scripts
+
+      - name: Run gitleaks
+        env:
+          GITLEAKS_BASE_REVISION: >-
+            ${{ github.event_name == 'pull_request'
+              && github.event.pull_request.base.sha
+              || github.event_name == 'push'
+              && github.event.before
+              || '' }}
+          GITLEAKS_HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bun run gitleaks
+
+      - name: Run docs-check
+        run: bun run docs-check
+
+      - name: Run source-size-ratchet
+        run: bun run source-size-ratchet

@@ -309,6 +309,39 @@ async function sessionManagement(
     });
 }
 
+/**
+ * Proves the Rename Session sheet stays usable once the keyboard opens (#1444). The capture is visual evidence that the
+ * input and Save button render above the keyboard; the Save tap itself is the behavioral assertion, because a button
+ * hidden underneath the keyboard receives the tap at its real screen coordinates and never responds, which is exactly
+ * how this regressed before the `BottomSheet` keyboard-avoidance fix.
+ */
+async function renameKeyboardAvoidance(
+    environment: UiAuditScenarioEnvironment,
+    artifacts: string[],
+    sessionId: string,
+) {
+    const { serial } = environment;
+    const row = `session-row-${sessionId}`;
+    await tapMobileCheck(serial, row, { isLongPress: true });
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-action-rename'));
+    await tapMobileCheck(serial, 'session-action-rename');
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-rename-input'));
+    await adbShell(serial, ['input', 'text', 'Mobile%sKeyboard%sRenamed']);
+    /**
+     * `capture()` takes a single accessibility snapshot instead of polling, so it can race the re-render that `input
+     * text` triggers; wait for the settled tree first instead of asserting on whichever frame lands first.
+     */
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-rename-save'));
+    await capture(environment, 'keyboard-open', artifacts, 'session-rename-save');
+    await tapMobileCheck(serial, 'session-rename-save');
+    await waitFor(serial, (nodes) => !hasCheck(nodes, 'session-actions-sheet'));
+    await capture(environment, 'saved', artifacts, row);
+    await finish(environment, artifacts, {
+        keyboardAvoidance: 'input-and-save-remained-reachable',
+        status: 'passed',
+    });
+}
+
 async function settingsPage(environment: UiAuditScenarioEnvironment, artifacts: string[]) {
     const { serial } = environment;
     await tapMobileCheck(serial, 'forget-device-button');
@@ -366,6 +399,9 @@ export async function executeMobileUiAuditScenario(
                 break;
             case 'MOB-UI-07':
                 await settingsPage(environment, artifacts);
+                break;
+            case 'MOB-UI-08':
+                await renameKeyboardAvoidance(environment, artifacts, sessionId);
                 break;
             default:
                 throw new Error(`Unsupported UI audit Acceptance case: ${environment.caseId}`);
