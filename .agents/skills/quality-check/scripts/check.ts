@@ -339,6 +339,11 @@ const PROJECT_HOOK_CONTRACT_TEST = '.agents/skills/acceptance/scripts/project-ho
  * `skills/caxri-cli/**` changes without regenerating that bundle.
  */
 const BUNDLED_SKILL_CONTRACT_TEST = 'apps/cli/src/__tests__/skills.integration.test.ts';
+/**
+ * Validates the product skill's command examples and inline command mentions against the CLI registry; the CLI build
+ * runs the same validator, so without this route a stale mention would surface only in CI.
+ */
+const SKILL_COMMAND_CONTRACT_TEST = 'apps/cli/scripts/validate-skill.test.ts';
 
 function repoHarnessTestCandidates(file: string): string[] {
     const candidates: string[] = [];
@@ -361,7 +366,8 @@ function repoHarnessTestCandidates(file: string): string[] {
     ) {
         candidates.push(PROJECT_HOOK_CONTRACT_TEST);
     }
-    if (file.startsWith('skills/caxri-cli/')) candidates.push(BUNDLED_SKILL_CONTRACT_TEST);
+    if (file.startsWith('skills/caxri-cli/'))
+        candidates.push(BUNDLED_SKILL_CONTRACT_TEST, SKILL_COMMAND_CONTRACT_TEST);
     return candidates;
 }
 

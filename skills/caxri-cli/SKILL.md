@@ -124,9 +124,10 @@ state access.
   to retrieve the exact saved answer. With several tasks running, `agent delegate wait <id> <id>...`
   returns the first one that settled or blocked. A wait timeout never authorizes resubmitting the task.
   Reuse a stable `--request-id` when recovering a disconnected create request.
-  Use `create --follow-up <id>` with a fresh prompt file for the next task in the same idle Terminal.
-  Use `stop <id>` to interrupt your active task. `create --resume <id>` explicitly starts a new task
-  in the exact saved native conversation with frozen settings; it never replays the old prompt.
+  Use `agent delegate create --follow-up <id>` with a fresh prompt file for the next task in the
+  same idle Terminal. Use `agent delegate stop <id>` to interrupt your active task.
+  `agent delegate create --resume <id>` explicitly starts a new task in the exact saved native
+  conversation with frozen settings; it never replays the old prompt.
   Human input or another launch prevents automatic continuation. A restarted caller generation
   does not inherit an older caller's ownership; ask the authenticated owner to recover that task.
   The Agent Commander is the one exception: its tasks stay its own across its restarts.
@@ -140,8 +141,11 @@ state access.
   Provider usage is optional: omitted counters are unknown. Grok's `provider-task` scope may include
   native children; Claude and Codex report `main-thread` scope.
 
-- `agent dispatch` starts or resumes an exact Provider conversation and returns a durable receipt.
-- `agent control` interrupts or stops one exact active Endpoint generation.
+- `agent dispatch start` or `agent dispatch resume` starts or resumes an exact Provider
+  conversation and returns a durable receipt; read it with `agent dispatch status` or
+  `agent dispatch wait`.
+- `agent control interrupt` or `agent control stop` interrupts or stops one exact active Endpoint
+  generation.
 - `terminal send` is human-owned simulated input, not a Peer Message.
 
 An Agent needs a bounded `agent:control` grant for dispatch or control. CLI Terminal steer requires
