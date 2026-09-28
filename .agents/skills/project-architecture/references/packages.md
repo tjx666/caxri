@@ -23,7 +23,10 @@ shape; nested command requests and replies remain `unknown` there and are valida
 reader and routes replies by request ID, while only foreground visible views hold subscriptions.
 Device revocation first fences the stored Server generation, then sends a generation-bound `revoked`
 control payload only through each already authenticated encrypted session before disconnecting it. The
-mobile client clears its credential only after that sealed payload authenticates. A reconnect whose
+mobile client clears its credential only after that sealed payload authenticates. The frozen
+`update-recovery-v1` exchange is the one wire contract that must never follow a transport version
+bump: it keeps its own schemas and crypto so a phone refused as outdated can still prove its pairing
+and fetch the Desktop's Android build. A reconnect whose
 stored credential cannot authenticate remains indistinguishable from an invalid credential or fake
 endpoint, so it retains the credential, stops automatic retry, and asks the user to retry or forget it.
 

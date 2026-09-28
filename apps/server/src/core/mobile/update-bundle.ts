@@ -60,8 +60,9 @@ type MobileUpdateRequest = Extract<
 >;
 
 /**
- * Answers the update methods for an already authorized paired device. The bundle is immutable for this Server lifetime,
- * so the first successful read serves every later request; a failed read is retried next time.
+ * Answers the update methods for an already authorized paired device, and exposes the same cached bundle to update
+ * recovery. The bundle is immutable for this Server lifetime, so the first successful read serves every later request;
+ * a failed read is retried next time.
  */
 export const createMobileUpdateRequests = (directory: string | undefined) => {
     let source: Promise<MobileUpdateSource | undefined> | undefined;
@@ -75,6 +76,7 @@ export const createMobileUpdateRequests = (directory: string | undefined) => {
         }
     };
     return {
+        readSource,
         invoke: async (
             request: MobileUpdateRequest,
             prepareDownload: (

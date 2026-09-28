@@ -295,6 +295,23 @@ export class MobileDeviceRegistry {
         return { credential: record.credential, principal: this.#principal(record) };
     }
 
+    /**
+     * Credential for an update-recovery proof, or the reason there is none. The reason reaches only the Server's closed
+     * log outcome; the phone always receives the same rejection.
+     */
+    recoveryMaterial(
+        deviceId: string,
+        generation: number,
+    ):
+        | { credential: string; kind: 'paired' }
+        | { kind: 'revoked' | 'stale-generation' | 'unpaired' } {
+        const record = this.#records.get(deviceId);
+        if (!record) return { kind: 'unpaired' };
+        if (record.revokedAt !== undefined) return { kind: 'revoked' };
+        if (record.generation !== generation) return { kind: 'stale-generation' };
+        return { credential: record.credential, kind: 'paired' };
+    }
+
     authenticate(input: { credential: string; deviceId: string; generation: number }): Principal {
         const record = this.#records.get(input.deviceId);
         const expected = Buffer.from(
