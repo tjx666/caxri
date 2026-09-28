@@ -8,6 +8,7 @@ import type { HeldMessageQueue } from './agent-message-approval-state';
 import {
     deferredHeldMessages,
     emptyHeldMessageQueue,
+    expireHeldMessage,
     expireHeldMessages,
     receiveHeldMessage,
     removeHeldMessage,
@@ -85,8 +86,15 @@ export function subscribeHeldMessageQueue(): () => void {
     const unsubscribe = caxri.onEvent((event) => {
         if (event.event === 'agent.message.held')
             updateHeldMessageQueue((queue) => receiveHeldMessage(queue, event.payload));
-        if (event.event === 'agent.message.receipt' && event.payload.status !== 'held')
-            updateHeldMessageQueue((queue) => removeHeldMessage(queue, event.payload.messageId));
+        if (event.event === 'agent.message.receipt' && event.payload.status !== 'held') {
+            const { messageId, status } = event.payload;
+            // An `expired` receipt is the same event as the local tick below, whichever reports it first.
+            updateHeldMessageQueue((queue) =>
+                status === 'expired'
+                    ? expireHeldMessage(queue, messageId)
+                    : removeHeldMessage(queue, messageId),
+            );
+        }
     });
     const expiryTimer = setInterval(
         () => updateHeldMessageQueue((queue) => expireHeldMessages(queue, Date.now())),

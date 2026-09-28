@@ -78,8 +78,8 @@ export function PrimarySidebarProjectTree() {
         () => unpinnedSessions(activeSessionsInSidebarOrder(projects, sessions)),
         [projects, sessions],
     );
-    const sessionOrder = useSessionOrder(orderedSessions);
-    const sidebarSessions = sessionOrder.sessions;
+    const { controller: sessionOrder, sessions: sidebarSessions } =
+        useSessionOrder(orderedSessions);
     /**
      * Workbench Root Projects keyed by Session id, for the Sessions currently working outside their own Project. This
      * is what replaces the hidden top-level worktree entry, so it must resolve against the full Project list.

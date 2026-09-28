@@ -6,6 +6,7 @@ import { ContextMenuTrigger } from '../../../components/context-menu-trigger';
 import { useLatestReference } from '../../../hooks/use-latest-reference';
 import { useScrollEdge } from '../../../hooks/use-scroll-edge';
 import { useGitChildRepo, useGitDecoration } from '../../../stores/git-decorations';
+import { virtualTreeRenderedIndexes } from '../virtual-tree-range';
 import {
     FileTreeCreateRow,
     FileTreeItem,
@@ -152,12 +153,12 @@ export function FileTree({ controller }: { controller: ResourceExplorerControlle
         getItemKey: (index) => rows[index].key,
         getScrollElement: () => scrollElement.current,
         overscan: 10,
-        rangeExtractor: (range) => {
-            const indexes = new Set(defaultRangeExtractor(range));
-            for (const index of keptIndexes.current)
-                if (index >= 0 && index < range.count) indexes.add(index);
-            return [...indexes].toSorted((left, right) => left - right);
-        },
+        rangeExtractor: (range) =>
+            virtualTreeRenderedIndexes(
+                defaultRangeExtractor(range),
+                range.count,
+                keptIndexes.current,
+            ),
     });
 
     const revealRow = (index: number): void => {

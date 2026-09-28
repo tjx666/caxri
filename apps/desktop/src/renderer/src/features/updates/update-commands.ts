@@ -133,7 +133,7 @@ function announceAvailableUpdate(state: UpdateState | undefined): void {
     pushToast('info', announcement.message, {
         action: {
             id: 'updates.show',
-            accessibleLabel: `Show the update to Caxri ${announcement.version}`,
+            accessibleLabel: `Show Update for Caxri ${announcement.version}`,
         },
     });
     acknowledgeAvailableUpdate();

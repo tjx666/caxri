@@ -201,6 +201,21 @@ test('extension fixture lazily activates a bounded virtualized keyboard tree', a
         await last.press('Home');
         await expect(lazy).toBeFocused();
 
+        /**
+         * A wheel scroll moves the virtual window without moving the roving row. The row that owns the tree's single
+         * Tab stop must stay rendered anyway: once it unmounted, no row carried `tabIndex=0` and Tab skipped the whole
+         * tree until the user scrolled back (issue #1012).
+         */
+        const tabStops = tree.locator('[role="treeitem"][tabindex="0"]');
+        await tree.hover();
+        await running.page.mouse.wheel(0, 20_000);
+        await expect(last).toBeVisible();
+        await expect(tabStops).toHaveCount(1);
+        await expect(tabStops).toHaveAccessibleName('Lazy children');
+        await expect(lazy).toBeFocused();
+        await running.page.mouse.wheel(0, -20_000);
+        await expect(lazy).toBeInViewport();
+
         await lazy.press('ArrowRight');
         await expect(lazy).toHaveAttribute('aria-expanded', 'true');
         await expect(alpha).toBeVisible();

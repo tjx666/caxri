@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { EditorLoadState, EditorLoadTone } from '../editor-load-state';
-import { editorLoadReducer, initialEditorLoadState } from '../editor-load-state';
+import {
+    EDITOR_LOAD_FAILURE_REASON,
+    editorLoadReducer,
+    editorRenderFailureReason,
+    initialEditorLoadState,
+} from '../editor-load-state';
 
 function failed(
     attempt: number,
@@ -77,5 +82,30 @@ describe('editorLoadReducer', () => {
         );
         const ready: EditorLoadState = { attempt: 2, status: 'ready' };
         expect(editorLoadReducer(ready, { type: 'succeeded', attempt: 2 })).toBe(ready);
+    });
+});
+
+describe('editorRenderFailureReason', () => {
+    it('reads a lazy tab chunk that never arrived as a load failure', () => {
+        expect(
+            editorRenderFailureReason(
+                new TypeError(
+                    'Failed to fetch dynamically imported module: app://renderer/assets/preview-surface.js',
+                ),
+            ),
+        ).toBe(EDITOR_LOAD_FAILURE_REASON);
+        expect(
+            editorRenderFailureReason(new Error('Unable to preload CSS for /assets/settings.css')),
+        ).toBe(EDITOR_LOAD_FAILURE_REASON);
+    });
+
+    it('reads any other thrown value as the tab failing, without quoting it', () => {
+        const reason = editorRenderFailureReason(new RangeError('secret source text'));
+        expect(reason).toBe('This tab ran into an error. Reloading the window usually fixes it.');
+        expect(reason).not.toContain('secret');
+        expect(editorRenderFailureReason('Failed to fetch dynamically imported module')).toBe(
+            reason,
+        );
+        expect(editorRenderFailureReason(undefined)).toBe(reason);
     });
 });

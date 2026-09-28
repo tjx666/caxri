@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { ChevronDown, ChevronRight, Pin } from 'lucide-react';
 
@@ -6,6 +8,8 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { ActiveSessionRow } from './active-session-row';
 import type { SessionOrderController } from './hooks/use-session-order';
+import { useVisibleSessionIds } from './hooks/use-visible-session-ids';
+import { focusDisclosureRow } from './primary-sidebar-focus';
 import {
     PINNED_GROUP_ROW_ID,
     primarySidebarPinnedRowId,
@@ -13,6 +17,12 @@ import {
 } from './primary-sidebar-tree';
 
 const PINNED_DISCLOSURE_ID = 'pinned-sessions-group';
+
+/**
+ * Rows render through a memo boundary so a Session switch renders only the rows whose selection moved; the props this
+ * list passes are shaped for it, as `ActiveSessionRow` explains (issue #1356).
+ */
+const MemoizedActiveSessionRow = memo(ActiveSessionRow);
 
 interface PinnedSessionGroupProperties {
     animate: boolean;
@@ -91,6 +101,7 @@ export function PinnedSessionGroup({
     visibleSessions,
     worktreeProjects,
 }: PinnedSessionGroupProperties) {
+    const visibleSessionIds = useVisibleSessionIds(visibleSessions);
     if (sessions.length === 0) return null;
     const revealRowId = primarySidebarRevealRowId(PINNED_GROUP_ROW_ID);
     return (
@@ -103,7 +114,10 @@ export function PinnedSessionGroup({
                         aria-expanded={expanded}
                         aria-label={`${expanded ? 'Collapse' : 'Expand'} Pinned`}
                         tabIndex={-1}
-                        onClick={onToggle}
+                        onClick={(event) => {
+                            onToggle();
+                            focusDisclosureRow(event.currentTarget);
+                        }}
                     >
                         {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                     </button>
@@ -147,17 +161,18 @@ export function PinnedSessionGroup({
                             if (!project) return null;
                             const rowId = primarySidebarPinnedRowId(session.id);
                             return (
-                                <ActiveSessionRow
+                                <MemoizedActiveSessionRow
                                     key={session.id}
                                     focusRenameInput={focusRenameInput}
-                                    onBeginRename={() =>
-                                        onBeginRename(session.id, session.displayTitle, rowId)
-                                    }
+                                    onBeginRename={onBeginRename}
                                     onBlurRename={onBlurRename}
                                     onCancelRename={onCancelRename}
                                     onCommitRename={onCommitRename}
                                     onRenameValueChange={onRenameValueChange}
-                                    project={project}
+                                    projectDisplayTitle={project.displayTitle}
+                                    projectIcon={project.icon}
+                                    projectId={project.id}
+                                    projectRootPath={project.rootPath}
                                     renameError={renameError}
                                     renameValue={renameValue}
                                     renaming={rowId === renamingRowId}
@@ -169,7 +184,7 @@ export function PinnedSessionGroup({
                                     showProjectName
                                     terminal={sessionAgentTerminal(session, terminals)}
                                     terminals={terminals}
-                                    visibleSessions={visibleSessions}
+                                    visibleSessionIds={visibleSessionIds}
                                     worktreeProject={worktreeProjects?.[session.id]}
                                 />
                             );
