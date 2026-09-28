@@ -13,7 +13,42 @@ import {
     isRatchetCandidatePath,
     parseNameStatusRecords,
     RATCHET_LINE_THRESHOLD,
+    resolveRatchetBase,
 } from '../source-size-ratchet';
+
+describe('resolveRatchetBase', () => {
+    const mergeBase = () => Promise.resolve('merge-base-sha');
+
+    it('prefers an explicit --base over the CI base and the origin/main merge-base', async () => {
+        expect(
+            await resolveRatchetBase(
+                ['--base', 'v1'],
+                { CAXRI_REACT_DOCTOR_BASE: 'ci-sha' },
+                mergeBase,
+            ),
+        ).toBe('v1');
+    });
+
+    it('uses the CI-provided base in a checkout that has no origin/main ref', async () => {
+        const unreachable = () =>
+            Promise.reject(new Error('fatal: Not a valid object name origin/main'));
+        expect(
+            await resolveRatchetBase([], { CAXRI_REACT_DOCTOR_BASE: ' ci-sha ' }, unreachable),
+        ).toBe('ci-sha');
+    });
+
+    it('skips on the all-zero before SHA of an initial branch push', async () => {
+        expect(
+            await resolveRatchetBase([], { CAXRI_REACT_DOCTOR_BASE: '0'.repeat(40) }, mergeBase),
+        ).toBeNull();
+    });
+
+    it('falls back to the origin/main merge-base locally', async () => {
+        expect(await resolveRatchetBase([], { CAXRI_REACT_DOCTOR_BASE: ' ' }, mergeBase)).toBe(
+            'merge-base-sha',
+        );
+    });
+});
 
 describe('countLines', () => {
     it('treats a trailing newline as the end of the last line, not an extra line', () => {

@@ -7,8 +7,8 @@
  * by responsibility instead of a compress-to-fit edit.
  *
  * Compares each changed source file's working-tree line count against its line count at the merge-base with
- * `origin/main` (overridable with `--base <ref>`), using Git rename detection so a pure move never reads as new
- * growth:
+ * `origin/main` (overridable with `--base <ref>`; CI supplies its own base, see `resolveRatchetBase`), using Git rename
+ * detection so a pure move never reads as new growth:
  *
  * - An existing file already at or above the threshold that grew further fails.
  * - A new path (including a rename target whose pre-rename size was below the threshold) that lands at or above the
@@ -279,15 +279,42 @@ export async function collectRatchetCandidates(
     );
 }
 
-function parseBaseArgument(argv: string[]): string | undefined {
+function parseBaseArgument(argv: readonly string[]): string | undefined {
     const index = argv.indexOf('--base');
     return index === -1 ? undefined : argv[index + 1];
 }
 
+/**
+ * Picks the revision to compare against: `--base`, then the CI-provided base, then the merge-base with `origin/main`.
+ *
+ * CI's full platform checks run in a synthetic-merge checkout that has no `origin/main` ref; they receive the fetched
+ * base revision through `CAXRI_REACT_DOCTOR_BASE` instead (written by `scripts/ci-checks-worktree.ts`, and read the
+ * same way by `scripts/doctor-changed.ts`), so every changed-scope gate compares against one CI-provided base. Returns
+ * `null` for GitHub's all-zero `before` SHA on an initial branch push, which has no base to compare against.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/source-size-ratchet.test.ts
+export async function resolveRatchetBase(
+    argv: readonly string[],
+    environment: NodeJS.ProcessEnv,
+    mergeBaseWithMain: () => Promise<string>,
+): Promise<string | null> {
+    const explicitBase = parseBaseArgument(argv);
+    if (explicitBase) return explicitBase;
+    const ciBase = environment.CAXRI_REACT_DOCTOR_BASE?.trim();
+    if (ciBase) return /^0+$/.test(ciBase) ? null : ciBase;
+    return mergeBaseWithMain();
+}
+
 async function main(): Promise<void> {
-    const explicitBase = parseBaseArgument(process.argv.slice(2));
-    const base =
-        explicitBase ?? (await runGit(projectRoot, ['merge-base', 'origin/main', 'HEAD'])).trim();
+    const base = await resolveRatchetBase(process.argv.slice(2), process.env, async () =>
+        (await runGit(projectRoot, ['merge-base', 'origin/main', 'HEAD'])).trim(),
+    );
+    if (base === null) {
+        console.log(
+            'source-size-ratchet: skipped, this push has no base revision to compare against.',
+        );
+        return;
+    }
 
     const candidates = await collectRatchetCandidates(projectRoot, base);
     const violations = evaluateRatchet(candidates);
