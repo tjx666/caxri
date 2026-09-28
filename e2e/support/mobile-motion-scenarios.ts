@@ -27,7 +27,11 @@ import {
     conversationBaselineRecords,
     conversationLongToolRecords,
 } from './mobile-conversation-transcript.ts';
-import { panelTransitions, readRecordingBand } from './mobile-motion-analysis.ts';
+import {
+    panelTransitions,
+    readRecordingBand,
+    readRecordingRedShares,
+} from './mobile-motion-analysis.ts';
 import { assertStaysAbsent, swipeRowLeft } from './mobile-ui-audit-scenarios.ts';
 
 type SemanticNodes = Awaited<ReturnType<typeof mobileSemantics>>;
@@ -153,11 +157,19 @@ async function tabSwitching(environment: ScenarioEnvironment, artifacts: string[
 }
 
 /**
- * Keeps at most one Session row open: opening a second row closes the first, a tap on another row closes the open row
- * without opening a Session, and scrolling the list closes it (#1280).
+ * A row whose Archive action is less than half revealed reads as sliding rather than open, so two rows may only pass
+ * each other below this share while one closes and the other opens.
+ */
+const BOTH_ARCHIVES_LIMIT = 0.5;
+
+/**
+ * Keeps at most one Session row open: starting to swipe a second row closes the first, a tap on another row closes the
+ * open row without opening a Session, and scrolling the list closes it (#1280). The semantic tree only shows settled
+ * states, so the recording is read frame by frame to prove the two Archive actions never show together mid-swipe.
  */
 async function swipeRows(environment: ScenarioEnvironment, artifacts: string[]) {
     const { serial } = environment;
+    const remoteVideoPath = requireRemoteVideoPath();
     const fixture = await createMobileAcceptanceFixture({ mode: 'conversation', serial });
     let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
     try {
@@ -201,13 +213,14 @@ async function swipeRows(environment: ScenarioEnvironment, artifacts: string[]) 
         const openArchives = (nodes: SemanticNodes) =>
             nodes.filter(({ checkId }) => checkId.startsWith('session-swipe-archive-')).length;
 
-        recording = await startMobileFramebufferRecording(serial, requireRemoteVideoPath());
+        recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
         await pause(SETTLE_MS);
         await swipeRowLeft(serial, first.id);
-        await waitForMobile(
+        const firstOpen = await waitForMobile(
             () => mobileSemantics(serial),
             (nodes) => hasCheck(nodes, archiveOf(first.id)),
         );
+        const firstArchive = boundsOf(firstOpen, archiveOf(first.id));
         await pause(SETTLE_MS);
         await capture(environment, 'first-row-open', artifacts);
 
@@ -218,6 +231,7 @@ async function swipeRows(environment: ScenarioEnvironment, artifacts: string[]) 
                 hasCheck(nodes, archiveOf(second.id)) && !hasCheck(nodes, archiveOf(first.id)),
         );
         if (openArchives(secondOpen) !== 1) throw new Error('More than one Session row is open');
+        const secondArchive = boundsOf(secondOpen, archiveOf(second.id));
         await pause(SETTLE_MS);
         await capture(environment, 'second-row-open', artifacts);
 
@@ -265,16 +279,46 @@ async function swipeRows(environment: ScenarioEnvironment, artifacts: string[]) 
         await capture(environment, 'scroll-closed', artifacts);
         await recording.stop();
         recording = undefined;
-        await finish(environment, artifacts, {
-            openRows: {
-                afterSecondSwipe: 1,
-                afterTapOnAnotherRow: 0,
-                afterListScroll: 0,
-            },
-            tapOnAnotherRow: 'closed-without-opening-session',
-            status: 'passed',
-            syntheticSessionCount: created.length,
-        });
+        const analysis = await mkdtemp(join(tmpdir(), 'caxri-motion-'));
+        try {
+            const video = join(analysis, 'swipe-rows.mp4');
+            await copyMobileFramebufferRecording(serial, remoteVideoPath, video);
+            /**
+             * Once the list scrolls, other rows move under these regions, but none of them shows the danger colour.
+             */
+            const samples = await readRecordingRedShares(video, [firstArchive, secondArchive]);
+            const peak = (index: number) =>
+                Math.max(0, ...samples.map(({ shares }) => shares[index]));
+            if (peak(0) < BOTH_ARCHIVES_LIMIT || peak(1) < BOTH_ARCHIVES_LIMIT)
+                throw new Error('The recording does not show both Archive actions opening');
+            const bothShown = Math.max(0, ...samples.map(({ shares }) => Math.min(...shares)));
+            if (bothShown >= BOTH_ARCHIVES_LIMIT)
+                throw new Error(
+                    `Two Session rows showed their Archive action together (${bothShown.toFixed(2)} revealed)`,
+                );
+            await finish(environment, artifacts, {
+                archiveReveal: {
+                    /**
+                     * Largest share of the Archive action both rows showed in the same frame.
+                     */
+                    bothRowsPeak: Number(bothShown.toFixed(2)),
+                    firstRowPeak: Number(peak(0).toFixed(2)),
+                    limit: BOTH_ARCHIVES_LIMIT,
+                    recordedFrames: samples.length,
+                    secondRowPeak: Number(peak(1).toFixed(2)),
+                },
+                openRows: {
+                    afterSecondSwipe: 1,
+                    afterTapOnAnotherRow: 0,
+                    afterListScroll: 0,
+                },
+                tapOnAnotherRow: 'closed-without-opening-session',
+                status: 'passed',
+                syntheticSessionCount: created.length,
+            });
+        } finally {
+            await rm(analysis, { force: true, recursive: true });
+        }
     } finally {
         await recording?.stop();
         await fixture.stop();

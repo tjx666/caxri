@@ -19,6 +19,28 @@ export interface FrameGeometry {
     width: number;
 }
 
+/**
+ * A screen rectangle in device pixels.
+ */
+export interface ScreenRect {
+    bottom: number;
+    left: number;
+    right: number;
+    top: number;
+}
+
+/**
+ * The part of the screen a decoded RGB frame covers: `columns` x `rows` samples taken every `scale` device pixels from
+ * `left`, `top`.
+ */
+export interface SampledArea {
+    columns: number;
+    left: number;
+    rows: number;
+    scale: number;
+    top: number;
+}
+
 type PanelEntry = 'from-left' | 'from-right' | 'in-place';
 
 export interface PanelTransition {
@@ -194,14 +216,36 @@ export function panelTransitions(
 }
 
 /**
- * Decodes every frame of a recording inside the rows `top`..`bottom`, scaled down by `scale` in both directions. The
- * frames keep their own presentation times because `screenrecord` only writes a frame when the screen changes.
+ * A red channel this far above both others marks the danger colour that fills a destructive swipe action; text, icons,
+ * and the Dracula background all stay well below it.
  */
-export async function readRecordingBand(
-    path: string,
-    { bottom, top }: { bottom: number; top: number },
-    scale = 4,
-): Promise<{ frames: GrayFrame[]; geometry: FrameGeometry; scale: number }> {
+const RED_MARGIN = 60;
+
+/**
+ * Share of the samples inside `region` that show a strongly red colour, such as a revealed Archive action. A sample
+ * counts when its device pixel lies inside the region; the frame holds RGB triples for `area`.
+ */
+export function redShare(pixels: Uint8Array, area: SampledArea, region: ScreenRect): number {
+    const firstRow = Math.max(0, Math.ceil((region.top - area.top) / area.scale));
+    const lastRow = Math.min(area.rows, Math.ceil((region.bottom - area.top) / area.scale));
+    const firstColumn = Math.max(0, Math.ceil((region.left - area.left) / area.scale));
+    const lastColumn = Math.min(area.columns, Math.ceil((region.right - area.left) / area.scale));
+    let total = 0;
+    let red = 0;
+    for (let row = firstRow; row < lastRow; row += 1)
+        for (let column = firstColumn; column < lastColumn; column += 1) {
+            const offset = (row * area.columns + column) * 3;
+            total += 1;
+            if (pixels[offset] - Math.max(pixels[offset + 1], pixels[offset + 2]) > RED_MARGIN)
+                red += 1;
+        }
+    return total === 0 ? 0 : red / total;
+}
+
+/**
+ * Presentation times in milliseconds for every frame of a recording, and its width in device pixels.
+ */
+async function probeRecording(path: string): Promise<{ times: number[]; width: number }> {
     const probe = await execFileAsync(
         'ffprobe',
         [
@@ -221,8 +265,21 @@ export async function readRecordingBand(
         frames: Array<{ pts_time: string }>;
         streams: Array<{ width: number }>;
     };
-    const videoWidth = streams[0]?.width;
-    if (!videoWidth) throw new Error('Recording has no video stream');
+    const width = streams[0]?.width;
+    if (!width) throw new Error('Recording has no video stream');
+    return { times: probed.map(({ pts_time: time }) => Number(time) * 1000), width };
+}
+
+/**
+ * Decodes every frame of a recording inside the rows `top`..`bottom`, scaled down by `scale` in both directions. The
+ * frames keep their own presentation times because `screenrecord` only writes a frame when the screen changes.
+ */
+export async function readRecordingBand(
+    path: string,
+    { bottom, top }: { bottom: number; top: number },
+    scale = 4,
+): Promise<{ frames: GrayFrame[]; geometry: FrameGeometry; scale: number }> {
+    const { times, width: videoWidth } = await probeRecording(path);
     const cropHeight = Math.floor((bottom - top) / scale) * scale;
     const cropWidth = Math.floor(videoWidth / scale) * scale;
     const geometry = { height: cropHeight / scale, width: cropWidth / scale };
@@ -245,11 +302,62 @@ export async function readRecordingBand(
     );
     const frameBytes = geometry.width * geometry.height;
     const count = decoded.stdout.length / frameBytes;
-    if (!Number.isSafeInteger(count) || count !== probed.length)
+    if (!Number.isSafeInteger(count) || count !== times.length)
         throw new Error('Recording frames do not match their timestamps');
-    const frames = probed.map(({ pts_time: time }, index) => ({
+    const frames = times.map((time, index) => ({
         data: new Uint8Array(decoded.stdout.subarray(index * frameBytes, (index + 1) * frameBytes)),
-        time: Number(time) * 1000,
+        time,
     }));
     return { frames, geometry, scale };
+}
+
+/**
+ * For every frame of a recording, the red share of each region (see `redShare`), sampled every `scale` device pixels.
+ * The decoded area is aligned to `scale` so the crop stays on even pixels, which the recording's chroma layout needs.
+ */
+export async function readRecordingRedShares(
+    path: string,
+    regions: ScreenRect[],
+    scale = 4,
+): Promise<Array<{ shares: number[]; time: number }>> {
+    const { times, width: videoWidth } = await probeRecording(path);
+    const align = (value: number) => Math.floor(value / scale) * scale;
+    const left = align(Math.min(...regions.map((region) => region.left)));
+    const top = align(Math.min(...regions.map((region) => region.top)));
+    const right = Math.min(videoWidth, Math.max(...regions.map((region) => region.right)));
+    const area: SampledArea = {
+        columns: Math.min(
+            Math.ceil((right - left) / scale),
+            Math.floor((videoWidth - left) / scale),
+        ),
+        left,
+        rows: Math.ceil((Math.max(...regions.map((region) => region.bottom)) - top) / scale),
+        scale,
+        top,
+    };
+    const decoded = await execFileAsync(
+        'ffmpeg',
+        [
+            '-v',
+            'error',
+            '-i',
+            path,
+            '-fps_mode',
+            'passthrough',
+            '-vf',
+            `crop=${area.columns * scale}:${area.rows * scale}:${left}:${top},scale=${area.columns}:${area.rows}:flags=neighbor,format=rgb24`,
+            '-f',
+            'rawvideo',
+            'pipe:1',
+        ],
+        { encoding: 'buffer', maxBuffer: 1024 * 1024 * 1024 },
+    );
+    const frameBytes = area.columns * area.rows * 3;
+    const count = decoded.stdout.length / frameBytes;
+    if (!Number.isSafeInteger(count) || count !== times.length)
+        throw new Error('Recording frames do not match their timestamps');
+    return times.map((time, index) => {
+        const pixels = decoded.stdout.subarray(index * frameBytes, (index + 1) * frameBytes);
+        return { shares: regions.map((region) => redShare(pixels, area, region)), time };
+    });
 }
