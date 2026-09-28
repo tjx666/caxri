@@ -34,6 +34,10 @@ bringing it forward, so the Commander zooms in place. Zoom is the one command a 
 dialog does not block (`allowBehindModal`), so an open dialog the user cannot see never swallows
 it. The Process Explorer does not follow the zoom.
 
+Closing the window leaves the Commander running, so the user reopens it often. The controller
+records the window's bounds after each move and resize and on close, and reopens it there for the
+rest of the app run; an app restart opens it at the default size again.
+
 The window runs with the Desktop principal. Main therefore authorizes it separately, through
 `AgentCommanderRendererPolicy` (`agent-commander-policy.ts`) in the `caxri:request` IPC path:
 
