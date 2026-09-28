@@ -1,4 +1,4 @@
-import type { AgentDelegationSettings } from '@caxri/protocol';
+import type { AgentDelegationReceipt, AgentDelegationSettings } from '@caxri/protocol';
 
 import { AgentDelegationService, createDelegationHandlers } from './agent-delegation';
 import type { AgentDispatchServiceOptions } from './agent-dispatch';
@@ -24,6 +24,11 @@ export function createAgentCommandRuntime(
         userDataPath: string;
         agentEnvironment: AgentEnvironment;
         delegationSettings(): AgentDelegationSettings;
+        /**
+         * Feeds every announced delegation receipt change to the Commander completion notifier. Optional so a unit test
+         * can construct this runtime without one; the composed Server always passes it.
+         */
+        onDelegationReceiptChanged?(receipt: AgentDelegationReceipt): void;
     },
 ) {
     const dispatchService = new AgentDispatchService(options);
@@ -72,11 +77,13 @@ export function createAgentCommandRuntime(
          * A Session-scoped records change instead of a dedicated event: the Agent Commander board already refetches on
          * any `state.changed`, and the Workbench answers a Session-only change with one `app.records` read.
          */
-        onReceiptChanged: ({ sessionId }) =>
+        onReceiptChanged: (receipt) => {
             options.emit({
                 event: 'state.changed',
-                payload: { kind: 'records', sessionIds: [sessionId], terminalIds: [] },
-            }),
+                payload: { kind: 'records', sessionIds: [receipt.sessionId], terminalIds: [] },
+            });
+            options.onDelegationReceiptChanged?.(receipt);
+        },
     });
     dispatchService.initialize();
     delegationService.initialize();

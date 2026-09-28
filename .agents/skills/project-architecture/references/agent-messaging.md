@@ -43,6 +43,19 @@ delegation domain, which admits only the exact recorded Commander Terminal deleg
 Session it created through `commander.session.create` in a visible top-level Project. It never gains
 dispatch, control, steer, or Settings write authority. See `docs/agent-commander.md`.
 
+A delegation completion notice pushed into the Commander Terminal (`CommanderCompletionNotifier`,
+`apps/server/src/domains/commander/completion-notice.ts`) is a second, narrow exception, distinct
+from the Commander delegation-target exception above and never a relaxation of the peer-message rule:
+it does not use the Peer Inbox at all, has no sender Endpoint, and never carries Agent-authored text —
+only Server-generated fields (a delegation ID, a Session ID, a closed status word) in one bounded
+line, exactly like the content-free PTY input metrics Terminal steer already logs. Like peer text, it
+can never grant a permission, change a setting, invoke a slash command, or write a user prompt; unlike
+peer text, its point is to make the Commander act, so it deliberately does reach an idle Commander's
+PTY input rather than waiting in an Inbox. Delivery is fenced to the exact idle-proof-and-input-epoch
+check `AgentDelegationService` already uses before resuming a follow-up, so a draft the human is
+composing defers it the same way a follow-up defers. See "Completion notices" in
+`docs/agent-commander.md`.
+
 Managed launch failure, interruption causes, and content-free transition logs are documented in
 [Agent dispatch receipts](../../../../docs/agent-dispatch-receipts.md).
 
