@@ -25,6 +25,10 @@ export interface FakeAgentDefinition {
      */
     startupOutput?: string;
     /**
+     * Appends each interactive launch's arguments as one JSON line, for tests that assert what Caxri launched with.
+     */
+    argumentsCapturePath?: string;
+    /**
      * Optional raw input capture used by tests that assert Terminal input mappings.
      */
     inputCapture?: FakeAgentInputCapture;
@@ -106,6 +110,7 @@ if (isCodexAppServer) {
     process.stdout.write(JSON.stringify({ id: 2, result: {} }) + '\n');
   });
 } else {
+  ${definition.argumentsCapturePath ? String.raw`fs.appendFileSync(${JSON.stringify(definition.argumentsCapturePath)}, JSON.stringify(process.argv.slice(2)) + '\n');` : ''}
   function becomeReady() {
   process.stdin.setRawMode?.(true);
   process.stdin.resume();

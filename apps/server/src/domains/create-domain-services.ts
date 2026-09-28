@@ -19,6 +19,7 @@ import { createAgentRuntime } from './agent-runtime';
 import { AgentAttentionRequests, CompactionReadiness, LongPasteService } from './agents';
 import { createBackgroundTasks, refreshWatchSessionInBackground } from './background-tasks';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
+import { commanderLaunchArguments } from './commander';
 import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
@@ -121,6 +122,13 @@ export async function createDomainServices(
     const terminals = new TerminalManager(database, send, logger, {
         ...dependencies.terminal,
         execution: dependencies.terminalExecution,
+        agentLaunchArguments: (terminal) => {
+            const commander = database.agentCommanderRows();
+            return commanderLaunchArguments(terminal, {
+                terminalId: commander?.terminalId,
+                workspacePath: commander && database.getProject(commander.projectId)?.rootPath,
+            });
+        },
         agentLaunchSettings: dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings,
         agentOutputRecoverySettings:
             dependencies.terminal?.agentOutputRecoverySettings ?? agentOutputRecoverySettings,
