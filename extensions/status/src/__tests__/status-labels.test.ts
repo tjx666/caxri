@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
     checkLabel,
     deploymentStateLabel,
+    markdownExcerpt,
     projectStatusStateLabel,
     publicationDescription,
     publicationLabel,
@@ -106,5 +107,17 @@ describe('Project Status labels', () => {
         expect(publicationLabel({ state: 'diverged', ahead: 2, behind: 1 })).toBe('↑2 ↓1');
         // A count the provider never sent reads as zero rather than as `undefined`.
         expect(publicationLabel({ state: 'ahead' })).toBe('↑0');
+    });
+});
+
+describe('markdownExcerpt', () => {
+    it('reads a review-bot comment as prose instead of Markdown source', () => {
+        expect(
+            markdownExcerpt(
+                '**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange)</sub></sub> Retry the handoff**\n\nIf `resume` throws, see [docs](https://example.com).',
+                200,
+            ),
+        ).toBe('P1 Badge Retry the handoff If resume throws, see docs.');
+        expect(markdownExcerpt('- one\n> two', 20)).toBe('one two');
     });
 });

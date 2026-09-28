@@ -6,6 +6,10 @@ import { hexColorSchema } from './color.js';
 export const MAX_VIEW_TREE_ITEMS = 1_000;
 export const MAX_VIEW_TREE_PAYLOAD_BYTES = 256 * 1024;
 export const MAX_VIEW_TREE_DEPTH = 64;
+/**
+ * Bounds one hover card's Markdown body; a longer review comment is truncated by the extension, not rejected.
+ */
+export const MAX_TREE_ITEM_TOOLTIP_MARKDOWN = 8_192;
 export const MAX_VIEW_TREE_HANDLES = 10_000;
 export const MAX_VIEW_TREE_PERSISTED_IDS = 1_000;
 export const MAX_EXTENSION_TREE_VIEW_STATES = 64;
@@ -241,20 +245,30 @@ const treeItemTooltipRowsSchema = z
             rows.length,
         'Rich tooltip rows must be unique',
     );
-export const treeItemRichTooltipSchema = z.object({
-    kind: z.literal('rich'),
-    title: z.string().min(1).max(1_024),
-    /**
-     * Prose that explains the title, such as a provider error's recovery hint. Structured facts belong in `rows`.
-     */
-    description: z.string().min(1).max(1_024).optional(),
-    badge: treeItemTooltipBadgeSchema.optional(),
-    /**
-     * Empty when the title (and badge) already carry the whole hover, so a row without structured facts still uses the
-     * same card instead of falling back to the plain-text tooltip.
-     */
-    rows: treeItemTooltipRowsSchema.default([]),
-});
+export const treeItemRichTooltipSchema = z
+    .object({
+        kind: z.literal('rich'),
+        title: z.string().min(1).max(1_024),
+        /**
+         * Prose that explains the title, such as a provider error's recovery hint. Structured facts belong in `rows`.
+         */
+        description: z.string().min(1).max(1_024).optional(),
+        /**
+         * Authored Markdown prose rendered through `parseMarkdownBlocks`, never as HTML. Mutually exclusive with
+         * `description`.
+         */
+        markdown: z.string().min(1).max(MAX_TREE_ITEM_TOOLTIP_MARKDOWN).optional(),
+        badge: treeItemTooltipBadgeSchema.optional(),
+        /**
+         * Empty when the title (and badge) already carry the whole hover, so a row without structured facts still uses
+         * the same card instead of falling back to the plain-text tooltip.
+         */
+        rows: treeItemTooltipRowsSchema.default([]),
+    })
+    .refine(
+        (tooltip) => tooltip.description === undefined || tooltip.markdown === undefined,
+        'A rich tooltip carries either description or markdown, not both',
+    );
 
 export const treeItemSchema = z
     .object({
