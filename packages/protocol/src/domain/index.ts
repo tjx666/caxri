@@ -32,6 +32,7 @@ export * from './terminal-long-paste.js';
 export * from './terminal-preview.js';
 export * from './terminal-reference.js';
 export * from './terminal-reference-contract.js';
+export * from './terminal-resources.js';
 export * from './terminal-title.js';
 export * from './update-version.js';
 export * from './views.js';

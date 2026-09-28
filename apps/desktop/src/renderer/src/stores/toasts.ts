@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { createElement } from 'react';
 
 import { errorMessage, isCaxriError } from '@caxri/protocol';
@@ -71,6 +72,37 @@ export interface ToastOptions {
      * rather than a callback, so the notification center can still offer it after this toast has expired.
      */
     action?: ToastAction;
+    /**
+     * A second, lesser follow-up rendered before `action`, such as "View details" beside "Stop". Sonner removes the
+     * notification after it runs, so it suits a follow-up that moves the user elsewhere; the history keeps both.
+     */
+    secondaryAction?: ToastAction;
+}
+
+/**
+ * Sonner's label for a follow-up: the visible word, plus a screen-reader name when the word alone is ambiguous.
+ */
+function toastButtonLabel(action: ToastAction): ReactNode {
+    if (!action.accessibleLabel) return toastActionLabels[action.id];
+    return [
+        createElement('span', { className: 'sr-only', key: 'accessible' }, action.accessibleLabel),
+        createElement(
+            'span',
+            { 'aria-hidden': true, 'key': 'visible' },
+            toastActionLabels[action.id],
+        ),
+    ];
+}
+
+/**
+ * Runs a follow-up from a live toast. Even a four-second-old offer can already be stale — the Session it targets may
+ * have been closed between the failure and the click — so the live button revalidates exactly like the history one.
+ */
+function runLiveToastAction(action: ToastAction): void {
+    const reason = runToastAction(action);
+    // Kept out of the history: the sentence only makes sense next to the click it answers, and on its own in the
+    // notification center it would read as an event that happened by itself.
+    if (reason) pushToast('error', reason, { history: false });
 }
 
 /**
@@ -148,39 +180,24 @@ export function pushToast(kind: ToastKind, message: string, options?: ToastOptio
                   },
               })
             : undefined,
-        action: options?.action
-            ? {
-                  label: options.action.accessibleLabel
-                      ? [
-                            createElement(
-                                'span',
-                                { className: 'sr-only', key: 'accessible' },
-                                options.action.accessibleLabel,
-                            ),
-                            createElement(
-                                'span',
-                                { 'aria-hidden': true, 'key': 'visible' },
-                                toastActionLabels[options.action.id],
-                            ),
-                        ]
-                      : toastActionLabels[options.action.id],
-                  onClick: (event) => {
-                      // Sonner deletes the notification after an action unless the handler prevents it
-                      // (`sonner/dist/index.mjs`: `if (event.defaultPrevented) return;`). A `persist` notice is held
-                      // until the user dismisses it, so acting on it must not be the thing that takes it away: the GPU
-                      // crash card's action opens a confirmation the user can still cancel, and deleting the card first
-                      // would leave Cancel with no way back to the offer.
-                      if (options.persist) event.preventDefault();
-                      if (!options.action) return;
-                      // Even a four-second-old offer can already be stale — the Session it targets may have been closed
-                      // between the failure and the click — so the live button revalidates exactly like the history one.
-                      const reason = runToastAction(options.action);
-                      // Kept out of the history: the sentence only makes sense next to the click it answers, and on its
-                      // own in the notification center it would read as an event that happened by itself.
-                      if (reason) pushToast('error', reason, { history: false });
-                  },
-              }
-            : undefined,
+        action: options?.action && {
+            label: toastButtonLabel(options.action),
+            onClick: (event) => {
+                // Sonner deletes the notification after an action unless the handler prevents it
+                // (`sonner/dist/index.mjs`: `if (event.defaultPrevented) return;`). A `persist` notice is held until the
+                // user dismisses it, so acting on it must not be the thing that takes it away: the GPU crash card's action
+                // opens a confirmation the user can still cancel, and deleting the card first would leave Cancel with no
+                // way back to the offer.
+                if (options.persist) event.preventDefault();
+                if (options.action) runLiveToastAction(options.action);
+            },
+        },
+        cancel: options?.secondaryAction && {
+            label: toastButtonLabel(options.secondaryAction),
+            onClick: () => {
+                if (options.secondaryAction) runLiveToastAction(options.secondaryAction);
+            },
+        },
     });
     if (type) activeReminderToasts.set(toastId, type);
     else activeReminderToasts.delete(toastId);

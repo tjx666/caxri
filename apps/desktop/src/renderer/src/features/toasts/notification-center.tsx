@@ -65,16 +65,21 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
     const [refused, setRefused] = useState<{ action: ToastAction; reason: string }>();
     const reasonReference = useRef<HTMLParagraphElement>(null);
     const { Icon, tone } = notificationGlyph[entry.kind];
-    const action = entry.action;
-    const unavailableReason = refused && refused.action === action ? refused.reason : undefined;
+    /**
+     * Rendered in the live toast's order: the lesser follow-up first, the primary one last.
+     */
+    const actions = [entry.secondaryAction, entry.action].filter(
+        (item): item is ToastAction => item !== undefined,
+    );
+    const unavailableReason =
+        refused && actions.includes(refused.action) ? refused.reason : undefined;
     /**
      * Whether the follow-up still applies is answered on click, not on render: this list does not re-render when the
      * Session or editor an old entry points at goes away, so a button disabled at render time would be judged against
-     * state that has since moved. The reason replaces the button in place — the honest alternative to a control that
+     * state that has since moved. The reason replaces the buttons in place — the honest alternative to a control that
      * looks live and does nothing.
      */
-    const runAction = (): void => {
-        if (!action) return;
+    const runAction = (action: ToastAction): void => {
         const reason = runToastAction(action);
         if (reason) {
             setRefused({ action, reason });
@@ -108,7 +113,7 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
                     {entry.count > 1 && <span>{entry.count} occurrences</span>}
                     {muted && <span>Muted</span>}
                 </div>
-                {action &&
+                {actions.length > 0 &&
                     (unavailableReason ? (
                         <p
                             ref={reasonReference}
@@ -119,15 +124,19 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
                             {unavailableReason}
                         </p>
                     ) : (
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            className="mt-2"
-                            aria-label={action.accessibleLabel}
-                            onClick={runAction}
-                        >
-                            {toastActionLabels[action.id]}
-                        </Button>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                            {actions.map((action) => (
+                                <Button
+                                    key={action.id}
+                                    variant="secondary"
+                                    size="sm"
+                                    aria-label={action.accessibleLabel}
+                                    onClick={() => runAction(action)}
+                                >
+                                    {toastActionLabels[action.id]}
+                                </Button>
+                            ))}
+                        </div>
                     ))}
                 {canMuteNotification(entry) && !muted && (
                     <Button

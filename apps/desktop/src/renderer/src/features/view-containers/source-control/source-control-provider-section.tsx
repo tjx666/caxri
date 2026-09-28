@@ -6,7 +6,7 @@ import type {
     SourceControlExternalLink,
     SourceControlViewModel,
 } from '@caxri/protocol';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, GitBranch } from 'lucide-react';
 
 import { DisclosureMotion } from '../../../components/disclosure-motion';
 import type { StructuredTooltipData } from '../../../components/structured-tooltip';
@@ -253,42 +253,29 @@ function ProviderHeader({
                 }}
             >
                 {/*
-                 * Two lines so neither the name nor the branch has to give way to the other: a long worktree folder
-                 * name and a long branch each get the whole row width instead of splitting one line, where both used
-                 * to ellipsize down to a few characters. The second line starts under the name, past the chevron and
-                 * the repository glyph.
+                 * One line: the repository identity plus its own counts. The branch is the section's first child row
+                 * ({@link ProviderBranchRow}) instead, so a long worktree folder name and a long branch never compete
+                 * for the same width, and the header keeps the single-line rhythm of every other row in the tree.
                  */}
-                <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="git-repository-identity flex h-5 min-w-0 items-center gap-1 overflow-hidden">
-                        {expanded ? (
-                            <ChevronDown className="shrink-0" size={13} />
-                        ) : (
-                            <ChevronRight className="shrink-0" size={13} />
-                        )}
-                        {/* 14px matches the Project Status tree rows, so the two sidebar panels agree on repository glyph size. */}
-                        <SourceControlIcon className="shrink-0" icon={provider.icon} size={14} />
-                        <strong className="git-repository-name min-w-0 truncate font-semibold">
-                            {provider.label}
-                        </strong>
-                        {provider.kindLabel && (
-                            <small className="git-repository-kind shrink-0 text-[11px] whitespace-nowrap text-muted">
-                                {provider.kindLabel}
-                            </small>
-                        )}
-                    </span>
-                    {(provider.description || provider.countLabel) && (
-                        <span className="git-repository-details flex min-w-0 items-center gap-1 pl-8.75 text-[11px] leading-4 text-muted">
-                            <span
-                                className="git-repository-meta flex min-w-0 overflow-hidden"
-                                aria-label={provider.descriptionAccessibilityLabel}
-                            >
-                                <span className="git-repository-branch min-w-0 truncate">
-                                    {provider.description}
-                                </span>
-                            </span>
-                            <span className="git-repository-counts shrink-0 whitespace-nowrap">
-                                {provider.countLabel}
-                            </span>
+                <span className="git-repository-identity flex h-5 min-w-0 flex-1 items-center gap-1 overflow-hidden">
+                    {expanded ? (
+                        <ChevronDown className="shrink-0" size={13} />
+                    ) : (
+                        <ChevronRight className="shrink-0" size={13} />
+                    )}
+                    {/* 14px matches the Project Status tree rows, so the two sidebar panels agree on repository glyph size. */}
+                    <SourceControlIcon className="shrink-0" icon={provider.icon} size={14} />
+                    <strong className="git-repository-name min-w-0 truncate font-semibold">
+                        {provider.label}
+                    </strong>
+                    {provider.kindLabel && (
+                        <small className="git-repository-kind shrink-0 text-[11px] whitespace-nowrap text-muted">
+                            {provider.kindLabel}
+                        </small>
+                    )}
+                    {provider.countLabel && (
+                        <span className="git-repository-counts shrink-0 text-[11px] whitespace-nowrap text-muted">
+                            {provider.countLabel}
                         </span>
                     )}
                 </span>
@@ -353,6 +340,39 @@ function ProviderHeader({
                 );
             })}
         </div>
+    );
+}
+
+/**
+ * The repository's branch (or whatever reference the provider describes) as the section's first child row, with the
+ * full row width to itself. It carries no action of its own; hovering or focusing it shows the same detail the header
+ * tooltip does.
+ */
+function ProviderBranchRow({ provider }: { provider: ProviderModel }) {
+    if (!provider.description) return null;
+    return (
+        <SourceControlTreeRow
+            rowId={`provider-branch:${provider.id}`}
+            level={2}
+            className="git-repository-branch-row flex h-7 w-full min-w-0 cursor-default items-center gap-1 border-0 bg-transparent px-2 text-left text-[12px] text-muted hover:bg-elevated"
+            tooltip={
+                <StructuredTooltip
+                    title={provider.description}
+                    details={[provider.descriptionTooltip]}
+                />
+            }
+        >
+            {/* Sits in the chevron column of the group captions below, so the branch text lines up with their labels. */}
+            <GitBranch aria-hidden="true" className="shrink-0" size={13} />
+            <span
+                className="git-repository-meta flex min-w-0 overflow-hidden"
+                aria-label={provider.descriptionAccessibilityLabel}
+            >
+                <span className="git-repository-branch min-w-0 truncate">
+                    {provider.description}
+                </span>
+            </span>
+        </SourceControlTreeRow>
     );
 }
 
@@ -499,6 +519,7 @@ export function SourceControlProviderSection({
             <DisclosureMotion animate expanded={expanded} kind="git-repository">
                 {() => (
                     <div className="git-files overflow-visible">
+                        <ProviderBranchRow provider={provider} />
                         {foldedGroup ? (
                             <GroupBody
                                 controller={controller}

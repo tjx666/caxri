@@ -7,6 +7,7 @@ function makeEntry(overrides: Partial<Record<string, unknown>> = {}) {
         pid: 100,
         parentPid: 1,
         name: 'agent',
+        kind: 'process',
         cpuPercent: 0,
         memoryMb: 0,
         ...overrides,
@@ -18,7 +19,12 @@ function makeEntry(overrides: Partial<Record<string, unknown>> = {}) {
  * assertions below.
  */
 function isValidEntry(overrides: Partial<Record<string, unknown>>): boolean {
-    const snapshot = { processes: [makeEntry(overrides)], sampledAt: Date.now() };
+    const snapshot = {
+        processes: [makeEntry(overrides)],
+        terminals: [],
+        systemMemoryMb: 0,
+        sampledAt: Date.now(),
+    };
     return processExplorerSnapshotSchema.safeParse(snapshot).success;
 }
 
@@ -26,7 +32,12 @@ function isValidProcessCount(count: number): boolean {
     const entries = Array.from({ length: count }, (_unused, index) =>
         makeEntry({ pid: index + 1 }),
     );
-    const snapshot = { processes: entries, sampledAt: Date.now() };
+    const snapshot = {
+        processes: entries,
+        terminals: [],
+        systemMemoryMb: 0,
+        sampledAt: Date.now(),
+    };
     return processExplorerSnapshotSchema.safeParse(snapshot).success;
 }
 
@@ -36,7 +47,7 @@ describe('processExplorerSnapshotSchema', () => {
     });
 
     it('accepts an empty process list', () => {
-        const snapshot = { processes: [], sampledAt: Date.now() };
+        const snapshot = { processes: [], terminals: [], systemMemoryMb: 0, sampledAt: Date.now() };
         expect(processExplorerSnapshotSchema.safeParse(snapshot).success).toBe(true);
     });
 

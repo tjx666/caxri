@@ -12,6 +12,8 @@ const rendererErrorChannel = 'caxri:process-explorer:renderer-error';
 const bridge: ProcessExplorerBridge = {
     reportError: (kind) => ipcRenderer.send(rendererErrorChannel, kind),
     snapshot: () => ipcRenderer.invoke(PROCESS_EXPLORER_CHANNELS.snapshot),
+    stopTerminal: (terminalId) =>
+        ipcRenderer.invoke(PROCESS_EXPLORER_CHANNELS.stopTerminal, terminalId),
     theme: () => ipcRenderer.invoke(PROCESS_EXPLORER_CHANNELS.theme),
 };
 

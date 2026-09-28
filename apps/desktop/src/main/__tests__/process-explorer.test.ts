@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     parseProcessList,
+    processDisplayName,
     ProcessExplorerSampler,
     redactProcessName,
     selectProcessTree,
@@ -62,12 +63,23 @@ describe('Process Explorer sampling', () => {
         expect(concurrent).toEqual(snapshot);
         expect(processList).toHaveBeenCalledTimes(1);
         expect(snapshot.processes).toEqual([
-            expect.objectContaining({ pid: 100, name: 'caxri', cpuPercent: 3, memoryMb: 40 }),
-            expect.objectContaining({ pid: 101, name: 'window (Caxri)' }),
-            expect.objectContaining({ pid: 200, name: 'server-core' }),
-            expect.objectContaining({ pid: 201, name: 'extension-host' }),
-            expect.objectContaining({ pid: 202, name: 'terminal-host' }),
-            expect.objectContaining({ pid: 203, name: '/bin/zsh -il' }),
+            expect.objectContaining({
+                pid: 100,
+                name: 'Caxri',
+                kind: 'main',
+                cpuPercent: 3,
+                memoryMb: 40,
+            }),
+            expect.objectContaining({ pid: 101, name: 'Caxri', kind: 'window' }),
+            expect.objectContaining({ pid: 200, name: 'Server Core', kind: 'service' }),
+            expect.objectContaining({ pid: 201, name: 'Extension Host', kind: 'service' }),
+            expect.objectContaining({ pid: 202, name: 'Terminal Host', kind: 'service' }),
+            expect.objectContaining({
+                pid: 203,
+                name: 'zsh',
+                kind: 'process',
+                command: '/bin/zsh -il',
+            }),
         ]);
         expect(JSON.stringify(snapshot)).not.toContain('/artifact/runtime/bin/node');
     });
@@ -98,9 +110,9 @@ describe('Process Explorer sampling', () => {
         const snapshot = await sampler.snapshot();
 
         expect(snapshot.processes).toEqual([
-            expect.objectContaining({ pid: 100, name: 'caxri' }),
-            expect.objectContaining({ pid: 101, name: 'window (workbench)' }),
-            expect.objectContaining({ pid: 104, name: 'window (process explorer)' }),
+            expect.objectContaining({ pid: 100, name: 'Caxri' }),
+            expect.objectContaining({ pid: 101, name: 'Workbench', kind: 'window' }),
+            expect.objectContaining({ pid: 104, name: 'Process Explorer', kind: 'window' }),
         ]);
     });
 
@@ -116,7 +128,52 @@ describe('Process Explorer sampling', () => {
         const snapshot = await sampler.snapshot();
 
         expect(snapshot.processes).toContainEqual(
-            expect.objectContaining({ pid: 101, name: 'window (renderer)' }),
+            expect.objectContaining({ pid: 101, name: 'Renderer', kind: 'window' }),
         );
+    });
+
+    it('attaches running Terminals and survives a Server Core failure', async () => {
+        const terminal = {
+            terminalId: 't1',
+            sessionId: 's1',
+            sessionTitle: 'Fix the build',
+            kind: 'claude' as const,
+            provider: 'claude' as const,
+            title: 'Claude Code',
+            processId: 101,
+        };
+        const options = {
+            rootPid: 100,
+            processList: () => Promise.resolve('100 1 1 1024 raw-main\n'),
+            electronProcesses: () => [],
+            systemMemoryMb: () => 131_072,
+        };
+        const snapshot = await new ProcessExplorerSampler({
+            ...options,
+            terminals: () => Promise.resolve([terminal]),
+        }).snapshot();
+        expect(snapshot).toMatchObject({ terminals: [terminal], systemMemoryMb: 131_072 });
+        const degraded = await new ProcessExplorerSampler({
+            ...options,
+            terminals: () => Promise.reject(new Error('Server Core unavailable')),
+        }).snapshot();
+        expect(degraded.terminals).toEqual([]);
+        expect(degraded.processes).toHaveLength(1);
+    });
+
+    it('names processes after what they run instead of their path', () => {
+        expect(processDisplayName('/Users/me/.local/bin/claude --resume abc')).toBe('claude');
+        expect(
+            processDisplayName(
+                '/Applications/Caxri.app/Contents/Resources/server/runtime/bin/node /Applications/Caxri.app/Contents/Resources/server/bundles/agent-launcher.js --x',
+            ),
+        ).toBe('node agent-launcher.js');
+        expect(processDisplayName('bun run .agents/scripts/watch-pr.ts --repo a/b')).toBe(
+            'bun watch-pr.ts',
+        );
+        expect(processDisplayName('-zsh')).toBe('zsh');
+        expect(processDisplayName('/bin/zsh -c source /tmp/snapshot.sh')).toBe('zsh');
+        expect(processDisplayName('(git)')).toBe('git');
+        expect(processDisplayName('node')).toBe('node');
     });
 });
