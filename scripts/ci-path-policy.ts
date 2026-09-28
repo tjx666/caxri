@@ -13,6 +13,7 @@ const protectedPathPatterns = [
     /^(?:electron\.vite|eslint|knip|playwright|tsconfig|vite|vitest)(?:\.[^/]+)?$/,
     /^scripts\/(?:doctor-changed|native-spike)\.ts$/,
     /^scripts\/(?:ci-bundle-budget|ci-checks-worktree|ci-concurrent-validation|ci-execution-plan|ci-green-reuse|ci-metrics|ci-nightly-report|ci-path-policy|ci-platform-checks|ci-platform-gates|ci-retry-policy|report-e2e-manifest|run-ci-focused-checks|run-ci-parity|self-hosted-runner)\.ts$/,
+    /^scripts\/performance-baseline[^/]*\.(?:json|ts)$/,
     // Every `run-e2e-*` runner and everything under `scripts/fixtures/` participates in E2E job
     // steps (census fixture included), so protect them by prefix instead of enumerating each file
     // and re-creating the omission that let census infrastructure bypass full validation.
@@ -36,6 +37,29 @@ const protectedPathPatterns = [
 
 export function isProtectedRetryPath(path: string): boolean {
     return protectedPathPatterns.some((pattern) => pattern.test(path));
+}
+
+/**
+ * Paths whose change can plausibly move startup, Renderer interaction, or Server request latency. The performance
+ * baseline gate (`scripts/performance-baseline-gate.ts`) only compares against `scripts/performance-baseline.json` when
+ * a pull request's changed files intersect this set, so an unrelated change (docs, an extension, a CLI-only fix) never
+ * pays for a comparison that cannot regress what the baseline measures. This is deliberately broader than the
+ * baseline's current single measured scenario (Renderer `session.switch`): the owning process for each performance E2E
+ * spec, kept ready for `startup.performance.e2e.ts` and `editor.performance.e2e.ts` once they gain their own committed
+ * baselines.
+ */
+const performanceRelevantPathPatterns = [
+    /^apps\/desktop\/src\/(?:main|preload|renderer)\//,
+    /^apps\/server\/src\//,
+    /^packages\/client\/src\//,
+    /^packages\/protocol\/src\//,
+    /^packages\/system\/src\//,
+    /^e2e\/(?:editor|renderer|startup)\.performance\.e2e\.ts$/,
+    /^scripts\/performance-baseline[^/]*\.(?:json|ts)$/,
+];
+
+export function isPerformanceRelevantPath(path: string): boolean {
+    return performanceRelevantPathPatterns.some((pattern) => pattern.test(path));
 }
 
 export const ordinaryE2ESpecPattern = /^e2e\/[a-z0-9][a-z0-9-]*\.e2e\.ts$/u;
