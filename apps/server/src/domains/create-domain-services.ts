@@ -354,6 +354,7 @@ export async function createDomainServices(
     });
     const { restoreInterruptedTerminalsInBackground, watchSessionInBackground } =
         createBackgroundTasks(logger, files, git, restoreInterruptedTerminals);
+    terminalSuspension.setOnSuspendedSessionReselected(restoreInterruptedTerminalsInBackground);
     /**
      * The Agent Commander Session is never selected, so it restores through its own supervisor: sharing the Workbench's
      * would let the next Session selection abort the Commander's resume.
