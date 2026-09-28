@@ -1,8 +1,9 @@
-import type { BootstrapState, Keybinding } from '@caxri/protocol';
+import type { BootstrapState, CommandId, Keybinding } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useDialogStore } from '../stores/dialogs';
 import { useWorkbenchStore } from '../stores/workbench';
+import { registerCommand } from './registry';
 import { createGlobalShortcutDispatchState, dispatchGlobalKeydown } from './use-command-shortcuts';
 
 /**
@@ -76,6 +77,29 @@ describe('dispatchGlobalKeydown', () => {
         // nothing, matching the reported symptom exactly: the overlay never reopens, and a retry works.
         expect(preventDefault).toHaveBeenCalledOnce();
         expect(useDialogStore.getState().projectSearchOpen).toBe(false);
+    });
+
+    it('runs a shortcut for a command allowed behind a modal, such as window zoom', () => {
+        const run = vi.fn();
+        registerCommand({
+            id: 'test.shortcut.behindModal' as CommandId,
+            title: 'Behind modal',
+            category: 'Test',
+            run,
+            allowBehindModal: true,
+        });
+        useWorkbenchStore.setState({
+            bootstrap: {
+                keybindings: [{ key: 'cmd+shift+f', command: 'test.shortcut.behindModal' }],
+            } as unknown as BootstrapState,
+        });
+        useDialogStore.getState().registerModal('report-bug');
+
+        const { event, preventDefault } = projectSearchKeydownEvent();
+        dispatchGlobalKeydown(createGlobalShortcutDispatchState(), event);
+
+        expect(preventDefault).toHaveBeenCalledOnce();
+        expect(run).toHaveBeenCalledOnce();
     });
 
     it('honors the same shortcut once the handoff has settled and the registration is clear', () => {

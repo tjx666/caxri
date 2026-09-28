@@ -11,6 +11,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { isEditableEventTarget } from '../lib/keybindings';
+import { useDialogStore } from '../stores/dialogs';
 import { useWorkbenchStore } from '../stores/workbench';
 import { commandDefinitions as registeredCommandDefinitions } from './definitions';
 import type { CommandContext } from './execute';
@@ -557,5 +558,54 @@ describe('runCommand editable-focus gate', () => {
         runCommand('test.gate.notEditable' as CommandId, undefined, { viaAccelerator: true });
 
         expect(run).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * A modal dialog blocks commands that would change Workbench state behind it. Window zoom changes the window, dialog
+ * included, so it still runs; the Agent Commander sends its zoom here while a Workbench dialog it cannot see is open.
+ */
+describe('runCommand modal gate', () => {
+    beforeEach(() => {
+        vi.stubGlobal('document', { activeElement: null });
+        mockedIsEditableEventTarget.mockReset();
+        useDialogStore.getState().registerModal('report-bug');
+    });
+
+    afterEach(() => {
+        useDialogStore.getState().unregisterModal('report-bug');
+        vi.unstubAllGlobals();
+    });
+
+    it('runs a command allowed behind a modal and blocks any other', () => {
+        const allowed = vi.fn();
+        const blocked = vi.fn();
+        registerCommand({
+            id: 'test.modal.allowed' as CommandId,
+            title: 'Allowed',
+            category: 'Test',
+            run: allowed,
+            allowBehindModal: true,
+        });
+        registerCommand({
+            id: 'test.modal.blocked' as CommandId,
+            title: 'Blocked',
+            category: 'Test',
+            run: blocked,
+        });
+
+        runCommand('test.modal.allowed' as CommandId, undefined, { viaAccelerator: true });
+        runCommand('test.modal.blocked' as CommandId, undefined, { viaAccelerator: true });
+
+        expect(allowed).toHaveBeenCalledOnce();
+        expect(blocked).not.toHaveBeenCalled();
+    });
+
+    it('allows only window zoom behind a modal', () => {
+        expect(
+            registeredCommandDefinitions
+                .filter((definition) => definition.allowBehindModal)
+                .map((definition) => definition.id),
+        ).toEqual(['view.zoomIn', 'view.zoomOut', 'view.resetZoom']);
     });
 });
