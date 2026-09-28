@@ -87,7 +87,14 @@ export const BottomSheet = ({
             visible
         >
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                /**
+                 * Android's `Modal` opens its own Dialog window, but that window still reports
+                 * `keyboardDidShow`/`keyboardDidHide` (confirmed on device against react-native@0.86, see #1444), so
+                 * `'height'` shrinks the sheet's flex container exactly like it already does outside a Modal
+                 * (`session-detail.tsx`). Leaving this `undefined` let the keyboard render on top of the input and the
+                 * Save button instead of pushing the sheet up.
+                 */
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.root}
             >
                 <Animated.View style={[StyleSheet.absoluteFill, backdropStyle]}>
