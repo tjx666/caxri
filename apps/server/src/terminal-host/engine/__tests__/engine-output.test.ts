@@ -23,18 +23,8 @@ function fixture(
         cols = nextCols;
         rows = nextRows;
     });
-    const engine = new TerminalExecutionEngine({
-        emit: (event) => events.push(event),
-        logger: { write: vi.fn(), recordMetric: vi.fn() } as unknown as StructuredLogger,
-        onExit: vi.fn(),
-        outputFlushMs: options.outputFlushMs ?? 1,
-        ...(options.observerOutputMaximumBytes && {
-            observerOutputMaximumBytes: options.observerOutputMaximumBytes,
-        }),
-        ...(options.screenMaximumQueuedBytes && {
-            screenMaximumQueuedBytes: options.screenMaximumQueuedBytes,
-        }),
-        spawn: () =>
+    const spawn = vi.fn(
+        () =>
             ({
                 pid: 999_999,
                 get cols() {
@@ -51,6 +41,19 @@ function fixture(
                 write: vi.fn(),
                 kill: vi.fn(),
             }) as unknown as IPty,
+    );
+    const engine = new TerminalExecutionEngine({
+        emit: (event) => events.push(event),
+        logger: { write: vi.fn(), recordMetric: vi.fn() } as unknown as StructuredLogger,
+        onExit: vi.fn(),
+        outputFlushMs: options.outputFlushMs ?? 1,
+        ...(options.observerOutputMaximumBytes && {
+            observerOutputMaximumBytes: options.observerOutputMaximumBytes,
+        }),
+        ...(options.screenMaximumQueuedBytes && {
+            screenMaximumQueuedBytes: options.screenMaximumQueuedBytes,
+        }),
+        spawn,
     });
     const record: TerminalRecord = {
         id: 'terminal',
@@ -64,18 +67,21 @@ function fixture(
         createdAt: 1,
         updatedAt: 1,
     };
-    engine.start({
+    const launch = {
         record,
         args: [],
         environment: {},
         executable: 'fixture',
         initialSnapshot: '',
         initialSize: { cols: 20, rows: 4 },
-    });
+    };
+    engine.start(launch);
     return {
         engine,
         events,
+        launch,
         resize,
+        spawn,
         size: () => ({ cols, rows }),
         send: (data: string) => send(data),
     };
@@ -422,6 +428,23 @@ describe('Terminal execution output boundaries', () => {
             expect(output).toMatchObject({ droppedBytes: 8 });
             if (output?.type !== 'output') throw new Error('Output was not emitted');
             expect(output.data).not.toContain('\u{1B}');
+        } finally {
+            await Promise.all(engine.shutdown().map(({ capture }) => capture));
+        }
+    });
+});
+
+describe('Terminal execution lifecycle', () => {
+    it('refuses to start a second PTY while a live one still owns the Terminal ID', async () => {
+        const { engine, launch, spawn } = fixture();
+        try {
+            expect(() => engine.start(launch)).toThrow(
+                expect.objectContaining({ code: 'CONFLICT' }),
+            );
+            expect(spawn).toHaveBeenCalledOnce();
+            engine.discard('terminal');
+            expect(engine.start(launch)).toBe(999_999);
+            expect(spawn).toHaveBeenCalledTimes(2);
         } finally {
             await Promise.all(engine.shutdown().map(({ capture }) => capture));
         }

@@ -29,6 +29,7 @@ import {
     restoreRequestedView,
 } from './attach-failure';
 import { observeBackgroundFailure } from './background-failure';
+import { DiscardStops } from './discard-stops';
 import type {
     RemoteResizeQueue,
     RemoteTerminalIdentity,
@@ -52,6 +53,7 @@ import { RemoteMobileTerminalControl } from './mobile-observation';
 import { buildShutdownCaptures } from './shutdown-captures';
 
 export class RemoteTerminalExecution extends EventTarget implements TerminalExecutionPort {
+    private readonly discardStops: DiscardStops;
     private readonly generations = new Map<string, number>();
     private readonly identities = new Map<string, RemoteTerminalIdentity>();
     private readonly inputQueues = new Map<string, TerminalInputQueue<RemoteTerminalIdentity>>();
@@ -71,6 +73,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         private readonly logger: StructuredLogger,
     ) {
         super();
+        this.discardStops = new DiscardStops(supervisor);
         this.mobileControl = new RemoteMobileTerminalControl(this.identities, supervisor);
         this.inputForGeneration = this.mobileControl.inputForGeneration.bind(this.mobileControl);
         this.scrollForGeneration = this.mobileControl.scrollForGeneration.bind(this.mobileControl);
@@ -252,7 +255,8 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         receipt?: TerminalInputReceipt;
     } {
         const identity = this.identities.get(terminalId);
-        if (!identity?.processId || !identity.attachmentId) return { accepted: false };
+        if (!identity?.processId || !identity.attachmentId || identity.isStopping)
+            return { accepted: false };
         if (data.length > maximumLength) return { accepted: false };
         if (data.length === 0) return { accepted: true };
         let queue = this.inputQueues.get(terminalId);
@@ -302,6 +306,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         );
         this.resizeQueues.delete(record.id);
         const generation = (this.generations.get(record.id) ?? 0) + 1;
+        const discardStop = this.discardStops.inFlight(record.id);
         const identity: RemoteTerminalIdentity = {
             generation,
             ready: Promise.resolve(),
@@ -309,6 +314,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             ...(previous?.attachmentId && { attachmentId: previous.attachmentId }),
         };
         const ready = (async () => {
+            if (discardStop) await discardStop;
             await this.supervisor.request(
                 { method: 'terminal.reserve', params: record },
                 terminalScope(identity, 'terminal.lifecycle'),
@@ -503,6 +509,8 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         const view = this.views.get(terminalId);
         if (!view || !identity?.processId) return false;
         view.size = { cols, rows };
+        // The next reservation re-attaches with this size; the stopping generation's PTY no longer takes it.
+        if (identity.isStopping) return true;
         let queue = this.resizeQueues.get(terminalId);
         if (queue && (queue.identity !== identity || queue.view !== view)) queue = undefined;
         if (!queue) {
@@ -659,6 +667,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         const identity = this.identities.get(terminalId);
         if (!identity?.processId) return null;
         await settleHotPaths(this.inputQueues, this.resizeQueues, [terminalId]);
+        identity.isStopping = true;
         const result = (await this.supervisor.request(
             { method: 'terminal.stop', params: { persistSnapshot: true } },
             terminalScope(identity, 'terminal.lifecycle'),
@@ -693,16 +702,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     discard(terminalId: string): void {
         const { completions, identity } = this.forgetIdentity(terminalId);
         if (!identity) return;
-        this.background(
-            afterHotPaths(completions, () =>
-                this.supervisor.request(
-                    { method: 'terminal.stop', params: { persistSnapshot: false } },
-                    terminalScope(identity, 'terminal.lifecycle'),
-                ),
-            ),
-            'terminal.stop',
-            terminalId,
-        );
+        this.background(this.discardStops.send(identity, completions), 'terminal.stop', terminalId);
     }
 
     markCoreStopping(): void {

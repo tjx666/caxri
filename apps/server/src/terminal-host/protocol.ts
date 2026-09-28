@@ -12,7 +12,6 @@ import {
     terminalResourceUsageSchema,
     terminalSnapshotSchema,
 } from '@caxri/protocol';
-import { isSecretMatch } from '@caxri/system';
 import { z } from 'zod';
 
 import { observationContextSchema } from '../observability/context-schema';
@@ -538,7 +537,7 @@ export const terminalHostMessageSchema = z.union([
     terminalHostEventEnvelopeSchema,
 ]);
 
-type TerminalHostCapability = z.infer<typeof terminalHostCapabilitySchema>;
+export type TerminalHostCapability = z.infer<typeof terminalHostCapabilitySchema>;
 export type TerminalHostRequest = z.infer<typeof terminalHostRequestSchema>;
 export type TerminalHostRequestEnvelope = z.infer<typeof terminalHostRequestEnvelopeSchema>;
 export type TerminalHostMessage = z.infer<typeof terminalHostMessageSchema>;
@@ -611,180 +610,6 @@ export function isTerminalHostResult(
     value: unknown,
 ): boolean {
     return terminalHostResultSchemas[method].safeParse(value).success;
-}
-
-const requiredCapabilities = {
-    'host.initialize': 'host.lifecycle',
-    'host.shutdown': 'host.lifecycle',
-    'terminal.reserve': 'terminal.lifecycle',
-    'terminal.start': 'terminal.lifecycle',
-    'terminal.agent.input': 'terminal.agent.input',
-    'terminal.agent.submit': 'terminal.agent.input',
-    'terminal.input': 'terminal.input',
-    'terminal.resize': 'terminal.view',
-    'terminal.attach': 'terminal.view',
-    'terminal.detach': 'terminal.view',
-    'terminal.observe': 'terminal.observe',
-    'terminal.unobserve': 'terminal.observe',
-    'terminal.takeOver': 'terminal.lease',
-    'terminal.renewTakeOver': 'terminal.lease',
-    'terminal.releaseTakeOver': 'terminal.lease',
-    'terminal.observer.input': 'terminal.mobile.input',
-    'terminal.observer.scroll': 'terminal.mobile.input',
-    'terminal.snapshot': 'terminal.view',
-    'terminal.textTail': 'terminal.inspect',
-    'terminal.waitForAttachedSize': 'terminal.view',
-    'terminal.signal': 'terminal.lifecycle',
-    'terminal.agent.signal': 'terminal.lifecycle',
-    'terminal.stop': 'terminal.lifecycle',
-    'terminal.reassign': 'terminal.lifecycle',
-    'terminal.resources': 'terminal.inspect',
-    'terminal.recovery.configure': 'terminal.lifecycle',
-    'terminal.detachAll': 'terminal.view',
-    'terminal.retire': 'terminal.lifecycle',
-    'terminal.runningCount': 'terminal.inspect',
-} as const satisfies Record<TerminalHostRequest['method'], TerminalHostCapability>;
-
-export interface TerminalHostAuthority {
-    bootId: string;
-    credential: string;
-    /**
-     * Permanently closed IDs stay fenced so a late reserve cannot fall through to the no-baseline rule.
-     */
-    isRetired(terminalId: string): boolean;
-    /**
-     * Undefined means this fresh Host has no generation baseline and may accept Core's first positive generation.
-     */
-    launchGeneration(terminalId: string): number | undefined;
-    terminal(terminalId: string):
-        | {
-              sessionId: string;
-              ptyGeneration: number;
-              attachmentId?: string;
-              agentLaunchId?: string;
-              agentProcessId?: number;
-              running?: boolean;
-          }
-        | undefined;
-}
-
-export type TerminalHostAuthorizationFailure =
-    | 'credential'
-    | 'boot'
-    | 'capability'
-    | 'scope'
-    | 'terminal'
-    | 'session'
-    | 'generation'
-    | 'agent'
-    | 'attachment'
-    | 'retired';
-
-/**
- * Applies the private fail-closed identity contract after structural parsing. The caller deliberately receives only a
- * reason code: credentials and peer-supplied identities must never enter logs or replies.
- */
-export function authorizeTerminalHostRequest(
-    envelope: TerminalHostRequestEnvelope,
-    authority: TerminalHostAuthority,
-): { ok: true } | { ok: false; reason: TerminalHostAuthorizationFailure } {
-    if (!isSecretMatch(envelope.credential, authority.credential))
-        return { ok: false, reason: 'credential' };
-    if (envelope.bootId !== authority.bootId) return { ok: false, reason: 'boot' };
-    const requiredCapability = requiredCapabilities[envelope.request.method];
-    if (envelope.scope.capability !== requiredCapability)
-        return { ok: false, reason: 'capability' };
-
-    const isTerminalMethod =
-        envelope.request.method.startsWith('terminal.') &&
-        !['terminal.detachAll', 'terminal.retire', 'terminal.runningCount'].includes(
-            envelope.request.method,
-        );
-    if (!isTerminalMethod)
-        return envelope.scope.scope === 'server' ? { ok: true } : { ok: false, reason: 'scope' };
-    if (envelope.scope.scope !== 'terminal') return { ok: false, reason: 'scope' };
-
-    if (
-        envelope.request.method === 'terminal.start' ||
-        envelope.request.method === 'terminal.reserve'
-    ) {
-        const record =
-            envelope.request.method === 'terminal.start'
-                ? envelope.request.params.record
-                : envelope.request.params;
-        if (record.id !== envelope.scope.terminalId) return { ok: false, reason: 'terminal' };
-        if (record.sessionId !== envelope.scope.sessionId) return { ok: false, reason: 'session' };
-        if (authority.isRetired(record.id)) return { ok: false, reason: 'retired' };
-        if (envelope.request.method === 'terminal.start') {
-            /**
-             * Server Core reserves every launch on the same Host boot before starting it, so a start with no matching
-             * reservation is a late request from a generation that was stopped, discarded, retired, or lost with a
-             * previous Host. Requiring the reservation fences it without any per-ID history.
-             */
-            const current = authority.terminal(record.id);
-            if (!current) return { ok: false, reason: 'terminal' };
-            if (current.sessionId !== record.sessionId) return { ok: false, reason: 'session' };
-            if (current.running !== false || current.ptyGeneration !== envelope.scope.ptyGeneration)
-                return { ok: false, reason: 'generation' };
-        } else {
-            const expectedGeneration = authority.launchGeneration(record.id);
-            if (
-                expectedGeneration !== undefined &&
-                envelope.scope.ptyGeneration !== expectedGeneration
-            )
-                return { ok: false, reason: 'generation' };
-        }
-        if (envelope.scope.attachmentId !== undefined) return { ok: false, reason: 'attachment' };
-        return { ok: true };
-    }
-
-    const current = authority.terminal(envelope.scope.terminalId);
-    if (!current) return { ok: false, reason: 'terminal' };
-    if (current.sessionId !== envelope.scope.sessionId) return { ok: false, reason: 'session' };
-    if (current.ptyGeneration !== envelope.scope.ptyGeneration)
-        return { ok: false, reason: 'generation' };
-
-    if (envelope.request.method === 'terminal.attach') {
-        return envelope.scope.attachmentId === envelope.request.params.attachmentId
-            ? { ok: true }
-            : { ok: false, reason: 'attachment' };
-    }
-    if (
-        envelope.request.method === 'terminal.agent.input' ||
-        envelope.request.method === 'terminal.agent.submit'
-    ) {
-        if (envelope.scope.attachmentId !== undefined) return { ok: false, reason: 'attachment' };
-        return current.running &&
-            current.agentLaunchId === envelope.request.params.launchId &&
-            (envelope.request.method !== 'terminal.agent.submit' ||
-                current.agentProcessId !== undefined)
-            ? { ok: true }
-            : { ok: false, reason: 'agent' };
-    }
-    if (
-        [
-            'terminal.observe',
-            'terminal.unobserve',
-            'terminal.takeOver',
-            'terminal.renewTakeOver',
-            'terminal.releaseTakeOver',
-            'terminal.observer.input',
-            'terminal.observer.scroll',
-        ].includes(envelope.request.method)
-    )
-        return envelope.scope.attachmentId === undefined && current.running
-            ? { ok: true }
-            : { ok: false, reason: 'attachment' };
-    if (
-        ['terminal.input', 'terminal.resize', 'terminal.detach'].includes(envelope.request.method)
-    ) {
-        return envelope.scope.attachmentId !== undefined &&
-            envelope.scope.attachmentId === current.attachmentId
-            ? { ok: true }
-            : { ok: false, reason: 'attachment' };
-    }
-    if (envelope.scope.attachmentId !== undefined) return { ok: false, reason: 'attachment' };
-    return { ok: true };
 }
 
 export function isBoundedTerminalHostMessage(value: unknown): boolean {
