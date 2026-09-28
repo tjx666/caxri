@@ -190,13 +190,17 @@ describe('pnpm workspace contract', () => {
             ...productionTypeScriptFiles(join(root, 'apps/server/src/core')),
             ...productionTypeScriptFiles(join(root, 'packages/client/src/supervise')),
         ];
+        // The Mobile gateway owns the only TCP listener; its options module shares the `Socket` type with it.
+        const mobileGatewayNetSources = new Set([
+            'apps/server/src/core/mobile/gateway/gateway.ts',
+            'apps/server/src/core/mobile/gateway/gateway-options.ts',
+        ]);
         const legacyControlTransport = localControlSources
             .map((path) => ({ path: relative(root, path), source: readFileSync(path, 'utf8') }))
             .filter(
                 ({ path, source }) =>
                     /\b(?:host|runtime)\.sock\b|unix domain socket|\bUDS\b/iu.test(source) ||
-                    (path !== 'apps/server/src/core/mobile/gateway/gateway.ts' &&
-                        /from\s+['"]node:net['"]/u.test(source)),
+                    (!mobileGatewayNetSources.has(path) && /from\s+['"]node:net['"]/u.test(source)),
             )
             .map(({ path }) => path);
         expect(legacyControlTransport).toEqual([]);
