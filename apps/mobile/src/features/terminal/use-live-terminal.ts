@@ -21,7 +21,7 @@ import { terminalResyncPlan } from './resync-policy';
 import { createTerminalStreamAssembly } from './stream-assembly';
 import type { TerminalWebviewCommand } from './webview-bridge';
 import { parseTerminalWebviewMessage, terminalWebviewCommandScript } from './webview-bridge';
-import { createTerminalWheelQueue } from './wheel-queue';
+import { canForwardTerminalWheel, createTerminalWheelForwarder } from './wheel-queue';
 
 type TerminalWebviewPayload = TerminalWebviewCommand extends infer Command
     ? Command extends TerminalWebviewCommand
@@ -166,7 +166,7 @@ export const useLiveTerminal = ({
      */
     const sendControl = useCallback(
         (isLeased: boolean): void => {
-            const canForwardScroll = context.current.role === 'control';
+            const canForwardScroll = canForwardTerminalWheel(context.current.role);
             sendWebview({
                 type: 'control',
                 canForwardScroll,
@@ -358,7 +358,7 @@ export const useLiveTerminal = ({
     /**
      * Created on the first forwarded drag so the queue's sender reads the latest target only from event handlers.
      */
-    const wheel = useRef<ReturnType<typeof createTerminalWheelQueue> | null>(null);
+    const wheel = useRef<ReturnType<typeof createTerminalWheelForwarder> | null>(null);
 
     const sendInput = async (data: string): Promise<'sent' | 'blocked'> => {
         const target = currentTarget();
@@ -512,15 +512,12 @@ export const useLiveTerminal = ({
                 break;
             }
             case 'wheel': {
-                if (role !== 'control') break;
-                wheel.current ??= createTerminalWheelQueue(
-                    async (next) => {
-                        const target = targetReference.current();
-                        if (target) await request('mobile.terminal.scroll', { ...target, ...next });
-                    },
-                    (error_) => setError(controlError(error_)),
-                );
-                wheel.current.add({ col: message.col, lines: message.lines, row: message.row });
+                wheel.current ??= createTerminalWheelForwarder({
+                    onError: (error_) => setError(controlError(error_)),
+                    request,
+                    target: () => targetReference.current(),
+                });
+                wheel.current(role, { col: message.col, lines: message.lines, row: message.row });
                 break;
             }
             case 'error': {
