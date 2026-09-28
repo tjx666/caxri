@@ -14,7 +14,10 @@ import type { SessionStatusTerminal } from './session-status';
  * ago` still counts from the start of that turn.
  *
  * The trailing `+N −M` is the Workbench Root's lines changed since its branch forked off the default branch (see
- * `sessionDiffStatSchema`), so Sessions sharing one root show the same numbers.
+ * `sessionDiffStatSchema`), so Sessions sharing one root show the same numbers. The system UI font sets `+` and `−` on
+ * the lowercase math axis, below the lining figures' center, and the heavy `+` visibly drags the green count down while
+ * the thin `−` does not, so the red count reads higher. The OpenType `case` feature lifts both signs to the figures'
+ * center.
  *
  * The whole line is `aria-hidden`: the status icon's label names the state, and the row's accessible description (see
  * `SessionActivityCard`) carries the activity and the diff stat in words.
@@ -51,7 +54,7 @@ export function SessionStatusLine({
              * beneath them reads as clutter rather than information. The hover card still states it in words.
              */}
             {diffStat && (
-                <span className="session-diff-stat ml-auto flex flex-none gap-1 pl-2 tabular-nums group-hover/session-row:hidden">
+                <span className="session-diff-stat ml-auto flex flex-none gap-1 pl-2 [font-feature-settings:'case'] tabular-nums group-hover/session-row:hidden">
                     <span className="text-success">+{diffStat.additions}</span>
                     <span className="text-danger">−{diffStat.deletions}</span>
                 </span>
