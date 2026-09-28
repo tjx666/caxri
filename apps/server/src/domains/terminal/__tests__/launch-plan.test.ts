@@ -120,6 +120,31 @@ describe('TerminalLaunchPlanner managed Agent launch', () => {
         },
     );
 
+    it('adds Server-owned arguments after the provider arguments and before settings and resume', async () => {
+        const planner = new TerminalLaunchPlanner({
+            agentLaunchArguments: (terminal) =>
+                terminal.id === record.id ? ['-c', 'server.owned=true'] : [],
+            logger: new StructuredLogger('/tmp/caxri-launch-plan-test-logs'),
+            resolveExecutable: (kind) =>
+                Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/usr/local/bin/codex'),
+        });
+        const resolved = await planner.resolve(record, {
+            launchSettings: { executable: 'codex', args: ['--profile', 'focused'] },
+            resumeAgentSessionId: 'conversation-1',
+        });
+        if (!resolved.ok) throw resolved.error;
+        expect(resolved.value.agent?.args).toEqual([
+            '-c',
+            'tui.auto_recap=false',
+            '-c',
+            'server.owned=true',
+            '--profile',
+            'focused',
+            'resume',
+            'conversation-1',
+        ]);
+    });
+
     it('splits a flag and value saved on one line', async () => {
         const launch = { executable: 'codex', args: ['--profile focused'] };
         const planner = new TerminalLaunchPlanner({

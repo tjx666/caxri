@@ -72,6 +72,7 @@ export class TerminalManager {
     ) {
         this.launchPlanner = new TerminalLaunchPlanner({
             agentEnvironment: options.agentEnvironment,
+            agentLaunchArguments: options.agentLaunchArguments,
             agentLaunchSettings: options.agentLaunchSettings,
             lifecycleEnvironment: options.lifecycleEnvironment,
             shellEnvironment: options.shellEnvironment,
