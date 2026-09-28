@@ -3,15 +3,35 @@ import { readFile } from 'node:fs/promises';
 import type { CaxriMethod } from '@caxri/protocol';
 import { capabilityIds, methods } from '@caxri/protocol';
 
-import { findCliCommand, parseCliArguments } from '../src/commands';
+import { CLI_COMMANDS, findCliCommand, parseCliArguments } from '../src/commands';
 
 function tokenize(command: string): string[] {
     return command.trim().split(/\s+/u).filter(Boolean);
 }
 
+/**
+ * Collects inline code spans that name a command in prose. They carry placeholders such as `<id>`, so only their
+ * command path can be resolved, not their arguments. A span qualifies when it starts with `caxri` or with a CLI root
+ * followed by more words: a lone root such as `commander` is a capability name, while a bare group such as `agent
+ * dispatch` must fail because it names no runnable command.
+ */
+function inlineCommandMentions(skill: string): string[][] {
+    const roots = new Set<string>(CLI_COMMANDS.map((command) => command.path[0]));
+    return skill
+        .replaceAll(/^```[^\n]*\n[\s\S]*?\n```$/gmu, '')
+        .matchAll(/`([^`\n]+)`/gu)
+        .map((match) => tokenize(match[1]))
+        .flatMap((tokens) => {
+            if (tokens[0] === 'caxri') return tokens.length > 1 ? [tokens.slice(1)] : [];
+            return roots.has(tokens[0]) && tokens.length > 1 ? [tokens] : [];
+        })
+        .toArray();
+}
+
 export function validateSkillCommands(skill: string): {
     capabilityCount: number;
     commandCount: number;
+    mentionCount: number;
 } {
     const commandLines = skill
         .matchAll(/^caxri (.+)$/gmu)
@@ -34,6 +54,12 @@ export function validateSkillCommands(skill: string): {
         }
     }
 
+    const mentions = inlineCommandMentions(skill);
+    for (const tokens of mentions) {
+        if (!findCliCommand(tokens))
+            throw new Error(`Skill mentions an unknown command: \`${tokens.join(' ')}\``);
+    }
+
     const capabilityMarker = skill.match(/<!-- caxri-capabilities: ([^>]+) -->/u)?.[1];
     if (!capabilityMarker)
         throw new Error('caxri-cli skill is missing its capability validation marker');
@@ -53,7 +79,11 @@ export function validateSkillCommands(skill: string): {
     if (!describedMethods.has('settings.patch') || !describedMethods.has('agent.message.wait'))
         throw new Error('caxri-cli skill must retain Settings dry-run and Peer pull workflows');
 
-    return { capabilityCount: capabilities.length, commandCount: commandLines.length };
+    return {
+        capabilityCount: capabilities.length,
+        commandCount: commandLines.length,
+        mentionCount: mentions.length,
+    };
 }
 
 async function validateSkillFile(): Promise<void> {
@@ -63,7 +93,7 @@ async function validateSkillFile(): Promise<void> {
     );
     const result = validateSkillCommands(skill);
     console.log(
-        `Validated caxri-cli skill (${result.commandCount} commands, ${result.capabilityCount} capabilities)`,
+        `Validated caxri-cli skill (${result.commandCount} commands, ${result.mentionCount} mentions, ${result.capabilityCount} capabilities)`,
     );
 }
 
