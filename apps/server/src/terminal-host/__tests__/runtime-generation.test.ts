@@ -1,19 +1,21 @@
 import { readFile } from 'node:fs/promises';
 
 import type { TerminalRecord } from '@caxri/protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import type { TerminalExecutionExit } from '../engine/engine';
 import { RETIRED_TERMINAL_FENCE_LIMIT } from '../generation-ledger';
 import type { TerminalHostMessage } from '../protocol';
-import type { ManagedAgentExecutionOwner, TerminalHostRuntime } from '../runtime';
+import type { TerminalHostRuntime } from '../runtime';
 import {
     cleanupRuntimeFixtures,
     createRuntime,
     emptySnapshot,
+    fakeAgentLauncher,
     fakeEngine,
     lifecycleScope,
     privateRequest,
+    startAgentLaunch,
     terminal,
 } from './runtime-fixtures';
 
@@ -177,48 +179,12 @@ describe('architecture-a3b-terminal-host: Terminal generation retention', () => 
 
     it('fences a reservation that arrives while retirement cancels the managed Agent', async () => {
         const engine = fakeEngine();
+        const agent = fakeAgentLauncher();
         const cancellation = Promise.withResolvers<boolean>();
-        const cancel = vi.fn(() => cancellation.promise);
-        const agentLauncher: ManagedAgentExecutionOwner = {
-            cancel,
-            close: vi.fn(() => Promise.resolve()),
-            isRunningExact: vi.fn(() => true),
-            prepare: vi.fn(() => ({
-                environment: {
-                    CAXRI_AGENT_LAUNCHER_RUNTIME: '/runtime/node',
-                    CAXRI_AGENT_LAUNCHER_ENTRY: '/bundles/agent-launcher.js',
-                    CAXRI_AGENT_LAUNCHER_SOCKET: '/tmp/agent.sock',
-                    CAXRI_AGENT_LAUNCHER_ID: 'launch-1',
-                    CAXRI_AGENT_LAUNCHER_TOKEN: 'one-time-token',
-                },
-                started: Promise.resolve(101),
-            })),
-            signalExact: vi.fn(() => true),
-        };
-        const { messages, runtime } = createRuntime(engine.owner, agentLauncher);
+        agent.cancel.mockReturnValueOnce(cancellation.promise);
+        const { messages, runtime } = createRuntime(engine.owner, agent.owner);
         await reserve(runtime, 1, 'reserve-1');
-        await runtime.accept(
-            privateRequest(
-                {
-                    method: 'terminal.start',
-                    params: {
-                        record: terminal,
-                        executable: '/bin/zsh',
-                        args: [],
-                        environment: {},
-                        agent: {
-                            launchId: 'launch-1',
-                            provider: 'codex',
-                            executable: '/usr/local/bin/codex',
-                            args: [],
-                            environment: {},
-                        },
-                    },
-                },
-                lifecycleScope(1),
-                'start-agent',
-            ),
-        );
+        await startAgentLaunch(runtime, 1, 'start-agent');
 
         const retiring = retire(runtime, terminal.id, 'retire-agent');
         await reserve(runtime, 2, 'reserve-during-retire');
@@ -226,7 +192,7 @@ describe('architecture-a3b-terminal-host: Terminal generation retention', () => 
         await retiring;
 
         expect(reply(messages, 'reserve-during-retire')).toMatchObject(denied);
-        expect(cancel).toHaveBeenCalledWith(terminal.id, 'launch-1');
+        expect(agent.cancel).toHaveBeenCalledWith(terminal.id, 'launch-1');
         expect(internals(runtime).identities.size).toBe(0);
     });
 

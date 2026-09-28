@@ -4,11 +4,11 @@ import { readFile } from 'node:fs/promises';
 import type { TerminalRecord, TerminalSnapshot } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ManagedAgentExecutionOwner } from '../runtime';
 import {
     cleanupRuntimeFixtures,
     createRuntime,
     emptySnapshot,
+    fakeAgentLauncher,
     fakeEngine,
     privateRequest,
     reserveLaunch,
@@ -76,23 +76,7 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
     });
     it('keeps Agent credentials in the one-time child plan and projects child exit separately', async () => {
         const engine = fakeEngine();
-        const prepare = vi.fn(() => ({
-            environment: {
-                CAXRI_AGENT_LAUNCHER_RUNTIME: '/runtime/node',
-                CAXRI_AGENT_LAUNCHER_ENTRY: '/bundles/agent-launcher.js',
-                CAXRI_AGENT_LAUNCHER_SOCKET: '/tmp/agent.sock',
-                CAXRI_AGENT_LAUNCHER_ID: 'launch-1',
-                CAXRI_AGENT_LAUNCHER_TOKEN: 'one-time-token',
-            },
-            started: Promise.resolve(101),
-        }));
-        const agentLauncher: ManagedAgentExecutionOwner = {
-            cancel: vi.fn(() => Promise.resolve(true)),
-            close: vi.fn(() => Promise.resolve()),
-            prepare,
-            signalExact: vi.fn(() => true),
-            isRunningExact: vi.fn(() => true),
-        };
+        const { owner: agentLauncher, prepare } = fakeAgentLauncher();
         const { messages, runtime } = createRuntime(engine.owner, agentLauncher);
         const agentTerminal: TerminalRecord = {
             ...terminal,

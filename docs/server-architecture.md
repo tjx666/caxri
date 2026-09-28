@@ -140,7 +140,8 @@ generation never adopts PTYs from another Terminal Host or Server Core generatio
 invalidates its live PTYs, and a Server Core shutdown terminates its Terminal Host after bounded snapshot
 capture. Compatible discovery, adoption, and live Terminal continuity are future P1/P5 capabilities.
 Per-Terminal PTY generations are fenced on both sides: Terminal Host keeps a baseline only for IDs
-Server Core can relaunch and fences permanently closed IDs after `terminal.retire`, as specified in
+Server Core can relaunch, fences permanently closed IDs after `terminal.retire`, and seals a
+generation the moment its `terminal.stop` is admitted, as specified in
 [terminal-lifecycle.md](../.agents/skills/project-architecture/references/terminal-lifecycle.md).
 
 ### Extension Host

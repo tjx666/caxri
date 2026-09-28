@@ -34,6 +34,14 @@ export interface RemoteTerminalIdentity {
      */
     heldAttachmentId?: string;
     generation: number;
+    /**
+     * Set once `restartBarrier` sends `terminal.stop`, and never cleared. Terminal Host seals the generation when it
+     * admits that stop and refuses its input and resize until the next reservation, while a managed Agent's
+     * cancellation can hold the stop for its grace period. Core drops that input the way it drops input to an exited
+     * Terminal and only records the view size, rather than turning every keystroke into a Host refusal the Renderer
+     * reports as an error.
+     */
+    isStopping?: true;
     processId?: number;
     ready: Promise<void>;
     record: TerminalRecord;

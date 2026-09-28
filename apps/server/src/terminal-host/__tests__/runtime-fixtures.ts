@@ -101,6 +101,71 @@ export function fakeEngine() {
     };
 }
 
+/**
+ * Managed Agent launcher double. Tests hold `cancel` open to reproduce the wait that `terminal.stop`,
+ * `terminal.retire`, and a failed `terminal.start` spend on Agent cancellation.
+ */
+export function fakeAgentLauncher() {
+    const cancel = vi.fn<ManagedAgentExecutionOwner['cancel']>(() => Promise.resolve(true));
+    const prepare = vi.fn<ManagedAgentExecutionOwner['prepare']>(({ launchId }) => ({
+        environment: {
+            CAXRI_AGENT_LAUNCHER_RUNTIME: '/runtime/node',
+            CAXRI_AGENT_LAUNCHER_ENTRY: '/bundles/agent-launcher.js',
+            CAXRI_AGENT_LAUNCHER_SOCKET: '/tmp/agent.sock',
+            CAXRI_AGENT_LAUNCHER_ID: launchId,
+            CAXRI_AGENT_LAUNCHER_TOKEN: 'one-time-token',
+        },
+        started: Promise.resolve(101),
+    }));
+    const signalExact = vi.fn<ManagedAgentExecutionOwner['signalExact']>(() => true);
+    return {
+        cancel,
+        prepare,
+        signalExact,
+        owner: {
+            cancel,
+            close: vi.fn(() => Promise.resolve()),
+            isRunningExact: vi.fn(() => true),
+            prepare,
+            signalExact,
+        } satisfies ManagedAgentExecutionOwner,
+    };
+}
+
+/**
+ * The `terminal.start` Server Core sends for a managed Agent launch of `launchId`.
+ */
+export function startAgentLaunch(
+    runtime: TerminalHostRuntime,
+    ptyGeneration: number,
+    id: string,
+    launchId = 'launch-1',
+    record: TerminalRecord = terminal,
+): Promise<void> {
+    return runtime.accept(
+        privateRequest(
+            {
+                method: 'terminal.start',
+                params: {
+                    record,
+                    executable: '/bin/zsh',
+                    args: [],
+                    environment: {},
+                    agent: {
+                        launchId,
+                        provider: 'codex',
+                        executable: '/usr/local/bin/codex',
+                        args: [],
+                        environment: {},
+                    },
+                },
+            },
+            lifecycleScope(ptyGeneration, record.id),
+            id,
+        ),
+    );
+}
+
 export function createRuntime(
     engine: TerminalExecutionOwner,
     agentLauncher?: ManagedAgentExecutionOwner,
