@@ -1,13 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, describe, expect, it } from 'vitest';
 
 import type { PerformanceBaseline } from '../performance-baseline';
 import {
     comparePerformanceSamplesToBaseline,
     derivePerformanceMetricBaseline,
     extractLastBenchmarkPayload,
+    findReceiptFiles,
     flattenNumericMetrics,
     formatPerformanceGateTable,
     formatPerformanceGateVerdict,
+    isDiscretePerformanceMetric,
+    isExcludedPerformanceMetric,
     median,
     medianAbsoluteDeviation,
     MINIMUM_PERFORMANCE_SAMPLE_COUNT,
@@ -49,23 +56,181 @@ describe('medianAbsoluteDeviation', () => {
     });
 });
 
+describe('isDiscretePerformanceMetric', () => {
+    it('is true only when every sample is a whole number', () => {
+        expect(isDiscretePerformanceMetric([7, 8, 7, 8])).toBe(true);
+        expect(isDiscretePerformanceMetric([7, 8, 7.5, 8])).toBe(false);
+    });
+
+    it('is false for an empty array rather than vacuously true', () => {
+        expect(isDiscretePerformanceMetric([])).toBe(false);
+    });
+});
+
+describe('isExcludedPerformanceMetric', () => {
+    it('excludes react.baseDurationMaxMs and its per-surface variants', () => {
+        expect(isExcludedPerformanceMetric('react.baseDurationMaxMs')).toBe(true);
+        expect(isExcludedPerformanceMetric('react.surfaces.workbench.baseDurationMaxMs')).toBe(
+            true,
+        );
+    });
+
+    it('does not exclude an unrelated metric or a name that merely contains the substring', () => {
+        expect(isExcludedPerformanceMetric('durationMs')).toBe(false);
+        expect(isExcludedPerformanceMetric('react.actualDurationMaxMs')).toBe(false);
+    });
+});
+
 describe('derivePerformanceMetricBaseline', () => {
-    const eightCleanSamples = [48, 49, 50, 50, 51, 52, 49, 51];
+    // A realistic sub-millisecond-resolution duration sample: every value is fractional, so the whole set is
+    // "continuous" regardless of how many individual values happen to round to a whole number.
+    const continuousCleanSamples = [48.2, 49.1, 50.4, 50.6, 51.3, 52.1, 49.8, 51.5];
+    // A realistic render-count sample: React commit counts are always whole numbers.
+    const discreteCleanSamples = [7, 8, 7, 8, 8, 7, 8, 8];
 
     it('throws below the minimum sample count rather than deriving an unreliable threshold', () => {
         expect(() =>
             derivePerformanceMetricBaseline(
-                eightCleanSamples.slice(0, MINIMUM_PERFORMANCE_SAMPLE_COUNT - 1),
+                continuousCleanSamples.slice(0, MINIMUM_PERFORMANCE_SAMPLE_COUNT - 1),
             ),
         ).toThrow(/insufficient samples/u);
     });
 
-    it('derives median + k·MAD at the minimum sample count', () => {
-        const baseline = derivePerformanceMetricBaseline(eightCleanSamples, 5);
+    it('classifies a fractional-duration sample as continuous and thresholds at the margin-padded max(median + k·MAD, historical max)', () => {
+        const baseline = derivePerformanceMetricBaseline(continuousCleanSamples, { k: 5 });
+        expect(baseline.kind).toBe('continuous');
         expect(baseline.sampleCount).toBe(8);
-        expect(baseline.median).toBe(50);
+        expect(baseline.median).toBe(50.5);
         expect(baseline.k).toBe(5);
-        expect(baseline.thresholdMs).toBe(baseline.median + 5 * baseline.mad);
+        expect(baseline.historicalMaxMs).toBe(Math.max(...continuousCleanSamples));
+        const rawBase = Math.max(baseline.median + 5 * baseline.mad, baseline.historicalMaxMs);
+        expect(baseline.thresholdMs).toBeCloseTo(
+            rawBase * (1 + baseline.relativeMargin) + baseline.absoluteMarginMs,
+            6,
+        );
+        expect(baseline.relativeMargin).toBeGreaterThan(0);
+        expect(baseline.absoluteMarginMs).toBeGreaterThan(0);
+    });
+
+    it('classifies a whole-number sample as discrete and thresholds at the bare historical maximum, with no margin', () => {
+        const baseline = derivePerformanceMetricBaseline(discreteCleanSamples);
+        expect(baseline.kind).toBe('discrete');
+        expect(baseline.historicalMaxMs).toBe(8);
+        expect(baseline.thresholdMs).toBe(8);
+        expect(baseline.relativeMargin).toBe(0);
+        expect(baseline.absoluteMarginMs).toBe(0);
+    });
+
+    it('never lets a k·MAD spread override an explicit relative/absolute margin override', () => {
+        const baseline = derivePerformanceMetricBaseline(continuousCleanSamples, {
+            k: 5,
+            relativeMargin: 0.5,
+            absoluteMarginMs: 10,
+        });
+        expect(baseline.relativeMargin).toBe(0.5);
+        expect(baseline.absoluteMarginMs).toBe(10);
+    });
+});
+
+describe('durationMs historical backtest (real runner receipts)', () => {
+    // The 98 `durationMs` values from every `renderer-performance-receipt` artifact produced by the self-hosted
+    // runner across recent PR CI runs (one sample per CI run, chronological, 2026-09-24T07:13:31Z through
+    // 2026-09-28T12:48:30Z). See docs/ci-performance.md "Per-run gate: design and backtest" for the full analysis
+    // these two tests summarize: this is real, published CI evidence, not a synthetic distribution, because the
+    // issue this baseline gates on (#1439) was reopened precisely because a synthetic 8-sample design did not
+    // reflect the runner's actual noise shape.
+    const HISTORICAL_DURATION_MS_SAMPLES = [
+        211.5, 214.5, 228.5, 210.5, 211.1, 209.9, 210.4, 211.1, 213, 227.2, 211.1, 211.1, 211.1,
+        210.6, 210.1, 211.1, 210, 211.6, 211.6, 211.1, 211.4, 211.6, 210.3, 209.3, 210.5, 211.3,
+        212.2, 210.4, 211.4, 213, 227.7, 210.8, 209.1, 209.9, 212.3, 211.8, 214, 209.9, 228.8,
+        228.1, 213.2, 212.1, 212, 211.2, 212.6, 212.6, 211.7, 211.2, 211.5, 209.1, 212.2, 212,
+        211.5, 217.6, 211.2, 215.9, 216.1, 212, 194.6, 211.9, 211, 211.8, 210, 222.8, 210.2, 192,
+        227.5, 210.9, 197.2, 210.7, 211, 211.7, 211.9, 211.6, 210.5, 213.4, 211.4, 210.9, 211.3,
+        211.3, 211.2, 211, 211.3, 228.4, 228, 228.1, 211.7, 211.1, 211.3, 211.5, 194.8, 211.4,
+        194.6, 210.6, 194.8, 194.6, 194.6, 194.6,
+    ];
+
+    it('has a range and a MAD narrow enough that k·MAD alone would false-fail on real historical noise', () => {
+        // Documents *why* the historical-max component exists: without it, median + k·MAD collapses on this
+        // distribution's tight bulk and rejects its own legitimate tail. This mirrors the primary agent's original
+        // backtest of the pre-redesign derivation (median 211.3, MAD 0.8 -> threshold 215.3 failed 13/98 runs).
+        const center = median(HISTORICAL_DURATION_MS_SAMPLES);
+        const spread = medianAbsoluteDeviation(HISTORICAL_DURATION_MS_SAMPLES, center);
+        const kMadOnlyThreshold = center + 5 * spread;
+        const failures = HISTORICAL_DURATION_MS_SAMPLES.filter(
+            (value) => value > kMadOnlyThreshold,
+        ).length;
+        expect(failures).toBeGreaterThan(5);
+    });
+
+    it('derives a threshold that a leave-one-out backtest never exceeds on this historical corpus', () => {
+        let falseFailures = 0;
+        for (let index = 0; index < HISTORICAL_DURATION_MS_SAMPLES.length; index += 1) {
+            const train = [
+                ...HISTORICAL_DURATION_MS_SAMPLES.slice(0, index),
+                ...HISTORICAL_DURATION_MS_SAMPLES.slice(index + 1),
+            ];
+            const heldOut = HISTORICAL_DURATION_MS_SAMPLES[index];
+            const baseline = derivePerformanceMetricBaseline(train);
+            if (heldOut > baseline.thresholdMs) falseFailures += 1;
+        }
+        expect(falseFailures).toBe(0);
+    });
+
+    it('derives a threshold that a forward time-split backtest (older half trains, newer half evaluates) never exceeds', () => {
+        const half = Math.floor(HISTORICAL_DURATION_MS_SAMPLES.length / 2);
+        const baseline = derivePerformanceMetricBaseline(
+            HISTORICAL_DURATION_MS_SAMPLES.slice(0, half),
+        );
+        const falseFailures = HISTORICAL_DURATION_MS_SAMPLES.slice(half).filter(
+            (value) => value > baseline.thresholdMs,
+        ).length;
+        expect(falseFailures).toBe(0);
+    });
+
+    it('reliably fails when a fixed 57ms delay is injected on every historical run', () => {
+        const baseline = derivePerformanceMetricBaseline(HISTORICAL_DURATION_MS_SAMPLES);
+        const injectedDelayMs = 57;
+        const isAllCaught = HISTORICAL_DURATION_MS_SAMPLES.every(
+            (value) => value + injectedDelayMs > baseline.thresholdMs,
+        );
+        expect(isAllCaught).toBe(true);
+    });
+
+    it('does not reliably catch a 1ms-smaller delay, showing 57ms is the smallest that catches every historical run', () => {
+        const baseline = derivePerformanceMetricBaseline(HISTORICAL_DURATION_MS_SAMPLES);
+        const injectedDelayMs = 56;
+        const isAllCaught = HISTORICAL_DURATION_MS_SAMPLES.every(
+            (value) => value + injectedDelayMs > baseline.thresholdMs,
+        );
+        expect(isAllCaught).toBe(false);
+    });
+});
+
+describe('findReceiptFiles', () => {
+    let root: string;
+
+    afterEach(async () => {
+        await rm(root, { recursive: true, force: true });
+    });
+
+    it('finds every matching file at any depth and ignores files with a different name', async () => {
+        root = await mkdtemp(join(tmpdir(), 'caxri-performance-receipts-'));
+        await mkdir(join(root, '111', 'nested'), { recursive: true });
+        await mkdir(join(root, '222'), { recursive: true });
+        await writeFile(join(root, '111', 'nested', 'renderer-performance.json'), '{}', 'utf8');
+        await writeFile(join(root, '222', 'renderer-performance.json'), '{}', 'utf8');
+        await writeFile(join(root, '222', 'other.json'), '{}', 'utf8');
+
+        const found = (await findReceiptFiles(root)).toSorted((left, right) =>
+            left.localeCompare(right),
+        );
+        expect(found).toEqual(
+            [
+                join(root, '111', 'nested', 'renderer-performance.json'),
+                join(root, '222', 'renderer-performance.json'),
+            ].toSorted((left, right) => left.localeCompare(right)),
+        );
     });
 });
 
@@ -115,9 +280,15 @@ describe('extractLastBenchmarkPayload', () => {
 });
 
 function armedBaseline(k = 5): PerformanceBaseline {
-    // The same eight-sample distribution `derivePerformanceMetricBaseline` is exercised against above, reused so the
-    // threshold here is a real derived value rather than a hand-picked number.
-    const metric = derivePerformanceMetricBaseline([48, 49, 50, 50, 51, 52, 49, 51], k);
+    // The same fractional eight-sample distribution `derivePerformanceMetricBaseline` is exercised against above,
+    // reused so the threshold here is a real derived (continuous-kind) value rather than a hand-picked number. Every
+    // value is fractional on purpose -- an all-integer sample would classify as `discrete` (see
+    // `isDiscretePerformanceMetric`) and threshold at the bare historical max instead, which is not what these
+    // gate-comparison tests are about.
+    const metric = derivePerformanceMetricBaseline(
+        [48.2, 49.1, 50.4, 50.6, 51.3, 52.1, 49.8, 51.5],
+        { k },
+    );
     return {
         schemaVersion: 1,
         armed: true,

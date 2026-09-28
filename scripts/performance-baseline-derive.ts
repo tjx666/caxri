@@ -1,7 +1,8 @@
 /**
  * Derives (or refreshes) the committed `scripts/performance-baseline.json` from one or more sample inputs, using
- * `derivePerformanceMetricBaseline` (median + k·MAD, see scripts/performance-baseline.ts). Refreshing the baseline is
- * always this explicit, reviewable command — nothing writes `scripts/performance-baseline.json` implicitly.
+ * `derivePerformanceMetricBaseline` (see scripts/performance-baseline.ts for the median + k·MAD / historical-max design
+ * and docs/ci-performance.md for the full backtest). Refreshing the baseline is always this explicit, reviewable
+ * command — nothing writes `scripts/performance-baseline.json` implicitly.
  *
  * Each `--input` is one of:
  *
@@ -10,13 +11,15 @@
  * - A single benchmark receipt such as `test-results/receipts/renderer-performance.json` (one CI run's numbers),
  *   contributing exactly one sample per metric.
  *
- * Multiple inputs are merged; `--input` is repeatable (one file per flag — the shell does not glob-expand a single
- * `--input pattern*.json` into that shape), so seeding from CI-produced samples looks like the recipe documented in
- * docs/ci-performance.md: download every green run's `renderer-performance-receipt` artifact, then pass each downloaded
- * JSON file as its own `--input` alongside `--source runner`.
+ * `--input` is repeatable (one file per flag). `--input-dir` is the ergonomic alternative for arming from many
+ * downloaded runner receipts at once: it recursively finds every `renderer-performance.json` under the given directory
+ * (matching the layout `gh run download <run-id> --name renderer-performance-receipt --dir <dir>` produces, one receipt
+ * per downloaded run) and adds each as an input. `--input` and `--input-dir` are both repeatable and can be combined.
  *
  * `--source local` always writes `armed: false`: a Mac sampled locally, shared with sibling agent sessions, is evidence
- * for the statistical method, never a stand-in for the self-hosted CI runner's own noise.
+ * for the statistical method, never a stand-in for the self-hosted CI runner's own noise. `--source runner` requires
+ * `--provenance` (a short free-text description of which artifacts this came from — run id range and dates, never a
+ * local path, see docs/ci-performance.md's arming recipe for how to compute it).
  */
 
 import { readFile, writeFile } from 'node:fs/promises';
@@ -26,17 +29,26 @@ import process from 'node:process';
 import { execFileAsync } from './exec';
 import type { PerformanceBaseline, PerformanceSamplesReceipt } from './performance-baseline';
 import {
+    DEFAULT_PERFORMANCE_ABSOLUTE_MARGIN_MS,
+    DEFAULT_PERFORMANCE_RELATIVE_MARGIN,
     DEFAULT_PERFORMANCE_THRESHOLD_K,
     derivePerformanceMetricBaseline,
+    findReceiptFiles,
     flattenNumericMetrics,
+    isExcludedPerformanceMetric,
     MINIMUM_PERFORMANCE_SAMPLE_COUNT,
+    RECOMMENDED_MINIMUM_RUNNER_SAMPLE_COUNT,
 } from './performance-baseline';
 
 export interface CliOptions {
+    absoluteMarginMs: number;
+    inputDirs: string[];
     inputs: string[];
     k: number;
     metrics?: string[];
     out: string;
+    provenance?: string;
+    relativeMargin: number;
     source: 'local' | 'runner';
     spec: string;
 }
@@ -46,6 +58,11 @@ function applyDeriveFlag(options: CliOptions, flag: string, value: string | unde
         case '--input': {
             if (!value) throw new Error('--input requires a value');
             options.inputs.push(value);
+            break;
+        }
+        case '--input-dir': {
+            if (!value) throw new Error('--input-dir requires a value');
+            options.inputDirs.push(value);
             break;
         }
         case '--out': {
@@ -70,6 +87,21 @@ function applyDeriveFlag(options: CliOptions, flag: string, value: string | unde
             options.k = Number(value);
             break;
         }
+        case '--relative-margin': {
+            if (!value) throw new Error('--relative-margin requires a value');
+            options.relativeMargin = Number(value);
+            break;
+        }
+        case '--absolute-margin-ms': {
+            if (!value) throw new Error('--absolute-margin-ms requires a value');
+            options.absoluteMarginMs = Number(value);
+            break;
+        }
+        case '--provenance': {
+            if (!value) throw new Error('--provenance requires a value');
+            options.provenance = value;
+            break;
+        }
         case '--metrics': {
             if (!value) throw new Error('--metrics requires a comma-separated value');
             options.metrics = value.split(',').map((metric) => metric.trim());
@@ -83,9 +115,12 @@ function applyDeriveFlag(options: CliOptions, flag: string, value: string | unde
 
 export function parseArguments(argv: string[]): CliOptions {
     const options: CliOptions = {
+        absoluteMarginMs: DEFAULT_PERFORMANCE_ABSOLUTE_MARGIN_MS,
+        inputDirs: [],
         inputs: [],
         k: DEFAULT_PERFORMANCE_THRESHOLD_K,
         out: 'scripts/performance-baseline.json',
+        relativeMargin: DEFAULT_PERFORMANCE_RELATIVE_MARGIN,
         source: 'local',
         spec: '',
     };
@@ -95,10 +130,21 @@ export function parseArguments(argv: string[]): CliOptions {
         applyDeriveFlag(options, flag, value);
         index += 1;
     }
-    if (options.inputs.length === 0) throw new Error('At least one --input is required');
+    if (options.inputs.length === 0 && options.inputDirs.length === 0) {
+        throw new Error('At least one --input or --input-dir is required');
+    }
     if (!options.spec) throw new Error('--spec is required');
     if (!Number.isFinite(options.k) || options.k <= 0)
         throw new Error('--k must be a positive number');
+    if (!Number.isFinite(options.relativeMargin) || options.relativeMargin < 0)
+        throw new Error('--relative-margin must be a non-negative number');
+    if (!Number.isFinite(options.absoluteMarginMs) || options.absoluteMarginMs < 0)
+        throw new Error('--absolute-margin-ms must be a non-negative number');
+    if (options.source === 'runner' && !options.provenance) {
+        throw new Error(
+            '--provenance is required for --source runner (see docs/ci-performance.md for what to record)',
+        );
+    }
     return options;
 }
 
@@ -149,6 +195,19 @@ async function collectContributions(
     return contributions;
 }
 
+export async function resolveInputPaths(options: CliOptions): Promise<string[]> {
+    const fromDirectories = await Promise.all(
+        options.inputDirs.map((directory) => findReceiptFiles(directory)),
+    );
+    const flattenedFromDirectories = fromDirectories.flat();
+    if (options.inputDirs.length > 0 && flattenedFromDirectories.length === 0) {
+        throw new Error(
+            `--input-dir found no renderer-performance.json under: ${options.inputDirs.join(', ')}`,
+        );
+    }
+    return [...options.inputs, ...flattenedFromDirectories];
+}
+
 async function currentCommit(): Promise<string> {
     try {
         return (await execFileAsync('git', ['rev-parse', 'HEAD'])).stdout.trim();
@@ -159,21 +218,51 @@ async function currentCommit(): Promise<string> {
 
 async function main(): Promise<void> {
     const options = parseArguments(process.argv.slice(2));
-    const contributions = await collectContributions(options.inputs);
+    const inputPaths = await resolveInputPaths(options);
+    const contributions = await collectContributions(inputPaths);
     const selectedMetrics = options.metrics ?? Object.keys(contributions);
     const metrics: Record<string, ReturnType<typeof derivePerformanceMetricBaseline>> = {};
     const skipped: string[] = [];
+    const excluded: string[] = [];
+    const underSampled: string[] = [];
     for (const metric of selectedMetrics) {
+        if (!options.metrics && isExcludedPerformanceMetric(metric)) {
+            excluded.push(metric);
+            continue;
+        }
         const values = contributions[metric];
         if (!values || values.length < MINIMUM_PERFORMANCE_SAMPLE_COUNT) {
             skipped.push(`${metric} (${values?.length ?? 0} sample(s))`);
             continue;
         }
-        metrics[metric] = derivePerformanceMetricBaseline(values, options.k);
+        if (
+            options.source === 'runner' &&
+            values.length < RECOMMENDED_MINIMUM_RUNNER_SAMPLE_COUNT
+        ) {
+            underSampled.push(`${metric} (${values.length} sample(s))`);
+        }
+        metrics[metric] = derivePerformanceMetricBaseline(values, {
+            k: options.k,
+            relativeMargin: options.relativeMargin,
+            absoluteMarginMs: options.absoluteMarginMs,
+        });
+    }
+    if (excluded.length > 0) {
+        console.log(
+            `[performance-baseline-derive] excluded ${excluded.length} metric(s) from gating (see isExcludedPerformanceMetric): ${excluded.join(', ')}`,
+        );
     }
     if (skipped.length > 0) {
         console.warn(
             `[performance-baseline-derive] skipped ${skipped.length} metric(s) below the ${MINIMUM_PERFORMANCE_SAMPLE_COUNT}-sample minimum: ${skipped.join(', ')}`,
+        );
+    }
+    if (underSampled.length > 0) {
+        console.warn(
+            `[performance-baseline-derive] ${underSampled.length} metric(s) armed below the recommended ` +
+                `${RECOMMENDED_MINIMUM_RUNNER_SAMPLE_COUNT}-sample runner corpus (docs/ci-performance.md's backtest used ` +
+                `98 receipts); the historical-max component of their threshold is less trustworthy until more runner ` +
+                `receipts accumulate: ${underSampled.join(', ')}`,
         );
     }
     if (Object.keys(metrics).length === 0) {
@@ -188,6 +277,7 @@ async function main(): Promise<void> {
         spec: options.spec,
         recordedAt: new Date().toISOString(),
         commit: await currentCommit(),
+        ...(options.provenance && { provenance: options.provenance }),
         metrics,
     };
     const outPath = resolve(options.out);
@@ -197,6 +287,7 @@ async function main(): Promise<void> {
             armed: baseline.armed,
             source: baseline.source,
             metricCount: Object.keys(metrics).length,
+            excludedCount: excluded.length,
             skippedCount: skipped.length,
             out: options.out,
         })}`,

@@ -375,19 +375,72 @@ wall time alone hides it.
 The fixed thresholds `renderer-performance` asserts catch a large, sudden regression but never a
 steady creep — a change that costs 3% every time never crosses a fixed number. `Run Renderer
 performance baseline gate` runs immediately after that step and additively compares the same
-receipt against a noise-derived, committed baseline, `scripts/performance-baseline.json`. The two
-checks are independent: a fixed-threshold failure does not suppress the baseline gate, and vice
-versa.
+receipt against a noise-derived, committed baseline, `scripts/performance-baseline.json`. A separate
+scheduled workflow, [Gradual-creep trend check](#gradual-creep-trend-check), watches for the creep the
+per-run gate cannot see by itself. All three checks are independent: a failure in one never
+suppresses another.
 
-### Design: median + k·MAD
+The design below replaced a flat `median + 5·MAD` threshold ([issue tjx666/caxri#1439][issue-1439])
+after backtesting it against 98 real `renderer-performance-receipt` artifacts from self-hosted CI
+runs: that design false-failed 13 of the 98 runs on `durationMs`, 3 on `react.actualDurationP95Ms`,
+and 3 on `interactions.maxDurationMs`, because `k·MAD` collapses when a metric's bulk of samples
+cluster within a fraction of their own unit of the median (frame- or event-loop-quantized metrics)
+or the distribution is multimodal. It also could not detect the issue's motivating case at all — a
+steady ~3% (~6ms) creep sits entirely within the natural 192-229ms run-to-run spread of a single
+sample, which is why gradual-creep detection is now a separate rolling-window check rather than
+something the per-run gate is asked to do.
 
-`scripts/performance-baseline.ts` derives one metric's threshold as `median + k · MAD` (median
-absolute deviation), not mean + standard deviation: a single outlier sample barely moves a median or
-its MAD, while it drags a mean- and stddev-based threshold far past the outlier itself. `k` defaults
-to 5 (`DEFAULT_PERFORMANCE_THRESHOLD_K`) — deliberately generous, so the gate catches a real, repeated
-regression rather than ordinary machine jitter on a shared runner. A metric needs at least
-`MINIMUM_PERFORMANCE_SAMPLE_COUNT` (8) samples before a threshold is derived at all; fewer samples
-make the MAD estimate unreliable, so the metric is skipped rather than gated on noise.
+[issue-1439]: https://github.com/tjx666/caxri/issues/1439
+
+### Per-run gate: design and backtest
+
+`scripts/performance-baseline.ts`'s `derivePerformanceMetricBaseline` classifies each metric as
+**continuous** or **discrete** by the _shape_ of its samples (`isDiscretePerformanceMetric`: every
+sample in the derivation window is a whole number), not by name — a dot-path allowlist of "count"
+names would miss `interactions.maxDurationMs`, a genuine duration the Event Timing API quantizes to
+one of only four values (16/24/32/40ms):
+
+- **Continuous** (ordinary sub-millisecond-resolution durations, e.g. `durationMs`,
+  `react.actualDurationP95Ms`): `thresholdMs = max(median + k·MAD, historicalMax) * (1 +
+relativeMargin) + absoluteMarginMs`. `k·MAD` (`k = 5`, `DEFAULT_PERFORMANCE_THRESHOLD_K`) is a real
+  spread estimate but collapses on this distribution, so the threshold anchors to the observed
+  historical maximum instead, with a margin absorbing the chance that the next clean run's maximum
+  lands slightly past every one already seen. `relativeMargin = 0.08` (`DEFAULT_PERFORMANCE_RELATIVE_MARGIN`)
+  plus `absoluteMarginMs = 1` (`DEFAULT_PERFORMANCE_ABSOLUTE_MARGIN_MS`, a floor so a percentage margin
+  stays meaningful on a near-zero metric) was the smallest combination that reached a 0%
+  false-failure rate on both backtests below.
+- **Discrete** (render/commit counts, and frame-quantized durations like
+  `interactions.maxDurationMs`): `thresholdMs` is the bare historical maximum, margin `0`. An intended
+  increase (a new count that is genuinely supposed to be higher) requires an explicit baseline
+  refresh rather than silently widening on its own next time it is sampled.
+- **Excluded**: `react.baseDurationMaxMs` and its per-surface variants (`isExcludedPerformanceMetric`)
+  are recorded in the baseline for visibility but never compared. This metric estimates the render
+  cost React _would have_ paid without memoization; the 98-receipt corpus contains two outliers
+  (11.2ms and 15.5ms against a 3.4-6.8ms bulk) that no plausible margin absorbs without also hiding a
+  real regression of similar size. Add another exclusion only with the same kind of backtest
+  evidence — this is a documented exception, not a place to route every noisy metric.
+
+A metric needs at least `MINIMUM_PERFORMANCE_SAMPLE_COUNT` (8) samples before any threshold is
+derived; fewer make even the historical maximum untrustworthy, so the metric is skipped rather than
+gated on noise. `RECOMMENDED_MINIMUM_RUNNER_SAMPLE_COUNT` (40) is the point the backtest below
+actually reached 0% false failures at; `--source runner` derivation below that count still arms, but
+warns, because a first-time arming has no larger corpus to draw from.
+
+**Backtest**, run against the 98-receipt `durationMs` corpus (the same numbers are embedded and
+re-verified in `scripts/__tests__/performance-baseline.test.ts`'s
+`durationMs historical backtest (real runner receipts)` suite):
+
+| Method                                                                                            | Result                                                                        |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Flat `median + 5·MAD` (previous design)                                                           | 13/98 false failures                                                          |
+| Leave-one-out (hold out each of the 98 receipts, derive from the other 97, gate the held-out one) | 0/98 false failures                                                           |
+| Forward time-split (derive from the older 49 receipts, gate the newer 49)                         | 0/49 false failures                                                           |
+| Smallest injected fixed delay that reliably fails every one of the 98 receipts                    | **+57ms** (~27% over the ~211ms median)                                       |
+| Largest injected fixed delay that does _not_ reliably fail every receipt                          | +56ms (fails 97/98 — one receipt's own historical maximum already absorbs it) |
+
++57ms is the gate's practical sensitivity floor for `durationMs` today: a sudden regression smaller
+than that on a metric with this much natural spread can pass a single run, which is exactly why the
+trend check below exists for the smaller, sustained case.
 
 ### Armed vs. unarmed: why this never silently passes
 
@@ -397,10 +450,9 @@ gate fail a build; an unarmed baseline still runs the comparison and prints a fu
 `armed: options.source === 'runner'`, so a baseline derived from `--source local` samples can never
 be armed by construction — a contributor's own Mac, shared with sibling agent sessions and under
 different thermal and load conditions than the self-hosted CI runner, is evidence for the
-statistical method, never a stand-in for the runner's own noise. The committed baseline starts
-`armed: false` until a maintainer seeds it from real runner samples (below). A missing or
-metric-less baseline reports `no-baseline`; a run whose changed files are not performance-relevant
-(see `isPerformanceRelevantPath` in `scripts/ci-path-policy.ts`) reports `skipped`. An armed baseline
+statistical method, never a stand-in for the runner's own noise. A missing or metric-less baseline
+reports `no-baseline`; a run whose changed files are not performance-relevant (see
+`isPerformanceRelevantPath` in `scripts/ci-path-policy.ts`) reports `skipped`. An armed baseline
 whose metric names have zero overlap with the current run — every one of them renamed or restructured
 away, for example a benchmark spec reshaping its JSON payload — reports `drifted` rather than
 `passed`: `rows` is empty, so a naive "any row regressed" check is vacuously false, and `drifted` exists
@@ -408,7 +460,7 @@ precisely so that vacuous truth is never mistaken for a clean run. `drifted` doe
 (re-deriving the baseline is an operator action, not a regression), but it also never renders as
 `PASSED` in the job log or step summary, and the table always names the vanished metrics. None of
 `unarmed`, `no-baseline`, `skipped`, or `drifted` ever reports as a `passed` comparison — the job log
-and step summary always show which of these five states produced the outcome.
+and step summary always show which of these states produced the outcome.
 
 ### Refreshing the baseline
 
@@ -433,8 +485,9 @@ method and preview the resulting thresholds, never a way to arm the runner gate.
 The self-hosted runner is a single shared machine; no session or contributor runs commands on it
 directly to collect samples. Instead, every `e2e` job that reaches `renderer-performance` already
 uploads its receipt as the `renderer-performance-receipt` artifact. Once enough green `main` runs
-have accumulated (at least `MINIMUM_PERFORMANCE_SAMPLE_COUNT`, more for a stable MAD), a maintainer
-arms the baseline by downloading those artifacts and deriving from them with `--source runner`:
+have accumulated (`RECOMMENDED_MINIMUM_RUNNER_SAMPLE_COUNT`, 40, or more for a stable historical
+maximum), a maintainer arms the baseline by downloading those artifacts and deriving from them with
+`--source runner`:
 
 ```bash
 mkdir -p /tmp/performance-runs
@@ -443,17 +496,69 @@ for run_id in <run-id-1> <run-id-2> <run-id-3> …; do
     --dir "/tmp/performance-runs/$run_id"
 done
 
-args=(--source runner --spec e2e/renderer.performance.e2e.ts --out scripts/performance-baseline.json)
-for receipt in /tmp/performance-runs/*/renderer-performance.json; do
-  args+=(--input "$receipt")
-done
-bun run performance:baseline:derive -- "${args[@]}"
+bun run performance:baseline:derive -- --source runner --spec e2e/renderer.performance.e2e.ts \
+  --input-dir /tmp/performance-runs --out scripts/performance-baseline.json \
+  --provenance "<n> renderer-performance-receipt artifacts from self-hosted CI runs <first-run-id>-<last-run-id> (<start-ISO-date> to <end-ISO-date>)"
+```
+
+`--input-dir` recursively finds every `renderer-performance.json` under the given directory
+(matching the layout `gh run download` produces, one receipt per downloaded run) so a maintainer
+never has to loop over `--input` by hand. `--source runner` requires `--provenance`: a short
+free-text description of which artifacts this came from (an artifact/run id range and a date range —
+never a local filesystem path, since the receipts live in an operator-chosen temp directory that
+must not end up in a committed, eventually-public file). The committed `scripts/performance-baseline.json`
+was armed this way from 98 receipts; its `provenance` field reads:
+
+```text
+98 renderer-performance-receipt artifacts from self-hosted CI runs 35967460812-36421490139 (2026-09-24T07:13:31Z to 2026-09-28T12:48:30Z)
 ```
 
 Commit the resulting `scripts/performance-baseline.json`. Its `armed: true` and `source: "runner"`
 are then load-bearing: the next CI run compares against a real runner-noise threshold and can fail
 the job. Re-run the same recipe against a fresh window of runs to refresh the baseline as the
 product's genuine performance profile shifts — never hand-edit the JSON file.
+
+### Gradual-creep trend check
+
+The per-run gate's margin (see the backtest above: +57ms, ~27%, to reliably fail `durationMs`) is
+deliberately too wide to catch a steady 3-5% creep — the issue's motivating case — because that creep
+sits inside a single run's ordinary noise. `scripts/performance-trend.ts`'s `evaluatePerformanceTrend`
+instead compares the **median of the most recent `windowSize` runner receipts** against the committed
+baseline's median, so a persistent shift accumulates evidence across many runs instead of needing to
+clear a margin on any one of them.
+
+`DEFAULT_TREND_WINDOW_SIZE` (`N = 20`) and `DEFAULT_TREND_ALARM_RATIO` (`X = 2%`) were chosen by
+bootstrap-resampling the same 98-receipt `durationMs` corpus (20,000 trials, simulating a 90-run
+horizon of ordinary noise at each candidate `N`/`X`):
+
+| Property                                                        | Result                  |
+| --------------------------------------------------------------- | ----------------------- |
+| False-alarm rate over a 90-run noise-only horizon at N=20, X=2% | ~0.05% (20,000 trials)  |
+| Detection latency for a sustained 3% creep                      | median 11 runs (p95 14) |
+| Detection latency for a sustained 5% creep                      | median 10 runs (p95 12) |
+
+`TREND_ELIGIBLE_METRICS` scopes the check to `durationMs` only, on the same bootstrap evidence: at
+this `N`/`X` every other continuous metric in the corpus (the per-request IPC timings, the React
+`actualDuration*` family) false-alarms 40-90% of the time, because their sub-millisecond scale
+amplifies rounding noise into double-digit percentages. `durationMs` — the scenario's overall
+wall-clock time, and the metric the issue's "steady 3% creep" example names — is the one metric this
+bootstrap found suitable; extend the list only with the same kind of evidence recorded here.
+
+`evaluatePerformanceTrend` mirrors the per-run gate's never-silently-passed discipline with its own
+explicit states: `no-baseline` / `unarmed` (a trend check against a baseline that cannot fail the
+per-run gate must not fail this one either), `no-eligible-metrics` (none of `TREND_ELIGIBLE_METRICS`
+has a continuous armed baseline entry), `insufficient-receipts` (fewer than `windowSize` recent
+receipts were found), and `alarm` / `ok`.
+
+`.github/workflows/performance-trend.yml` runs this check on a GitHub-hosted `ubuntu-latest` runner —
+deliberately not `ci.yml`'s self-hosted `caxri-ci` runner, since it needs no Electron launch and no
+build. It triggers on a daily `schedule` (18:00 UTC) and `workflow_dispatch` (with `window` and
+`alarm_ratio` overrides) only — never `pull_request` — so it costs no self-hosted runner time and
+stays out of the required PR guards. With `permissions: actions: read`, it lists the most recent
+`renderer-performance-receipt` artifacts via `gh api .../actions/artifacts`, downloads each with
+`gh run download`, and runs `bun run performance:trend:check -- --baseline
+scripts/performance-baseline.json --receipts-dir <dir> --window <N> --alarm-ratio <X>`, which writes
+its table to the job's step summary and exits non-zero on `alarm`.
 
 ### Scope: which changes pay for the comparison
 
@@ -464,14 +569,17 @@ Client/protocol/system packages, a performance E2E spec, or the baseline's own s
 An unrelated change (docs, an extension, a CLI-only fix) never pays for a comparison that cannot
 regress what the baseline measures. Outside CI, or when there is no changed-files signal to reason
 about at all, the gate always compares — an operator running it by hand wants a real answer, not a
-skip.
+skip. The trend check has no such scoping: it never runs on a pull request in the first place, so
+every scheduled or manually dispatched run always compares.
 
 ### Cost
 
 The gate step itself reads two small JSON files and does no build or Electron launch; its own cost
 is sub-second. It is gated on `renderer-performance` having produced a receipt at all (`if: always()
 && steps.renderer-performance.outcome != 'skipped'`), so it adds no new build, no new Electron
-launch, and no new CI minutes beyond that near-instant read-and-compare.
+launch, and no new CI minutes beyond that near-instant read-and-compare. The trend check's own
+GitHub-hosted job cost is likewise near-instant (an artifact list, a handful of small downloads, and
+one JSON comparison) and never touches the self-hosted runner's queue.
 
 ## Comparison contract
 

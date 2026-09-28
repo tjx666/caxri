@@ -50,6 +50,7 @@
         "performance:baseline:collect": "bun run scripts/performance-baseline-collect.ts",
         "performance:baseline:derive": "bun run scripts/performance-baseline-derive.ts",
         "performance:baseline:gate": "bun run scripts/performance-baseline-gate.ts",
+        "performance:trend:check": "bun run scripts/performance-trend-check.ts",
         "build": "bun run build:workspaces && bun run build:desktop",
         "build:workspaces": "pnpm --recursive --filter './apps/*' --filter './packages/*' --filter './extensions/*' --filter '!@caxri/desktop' --filter '!@caxri/server' --if-present run build && pnpm --filter @caxri/server run build",
         "build:api": "pnpm --filter caxri run build",

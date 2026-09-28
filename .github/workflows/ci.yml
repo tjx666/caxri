@@ -451,9 +451,11 @@ jobs:
       # Additive to the fixed thresholds `renderer-performance` already asserts: this compares the same receipt
       # against the noise-derived committed baseline (see docs/ci-performance.md). It runs whenever the benchmark
       # produced a receipt at all -- including when a fixed-threshold assertion above already failed -- so the two
-      # signals stay independent. `scripts/performance-baseline.json` starts unarmed (see that file's `armed` field),
-      # so this step only records until a maintainer arms it from real runner samples; it never silently reports a
-      # pass while unarmed.
+      # signals stay independent. `scripts/performance-baseline.json` is armed from 98 real runner receipts (see
+      # that file's `armed` and `provenance` fields), so this step can fail the build on a per-run regression; a
+      # separate scheduled workflow (.github/workflows/performance-trend.yml) watches for a gradual creep this
+      # per-run gate's margin is too wide to catch. Re-deriving with `--source local` instead always writes
+      # `armed: false`, so this step never silently reports a pass while the baseline it compares against is unarmed.
       - name: Run Renderer performance baseline gate
         id: renderer-performance-baseline
         if: always() && steps.renderer-performance.outcome != 'skipped'
