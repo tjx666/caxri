@@ -74,6 +74,31 @@ describe('createIdleExitMonitor', () => {
         });
     });
 
+    it('does not postpone exit when the same zero count is reported repeatedly', async () => {
+        vi.useFakeTimers();
+        const onIdleExit = vi.fn();
+        const monitor = createIdleExitMonitor({
+            isBusy: () => false,
+            onIdleExit,
+            thresholdMs: THRESHOLD_MS,
+        });
+
+        // The first zero report starts the idle clock.
+        monitor.updateConnectionCount(0);
+        await vi.advanceTimersByTimeAsync(THRESHOLD_MS / 2);
+        // A repeated zero report (still no client) must not re-arm a fresh full-threshold timer, or a transport
+        // that keeps re-announcing an unchanged zero count could postpone exit indefinitely.
+        monitor.updateConnectionCount(0);
+        await vi.advanceTimersByTimeAsync(THRESHOLD_MS / 2 - 1);
+        expect(onIdleExit).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+
+        expect(onIdleExit).toHaveBeenCalledExactlyOnceWith({
+            deferralCount: 0,
+            idleDurationMs: THRESHOLD_MS,
+        });
+    });
+
     it('never arms while at least one client (Desktop, Mobile, Agent, or CLI) is connected', async () => {
         vi.useFakeTimers();
         const onIdleExit = vi.fn();

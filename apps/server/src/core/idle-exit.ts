@@ -51,7 +51,9 @@ export interface IdleExitMonitor {
  * says live work is in flight, in which case it logs a deferral and rechecks after another full `thresholdMs` window.
  *
  * A connection count above zero cancels the pending check outright and resets the idle clock and deferral count, so a
- * reconnect within the threshold (e.g. a restarted Desktop re-attaching) leaves no residual state.
+ * reconnect within the threshold (e.g. a restarted Desktop re-attaching) leaves no residual state. Only the
+ * nonzero->zero transition starts the idle clock; a repeated zero report does not push the check back out, so a
+ * transport that re-announces an unchanged zero count cannot postpone exit past the original threshold.
  */
 export function createIdleExitMonitor(options: IdleExitMonitorOptions): IdleExitMonitor {
     let connectionCount = 0;
@@ -113,7 +115,12 @@ export function createIdleExitMonitor(options: IdleExitMonitorOptions): IdleExit
                 disarm();
                 return;
             }
-            idleSinceMs ??= now();
+            // Only the nonzero->zero transition starts the idle clock and arms the timer. A repeated zero report
+            // (e.g. a transport re-announcing the same empty count) must not push the pending check back out to a
+            // fresh full threshold, or a sufficiently chatty reporter could postpone exit indefinitely even though
+            // the connection count has genuinely been zero the whole time.
+            if (idleSinceMs !== undefined) return;
+            idleSinceMs = now();
             arm();
         },
         stop() {
