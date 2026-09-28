@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { MobileGatewayRuntime } from '../mobile-gateway-client';
 import { MobileUpdateRecoveryRejectedError, recoverMobileUpdate } from '../recover-mobile-update';
-import { mobileCredential } from './mobile-gateway-fixture';
+import { AndroidConnectingSocket, flushTasks, mobileCredential } from './mobile-gateway-fixture';
 
 const bundle = { version: '0.0.77', versionCode: 77, sizeBytes: 1_024, md5: 'a'.repeat(32) };
 const download = {
@@ -124,6 +124,25 @@ describe('recoverMobileUpdate', () => {
             clientNonce: '31'.repeat(32),
         });
         expect(sockets[0]?.isClosed).toBe(true);
+    });
+
+    it('closes an address-race loser that Android opens after recovery began, without a hello', async () => {
+        const winner = new RecoveryServerSocket('accept');
+        const loser = new AndroidConnectingSocket();
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket: (url) =>
+                (url.includes('192.168.1.5') ? loser : winner) as unknown as WebSocket,
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(0x31),
+        };
+        const credential = { ...mobileCredential, addresses: ['192.168.1.5', '192.168.1.6'] };
+
+        await expect(recoverMobileUpdate(credential, runtime)).resolves.toEqual(download);
+        loser.open();
+        await flushTasks();
+
+        expect(loser.sent).toEqual([]);
+        expect(loser.isClosed).toBe(true);
     });
 
     it('returns no bundle when the newer Desktop ships no APK', async () => {
