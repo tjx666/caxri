@@ -23,11 +23,11 @@ export const ConversationEntry = ({ entry, theme }: { entry: Entry; theme: Mobil
                 style={[styles.message, styles.turnDivider]}
                 testID={`conversation-turn-${entry.id}`}
             >
-                <View style={[styles.turnLine, { backgroundColor: theme.border }]} />
-                <Text style={[styles.turnText, { color: theme.muted }]}>
-                    {formatConversationDuration(entry.durationMs) ?? 'Turn complete'}
-                </Text>
-                <View style={[styles.turnLine, { backgroundColor: theme.border }]} />
+                <View style={[styles.turnPill, { backgroundColor: theme.surface }]}>
+                    <Text style={[styles.turnText, { color: theme.muted }]}>
+                        {formatConversationDuration(entry.durationMs) ?? 'Turn complete'}
+                    </Text>
+                </View>
             </View>
         );
     if (entry.type === 'userMessage')

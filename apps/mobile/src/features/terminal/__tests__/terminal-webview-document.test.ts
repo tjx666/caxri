@@ -11,4 +11,16 @@ describe('offline Terminal document', () => {
         expect(html).not.toContain('src="https://');
         expect(() => terminalWebviewDocument('x";fetch("https://bad.example")')).toThrow();
     });
+
+    it('embeds the terminal faces offline so Android does not fall back to its system monospace', () => {
+        const html = terminalWebviewDocument('terminal-1');
+        expect(html).toContain('font-src data:');
+        for (const family of ['Caxri JetBrains Mono', 'Caxri Symbols'])
+            expect(html).toMatch(
+                new RegExp(
+                    String.raw`@font-face\{font-family:'${family}';[^}]*src:url\(data:font/woff2;base64,`,
+                    'u',
+                ),
+            );
+    });
 });

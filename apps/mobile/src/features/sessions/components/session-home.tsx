@@ -9,6 +9,7 @@ import { Plus } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileClient } from '../../connection/mobile-client-provider';
+import { useConfirmForgetComputer } from '../../connection/use-confirm-forget-computer';
 import { AttentionCards } from '../../conversation/attention-cards';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { useSessionManagement } from '../hooks/use-session-management';
@@ -127,6 +128,7 @@ export const SessionHome = ({
         sections,
         selectedId,
     } = sessions;
+    const confirmForget = useConfirmForgetComputer(hostDisplayName);
     const beginInteractionReference = useRef(beginListInteraction);
     const finishInteractionReference = useRef(finishListInteraction);
     const listInteractionReference = useRef<ReturnType<typeof createSessionListInteraction> | null>(
@@ -258,6 +260,7 @@ export const SessionHome = ({
                         : undefined
                 }
                 onChooseProject={chooseProject}
+                onForgetComputer={confirmForget}
                 onOpenArchived={() => router.navigate(`/h/${encodeURIComponent(hostId)}/archived`)}
                 onOpenSettings={() => router.navigate(`/h/${encodeURIComponent(hostId)}/settings`)}
                 projects={projects}

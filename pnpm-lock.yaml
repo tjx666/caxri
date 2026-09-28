@@ -57,6 +57,9 @@ catalogs:
     prettier-plugin-tailwindcss:
       specifier: ^0.8.1
       version: 0.8.1
+    prism-react-renderer:
+      specifier: ^2.4.1
+      version: 2.4.1
     react-qr-code:
       specifier: ^2.2.0
       version: 2.2.0
@@ -518,6 +521,9 @@ importers:
       lucide-react-native:
         specifier: 'catalog:'
         version: 1.48.0(react-native-svg@15.15.4(react-native@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(supports-color@7.2.0))(@types/react@19.2.18)(react@19.2.3)(supports-color@7.2.0))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(supports-color@7.2.0))(@types/react@19.2.18)(react@19.2.3)(supports-color@7.2.0))(react@19.2.3)
+      prism-react-renderer:
+        specifier: 'catalog:'
+        version: 2.4.1(react@19.2.3)
       react:
         specifier: 19.2.3
         version: 19.2.3

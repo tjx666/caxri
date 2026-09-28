@@ -1,8 +1,7 @@
 import type { FileEntry } from '@caxri/protocol';
 
 import type { GitChildRepoKind } from '../../lib/git-decorations';
-import { ArchiveIcon } from '../codicons/archive-icon';
-import { RepoIcon } from '../codicons/repo-icon';
+import { getVscodeIconUrl } from './file-icon-assets';
 import { resolveFileIcon } from './file-icon-resolver';
 
 const SYMLINK_ARROW_PATH = 'M2.6 7.4 7.4 2.6M7.4 2.6H4.7M7.4 2.6V5.3';
@@ -29,18 +28,19 @@ function SymlinkBadge() {
 }
 
 /**
- * A submodule or nested clone takes the glyph Source Control and Project Status already give that repository (`archive`
- * for a submodule, `repo` for a nested clone) in place of a folder. A neutral folder wearing a small Git badge still
- * read as one more folder among the themed ones, and did not say which kind of repository it was; the shared glyph
- * names the kind and ties this row to the same repository's rows in the other two panels.
+ * A submodule or nested clone wears vscode-icons' Git folder, so it reads as a repository while staying in the same
+ * colored folder family as its neighbors. The monochrome `archive`/`repo` codicons it wore before looked foreign beside
+ * themed folders and did not say "repository". The row description and tooltip still name which kind it is.
  */
-function ChildRepoIcon({ kind }: { kind: GitChildRepoKind }) {
-    const Icon = kind === 'submodule' ? ArchiveIcon : RepoIcon;
+function ChildRepoIcon({ expanded, kind }: { expanded: boolean; kind: GitChildRepoKind }) {
     return (
-        <Icon
-            className="file-type-icon flex-none text-foreground"
+        <img
+            alt=""
+            aria-hidden="true"
+            className="file-type-icon h-4 w-4 flex-none object-contain"
             data-child-repo-icon={kind}
-            size={16}
+            draggable={false}
+            src={getVscodeIconUrl(expanded ? 'folder_type_git_opened.svg' : 'folder_type_git.svg')}
         />
     );
 }
@@ -53,12 +53,12 @@ export function FileTypeIcon({
     entry: Pick<FileEntry, 'kind' | 'linkKind' | 'linkTarget' | 'name'>;
     expanded?: boolean;
     /**
-     * Set when this directory is a submodule or a nested clone, which takes its repository glyph instead of a folder.
+     * Set when this directory is a submodule or a nested clone, which takes the Git folder icon.
      */
     childRepo?: GitChildRepoKind;
 }) {
     if (childRepo && (entry.kind === 'directory' || entry.linkKind === 'directory'))
-        return <ChildRepoIcon kind={childRepo} />;
+        return <ChildRepoIcon expanded={expanded} kind={childRepo} />;
     const icon = resolveFileIcon(entry, expanded);
     const image = (
         <img
