@@ -53,6 +53,10 @@ class RestoreTerminalHostControl implements TerminalHostControl {
         return () => {};
     }
 
+    isRunning(): boolean {
+        return true;
+    }
+
     request(
         request: TerminalHostRequest,
         scope: TerminalHostScope,

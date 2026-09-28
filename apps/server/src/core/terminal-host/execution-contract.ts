@@ -67,6 +67,11 @@ export type TerminalHostCapability =
     | 'terminal.view';
 
 export interface TerminalHostControl {
+    /**
+     * True only while a ready Terminal Host is attached. A Host that is idle, starting, failed, or stopped holds no
+     * generation baseline for Terminals Server Core no longer tracks, so permanent closure need not start one.
+     */
+    isRunning(): boolean;
     onEvent(listener: (event: TerminalHostEvent) => void): () => void;
     onExit(listener: (event: { code: number; signal: NodeJS.Signals | null }) => void): () => void;
     /**

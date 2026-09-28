@@ -37,6 +37,10 @@ class InputExitTerminalHostControl implements TerminalHostControl {
         return () => {};
     }
 
+    isRunning(): boolean {
+        return true;
+    }
+
     request(request: TerminalHostRequest, scope: TerminalHostScope): Promise<unknown> {
         this.requests.push({ request, scope });
         if (request.method === 'terminal.reserve') return Promise.resolve({ reserved: true });

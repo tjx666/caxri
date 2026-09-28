@@ -17,7 +17,7 @@ import { z } from 'zod';
 
 import { observationContextSchema } from '../observability/context-schema';
 
-export const TERMINAL_HOST_PROTOCOL_VERSION = 4 as const;
+export const TERMINAL_HOST_PROTOCOL_VERSION = 5 as const;
 export const MAX_TERMINAL_HOST_MESSAGE_BYTES = 32 * 1024 * 1024;
 const MAX_AGENT_SUBMIT_TEXT_BYTES = 16 * 1024;
 const MAX_TERMINAL_HOST_OUTPUT_CHARACTERS = 256 * 1024;
@@ -317,6 +317,10 @@ const terminalRequestSchemas = [
                 .strict(),
         })
         .strict(),
+    /**
+     * `persistSnapshot: true` is a restart barrier and `false` discards a failed launch. Both keep the Terminal's
+     * generation baseline because Server Core may relaunch the same ID; permanent closure is `terminal.retire`.
+     */
     z
         .object({
             method: z.literal('terminal.stop'),
@@ -358,6 +362,17 @@ const serverRequestSchemas = [
         .strict(),
     z.object({ method: z.literal('host.shutdown'), params: z.object({}).strict() }).strict(),
     z.object({ method: z.literal('terminal.detachAll'), params: z.object({}).strict() }).strict(),
+    /**
+     * Permanent closure. Server-scoped because Server Core may no longer hold a live identity (the PTY exited naturally
+     * or a launch was discarded) while this Host still retains the ID's generation baseline; the ID is never reused, so
+     * no PTY generation can make the request stale.
+     */
+    z
+        .object({
+            method: z.literal('terminal.retire'),
+            params: z.object({ terminalId: identifierSchema }).strict(),
+        })
+        .strict(),
     z
         .object({
             method: z.literal('terminal.runningCount'),
@@ -587,6 +602,7 @@ const terminalHostResultSchemas = {
     'terminal.resources': z.object({ resources: terminalResourceUsageSchema.nullable() }).strict(),
     'terminal.recovery.configure': z.object({ configured: z.literal(true) }).strict(),
     'terminal.detachAll': z.object({ detached: z.literal(true) }).strict(),
+    'terminal.retire': z.object({ retired: z.literal(true) }).strict(),
     'terminal.runningCount': z.object({ count: z.number().int().nonnegative() }).strict(),
 } as const satisfies Record<TerminalHostRequest['method'], z.ZodType>;
 
@@ -625,12 +641,17 @@ const requiredCapabilities = {
     'terminal.resources': 'terminal.inspect',
     'terminal.recovery.configure': 'terminal.lifecycle',
     'terminal.detachAll': 'terminal.view',
+    'terminal.retire': 'terminal.lifecycle',
     'terminal.runningCount': 'terminal.inspect',
 } as const satisfies Record<TerminalHostRequest['method'], TerminalHostCapability>;
 
 export interface TerminalHostAuthority {
     bootId: string;
     credential: string;
+    /**
+     * Permanently closed IDs stay fenced so a late reserve cannot fall through to the no-baseline rule.
+     */
+    isRetired(terminalId: string): boolean;
     /**
      * Undefined means this fresh Host has no generation baseline and may accept Core's first positive generation.
      */
@@ -656,7 +677,8 @@ export type TerminalHostAuthorizationFailure =
     | 'session'
     | 'generation'
     | 'agent'
-    | 'attachment';
+    | 'attachment'
+    | 'retired';
 
 /**
  * Applies the private fail-closed identity contract after structural parsing. The caller deliberately receives only a
@@ -675,7 +697,9 @@ export function authorizeTerminalHostRequest(
 
     const isTerminalMethod =
         envelope.request.method.startsWith('terminal.') &&
-        !['terminal.detachAll', 'terminal.runningCount'].includes(envelope.request.method);
+        !['terminal.detachAll', 'terminal.retire', 'terminal.runningCount'].includes(
+            envelope.request.method,
+        );
     if (!isTerminalMethod)
         return envelope.scope.scope === 'server' ? { ok: true } : { ok: false, reason: 'scope' };
     if (envelope.scope.scope !== 'terminal') return { ok: false, reason: 'scope' };
@@ -690,19 +714,26 @@ export function authorizeTerminalHostRequest(
                 : envelope.request.params;
         if (record.id !== envelope.scope.terminalId) return { ok: false, reason: 'terminal' };
         if (record.sessionId !== envelope.scope.sessionId) return { ok: false, reason: 'session' };
-        const current = authority.terminal(record.id);
-        const isReservedStart =
-            envelope.request.method === 'terminal.start' &&
-            current?.running === false &&
-            current.sessionId === record.sessionId &&
-            current.ptyGeneration === envelope.scope.ptyGeneration;
-        const expectedGeneration = authority.launchGeneration(record.id);
-        if (
-            !isReservedStart &&
-            expectedGeneration !== undefined &&
-            envelope.scope.ptyGeneration !== expectedGeneration
-        )
-            return { ok: false, reason: 'generation' };
+        if (authority.isRetired(record.id)) return { ok: false, reason: 'retired' };
+        if (envelope.request.method === 'terminal.start') {
+            /**
+             * Server Core reserves every launch on the same Host boot before starting it, so a start with no matching
+             * reservation is a late request from a generation that was stopped, discarded, retired, or lost with a
+             * previous Host. Requiring the reservation fences it without any per-ID history.
+             */
+            const current = authority.terminal(record.id);
+            if (!current) return { ok: false, reason: 'terminal' };
+            if (current.sessionId !== record.sessionId) return { ok: false, reason: 'session' };
+            if (current.running !== false || current.ptyGeneration !== envelope.scope.ptyGeneration)
+                return { ok: false, reason: 'generation' };
+        } else {
+            const expectedGeneration = authority.launchGeneration(record.id);
+            if (
+                expectedGeneration !== undefined &&
+                envelope.scope.ptyGeneration !== expectedGeneration
+            )
+                return { ok: false, reason: 'generation' };
+        }
         if (envelope.scope.attachmentId !== undefined) return { ok: false, reason: 'attachment' };
         return { ok: true };
     }
