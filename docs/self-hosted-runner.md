@@ -105,6 +105,11 @@ keeps the Android toolchain from `apps/mobile/README.md` installed: a JDK 17 in 
 Gradle JDK cache, and `~/Library/Android/sdk` with Platform 36, Build Tools 35.0.0 and 36.0.0, the React Native NDK
 version, and CMake 3.22.1. The release signing key comes only from repository secrets and is
 written to `RUNNER_TEMP` for the single build step. A missing toolchain or secret fails the release.
+Gradle resolves the build's dependencies into the runner account's persistent `~/.gradle` cache,
+which job cleanup keeps. A cold cache downloads from `dl.google.com` and Maven Central inside the
+job; when those downloads time out in the job but succeed from the runner over SSH, warm the cache
+as described in [Remote diagnosis](#remote-diagnosis) instead of rerunning the release until it
+passes.
 
 The runner deletes `_work/_actions` at the start of every job, so that directory is intentionally
 ephemeral and must never be treated as the persistent action cache. External actions are pinned to
@@ -162,6 +167,50 @@ Because one physical runner owns all capability labels, jobs execute serially. T
 one job that runs its two logical pools in sequence after one setup/build; checks, E2E, and Release
 still cannot compete for the same workspace or native UI. This preserves one desktop owner while
 allowing the explicitly isolated `parallel-safe` pool to use two namespaced workers internally.
+
+## Remote diagnosis
+
+Some failures reproduce only on the runner, because its network path, toolchain, and persistent
+caches differ from a contributor's machine. Diagnose those on the runner itself rather than
+rerunning CI until the failure happens not to recur.
+
+The operator reaches the runner over a private network such as Tailscale, with macOS Remote Login
+and key-only SSH. The connection details exist only in the operator's own `~/.ssh/config`, under a
+`Host` alias identical to the runner name GitHub reports:
+
+```sshconfig
+Host m2-24
+  HostName <private network address>
+  User <runner macOS account>
+  IdentityFile <operator private key>
+  IdentitiesOnly yes
+```
+
+Never commit the address, account, key path, or the runner's home path. CI logs already print that
+home path, so redact it when quoting a log in an issue or pull request. A replacement runner gets
+an alias under its own name.
+
+An agent resolves the host from the failing job instead of hardcoding it, and never waits on an
+interactive prompt:
+
+```bash
+runner=$(gh api repos/tjx666/caxri/actions/jobs/<job-id> --jq .runner_name)
+ssh -o BatchMode=yes -o ConnectTimeout=8 "$runner" '<probe>'
+```
+
+If the alias does not resolve or key authentication fails, report that and stop; never guess an
+address or account. On the runner:
+
+- Probe read-only: DNS resolution, `curl` against the failing URL, and the toolchain the job
+  selects. The runner's `.env` supplies job variables such as `JAVA_HOME`; read only the variable
+  you need, and never print the environment or other values.
+- Reproduce with the job's own toolchain from a `mktemp -d` directory and delete it afterwards.
+  Warming a persistent dependency cache this way is allowed, because the job would write the same
+  entries.
+- Confirm the runner is idle with `gh api repos/tjx666/caxri/actions/runners` before a probe heavier
+  than a request, and never touch a job workspace.
+- Do not change the proxy or network configuration, the runner service, its registration, or macOS
+  settings, and do not use `sudo`. Report those as operator actions.
 
 ## Validation and recovery
 

@@ -81,6 +81,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    Use the owning test runner; E2E reproduction and tracker publication follow
    [CI-only parity](../e2e-testing/SKILL.md#ci-only-parity).
    Do not require runner access or infrastructure root-cause diagnosis before applying this exception.
+   A failure that only the runner produces (a download timeout, a missing toolchain, a stale cache)
+   is diagnosed on the runner over `ssh -o BatchMode=yes <runner_name>`, whose alias lives only in
+   the operator's SSH config; follow the limits in
+   [Remote diagnosis](../../../docs/self-hosted-runner.md#remote-diagnosis).
    Keep the failed CI result red, distinguish waived failures from checks that never ran, and never
    report the whole suite as passed. A failure that reproduces locally or lacks the two local passes
    remains a blocker unless the user explicitly authorizes a narrower exception.

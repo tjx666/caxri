@@ -56,7 +56,9 @@ beyond the packaged application itself.
   that Desktop serves to paired phones (`docs/mobile/UPDATE.md`), builds and probes the unsigned
   Apple Silicon DMG, verifies it, and publishes the DMG and SHA-256 checksum. Packaged-app verification remains a
   release responsibility even though product checks and the full E2E suite stay in PR CI. Runner
-  routing, availability, trust, and recovery follow `docs/self-hosted-runner.md`.
+  routing, availability, trust, and recovery follow `docs/self-hosted-runner.md`. A release step
+  that fails only on the runner is diagnosed there over SSH, as its Remote diagnosis section
+  describes, before any rerun.
 - Follow `RELEASING.md` when preparing the release commit. Creating or pushing that commit still
   requires explicit user authorization because the push triggers the remote release.
 - After the GitHub Release publishes successfully, install it locally by default with
