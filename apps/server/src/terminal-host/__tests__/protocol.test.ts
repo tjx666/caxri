@@ -2,9 +2,10 @@ import type { TerminalRecord } from '@caxri/protocol';
 import { MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import type { TerminalHostAuthority, TerminalHostRequestEnvelope } from '../protocol';
+import type { TerminalHostAuthority } from '../authorization';
+import { authorizeTerminalHostRequest } from '../authorization';
+import type { TerminalHostRequestEnvelope } from '../protocol';
 import {
-    authorizeTerminalHostRequest,
     isBoundedTerminalHostMessage,
     isTerminalHostResult,
     MAX_TERMINAL_HOST_MESSAGE_BYTES,
@@ -192,6 +193,68 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
         expect(authorizeTerminalHostRequest(startEnvelope(), retired)).toEqual({
             ok: false,
             reason: 'retired',
+        });
+    });
+
+    it('seals a stopping generation against driving requests and holds the next reservation until the stop lands', () => {
+        const live = liveAuthority.terminal(terminal.id)!;
+        const sealedAuthority = (isRunning: boolean): TerminalHostAuthority => ({
+            ...liveAuthority,
+            launchGeneration: () => 2,
+            terminal: (terminalId) =>
+                terminalId === terminal.id
+                    ? { ...live, running: isRunning, sealed: true }
+                    : undefined,
+        });
+        const generationRequest = (
+            request: TerminalHostRequestEnvelope['request'],
+            capability: 'terminal.input' | 'terminal.view' | 'terminal.lifecycle',
+            attachmentId?: string,
+        ) =>
+            terminalHostRequestEnvelopeSchema.parse({
+                ...startEnvelope(),
+                scope: {
+                    ...startEnvelope().scope,
+                    capability,
+                    ...(attachmentId && { attachmentId }),
+                },
+                request,
+            });
+        const input = generationRequest(
+            { method: 'terminal.input', params: { data: 'late' } },
+            'terminal.input',
+            'attachment-1',
+        );
+        const repeatedStop = generationRequest(
+            { method: 'terminal.stop', params: { persistSnapshot: true } },
+            'terminal.lifecycle',
+        );
+        const snapshot = generationRequest(
+            { method: 'terminal.snapshot', params: {} },
+            'terminal.view',
+        );
+
+        const stopping = sealedAuthority(true);
+        expect(authorizeTerminalHostRequest(input, stopping)).toEqual({
+            ok: false,
+            reason: 'sealed',
+        });
+        expect(authorizeTerminalHostRequest(snapshot, stopping)).toEqual({ ok: true });
+        expect(authorizeTerminalHostRequest(repeatedStop, stopping)).toEqual({ ok: true });
+        expect(authorizeTerminalHostRequest(reserveEnvelope(2), stopping)).toEqual({
+            ok: false,
+            reason: 'sealed',
+        });
+
+        const stopped = sealedAuthority(false);
+        expect(authorizeTerminalHostRequest(reserveEnvelope(2), stopped)).toEqual({ ok: true });
+        expect(authorizeTerminalHostRequest(startEnvelope(), stopped)).toEqual({
+            ok: false,
+            reason: 'sealed',
+        });
+        expect(authorizeTerminalHostRequest(input, stopped)).toEqual({
+            ok: false,
+            reason: 'sealed',
         });
     });
 

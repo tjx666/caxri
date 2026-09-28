@@ -392,8 +392,8 @@ export class TerminalExecutionEngine {
     }
 
     start(input: TerminalExecutionStart): number {
-        const existing = this.terminals.get(input.record.id);
-        if (existing) return existing.process.pid;
+        if (this.terminals.has(input.record.id))
+            throw new CaxriError('CONFLICT', 'Terminal already has a live PTY');
         const initialSize = this.attachments.size(input.record.id) ??
             input.initialSize ?? { cols: 100, rows: 30 };
         const child = this.spawnProcess(input.executable, input.args, {

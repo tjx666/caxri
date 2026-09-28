@@ -26,6 +26,8 @@ import type {
     PreparedManagedAgentLaunch,
 } from './agent-launcher';
 import { submitAgentText } from './agent-submission';
+import type { TerminalHostAuthority, TerminalHostAuthorizationFailure } from './authorization';
+import { authorizeTerminalHostRequest } from './authorization';
 import type {
     TerminalExecutionEvent,
     TerminalExecutionExit,
@@ -36,15 +38,14 @@ import type { AgentInputHandoff } from './engine/agent-input';
 import { noOpAgentInputHandoff } from './engine/agent-input';
 import { projectTerminalExecutionEvent } from './execution-event-projection';
 import { TerminalGenerationLedger } from './generation-ledger';
+import type { StoppableTerminalIdentity } from './generation-stop';
+import { stopTerminalGeneration } from './generation-stop';
 import type {
-    TerminalHostAuthority,
-    TerminalHostAuthorizationFailure,
     TerminalHostMessage,
     TerminalHostRequestEnvelope,
     TerminalShutdownFailure,
 } from './protocol';
 import {
-    authorizeTerminalHostRequest,
     isBoundedTerminalHostMessage,
     TERMINAL_HOST_PROTOCOL_VERSION,
     terminalHostRequestEnvelopeSchema,
@@ -88,6 +89,10 @@ export interface TerminalExecutionOwner {
     signalExact(terminalId: string, expectedProcessId: number, signal: string): boolean;
     snapshot(terminalId: string): Promise<TerminalSnapshot | null>;
     textTail?(terminalId: string, maximumCharacters: number): Promise<string | null>;
+    /**
+     * Fails with `CONFLICT` when a live PTY still owns the Terminal ID. Returning that PTY's PID instead would let the
+     * caller record a new generation as running on a process that belongs to the previous one, still being stopped.
+     */
     start(input: TerminalExecutionStart): number;
     waitForAttachedSize(terminalId: string, timeoutMs: number): Promise<void>;
     scroll(terminalId: string, wheel: TerminalWheelInput): boolean;
@@ -108,14 +113,12 @@ export interface ManagedAgentExecutionOwner {
     isRunningExact(terminalId: string, launchId: string): boolean;
 }
 
-interface RuntimeTerminalIdentity {
-    agentLaunchId?: string;
+interface RuntimeTerminalIdentity extends StoppableTerminalIdentity {
     agentProcessId?: number;
     agentProvider?: AgentProvider;
     attachmentId?: string;
     ptyGeneration: number;
     record: TerminalRecord;
-    running: boolean;
     sessionId: string;
 }
 
@@ -354,7 +357,9 @@ export class TerminalHostRuntime {
                 const scope = this.requireTerminalScope(envelope);
                 const { record } = request.params;
                 const previous = this.identities.get(record.id);
+                const previousColors = this.colors.get(record.id);
                 this.reserve(envelope, record);
+                const launching = this.identities.get(record.id);
                 if (record.provider && request.params.outputRecovery)
                     this.recoverySettings.set(record.provider, request.params.outputRecovery);
                 if (request.params.colors) this.colors.set(record.id, request.params.colors);
@@ -415,9 +420,17 @@ export class TerminalHostRuntime {
                             record.id,
                             request.params.agent.launchId,
                         );
-                    if (previous) this.identities.set(record.id, previous);
-                    else this.identities.delete(record.id);
-                    this.colors.delete(record.id);
+                    /**
+                     * Roll back only this launch's own identity. Agent cancellation above can wait, and a retirement or
+                     * newer reservation that landed meanwhile owns the ID now; restoring over it would resurrect a
+                     * closed Terminal or erase the replacement.
+                     */
+                    if (this.identities.get(record.id) === launching) {
+                        if (previous) this.identities.set(record.id, previous);
+                        else this.identities.delete(record.id);
+                        if (previousColors) this.colors.set(record.id, previousColors);
+                        else this.colors.delete(record.id);
+                    }
                     throw error;
                 }
             }
@@ -562,23 +575,21 @@ export class TerminalHostRuntime {
             }
             case 'terminal.stop': {
                 const scope = this.requireTerminalScope(envelope);
-                const identity = this.identities.get(scope.terminalId);
-                if (identity?.agentLaunchId)
-                    await this.options.agentLauncher?.cancel(
-                        scope.terminalId,
-                        identity.agentLaunchId,
-                    );
-                const capture = request.params.persistSnapshot
-                    ? this.engine.restartBarrier(scope.terminalId)
-                    : undefined;
-                if (!request.params.persistSnapshot) this.engine.close(scope.terminalId);
-                if (identity) identity.running = false;
-                const snapshot = capture ? await capture : null;
-                if (!request.params.persistSnapshot) {
-                    this.identities.delete(scope.terminalId);
-                    this.colors.delete(scope.terminalId);
-                }
-                return { snapshot, stopped: true };
+                const context = {
+                    agentLauncher: this.options.agentLauncher,
+                    colors: this.colors,
+                    engine: this.engine,
+                    identities: this.identities,
+                    logger: this.options.logger,
+                };
+                // Authorization admitted this stop against the current identity of its generation.
+                const identity = this.identities.get(scope.terminalId)!;
+                return stopTerminalGeneration(
+                    context,
+                    envelope,
+                    identity,
+                    request.params.persistSnapshot,
+                );
             }
             case 'terminal.reassign': {
                 const scope = this.requireTerminalScope(envelope);
