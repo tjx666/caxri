@@ -7,7 +7,7 @@ import { builtinThemes, DEFAULT_SHADOW } from '@caxri/protocol';
 import { contrastRatio } from '@caxri/utils';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { draculaTheme, importTheme } from '../theme';
+import { draculaTheme, importTheme } from '..';
 
 const temporaryDirectories: string[] = [];
 

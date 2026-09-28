@@ -9,7 +9,7 @@ import { execFileAsync } from '@caxri/system';
 import { contrastRatio } from '@caxri/utils';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { draculaTheme, importTheme, MAX_THEME_IMPORT_FILE_BYTES } from '../theme';
+import { draculaTheme, importTheme, MAX_THEME_IMPORT_FILE_BYTES } from '..';
 
 const temporaryDirectories: string[] = [];
 
@@ -761,7 +761,7 @@ describe('built-in theme contrast', () => {
      */
     it('mirrors the built-in palette in the Renderer stylesheet fallback', async () => {
         const stylesheet = await readFile(
-            new URL('../../../../desktop/src/renderer/src/styles/theme.css', import.meta.url),
+            new URL('../../../../../desktop/src/renderer/src/styles/theme.css', import.meta.url),
             'utf8',
         );
         for (const [token, value] of Object.entries(draculaTheme.colors)) {

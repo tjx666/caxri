@@ -11,7 +11,7 @@ import {
     MAX_THEME_IMPORT_FILE_BYTES,
     parseCaxriTheme,
     serializeTheme,
-} from '../theme';
+} from '..';
 
 const temporaryDirectories: string[] = [];
 

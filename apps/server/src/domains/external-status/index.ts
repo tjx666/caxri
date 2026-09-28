@@ -6,4 +6,5 @@ export { GitHubPullRequestStore } from './github';
 export { GitHubReferenceStore } from './github-reference';
 export { ExternalStatusHub } from './hub';
 export { LinearIssueStore } from './linear';
+export { parseExternalJson } from './parse';
 export { pullRequestUnavailable } from './pull-request-unavailable';

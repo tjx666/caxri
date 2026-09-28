@@ -97,7 +97,7 @@ No OPEN entries as of 2026-08-16 @ `19474c0`.
 ### AD-sec-theme-import-bounded-read — [RESOLVED · Confirmed defect · S]
 
 - **Summary:** Theme import now reads through one regular-file handle into a fixed-size buffer and rejects growth before format sniffing or parsing, while preserving final-symlink compatibility for user-owned theme and provider configuration files.
-- **Evidence:** `apps/server/src/domains/bounded-file-reader.ts:15-50` reads at most `maxBytes + 1` through one handle and rejects non-regular or overflowing sources. `apps/server/src/domains/theme.ts:312-328` uses that boundary; `apps/server/src/domains/__tests__/theme.test.ts:95-180` covers final symlinks, post-open growth, and FIFO rejection.
+- **Evidence:** `apps/server/src/domains/bounded-file-reader.ts:15-50` reads at most `maxBytes + 1` through one handle and rejects non-regular or overflowing sources. `apps/server/src/domains/theme/index.ts` uses that boundary; `apps/server/src/domains/theme/__tests__/theme.test.ts` covers final symlinks, post-open growth, and FIFO rejection.
 - **First seen:** 2026-08-13 @ 63a7ccc · **Last verified:** 2026-08-15 @ e1c5948
 - **Resolved:** 2026-08-15 @ b6fe27c and bdd1806 via [issue caxri#167](https://github.com/tjx666/caxri/issues/167).
 - **Remediation target / Acceptance:** No parser receives more than 1 MiB; post-open growth returns `CAPACITY`, pathname replacement cannot redirect the opened handle, and normal supported imports continue to succeed.
