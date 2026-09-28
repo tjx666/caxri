@@ -1,4 +1,6 @@
-import type { AgentActivityState, AgentOperation } from '@caxri/protocol';
+import type { AgentActivityState, AgentOperation, SessionRecord } from '@caxri/protocol';
+
+import type { SessionStatusTerminal } from './session-status';
 
 export interface SessionActivityPresentation {
     ariaLabel: string;
@@ -100,4 +102,41 @@ export function sessionActivityPresentation(
 ): SessionActivityPresentation {
     if (operation === 'compacting') return COMPACTION_PRESENTATION;
     return PRESENTATIONS[state];
+}
+
+/**
+ * A detached Agent was stopped on purpose so another client can resume it; the last probed lifecycle state would
+ * misreport it as still working or waiting here.
+ */
+const DETACHED_PRESENTATION: SessionActivityPresentation = {
+    ariaLabel: 'Detached. The Agent was stopped so another client can resume it.',
+    description:
+        'Stopped so another client can resume this conversation. Resume it from the row menu.',
+    indicatorClassName: 'text-muted',
+    label: 'Detached',
+    tone: 'neutral',
+};
+
+/**
+ * What the Session's Agent is doing right now, as the hover card and the row's status line both word it.
+ */
+export function currentSessionActivityPresentation(
+    session: Pick<SessionRecord, 'lastActivityState'>,
+    terminal?: SessionStatusTerminal,
+): SessionActivityPresentation {
+    if (terminal?.lastProcessState === 'detached') return DETACHED_PRESENTATION;
+    return sessionActivityPresentation(session.lastActivityState, terminal?.agentOperation);
+}
+
+/**
+ * The activity the row's status line names, or `undefined` when it should show only the time. A Shell-only Session
+ * never reports activity, and spelling out "No activity reported" on every such row is noise the hover card already
+ * covers.
+ */
+export function sessionStatusLineActivity(
+    session: Pick<SessionRecord, 'lastActivityState'>,
+    terminal?: SessionStatusTerminal,
+): SessionActivityPresentation | undefined {
+    const activity = currentSessionActivityPresentation(session, terminal);
+    return activity === PRESENTATIONS.unknown ? undefined : activity;
 }

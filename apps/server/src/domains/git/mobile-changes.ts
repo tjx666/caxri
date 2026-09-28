@@ -1,5 +1,4 @@
 import { Buffer } from 'node:buffer';
-import { lstat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import type {
@@ -14,29 +13,10 @@ import {
     MOBILE_CHANGES_MAX_PATCH_BYTES,
     MOBILE_CHANGES_MAX_PATCH_LINES,
 } from '@caxri/protocol';
-import { AsyncSemaphore } from '@caxri/system';
 
-import { readBoundedRegularFile } from '../bounded-file-reader';
+import { lineCount, readWorkingFile, untrackedLineCount } from './working-file-reads';
 
 const MAX_LIST_BYTES = 48 * 1_024;
-const mobileFileReads = new AsyncSemaphore(8);
-
-/**
- * Share the descriptor budget across repositories, list/diff requests, and paired connections.
- */
-async function readMobileChangesFile(path: string): Promise<Buffer | null> {
-    return mobileFileReads.run(async () => {
-        if (!(await lstat(path)).isFile()) return null;
-        return readBoundedRegularFile(path, MOBILE_CHANGES_MAX_PATCH_BYTES);
-    });
-}
-
-function lineCount(content: Buffer): number {
-    if (content.length === 0) return 0;
-    let count = content.at(-1) === 10 ? 0 : 1;
-    for (const byte of content) if (byte === 10) count += 1;
-    return count;
-}
 
 function boundedRepoName(name: string): string {
     let result = '';
@@ -67,17 +47,6 @@ function status(kind: GitRepositorySummary['files'][number]['kind']): 'M' | 'A' 
             return 'R';
         default:
             return 'M';
-    }
-}
-
-async function untrackedLineCount(rootPath: string, path: string): Promise<number> {
-    try {
-        const candidate = resolve(rootPath, path);
-        const content = await readMobileChangesFile(candidate);
-        return !content || content.includes(0) ? 0 : lineCount(content);
-    } catch {
-        // A moving or oversized untracked file remains visible with unknown line counts.
-        return 0;
     }
 }
 
@@ -146,7 +115,7 @@ async function mobileChangesList(
     const untrackedCounts = await Promise.all(
         sourceFiles.map((file) =>
             file.kind === 'untracked' || !repo.head
-                ? untrackedLineCount(repo.rootPath, file.path)
+                ? untrackedLineCount(repo.rootPath, file.path, MOBILE_CHANGES_MAX_PATCH_BYTES)
                 : Promise.resolve(0),
         ),
     );
@@ -239,7 +208,7 @@ export async function mobileChangesDiff(
     if (file.kind === 'untracked' || !repo.head) {
         const candidate = resolve(repo.rootPath, file.path);
         try {
-            const content = await readMobileChangesFile(candidate);
+            const content = await readWorkingFile(candidate, MOBILE_CHANGES_MAX_PATCH_BYTES);
             if (!content || content.includes(0)) return { status: 'binary' };
             if (lineCount(content) + 4 > MOBILE_CHANGES_MAX_PATCH_LINES)
                 return { status: 'oversized' };

@@ -20,9 +20,11 @@ import { cn } from '../../lib/utilities';
 import { openSessionPullRequest } from '../session/session-commands';
 import { pullRequestUnavailableLabel } from '../status-bar/pull-request-status-label';
 import { useSessionChanges } from './hooks/use-session-changes';
+import { useSessionDiffStat } from './hooks/use-session-diff-stat';
 import { ProjectIcon } from './project-icon';
 import type { SessionActivityPresentation } from './session-activity';
 import {
+    currentSessionActivityPresentation,
     sessionActivityPresentation,
     sessionToneCalloutClassName,
     sessionUnreadTone,
@@ -42,19 +44,6 @@ function unreadAttentionPresentation(
     const kind = session.lastAttentionKind ?? 'unknown';
     return { ...sessionActivityPresentation(kind), tone: sessionUnreadTone(kind) };
 }
-
-/**
- * A detached Agent was stopped on purpose so another client can resume it; the last probed lifecycle state would
- * misreport it as still working or waiting here.
- */
-const detachedActivityPresentation = {
-    ariaLabel: 'Detached. The Agent was stopped so another client can resume it.',
-    description:
-        'Stopped so another client can resume this conversation. Resume it from the row menu.',
-    indicatorClassName: 'text-muted',
-    label: 'Detached',
-    tone: 'neutral',
-} satisfies ReturnType<typeof sessionActivityPresentation>;
 
 function SessionPullRequestLink({
     pullRequest,
@@ -164,10 +153,7 @@ export function SessionActivityCard({
 }) {
     const accessibleDescriptionId = useId();
     const [open, setOpen] = useState(false);
-    const activity =
-        terminal?.lastProcessState === 'detached'
-            ? detachedActivityPresentation
-            : sessionActivityPresentation(session.lastActivityState, terminal?.agentOperation);
+    const activity = currentSessionActivityPresentation(session, terminal);
     const agent = terminal?.kind ?? 'shell';
     const agentLabel = resolveAgentIcon(agent).label;
     const lastOpened = useRelativeTime(session.lastOpenedAt);
@@ -178,6 +164,7 @@ export function SessionActivityCard({
         : undefined;
     const visible = open && !suppressed;
     const changes = useSessionChanges(session, visible);
+    const diffStat = useSessionDiffStat(session.id);
     const accessibleDescription = [
         // The pin has no visible mark on the row itself — it is the group the row sits in — and a pinned Session is
         // listed only there, so this sentence is the only thing that says the row is pinned at all.
@@ -189,6 +176,8 @@ export function SessionActivityCard({
         pullRequestUnavailable && `Pull request unknown. ${pullRequestUnavailable.hint}`,
         worktreeProject && `Working in worktree ${worktreeProject.displayTitle}.`,
         changes?.ariaLabel,
+        diffStat &&
+            `Branch changes: ${diffStat.additions} ${diffStat.additions === 1 ? 'line' : 'lines'} added, ${diffStat.deletions} removed.`,
         `Last opened ${lastOpened}.`,
         unread ? `${unread}.` : undefined,
     ]
