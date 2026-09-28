@@ -24,12 +24,13 @@ describe('caxri-cli skill validation', () => {
             'Run `agent dispatch status <id>` or `caxri agent-context` with the `commander` capability,',
             'an `agent:control` grant, `settings.write`, `--json`, or `caxri --version`.',
             'Global options may lead: `caxri --json agent dispatch wait <id>`. Placeholders may follow:',
-            '`agent message wait --timeout <milliseconds>`.',
+            '`agent message wait --timeout <milliseconds>` or `caxri --timeout <milliseconds> agent message wait`.',
+            'An empty result has `message = null`; add `--request-id` to retry.',
         ].join('\n');
         expect(validateSkillCommands(`${requiredWorkflows}\n${prose}\n${capabilities}`)).toEqual({
             capabilityCount: 2,
             commandCount: 2,
-            mentionCount: 4,
+            mentionCount: 5,
         });
     });
 
@@ -44,6 +45,11 @@ describe('caxri-cli skill validation', () => {
                 `${requiredWorkflows}\nUse \`agent\n  control\` to stop it.\n${capabilities}`,
             ),
         ).toThrow('Skill mentions an unknown command: `agent control`');
+        expect(() =>
+            validateSkillCommands(
+                `${requiredWorkflows}\nRun \`--json agent dispatch\`.\n${capabilities}`,
+            ),
+        ).toThrow('Skill mentions an unknown command: `--json agent dispatch`');
     });
 
     it('rejects shorthand mentions that omit the command group', () => {
