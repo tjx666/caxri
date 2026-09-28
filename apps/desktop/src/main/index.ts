@@ -149,6 +149,9 @@ if (ownsProfileInstance) {
         grants: grantedRoots,
         logger: () => mainLogger,
         nextTestRoot: resolveNextTestRootPath,
+        focusWindow: async () => {
+            await focusMainWindow();
+        },
     });
     const e2eWindowMode = resolveE2EWindowMode({
         isE2E: process.env.CAXRI_E2E === '1',
@@ -527,10 +530,11 @@ if (ownsProfileInstance) {
             await supervisor.request('session.select', { sessionId });
             await focusMainWindow();
         },
-        openSettingsInWorkbench: async () => {
-            // Unlike a menu pick, wait for the Workbench Renderer: a reopened window must be listening for the command.
+        openSettingsInWorkbench: async (target) => {
+            // Unlike a menu pick, wait for the Workbench Renderer: a reopened window must be listening for the event.
             await focusMainWindow();
-            dispatchWorkbenchCommand('settings.open', false);
+            if (target) sendEvent({ event: 'settings.openRequested', payload: { target } });
+            else dispatchWorkbenchCommand('settings.open', false);
         },
         getRemoteDebugging: () => remoteDebuggingState(desktopProfile),
         getUserDataPath: () => desktopProfile.userDataPath,

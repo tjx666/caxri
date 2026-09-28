@@ -1,3 +1,5 @@
+import type { AgentProvider } from '@caxri/protocol';
+
 import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { pushToast, tryCommand } from '../../stores/toasts';
@@ -17,18 +19,27 @@ export function revealCommanderSession(sessionId: string): void {
 
 /**
  * Main raises the Workbench, reopening it if needed, and opens Settings there: this window has no Settings of its own.
+ * `provider` scrolls Settings straight to that Agent's Executable row when the pane knows which Agent CLI is missing.
  */
-export function openWorkbenchSettings(): void {
-    // Fire-and-forget: tryCommand reports a failed hand-off through a toast.
+export function openWorkbenchSettings(provider?: AgentProvider): void {
+    // Fire-and-forget: tryCommand reports a failed hand-off through a toast. Omit the params entirely for the
+    // untargeted case, matching every other zero-argument Commander request (e.g. `agentCommander.stop` below),
+    // rather than always sending an empty `{}` body.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand('Unable to open Settings in the Workbench', () =>
-        caxri.request('agentCommander.openSettings'),
+        provider
+            ? caxri.request('agentCommander.openSettings', {
+                  target: { kind: 'agentExecutable', provider },
+              })
+            : caxri.request('agentCommander.openSettings'),
     );
 }
 
 /**
  * The Commander Terminal pane runs in a window without Settings, an editor, or a Git view: Open Settings hands off to
- * the Workbench, and only URLs are links, since a file or commit link has nowhere here to open.
+ * the Workbench, and so does opening a detected file link (see `openFileLink` in `terminal-pane-support.ts`, which
+ * calls `agentCommander.openFileLink` instead of the ordinary `terminal.openFileLink` whenever this host is installed).
+ * Only URLs and files are links here; a commit link has nowhere in this window to open.
  */
 export function configureCommanderTerminalHost(): void {
     configureTerminalPaneHost({ openSettings: openWorkbenchSettings, hasWorkbenchLinks: false });

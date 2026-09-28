@@ -9,6 +9,7 @@ import type {
     ArgvConfigChanges,
     MainRequest,
     RemoteDebuggingState,
+    SettingsTarget,
 } from '@caxri/protocol';
 import {
     agentProviderCatalog,
@@ -57,9 +58,10 @@ interface MainMethodHandlerOptions {
     revealSessionInWorkbench(sessionId: string): Promise<void>;
     /**
      * Raises the Workbench, reopening it if needed, and opens Settings there; used by the Agent Commander window, which
-     * has no Settings of its own.
+     * has no Settings of its own. An optional `target` scrolls Settings to one specific row instead of its default
+     * view.
      */
-    openSettingsInWorkbench(): Promise<void>;
+    openSettingsInWorkbench(target?: SettingsTarget): Promise<void>;
     /**
      * What this instance actually exposes, resolved once at boot by `configureDesktopProfile`. It is not derivable from
      * `argv.jsonc`: an unpackaged launch ignores the stored preference, and a window whose switch was just flipped
@@ -252,6 +254,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return options.workbenchRootAuthority.cancelProjectCreate(request.params);
             case 'terminal.openFileLink':
                 return options.workbenchRootAuthority.openTerminalFileLink(request.params);
+            case 'agentCommander.openFileLink':
+                return options.workbenchRootAuthority.openCommanderFileLink(request.params);
             case 'files.trash': {
                 const item = await supervisor.request('files.authorizeTrash', request.params);
                 const result = await dialog.showMessageBox(
@@ -438,7 +442,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 await options.revealSessionInWorkbench(request.params.sessionId);
                 return null;
             case 'agentCommander.openSettings':
-                await options.openSettingsInWorkbench();
+                await options.openSettingsInWorkbench(request.params.target);
                 return null;
             case 'bugReport.send': {
                 const { report, screenshot, sessionId, terminalId } = request.params;

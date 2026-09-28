@@ -488,7 +488,7 @@ export function useSettingsPageController() {
                 setView('ui');
                 return;
             }
-            if (request.view === 'agent-actions') {
+            if (request.view === 'agent-actions' || request.view === 'agent-executable') {
                 setTab('settings');
                 setView('ui');
                 return;
@@ -691,6 +691,10 @@ export function useSettingsPageController() {
         agentSkillHealth,
         agentActionsFocusRequest:
             request.view === 'agent-actions' && request.provider
+                ? { id: request.id, provider: request.provider }
+                : undefined,
+        agentExecutableFocusRequest:
+            request.view === 'agent-executable' && request.provider
                 ? { id: request.id, provider: request.provider }
                 : undefined,
         argvConfig,

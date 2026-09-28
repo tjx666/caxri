@@ -23,6 +23,7 @@ export * from './session-compaction.js';
 export * from './session-content-search.js';
 export * from './session-pull-request.js';
 export * from './settings-tab.js';
+export * from './settings-target.js';
 export * from './terminal-file-link.js';
 export * from './terminal-link-fingerprint.js';
 export * from './terminal-long-paste.js';

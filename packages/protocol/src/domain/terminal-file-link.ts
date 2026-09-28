@@ -57,6 +57,27 @@ const terminalFileLinkCanceledSchema = canceledResultSchema.extend({
 });
 
 /**
+ * Result of opening a resolved Terminal file link, shared by every caller (the ordinary `terminal.openFileLink` and the
+ * Agent Commander's `agentCommander.openFileLink`) so a new opener never redefines this shape.
+ */
+export const terminalFileLinkOpenResultSchema = z.union([
+    terminalFileLinkCanceledSchema,
+    /**
+     * A file outside every Project that the user chose to open: Main already read one bounded read-only snapshot, and
+     * the Renderer shows it as an ephemeral tab in the target Session. This variant must precede the bare `{ opened:
+     * true }` shape: `z.union` takes the first match and a plain `z.object` strips unknown keys, so the wrong order
+     * silently drops `document` from the reply.
+     */
+    z.object({
+        opened: z.literal(true),
+        document: externalEditorDocumentSchema,
+        sessionId: identifierSchema,
+    }),
+    z.object({ opened: z.literal(true) }),
+    terminalFileLinkAmbiguousResultSchema,
+]);
+
+/**
  * The Main-owned open that consumes Server Core's resolution below.
  */
 export const terminalFileLinkMethods = {
@@ -67,22 +88,7 @@ export const terminalFileLinkMethods = {
             target: z.string().min(3).max(4_096),
             location: editorNavigationTargetSchema.optional(),
         }),
-        result: z.union([
-            terminalFileLinkCanceledSchema,
-            /**
-             * A file outside every Project that the user chose to open: Main already read one bounded read-only
-             * snapshot, and the Renderer shows it as an ephemeral tab in the Terminal's own Session. This variant must
-             * precede the bare `{ opened: true }` shape: `z.union` takes the first match and a plain `z.object` strips
-             * unknown keys, so the wrong order silently drops `document` from the reply.
-             */
-            z.object({
-                opened: z.literal(true),
-                document: externalEditorDocumentSchema,
-                sessionId: identifierSchema,
-            }),
-            z.object({ opened: z.literal(true) }),
-            terminalFileLinkAmbiguousResultSchema,
-        ]),
+        result: terminalFileLinkOpenResultSchema,
     },
 } as const satisfies Record<string, MethodSpec>;
 

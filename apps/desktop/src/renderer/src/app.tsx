@@ -1,5 +1,8 @@
 import { useEffect } from 'react';
 
+import type { SettingsTarget } from '@caxri/protocol';
+import { assertNever } from '@caxri/protocol';
+
 import { runCommand } from './commands/execute';
 import { useCommandShortcuts } from './commands/use-command-shortcuts';
 import { TooltipProvider } from './components/ui/tooltip';
@@ -56,6 +59,7 @@ import {
     useChromeLayoutStore,
     useChromeViewportClamp,
 } from './stores/chrome-layout';
+import { useDialogStore } from './stores/dialogs';
 import { useIsFullScreen } from './stores/selectors';
 import {
     initializeWorkbench,
@@ -84,6 +88,25 @@ function useRuntimeAttachment(): void {
         return subscribeWorkbenchEvents({
             onCommand: (command, wasViaAccelerator) =>
                 runCommand(command, undefined, { viaAccelerator: wasViaAccelerator }),
+            onSettingsTarget: (target: SettingsTarget) => {
+                // `SettingsTarget` has only one `kind` today, so this switch is trivially exhaustive; it stays a switch
+                // (with the `assertNever(target.kind, ...)` default below) so adding a second `kind` later gets a real
+                // compiler error instead of silent fallthrough.
+                /* oxlint-disable typescript/no-unnecessary-condition -- see comment above */
+                switch (target.kind) {
+                    case 'agentExecutable':
+                        useDialogStore.getState().openSettings('agent-executable', target.provider);
+                        return;
+                    default:
+                        // `assertNever(target.kind, ...)`, not `assertNever(target, ...)`: with only one member today,
+                        // `SettingsTarget` is a plain object type rather than a real union, so TypeScript cannot narrow
+                        // the whole value to `never` here — only its literal `kind` property does. Once a second
+                        // `kind` is added this still catches an unhandled case, because `target.kind` then narrows to
+                        // that member's literal instead of `never`.
+                        assertNever(target.kind, 'Unhandled Settings deep-link target');
+                }
+                /* oxlint-enable typescript/no-unnecessary-condition */
+            },
             onDesktopOpen: (sessionId, path, options) => {
                 // Fire-and-forget: a rejection here surfaces through the global
                 // `unhandledrejection` reporter (see renderer-error-reporter.ts), which is the

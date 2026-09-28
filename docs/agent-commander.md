@@ -54,16 +54,20 @@ The window runs with the Desktop principal. Main therefore authorizes it separat
   `agentCommander.stop` for the title bar's Stop button), `external.open`, the Terminal pane's
   context menu (`contextMenu.show`), and two Workbench hand-offs: `agentCommander.revealSession`
   and `agentCommander.openSettings`, which the pane's Open Settings sends when the Agent CLI is
-  missing. Each raises the Workbench, reopening it if needed, before it acts. Main pops that menu over the Commander window, not the Workbench: the IPC boundary records the
-  requesting window (`request-window.ts`) because the command dispatcher carries no Electron
-  objects. The menu only reports the chosen entry back, and that entry's action is a separate
-  request this policy admits on its own. The window cannot call `commander.stop` directly; Main
-  closes the window before it stops the Commander. `app.bootstrap` and
+  missing. An optional `target` on `agentCommander.openSettings` (see `settingsTargetSchema` in
+  `packages/protocol`) scrolls Settings to one specific row, such as the missing Agent's Executable
+  setting, instead of landing on its default view. Each raises the Workbench, reopening it if
+  needed, before it acts. Main pops that menu over the Commander window, not the Workbench: the IPC
+  boundary records the requesting window (`request-window.ts`) because the command dispatcher
+  carries no Electron objects. The menu only reports the chosen entry back, and that entry's action
+  is a separate request this policy admits on its own. The window cannot call `commander.stop`
+  directly; Main closes the window before it stops the Commander. `app.bootstrap` and
   `app.records` are refused: the window reads its rows only through `commander.snapshot`.
-- **Terminal requests** (attach, detach, input, resize, restart, long paste, and the pane's
-  reference-context read) are admitted only when they name the Commander Terminal, and
-  `session.updateState` (the pane's own layout and focus) only when it names the Commander Session.
-  Main learns both IDs from the reply to `commander.ensure` or `commander.snapshot`.
+- **Terminal requests** (attach, detach, input, resize, restart, long paste, the pane's
+  reference-context read, and `agentCommander.openFileLink`) are admitted only when they name the
+  Commander Terminal, and `session.updateState` (the pane's own layout and focus) only when it names
+  the Commander Session. Main learns both IDs from the reply to `commander.ensure` or
+  `commander.snapshot`.
 - **Everything else** is refused with `FORBIDDEN` and logged. That includes file edits, Project and
   Session mutations, Settings writes, and any other Session's Terminal.
 
@@ -83,10 +87,27 @@ Each window tracks its own events-ready state.
 
 The Commander window has no Settings, editor, or Git view, so its entry installs a Terminal pane
 host (`terminal-pane-host.ts`) before the first render. The pane's Open Settings hands off to the
-Workbench, and only URLs are links: file paths and commit SHAs get no underline, hint, or Open
-Detected Link entry, and a reference's hover card keeps its basic content instead of loading
-details. Opening a file from the Commander Terminal in the Workbench would need a target Session
-and Project, so it is not offered.
+Workbench, scrolled to the missing Agent's Executable setting. URLs and file paths are links; commit
+SHAs get no underline, hint, or Open Detected Link entry (there is no Git view here to open one in),
+and a reference's hover card keeps its basic content instead of loading details.
+
+Opening a file link hands off to the Workbench through `agentCommander.openFileLink`, resolved by
+the same `terminal.fileLink.resolve` every Terminal uses, unmodified for the Commander. An absolute
+path, a `~/...` path, and an explicit `.../` cross-Project search all match by containment across
+every added Project; a bare relative link instead falls back to a suffix search scoped to the source
+Terminal's own Workbench Root (`apps/server/src/domains/terminal/file-links.ts`). The Commander's own
+Workbench Root is its hidden system Project, so a bare relative path in its own Terminal output will
+not match a file that lives in a different, visible Project — only an absolute, `~/...`, or
+explicitly cross-Project link does. This is an existing property of the shared resolver, not
+something this hand-off changes. The Commander's own cwd is its hidden system Project, so this
+hand-off must never grant it authority over another Project: Main always substitutes a real, visible
+Session for the Commander's own before opening anything, in `workbench-root-authority.ts`'s
+`pickCommanderFileLinkSession` (path resolves inside a Project: prefers a Session the Commander
+itself created, then the Workbench's current selection, then the first) and `pickAnyVisibleSessionId`
+(path resolves outside every Project: any live Session, to host the read-only ephemeral tab). An
+ambiguous resolution answers the Commander's own already-mounted link picker without raising the
+Workbench; every other branch raises it first, so the external-file confirmation dialog and the
+opened editor both land on a window the user can see.
 
 The Workbench accepts drops on its pane surface, which this window does not mount, so the Commander
 Terminal accepts them itself (`commander-terminal.tsx`) through the same drop-to-input rule while it

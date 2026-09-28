@@ -307,10 +307,39 @@ describe('registerTerminalPaneLinks', () => {
         ]);
     });
 
-    it('links only URLs in a window whose host has no Workbench to open the rest in', async () => {
+    it('links files and URLs but not commits in a window whose host has no Workbench Git view', async () => {
         configureTerminalPaneHost({ openSettings: vi.fn(), hasWorkbenchLinks: false });
 
-        expect(await linkedTexts()).toEqual(['https://example.com/plain']);
+        expect(await linkedTexts()).toEqual(['src/file.ts:12', 'https://example.com/plain']);
+    });
+
+    it('opens a clicked file link through the ordinary Workbench request', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce({ opened: true });
+        const links = await paneLinks(text);
+
+        links[0].activate({ metaKey: true } as MouseEvent, links[0].text);
+        await Promise.resolve();
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.openFileLink', {
+            terminalId: 'terminal-1',
+            target: 'src/file.ts',
+            location: { mode: 'line', startLine: 12, endLine: 12 },
+        });
+    });
+
+    it("opens a clicked file link through the Commander's own request in a window with no Workbench editor", async () => {
+        configureTerminalPaneHost({ openSettings: vi.fn(), hasWorkbenchLinks: false });
+        mocks.caxriRequest.mockResolvedValueOnce({ opened: true });
+        const links = await paneLinks(text);
+
+        links[0].activate({ metaKey: true } as MouseEvent, links[0].text);
+        await Promise.resolve();
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('agentCommander.openFileLink', {
+            terminalId: 'terminal-1',
+            target: 'src/file.ts',
+            location: { mode: 'line', startLine: 12, endLine: 12 },
+        });
     });
 
     it('loads reference hover details only where the Workbench can answer them', async () => {

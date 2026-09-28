@@ -146,6 +146,7 @@ export const effectfulCommandRecovery = {
     'contextMenu.show': 'none',
     'processExplorer.open': 'durable',
     'agentCommander.open': 'durable',
+    'agentCommander.openFileLink': 'memory',
     'agentCommander.openSettings': 'durable',
     'agentCommander.revealSession': 'durable',
     'agentCommander.stop': 'durable',
