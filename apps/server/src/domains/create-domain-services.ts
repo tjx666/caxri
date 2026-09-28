@@ -564,17 +564,11 @@ export async function createDomainServices(
             }),
         'session.markRead': ({ sessionId, attentionEpoch }) => {
             const result = database.markSessionAttentionRead(sessionId, attentionEpoch);
-            if (result.acknowledged) {
+            if (result.acknowledged)
                 send({
                     event: 'state.changed',
                     payload: { kind: 'records', sessionIds: [sessionId], terminalIds: [] },
                 });
-                /**
-                 * Clearing `hasUnread` here is the only path that can unblock a pending completion notice without any
-                 * Agent lifecycle signal firing afterward (see `CommanderCompletionNotifier.retryPending`).
-                 */
-                commanderNotifierState.service?.retryPending();
-            }
             return {
                 acknowledged: result.acknowledged,
                 sessionId: result.session.id,

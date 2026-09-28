@@ -232,7 +232,9 @@ A transition only reaches the Terminal once every one of these holds, reusing ex
 - the Terminal's input epoch (`TerminalManager.inputEpoch`) is unchanged since that turn **started**,
   so a draft typed mid-turn, or typed into the Commander after it went idle, defers delivery instead
   of risking an unwanted Enter. The injected write itself never bumps this epoch;
-- the Commander's own Session carries no unread or pending permission/attention state.
+- the Commander's own Session has no pending permission prompt (`lastActivityState` is not
+  `waiting`). Its unread flag is deliberately ignored: every settled Commander turn marks its own
+  Session unread, and the Commander window never marks it read.
 
 A transition that arrives while any of these fails stays queued and is retried the next time the
 Commander reaches a clean idle point; several transitions queued at once coalesce into one line. A
@@ -240,10 +242,7 @@ successful delivery also consumes the settled-turn identity it just proved idle 
 one line is ever injected per proven-idle turn: the injected write never bumps the input epoch and
 does not invalidate the idle proof, so without consuming that identity a second, closely timed
 transition could otherwise reuse it and write a second time before Codex has actually started a fresh
-turn to read the first line. `hasUnread` can also clear through `session.markRead`, a plain IPC
-mutation with no lifecycle signal of its own; `CommanderCompletionNotifier.retryPending()` is called
-from that handler so a notice withheld only by a since-cleared unread flag is not left pending
-forever.
+turn to read the first line.
 
 Delivery is deduplicated by delegation ID and the receipt revision that produced it, and is fenced to
 the Commander Terminal's current launch, so a Codex relaunch mid-flight cannot double-send: at most
