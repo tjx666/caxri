@@ -46,6 +46,14 @@ test('Session row shows its Workbench Root’s line diff and follows working-tre
 
         await expect(diffStat).toHaveText('+3−1', { timeout: 15_000 });
         await expect(row).toHaveAccessibleDescription(/Branch changes: 3 lines added, 1 removed\./);
+        // The stat and the title line's delivery track end on one right edge, so a PR glyph sits directly above it.
+        const rightEdges = await row.evaluate((element) =>
+            ['.session-diff-stat', '.session-indicators'].map(
+                (selector) => element.querySelector(selector)?.getBoundingClientRect().right,
+            ),
+        );
+        expect(rightEdges[0]).toBeDefined();
+        expect(rightEdges[0]).toBe(rightEdges[1]);
         await page
             .locator('.session-primary-sidebar')
             .screenshot({ path: test.info().outputPath('session-row-diff-stat.png') });
