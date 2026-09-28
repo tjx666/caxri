@@ -20,10 +20,11 @@ import {
     acceptanceStatusLabel,
     acceptanceVerdictLabel,
     checkLabel,
+    clipMarkdown,
     deploymentStateLabel,
     durationLabel,
     ignoredChecksLabel,
-    oneLine,
+    markdownExcerpt,
     projectStatusStateLabel,
     publicationDescription,
     publicationLabel,
@@ -140,6 +141,7 @@ function richTooltip(
         kind: 'rich',
         title: tooltip?.title ?? label,
         ...(tooltip?.description && { description: tooltip.description }),
+        ...(tooltip?.markdown && { markdown: tooltip.markdown }),
         ...(tooltip?.badge && { badge: tooltip.badge }),
         rows:
             url && rows.every((row) => row.url !== url)
@@ -187,7 +189,7 @@ function reviewThreadsNode(repo: ProjectStatusRepository, prefix: string): Statu
         },
         children: threads.map((thread, index) => {
             const location = reviewThreadLocation(thread);
-            const excerpt = oneLine(thread.body, 80);
+            const excerpt = markdownExcerpt(thread.body, 80);
             return item(`${prefix}:review-thread:${index}`, location, {
                 description: excerpt || undefined,
                 icon: 'comment',
@@ -196,7 +198,7 @@ function reviewThreadsNode(repo: ProjectStatusRepository, prefix: string): Statu
                     .join(', '),
                 url: thread.url,
                 tooltip: {
-                    ...(thread.body.trim() && { description: oneLine(thread.body, 1_024) }),
+                    ...(thread.body.trim() && { markdown: clipMarkdown(thread.body.trim()) }),
                     rows: [
                         thread.path ? { label: 'file', value: thread.path } : undefined,
                         thread.author ? { label: 'author', value: `@${thread.author}` } : undefined,

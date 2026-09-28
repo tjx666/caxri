@@ -168,8 +168,9 @@ export interface TreeItemTooltipRow {
 }
 
 /**
- * Bounded interactive content for a TreeItem hover card. Text is rendered literally and URLs are validated by the
- * Extension Host before reaching the Renderer, so extensions cannot inject HTML, scripts, or command links.
+ * Bounded interactive content for a TreeItem hover card. Text is rendered literally (`markdown` through a closed,
+ * HTML-free subset) and URLs are validated by the Extension Host before reaching the Renderer, so extensions cannot
+ * inject HTML, scripts, or command links.
  */
 export interface TreeItemRichTooltip {
     kind: 'rich';
@@ -178,6 +179,12 @@ export interface TreeItemRichTooltip {
      * Prose that explains the title, such as a provider error's recovery hint. Structured facts belong in `rows`.
      */
     description?: string;
+    /**
+     * Markdown body for authored prose such as a pull request review comment; takes the place of `description`. The
+     * Renderer shows a closed subset (paragraphs, lists, quotes, code, emphasis, HTTP(S) links) as text nodes. Raw HTML
+     * is dropped and images collapse to their alt text, so this does not widen what an extension can inject.
+     */
+    markdown?: string;
     badge?: { label: string; tone: TreeItemTooltipTone };
     /**
      * Omitted or empty when the title and badge already carry the whole hover, so a row without structured facts keeps

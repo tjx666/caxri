@@ -324,12 +324,17 @@ message. It keeps the tree's roving focus and Enter command path, suppresses the
 and disables its visible action while the View refresh is pending. Ordinary tree rows remain the default.
 
 `TreeItem.tooltip` accepts either the existing bounded plain string or a bounded `rich` payload with
-a title, an optional prose description, an optional semantic badge, and up to eight labeled rows.
-The rows may be omitted entirely, so a provider can give a row with no structured facts the same
-hover card instead of dropping back to the plain string. Rich descriptions and row values are always
-rendered as text; an optional URL must be credential-free HTTP(S), is validated by the Extension
+a title, an optional prose description or Markdown body, an optional semantic badge, and up to eight
+labeled rows. The rows may be omitted entirely, so a provider can give a row with no structured facts
+the same hover card instead of dropping back to the plain string. Rich descriptions and row values are
+always rendered as text; an optional URL must be credential-free HTTP(S), is validated by the Extension
 Host, and still crosses Main's trusted-origin confirmation before the operating system can open it.
-Arbitrary Markdown, HTML, scripts, commands, and `command:` URLs are not part of this contract.
+The `markdown` body (at most 8 KiB, exclusive with `description`) is for authored prose such as a pull
+request review comment. `@caxri/markdown`'s `parseMarkdownBlocks` reduces it to a closed, HTML-free
+block tree — paragraphs, headings, lists, quotes, code, emphasis, and HTTP(S) links — that the
+Renderer draws as React text nodes: raw HTML and tables are dropped, images collapse to their alt text,
+and links open through the same external-link policy. HTML, scripts, commands, and `command:` URLs are
+not part of this contract.
 
 The shared Renderer owns virtualization, the side bar scroll cue
 ([secondary-sidebar-trees.md](secondary-sidebar-trees.md)), ThemeIcon rendering, roving focus,

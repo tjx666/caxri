@@ -150,6 +150,7 @@ export const repoPresentation: Record<
 export interface StatusTooltip {
     badge?: TreeItemRichTooltip['badge'];
     description?: string;
+    markdown?: string;
     rows?: readonly TreeItemTooltipRow[];
     title?: string;
 }

@@ -206,7 +206,33 @@ export function reviewThreadLocation(
 /**
  * Collapses a Markdown comment to one line for the row's description. The hover card keeps the longer text.
  */
-export function oneLine(text: string, maxLength: number): string {
+function oneLine(text: string, maxLength: number): string {
     const collapsed = text.replaceAll(/\s+/gu, ' ').trim();
     return collapsed.length > maxLength ? `${collapsed.slice(0, maxLength - 1)}…` : collapsed;
+}
+
+/**
+ * Review comments are authored Markdown, so the hover card renders them instead of a flattened excerpt. The bound stays
+ * under the protocol's 8 KiB tooltip Markdown limit; a clipped comment is still one click away on GitHub.
+ */
+const MAX_TOOLTIP_MARKDOWN = 8_000;
+
+export function clipMarkdown(text: string): string {
+    return text.length > MAX_TOOLTIP_MARKDOWN
+        ? `${text.slice(0, MAX_TOOLTIP_MARKDOWN - 1)}…`
+        : text;
+}
+
+/**
+ * Reduces a Markdown comment to readable prose for the row's one-line excerpt. The hover card parses the full Markdown;
+ * the excerpt only needs to stop showing tags, image syntax, and emphasis markers, so a few rewrites suffice instead of
+ * bundling a parser into the extension.
+ */
+export function markdownExcerpt(text: string, maxLength: number): string {
+    const prose = text
+        .replaceAll(/<[^>]*>/gu, '')
+        .replaceAll(/!?\[([^\]]*)\]\([^)]*\)/gu, '$1')
+        .replaceAll(/(\*\*|__|`|~~)/gu, '')
+        .replaceAll(/^\s{0,3}(#{1,6}|[>\-*+]|\d+\.)\s+/gmu, '');
+    return oneLine(prose, maxLength);
 }
