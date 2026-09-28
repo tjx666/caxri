@@ -86,3 +86,5 @@ Retired plans, spikes, and research notes kept only because a current doc cites 
 | [oxlint-spike.md](oxlint-spike.md)                         | Evidence record cited by `type-aware-linting.md` and `quality-toolchain.md`      |
 | [server-refactor-plan.md](server-refactor-plan.md)         | Implemented A0–A7 migration plan cited as `Implementation plan` by ADR 0004–0008 |
 | [refactor-behavior-parity.md](refactor-behavior-parity.md) | Acceptance methodology cited by `server-refactor-plan.md`                        |
+
+- [Demo broken link](does-not-exist-guards-demo.md)
