@@ -18,6 +18,7 @@ import {
 import {
     censusTargets,
     combinePoolReceipts,
+    finalizeAbortedPool,
     mergeCensusReceipts,
     parseE2EPool,
     playwrightTestArguments,
@@ -363,5 +364,95 @@ describe('E2E pools', () => {
         expect(playwrightTestArguments({ specs: [location] }, 1, false)).not.toContain(
             '--max-failures=0',
         );
+    });
+
+    describe('SIGTERM abort receipts (issue #1446)', () => {
+        it('distinguishes completed, signal-killed, and never-run specs on the partial receipt', () => {
+            // First invocation finished and passed before the signal arrived.
+            const settled = receipt('desktop-exclusive', [testReceipt('safe')]);
+            // Second invocation was mid-flight when SIGTERM landed; its child died before the reporter's `onEnd`
+            // ever ran, so `readInvocationReceipt` already falls back to an empty receipt for it (see the
+            // "records an invocation crash" case above) — reproduced directly here as the input the abort path sees.
+            const killedInvocation = { specs: ['e2e/killed.e2e.ts'] };
+            const neverRunInvocationSpecs = ['e2e/never-run.e2e.ts'];
+
+            const outcome = finalizeAbortedPool(
+                settled,
+                [{ specs: ['e2e/safe.e2e.ts'] }, killedInvocation],
+                [0, 1],
+                neverRunInvocationSpecs,
+                'SIGTERM',
+            );
+
+            expect(outcome.result).toBe(1);
+            expect(outcome.receipt).toMatchObject({
+                abortReason: 'SIGTERM',
+                abortedInvocations: [{ exitCode: 1, specs: ['e2e/killed.e2e.ts'] }],
+                status: 'failed',
+            });
+            // The signal-killed invocation's spec and the invocation the loop never started both read as
+            // "never ran" from the receipt's tests, but only the former is also an aborted invocation.
+            expect(outcome.receipt.missingSpecs).toEqual(
+                expect.arrayContaining(['e2e/killed.e2e.ts', 'e2e/never-run.e2e.ts']),
+            );
+            expect(outcome.receipt.missingSpecs).toHaveLength(2);
+            expect(outcome.receipt.tests.map(({ id }) => id)).toEqual(['safe']);
+            expect(() => assertE2EPoolReceipt(outcome.receipt)).not.toThrow();
+        });
+
+        it('marks every planned spec never-run when the signal lands before any invocation starts', () => {
+            const empty = createE2EPoolReceipt({
+                finishedAt: '2026-01-01T00:00:00.000Z',
+                pool: 'parallel-safe',
+                startedAt: '2026-01-01T00:00:00.000Z',
+                tests: [],
+            });
+
+            const outcome = finalizeAbortedPool(
+                empty,
+                [],
+                [],
+                ['e2e/safe.e2e.ts', 'e2e/settings-safe.e2e.ts'],
+                'SIGINT',
+            );
+
+            expect(outcome.result).toBe(1);
+            expect(outcome.receipt).toMatchObject({
+                abortReason: 'SIGINT',
+                planned: 0,
+                status: 'failed',
+            });
+            expect(outcome.receipt.abortedInvocations).toBeUndefined();
+            expect(outcome.receipt.missingSpecs).toEqual([
+                'e2e/safe.e2e.ts',
+                'e2e/settings-safe.e2e.ts',
+            ]);
+        });
+
+        it('still forces status failed when the signal lands after everything already passed', () => {
+            const complete = receipt('control', [
+                testReceipt('safe'),
+                testReceipt('settings-safe'),
+            ]);
+
+            const outcome = finalizeAbortedPool(
+                complete,
+                [{ specs: ['e2e/safe.e2e.ts', 'e2e/settings-safe.e2e.ts'] }],
+                [0],
+                [],
+                'SIGTERM',
+            );
+
+            expect(outcome.result).toBe(1);
+            expect(outcome.receipt.abortReason).toBe('SIGTERM');
+            expect(outcome.receipt.status).toBe('failed');
+            expect(outcome.receipt.abortedInvocations).toBeUndefined();
+            expect(outcome.receipt.missingSpecs).toBeUndefined();
+            // A passing receipt may never carry an abort reason (`assertE2EPoolReceipt` rejects it), which is exactly
+            // why `finalizeAbortedPool` overrides `status` unconditionally instead of trusting `resolvePoolOutcome`.
+            expect(() => assertE2EPoolReceipt({ ...outcome.receipt, status: 'passed' })).toThrow(
+                'passing receipt is incomplete',
+            );
+        });
     });
 });

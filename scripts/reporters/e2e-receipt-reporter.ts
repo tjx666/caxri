@@ -47,11 +47,25 @@ export interface E2EAbortedInvocation {
     specs: string[];
 }
 
+/**
+ * Why `run-e2e-pools.ts` stopped an invocation loop before every planned invocation ran. Closed so a consumer of the
+ * receipt never has to guess at a free-text reason: `ci-concurrent-validation.ts` sends `SIGTERM` to every sibling
+ * process group when a component fails or the shared execution deadline expires (see AGENTS.md and
+ * `scripts/ci-concurrent-validation.ts`); a workflow cancellation delivers `SIGINT` first. See issue #1446.
+ */
+export type E2EPoolAbortReason = 'SIGINT' | 'SIGTERM';
+
 export interface E2EPoolReceipt {
     /**
      * Present only on the final pool receipt, and only when a child exited non-zero.
      */
     abortedInvocations?: E2EAbortedInvocation[];
+    /**
+     * Present only when an external signal stopped the pool before every invocation finished. `status` is always
+     * `failed` when this is set, even if every invocation that did run happened to pass — an aborted pool never
+     * finished planning its own completeness.
+     */
+    abortReason?: E2EPoolAbortReason;
     failed: number;
     failureGroups: E2EFailureGroup[];
     finished: number;
@@ -247,6 +261,7 @@ export function assertE2EPoolReceipt(receipt: E2EPoolReceipt): void {
         (receipt.unknown !== 0 ||
             receipt.failed !== 0 ||
             receipt.timedOut !== 0 ||
+            receipt.abortReason !== undefined ||
             (receipt.abortedInvocations?.length ?? 0) > 0 ||
             (receipt.missingSpecs?.length ?? 0) > 0)
     ) {

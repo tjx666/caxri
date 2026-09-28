@@ -352,7 +352,9 @@ wall time alone hides it.
   `CAXRI_E2E_MANIFEST` JSON. A `passed` receipt alone is not a green pool: the reporter writes it
   in `onEnd`, so the runner also requires every child to exit zero and every dispatched spec to
   appear in the receipt, and records any breach as `abortedInvocations` or `missingSpecs` on the
-  receipt with `status: failed`.
+  receipt with `status: failed`. `scripts/run-e2e-pools.ts` also survives the `SIGTERM` a failed
+  sibling component (or the shared deadline below) sends it, long enough to write a partial receipt
+  with `abortReason` instead of losing whatever already failed before the signal arrived.
 - Every required output is checked before every launch. Each Playwright worker performs one full
   recursive build-input scan, then reuses it until a filesystem event or mtime snapshot invalidates
   the cache; watcher failure falls back to scanning.

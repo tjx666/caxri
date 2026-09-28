@@ -151,7 +151,12 @@ evidence rather than automated test or Acceptance evidence.
   per-test artifacts, and group repeated failures by stable error identity before repair begins.
   A `passed` receipt does not by itself prove a green pool: every child must also exit zero and
   every dispatched spec must reach the receipt, or the runner marks it `failed` with
-  `abortedInvocations` / `missingSpecs`.
+  `abortedInvocations` / `missingSpecs`. A sibling `checks` failure (or the shared 25-minute
+  concurrent-validation deadline) can also `SIGTERM` a pool mid-run; `run-e2e-pools.ts` survives long
+  enough to write a partial receipt with `abortReason` (`SIGINT` | `SIGTERM`) instead of losing
+  whatever already failed, distinguishing specs that finished, the invocation the signal actually
+  killed (`abortedInvocations`), and specs that never ran at all (folded into `missingSpecs`); see
+  issue #1446.
 - An interrupted local pool leaves Electron and Playwright processes behind. Clear them with
   `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts stop`, never with a name match:
   `pkill -f "Caxri.app"` also matches the installed `/Applications/Caxri.app` and has already
@@ -206,6 +211,30 @@ CI retains screenshots, traces, the final viewport/grid, fixture ready markers, 
 Main/Runtime logs for failures. Keep the failed CI run red while diagnosing it.
 Use a distinct `CAXRI_E2E_OUTPUT_DIR` for each local reproduction and verification round when comparing
 failures; Playwright clears its output directory at startup, including a preceding pool's evidence.
+
+A failed pool's `e2e-<pool>-failure-artifacts` CI artifact carries both the pool receipt
+(`test-results/receipts/<pool>.json`) and the pool's full Playwright output directory
+(`test-results/<pool>/**`): per-test screenshots, `trace.zip` (retained on failure only), and the
+`caxri-desktop-*.jsonl` / `caxri-server-core-*.jsonl` log attachments below. `.github/workflows/ci.yml`
+owns the exact upload step per pool.
+
+**Artifact-content audit (issue #1446).** E2E fixtures are synthetic, so this audit is about the
+runner and the harness, not real user data:
+
+- The pool receipt and the `.jsonl` log attachments are structured and already narrow —
+  `packages/system/src/testing/error-log.ts` only ever captures `event`/`level`/`process`/`code`/
+  `method`, never a free-text buffer — and `assertE2EPoolReceipt` rejects an absolute path in a
+  receipt so it cannot carry the runner's home directory or account name. Safe to upload as-is.
+- Screenshots and `trace.zip` render Caxri's UI against synthetic fixtures (fake projects, fake file
+  content), so the Editor/File Explorer/diff surfaces they capture are not real user data.
+- The Terminal pane is the one residual risk: it hosts a real PTY shell with the runner's real
+  environment (`launchCaxriApp` spreads `process.env` into the launched app), so a screenshot or
+  trace of a Terminal-focused failure can show the runner's real shell prompt (hostname/account
+  name). This is inherent to testing Caxri's PTY integration against a real shell rather than a
+  newly introduced leak, and sanitizing every E2E PTY environment (e.g. forcing a scripted prompt) is
+  a separate, larger hardening item — accepted here as a known residual, not a blocker for uploading
+  the evidence this issue's acceptance criteria call for. Do not fold it into an unrelated change;
+  raise it as its own issue if it needs to move.
 
 ### Diagnosing an error-gate notification
 
