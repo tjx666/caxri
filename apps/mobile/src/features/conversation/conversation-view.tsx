@@ -1,12 +1,14 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Pressable, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
 import { ArrowDown } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
+import { PANEL_ENTER_MS, segmentEnterOffset } from '../sessions/hooks/use-segment-entering';
 import { ConversationEntry } from './conversation-entry';
 import type { ConversationEntry as Entry } from './conversation-model';
 import {
@@ -130,20 +132,31 @@ const ConversationStatus = ({
  * blanking mid-transition. The list stays transparent until an explicit scroll to the end has landed, so the first
  * visible frame is already the settled bottom.
  * https://github.com/Shopify/flash-list/blob/v2.0.2/src/recyclerview/hooks/useRecyclerViewController.tsx
+ *
+ * Positioning outlasts a tab switch's entering animation, so a list opened by a tab switch plays that motion itself
+ * when it is revealed. Only the wrapper's opacity and transform animate; the list's own layout and measurement are
+ * untouched.
  */
 const ConversationList = ({
+    enterFrom,
     onRetry,
     theme,
     timeline,
 }: {
+    enterFrom: -1 | 0 | 1 | null;
     onRetry: () => void;
     theme: MobileTheme;
     timeline: ConversationTimelineState & { loadOlder: () => Promise<void> };
 }) => {
     const list = useRef<FlashListRef<Entry>>(null);
     const [isAtBottom, setIsAtBottom] = useState(true);
-    const [isPositioned, setIsPositioned] = useState(false);
     const isPositionedReference = useRef(false);
+    const revealProgress = useSharedValue(0);
+    const enterOffset = enterFrom === null ? 0 : segmentEnterOffset(enterFrom);
+    const revealStyle = useAnimatedStyle(() => ({
+        opacity: revealProgress.get(),
+        transform: [{ translateX: (1 - revealProgress.get()) * enterOffset }],
+    }));
     const entries = useMemo(() => groupConversationItems(timeline.items), [timeline.items]);
     const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>): void => {
         // Initial positioning passes through offsets far from the end; they are not the reader's scroll.
@@ -155,7 +168,9 @@ const ConversationList = ({
     const onLoad = useCallback((): void => {
         const reveal = (): void => {
             isPositionedReference.current = true;
-            setIsPositioned(true);
+            revealProgress.set(
+                enterFrom === null ? 1 : withTiming(1, { duration: PANEL_ENTER_MS }),
+            );
         };
         /**
          * FlashList resolves `scrollToEnd` before its native scroll, which it defers by one task; reveal one frame
@@ -165,7 +180,7 @@ const ConversationList = ({
         void Promise.resolve(list.current?.scrollToEnd({ animated: false })).finally(() => {
             setTimeout(() => requestAnimationFrame(reveal), 0);
         });
-    }, []);
+    }, [enterFrom, revealProgress]);
     const renderItem = useCallback(
         ({ item }: ListRenderItemInfo<Entry>) => (
             <View style={styles.entry}>
@@ -179,47 +194,49 @@ const ConversationList = ({
     }, []);
     return (
         <View style={styles.root} testID="conversation-view">
-            <FlashList
-                contentContainerStyle={styles.listContent}
-                data={entries}
-                keyExtractor={(entry) => entry.id}
-                ListHeaderComponent={
-                    <ConversationHistory
-                        error={timeline.error}
-                        historyExpired={timeline.historyExpired}
-                        isLoadingOlder={timeline.isLoadingOlder}
-                        onLoadOlder={() => {
-                            // eslint-disable-next-line no-void -- The timeline hook owns the bounded page request.
-                            void timeline.loadOlder();
-                        }}
-                        olderCursor={timeline.olderCursor}
-                        theme={theme}
-                        truncated={timeline.truncated}
-                    />
-                }
-                maintainVisibleContentPosition={{
-                    autoscrollToBottomThreshold: CONVERSATION_FOLLOW_THRESHOLD,
-                    animateAutoScrollToBottom: false,
-                    startRenderingFromBottom: true,
-                }}
-                onLoad={onLoad}
-                onScroll={onScroll}
-                onStartReached={() => {
-                    if (
-                        isPositionedReference.current &&
-                        timeline.olderCursor &&
-                        !timeline.isLoadingOlder
-                    ) {
-                        // eslint-disable-next-line no-void -- The timeline hook serializes older-page reads.
-                        void timeline.loadOlder();
+            <Animated.View style={[styles.list, revealStyle]}>
+                <FlashList
+                    contentContainerStyle={styles.listContent}
+                    data={entries}
+                    keyExtractor={(entry) => entry.id}
+                    ListHeaderComponent={
+                        <ConversationHistory
+                            error={timeline.error}
+                            historyExpired={timeline.historyExpired}
+                            isLoadingOlder={timeline.isLoadingOlder}
+                            onLoadOlder={() => {
+                                // eslint-disable-next-line no-void -- The timeline hook owns the bounded page request.
+                                void timeline.loadOlder();
+                            }}
+                            olderCursor={timeline.olderCursor}
+                            theme={theme}
+                            truncated={timeline.truncated}
+                        />
                     }
-                }}
-                onStartReachedThreshold={0.25}
-                ref={list}
-                renderItem={renderItem}
-                scrollEventThrottle={32}
-                style={isPositioned ? styles.list : styles.listPositioning}
-            />
+                    maintainVisibleContentPosition={{
+                        autoscrollToBottomThreshold: CONVERSATION_FOLLOW_THRESHOLD,
+                        animateAutoScrollToBottom: false,
+                        startRenderingFromBottom: true,
+                    }}
+                    onLoad={onLoad}
+                    onScroll={onScroll}
+                    onStartReached={() => {
+                        if (
+                            isPositionedReference.current &&
+                            timeline.olderCursor &&
+                            !timeline.isLoadingOlder
+                        ) {
+                            // eslint-disable-next-line no-void -- The timeline hook serializes older-page reads.
+                            void timeline.loadOlder();
+                        }
+                    }}
+                    onStartReachedThreshold={0.25}
+                    ref={list}
+                    renderItem={renderItem}
+                    scrollEventThrottle={32}
+                    style={styles.list}
+                />
+            </Animated.View>
             {timeline.status === 'stale' ? (
                 <Pressable
                     accessibilityRole="button"
@@ -250,10 +267,15 @@ const ConversationList = ({
 };
 
 export const ConversationView = ({
+    enterFrom = null,
     onRetry,
     theme,
     timeline,
 }: {
+    /**
+     * The side a tab switch opened this Conversation from, or `null` when no tab switch motion should play.
+     */
+    enterFrom?: -1 | 0 | 1 | null;
     onRetry: () => void;
     theme: MobileTheme;
     timeline: ConversationTimelineState & { loadOlder: () => Promise<void> };
@@ -269,5 +291,12 @@ export const ConversationView = ({
             />
         );
     }
-    return <ConversationList onRetry={onRetry} theme={theme} timeline={timeline} />;
+    return (
+        <ConversationList
+            enterFrom={enterFrom}
+            onRetry={onRetry}
+            theme={theme}
+            timeline={timeline}
+        />
+    );
 };

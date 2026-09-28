@@ -15,6 +15,25 @@ import type { SessionSegment } from '../session-ui-state';
 import { isSideSessionSegment } from '../session-ui-state';
 import { sessionDetailStyles as styles } from './session-detail-styles';
 
+/**
+ * Splits a tab switch's motion between the body wrapper and the Conversation list. A populated Conversation stays
+ * transparent until its list has scrolled to the latest message, which outlasts the wrapper's entering animation, so
+ * the list plays the switch motion itself once it is positioned and the wrapper stays still to keep the two from
+ * stacking. Only the selected Conversation slides; the wide layout's background Conversation never follows a side panel
+ * switch.
+ */
+const conversationAwareEntering = (
+    segment: SessionSegment,
+    hasConversationItems: boolean,
+    { direction, entering }: ReturnType<typeof useSegmentEntering>,
+) => {
+    if (segment !== 'conversation') return { bodyEntering: entering, conversationEnterFrom: null };
+    return {
+        bodyEntering: hasConversationItems ? undefined : entering,
+        conversationEnterFrom: direction,
+    };
+};
+
 export const SessionDetailBody = ({
     changesPanel,
     panels,
@@ -42,7 +61,12 @@ export const SessionDetailBody = ({
     wideBackgroundSegment: 'conversation' | 'terminal';
     wideChanges: boolean;
 }) => {
-    const entering = useSegmentEntering(segment);
+    const segmentEntering = useSegmentEntering(segment);
+    const { bodyEntering, conversationEnterFrom } = conversationAwareEntering(
+        segment,
+        conversationTimeline.items.length > 0,
+        segmentEntering,
+    );
     const showTerminal =
         segment === 'terminal' ||
         (isSideSessionSegment(segment) && wideChanges && wideBackgroundSegment === 'terminal');
@@ -85,6 +109,7 @@ export const SessionDetailBody = ({
     const conversation = (
         <View style={{ flex: 1 }}>
             <ConversationView
+                enterFrom={conversationEnterFrom}
                 onRetry={conversationTimeline.refresh}
                 theme={theme}
                 timeline={conversationTimeline}
@@ -105,7 +130,11 @@ export const SessionDetailBody = ({
                     style={[styles.wideChanges, { borderColor: theme.border }]}
                     testID="changes-right-pane"
                 >
-                    <Animated.View entering={entering} key={segment} style={styles.body}>
+                    <Animated.View
+                        entering={segmentEntering.entering}
+                        key={segment}
+                        style={styles.body}
+                    >
                         {side}
                     </Animated.View>
                 </View>
@@ -117,7 +146,7 @@ export const SessionDetailBody = ({
      * remounted on every switch because each segment renders a different tree.
      */
     return (
-        <Animated.View entering={entering} key={segment} style={styles.body}>
+        <Animated.View entering={bodyEntering} key={segment} style={styles.body}>
             {segment === 'conversation'
                 ? conversation
                 : segment === 'terminal'
