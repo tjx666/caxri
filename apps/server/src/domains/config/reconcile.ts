@@ -23,7 +23,7 @@ import {
 import { parseJsonc } from '@caxri/system';
 import { applyEdits, modify } from 'jsonc-parser';
 
-import { parseCaxriTheme } from './theme';
+import { parseCaxriTheme } from '../theme';
 
 export const JSONC_FORMATTING_OPTIONS = { tabSize: 2, insertSpaces: true, eol: '\n' };
 
