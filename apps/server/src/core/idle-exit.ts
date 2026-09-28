@@ -58,6 +58,11 @@ export interface IdleExitMonitor {
 export function createIdleExitMonitor(options: IdleExitMonitorOptions): IdleExitMonitor {
     let connectionCount = 0;
     let deferralCount = 0;
+    /**
+     * Increments on every nonzero->zero transition so an in-flight `check()` can tell whether the idle period it
+     * started measuring is still the current one once `isBusy()` resolves.
+     */
+    let idlePeriod = 0;
     let idleSinceMs: number | undefined;
     let isStopped = false;
     let timer: NodeJS.Timeout | undefined;
@@ -84,6 +89,7 @@ export function createIdleExitMonitor(options: IdleExitMonitorOptions): IdleExit
     const check = async (): Promise<void> => {
         if (isStopped || idleSinceMs === undefined || connectionCount > 0) return;
         const idleDurationMs = now() - idleSinceMs;
+        const checkedPeriod = idlePeriod;
         let isBusy: boolean;
         try {
             isBusy = await options.isBusy();
@@ -91,8 +97,10 @@ export function createIdleExitMonitor(options: IdleExitMonitorOptions): IdleExit
             isBusy = true;
         }
         // A connection may have arrived, or Core may have started stopping for another reason, while `isBusy` awaited.
-        // oxlint-disable-next-line typescript/no-unnecessary-condition -- isStopped can change while options.isBusy() is awaited above
-        if (isStopped || connectionCount > 0) return;
+        // `isBusy` is a real IPC round trip, so a client can also connect and disconnect again inside it: that starts a
+        // new idle period with its own freshly armed timer, and this stale check must not exit ahead of it.
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- isStopped and idlePeriod can change while options.isBusy() is awaited above
+        if (checkedPeriod !== idlePeriod || isStopped || connectionCount > 0) return;
         if (isBusy) {
             deferralCount += 1;
             const reason: ServerIdleExitDeferralReason = 'active-pty';
@@ -120,6 +128,7 @@ export function createIdleExitMonitor(options: IdleExitMonitorOptions): IdleExit
             // fresh full threshold, or a sufficiently chatty reporter could postpone exit indefinitely even though
             // the connection count has genuinely been zero the whole time.
             if (idleSinceMs !== undefined) return;
+            idlePeriod += 1;
             idleSinceMs = now();
             arm();
         },
