@@ -44,6 +44,13 @@ function session(id: string, primaryAgentTerminalId: string) {
 function createHarness(
     options: {
         commanderSessionId?: string;
+        /**
+         * When set, every `terminals.suspend` call pauses instead of resolving immediately, standing in for the real
+         * PTY-kill-and-snapshot teardown that `TerminalManager#suspend` awaits. A test drains the queue explicitly with
+         * `releaseSuspend()` to control exactly what happens while that await is outstanding.
+         */
+        controlledSuspend?: boolean;
+        onSuspendedSessionReselected?: (sessionId: string) => void;
         selected?: string;
         settings?: Partial<AppSettings>;
     } = {},
@@ -61,22 +68,30 @@ function createHarness(
     const live = new Set(terminals.keys());
     const events: ServerEvent[] = [];
     let poller: PollerRegistrationOptions | undefined;
+    const pendingSuspends: Array<() => void> = [];
     const suspend = vi.fn((terminalId: string, state: 'suspended' | 'detached' = 'suspended') => {
         if (!live.has(terminalId)) return Promise.resolve(undefined);
-        live.delete(terminalId);
-        const record = terminals.get(terminalId)!;
-        const suspended = terminal(terminalId, record.sessionId, {
-            lastAgentProcessState: state,
-            lastProcessState: state,
+        const finish = () => {
+            live.delete(terminalId);
+            const record = terminals.get(terminalId)!;
+            const suspended = terminal(terminalId, record.sessionId, {
+                lastAgentProcessState: state,
+                lastProcessState: state,
+            });
+            terminals.set(terminalId, suspended);
+            return suspended;
+        };
+        if (!options.controlledSuspend) return Promise.resolve(finish());
+        return new Promise<TerminalRecord>((resolve) => {
+            pendingSuspends.push(() => resolve(finish()));
         });
-        terminals.set(terminalId, suspended);
-        return Promise.resolve(suspended);
     });
     const service = new TerminalSuspensionService({
         database: {
             agentCommanderRows: () =>
                 options.commanderSessionId && { sessionId: options.commanderSessionId },
             getSession: (id: string) => sessions.get(id),
+            getTerminal: (id: string) => terminals.get(id),
             listSessions: () => sessions.values().toArray(),
             listTerminals: (sessionId?: string) =>
                 terminals
@@ -86,6 +101,7 @@ function createHarness(
         } as never,
         logger: { write: vi.fn() } as never,
         now: () => now,
+        onSuspendedSessionReselected: options.onSuspendedSessionReselected,
         selectedSessionId: () => selected,
         send: (event) => events.push(event),
         settings: () => ({ ...defaultAppSettings, ...options.settings }),
@@ -110,6 +126,14 @@ function createHarness(
         events,
         live,
         poller: () => poller,
+        /**
+         * Resolves the oldest still-pending `terminals.suspend` call created while `controlledSuspend` is set.
+         */
+        releaseSuspend: () => {
+            const next = pendingSuspends.shift();
+            if (!next) throw new Error('no pending suspend to release');
+            next();
+        },
         select: (sessionId: string) => {
             selected = sessionId;
             service.observeSelection();
@@ -262,5 +286,53 @@ describe('TerminalSuspensionService', () => {
         harness.service.forgetTerminal('terminal-a');
         harness.advance(UNTOUCHED_SUSPENSION_DELAY_MS);
         expect(await harness.service.sweep()).toEqual([]);
+    });
+
+    // GitHub issue #1427: automatic suspension decides who to suspend from a snapshot of the selected Session taken
+    // once at the top of the sweep, but the teardown for each decision is a real async PTY-kill-and-snapshot barrier
+    // (`TerminalManager#suspend`). Selecting the Session while that barrier is outstanding used to leave the
+    // just-selected Session's Terminal suspended with nothing to notice or retry it.
+    describe('reselection race during automatic suspension (issue #1427)', () => {
+        it('reconciles a Terminal whose Session is reselected while its own suspend teardown is in flight', async () => {
+            const reselected: string[] = [];
+            const harness = createHarness({
+                controlledSuspend: true,
+                onSuspendedSessionReselected: (sessionId) => reselected.push(sessionId),
+                selected: 'session-b',
+            });
+            harness.service.start();
+            harness.service.observeLaunch('terminal-a');
+            harness.advance(UNTOUCHED_SUSPENSION_DELAY_MS);
+            const sweep = harness.service.sweep();
+            // The sweep decided to suspend terminal-a (session-a was deselected) and is now paused inside the
+            // teardown barrier, exactly where `TerminalManager#suspend` awaits the real PTY kill and snapshot.
+            harness.select('session-a');
+            harness.releaseSuspend();
+            expect(await sweep).toEqual(['terminal-a']);
+            // The kill already happened by the time the reselection was noticed, so the record does land `suspended`...
+            expect(harness.terminals.get('terminal-a')?.lastProcessState).toBe('suspended');
+            // ...but the fence notices the Session is selected again and asks the caller to restore it, converging
+            // to running the same way `session.select`'s own restore would if it had run a moment later.
+            expect(reselected).toEqual(['session-a']);
+        });
+
+        it('skips a still-queued automatic suspend once its Session is reselected before teardown starts', async () => {
+            const harness = createHarness({ controlledSuspend: true, selected: 'session-b' });
+            // A second live Agent Terminal in session-a, decided for suspension in the same sweep right after
+            // terminal-a; its own teardown has not started when the reselection lands.
+            harness.terminals.set('terminal-c', terminal('terminal-c', 'session-a'));
+            harness.live.add('terminal-c');
+            harness.service.start();
+            harness.service.observeLaunch('terminal-a');
+            harness.service.observeLaunch('terminal-c');
+            harness.advance(UNTOUCHED_SUSPENSION_DELAY_MS);
+            const sweep = harness.service.sweep();
+            harness.select('session-a');
+            harness.releaseSuspend();
+            expect(await sweep).toEqual(['terminal-a']);
+            // terminal-c's suspend is never called at all: the pre-teardown check sees session-a already selected.
+            expect(harness.suspend).toHaveBeenCalledTimes(1);
+            expect(harness.terminals.get('terminal-c')?.lastProcessState).toBe('running');
+        });
     });
 });
