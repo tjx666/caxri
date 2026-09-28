@@ -1,5 +1,5 @@
 import { readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import type { MobileUpdateBundle, MobileUpdatePrepareResult, ServerRequest } from '@caxri/protocol';
 import {
@@ -45,13 +45,19 @@ export const readMobileUpdateSource = async (
  */
 const MOBILE_UPDATE_DIRECTORY_ENVIRONMENT_KEY = 'CAXRI_MOBILE_UPDATE_DIRECTORY';
 
+/**
+ * Resolved from the Server bundle's own location (`Resources/server/bundles` in a package), not from
+ * `process.resourcesPath`: Server Core runs on the bundled plain Node runtime, where that Electron-only property is
+ * undefined, so a package never found its APK and every phone was told no update existed. A development build has no
+ * sibling `mobile` directory, which reads as "no bundle".
+ */
 export const mobileUpdateDirectoryForServer = (options: {
     environment: Readonly<Record<string, string | undefined>>;
-    resourcesPath?: string;
-}): string | undefined => {
+    serverBundleDirectory: string;
+}): string => {
     const override = options.environment[MOBILE_UPDATE_DIRECTORY_ENVIRONMENT_KEY];
     if (override) return override;
-    return options.resourcesPath ? join(options.resourcesPath, 'mobile') : undefined;
+    return resolve(options.serverBundleDirectory, '../../mobile');
 };
 
 type MobileUpdateRequest = Extract<

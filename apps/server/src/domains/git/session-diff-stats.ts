@@ -116,10 +116,14 @@ export class SessionDiffStatStore {
             /**
              * No `allowFailure`: a failed or oversized diff would read as an empty one and show a clean `0/0`. Throwing
              * leaves the Session out of the snapshot, which hides its count instead.
+             *
+             * `--ignore-submodules=all` because a moved submodule pointer is not a line of anyone's work: Git reports
+             * it as `1 1` (one `Subproject commit` line swapped), so every worktree whose submodule checkout differs
+             * from the recorded commit showed a phantom `+1 −1`.
              */
             const numstat = await this.options.git(
                 repo.rootPath,
-                ['diff', '--numstat', '-z', '--no-renames', base, '--'],
+                ['diff', '--numstat', '-z', '--no-renames', '--ignore-submodules=all', base, '--'],
                 { maxBufferBytes: 4 * 1024 * 1024 },
             );
             for (const file of parseMobileNumstat(numstat).values()) {

@@ -82,6 +82,7 @@ describe('SessionDiffStatStore', () => {
             '--numstat',
             '-z',
             '--no-renames',
+            '--ignore-submodules=all',
             MERGE_BASE_OID,
             '--',
         ]);
@@ -101,7 +102,15 @@ describe('SessionDiffStatStore', () => {
 
         expect(stat).toEqual({ additions: 3, deletions: 1 });
         expect(calls.some((call) => call[0] === 'merge-base')).toBe(false);
-        expect(calls).toContainEqual(['diff', '--numstat', '-z', '--no-renames', 'HEAD', '--']);
+        expect(calls).toContainEqual([
+            'diff',
+            '--numstat',
+            '-z',
+            '--no-renames',
+            '--ignore-submodules=all',
+            'HEAD',
+            '--',
+        ]);
     });
 
     it('counts every file of an unborn repository as new', async () => {

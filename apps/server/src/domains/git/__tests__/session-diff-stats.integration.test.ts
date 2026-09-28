@@ -73,4 +73,49 @@ describe('GitService session diff stats', () => {
             stats: { [session.id]: { additions: 6, deletions: 1 } },
         });
     });
+
+    it('does not count a moved submodule pointer as a changed line', async () => {
+        const library = await temporaryDirectory('caxri-diff-stats-library-');
+        const directory = await temporaryDirectory('caxri-diff-stats-super-');
+        await Promise.all(
+            [library, directory].map(async (repo) => {
+                await run(repo, 'init', '-b', 'main');
+                await run(repo, 'config', 'user.email', 'test@example.com');
+                await run(repo, 'config', 'user.name', 'Caxri Test');
+            }),
+        );
+        await writeFile(join(library, 'lib.txt'), 'one\n', 'utf8');
+        await run(library, 'add', 'lib.txt');
+        await run(library, 'commit', '-m', 'library one');
+        await run(
+            directory,
+            '-c',
+            'protocol.file.allow=always',
+            'submodule',
+            'add',
+            library,
+            'lib',
+        );
+        await run(directory, 'commit', '-m', 'add submodule');
+        await writeFile(join(library, 'lib.txt'), 'one\ntwo\n', 'utf8');
+        await run(library, 'commit', '-am', 'library two');
+        await run(join(directory, 'lib'), 'pull', '-q', 'origin', 'main');
+        await writeFile(join(directory, 'real.txt'), 'edit\n', 'utf8');
+
+        const support = await temporaryDirectory('caxri-diff-stats-support-');
+        const database = new CaxriDatabase(join(support, 'caxri-test.db'));
+        databases.push(database);
+        const logger = new StructuredLogger(join(support, 'logs'));
+        const session = database.createSession(
+            database.createProject(directory).id,
+            'shell',
+        ).session;
+        const git = new GitService(new ProjectRootResolver(database), logger);
+        gitServices.push(git);
+
+        // Only the new file counts; the submodule's `Subproject commit` swap would otherwise add a phantom +1 −1.
+        await expect(git.sessionDiffStats([session])).resolves.toEqual({
+            stats: { [session.id]: { additions: 1, deletions: 0 } },
+        });
+    });
 });

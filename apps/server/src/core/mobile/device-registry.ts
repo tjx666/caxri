@@ -34,6 +34,10 @@ const mobileDeviceRecordSchema = z.strictObject({
 const mobileDeviceStoreSchema = z.strictObject({
     version: z.literal(2),
     preferredPort: z.number().int().min(1).max(65_535).optional(),
+    /**
+     * The owner left mobile access on, so the next Server start reopens the gateway without another click.
+     */
+    accessEnabled: z.literal(true).optional(),
     devices: z.array(mobileDeviceRecordSchema).max(128),
 });
 const legacyMobileDeviceStoreSchema = z.strictObject({
@@ -47,6 +51,14 @@ const readableMobileDeviceStoreSchema = z.discriminatedUnion('version', [
 ]);
 
 export type MobileDeviceRecord = z.infer<typeof mobileDeviceRecordSchema>;
+
+/**
+ * Profile-wide gateway preferences stored beside the devices, outside any one device record.
+ */
+interface MobileGatewayPreferences {
+    isAccessEnabled: boolean;
+    preferredPort: number | undefined;
+}
 export type MobileDeviceSummary = Omit<MobileDeviceRecord, 'credential'>;
 
 export interface MobileDeviceRegistryOptions {
@@ -95,12 +107,13 @@ async function writePrivateStore(
     directory: string,
     path: string,
     devices: Iterable<MobileDeviceRecord>,
-    preferredPort: number | undefined,
+    preferences: MobileGatewayPreferences,
     random: (bytes: number) => Uint8Array,
 ): Promise<void> {
     const value = mobileDeviceStoreSchema.parse({
         version: 2,
-        ...(preferredPort && { preferredPort }),
+        ...(preferences.preferredPort && { preferredPort: preferences.preferredPort }),
+        ...(preferences.isAccessEnabled && { accessEnabled: true }),
         devices: [...devices],
     });
     if (Buffer.byteLength(`${JSON.stringify(value)}\n`, 'utf8') > MAXIMUM_REGISTRY_BYTES)
@@ -127,12 +140,20 @@ export class MobileDeviceRegistry {
             return new MobileDeviceRegistry(
                 options,
                 store.version === 2 ? store.devices : [],
-                store.preferredPort,
+                {
+                    isAccessEnabled: store.version === 2 && store.accessEnabled === true,
+                    preferredPort: store.preferredPort,
+                },
                 store.version === 1,
             );
         } catch (error) {
             if (fileSystemCode(error) === 'ENOENT')
-                return new MobileDeviceRegistry(options, [], undefined, false);
+                return new MobileDeviceRegistry(
+                    options,
+                    [],
+                    { isAccessEnabled: false, preferredPort: undefined },
+                    false,
+                );
             throw error;
         }
     }
@@ -140,7 +161,7 @@ export class MobileDeviceRegistry {
     readonly #now: () => number;
     readonly #options: MobileDeviceRegistryOptions;
     readonly #random: (bytes: number) => Uint8Array;
-    #preferredPort: number | undefined;
+    #preferences: MobileGatewayPreferences;
     #isLegacyStore: boolean;
     #records: Map<string, MobileDeviceRecord>;
     #writeTail = Promise.resolve();
@@ -148,13 +169,13 @@ export class MobileDeviceRegistry {
     private constructor(
         options: MobileDeviceRegistryOptions,
         records: MobileDeviceRecord[],
-        preferredPort: number | undefined,
+        preferences: MobileGatewayPreferences,
         isLegacyStore: boolean,
     ) {
         this.#options = options;
         this.#now = options.now ?? Date.now;
         this.#random = options.random ?? randomBytes;
-        this.#preferredPort = preferredPort;
+        this.#preferences = preferences;
         this.#isLegacyStore = isLegacyStore;
         this.#records = new Map(records.map((record) => [record.deviceId, record]));
         if (this.#records.size !== records.length)
@@ -182,7 +203,7 @@ export class MobileDeviceRegistry {
                 this.#options.directory,
                 this.#options.path,
                 records.values(),
-                this.#preferredPort,
+                this.#preferences,
                 this.#random,
             );
             this.#records = records;
@@ -199,36 +220,27 @@ export class MobileDeviceRegistry {
         return operation;
     }
 
-    list(): MobileDeviceSummary[] {
-        return this.#records
-            .values()
-            .toArray()
-            .toSorted((left, right) => left.createdAt - right.createdAt)
-            .map(publicRecord);
-    }
-
-    preferredPort(): number | undefined {
-        return this.#preferredPort;
-    }
-
-    async rememberPort(port: number): Promise<void> {
-        const nextPort = z.number().int().min(1).max(65_535).parse(port);
-        if (this.#preferredPort === nextPort) return;
+    async #rememberPreferences(next: MobileGatewayPreferences): Promise<void> {
+        if (
+            this.#preferences.preferredPort === next.preferredPort &&
+            this.#preferences.isAccessEnabled === next.isAccessEnabled
+        )
+            return;
         const previousWrite = this.#writeTail;
         const operation = (async (): Promise<void> => {
             await previousWrite;
             if (this.#isLegacyStore) {
-                this.#preferredPort = nextPort;
+                this.#preferences = next;
                 return;
             }
             await writePrivateStore(
                 this.#options.directory,
                 this.#options.path,
                 this.#records.values(),
-                nextPort,
+                next,
                 this.#random,
             );
-            this.#preferredPort = nextPort;
+            this.#preferences = next;
         })();
         this.#writeTail = (async () => {
             try {
@@ -238,6 +250,31 @@ export class MobileDeviceRegistry {
             }
         })();
         return operation;
+    }
+
+    list(): MobileDeviceSummary[] {
+        return this.#records
+            .values()
+            .toArray()
+            .toSorted((left, right) => left.createdAt - right.createdAt)
+            .map(publicRecord);
+    }
+
+    preferredPort(): number | undefined {
+        return this.#preferences.preferredPort;
+    }
+
+    async rememberPort(port: number): Promise<void> {
+        const preferredPort = z.number().int().min(1).max(65_535).parse(port);
+        await this.#rememberPreferences({ ...this.#preferences, preferredPort });
+    }
+
+    isAccessEnabled(): boolean {
+        return this.#preferences.isAccessEnabled;
+    }
+
+    async rememberAccessEnabled(isAccessEnabled: boolean): Promise<void> {
+        await this.#rememberPreferences({ ...this.#preferences, isAccessEnabled });
     }
 
     async pair(input: {

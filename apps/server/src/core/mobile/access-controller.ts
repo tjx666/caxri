@@ -18,6 +18,7 @@ import type { TerminalExecutionPort } from '../../domains/terminal';
 import type { AgentEndpointRegistry } from '../agent-endpoints/registry';
 import type { ServerDomainService } from '../domain-service';
 import type { ExtensionService } from '../extensions/service';
+import { createMobileAccessPersistence } from './access-persistence';
 import { listMobileAgentActions, terminalForPrincipal } from './action-requests';
 import { invokeMobileAttentionRequest } from './attention-requests';
 import { buildMobileDashboard } from './dashboard';
@@ -25,6 +26,7 @@ import { MobileDeviceRegistry } from './device-registry';
 import { invokeMobileFileRequest } from './file-requests';
 import { MobileGateway } from './gateway';
 import { adoptCurrentPairedPrincipal } from './gateway/principal-grant';
+import { mobileHostDisplayName } from './host-display-name';
 import { mobilePanelViewKind, projectMobileIcon, projectMobileTreeItem } from './panel-projection';
 import { isMobileGatewayMethodAllowedForRole } from './role-methods';
 import {
@@ -45,12 +47,6 @@ export function resolveMobileAgentEndpoint(
         return undefined;
     }
 }
-export const mobileHostDisplayName = (source: string): string =>
-    source
-        .split('.', 1)[0]
-        .replaceAll(/[^\p{L}\p{N} _-]/gu, '')
-        .trim()
-        .slice(0, 100) || 'Caxri Host';
 type MobileControlRequest = Extract<
     ServerRequest,
     {
@@ -164,6 +160,7 @@ export const openMobileAccessController = async (options: {
     let getExtensionService: (() => ExtensionService | undefined) | undefined;
     const hostDisplayName = mobileHostDisplayName(options.hostDisplayName ?? hostname());
     const updateRequests = createMobileUpdateRequests(options.updateDirectory);
+    const accessPersistence = createMobileAccessPersistence(registry, options.logger);
     let isClosed = false;
     let authorityTail = Promise.resolve();
     const inFlightOperations = new Map<string, Set<AbortController>>();
@@ -329,6 +326,8 @@ export const openMobileAccessController = async (options: {
                 ...(options.selectAddress && { selectAddress: options.selectAddress }),
                 updateSource: updateRequests.readSource,
             });
+            // eslint-disable-next-line no-void -- Reopening binds a socket and must not hold back startup; it logs its outcome.
+            void withAuthority(() => accessPersistence.restore(isClosed ? undefined : gateway));
         },
         close: () =>
             withAuthority(async () => {
@@ -345,13 +344,13 @@ export const openMobileAccessController = async (options: {
                 case 'mobile.access.enable':
                     return withAuthority(() => {
                         assertOpen();
-                        return activeGateway.enable();
+                        return accessPersistence.apply(activeGateway, true);
                     });
                 case 'mobile.access.disable':
                     return withAuthority(() => {
                         assertOpen();
                         abortOperations();
-                        return activeGateway.disable();
+                        return accessPersistence.apply(activeGateway, false);
                     });
                 case 'mobile.device.list':
                     return { devices: registry.list() };
