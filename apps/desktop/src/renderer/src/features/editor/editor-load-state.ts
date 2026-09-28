@@ -74,3 +74,30 @@ export function editorLoadReducer(
                 : state;
     }
 }
+
+/**
+ * A failed chunk load carries no cause a user can act on — the file it names is a build asset, not their document — so
+ * the recovery sentence replaces the technical one instead of quoting it.
+ */
+export const EDITOR_LOAD_FAILURE_REASON =
+    "The editor didn't load. Reloading the window usually fixes it.";
+
+const EDITOR_RENDER_FAILURE_REASON =
+    'This tab ran into an error. Reloading the window usually fixes it.';
+
+/**
+ * Chromium's message for a rejected `import()`, and Vite's for a lazy chunk whose stylesheet failed to preload. Both
+ * mean the tab's code never arrived, as opposed to arriving and then throwing.
+ */
+const CHUNK_LOAD_FAILURE_PATTERN =
+    /Failed to fetch dynamically imported module|Unable to preload CSS/;
+
+/**
+ * The sentence the editor pane shows after its surface threw while rendering. Only the reason differs: a chunk that
+ * never loaded and a surface that threw both recover the same way, by reloading the window.
+ */
+export function editorRenderFailureReason(error: unknown): string {
+    return error instanceof Error && CHUNK_LOAD_FAILURE_PATTERN.test(error.message)
+        ? EDITOR_LOAD_FAILURE_REASON
+        : EDITOR_RENDER_FAILURE_REASON;
+}

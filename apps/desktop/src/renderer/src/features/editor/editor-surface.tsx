@@ -24,8 +24,13 @@ import { sessionViewScope, useDocument } from '../../stores/session-view';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import type { CodeEditorProperties } from './code-editor';
 import { cacheDocument, changeDocument } from './document-commands';
+import { EditorErrorBoundary } from './editor-error-boundary';
 import { EditorLoadFailure } from './editor-load-failure';
-import { editorLoadReducer, initialEditorLoadState } from './editor-load-state';
+import {
+    EDITOR_LOAD_FAILURE_REASON,
+    editorLoadReducer,
+    initialEditorLoadState,
+} from './editor-load-state';
 import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from './editor-loader';
 import { editorStatusKey } from './editor-status';
 import { FileEditorBreadcrumbs } from './file-editor-breadcrumbs';
@@ -60,12 +65,6 @@ const SettingsWorkbenchPage = lazy(async () => {
 
 const emptyWorkClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
-
-/**
- * A failed chunk load carries no cause a user can act on — the file it names is a build asset, not their document — so
- * the recovery sentence replaces the technical one instead of quoting it.
- */
-const EDITOR_LOAD_FAILURE_REASON = "The editor didn't load. Reloading the window usually fixes it.";
 
 function LoadedCodeEditor(properties: CodeEditorProperties) {
     const CodeEditor = useSyncExternalStore(
@@ -173,6 +172,14 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
 }
 
 export function EditorSurface({ paneId, path }: { paneId: string; path: string }) {
+    return (
+        <EditorErrorBoundary resetKey={path}>
+            <EditorSurfaceContent paneId={paneId} path={path} />
+        </EditorErrorBoundary>
+    );
+}
+
+function EditorSurfaceContent({ paneId, path }: { paneId: string; path: string }) {
     const gitDiffTab = parseGitDiffTab(path);
     if (gitDiffTab)
         return (
