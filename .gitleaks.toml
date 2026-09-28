@@ -1,0 +1,70 @@
+# Caxri gitleaks configuration.
+#
+# Extends gitleaks' built-in default ruleset instead of replacing it, then narrowly allowlists
+# this repository's known, verified-non-secret false positives from the `generic-api-key` rule.
+# Every allowlist below is scoped with `targetRules` to that one rule (never a blanket allowlist),
+# matches only the literal captured secret value via `regexTarget = "secret"`, and where useful is
+# additionally scoped by `paths` (`condition = "AND"` requires both to match). A real credential
+# that happened to land in one of these files, or that happened to collide with one of these exact
+# placeholder strings, is not realistic: the allowlisted values are either a fixed shortcut-syntax
+# shape or an exact known placeholder literal, not a broad pattern.
+#
+# Verification (see the delivering PR's evidence): both `gitleaks detect` (working tree) and
+# `gitleaks git` (full commit history) report zero findings with this config, and a synthetic
+# secret staged in a throwaway repository is still caught and fails the scan.
+title = "Caxri gitleaks configuration"
+
+[extend]
+useDefault = true
+
+# `generic-api-key` fires on any `<key-like-word>: '<token>'` assignment above a modest entropy
+# floor. Caxri's keybinding domain model and its fixtures spell keyboard shortcuts as
+# `"<modifier>+<modifier>+<key>"` strings (e.g. `cmd+shift+enter`, `cmd+alt+arrowup`), which reads
+# as a plausible generic key to the entropy heuristic. These are keyboard shortcuts, not
+# credentials, and the regex only matches that exact modifier-joined shape.
+[[allowlists]]
+description = "Keyboard shortcut identifiers (modifier+modifier+key), not credentials"
+targetRules = ["generic-api-key"]
+regexTarget = "secret"
+condition = "AND"
+regexes = ['''(?i)^(?:(?:cmd|ctrl|shift|alt|meta)\+)+[a-z0-9]+$''']
+paths = [
+    # Current keybinding domain model, its fixtures, and consumers.
+    '''packages/protocol/src/(?:domain|configuration)/''',
+    '''apps/desktop/src/''',
+    '''e2e/''',
+    # Pre-monorepo-restructure paths that still exist in git history.
+    '''^src/''',
+]
+
+# scripts/__tests__/e2e-worker-isolation.test.ts asserts on a fixed, deliberately non-random
+# placeholder UUID used as an E2E coordinator token fixture (also present under its pre-rename
+# path scripts/e2e-worker-isolation.test.ts in git history).
+[[allowlists]]
+description = "Deterministic placeholder UUID used as an E2E coordinator token fixture"
+targetRules = ["generic-api-key"]
+regexTarget = "secret"
+condition = "AND"
+regexes = ['''^01234567-89ab-cdef-0123-456789abcdef$''']
+paths = ['''scripts/(?:__tests__/)?e2e-worker-isolation\.test\.ts''']
+
+# The mobile transport's update-recovery test (removed from the working tree since, but present in
+# git history) pinned the deterministic HKDF output of a fixed, in-repo test credential and
+# transcript as a golden test vector, not a live secret.
+[[allowlists]]
+description = "Golden test vector: HKDF output of a fixed mobile-transport test credential"
+targetRules = ["generic-api-key"]
+regexTarget = "secret"
+condition = "AND"
+regexes = ['''^384c2912dec992ee7acd3b7db4d8c5708297196a19f660401c6c6b662e0f2d82$''']
+paths = ['''packages/mobile-transport/''']
+
+# e2e/desktop-quit.e2e.ts probes `window.__caxriE2EQuitDialogProbe`, an E2E-only global flag name
+# injected to detect a native quit dialog. It is an identifier, not a credential.
+[[allowlists]]
+description = "E2E probe global identifier, not a credential"
+targetRules = ["generic-api-key"]
+regexTarget = "secret"
+condition = "AND"
+regexes = ['''^__caxriE2EQuitDialogProbe$''']
+paths = ['''e2e/desktop-quit\.e2e\.ts''']

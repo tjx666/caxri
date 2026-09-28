@@ -1,7 +1,12 @@
+---
+kind: adr
+status: accepted
+---
+
 # Agent-native observability and diagnostics
 
-- Status: accepted (internal foundation implemented; public operator surfaces pending)
 - Date: 2026-08-30
+- Note: internal foundation implemented; public operator surfaces pending
 - Implementation plan: [Server architecture refactor plan](../server-refactor-plan.md)
 
 Caxri treats observability as a machine-readable product contract across Server Core, Terminal Host,

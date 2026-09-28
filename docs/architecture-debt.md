@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Architecture debt ledger
 
 Persistent record of architecture-debt audit findings for revalidation across runs.
@@ -270,7 +275,7 @@ Recorded so repeat audits do not reclassify them as findings.
 | IT-cli-global-wrapper               | Global CLI linking registers a dependency-free wrapper around the verified standalone bundle                                                                                         | `apps/cli/scripts/link-global.ts`                                                               |
 | IT-typescript-6-eslint-plus-7-tsc   | typescript package aliases TS6 for eslint; `@typescript/native` supplies TS7 tsc                                                                                                     | electron-toolchain / stack-baseline                                                             |
 | IT-electron-vite-beta               | electron-vite 6 beta accepted for Vite 8 + utilityProcess                                                                                                                            | package.json, electron-toolchain.md                                                             |
-| IT-runtime-integration-not-inferred | `check` does not map every `apps/server/src/domains/*.ts` edit onto the historical `runtime.integration.test.ts` compatibility test                                                  | `check.ts`, `check.test.ts`                                                                     |
+| IT-runtime-integration-not-inferred | `check` does not map every `apps/server/src/domains/*.ts` edit onto the top-level `domain-services.integration.test.ts` suite                                                        | `check.ts`, `check.test.ts`                                                                     |
 | IT-window-level-error-boundary      | Render exceptions recover via a window-level ErrorBoundary plus reload; only the editor pane nests one, so a failed lazy tab stays in its pane                                       | `error-boundary.tsx`, Renderer entries, `editor-error-boundary.tsx`                             |
 | IT-eslint-renderer-import-gate      | Renderer Node/Electron isolation is ESLint `no-restricted-imports` plus sandbox, not a bundle AST walk                                                                               | `eslint.config.ts`, `BrowserWindow` webPreferences                                              |
 | IT-go-cooperative-ledger            | Go receipts validate cooperative exact-head state and lineage; they do not execute commands, derive findings, or form an adversarial security boundary                               | `.agents/skills/go/SKILL.md`                                                                    |

@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Git status snapshot architecture
 
 Durable record of the incremental Git topology/status pipeline shipped for
@@ -212,7 +217,7 @@ truncates the transported `files` array at `MAX_GIT_STATUS_FILES` (2,000,
 `changedFileCount` is authoritative on a truncated snapshot; otherwise it is the post
 child-repository-filtering visible file count, so every consumer of one generation reports the same
 number. The controlled Source Control surface
-(`apps/desktop/src/renderer/src/features/view-containers/source-control/git-repo-section-view.tsx`) renders
+(`apps/desktop/src/renderer/src/features/view-containers/source-control/source-control-provider-section.tsx`) renders
 an explicit `Showing the first N of <changedFileCount>` notice when `truncated`; already-listed
 files remain fully diffable.
 

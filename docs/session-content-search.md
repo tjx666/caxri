@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Session content search
 
 Run **Search Session Content** from the Command Palette, the Session menu, or Archived Sessions.

@@ -28,6 +28,10 @@ import {
     scheduleConcurrentValidationDeadline,
 } from '../ci-concurrent-validation';
 import { platformCheckCommands } from '../ci-platform-checks';
+import {
+    EXPECTED_PLATFORM_NEUTRAL_GATE_IDS,
+    EXPECTED_PLATFORM_NEUTRAL_GATE_LABELS,
+} from './ci-platform-gates.fixture';
 
 const greenReceipt = {
     checks: 0,
@@ -369,27 +373,9 @@ describe('concurrent CI validation', () => {
 
         expect(checks.map(({ label }) => label)).toEqual([
             'node-pty spawn helper',
-            'ESLint',
-            'oxlint type-aware',
-            'markdownlint',
-            'knip',
-            'React Doctor',
-            'TypeScript',
-            'format',
-            'unit and integration tests',
-            'bundle budget',
+            ...EXPECTED_PLATFORM_NEUTRAL_GATE_LABELS,
         ]);
-        expect(checks.slice(1).map(({ id }) => id)).toEqual([
-            'eslint',
-            'oxlint-type-aware',
-            'markdownlint',
-            'knip',
-            'react-doctor',
-            'typescript',
-            'format',
-            'vitest',
-            'bundle-budget',
-        ]);
+        expect(checks.slice(1).map(({ id }) => id)).toEqual(EXPECTED_PLATFORM_NEUTRAL_GATE_IDS);
         expect(checks[0]).toEqual({
             arguments: ['run', 'scripts/prepare-node-pty.ts'],
             command: 'bun',

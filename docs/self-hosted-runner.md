@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Self-hosted macOS CI and release runner
 
 This document is authoritative for runner routing, trust, availability, and recovery.
@@ -100,7 +105,7 @@ The retry-policy job intentionally uses only runner-pinned Bun and repository so
 the execution plan. Cleanup removes workspace cache links without deleting runner-local toolchains
 or cache contents.
 
-The Release job also builds the Android update APK (`docs/mobile/UPDATE.md`), so the runner account
+The Release job also builds the Android update APK (`docs/mobile/update.md`), so the runner account
 keeps the Android toolchain from `apps/mobile/README.md` installed: a JDK 17 in `JAVA_HOME` or the
 Gradle JDK cache, and `~/Library/Android/sdk` with Platform 36, Build Tools 35.0.0 and 36.0.0, the React Native NDK
 version, and CMake 3.22.1. The release signing key comes only from repository secrets and is

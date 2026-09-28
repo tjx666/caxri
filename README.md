@@ -93,23 +93,15 @@ architecture contracts live in the owning `.agents/skills/` entries. Bundle budg
 
 ## Documentation
 
-| Document                                                                               | Contents                                                      |
-| -------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| [CONTEXT.md](CONTEXT.md)                                                               | Product language: Projects, Sessions, Attention               |
-| [DESIGN.md](DESIGN.md)                                                                 | Authoritative UI and interaction spec                         |
-| [AGENTS.md](AGENTS.md)                                                                 | Contributor standing orders for coding agents                 |
-| [docs/cli.md](docs/cli.md)                                                             | The `caxri` CLI manual                                        |
-| [docs/agent-command-authority.md](docs/agent-command-authority.md)                     | Agent capability and audit boundaries                         |
-| [docs/agent-actions.md](docs/agent-actions.md)                                         | Unified Agent skills and slash-command picker                 |
-| [docs/grok-build.md](docs/grok-build.md)                                               | Grok Build launch, identity, lifecycle, and capability limits |
-| [docs/activity-view.md](docs/activity-view.md)                                         | Cross-Project queue of Sessions waiting on you                |
-| [docs/agent-commander.md](docs/agent-commander.md)                                     | Second-window Codex commander and cross-Project Agent board   |
-| [docs/notifications.md](docs/notifications.md)                                         | Notification history and reminder preferences                 |
-| [docs/keybindings.md](docs/keybindings.md)                                             | Binding format, `Cmd+K` chord sequences, Monaco ownership     |
-| [docs/file-preview.md](docs/file-preview.md)                                           | Markdown and SVG preview tabs, and adding a format            |
-| [docs/bundle-size.md](docs/bundle-size.md)                                             | Bundle baseline and the CI budget gate                        |
-| [RELEASING.md](RELEASING.md)                                                           | Release workflow for the unsigned DMG                         |
-| [Project architecture](.agents/skills/project-architecture/references/architecture.md) | Process model, recovery contracts, dependency baseline        |
+| Document                                                                               | Contents                                                   |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [CONTEXT.md](CONTEXT.md)                                                               | Product language: Projects, Sessions, Attention            |
+| [DESIGN.md](DESIGN.md)                                                                 | Authoritative UI and interaction spec                      |
+| [AGENTS.md](AGENTS.md)                                                                 | Contributor standing orders for coding agents              |
+| [docs/README.md](docs/README.md)                                                       | Full index of every living doc, ADR, and historical record |
+| [docs/cli.md](docs/cli.md)                                                             | The `caxri` CLI manual                                     |
+| [RELEASING.md](RELEASING.md)                                                           | Release workflow for the unsigned DMG                      |
+| [Project architecture](.agents/skills/project-architecture/references/architecture.md) | Process model, recovery contracts, dependency baseline     |
 
 ## Product boundaries
 

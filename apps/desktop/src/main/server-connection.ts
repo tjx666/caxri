@@ -215,7 +215,7 @@ export class DesktopServerConnection extends EventTarget {
                     [EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY]:
                         process.env[EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY],
                 }),
-                // Lets an unpackaged Desktop serve a locally built Android update (docs/mobile/UPDATE.md).
+                // Lets an unpackaged Desktop serve a locally built Android update (docs/mobile/update.md).
                 ...(process.env.CAXRI_MOBILE_UPDATE_DIRECTORY && {
                     CAXRI_MOBILE_UPDATE_DIRECTORY: process.env.CAXRI_MOBILE_UPDATE_DIRECTORY,
                 }),

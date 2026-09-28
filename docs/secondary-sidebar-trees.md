@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Secondary Sidebar trees
 
 The Secondary Sidebar hosts three tree views: Files, Source Control, and extension-contributed trees

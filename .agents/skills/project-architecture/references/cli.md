@@ -2,7 +2,8 @@
 
 Related contracts: [IPC](ipc.md) owns the shared command registry. When comparing human and Agent
 authority, also read [Agent messaging](agent-messaging.md) for Endpoint mutation targets,
-generation grants, dispatch, and human-only Terminal steering.
+generation grants, dispatch, and human-only Terminal steering. For the user-facing command surface,
+output modes, and the caxri-cli skill, see [the `caxri` CLI manual](../../../../docs/cli.md).
 
 `apps/cli` is the command-line adapter for the same registry and authenticated Server transport.
 Source keeps `commands` as its only domain barrel; the package root remains the composition root

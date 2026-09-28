@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Extension Host and view contributions
 
 Caxri loads native ESM extensions in one Server Core-owned Extension Host process. Extensions contribute

@@ -79,7 +79,7 @@ describe('Status extension Deployments row', () => {
             state: 'success' as const,
             url: 'https://caxri-branch.vercel.app',
         };
-        // A merge-commit Production build (`mergeCommit` in `project-status-vercel.ts`) can land outside this
+        // A merge-commit Production build (`mergeCommit` in `project-status/vercel.ts`) can land outside this
         // branch's own `branchDeployments` history entirely, so it stays a real, non-duplicate fact worth its own row.
         const production = {
             environment: 'production' as const,

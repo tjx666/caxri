@@ -30,8 +30,7 @@ import { createMobileDomainHandlers } from './mobile';
 import { MobileTerminalMutationQueue } from './mobile-terminal-mutation-queue';
 import { createOrderingHandlers } from './ordering-handlers';
 import { createProjectHidingHandlers } from './project-hiding-handlers';
-import { ProjectStatusService } from './project-status';
-import { VercelDeploymentStore } from './project-status-vercel-store';
+import { ProjectStatusService, VercelDeploymentStore } from './project-status';
 import { createRootServices } from './root-services';
 import { createServiceHandlers, mainOwned, mainOwnedHandlers } from './service-handlers';
 import { SessionCompaction } from './session-compaction';
@@ -355,6 +354,7 @@ export async function createDomainServices(
     });
     const { restoreInterruptedTerminalsInBackground, watchSessionInBackground } =
         createBackgroundTasks(logger, files, git, restoreInterruptedTerminals);
+    terminalSuspension.setOnSuspendedSessionReselected(restoreInterruptedTerminalsInBackground);
     /**
      * The Agent Commander Session is never selected, so it restores through its own supervisor: sharing the Workbench's
      * would let the next Session selection abort the Commander's resume.

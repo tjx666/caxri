@@ -1,6 +1,13 @@
+---
+kind: historical
+status: historical
+---
+
 # Architecture refactor behavior parity
 
-- Status: accepted
+[Server architecture refactor plan](./server-refactor-plan.md) cites this contract as the Acceptance
+method its now-implemented batches used; it stays as the historical record of that methodology.
+
 - Date: 2026-08-25
 
 ## Contract

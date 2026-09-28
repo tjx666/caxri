@@ -181,6 +181,16 @@ describe('shared ESLint preset toolchain contract', () => {
         ).resolves.toBe(true);
     });
 
+    it('keeps binary font assets under a scripts directory outside source linting', async () => {
+        const eslint = new ESLint({ cwd: root });
+
+        await expect(
+            eslint.isPathIgnored(
+                resolve(root, 'apps/mobile/scripts/terminal-fonts/JetBrainsMono-Regular.woff2'),
+            ),
+        ).resolves.toBe(true);
+    });
+
     it('does not apply source line limits to generated migration metadata', async () => {
         const config = await effectiveConfigFor(
             'apps/server/src/domains/db/migrations/meta/0016_snapshot.json',

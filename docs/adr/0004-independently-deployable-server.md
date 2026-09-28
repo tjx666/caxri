@@ -1,7 +1,12 @@
+---
+kind: adr
+status: accepted
+---
+
 # Independently deployable Server and process ownership
 
-- Status: accepted (artifact and process topology implemented; Terminal adoption pending P1)
 - Date: 2026-08-25
+- Note: artifact and process topology implemented; Terminal adoption pending P1
 - Implementation plan: [Server architecture refactor plan](../server-refactor-plan.md)
 
 Caxri packages one single-tenant Server as a self-contained directory artifact containing its pinned

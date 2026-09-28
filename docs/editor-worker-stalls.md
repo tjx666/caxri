@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Editor Worker stalls
 
 A comparison with no answer is incomplete, not an unchanged file. The diff surface reports a
