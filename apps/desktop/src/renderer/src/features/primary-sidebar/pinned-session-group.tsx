@@ -6,6 +6,7 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { ActiveSessionRow } from './active-session-row';
 import type { SessionOrderController } from './hooks/use-session-order';
+import { focusDisclosureRow } from './primary-sidebar-focus';
 import {
     PINNED_GROUP_ROW_ID,
     primarySidebarPinnedRowId,
@@ -103,7 +104,10 @@ export function PinnedSessionGroup({
                         aria-expanded={expanded}
                         aria-label={`${expanded ? 'Collapse' : 'Expand'} Pinned`}
                         tabIndex={-1}
-                        onClick={onToggle}
+                        onClick={(event) => {
+                            onToggle();
+                            focusDisclosureRow(event.currentTarget);
+                        }}
                     >
                         {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                     </button>

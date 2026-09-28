@@ -513,17 +513,21 @@ own Workbench Root, never the selected one's.
 that takes focus, never on a layout wrapper around it: `aria-level`, `aria-selected`, and the roving
 `tabIndex` have to describe the thing the user is actually on. One tree is one Tab stop — exactly one
 row carries `tabIndex={0}`, the row focus would return to, and every other row carries `-1` — so Tab
-enters the tree once and arrows move inside it instead of walking every row in the document. A row
-being renamed is the one allowed exception: it keeps its `treeitem` role and hands its `tabIndex` to
-the input inside it for as long as the edit lasts. A tree driven from a field the user is still
-typing in is the other: there the rows are all `tabIndex={-1}`, the field keeps focus and carries
-`role="combobox"` with `aria-controls` and `aria-activedescendant`, and that attribute is what names
-the current row. This is the standard combobox pairing, not a second focus model — a tree may adopt
-it only when a field owns the tree's whole navigation, never as a way to avoid giving rows a roving
-Tab stop. Anything that is not a row lives outside the tree
-element — an empty-state action, a live region — because inside `role="tree"` a focusable element has
-to be a real row holding that single Tab stop, and a static notice is not a row. The corollary runs
-both ways: a "show more" control renders _inside_ the tree as a real row, because it is focusable and
+enters the tree once and arrows move inside it instead of walking every row in the document. In a
+virtualized tree that row stays mounted wherever the list is scrolled (`virtualTreeRenderedIndexes`):
+a wheel scroll moves the window, not the Tab stop. A disclosure chevron beside a row is a pointer
+target only: it is `tabIndex={-1}`, and a click on it hands focus to its row, so it never becomes a
+focus owner the arrow keys cannot leave. A row being renamed is the one allowed exception: it keeps
+its `treeitem` role and hands its `tabIndex` to the input inside it for as long as the edit lasts.
+A tree driven from a field the user is still typing in is the other: there the rows are all
+`tabIndex={-1}`, the field keeps focus and carries `role="combobox"` with `aria-controls` and
+`aria-activedescendant`, and that attribute is what names the current row. This is the standard
+combobox pairing, not a second focus model — a tree may adopt it only when a field owns the tree's
+whole navigation, never as a way to avoid giving rows a roving Tab stop. Anything that is not a row
+lives outside the tree element — an empty-state action, a live region — because inside
+`role="tree"` a focusable element has to be a real row holding that single Tab stop, and a static
+notice is not a row. The corollary runs both ways: a "show more" control renders _inside_ the tree
+as a real row, because it is focusable and
 therefore cannot be anything else. The one notice that cannot be lifted out is a lazy branch's
 in-place placeholder (loading, error, empty). It renders where that branch's children would, so it
 stays a `treeitem` — `aria-disabled`, never focusable, wrapping a `role="status"` region so its
@@ -1140,18 +1144,12 @@ resolving one requires updating the sections above in the same change.
   opt-in, which is what makes the focus handoff above necessary), so what remains open is the
   collision itself: rebinding, e.g. `Command+B` for the PrimarySidebar, is a product decision nobody
   has made.
-- **Trees that can leave the Tab order** — a virtualized tree's single Tab stop lives on the roving
-  row, and the tree element itself is not focusable, so scrolling that row out of the virtual window
-  takes the whole tree out of Tab order until it scrolls back. Fixing it needs the roving model and
-  virtualization reconciled, not a `tabIndex` somewhere.
-- **Tree rows that are not treeitems** — four known violations of the Trees rule above survive
+- **Tree rows that are not treeitems** — three known violations of the Trees rule above survive
   because removing them would cost a user-visible affordance: the extension tree's error row keeps a
   focusable `Retry` button inside `role="tree"` (dropping it would make recovery unreachable), the
   process `treegrid`'s column-header sort buttons and column resize separators are extra Tab stops
-  beside its single row stop, the PrimarySidebar still has two generic wrappers standing between
-  `role="tree"` and its rows, and clicking a Project's disclosure arrow moves focus to that arrow —
-  a `tabIndex={-1}` button, so never a Tab stop, but still a non-`treeitem` focus owner inside the
-  tree. Fixing any of them needs a real interaction design, not a role swap.
+  beside its single row stop, and the PrimarySidebar still has two generic wrappers standing between
+  `role="tree"` and its rows. Fixing any of them needs a real interaction design, not a role swap.
 - **Bug Report annotation ink** — `screenshot-annotations.ts` hard-codes `#f43f5e` and `#ffffff`
   instead of theme tokens. The same color has to appear in the live SVG overlay and in the
   rasterized JPEG the Agent opens, and no token can repaint bytes already written to a file.

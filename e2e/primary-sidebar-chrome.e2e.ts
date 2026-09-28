@@ -300,7 +300,15 @@ test('Files actions stay visible while Project actions reveal on hover or focus'
         await expect(projectHeading.locator('.project-select .project-folder-icon')).toHaveClass(
             /lucide-folder-open/,
         );
+        // The heading names its Session count, so the accessible name is never the bare title.
+        const projectName = projectHeading.getByRole('treeitem', { name: 'project (1 Session)' });
         await projectDisclosure.click();
+        /**
+         * The chevron is `tabIndex={-1}` and unknown to the tree's key handling, so a click that left focus on it
+         * stranded the arrow keys. It hands focus to the heading's own treeitem instead, and the tree keys work from
+         * there (issue #1012).
+         */
+        await expect(projectName).toBeFocused();
         const collapsedDisclosure = projectHeading.getByRole('button', {
             name: 'Expand project',
         });
@@ -308,9 +316,11 @@ test('Files actions stay visible while Project actions reveal on hover or focus'
         await expect(projectHeading.locator('.project-select .project-folder-icon')).toHaveClass(
             /lucide-folder-closed/,
         );
+        await running.page.keyboard.press('ArrowRight');
+        await expect(projectDisclosure.locator('svg')).toHaveClass(/lucide-chevron-down/);
+        await projectDisclosure.click();
         await collapsedDisclosure.click();
-        // The heading names its Session count, so the accessible name is never the bare title.
-        const projectName = projectHeading.getByRole('treeitem', { name: 'project (1 Session)' });
+        await expect(projectName).toBeFocused();
         await projectName.click();
         await expect(projectHeading.getByRole('button', { name: 'Expand project' })).toBeVisible();
         await expect(running.page.locator('.project-session-disclosure')).toHaveAttribute(
