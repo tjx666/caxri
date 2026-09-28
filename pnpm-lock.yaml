@@ -72,9 +72,6 @@ catalogs:
     sonda:
       specifier: ^0.14.0
       version: 0.14.0
-    svgo:
-      specifier: ^4.1.0
-      version: 4.1.0
     ws:
       specifier: ^8.21.3
       version: 8.21.3
@@ -574,7 +571,7 @@ importers:
         specifier: ^0.1.1
         version: 0.1.1
       svgo:
-        specifier: 'catalog:'
+        specifier: ^4.1.0
         version: 4.1.0
       typescript:
         specifier: ^6.0.3
