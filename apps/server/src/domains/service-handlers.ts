@@ -421,7 +421,7 @@ export function createServiceHandlers(services: {
         },
         'git.summary': ({ sessionId, refresh, requester }, signal) =>
             withGitRequestSignal(signal, () => git.summary(sessionId, refresh, requester)),
-        'git.overview': ({ sessionId }) => git.overview(sessionId),
+        'git.overview': ({ sessionId, refresh }) => git.overview(sessionId, refresh),
         'git.branches': (parameters) => git.branches(parameters),
         'git.switchBranch': (parameters) => git.switchBranch(parameters),
         'git.sync': (parameters, signal) =>

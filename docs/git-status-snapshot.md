@@ -217,11 +217,23 @@ an explicit `Showing the first N of <changedFileCount>` notice when `truncated`;
 files remain fully diffable.
 
 **`git.summary` vs `git.overview`.** `git.overview` (`GitService.overview`,
-`apps/server/src/domains/git/index.ts:448-461`) awaits the same `summary()` producer and strips `files` from
+`apps/server/src/domains/git/index.ts`) awaits the same `summary()` producer and strips `files` from
 each repository via a rest-omit projection — it never triggers a second `git status`. The Status
 Bar (`apps/desktop/src/renderer/src/features/status-bar/status-bar.tsx`) queries `git.overview` exclusively so
 branch/count rendering never pulls the full `files[]` IPC payload into the Renderer, while staying
 on the same snapshot generation the Source Control provider reads through `git.summary`.
+
+**Reading a root nobody watches.** The Project file watcher follows only the selected Session, so a
+plain working-tree write in any other Session's root never bumps that root's status generation, and
+a cached read keeps returning the snapshot from when the user switched away. `git.overview` therefore
+accepts `refresh: true`, which runs the same forced `refreshSummary` path `mobile.changes.list` uses.
+The Session hover card's `Changes` row
+(`apps/desktop/src/renderer/src/features/primary-sidebar/hooks/use-session-changes.ts`) is the
+Desktop reader: it sends `refresh: true` only for a Session whose Workbench Root differs from the
+selected Session's, reads only while its card is open, and lets one card read at a time. A forced
+production announces itself with `git.changed`, so the Renderer's `git.changed` sweep skips
+`refresh: true` overview keys; otherwise the open card would refetch, force, and announce again in a
+loop. Those keys rely on their 30-second `staleTime` instead ([issue #859](https://github.com/tjx666/caxri/issues/859)).
 
 ## Measurement contract
 
