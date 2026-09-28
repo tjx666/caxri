@@ -120,7 +120,9 @@ a standalone or repository-wide run.
 - **`bun run source-size-ratchet`** compares each changed source file's working-tree line count
   against its line count at the merge base with `origin/main` (`--base <ref>` to override). It fails
   when a file already at or above 600 lines grew further, or a new path (including a rename target)
-  lands at or above 600 lines -- using Git rename detection so a pure move never counts as growth. It
+  lands at or above 600 lines -- using Git rename detection so a pure move never counts as growth.
+  `check --lint` runs it when the changed set includes source, and the pre-commit hook runs it when
+  the staged set does -- a one-line test fix is exactly the edit that skips `check`. It
   never fails a file that shrank, even while still above 600 lines: it is a growth ratchet, not a
   restatement of ESLint's absolute `max-lines: 800` ceiling. To fix: split the flagged file by
   responsibility into smaller, cohesively-owned files (see the source-layout skill) -- do not
