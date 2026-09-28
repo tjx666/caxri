@@ -194,6 +194,19 @@ export const logEventCatalog = {
     },
     agentCommander: {
         consoleError: 'agent_commander.console_error',
+        /**
+         * A coalesced batch of delegation completion notices was injected into the Commander Terminal. `fields.count`
+         * is the number of delegations the single line reports, so this also measures how often coalescing fires.
+         */
+        completionNoticeDelivered: 'agent_commander.completion_notice_delivered',
+        /**
+         * A completion notice batch was consumed (so it will never be retried) but its PTY write was rejected or its
+         * delivery could not be confirmed. Carries a closed `fields.reason`
+         * (`CommanderCompletionNoticeDeliveryFailure`) distinguishing the two; a gate that simply is not satisfied yet
+         * (a draft, a busy Commander) is not logged because it is the ordinary, frequent path and resolves itself on
+         * the next idle point.
+         */
+        completionNoticeDeliveryFailed: 'agent_commander.completion_notice_delivery_failed',
         pageException: 'agent_commander.page_exception',
         preloadError: 'agent_commander.preload_error',
         renderProcessCrashLoop: 'agent_commander.render_process_crash_loop',
