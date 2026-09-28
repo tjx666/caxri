@@ -3,8 +3,9 @@ import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, View } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, scanFromURLAsync, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 
@@ -94,7 +95,8 @@ const ScanControls = ({
                     Open Settings to allow camera access
                 </ActionButton>
                 <Text style={[styles.fallback, { color: theme.muted }]}>
-                    Camera access is optional. You can go back and paste the pairing link instead.
+                    Camera access is optional. You can choose a screenshot of the code, or go back
+                    and paste the pairing link instead.
                 </Text>
             </>
         );
@@ -109,7 +111,8 @@ const ScanControls = ({
                 Allow camera access
             </ActionButton>
             <Text style={[styles.fallback, { color: theme.muted }]}>
-                Camera access is optional. You can go back and paste the pairing link instead.
+                Camera access is optional. You can choose a screenshot of the code, or go back and
+                paste the pairing link instead.
             </Text>
         </>
     );
@@ -177,6 +180,27 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
         [pair],
     );
 
+    /**
+     * Reads the code from a saved screenshot, for pairing on the same phone or when the camera is unavailable. The
+     * system photo picker needs no media permission.
+     */
+    const scanPhoto = useCallback(async (): Promise<void> => {
+        const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'] });
+        const asset = result.canceled ? undefined : result.assets[0];
+        if (!asset) return;
+        let source: string | undefined;
+        try {
+            source = (await scanFromURLAsync(asset.uri, ['qr']))[0]?.data;
+        } catch {
+            // An image the decoder cannot read is reported the same way as one without a code.
+        }
+        if (!source) {
+            setError('No pairing code was found in that image.');
+            return;
+        }
+        await pair(source);
+    }, [pair]);
+
     const title = method === 'scan' ? 'Scan pairing code' : 'Paste pairing link';
     const description =
         method === 'scan'
@@ -222,6 +246,17 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
                                 requestPermission={requestCameraPermission}
                                 theme={theme}
                             />
+                        ) : null}
+                        {method === 'scan' ? (
+                            <ActionButton
+                                accessibilityHint="Opens your photos to read a Caxri pairing code from a saved image."
+                                onPress={scanPhoto}
+                                testID="pairing-scan-photo-button"
+                                theme={theme}
+                                variant="secondary"
+                            >
+                                Choose from Photos
+                            </ActionButton>
                         ) : null}
                         {method === 'paste' ? (
                             <ActionButton

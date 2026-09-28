@@ -8,6 +8,27 @@ const entry = fileURLToPath(new URL('terminal-webview-entry.ts', import.meta.url
 const stylesheet = fileURLToPath(
     new URL('../node_modules/@xterm/xterm/css/xterm.css', import.meta.url),
 );
+/**
+ * WOFF2 faces embedded as data URLs, because the offline document has no origin to load font files from. JetBrains Mono
+ * matches Desktop's terminal face; the Noto Sans Symbols 2 subset (U+2190-21FF, U+2300-23FF, U+25A0-25FF, U+2600-27BF,
+ * U+2B00-2BFF) supplies glyphs such as `⏵` that JetBrains Mono lacks and Android's WebView renders as tofu. Regenerate
+ * with fontTools `pyftsubset --flavor=woff2` from Desktop's TTF sources and the upstream Noto release.
+ */
+const fontFaces = [
+    ['Caxri JetBrains Mono', 400, 'JetBrainsMono-Regular.woff2'],
+    ['Caxri JetBrains Mono', 700, 'JetBrainsMono-Bold.woff2'],
+    ['Caxri Symbols', 400, 'NotoSansSymbols2-Subset.woff2'],
+] as const;
+const fontCss = (
+    await Promise.all(
+        fontFaces.map(async ([family, weight, file]) => {
+            const data = await readFile(
+                fileURLToPath(new URL(`terminal-fonts/${file}`, import.meta.url)),
+            );
+            return `@font-face{font-family:'${family}';font-weight:${weight};font-style:normal;src:url(data:font/woff2;base64,${data.toString('base64')}) format('woff2')}`;
+        }),
+    )
+).join('');
 const destination = fileURLToPath(
     new URL('../src/features/terminal/terminal-webview.generated.ts', import.meta.url),
 );
@@ -44,8 +65,8 @@ const html = `<!doctype html>
 <html><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src 'none'; img-src data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'">
-<style>${css}\nhtml,body,#viewport{margin:0;width:100%;height:100%;overflow:hidden;background:${draculaTheme.terminal.background}}#viewport{overflow:auto;position:absolute;inset:0}#frame{position:relative}#stage{position:absolute;left:0;top:0;transform-origin:top left}.xterm{padding:0}body.caxri-cursor-off .xterm .xterm-rows .xterm-cursor.xterm-cursor-block{background-color:transparent!important;color:inherit!important}</style>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src 'none'; img-src data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src data:; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'">
+<style>${fontCss}\n${css}\nhtml,body,#viewport{margin:0;width:100%;height:100%;overflow:hidden;background:${draculaTheme.terminal.background}}#viewport{overflow:auto;position:absolute;inset:0}#frame{position:relative}#stage{position:absolute;left:0;top:0;transform-origin:top left}.xterm{padding:0}body.caxri-cursor-off .xterm .xterm-rows .xterm-cursor.xterm-cursor-block{background-color:transparent!important;color:inherit!important}</style>
 </head><body><div id="viewport"><div id="frame"><div id="stage"></div></div></div>
 <script>window.__CAXRI_TERMINAL_ID__=__TERMINAL_ID_JSON__;window.__CAXRI_TERMINAL_THEME__=${JSON.stringify(draculaTheme.terminal)};${javascript}</script>
 </body></html>`;
