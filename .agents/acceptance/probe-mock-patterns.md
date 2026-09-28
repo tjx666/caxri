@@ -35,8 +35,8 @@ Existing examples include `apps/desktop/src/main/__tests__/workbench-root-author
 `apps/desktop/src/main/__tests__/main-methods-dialogs.test.ts`, and the focused Electron specs
 that set `CAXRI_TEST_ROOT_PATHS`.
 
-For the theme Acceptance cases named by `acceptanceThemeImportCaseIds`, the launcher and
-`apps/desktop/src/main/acceptance-theme-import.ts` provide the file-picker result through a
+For a theme Acceptance case whose frozen plan declares `"themeImportFixture": true`, the launcher
+and `apps/desktop/src/main/acceptance-theme-import.ts` provide the file-picker result through a
 per-profile command file. The command must name the active case, an increasing positive sequence,
 and a regular file relative to the first test root. Main records each accepted choice before
 forwarding the real `theme.importPath` request. Inspect the receipt and resulting Renderer state;
@@ -56,6 +56,19 @@ The Main handler records its actual confirmation copy and the fixed open outcome
 before the stop adapter removes the profile. The fixture never selects the trust action;
 missing, repeated, malformed, or foreign inputs fail closed. This proves the surrounding
 product flow and confirmation copy, not a native dialog or an external browser.
+
+## Show update UI without a packaged build
+
+**Failure:** Acceptance launches stay unpackaged, so `UpdateService` reports "available in packaged
+Caxri builds" and no update notification can ever be captured.
+
+**Works:** Declare `"updateFixture": "available"` in the frozen plan. Main
+(`apps/desktop/src/main/acceptance-update.ts`) swaps only release discovery for the fixed `999.0.0`
+release and runs the launch check, so the notification and **Check for Updates** dialog arrive
+through the real update state path. Download and install stay disabled. Cite
+`acceptance-update-receipt.jsonl` from the owned `userDataDir` beside the screenshot. The fixture
+cannot prove GitHub discovery, the DMG download, or checksum verification; keep those in the
+packaged release check.
 
 ## Queue deterministic Project choices without a picker
 

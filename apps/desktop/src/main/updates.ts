@@ -64,9 +64,26 @@ interface AvailableRelease {
     expectedBytes?: number;
 }
 
+/**
+ * Supplies a fixed release in place of the GitHub request for one declared Acceptance case. It never exposes a download
+ * URL, so a service built with it can announce an update but can never download or install one.
+ */
+export interface AcceptanceUpdateDiscovery {
+    discover(): Promise<{ fileName: string; version: string }>;
+}
+
 export interface UpdateServiceOptions {
+    /**
+     * Present only when `createAcceptanceUpdateFixture` admitted (or visibly rejected) an Acceptance request. It
+     * replaces the network discovery and lets an unpackaged Acceptance build check for updates without ever enabling
+     * the real release service.
+     */
+    acceptanceDiscovery?: AcceptanceUpdateDiscovery;
     currentVersion: string;
     downloadDirectory: string;
+    /**
+     * The packaged-build gate for real release checks.
+     */
     enabled: boolean;
     fetch?: FetchLike;
     now?: () => number;
@@ -76,15 +93,19 @@ export interface UpdateServiceOptions {
 
 interface AutomaticUpdateCheckOptions {
     alreadyStarted: boolean;
+    hasAcceptanceDiscovery?: boolean;
     isE2E: boolean;
     isPackaged: boolean;
 }
 
 /**
- * Packaged E2E profiles stay deterministic and must never contact the release service.
+ * Packaged E2E profiles stay deterministic and must never contact the release service. An admitted Acceptance fixture
+ * is the one exception that runs the launch check off the network, so its notification arrives the same way a real
+ * automatic discovery does.
  */
 export function shouldStartAutomaticUpdateCheck(options: AutomaticUpdateCheckOptions): boolean {
-    return options.isPackaged && !options.isE2E && !options.alreadyStarted;
+    if (options.alreadyStarted) return false;
+    return options.hasAcceptanceDiscovery === true || (options.isPackaged && !options.isE2E);
 }
 
 /**
@@ -263,6 +284,12 @@ export class UpdateService {
      * makes `Skip this version` outlast the process.
      */
     private announcedVersion: string | undefined;
+    /**
+     * The release the Acceptance fixture served in this launch. The fixture serves once, so every later check —
+     * including one after the disabled download left an error — republishes this instead of consuming it again.
+     */
+    private acceptanceRelease: { fileName: string; version: string } | undefined;
+    private isAutomaticCheckStarted = false;
 
     constructor(private readonly options: UpdateServiceOptions) {
         const fetch = options.fetch ?? globalThis.fetch;
@@ -398,6 +425,39 @@ export class UpdateService {
                 currentVersion: this.options.currentVersion,
                 action: 'check',
                 failureKind: updateFailureKind(error),
+                message: updateErrorMessage(error, 'Unable to check for updates.'),
+            });
+        }
+    }
+
+    private publishAcceptanceRelease(release: { fileName: string; version: string }): UpdateState {
+        return this.publish({
+            status: 'available',
+            currentVersion: this.options.currentVersion,
+            version: release.version,
+            fileName: release.fileName,
+        });
+    }
+
+    private async performAcceptanceCheck(
+        discovery: AcceptanceUpdateDiscovery,
+    ): Promise<UpdateState> {
+        try {
+            const { fileName, version } = await discovery.discover();
+            assertStableVersion(version);
+            if (compareStableVersions(version, this.options.currentVersion) <= 0)
+                throw new Error('The Acceptance update fixture must be newer than this build.');
+            // No `release` is recorded: without a download URL, `download()` and `open()` stay unreachable.
+            this.release = undefined;
+            this.readyPath = undefined;
+            this.acceptanceRelease = { fileName, version };
+            return this.publishAcceptanceRelease(this.acceptanceRelease);
+        } catch (error) {
+            return this.publish({
+                status: 'error',
+                currentVersion: this.options.currentVersion,
+                action: 'check',
+                failureKind: 'other',
                 message: updateErrorMessage(error, 'Unable to check for updates.'),
             });
         }
@@ -567,7 +627,14 @@ export class UpdateService {
     check(options: { manual?: boolean } = {}): Promise<UpdateState> {
         if (this.checkPromise) return this.checkPromise;
         if (this.downloadPromise) return Promise.resolve(this.state);
-        if (!this.options.enabled)
+        const { acceptanceDiscovery } = this.options;
+        if (acceptanceDiscovery && this.acceptanceRelease)
+            return Promise.resolve(
+                this.state.status === 'available'
+                    ? this.state
+                    : this.publishAcceptanceRelease(this.acceptanceRelease),
+            );
+        if (!acceptanceDiscovery && !this.options.enabled)
             return Promise.resolve(
                 this.publish({
                     status: 'unavailable',
@@ -598,15 +665,51 @@ export class UpdateService {
         this.publish({ status: 'checking', currentVersion: this.options.currentVersion });
         // Coalesces overlapping check() calls onto the same in-flight promise, so this method
         // returns it directly rather than awaiting it itself.
+        const discovery = acceptanceDiscovery
+            ? this.performAcceptanceCheck(acceptanceDiscovery)
+            : this.performCheck();
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
-        this.checkPromise = this.performCheck().finally(() => {
+        this.checkPromise = discovery.finally(() => {
             this.checkPromise = undefined;
         });
         return this.checkPromise;
     }
 
+    /**
+     * Starts the one automatic launch check this process makes. Discovery stays off the awaited startup path and never
+     * delays the first window; `check()` publishes failures through its own state, so this is fire-and-forget.
+     */
+    startAutomaticCheck(options: { isE2E: boolean }): void {
+        if (
+            !shouldStartAutomaticUpdateCheck({
+                alreadyStarted: this.isAutomaticCheckStarted,
+                hasAcceptanceDiscovery: this.options.acceptanceDiscovery !== undefined,
+                isE2E: options.isE2E,
+                isPackaged: this.options.enabled,
+            })
+        )
+            return;
+        this.isAutomaticCheckStarted = true;
+        // eslint-disable-next-line unicorn/prefer-await -- see the method comment
+        this.check().catch(() => {});
+    }
+
     download(): Promise<UpdateState> {
         if (this.downloadPromise) return this.downloadPromise;
+        if (this.options.acceptanceDiscovery)
+            return Promise.resolve(
+                this.publish({
+                    status: 'error',
+                    failureKind: 'other',
+                    currentVersion: this.options.currentVersion,
+                    action: 'download',
+                    message: 'Update downloads are disabled in Acceptance launches.',
+                    ...(this.state.status === 'available' && {
+                        version: this.state.version,
+                        fileName: this.state.fileName,
+                    }),
+                }),
+            );
         const release = this.release;
         if (!release)
             return Promise.resolve(

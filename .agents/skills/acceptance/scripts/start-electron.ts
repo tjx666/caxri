@@ -35,7 +35,11 @@ import {
     createMacosAcceptanceLaunchController,
     settleMacosAcceptanceLaunch,
 } from './macos-launch-lifecycle';
-import { assertNativeDialogAuthorization } from './native-dialog-authorization';
+import {
+    assertNativeDialogAuthorization,
+    isNativeDialogAuthorized,
+} from './native-dialog-authorization';
+import type { DeclaredPlanFixtures } from './plan-fixtures';
 import { loadAcceptanceCasePlan, validateAcceptanceCaseLaunch } from './report';
 import type { RuntimeState } from './runtime-state';
 import {
@@ -117,6 +121,7 @@ const OWNED_PROCESS_DISCOVERY_TIMEOUT_MS = 10_000;
 interface ElectronLaunchSpecInput {
     caseId?: string;
     agentEnvironment?: NodeJS.ProcessEnv;
+    declaredFixtures?: DeclaredPlanFixtures;
     electronPath?: string;
     environment?: NodeJS.ProcessEnv;
     port: number;
@@ -184,6 +189,7 @@ const defaultWaitForCdpDependencies: WaitForCdpDependencies = {
 export function createElectronLaunchSpec({
     caseId,
     agentEnvironment,
+    declaredFixtures,
     electronPath = ELECTRON_PATH,
     environment = process.env,
     port,
@@ -210,7 +216,12 @@ export function createElectronLaunchSpec({
                 CAXRI_ACCEPTANCE: '1',
                 CAXRI_E2E: '1',
                 CAXRI_E2E_WINDOW_MODE: 'visible',
-                ...acceptanceFixtureEnvironment(caseId, useTestRootFixture),
+                ...acceptanceFixtureEnvironment({
+                    caseId,
+                    declared: declaredFixtures,
+                    hasTestRootFixture: useTestRootFixture,
+                    isNativeDialogAuthorized: isNativeDialogAuthorized(environment),
+                }),
                 ...(useTestRootFixture && {
                     CAXRI_TEST_ROOT_PATH: testRootPath,
                     CAXRI_TEST_ROOT_PATHS: JSON.stringify(testRootPaths),
@@ -514,6 +525,13 @@ async function main(): Promise<void> {
             plannedCase.item.agentFixture,
             requestedAgentFixture,
         );
+        // Rejects a declared fixture this launch cannot arm before any lifecycle receipt exists.
+        acceptanceFixtureEnvironment({
+            caseId,
+            declared: plannedCase.item,
+            hasTestRootFixture: !isUseNativeDialog,
+            isNativeDialogAuthorized: isNativeDialogAuthorized(),
+        });
         assertAcceptanceBuildCommit({
             builtMainSource: await readFile(BUILT_MAIN_PATH, 'utf8'),
             reportCommit: plannedCase.commit,
@@ -584,6 +602,7 @@ async function main(): Promise<void> {
             const launch = createMacosAcceptanceLaunchSpec({
                 caseId,
                 agentEnvironment,
+                declaredFixtures: plannedCase.item,
                 appPath: acceptanceApp.appPath,
                 port,
                 testRootPath,
