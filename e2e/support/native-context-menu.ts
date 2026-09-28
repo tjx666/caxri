@@ -11,8 +11,21 @@ export interface NativeContextMenuItem {
     id?: number;
     label?: string;
     enabled?: boolean;
+    /**
+     * Why a disabled entry is unavailable; Main shows it with the entry because a native menu has no tooltip.
+     */
+    disabledReason?: string;
     shortcut?: string;
     submenu?: NativeContextMenuItem[];
+}
+
+interface ChooseContextMenuItemOptions {
+    /**
+     * Replays how a real menu hands keyboard focus back as it closes, after the click and before the choice is
+     * delivered (see `E2EContextMenuChooseOptions` in `apps/desktop/src/main/context-menu.ts`). Pass it when the chosen
+     * action moves focus, such as Rename or New File, so the spec proves the focus survives the close.
+     */
+    refocusOnClose?: boolean;
 }
 
 /**
@@ -88,18 +101,29 @@ export async function isContextMenuItemEnabled(
 }
 
 /**
- * Chooses an enabled entry, exactly as clicking it in the native menu would.
+ * The reason a disabled entry shows beside its label, or `undefined` when it carries none.
+ */
+export async function contextMenuItemDisabledReason(
+    app: E2EApp,
+    label: string | readonly string[],
+): Promise<string | undefined> {
+    return (await findContextMenuItem(app, label)).disabledReason;
+}
+
+/**
+ * Chooses an enabled entry, exactly as clicking it in the native menu would, and returns once the menu has closed.
  */
 export async function chooseContextMenuItem(
     app: E2EApp,
     label: string | readonly string[],
+    options: ChooseContextMenuItemOptions = {},
 ): Promise<void> {
     const item = await findContextMenuItem(app, label);
     if (item.type !== 'item' || item.id === undefined)
         throw new Error(`Context menu entry "${String(label)}" is not selectable`);
     if (item.enabled === false)
         throw new Error(`Context menu entry "${String(label)}" is disabled`);
-    await answerPendingMenu(app, item.id);
+    await answerPendingMenu(app, item.id, options);
 }
 
 /**
@@ -114,14 +138,23 @@ export async function expectNoContextMenu(app: E2EApp): Promise<void> {
     await expect.poll(() => readPendingMenu(app)).toBeNull();
 }
 
-async function answerPendingMenu(app: E2EApp, id: number | undefined): Promise<void> {
-    await app.evaluate((_electron, selectedId) => {
-        const probe = (
-            globalThis as typeof globalThis & {
-                caxriE2EContextMenu?: { choose(id?: number): void };
-            }
-        ).caxriE2EContextMenu;
-        if (!probe) throw new Error('No native context menu is open');
-        probe.choose(selectedId ?? undefined);
-    }, id ?? null);
+async function answerPendingMenu(
+    app: E2EApp,
+    id: number | undefined,
+    options: ChooseContextMenuItemOptions = {},
+): Promise<void> {
+    await app.evaluate(
+        async (_electron, { selectedId, chooseOptions }) => {
+            const probe = (
+                globalThis as typeof globalThis & {
+                    caxriE2EContextMenu?: {
+                        choose(id?: number, options?: ChooseContextMenuItemOptions): Promise<void>;
+                    };
+                }
+            ).caxriE2EContextMenu;
+            if (!probe) throw new Error('No native context menu is open');
+            await probe.choose(selectedId ?? undefined, chooseOptions);
+        },
+        { selectedId: id ?? null, chooseOptions: options },
+    );
 }

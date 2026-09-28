@@ -99,6 +99,27 @@ export function useIsPathBlockedByFileOperations(projectId: string, path: string
 }
 
 /**
+ * Shared copy for every Paste/Duplicate menu entry disabled by an in-flight file operation.
+ */
+export const FILE_OPERATION_BUSY_REASON = 'Busy — a file operation is in progress here';
+
+/**
+ * Why Paste cannot run into a directory, or `undefined` while it can. An empty clipboard wins over a busy target:
+ * waiting for the operation would not give the user anything to paste.
+ */
+export function pasteDisabledReason({
+    isBlocked,
+    isClipboardEmpty,
+}: {
+    isBlocked: boolean;
+    isClipboardEmpty: boolean;
+}): string | undefined {
+    if (isClipboardEmpty) return 'Nothing to paste';
+    if (isBlocked) return FILE_OPERATION_BUSY_REASON;
+    return undefined;
+}
+
+/**
  * Every pending operation for a Project whose affected subtree overlaps `path`, oldest first.
  */
 export function fileOperationsBlockingPath(

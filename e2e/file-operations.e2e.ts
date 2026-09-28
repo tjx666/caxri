@@ -19,7 +19,10 @@ import {
     pageRequest,
     VISIBLE_TERMINAL_INPUT,
 } from './support/helpers.ts';
-import { chooseContextMenuItem } from './support/native-context-menu.ts';
+import {
+    chooseContextMenuItem,
+    contextMenuItemDisabledReason,
+} from './support/native-context-menu.ts';
 import { readFileForPoll } from './support/result-file-polling.ts';
 
 async function injectTransientFileAbsence(path: string): Promise<{ restored: Promise<void> }> {
@@ -186,6 +189,23 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             })
             .toEqual({ count: terminalCount + 1, cwd: root });
         await expect(running.page.locator(VISIBLE_TERMINAL_INPUT).last()).toBeFocused();
+
+        /**
+         * Nothing has been copied yet, so the Files background menu says why Paste is unavailable instead of only
+         * graying it out. New File from the same menu replays the focus a real menu hands back as it closes (issue
+         * #1348): the inline name field must still hold focus afterwards, taking typing without a click into it.
+         */
+        const fileListBox = await fileList.boundingBox();
+        if (!fileListBox) throw new Error('The Files list has no layout box');
+        await fileList.click({ button: 'right', position: { x: 24, y: fileListBox.height - 12 } });
+        expect(await contextMenuItemDisabledReason(running.app, 'Paste')).toBe('Nothing to paste');
+        await chooseContextMenuItem(running.app, 'New File', { refocusOnClose: true });
+        const menuFileName = running.page.getByRole('textbox', { name: 'New file name' });
+        await expect(menuFileName).toBeFocused();
+        await running.page.keyboard.type('typed-after-menu.txt');
+        await expect(menuFileName).toHaveValue('typed-after-menu.txt');
+        await menuFileName.press('Escape');
+        await expect(menuFileName).toHaveCount(0);
 
         await draftRow.focus();
         await expect(draftRow).toBeFocused();

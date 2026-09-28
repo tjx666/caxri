@@ -136,7 +136,12 @@ test('The Session context menu renames a selected and an unselected row', async 
         const selectedCard = sessionCard(page, secondSessionId);
         await selectedCard.click({ button: 'right' });
         expect(await isContextMenuItemEnabled(running.app, 'Rename')).toBe(true);
-        await chooseContextMenuItem(running.app, 'Rename');
+        /**
+         * A real menu hands keyboard focus back to the window as it closes. The choice is delivered only after that
+         * (issue #1348), so the input it opens keeps focus and plain typing, with no click into the field first,
+         * replaces the selected title.
+         */
+        await chooseContextMenuItem(running.app, 'Rename', { refocusOnClose: true });
         const selectedInput = selectedCard.getByRole('textbox', { name: 'Rename Untitled' });
         await expect(selectedInput).toBeFocused();
         await expectNoContextMenu(running.app);
@@ -147,7 +152,8 @@ test('The Session context menu renames a selected and an unselected row', async 
                 start: (element as HTMLInputElement).selectionStart,
             })),
         ).toEqual({ end: 8, start: 0 });
-        await selectedInput.fill('Renamed from the menu');
+        await page.keyboard.type('Renamed from the menu');
+        await expect(selectedInput).toHaveValue('Renamed from the menu');
         await selectedInput.press('Enter');
         await expect(selectedCard.locator('strong')).toHaveText('Renamed from the menu');
 

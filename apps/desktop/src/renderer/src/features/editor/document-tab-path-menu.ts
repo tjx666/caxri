@@ -50,27 +50,32 @@ export function documentTabPathMenu({
         {
             label: 'Open with Default App',
             disabled: !desktopPath,
+            disabledReason: desktop.disabledReason,
             onSelect: () => desktopPath && openFileWithDefaultApp(desktopPath),
         },
         {
             label: 'Reveal in Finder',
             disabled: !desktopPath,
+            disabledReason: desktop.disabledReason,
             onSelect: () => desktopPath && revealFile(desktopPath),
         },
         {
             label: 'Open in Terminal',
             disabled: !desktopPath,
+            disabledReason: desktop.disabledReason,
             onSelect: () => desktopPath && openFileInTerminal(parentDirectoryPath(desktopPath)),
         },
         CONTEXT_MENU_SEPARATOR,
         {
             label: 'Copy Path',
             disabled: !resolution,
+            disabledReason: unavailableReason,
             onSelect: () => resolution && copyFilePath(resolution.absolutePath),
         },
         !isExternal && {
             label: 'Copy Relative Path',
             disabled: !resolution?.relativeRoot,
+            disabledReason: unavailableReason,
             onSelect: () =>
                 resolution?.relativeRoot &&
                 copyFilePath(resolution.absolutePath, resolution.relativeRoot),

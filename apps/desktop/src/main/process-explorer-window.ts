@@ -15,8 +15,7 @@ import {
     isAuxiliaryWindowRevealed,
     trackAuxiliaryWindowBounds,
 } from './auxiliary-window';
-import type { AuxiliaryWindowBounds } from './auxiliary-window-bounds';
-import { resolveAuxiliaryWindowBounds } from './auxiliary-window-bounds';
+import { AuxiliaryWindowBoundsMemory } from './auxiliary-window-bounds';
 import type { ProcessExplorerSampler } from './process-explorer';
 import {
     assertTrustedProcessExplorerSender,
@@ -58,7 +57,10 @@ export class ProcessExplorerWindowController {
      * Where the last window stood, in memory for this run and seeded from the previous quit's persisted state by
      * `loadPersistedState()`; see the identical field on `AgentCommanderWindowController`.
      */
-    private lastBounds?: AuxiliaryWindowBounds;
+    private readonly boundsMemory = new AuxiliaryWindowBoundsMemory(
+        { width: 1_280, height: 760 },
+        (rectangle) => screen.getDisplayMatching(rectangle),
+    );
 
     constructor(private readonly options: ProcessExplorerWindowOptions) {}
 
@@ -119,17 +121,13 @@ export class ProcessExplorerWindowController {
     }
 
     /**
-     * Loads bounds persisted at the previous quit and clamps them to a currently attached display; see
-     * `AgentCommanderWindowController.loadPersistedState`. Unlike the Commander, Process Explorer never reopens itself
-     * at startup, so there is no boolean to return.
+     * Loads bounds persisted at the previous quit; see `AgentCommanderWindowController.loadPersistedState`. Unlike the
+     * Commander, Process Explorer never reopens itself at startup, so there is no boolean to return.
      */
     async loadPersistedState(): Promise<void> {
         try {
             const state = await this.options.loadWindowState();
-            if (state.bounds)
-                this.lastBounds = resolveAuxiliaryWindowBounds(state.bounds, (rectangle) =>
-                    screen.getDisplayMatching(rectangle),
-                );
+            if (state.bounds) this.boundsMemory.remember(state.bounds);
         } catch {
             // Keep the window's built-in default bounds.
         }
@@ -144,7 +142,7 @@ export class ProcessExplorerWindowController {
         const bounds =
             this.window && !this.window.isDestroyed()
                 ? this.window.getNormalBounds()
-                : this.lastBounds;
+                : this.boundsMemory.current();
         return { bounds };
     }
 
@@ -161,7 +159,7 @@ export class ProcessExplorerWindowController {
         const zoomFactor = zoomFactorForLevel(this.options.zoomLevel());
         const window = createAuxiliaryWindow({
             browserWindow: {
-                ...(this.lastBounds ?? { width: 1_280, height: 760 }),
+                ...this.boundsMemory.boundsForOpen(),
                 minWidth: 720,
                 /**
                  * Matches `persistedWindowStateSchema.shape.bounds`'s own `height.min(480)`, which
@@ -192,9 +190,7 @@ export class ProcessExplorerWindowController {
             showOnReady: this.options.windowMode === 'visible',
         });
         this.window = window;
-        trackAuxiliaryWindowBounds(window, (bounds) => {
-            this.lastBounds = bounds;
-        });
+        trackAuxiliaryWindowBounds(window, (bounds) => this.boundsMemory.remember(bounds));
         window.on('closed', () => {
             if (this.window === window) this.window = undefined;
         });
