@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 
 import type { LucideIcon } from 'lucide-react-native';
@@ -7,7 +7,7 @@ import {
     ChevronLeft,
     EllipsisVertical,
     FileDiff,
-    FolderGit2,
+    ListTree,
     MailOpen,
     MessagesSquare,
     SquareTerminal,
@@ -19,9 +19,11 @@ import { PopoverMenu } from '../../../components/popover-menu';
 import { usePopoverAnchor } from '../../../components/use-popover-anchor';
 import type { MobileTheme } from '../../../theme/tokens';
 import { MobileGatewayRequestError } from '../../connection/mobile-gateway-client';
+import { PanelIcon } from '../../panels/panels-view';
+import type { Panel } from '../../panels/use-panels';
 import type { MobileSessionItem } from '../session-model';
-import type { SessionSegment } from '../session-ui-state';
-import { SESSION_SEGMENTS } from '../session-ui-state';
+import type { SESSION_SEGMENTS, SessionSegment } from '../session-ui-state';
+import { isPanelSessionSegment, panelIdOfSegment } from '../session-ui-state';
 import { sessionDetailStyles as styles } from './session-detail-styles';
 import { SessionStatusGlyph } from './session-status-glyph';
 
@@ -32,31 +34,52 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const tabLayoutTransition = LinearTransition.duration(200);
 const tabLabelEntering = FadeIn.duration(160).delay(60);
 
-const segmentPresentation: Record<SessionSegment, { icon: LucideIcon; label: string }> = {
+const fixedSegmentPresentation: Record<
+    (typeof SESSION_SEGMENTS)[number],
+    { icon: LucideIcon; label: string }
+> = {
     conversation: { icon: MessagesSquare, label: 'Conversation' },
     terminal: { icon: SquareTerminal, label: 'Terminal' },
     changes: { icon: FileDiff, label: 'Changes' },
-    panels: { icon: FolderGit2, label: 'Project' },
+};
+
+const segmentPresentation = (
+    segment: SessionSegment,
+    panels: readonly Panel[] | undefined,
+): { icon: LucideIcon; label: string; panel?: Panel } => {
+    if (!isPanelSessionSegment(segment)) return fixedSegmentPresentation[segment];
+    const panel = panels?.find((candidate) => candidate.id === panelIdOfSegment(segment));
+    return { icon: ListTree, label: panel?.title ?? 'Project view', panel };
 };
 
 /**
- * Only the selected tab spells out its name. Four labelled tabs do not fit a phone at the default font scale, and the
- * icons stay distinct enough once one of them is named; every tab keeps its full accessible name.
+ * `session-segment-panel-caxri.files` rather than the raw `panel:` segment, so test ids stay free of separators.
+ */
+const segmentTestId = (segment: SessionSegment): string =>
+    isPanelSessionSegment(segment)
+        ? `session-segment-panel-${panelIdOfSegment(segment)}`
+        : `session-segment-${segment}`;
+
+/**
+ * Only the selected tab spells out its name. Several labelled tabs do not fit a phone at the default font scale, and
+ * the icons stay distinct enough once one of them is named; every tab keeps its full accessible name.
  */
 const SessionSegmentTab = ({
     changesCount,
     onPress,
     option,
+    panels,
     selected,
     theme,
 }: {
     changesCount: number | null;
     onPress: () => void;
     option: SessionSegment;
+    panels: readonly Panel[] | undefined;
     selected: boolean;
     theme: MobileTheme;
 }) => {
-    const { icon: Icon, label } = segmentPresentation[option];
+    const { icon: Icon, label, panel } = segmentPresentation(option, panels);
     /**
      * A zero badge reads as a value to act on; an empty Changes tab says the same thing without the noise.
      */
@@ -70,9 +93,18 @@ const SessionSegmentTab = ({
             layout={tabLayoutTransition}
             onPress={onPress}
             style={[styles.tab, selected ? { backgroundColor: theme.surface } : null]}
-            testID={`session-segment-${option}`}
+            testID={segmentTestId(option)}
         >
-            <Icon color={color} size={18} strokeWidth={selected ? 2.25 : 2} />
+            {panel ? (
+                <PanelIcon
+                    color={color}
+                    panel={panel}
+                    size={18}
+                    strokeWidth={selected ? 2.25 : 2}
+                />
+            ) : (
+                <Icon color={color} size={18} strokeWidth={selected ? 2.25 : 2} />
+            )}
             {selected ? (
                 <Animated.Text
                     entering={tabLabelEntering}
@@ -102,22 +134,27 @@ const SessionSegmentTab = ({
 
 export const SessionDetailHeader = ({
     changesCount,
-    hasConversation,
     isConnected,
     onBack,
     onMarkRead,
     onSegmentChange,
+    panels,
     segment,
+    segments,
     session,
     theme,
 }: {
     changesCount: number | null;
-    hasConversation: boolean;
     isConnected: boolean;
     onBack?: () => void;
     onMarkRead: () => Promise<void>;
     onSegmentChange: (segment: SessionSegment) => void;
+    panels: readonly Panel[] | undefined;
     segment: SessionSegment;
+    /**
+     * Visible tabs in order: the fixed segments this Session supports, then one per Project view.
+     */
+    segments: readonly SessionSegment[];
     session: MobileSessionItem;
     theme: MobileTheme;
 }) => {
@@ -125,6 +162,7 @@ export const SessionDetailHeader = ({
     const menu = usePopoverAnchor(menuAnchor);
     const { close: closeMenu } = menu;
     const [markReadError, setMarkReadError] = useState<string | null>(null);
+    const [isTitleExpanded, setTitleExpanded] = useState(false);
     const handleMarkRead = useCallback(async (): Promise<void> => {
         closeMenu();
         try {
@@ -155,9 +193,12 @@ export const SessionDetailHeader = ({
                     ) : null}
                     <View style={styles.titleGroup}>
                         <AgentGlyph kind={session.primaryTerminal?.kind} size={18} theme={theme} />
+                        {/* A long title is cut to one line; tapping it reveals the rest. */}
                         <Text
+                            accessibilityHint="Shows the full title."
                             accessibilityRole="header"
-                            numberOfLines={1}
+                            numberOfLines={isTitleExpanded ? 3 : 1}
+                            onPress={() => setTitleExpanded((current) => !current)}
                             style={[styles.title, { color: theme.text }]}
                             testID="session-detail-title"
                         >
@@ -215,21 +256,25 @@ export const SessionDetailHeader = ({
                     </Text>
                 ) : null}
             </View>
-            <View style={[styles.tabs, { borderColor: theme.border }]}>
-                {(hasConversation
-                    ? SESSION_SEGMENTS
-                    : SESSION_SEGMENTS.filter((option) => option !== 'conversation')
-                ).map((option) => (
+            {/* Project views join the fixed tabs, so the strip scrolls rather than squeezing on a narrow phone. */}
+            <ScrollView
+                contentContainerStyle={styles.tabs}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={[styles.tabStrip, { borderColor: theme.border }]}
+            >
+                {segments.map((option) => (
                     <SessionSegmentTab
                         key={option}
                         changesCount={changesCount}
                         onPress={() => onSegmentChange(option)}
                         option={option}
+                        panels={panels}
                         selected={segment === option}
                         theme={theme}
                     />
                 ))}
-            </View>
+            </ScrollView>
         </>
     );
 };

@@ -43,12 +43,12 @@ still Agent output under the same privacy rule.
 
 **Situation:** An Android case opens a Session's Files panel after pairing.
 
-**Does not work:** Tapping `session-segment-files`. Files belongs to the Session's Project segment,
-then the `caxri.files` panel tab; the guessed ID fails before the file behavior is exercised.
+**Does not work:** Tapping `session-segment-files`. Files is the `caxri.files` panel's own Session
+tab, `session-segment-panel-caxri.files`; the guessed ID fails before the file behavior is exercised.
 
 **Works:** Check the mounted component's `testID` and wait for that ID in device semantics before
-each navigation tap. Open `session-segment-panels`, then `panel-tab-caxri.files`, and only then
-look for `files-entry-*`.
+each navigation tap. Panel tabs appear only after the panel list loads, so wait for
+`session-segment-panel-caxri.files`, open it, and only then look for `files-entry-*`.
 
 ## Reusing a disabled native button for another action
 

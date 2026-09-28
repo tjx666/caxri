@@ -2,18 +2,7 @@ import { StyleSheet } from 'react-native';
 
 export const panelsStyles = StyleSheet.create({
     root: { flex: 1, minWidth: 0 },
-    tabList: { flexGrow: 0 },
     viewTitle: { fontSize: 13, fontWeight: '600', padding: 12 },
-    tabs: { flexDirection: 'row', gap: 6, paddingHorizontal: 12, paddingVertical: 8 },
-    tab: {
-        alignItems: 'center',
-        borderRadius: 17,
-        flexDirection: 'row',
-        gap: 6,
-        minHeight: 44,
-        paddingHorizontal: 12,
-    },
-    tabText: { fontSize: 13, fontWeight: '600' },
     body: { flex: 1 },
     crumbs: {
         alignItems: 'center',
@@ -23,7 +12,10 @@ export const panelsStyles = StyleSheet.create({
         minHeight: 44,
         paddingRight: 12,
     },
-    crumbText: { flex: 1, fontSize: 13, minWidth: 0 },
+    crumbScroll: { flex: 1 },
+    crumbTrail: { alignItems: 'center', gap: 4, paddingRight: 4 },
+    crumb: { alignItems: 'center', flexDirection: 'row', gap: 6 },
+    crumbText: { fontSize: 13 },
     fileActions: { gap: 12, paddingLeft: 16 },
     fileAction: { justifyContent: 'center', minHeight: 44 },
     row: {

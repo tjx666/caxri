@@ -56,7 +56,7 @@ test('Submodule changes clear automatically after an external commit in a linked
         await expect(section.getByText('Working tree clean.', { exact: true })).toBeVisible();
         await panel.screenshot({ path: test.info().outputPath('submodule-after-commit.png') });
 
-        // Files names the same repository with the `archive` glyph Source Control gives it, not a folder icon.
+        // Files marks the same repository with the Git folder icon instead of the plain folder icon.
         await running.page.getByRole('tab', { name: 'Files', exact: true }).click();
         const childRow = running.page.getByRole('treeitem', { name: 'child', exact: true });
         await expect(childRow.locator('[data-child-repo-icon="submodule"]')).toBeVisible();

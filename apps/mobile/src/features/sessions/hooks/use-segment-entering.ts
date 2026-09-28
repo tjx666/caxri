@@ -24,13 +24,16 @@ export const segmentEnterOffset = (direction: -1 | 0 | 1): number => direction *
  *
  * @returns The switch direction (`null` for the first panel) and the matching mount-time `entering` animation.
  */
-export const useSegmentEntering = (segment: SessionSegment) => {
+export const useSegmentEntering = (segment: SessionSegment, order: readonly SessionSegment[]) => {
     const [transition, setTransition] = useState<{
         direction: -1 | 0 | 1 | null;
         segment: SessionSegment;
     }>({ direction: null, segment });
     if (transition.segment !== segment)
-        setTransition({ direction: sessionSegmentDirection(transition.segment, segment), segment });
+        setTransition({
+            direction: sessionSegmentDirection(transition.segment, segment, order),
+            segment,
+        });
     const { direction } = transition;
     const entering =
         direction === null

@@ -67,7 +67,11 @@ export async function executeMobileSessionRefreshScenario(
          * Metadata evidence must not capture the fallback shell's host-specific prompt. Keep this detail mounted on
          * Project throughout the measurement and final capture.
          */
-        await tapMobileCheck(environment.serial, 'session-segment-panels');
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => nodes.some(({ checkId }) => checkId === 'session-segment-panel-caxri.files'),
+        );
+        await tapMobileCheck(environment.serial, 'session-segment-panel-caxri.files');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) => nodes.some(({ checkId }) => checkId === 'files-panel'),

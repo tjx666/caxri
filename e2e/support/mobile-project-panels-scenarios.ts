@@ -136,9 +136,9 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
         await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
         await waitForMobile(
             () => mobileSemantics(environment.serial),
-            (nodes) => hasCheck(nodes, 'session-segment-panels'),
+            (nodes) => hasCheck(nodes, 'session-segment-panel-caxri.files'),
         );
-        await tapMobileCheck(environment.serial, 'session-segment-panels');
+        await tapMobileCheck(environment.serial, 'session-segment-panel-caxri.files');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) => hasCheck(nodes, 'files-entry-empty-folder'),
@@ -171,7 +171,7 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
         );
         await capture(environment, 'files-error', artifacts);
         await tapMobileCheck(environment.serial, 'files-up');
-        await tapMobileCheck(environment.serial, 'panel-tab-caxri.project-status');
+        await tapMobileCheck(environment.serial, 'session-segment-panel-caxri.project-status');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) =>
@@ -179,7 +179,7 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
                 (hasCheck(nodes, 'tree-row') || hasCheck(nodes, 'tree-panel-empty')),
         );
         await capture(environment, 'status', artifacts);
-        await tapMobileCheck(environment.serial, 'panel-tab-caxri.fixture');
+        await tapMobileCheck(environment.serial, 'session-segment-panel-caxri.fixture');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) =>

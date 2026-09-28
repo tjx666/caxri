@@ -148,14 +148,9 @@ export async function executeMobileFileEditScenario(
         await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
         await waitForMobile(
             () => mobileSemantics(environment.serial),
-            (nodes) => nodes.some(({ checkId }) => checkId === 'session-segment-panels'),
+            (nodes) => nodes.some(({ checkId }) => checkId === 'session-segment-panel-caxri.files'),
         );
-        await tapMobileCheck(environment.serial, 'session-segment-panels');
-        await waitForMobile(
-            () => mobileSemantics(environment.serial),
-            (nodes) => nodes.some(({ checkId }) => checkId === 'panel-tab-caxri.files'),
-        );
-        await tapMobileCheck(environment.serial, 'panel-tab-caxri.files');
+        await tapMobileCheck(environment.serial, 'session-segment-panel-caxri.files');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) => nodes.some(({ checkId }) => checkId === 'files-entry-acceptance-note.txt'),
