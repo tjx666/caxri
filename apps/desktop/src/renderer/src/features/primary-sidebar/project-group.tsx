@@ -1,5 +1,5 @@
 import type { DragEvent } from 'react';
-import { useRef, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { ChevronDown, ChevronRight, Paintbrush } from 'lucide-react';
@@ -14,6 +14,7 @@ import { CreateSessionMenu, EmptyProjectSessionMenu } from '../session/create-se
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { ActiveSessionRow } from './active-session-row';
 import type { SessionOrderController } from './hooks/use-session-order';
+import { useVisibleSessionIds } from './hooks/use-visible-session-ids';
 import { focusDisclosureRow } from './primary-sidebar-focus';
 import {
     primarySidebarCreateSessionRowId,
@@ -27,6 +28,12 @@ import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
 import { ProjectRowMenu } from './project-row-menu';
 import { summarizeSessionStatuses } from './session-status';
+
+/**
+ * Rows render through a memo boundary so a Session switch renders only the rows whose selection moved; the props this
+ * list passes are shaped for it, as `ActiveSessionRow` explains (issue #1356).
+ */
+const MemoizedActiveSessionRow = memo(ActiveSessionRow);
 
 interface ProjectGroupProperties {
     sessionOrder: SessionOrderController;
@@ -119,6 +126,7 @@ export function ProjectGroup({
     const createSessionRowId = primarySidebarCreateSessionRowId(project.id);
     const [menuOpen, setMenuOpen] = useState(false);
     const headingReference = useRef<HTMLDivElement>(null);
+    const visibleSessionIds = useVisibleSessionIds(visibleSessions);
     /**
      * A collapsed Project hides its rows, and with them every running arc and attention ring. Summarize them on the
      * heading so an Agent waiting on the user is never folded out of sight; an expanded Project shows the rows
@@ -316,19 +324,20 @@ export function ProjectGroup({
                         role="group"
                     >
                         {visibleSessions.map((session) => (
-                            <ActiveSessionRow
+                            <MemoizedActiveSessionRow
                                 sessionOrder={sessionOrder}
-                                visibleSessions={visibleSessions}
+                                visibleSessionIds={visibleSessionIds}
                                 key={session.id}
                                 focusRenameInput={focusRenameInput}
-                                onBeginRename={() =>
-                                    onBeginRename(session.id, session.displayTitle, session.id)
-                                }
+                                onBeginRename={onBeginRename}
                                 onBlurRename={onBlurRename}
                                 onCancelRename={onCancelRename}
                                 onCommitRename={onCommitRename}
                                 onRenameValueChange={onRenameValueChange}
-                                project={project}
+                                projectDisplayTitle={project.displayTitle}
+                                projectIcon={project.icon}
+                                projectId={project.id}
+                                projectRootPath={project.rootPath}
                                 renameError={renameError}
                                 renameValue={renameValue}
                                 renaming={session.id === renamingRowId}

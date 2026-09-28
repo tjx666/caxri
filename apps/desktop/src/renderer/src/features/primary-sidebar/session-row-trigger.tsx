@@ -18,7 +18,10 @@ interface SessionRowTriggerProperties extends ComponentProps<'div'> {
     renaming: boolean;
     roving: boolean;
     sessionOrder: SessionOrderController;
-    visibleSessions: readonly SessionRecord[];
+    /**
+     * The rows this row's list shows, in order, for `Alt+Arrow` reordering.
+     */
+    visibleSessionIds: readonly string[];
     onBeginRename: () => void;
     onFocusChange: (isFocused: boolean) => void;
 }
@@ -40,17 +43,22 @@ interface SessionRowTriggerProperties extends ComponentProps<'div'> {
 export function SessionRowTrigger({
     children,
     session,
-    rowId = session.id,
+    rowId: explicitRowId,
     selected,
     renaming,
     roving,
     sessionOrder,
-    visibleSessions,
+    visibleSessionIds,
     onBeginRename,
     onFocusChange,
     ref,
     ...properties
 }: SessionRowTriggerProperties) {
+    /**
+     * Resolved here rather than as a destructuring default: React Compiler cannot lower a default that reads another
+     * destructured prop, and one such default silently leaves the whole component unoptimized.
+     */
+    const rowId = explicitRowId ?? session.id;
     const trigger = (
         <div
             ref={sessionOrder.draggedId === session.id ? sessionOrder.sourceReference : undefined}
@@ -82,7 +90,7 @@ export function SessionRowTrigger({
             }}
             onDoubleClick={onBeginRename}
             onKeyDown={(event) => {
-                if (!renaming) sessionOrder.keyDown(event, session, visibleSessions);
+                if (!renaming) sessionOrder.keyDown(event, session.id, visibleSessionIds);
                 if (event.defaultPrevented) return;
                 if (!renaming && event.key === 'Enter') {
                     event.preventDefault();

@@ -3,9 +3,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { SessionRecord } from '@caxri/protocol';
 
+import { useLatestReference } from '../../../hooks/use-latest-reference';
 import { didReorderSession } from '../../session/session-commands';
 import type { SessionDropTarget } from '../session-order';
-import { frozenSessionOrder, SESSION_DRAG_TYPE, sessionDropTarget } from '../session-order';
+import {
+    frozenSessionOrder,
+    keyboardReorderTarget,
+    SESSION_DRAG_TYPE,
+    sessionDropTarget,
+    sessionMoveAnnouncement,
+} from '../session-order';
 
 /**
  * `groupOf`'s default. Hoisted out of the destructuring default below rather than written inline, for two reasons: an
@@ -49,6 +56,12 @@ interface SessionOrderOptions {
  * over the same Session records, so this takes the three rules that differ — which drops are legal, which rows count as
  * siblings, and which Server method records the move — and keeps everything else (the frozen order during a drag, the
  * dragend cleanup, the announcement) in one place.
+ *
+ * Returns the controller every row receives apart from the list it orders. The handlers read the records through a
+ * latest-value ref instead of closing over them, because the records change on every Session switch: the Server stamps
+ * the opened Session's `lastOpenedAt`, which replaces the list. A controller rebuilt from that list would reach every
+ * row as a new prop and render all of them again, when only the two rows whose selection moved have anything new to
+ * show (issue #1356).
  */
 export function useSessionOrder(sessions: SessionRecord[], options: SessionOrderOptions = {}) {
     const {
@@ -61,6 +74,7 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
     const [dropTarget, setDropTarget] = useState<SessionDropTarget>();
     const [announcement, setAnnouncement] = useState('');
     const pending = useRef(false);
+    const latestSessions = useLatestReference(sessions);
 
     const clear = useCallback((): void => {
         setDraggedId(undefined);
@@ -86,18 +100,21 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
     }, [clear]);
     const persist = useCallback(
         async (sessionId: string, target: SessionDropTarget): Promise<void> => {
+            const moveAnnouncement = sessionMoveAnnouncement(
+                latestSessions.current,
+                sessionId,
+                target,
+            );
             pending.current = true;
             try {
                 if (await reorder(sessionId, target.anchorSessionId, target.placement))
-                    setAnnouncement(
-                        `Moved ${sessions.find((session) => session.id === sessionId)?.displayTitle ?? 'Session'} ${target.placement} ${sessions.find((session) => session.id === target.anchorSessionId)?.displayTitle ?? 'Session'}`,
-                    );
+                    setAnnouncement(moveAnnouncement);
             } finally {
                 pending.current = false;
                 clear();
             }
         },
-        [clear, reorder, sessions],
+        [clear, latestSessions, reorder],
     );
     const targetAt = useCallback(
         (event: DragEvent<HTMLElement>, anchorSessionId: string): SessionDropTarget | undefined => {
@@ -109,13 +126,13 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
                 return;
             const bounds = event.currentTarget.getBoundingClientRect();
             return dropTargetAt(
-                sessions,
+                latestSessions.current,
                 draggedId,
                 anchorSessionId,
                 event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after',
             );
         },
-        [draggedId, dropTargetAt, sessions],
+        [draggedId, dropTargetAt, latestSessions],
     );
 
     const startDrag = useCallback(
@@ -127,11 +144,11 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
             event.stopPropagation();
             event.dataTransfer.effectAllowed = 'move';
             event.dataTransfer.setData(SESSION_DRAG_TYPE, sessionId);
-            setFrozenIds(sessions.map((session) => session.id));
+            setFrozenIds(latestSessions.current.map((session) => session.id));
             setDraggedId(sessionId);
             setAnnouncement('');
         },
-        [sessions],
+        [latestSessions],
     );
     const endDrag = useCallback(() => {
         if (!pending.current) clear();
@@ -161,28 +178,30 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
     const keyDown = useCallback(
         (
             event: KeyboardEvent<HTMLElement>,
-            session: SessionRecord,
-            visibleSessions: readonly SessionRecord[],
+            sessionId: string,
+            /**
+             * The rows the focused row's list shows, in order. Ids rather than records, so the list a row holds keeps
+             * its identity through a refresh that only replaced records.
+             */
+            visibleSessionIds: readonly string[],
         ) => {
             if (!event.altKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
             event.preventDefault();
             event.stopPropagation();
             if (draggedId || pending.current) return;
-            // Hidden rows are not keyboard drop targets: moving into the collapsed tail would unmount the focused row.
-            const group = groupOf(session);
-            const rows = visibleSessions.filter((row) => groupOf(row) === group);
-            const delta = event.key === 'ArrowUp' ? -1 : 1;
-            const targetIndex = rows.findIndex((row) => row.id === session.id) + delta;
-            const anchor = targetIndex >= 0 ? rows.at(targetIndex) : undefined;
-            if (!anchor) return;
+            const target = keyboardReorderTarget({
+                direction: event.key === 'ArrowUp' ? -1 : 1,
+                groupOf,
+                sessionId,
+                sessions: latestSessions.current,
+                visibleSessionIds,
+            });
+            if (!target) return;
             // Keyboard reordering uses the same relative Server command and error reporting as dragging.
             // eslint-disable-next-line no-void -- intentional floating-promise discard
-            void persist(session.id, {
-                anchorSessionId: anchor.id,
-                placement: delta === -1 ? 'before' : 'after',
-            });
+            void persist(sessionId, target);
         },
-        [draggedId, groupOf, persist],
+        [draggedId, groupOf, latestSessions, persist],
     );
     const drop = useCallback(
         (event: DragEvent<HTMLElement>, sessionId: string) => {
@@ -199,21 +218,19 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
     );
 
     /**
-     * Memoized so a re-render that leaves every reactive input above untouched — the common case is a Session switch,
-     * which only moves `selectedSessionId` and never this list's own drag/rename state — returns the exact same
-     * controller object. Every consumer down to each Session card receives these methods as props; without this, a
-     * fresh object (and fresh inline methods) on every render defeated each card's own render-skip regardless of
-     * whether its own content actually changed (issue #1108). React Compiler cannot cover this hook on its own: the
-     * `try`/`finally` in `persist` above has no `catch` clause, which is also not yet lowered
+     * Memoized so a re-render that leaves this list's own drag state untouched returns the exact same controller
+     * object. Every Session row receives it as a prop, so a fresh object would render every row again (issues #1108 and
+     * #1356). None of its inputs depend on the records themselves, which is what keeps it stable through a Session
+     * switch; the ordered list travels beside it instead of inside it. React Compiler cannot cover this hook on its
+     * own: the `try`/`finally` in `persist` above has no `catch` clause, which is also not yet lowered
      * (`BuildHIR::lowerStatement`), so this hook falls back to manual memoization throughout.
      */
-    return useMemo(
+    const controller = useMemo(
         () => ({
             announcement,
             draggedId,
             dropTarget,
             sourceReference,
-            sessions: frozenSessionOrder(sessions, frozenIds),
             startDrag,
             endDrag,
             dragOver,
@@ -226,8 +243,6 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
             draggedId,
             dropTarget,
             sourceReference,
-            sessions,
-            frozenIds,
             startDrag,
             endDrag,
             dragOver,
@@ -236,6 +251,14 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
             drop,
         ],
     );
+    /**
+     * The list in display order, frozen while a drag is in flight so the rows under the pointer hold still.
+     */
+    const orderedSessions = useMemo(
+        () => frozenSessionOrder(sessions, frozenIds),
+        [sessions, frozenIds],
+    );
+    return { controller, sessions: orderedSessions };
 }
 
-export type SessionOrderController = ReturnType<typeof useSessionOrder>;
+export type SessionOrderController = ReturnType<typeof useSessionOrder>['controller'];
