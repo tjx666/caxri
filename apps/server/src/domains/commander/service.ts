@@ -94,6 +94,7 @@ export class AgentCommanderService {
 
     private async runEnsure(): Promise<CommanderSnapshot> {
         const { database } = this.options;
+        const startedAt = performance.now();
         const { path: workspacePath, repoFailure } = await prepareCommanderWorkspace(
             this.options.userDataPath,
         );
@@ -136,10 +137,36 @@ export class AgentCommanderService {
                     }),
             );
             this.options.probeTerminal(terminal.id);
-        } else this.options.restoreTerminals(rows.sessionId);
+            this.logEnsured('created', terminal.id, startedAt);
+        } else {
+            const state = database.getTerminal(rows.terminalId)?.lastProcessState;
+            this.options.restoreTerminals(rows.sessionId);
+            this.logEnsured(
+                state === 'running' || state === 'starting' ? 'running' : 'restored',
+                rows.terminalId,
+                startedAt,
+                state,
+            );
+        }
         const snapshot = this.snapshot();
         if (!snapshot) throw new CaxriError('UNAVAILABLE', 'Agent Commander failed to start');
         return snapshot;
+    }
+
+    private logEnsured(
+        outcome: 'created' | 'restored' | 'running',
+        terminalId: string,
+        startedAt: number,
+        previousState?: string,
+    ): void {
+        this.options.logger?.write('info', logEventCatalog.agentCommander.ensured, {
+            fields: {
+                outcome,
+                terminalId,
+                previousState: previousState ?? null,
+                durationMs: Math.round(performance.now() - startedAt),
+            },
+        });
     }
 
     private async runStop(): Promise<void> {
@@ -152,10 +179,23 @@ export class AgentCommanderService {
             // The failed ensure reports to its own caller; the stop still acts on whatever rows exist.
         }
         const rows = this.options.database.agentCommanderRows();
-        if (!rows?.terminalId) return;
+        if (!rows?.terminalId) {
+            this.options.logger?.write('info', logEventCatalog.agentCommander.stopped, {
+                fields: { outcome: 'not_running' },
+            });
+            return;
+        }
+        const startedAt = performance.now();
         await this.options.cancelRestore(rows.sessionId);
         await this.options.stopTerminal(rows.terminalId);
         this.options.sendTerminalChange(rows.terminalId);
+        this.options.logger?.write('info', logEventCatalog.agentCommander.stopped, {
+            fields: {
+                outcome: 'stopped',
+                terminalId: rows.terminalId,
+                durationMs: Math.round(performance.now() - startedAt),
+            },
+        });
     }
 
     /**
@@ -254,34 +294,71 @@ export class AgentCommanderService {
     }
 
     /**
-     * Creates an empty Session without moving the Workbench selection. The Commander Terminal must exist: the Session
-     * is recorded as the Commander's, which is what later admits delegation into it. At capacity it refuses rather than
-     * dropping the oldest record, which would silently disown a Session that may still run a task.
+     * Creates an empty Session without moving the Workbench selection; see {@link createCommanderSession}.
      */
     createSession(projectId: string): { projectId: string; sessionId: string } {
-        const { database } = this.options;
-        const project = database
-            .listVisibleProjects()
-            .find((candidate) => candidate.id === projectId);
-        if (!project || !isTopLevelProject(project))
-            throw new CaxriError('NOT_FOUND', 'Project is unavailable to the Agent Commander');
-        const rows = database.agentCommanderRows();
-        if (!rows) throw new CaxriError('UNAVAILABLE', 'Agent Commander is not running');
-        if (rows.sessionIds.length >= MAX_COMMANDER_SESSIONS)
-            throw new CaxriError(
-                'CAPACITY',
-                `Agent Commander already owns ${MAX_COMMANDER_SESSIONS} Sessions; delete finished ones to create more`,
-            );
-        const { session } = database.createSession(projectId, null, undefined, {
-            selection: 'preserve',
-        });
-        database.setAppState('agentCommander', {
-            projectId: rows.projectId,
-            sessionId: rows.sessionId,
-            ...(rows.terminalId && { terminalId: rows.terminalId }),
-            sessionIds: [...rows.sessionIds, session.id],
-        });
+        const sessionId = createCommanderSession(
+            this.options.database,
+            projectId,
+            this.options.logger,
+        );
         this.options.sendFullStateChange();
-        return { projectId, sessionId: session.id };
+        return { projectId, sessionId };
     }
+}
+
+/**
+ * Creates an empty Session without moving the Workbench selection and records it as the Commander's. The Commander
+ * Terminal must exist: the record is what later admits delegation into the Session. At capacity it refuses rather than
+ * dropping the oldest record, which would silently disown a Session that may still run a task. The caller announces the
+ * change.
+ */
+export function createCommanderSession(
+    database: CaxriDatabase,
+    projectId: string,
+    logger?: StructuredLogger,
+): string {
+    const project = database.listVisibleProjects().find((candidate) => candidate.id === projectId);
+    if (!project || !isTopLevelProject(project))
+        throw new CaxriError('NOT_FOUND', 'Project is unavailable to the Agent Commander');
+    const rows = database.agentCommanderRows();
+    if (!rows) throw new CaxriError('UNAVAILABLE', 'Agent Commander is not running');
+    if (rows.sessionIds.length >= MAX_COMMANDER_SESSIONS)
+        throw new CaxriError(
+            'CAPACITY',
+            `Agent Commander already owns ${MAX_COMMANDER_SESSIONS} Sessions; delete finished ones to create more`,
+        );
+    const { session } = database.createSession(projectId, null, undefined, {
+        selection: 'preserve',
+    });
+    database.setAppState('agentCommander', {
+        projectId: rows.projectId,
+        sessionId: rows.sessionId,
+        ...(rows.terminalId && { terminalId: rows.terminalId }),
+        sessionIds: [...rows.sessionIds, session.id],
+    });
+    logger?.write('info', logEventCatalog.agentCommander.sessionCreated, {
+        fields: { projectId, sessionId: session.id, ownedCount: rows.sessionIds.length + 1 },
+    });
+    return session.id;
+}
+
+/**
+ * Removes a Commander Session that never received a Terminal, such as one created for a delegation that was refused
+ * before it launched. Metadata only: a Session never owns user files. A Session that meanwhile gained a Terminal is
+ * kept; `onDiscarded` announces an actual removal.
+ */
+export function discardCommanderSession(
+    database: CaxriDatabase,
+    sessionId: string,
+    logger?: StructuredLogger,
+    onDiscarded?: () => void,
+): void {
+    if (!database.agentCommanderRows()?.sessionIds.includes(sessionId)) return;
+    if (database.listTerminals(sessionId).length > 0) return;
+    database.deleteSession(sessionId);
+    logger?.write('info', logEventCatalog.agentCommander.sessionDiscarded, {
+        fields: { sessionId },
+    });
+    onDiscarded?.();
 }

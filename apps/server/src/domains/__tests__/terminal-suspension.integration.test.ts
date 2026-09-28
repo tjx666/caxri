@@ -146,13 +146,21 @@ describe('background Agent suspension', () => {
                 expect(runtime.kills[0]).toHaveBeenCalled();
                 expect(runtime.spawnSpy).toHaveBeenCalledTimes(2);
 
-                // Returning restores the Terminal and resumes the bound Agent session.
+                /**
+                 * Returning restores the Terminal and resumes the bound Agent session. A settled delegation resumes it
+                 * with the task's frozen launch rather than the user's current defaults.
+                 */
                 await domains.handlers['session.select']({ sessionId: first.session.id });
                 await vi.waitFor(() => expect(runtime.spawnSpy).toHaveBeenCalledTimes(3));
                 const resumed = runtime.start.mock.calls.at(-1)?.[0].agent;
                 expect(resumed?.args).toEqual(
                     isDelegated
-                        ? undefined
+                        ? [
+                              '--add-dir',
+                              join(runtime.userDataPath, 'delegations', 'synthetic-delegation'),
+                              '--resume',
+                              'claude-session-1',
+                          ]
                         : [
                               ...defaultAgentProviderSettings.claude.launch.args,
                               '--resume',
@@ -162,9 +170,7 @@ describe('background Agent suspension', () => {
                 await vi.waitFor(async () => {
                     const record = await terminalRecord();
                     expect(record?.lastProcessState).toBe('running');
-                    expect(record?.lastAgentProcessState).toBe(
-                        isDelegated ? 'suspended' : 'running',
-                    );
+                    expect(record?.lastAgentProcessState).toBe('running');
                     expect(record?.agentSessionId).toBe('claude-session-1');
                 });
             } finally {

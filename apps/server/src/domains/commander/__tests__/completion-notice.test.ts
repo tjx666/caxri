@@ -368,4 +368,48 @@ describe('CommanderCompletionNotifier', () => {
             expect.anything(),
         );
     });
+
+    it('logs the gate holding a notice back once per change, then the delivery with its wait', () => {
+        const logger = { write: vi.fn() };
+        let epoch = 0;
+        const notifier = new CommanderCompletionNotifier({
+            database: {
+                agentCommanderRows: () => ({
+                    terminalId: COMMANDER_TERMINAL_ID,
+                    sessionIds: ['session-1'],
+                    projectId: 'commander-project',
+                    sessionId: 'commander-session',
+                }),
+                getSession: () => session(),
+            },
+            hasIdleProof: () => true,
+            inputEpoch: () => epoch,
+            logger: logger as never,
+            write: () => true,
+        });
+        notifier.onLifecycleApplied(signal({ phase: 'turnStarted' }));
+        notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
+        notifier.notifyReceiptChanged(receipt({ status: 'failed', revision: 3 }));
+        epoch = 1;
+        notifier.onLifecycleApplied(signal({ phase: 'turnFinished', agentTurnId: 'turn-1' }));
+        const fieldsOf = (event: string) =>
+            logger.write.mock.calls
+                .filter((call) => String(call[1]).endsWith(event))
+                .map((call) => (call[2] as { fields: Record<string, unknown> }).fields);
+        expect(fieldsOf('completion_notice_deferred').map((fields) => fields.reason)).toEqual([
+            'commander_busy',
+            'draft_input',
+        ]);
+        expect(fieldsOf('completion_notice_queued')[0]).toMatchObject({
+            status: 'completed',
+            pendingCount: 1,
+        });
+
+        epoch = 0;
+        notifier.onLifecycleApplied(signal({ phase: 'turnStarted' }));
+        notifier.onLifecycleApplied(signal({ phase: 'turnFinished', agentTurnId: 'turn-2' }));
+        expect(fieldsOf('completion_notice_delivered')).toEqual([
+            { count: 1, waitMs: fieldsOf('completion_notice_delivered')[0].waitMs },
+        ]);
+    });
 });

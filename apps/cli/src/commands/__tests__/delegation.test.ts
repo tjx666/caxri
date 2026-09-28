@@ -39,6 +39,32 @@ describe('delegation CLI', () => {
         },
     );
 
+    it('asks for a new Session in place of --session, never both or neither', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-cli-'));
+        onTestFinished(() => rm(directory, { recursive: true, force: true }));
+        const path = join(directory, 'task.md');
+        await writeFile(path, 'Synthetic task');
+        const command = DELEGATION_COMMANDS.find(
+            (item) => item.method === 'agent.delegation.create',
+        )!;
+        const base = ['--project', 'project', '--provider', 'codex', '--prompt-file', path];
+        expect(await command.parseParams([...base, '--new-session'])).toEqual({
+            projectId: 'project',
+            newSession: true,
+            provider: 'codex',
+            prompt: 'Synthetic task',
+        });
+        await expect(
+            command.parseParams([...base, '--new-session', '--session', 'session']),
+        ).rejects.toThrow(/one of --session or --new-session/u);
+        await expect(command.parseParams(base)).rejects.toThrow(
+            /one of --session or --new-session/u,
+        );
+        await expect(
+            command.parseParams([...base, '--new-session', '--follow-up', 'task-1']),
+        ).rejects.toThrow();
+    });
+
     it('waits on one or several tasks and rejects flags or an unbounded list', () => {
         const command = DELEGATION_COMMANDS.find(
             (item) => item.method === 'agent.delegation.wait',

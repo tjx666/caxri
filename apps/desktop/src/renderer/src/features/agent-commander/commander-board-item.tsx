@@ -3,11 +3,18 @@ import type { ComponentType } from 'react';
 import type { CommanderBoardRow } from '@caxri/protocol';
 import { relativeTime } from '@caxri/utils';
 import {
+    Bot,
+    CheckCheck,
     Circle,
+    CircleAlert,
     CircleCheck,
     CircleDashed,
+    CircleDot,
     CircleQuestionMark,
+    CircleStop,
     CircleX,
+    Hand,
+    LoaderCircle,
     Unplug,
 } from 'lucide-react';
 
@@ -17,6 +24,7 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import type { AgentActivityGlyphId } from '../agent-activity/agent-activity-glyph';
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
+import type { CommanderTaskIconId } from './commander-board';
 import {
     commanderPullRequestBadge,
     commanderRowPresentation,
@@ -37,11 +45,33 @@ const GLYPH_COMPONENTS: Record<AgentActivityGlyphId, ComponentType<{ size?: numb
     x: CircleX,
 };
 
+const TASK_ICONS: Record<CommanderTaskIconId, ComponentType<{ size?: number }>> = {
+    'answered': CheckCheck,
+    'blocked': CircleAlert,
+    'failed': CircleX,
+    'running': CircleDot,
+    'starting': LoaderCircle,
+    'stopped': CircleStop,
+    'taken-over': Hand,
+};
+
 /**
  * One board row. The whole row reveals its Session in the Workbench; the pull request chip is a separate control that
  * opens the pull request in the browser, stacked above the row's stretched hit area so the two never nest.
  */
-export function CommanderBoardItem({ now, row }: { now: number; row: CommanderBoardRow }) {
+export function CommanderBoardItem({
+    now,
+    row,
+    showsOwnership,
+}: {
+    now: number;
+    row: CommanderBoardRow;
+    /**
+     * Marks the Commander's own Sessions. Only the whole-Workbench scope needs it; the default scope lists nothing
+     * else.
+     */
+    showsOwnership: boolean;
+}) {
     const presentation = commanderRowPresentation(row);
     const badge = commanderPullRequestBadge(row);
     const task = commanderTaskBadge(row.task);
@@ -76,24 +106,8 @@ export function CommanderBoardItem({ now, row }: { now: number; row: CommanderBo
                     >
                         {row.sessionTitle}
                     </button>
-                    {row.commanderSession && (
-                        <Tooltip content="Created by Agent Commander, so it can delegate tasks here">
-                            <span className="commander-board-marker relative flex-none rounded bg-elevated px-1 text-[10px] leading-4 text-muted">
-                                Commander
-                            </span>
-                        </Tooltip>
-                    )}
-                    {task && (
-                        <Tooltip content={task.title}>
-                            <span
-                                className={cn(
-                                    'commander-board-task relative flex-none text-[11px] leading-4 whitespace-nowrap',
-                                    task.toneClassName,
-                                )}
-                            >
-                                {task.label}
-                            </span>
-                        </Tooltip>
+                    {row.commanderSession && (task !== undefined || showsOwnership) && (
+                        <CommanderTaskChip showsOwnership={showsOwnership} task={task} />
                     )}
                 </span>
                 <span className="commander-board-metadata flex h-4 min-w-0 items-center gap-1 text-[11px] leading-4 text-muted">
@@ -144,5 +158,36 @@ export function CommanderBoardItem({ now, row }: { now: number; row: CommanderBo
                 )}
             </span>
         </li>
+    );
+}
+
+/**
+ * The Commander's hold on a Session in one bordered chip: its current task's icon and status, tinted when the task
+ * needs someone, so a status such as a takeover reads at a glance instead of blending into the title. In the
+ * whole-Workbench scope it leads with `Commander`, so the Commander's rows stand out from the user's.
+ */
+function CommanderTaskChip({
+    showsOwnership,
+    task,
+}: {
+    showsOwnership: boolean;
+    task: ReturnType<typeof commanderTaskBadge>;
+}) {
+    const TaskIcon = task ? TASK_ICONS[task.icon] : Bot;
+    return (
+        <Tooltip
+            content={task?.title ?? 'Created by Agent Commander, so it can delegate tasks here.'}
+        >
+            <span
+                className={cn(
+                    'commander-board-task relative flex h-4 flex-none items-center gap-1 rounded border border-border px-1 text-[10px] leading-4 whitespace-nowrap',
+                    task?.toneClassName ?? 'text-muted',
+                )}
+            >
+                <TaskIcon size={10} />
+                {showsOwnership && <span>{task ? 'Commander ·' : 'Commander'}</span>}
+                {task && <span>{task.label}</span>}
+            </span>
+        </Tooltip>
     );
 }
