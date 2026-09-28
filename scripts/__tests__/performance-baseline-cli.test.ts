@@ -4,8 +4,14 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import {
+    DEFAULT_PERFORMANCE_ABSOLUTE_MARGIN_MS,
+    DEFAULT_PERFORMANCE_RELATIVE_MARGIN,
+    DEFAULT_PERFORMANCE_THRESHOLD_K,
+} from '../performance-baseline';
 import { parseArguments as parseCollectArguments } from '../performance-baseline-collect';
 import {
+    derivePerformanceMetrics,
     isSamplesReceipt,
     parseArguments as parseDeriveArguments,
     resolveInputPaths,
@@ -208,6 +214,68 @@ describe('performance-baseline-derive resolveInputPaths', () => {
         await expect(resolveInputPaths(options)).rejects.toThrow(
             /found no renderer-performance\.json/u,
         );
+    });
+});
+
+describe('performance-baseline-derive derivePerformanceMetrics', () => {
+    const baseOptions = {
+        absoluteMarginMs: DEFAULT_PERFORMANCE_ABSOLUTE_MARGIN_MS,
+        k: DEFAULT_PERFORMANCE_THRESHOLD_K,
+        metrics: undefined,
+        relativeMargin: DEFAULT_PERFORMANCE_RELATIVE_MARGIN,
+        source: 'local' as const,
+    };
+    // Sixty fractional durationMs samples: enough to clear both MINIMUM_PERFORMANCE_SAMPLE_COUNT (8) and
+    // RECOMMENDED_MINIMUM_RUNNER_SAMPLE_COUNT (40).
+    const gateableSamples = Array.from({ length: 60 }, (_unused, index) => 50 + (index % 5) * 0.1);
+
+    it('excludes react.baseDurationMaxMs and records its raw evidence in excludedMetrics, not just the excluded name list', () => {
+        const result = derivePerformanceMetrics(
+            {
+                'durationMs': gateableSamples,
+                'react.baseDurationMaxMs': [3.4, 4.1, 3.9, 4.4, 3.8, 4.2, 11.2, 15.5, 4, 4.1],
+            },
+            baseOptions,
+        );
+        expect(result.excluded).toEqual(['react.baseDurationMaxMs']);
+        expect(result.excludedMetrics).toEqual({
+            'react.baseDurationMaxMs': { historicalMaxMs: 15.5, sampleCount: 10 },
+        });
+        expect(result.metrics['react.baseDurationMaxMs']).toBeUndefined();
+        expect(result.metrics.durationMs).toBeDefined();
+    });
+
+    it("does not exclude react.surfaces.workbench.baseDurationMaxMs, which lacks the excluded paths' outlier", () => {
+        const result = derivePerformanceMetrics(
+            {
+                'react.surfaces.workbench.baseDurationMaxMs': Array.from(
+                    { length: 10 },
+                    (_unused, index) => 3 + (index % 3) * 0.1,
+                ),
+            },
+            baseOptions,
+        );
+        expect(result.excluded).toEqual([]);
+        expect(result.excludedMetrics).toEqual({});
+        expect(result.metrics['react.surfaces.workbench.baseDurationMaxMs']).toBeDefined();
+    });
+
+    it('an explicit --metrics selection bypasses exclusion entirely', () => {
+        const result = derivePerformanceMetrics(
+            { 'react.baseDurationMaxMs': gateableSamples },
+            { ...baseOptions, metrics: ['react.baseDurationMaxMs'] },
+        );
+        expect(result.excluded).toEqual([]);
+        expect(result.metrics['react.baseDurationMaxMs']).toBeDefined();
+    });
+
+    it('records an excluded metric with an empty samples array in the name list but not in excludedMetrics', () => {
+        // A samples receipt (scripts/performance-baseline-collect.ts's output) can in principle contribute an empty
+        // array for a metric it declares but never measured; Math.max(...[]) is -Infinity, so excludedMetrics must
+        // guard against this rather than writing a bogus historicalMaxMs into the committed baseline.
+        const result = derivePerformanceMetrics({ 'react.baseDurationMaxMs': [] }, baseOptions);
+        expect(result.excluded).toEqual(['react.baseDurationMaxMs']);
+        expect(result.excludedMetrics).toEqual({});
     });
 });
 

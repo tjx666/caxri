@@ -68,11 +68,24 @@ describe('isDiscretePerformanceMetric', () => {
 });
 
 describe('isExcludedPerformanceMetric', () => {
-    it('excludes react.baseDurationMaxMs and its per-surface variants', () => {
+    it('excludes exactly the two baseDurationMaxMs paths whose historical corpus has the outlier problem', () => {
         expect(isExcludedPerformanceMetric('react.baseDurationMaxMs')).toBe(true);
+        expect(
+            isExcludedPerformanceMetric('react.surfaces.primary-sidebar.baseDurationMaxMs'),
+        ).toBe(true);
+    });
+
+    it('does not exclude a baseDurationMaxMs variant whose own historical corpus has no comparable outlier', () => {
+        // react.surfaces.workbench and .secondary-sidebar's baseDurationMaxMs samples top out at 3.3ms and 2.9ms in
+        // the 98-receipt historical corpus -- no 11.2/15.5ms-style outlier -- so excluding them would give up real
+        // regression coverage the backtest shows they do not need (0/98 leave-one-out, 0/49 time-split false
+        // failures even ungated). Only the two paths with demonstrated outlier evidence are excluded.
         expect(isExcludedPerformanceMetric('react.surfaces.workbench.baseDurationMaxMs')).toBe(
-            true,
+            false,
         );
+        expect(
+            isExcludedPerformanceMetric('react.surfaces.secondary-sidebar.baseDurationMaxMs'),
+        ).toBe(false);
     });
 
     it('does not exclude an unrelated metric or a name that merely contains the substring', () => {
