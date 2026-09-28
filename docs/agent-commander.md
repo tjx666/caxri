@@ -30,7 +30,9 @@ The window follows the app-wide `window.zoomLevel` setting. It opens at the curr
 `createWindowZoomController` (`window-chrome.ts`) applies every later change to it along with the
 Workbench, recentering its traffic lights in the zoomed header. View > Zoom In, Zoom Out, and
 Actual Size from the focused Commander run on the Workbench, which owns the setting, without
-bringing it forward, so the Commander zooms in place. The Process Explorer does not follow the zoom.
+bringing it forward, so the Commander zooms in place. Zoom is the one command a Workbench modal
+dialog does not block (`allowBehindModal`), so an open dialog the user cannot see never swallows
+it. The Process Explorer does not follow the zoom.
 
 The window runs with the Desktop principal. Main therefore authorizes it separately, through
 `AgentCommanderRendererPolicy` (`agent-commander-policy.ts`) in the `caxri:request` IPC path:
