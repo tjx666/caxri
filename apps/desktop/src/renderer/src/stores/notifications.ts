@@ -29,6 +29,10 @@ export interface NotificationInput {
      * closure: the history can rebuild the button from it, which is the whole point of storing it here.
      */
     action?: ToastAction;
+    /**
+     * The lesser follow-up shown beside `action`, retained for the same reason.
+     */
+    secondaryAction?: ToastAction;
 }
 
 export interface NotificationEntry extends NotificationInput {
@@ -124,6 +128,7 @@ export function recordNotification(input: NotificationInput): void {
         // The newest occurrence owns the button: grouped repeats share one row, and an offer that targets a Session the
         // earlier failure no longer describes would be revalidated into a dead end.
         action: input.action,
+        secondaryAction: input.secondaryAction,
         projectId: input.projectId,
         persist: input.persist,
         message,

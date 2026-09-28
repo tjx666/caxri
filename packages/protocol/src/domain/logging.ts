@@ -391,6 +391,9 @@ export const logEventCatalog = {
     },
     terminal: {
         humanSteer: 'terminal.human_steer',
+        resourceAlertCleared: 'terminal.resource_alert_cleared',
+        resourceAlertRaised: 'terminal.resource_alert_raised',
+        resourceSampleFailed: 'terminal.resource_sample_failed',
         restoreCwdRejected: 'terminal.restore_cwd_rejected',
         restoreInterruptedFailed: 'terminal.restore_interrupted_failed',
         suspendFailed: 'terminal.suspend_failed',

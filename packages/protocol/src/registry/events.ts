@@ -21,6 +21,7 @@ import {
 import { editorNavigationTargetSchema } from '../domain/editor.js';
 import { lowCostSandboxFailureReasonSchema } from '../domain/low-cost-generation.js';
 import { settingsTargetSchema } from '../domain/settings-target.js';
+import { terminalResourceAlertSchema } from '../domain/terminal-resources.js';
 import {
     extensionIdSchema,
     extensionViewChangeSchema,
@@ -147,6 +148,10 @@ export const serverEventPayloads = {
         provider: agentProviderSchema,
         status: z.enum(['recovered', 'rate-limited']),
     }),
+    /**
+     * A running Terminal's process tree crossed, or fell back below, the shared resource alert thresholds.
+     */
+    'terminal.resourceAlert': terminalResourceAlertSchema,
     'terminal.exit': z.object({
         terminalId: identifierSchema,
         exitCode: z.number(),

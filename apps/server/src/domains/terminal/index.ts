@@ -13,6 +13,7 @@ export type {
     TerminalManagerOptions,
     TerminalWorkingDirectoryIdentity,
 } from './manager-types';
+export { TerminalResourceMonitor } from './resource-monitor';
 export { TerminalRestoreSupervisor } from './restore-supervisor';
 export { ShellIntegrationService } from './shell-integration';
 export { TerminalSuspensionService } from './suspension';

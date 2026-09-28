@@ -398,6 +398,16 @@ export const methods = {
         params: z.object({ terminalId: identifierSchema }),
         result: z.null(),
     },
+    /**
+     * Parks one running Terminal the way idle suspension does: the process tree exits, while the record, scrollback,
+     * and Agent session survive and the Terminal resumes when its Session is selected again. The resource alert's
+     * `Stop` uses it. `suspended` is false when the Terminal was not running.
+     */
+    'terminal.suspend': {
+        ...serverControl,
+        params: z.object({ terminalId: identifierSchema }),
+        result: z.object({ suspended: z.boolean() }),
+    },
     'terminal.attach': {
         ...terminalStreamControl,
         params: z

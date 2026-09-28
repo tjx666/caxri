@@ -1,3 +1,4 @@
+import os from 'node:os';
 import process from 'node:process';
 
 import type { AuxiliaryWindowState } from '@caxri/protocol';
@@ -75,6 +76,8 @@ export function createOnDemandWindows(options: {
         sampler: new ProcessExplorerSampler({
             rootPid: process.pid,
             serverPid: () => supervisor.serverProcessId(),
+            systemMemoryMb: () => kilobytesToMegabytes(os.totalmem() / 1024),
+            terminals: async () => (await supervisor.request('terminal.processes', {})).terminals,
             /**
              * Resolved lazily at sample time: the diagnostics window is created on demand, so its renderer process does
              * not exist yet while this controller is being constructed.
@@ -103,6 +106,7 @@ export function createOnDemandWindows(options: {
                     memoryMb: kilobytesToMegabytes(metric.memory.workingSetSize),
                 })),
         }),
+        stopTerminal: (terminalId) => supervisor.request('terminal.suspend', { terminalId }),
         theme: async () => (await supervisor.request('theme.get')).value,
         windowMode,
         zoomLevel: options.zoomLevel,

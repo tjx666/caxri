@@ -632,11 +632,6 @@ export const gitCommitDetailsSchema = z.object({
     deletions: z.number().int().nonnegative(),
 });
 
-export const terminalResourceUsageSchema = z.object({
-    memoryMb: z.number().nonnegative(),
-    childProcessCount: z.number().int().nonnegative(),
-});
-
 export const gitDiffDocumentSchema = z.object({
     format: z.enum(['contents', 'patch']),
     path: pathSchema,
@@ -796,5 +791,4 @@ export type PreviewAssetMediaType = z.infer<typeof previewAssetMediaTypeSchema>;
 export type GitCommitFile = z.infer<typeof gitCommitFileSchema>;
 export type GitCommitDetails = z.infer<typeof gitCommitDetailsSchema>;
 export type GitDiffDocument = z.infer<typeof gitDiffDocumentSchema>;
-export type TerminalResourceUsage = z.infer<typeof terminalResourceUsageSchema>;
 export type UpdateState = z.infer<typeof updateStateSchema>;

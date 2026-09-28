@@ -76,36 +76,44 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
             'text-overflow',
             'ellipsis',
         );
-        // Counts are stated nowhere else on the row, so a long name must ellipsize rather than push them out.
+        // Counts are stated nowhere else on the row, so a long name must ellipsize rather than push them out. A clean
+        // repository renders no counts at all, which trivially fits.
         const countsFit = await primary
             .locator('.git-repository-row')
             .first()
             .evaluate((row) => {
                 const counts = row.querySelector('.git-repository-counts');
-                if (!counts) return false;
+                if (!counts) return true;
                 return (
                     counts.getBoundingClientRect().right <= row.getBoundingClientRect().right + 1
                 );
             });
         expect(countsFit).toBe(true);
-        // The name and the branch sit on their own lines, so neither shrinks to make room for the other.
-        const nestedLayout = await nestedSection
-            .locator('.git-repository-row')
-            .first()
-            .evaluate((row) => {
-                const name = row.querySelector('.git-repository-name');
-                const branch = row.querySelector('.git-repository-branch');
-                if (!(name instanceof HTMLElement) || !(branch instanceof HTMLElement)) return null;
-                return {
-                    branchTop: branch.getBoundingClientRect().top,
-                    nameBottom: name.getBoundingClientRect().bottom,
-                    nameLeft: name.getBoundingClientRect().left,
-                    branchLeft: branch.getBoundingClientRect().left,
-                };
-            });
+        // The branch is the section's first child row, so neither it nor the name shrinks to make room for the other.
+        const nestedLayout = await nestedSection.evaluate((section) => {
+            const header = section.querySelector(':scope .git-repository-row');
+            const branchRow = section.querySelector(':scope .git-repository-branch-row');
+            if (!(header instanceof HTMLElement) || !(branchRow instanceof HTMLElement))
+                return null;
+            const caption = section.querySelector(':scope .git-changes-caption [role="treeitem"]');
+            return {
+                headerHasBranch: header.querySelector('.git-repository-branch') !== null,
+                headerBottom: header.getBoundingClientRect().bottom,
+                branchTop: branchRow.getBoundingClientRect().top,
+                branchRowLevel: branchRow.getAttribute('aria-level'),
+                branchIconLeft: branchRow.querySelector('svg')?.getBoundingClientRect().left,
+                captionIconLeft: caption?.querySelector('svg')?.getBoundingClientRect().left,
+            };
+        });
         expect(nestedLayout).not.toBeNull();
-        expect(nestedLayout!.branchTop).toBeGreaterThanOrEqual(nestedLayout!.nameBottom - 1);
-        expect(Math.abs(nestedLayout!.branchLeft - nestedLayout!.nameLeft)).toBeLessThanOrEqual(1);
+        expect(nestedLayout!.headerHasBranch).toBe(false);
+        expect(nestedLayout!.branchTop).toBeGreaterThanOrEqual(nestedLayout!.headerBottom - 1);
+        expect(nestedLayout!.branchRowLevel).toBe('2');
+        // The branch glyph sits in the group captions' chevron column.
+        if (nestedLayout!.captionIconLeft !== undefined)
+            expect(
+                Math.abs(nestedLayout!.branchIconLeft! - nestedLayout!.captionIconLeft),
+            ).toBeLessThanOrEqual(1);
 
         await primary.getByRole('treeitem', { name: /Commits/ }).click();
         await expect(primary.locator('.commit-row')).toHaveCount(5);

@@ -29,6 +29,7 @@ import {
     openActiveFilePreviewToSide,
 } from '../features/preview/preview-commands';
 import { focusPrimarySidebar } from '../features/primary-sidebar/primary-sidebar-focus';
+import { openProcessExplorer } from '../features/process-explorer/process-explorer-commands';
 import { toggleScreencastMode } from '../features/screencast/screencast';
 import { deleteProject, hideSelectedProject } from '../features/session/project-removal-commands';
 import {
@@ -374,12 +375,7 @@ const commandContext: CommandContext = {
                 caxri.request('agentCommander.stop'),
             );
         },
-        openProcessExplorer: () => {
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void tryCommand('Unable to open Process Explorer', () =>
-                caxri.request('processExplorer.open'),
-            );
-        },
+        openProcessExplorer,
         // eslint-disable-next-line no-void -- floating-promise discard: the step reports failure via its own toast
         zoom: (step) => void stepWindowZoom(step),
     },

@@ -155,6 +155,17 @@ export function closeTerminal(terminalId: string): void {
     );
 }
 
+/**
+ * Suspends a Terminal: its whole process tree exits, while the Session and the Agent conversation stay resumable from
+ * the Terminal pane.
+ */
+export function stopTerminal(terminalId: string): void {
+    // eslint-disable-next-line no-void -- tryCommand reports stop failures through the toast
+    void tryCommand('Unable to stop the Terminal', () =>
+        caxri.request('terminal.suspend', { terminalId }),
+    );
+}
+
 export function refreshTerminalState(): void {
     // eslint-disable-next-line no-void -- tryCommand reports refresh failures through the toast
     void tryCommand('Terminal refresh failed', refreshWorkbench);
