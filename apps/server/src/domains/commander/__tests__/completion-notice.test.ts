@@ -234,13 +234,23 @@ describe('CommanderCompletionNotifier', () => {
         expect(f.writeCalls).toHaveLength(1);
     });
 
-    it('blocks injection while an attention or permission prompt is pending, and retries once it clears', () => {
+    it('delivers after a finished Commander turn even though that turn left the Commander Session unread', () => {
         f.startTurn('launch-1');
         f.finishTurn('launch-1', 'turn-1');
-        f.session = session({ hasUnread: true });
+        // Every settled Commander turn raises `completed` attention on its own Session, and nothing ever marks that
+        // Session read: the Commander window is not a Workbench selection. Gating on `hasUnread` would therefore
+        // withhold every notice after the Commander's first turn.
+        f.session = session({ attentionEpoch: 1, hasUnread: true, lastActivityState: 'completed' });
+        f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
+        expect(f.writeCalls).toHaveLength(1);
+    });
+
+    it('blocks injection while a permission prompt is pending, and retries once it clears', () => {
+        f.startTurn('launch-1');
+        f.finishTurn('launch-1', 'turn-1');
+        f.session = session({ lastActivityState: 'waiting' });
         f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
         expect(f.writeCalls).toHaveLength(0);
-        f.session = session({ lastActivityState: 'waiting' });
         f.finishTurn('launch-1', 'turn-2');
         expect(f.writeCalls).toHaveLength(0);
         f.session = session();
@@ -266,19 +276,6 @@ describe('CommanderCompletionNotifier', () => {
         f.finishTurn('launch-1', 'turn-2');
         expect(f.writeCalls).toHaveLength(2);
         expect(f.writeCalls[1].data).toContain('d2');
-    });
-
-    it('retries a notice withheld only by an unread flag once retryPending is called, without a new lifecycle signal', () => {
-        f.startTurn('launch-1');
-        f.finishTurn('launch-1', 'turn-1');
-        f.session = session({ hasUnread: true });
-        f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
-        expect(f.writeCalls).toHaveLength(0);
-        // `hasUnread` clears through `session.markRead`, a plain IPC mutation with no Agent lifecycle signal of its
-        // own, so nothing else would ever re-check this notice without an explicit retry call.
-        f.session = session();
-        f.notifier.retryPending();
-        expect(f.writeCalls).toHaveLength(1);
     });
 
     it('never delivers the same transition twice for a duplicate receipt-changed call', () => {
