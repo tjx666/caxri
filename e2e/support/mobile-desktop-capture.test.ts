@@ -382,7 +382,12 @@ describe('mobile Desktop capture', () => {
             await capture.capture('before');
             await capture.startRecording();
             desktop.setScreenshotDelayMs(1_650);
-            await sleep(2_700);
+            /**
+             * The delayed sample ends near 2_150ms and the loop wakes again near 2_650ms. Stopping at 2_700ms left 50ms
+             * of timer jitter between a recording that is long enough and one rejected for its duration before the gap
+             * is checked; 4_000ms is past the minimum duration whichever way the loop is caught.
+             */
+            await sleep(4_000);
             await expect(capture.stopRecording()).rejects.toThrow('unsampled Renderer interval');
             await expect(
                 stat(join(assetsDirectory, 'MOB-E2E-01-desktop.mp4')),
