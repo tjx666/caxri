@@ -59,11 +59,16 @@ export interface CIExecutionPlan {
 
 export const SMOKE_E2E_SPEC = 'e2e/smoke.e2e.ts';
 
-function isDocumentationPath(path: string): boolean {
+/**
+ * Shared with `scripts/surface-matrix.ts` so the diff-driven proof matrix classifies documentation and
+ * contributor-skill paths the same way the CI scope decision does instead of maintaining a second, driftable
+ * classifier.
+ */
+export function isDocumentationPath(path: string): boolean {
     return path.endsWith('.md') || path.startsWith('docs/');
 }
 
-function isRepoSkillPath(path: string): boolean {
+export function isRepoSkillPath(path: string): boolean {
     return path.startsWith('.agents/skills/') || path.startsWith('.claude/skills/');
 }
 

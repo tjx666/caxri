@@ -132,7 +132,8 @@
                     "scripts/fixtures/eslint/view-container-reads/**/*.ts",
                     "scripts/fixtures/eslint/color-utilities/**/*.ts",
                     "scripts/run-e2e-failure-isolation.ts",
-                    "scripts/run-e2e-pools.ts"
+                    "scripts/run-e2e-pools.ts",
+                    "scripts/surface-matrix.ts"
                 ],
                 "ignore": [
                     ".agents/skills/deep-review/scripts/vitest.config.ts",
