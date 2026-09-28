@@ -169,7 +169,13 @@ export class CommanderCompletionNotifier {
         if (!baseline || baseline.launchId !== finished.launchId) return;
         if (this.options.inputEpoch(terminalId) !== baseline.epoch) return;
         const session = this.options.database.getSession(rows.sessionId);
-        if (!session || session.hasUnread || session.lastActivityState === 'waiting') return;
+        /**
+         * Only a pending permission/attention prompt blocks delivery. `hasUnread` is deliberately not a gate: every
+         * settled Commander turn raises `completed` attention on its own Session, and nothing marks that Session read
+         * because the Commander window is never a Workbench selection, so it would withhold every notice after the
+         * Commander's first turn.
+         */
+        if (!session || session.lastActivityState === 'waiting') return;
         const entries = this.pending.values().toArray();
         /**
          * Consume before sending: even a write whose outcome is never confirmed must not be retried, so at-most-once
@@ -239,21 +245,6 @@ export class CommanderCompletionNotifier {
             sessionId: receipt.sessionId,
             status,
         });
-        this.tryFlush(rows.terminalId);
-    }
-
-    /**
-     * Re-attempts delivery of whatever is still pending, without a new lifecycle signal or receipt change to trigger
-     * it. `tryFlush`'s attention/permission gate reads the Commander's own Session (`hasUnread`, `lastActivityState ===
-     * 'waiting'`), and both can clear through a path this module never observes directly: `hasUnread` clears via
-     * `session.markRead`, a plain IPC mutation with no Agent lifecycle signal at all. Without an explicit retry hook
-     * there, a notice withheld only because of a since-cleared unread flag could stay pending indefinitely if the
-     * Commander happens not to start another turn afterward. Call sites that clear one of those gates outside a
-     * lifecycle signal must call this afterward.
-     */
-    retryPending(): void {
-        const rows = this.options.database.agentCommanderRows();
-        if (!rows?.terminalId) return;
         this.tryFlush(rows.terminalId);
     }
 }
