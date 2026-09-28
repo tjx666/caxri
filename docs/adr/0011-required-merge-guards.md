@@ -10,7 +10,7 @@ status: accepted
 
 ## Context
 
-[PR #1427](https://github.com/tjx666/caxri/pull/1427) added gitleaks, the source-size ratchet, and
+[PR #1442](https://github.com/tjx666/caxri/pull/1442) added gitleaks, the source-size ratchet, and
 the documentation check as CI and pre-commit gates. `main` had no required status check and no merge
 queue, so those gates only ran when an agent chose to run them: a merge or a direct push that skipped
 CI, or a `--no-verify` commit, still reached `main`. [PR #1443](https://github.com/tjx666/caxri/pull/1443)
