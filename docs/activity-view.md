@@ -230,6 +230,14 @@ Every Session, Project, and Terminal record this list groups is already in the R
 store, so nothing here crosses into the Server: the queue is projected client-side, and only the
 selection and the read acknowledgement travel over IPC.
 
+The projection groups Terminals by Session once per pass (`sessionTerminalIndex` in
+`features/session/session-agent-terminal.ts`) instead of scanning every Terminal for every Session,
+so one pass is linear in Sessions plus Terminals and resolves the same Terminal as the single-Session
+`sessionAgentTerminal` lookup. It runs only while the queue is mounted, because a hidden queue is
+unmounted rather than kept alive. `session.focusNextAttention` computes its own copy from the store
+on demand instead of reading the mounted view's, so `Cmd+Shift+N` still works while the queue is
+hidden or was never opened.
+
 ## Non-goals
 
 This view reports state; it does not schedule work. It does not create Sessions, dispatch Agents,

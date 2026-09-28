@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { AgentHeldMessage, AgentHeldMessageDetail } from '@caxri/protocol';
+import type { AgentHeldMessageDetail } from '@caxri/protocol';
 
 import { Button } from '../../components/ui/button';
 import {
@@ -10,28 +10,19 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../components/ui/dialog';
-import { caxri } from '../../lib/caxri';
 import { describeFailure, pushToast } from '../../stores/toasts';
-import {
-    getHeldAgentMessage,
-    listHeldAgentMessages,
-    settleHeldAgentMessage,
-} from './agent-message-approval-client';
-import type { HeldMessageQueue } from './agent-message-approval-state';
+import { getHeldAgentMessage, settleHeldAgentMessage } from './agent-message-approval-client';
 import {
     activeHeldMessage,
     deferHeldMessage,
     deferredHeldMessages,
-    emptyHeldMessageQueue,
-    expireHeldMessages,
     heldMessageActionResultForError,
     loadHeldMessageDetail,
-    receiveHeldMessage,
     removeHeldMessage,
-    replaceHeldMessages,
     reviewHeldMessage,
     settleHeldMessage,
 } from './agent-message-approval-state';
+import { updateHeldMessageQueue, useHeldMessageQueueStore } from './agent-message-approval-store';
 import { AgentMessageApprovalWaitingList } from './agent-message-approval-waiting-list';
 
 /**
@@ -48,11 +39,14 @@ function approvalConfirmButton(popup: HTMLElement | null): HTMLButtonElement | n
  *
  * Escape, the close button, and an outside click set the request aside instead of answering it: the text is inert, so a
  * reflex keystroke must not manufacture a final rejection the sender can read. That only holds because the deferred
- * request stops being modal and keeps standing in `AgentMessageApprovalWaitingList` — an Escape that silently left the
- * request unanswered with nowhere to answer it would be worse than the trap it replaced.
+ * request stops being modal and keeps standing in `AgentMessageApprovalWaitingList` and the status bar's count — an
+ * Escape that silently left the request unanswered with nowhere to answer it would be worse than the trap it replaced.
+ *
+ * The queue itself lives in `useHeldMessageQueueStore`, fed by `subscribeHeldMessageQueue` from the App, so the status
+ * bar reads the same requests this dialog and its waiting list do.
  */
 export function AgentMessageApprovalDialog() {
-    const [queue, setQueue] = useState<HeldMessageQueue<AgentHeldMessage>>(emptyHeldMessageQueue);
+    const queue = useHeldMessageQueueStore((state) => state.queue);
     const [detail, setDetail] = useState<AgentHeldMessageDetail>();
     const [detailFailed, setDetailFailed] = useState(false);
     const [detailAttempt, setDetailAttempt] = useState(0);
@@ -72,37 +66,6 @@ export function AgentMessageApprovalDialog() {
     const isBodyLoading = !isBodyReady && !detailFailed;
 
     useEffect(() => {
-        let isActive = true;
-        async function loadHeldMessages(): Promise<void> {
-            try {
-                const initial = await listHeldAgentMessages();
-                if (isActive) setQueue((existing) => replaceHeldMessages(existing, initial));
-            } catch (error: unknown) {
-                pushToast('error', describeFailure(error, 'Unable to load held peer messages'));
-            }
-        }
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void loadHeldMessages();
-        const unsubscribe = caxri.onEvent((event) => {
-            if (event.event === 'agent.message.held')
-                setQueue((existing) => receiveHeldMessage(existing, event.payload));
-            if (event.event === 'agent.message.receipt' && event.payload.status !== 'held')
-                setQueue((existing) => removeHeldMessage(existing, event.payload.messageId));
-        });
-        // `expireHeldMessages` returns the same queue when nothing expired, which keeps this 1s tick from
-        // re-rendering the dialog subtree.
-        const expiryTimer = setInterval(
-            () => setQueue((existing) => expireHeldMessages(existing, Date.now())),
-            1_000,
-        );
-        return () => {
-            isActive = false;
-            unsubscribe();
-            clearInterval(expiryTimer);
-        };
-    }, []);
-
-    useEffect(() => {
         setDetail(undefined);
         setDetailFailed(false);
         const messageId = currentMessageId;
@@ -119,7 +82,8 @@ export function AgentMessageApprovalDialog() {
                     describeFailure(error, 'Unable to load the complete peer message'),
                 );
             },
-            onStale: () => setQueue((existing) => removeHeldMessage(existing, messageId)),
+            onStale: () =>
+                updateHeldMessageQueue((existing) => removeHeldMessage(existing, messageId)),
             request: () => getHeldAgentMessage(messageId),
         });
         return () => {
@@ -186,7 +150,7 @@ export function AgentMessageApprovalDialog() {
      */
     function deferCurrent(): void {
         if (!currentMessageId) return;
-        setQueue((existing) => deferHeldMessage(existing, currentMessageId));
+        updateHeldMessageQueue((existing) => deferHeldMessage(existing, currentMessageId));
     }
 
     async function settle(action: 'approve' | 'deny'): Promise<void> {
@@ -195,10 +159,12 @@ export function AgentMessageApprovalDialog() {
         setPending(true);
         try {
             await settleHeldAgentMessage(action, current.messageId);
-            setQueue((existing) => settleHeldMessage(existing, current.messageId, 'confirmed'));
+            updateHeldMessageQueue((existing) =>
+                settleHeldMessage(existing, current.messageId, 'confirmed'),
+            );
         } catch (error) {
             pushToast('error', describeFailure(error, `Unable to ${action} peer message`));
-            setQueue((existing) =>
+            updateHeldMessageQueue((existing) =>
                 settleHeldMessage(
                     existing,
                     current.messageId,
@@ -341,7 +307,7 @@ export function AgentMessageApprovalDialog() {
                 <AgentMessageApprovalWaitingList
                     approvals={waiting}
                     onReview={(messageId) =>
-                        setQueue((existing) => reviewHeldMessage(existing, messageId))
+                        updateHeldMessageQueue((existing) => reviewHeldMessage(existing, messageId))
                     }
                 />
             )}

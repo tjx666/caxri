@@ -15,12 +15,14 @@
  *   the reading a user checks most often while a verification round is running.
  * - The pull request chip duplicates the Git panel, so it goes after that.
  * - The notification bell, degraded-backend/runtime chips, active Terminal progress, the update chip, the open debugging
- *   channel chip, and the Project root + branch pickers are never included here — they have no other on-screen home and
- *   must never disappear silently. The update chip is the only persistent trace of a download in flight or an install
- *   waiting, because automatic discovery now raises a notification that expires rather than a dialog that holds the
- *   screen. The debugging chip is a security disclosure: a window narrow enough to hide it is not a reason to stop
- *   telling the user that anything on this Mac can attach to Caxri. The overflow scrollbar stays as the absolute last
- *   resort for the pathological case where even that never-hide set doesn't fit.
+ *   channel chip, the count of peer messages awaiting approval, and the Project root + branch pickers are never
+ *   included here — they have no other on-screen home and must never disappear silently. The update chip is the only
+ *   persistent trace of a download in flight or an install waiting, because automatic discovery now raises a
+ *   notification that expires rather than a dialog that holds the screen. The debugging chip is a security disclosure:
+ *   a window narrow enough to hide it is not a reason to stop telling the user that anything on this Mac can attach to
+ *   Caxri. The approval count stands for senders still blocked on the user's answer, so a narrow window is no reason to
+ *   hide it either. The overflow scrollbar stays as the absolute last resort for the pathological case where even that
+ *   never-hide set doesn't fit.
  */
 export interface ChipVisibility {
     acceptance: boolean;
