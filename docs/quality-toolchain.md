@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Unified Quality Toolchain
 
 Durable record of Caxri's mechanical-quality tooling after

@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # File preview
 
 Caxri can render a Project file instead of editing it: Markdown as formatted text, `.svg` as an

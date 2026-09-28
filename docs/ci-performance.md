@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # CI and E2E Performance Evidence
 
 This is the single source of truth for CI optimization decisions, execution profiles, and

@@ -298,7 +298,7 @@ project settings, use the same self-test and treat `command not found` as a miss
   require **Forget** and re-pair; do not report that documented limitation as an acceptance harness
   failure.
 - Emulator and Simulator observations are not physical-device release-performance evidence. Use
-  `docs/mobile/PERFORMANCE.md` and a named physical device for such a criterion.
+  `docs/mobile/performance.md` and a named physical device for such a criterion.
 - Pairing links and QR codes are credentials. If one appears in a screenshot, raw hierarchy, log,
   or recording, invalidate the artifact and capture a fresh isolated case.
 

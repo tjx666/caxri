@@ -1,6 +1,10 @@
+---
+kind: adr
+status: accepted
+---
+
 # Remote access and Project authorization
 
-- Status: accepted
 - Date: 2026-08-25
 - Implementation plan: [Server architecture refactor plan](../server-refactor-plan.md)
 

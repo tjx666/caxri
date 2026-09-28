@@ -1,6 +1,10 @@
+---
+kind: adr
+status: accepted
+---
+
 # Host-owned native ESM Extension Host
 
-- Status: accepted
 - Date: 2026-08-22
 - Refs: [#292](https://github.com/tjx666/caxri/issues/292)
 - Amended by: ADR 0004 (target, pending)

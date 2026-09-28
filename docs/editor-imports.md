@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Editor import navigation
 
 Cmd-click an underlined import or run **Open Import Link** with the caret on its specifier.

@@ -70,17 +70,9 @@ resumes only a bounded tombstone for the exact stopped generation, confirms the 
 then admits the message under the same request identity. See `docs/agent-command-authority.md`.
 
 Each Endpoint also exposes one typed messaging capability (`deliveryMode`, `health`, stable `reason`,
-`checkedAt`, and `nextAction`). The Server Core probes the configured executable and version behind a
-bounded cache; disabling the integration or invalidating the probe revokes messaging without stopping
-the PTY. Unknown future Provider majors fail closed. The verified stable matrix is Claude Code
-2.1.80+ within major 2 and Codex 0.147.0+ within major 0, both using `pull` through the version-matched
-Caxri CLI. Claude custom Channels preserve a non-user source, but remain a research preview that
-requires `--dangerously-load-development-channels`; Caxri therefore does not enable that flag or
-advertise stable push. A future allowlisted Channel adapter must omit the independent
-`claude/channel/permission` capability and acknowledge only after its exact transport delivery.
-See [Claude Code Channels](https://code.claude.com/docs/en/channels) and the
-[Channels reference](https://code.claude.com/docs/en/channels-reference). Codex 0.147.0 exposes no
-documented peer-origin push boundary, so Caxri never guesses app-server frames or Provider storage.
-Pull `wait` and `check` consume only after the authenticated Server Core reply flushes; timeout, cancellation,
-or disconnect requeues the same FIFO message. The controlled version matrix and operator behavior
-are recorded in `docs/provider-messaging.md`.
+`checkedAt`, and `nextAction`), capability-detected behind a bounded probe cache; disabling the
+integration or invalidating the probe revokes messaging without stopping the PTY, and unknown future
+Provider majors fail closed. The verified controlled version matrix, Claude Channels' research-preview
+boundary, and pull/FIFO delivery semantics are Server Core-agnostic product behavior owned by
+[Provider messaging support](../../../../docs/provider-messaging.md) — read it instead of re-deriving
+version numbers here, since a second copy is how they drift.

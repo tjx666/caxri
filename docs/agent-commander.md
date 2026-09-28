@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Agent Commander
 
 The Agent Commander is a second Caxri window for delegating work instead of doing it. It has two

@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Terminal reference hover previews
 
 Durable record of the hover card that appears over a commit sha or a GitHub reference printed in a

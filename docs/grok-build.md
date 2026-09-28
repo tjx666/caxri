@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Grok Build
 
 Caxri hosts the native Grok Build terminal through the existing managed Agent PTY.
@@ -84,4 +89,6 @@ not substitutes for runtime evidence.
 References: [CLI](https://docs.x.ai/build/cli/reference),
 [hooks](https://docs.x.ai/build/features/hooks),
 [sandbox](https://docs.x.ai/build/features/sandbox),
-[issue caxri#683](https://github.com/tjx666/caxri/issues/683).
+[issue caxri#683](https://github.com/tjx666/caxri/issues/683). Upstream binary internals researched
+while building this integration are recorded separately in the
+[competitors skill's Grok Build note](../.agents/skills/competitors/references/grok-build.md).

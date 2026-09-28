@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Agent command authority
 
 Caxri exposes separate local command domains. Sharing a PTY implementation does

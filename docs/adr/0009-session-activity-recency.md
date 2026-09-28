@@ -1,6 +1,10 @@
+---
+kind: adr
+status: accepted
+---
+
 # Session Activity owns Primary Sidebar recency
 
-- Status: accepted
 - Date: 2026-08-28
 
 ## Context

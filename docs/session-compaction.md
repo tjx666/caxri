@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Batch Session compaction
 
 Run **Session: Compact Sessions with Warm Cache** from the Desktop command palette before leaving

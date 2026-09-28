@@ -1,7 +1,12 @@
+---
+kind: living
+status: current
+---
+
 # Android internal APK size
 
 The internal APK is a release variant signed by the generated debug keystore unless the release
-signing variables from [UPDATE.md](UPDATE.md) are set. Keep the same
+signing variables from [update.md](update.md) are set. Keep the same
 `app.config.ts` package name, `versionCode`, and signing certificate when replacing an installed
 test build. An ABI-specific APK installs only on a device with that ABI; keep the universal build
 for cross-device validation and choose `arm64-v8a` only after checking the target device.

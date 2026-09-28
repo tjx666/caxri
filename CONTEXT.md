@@ -5,7 +5,8 @@ them, and durable Projects, Sessions, Terminals, and Agent activity.
 
 This glossary defines the current language after the architecture cutover. `_Avoid_` constrains new
 design and code. It does not rename frozen public compatibility identifiers such as `host.status`;
-those identifiers need a separate product and protocol change.
+those identifiers need a separate product and protocol change. For how a term's owning system
+actually works, see the indexed living docs at [docs/README.md](docs/README.md).
 
 ## Execution environment
 

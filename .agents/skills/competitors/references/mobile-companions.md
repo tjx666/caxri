@@ -1,16 +1,11 @@
-# Mobile Competitive Baseline
+# Mobile companion apps
 
-Research date: 2026-09-24. Phase one was researched on 2026-08-31.
+_Researched 2026-08-31 (phase one), refreshed 2026-09-24 (phase two)._
 
-## Decision
-
-Phase one proved the secure pairing and attention loop: pair, see Sessions by attention, read a
-bounded Terminal preview, send one short reply while the Agent waits, and revoke from Desktop.
-
-Phase two makes the app a remote control that is useful away from the computer, over LAN and
-Tailscale only. Its loop is: recover the connection quickly, read the Agent conversation, watch and
-drive the live Terminal, send instructions or stop the Agent, start a new Session, and review the
-changes. [DESIGN.md](DESIGN.md) owns the resulting UX contract.
+Survey of mobile remote-control companions for terminal-native coding-agent tools, gathered while
+scoping Caxri Mobile's phase-two design (live Terminal, conversation, and composer). The resulting
+Caxri product decisions live in [docs/mobile/design.md](../../../../docs/mobile/design.md); this
+file stays scoped to what the competitors did and how Caxri's design responded.
 
 ## What users value
 
@@ -44,48 +39,3 @@ LobeHub Mobile was also reviewed as an internal implementation reference. Propri
 details are intentionally excluded from this public note. The reusable lesson is to keep native
 dependencies behind testable boundaries and reserve real-device workflows for behavior that a Node
 test environment cannot represent faithfully.
-
-## Architecture position
-
-Caxri uses Expo SDK 57 and React Native 0.86.3, matching the newest public baseline above. The mobile
-application depends on shared typed protocol and transport packages rather than reimplementing the
-Server contract in UI code.
-
-The LAN gateway is default-off and separate from Desktop's loopback control transport. Pairing links
-expire after two minutes and are single-use. X25519 key agreement, the pairing secret, transcript-bound
-HKDF keys, mutual confirmation, directional AES-256-GCM frames, monotonic counters, frame limits, and
-device generation checks protect the connection. Resulting device credentials live in the operating
-system secure store; pairing secrets remain in memory.
-
-Every mobile mutation is re-authorized by Server Core. Project grants, device generation, Primary
-Agent Terminal identity, waiting state, attention generation, control-character rejection, and the
-1 KiB reply limit are checked immediately before PTY input. A stale or optimistic client cannot widen
-its own authority.
-
-## Testing and agent-debugging position
-
-- Pure cryptography, frame replay protection, protocol projection, sorting, reconnect state, parsing,
-  and policy checks run in Vitest without React Native mocks.
-- The guarded Android acceptance test launches the real Desktop and Server with a fake Agent, pairs
-  through the encrypted gateway, taps only stable `testID` controls, and proves the exact bounded PTY
-  write and resulting state transition.
-- Device receipts contain only stable identifiers, enabled/clickable flags, counts, and timings. They
-  exclude visible copy, source, Terminal output, Agent transcripts, credentials, and environment data.
-- Android and iOS native builds are both exercised locally. Android currently owns the automated
-  interaction path because ADB offers explicit device selection and deterministic system control.
-- Expo's experimental mobile debugging server is enabled during development. It is an optional aid,
-  not a correctness dependency; the repository scripts and guarded acceptance remain the durable
-  interface for any coding agent.
-
-## Deliberate next gates
-
-Phase two replaces the bounded preview and short reply with the live Terminal, conversation, and
-composer described in [DESIGN.md](DESIGN.md). The gates below remain open.
-
-1. Release-build startup and frame benchmarks on at least one Android phone-class device and one iOS
-   simulator/device, with app-owned first-interactive instrumentation.
-2. Sleep/wake, network handoff, and reconnect coverage before background notifications.
-3. A device automation layer such as Maestro only when a second critical native workflow justifies
-   another dependency and its installation is explicitly approved.
-4. Push notifications after notification privacy, action authorization, token lifecycle, and delivery
-   reliability are designed together.

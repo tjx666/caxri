@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Low-cost generation sandbox
 
 Automatic Session naming is a bounded text transformation. Its provider subprocess cannot read the

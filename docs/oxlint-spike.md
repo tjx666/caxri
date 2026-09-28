@@ -1,3 +1,8 @@
+---
+kind: historical
+status: historical
+---
+
 # Oxlint spike (issue #177 stage 6)
 
 > **Outcome (2026-08): partially adopted.** The "defer" recommendation below applied to a
@@ -53,11 +58,12 @@ spike-local tsconfig copy made no difference. Two separate, real compatibility i
 instead:
 
 1. **Wrong-case file paths panic `tsgolint` instead of failing gracefully.** On macOS's
-   case-insensitive default filesystem, `oxlint --type-aware src/renderer/src/App.tsx` (a stale
-   pre-migration casing of the on-disk `app.tsx`) opens the file but then panics inside `tsgolint`
-   with `panic: Expected file '.../App.tsx' to be in program '.../tsconfig.web.json'`, because the
-   program-membership check compares path strings exactly. Invoking with the correct casing
-   (`src/renderer/src/app.tsx`) works in both plain and `--type-aware` modes and reports a genuine
+   case-insensitive default filesystem, `oxlint --type-aware apps/desktop/src/renderer/src/App.tsx`
+   (a stale pre-migration casing of the on-disk `app.tsx`) opens the file but then panics inside
+   `tsgolint` with `panic: Expected file '.../App.tsx' to be in program '.../tsconfig.web.json'`,
+   because the program-membership check compares path strings exactly. Invoking with the correct
+   casing (`apps/desktop/src/renderer/src/app.tsx`) works in both plain and `--type-aware` modes
+   and reports a genuine
    type-aware diagnostic (`typescript/consistent-return`), and full-repo runs include the file
    normally — verified by re-running both invocations at this HEAD. This is an oxlint/tsgolint
    robustness bug only for wrong-case explicit paths (editor integrations passing stale paths),
@@ -111,7 +117,7 @@ preset's actual rule set.
 Three more diagnostics fire on rules the repo genuinely shares with oxlint, but are false
 positives specific to oxlint's rule implementation (not fixed, per this spike's scope):
 
-- `unicorn/require-module-specifiers` flags `export {};` in `src/renderer/src/env.d.ts` (the
+- `unicorn/require-module-specifiers` flags `export {};` in `apps/desktop/src/renderer/src/env.d.ts` (the
   idiomatic way to force a `.d.ts` file into module scope for `declare global`).
 - `no-unsafe-optional-chaining` flags a fully-optional-chained property access chain
   (`config.rules?.['no-restricted-imports']?.[0]`) in

@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Provider messaging support
 
 Caxri Peer Inbox delivery is capability-detected per managed Agent Endpoint. Endpoint health is

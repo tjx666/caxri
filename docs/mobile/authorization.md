@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Mobile authorization
 
 Server Core is the authority for paired devices. The gateway authenticates the device credential and
@@ -24,7 +29,7 @@ method set.
 
 `mobile.update.check` and `mobile.update.prepare` are granted to every role: they expose only the
 update bundle Desktop ships and a short-lived download token for the requesting device; see
-[UPDATE.md](UPDATE.md). Update recovery grants the same two things to a paired, unrevoked device
+[update.md](update.md). Update recovery grants the same two things to a paired, unrevoked device
 whose transport version no longer matches, after it proves its credential. It is a separate
 pre-authentication exchange outside the dispatcher and method set, so it authorizes nothing else.
 
@@ -56,7 +61,7 @@ may submit an Agent instruction through `mobile.agent.submit` but cannot take ov
 Terminal keys. `mobile.terminal.scroll` carries only a bounded line count and grid cell; the Terminal
 Host encodes the wheel report or cursor keys from its own parsed modes, so it cannot become an
 arbitrary-byte input path. Git reads use only `mobile.changes.list` and `mobile.changes.diff`; see
-[Mobile Changes](CHANGES.md). No Git mutation method is granted.
+[Mobile Changes](changes.md). No Git mutation method is granted.
 Size leases use the exact connection and subscription as holder; closing that holder cannot release
 a newer connection's lease. Terminal observation requires only `view` and never changes Desktop
 attachment or size.

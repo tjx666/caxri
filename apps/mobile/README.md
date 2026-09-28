@@ -2,13 +2,13 @@
 
 The Expo SDK 57 development client for Caxri's paired Agent Session companion.
 
-The [Conversation guide](../../docs/mobile/CONVERSATION.md) describes the authorized Agent timeline,
+The [Conversation guide](../../docs/mobile/conversation.md) describes the authorized Agent timeline,
 native rendering, live updates, and Terminal fallback.
-The [Changes guide](../../docs/mobile/CHANGES.md) describes authorized Git snapshots, bounded diffs,
+The [Changes guide](../../docs/mobile/changes.md) describes authorized Git snapshots, bounded diffs,
 live refresh, and the commit draft boundary.
-The [update guide](../../docs/mobile/UPDATE.md) describes how a paired Desktop delivers and installs
+The [update guide](../../docs/mobile/update.md) describes how a paired Desktop delivers and installs
 the matching release APK.
-The [APK size guide](../../docs/mobile/APK-SIZE.md) records internal Android build variants,
+The [APK size guide](../../docs/mobile/apk-size.md) records internal Android build variants,
 measurement, and upgrade identity checks.
 
 The current live Terminal implementation is Android-only. iOS displays an explicit unavailable
@@ -43,7 +43,7 @@ bun run --cwd apps/mobile android -- --build-only --variant release
 The APK is written to `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`. Without
 the `CAXRI_ANDROID_*` signing variables the release variant falls back to the generated debug
 keystore and is for internal testing only. Desktop releases carry the release-signed arm64 APK and
-install it on paired phones; see the [update guide](../../docs/mobile/UPDATE.md) for the signing
+install it on paired phones; see the [update guide](../../docs/mobile/update.md) for the signing
 variables and `build:update-bundle`. Before an
 in-place upgrade, verify the APK package, `versionCode`, and signing certificate against the
 installed build; then use `adb -s <serial> install -r <apk-path>` and inspect the launcher icon on
@@ -110,7 +110,7 @@ bun run --cwd apps/mobile android:performance \
 
 `readyCheckUpperBoundMs` includes UIAutomator capture time. Expo development-client startup and these
 upper bounds are diagnostics, not release gates. The current baseline and release budgets live in
-[`docs/mobile/PERFORMANCE.md`](../../docs/mobile/PERFORMANCE.md).
+[`docs/mobile/performance.md`](../../docs/mobile/performance.md).
 
 ## Tests and Android acceptance
 

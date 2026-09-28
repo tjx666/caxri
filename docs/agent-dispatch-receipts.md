@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Agent dispatch receipts
 
 Managed dispatch records describe the launch request and its observed process lifetime. They do

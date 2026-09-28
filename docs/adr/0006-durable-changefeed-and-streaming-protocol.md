@@ -1,7 +1,12 @@
+---
+kind: adr
+status: accepted
+---
+
 # Durable changefeed and streaming protocol
 
-- Status: accepted (local changefeed and binary streams implemented; Multi-Client completion pending P2)
 - Date: 2026-08-25
+- Note: local changefeed and binary streams implemented; Multi-Client completion pending P2
 - Implementation plan: [Server architecture refactor plan](../server-refactor-plan.md)
 
 Authoritative state tables remain Caxri's source of truth rather than a globally event-sourced model.

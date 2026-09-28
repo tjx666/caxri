@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Linting split: ESLint (syntactic) + oxlint/tsgolint (typed and anti-slop)
 
 Since 2026-08, the JS/TS lint gate is split by capability instead of running one tool for

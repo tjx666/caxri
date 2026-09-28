@@ -35,7 +35,7 @@ export const canceledResultSchema = z.object({ canceled: z.literal(true) });
 /**
  * A Session-scoped, Server in-memory-only grant that auto-allows every later Claude permission request in that Session.
  * Never a durable field on `sessionRecordSchema`: it is gone after a Server restart by design, so it is projected
- * through its own read/status commands instead of the Session read model. See docs/mobile/CONVERSATION.md for the full
+ * through its own read/status commands instead of the Session read model. See docs/mobile/conversation.md for the full
  * lifecycle.
  */
 export const permissionAutoAllowStatusSchema = z.strictObject({

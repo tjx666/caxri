@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # External delivery-status queries and quota governance
 
 Durable record of how Caxri reads GitHub, Linear, Vercel, and LobeHub delivery metadata, and why
@@ -160,7 +165,7 @@ rollup, and paying for a rollup on hover is the cost this store exists to avoid.
 
 The Status panel's `Unresolved Comments` group needs `isResolved`, which only GitHub's GraphQL
 `reviewThreads` connection exposes; `gh pr view --json` cannot return it. `ReviewThreadStore`
-(`apps/server/src/domains/project-status-review-threads.ts`) therefore issues its own quota-governed
+(`apps/server/src/domains/project-status/review-threads.ts`) therefore issues its own quota-governed
 `gh api graphql` query instead of widening the shared field union above, which would make the status
 bar, the sidebar sweep, and Source Control pay for a field only the Status panel renders.
 

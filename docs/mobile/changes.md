@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Mobile Changes
 
 The Changes segment lets a paired device review the selected Session's Git changes. It is a
@@ -32,7 +37,7 @@ Both methods require a current paired device with at least the `view` role and a
 Session's Project. The gateway and Server check the Session and current device authority, then
 resolve the opaque repository ID within that Session's authorized Git summary. An unauthorized
 Session is an authorization error, not an empty changes list. No absolute repository path is
-returned to the app. See [Mobile authorization](AUTHORIZATION.md) for the role boundary.
+returned to the app. See [Mobile authorization](authorization.md) for the role boundary.
 
 ## Updates and presentation
 
@@ -69,5 +74,5 @@ operation after receiving that instruction; the Changes view itself cannot commi
   [Changes view](../../apps/mobile/src/features/changes/changes-view.tsx), and
   [diff view](../../apps/mobile/src/features/changes/changes-diff.tsx)
 
-See [Mobile design](DESIGN.md#changes) for the interaction contract and
-[Mobile transport](TRANSPORT.md) for encrypted framing and subscription recovery.
+See [Mobile design](design.md#changes) for the interaction contract and
+[Mobile transport](transport.md) for encrypted framing and subscription recovery.
