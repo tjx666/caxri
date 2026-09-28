@@ -6,7 +6,8 @@ import type { CommanderIdentity, ServerEvent } from '@caxri/protocol';
  */
 interface CommanderEventEffect {
     /**
-     * Refetch `commander.board`; the caller debounces, because a busy Workbench emits bursts of `state.changed`.
+     * Refetch the whole `commander.board`; the caller debounces, because a busy Workbench emits bursts of
+     * `state.changed`.
      */
     board: boolean;
     /**
@@ -21,6 +22,12 @@ interface CommanderEventEffect {
      */
     reattach: boolean;
     /**
+     * Sessions whose pull request changed. Only their rows' pull-request fields are patched from a fresh
+     * `session.pullRequests` read, so the rest of the board keeps its row objects and does not re-render (issue
+     * caxri#1411).
+     */
+    pullRequestSessionIds: readonly string[];
+    /**
      * Re-read `commander.snapshot` and replace the Workbench store's snapshot.
      */
     snapshot: boolean;
@@ -29,6 +36,7 @@ interface CommanderEventEffect {
 const NO_EFFECT: CommanderEventEffect = {
     board: false,
     ensure: false,
+    pullRequestSessionIds: [],
     reattach: false,
     snapshot: false,
 };
@@ -58,13 +66,14 @@ export function commanderEventEffect(
         }
         case 'runtime.status':
             return event.payload.status === 'ready'
-                ? { board: true, ensure: true, reattach: true, snapshot: true }
+                ? { ...NO_EFFECT, board: true, ensure: true, reattach: true, snapshot: true }
                 : NO_EFFECT;
         case 'host.connectionChanged':
             // `replaced` means another window took over this profile; the Workbench window reports it.
             return event.payload.status === 'replaced'
                 ? NO_EFFECT
                 : {
+                      ...NO_EFFECT,
                       board: true,
                       ensure: event.payload.isHostReplaced,
                       reattach: true,
@@ -76,7 +85,7 @@ export function commanderEventEffect(
             // A configuration error is reported by the Workbench window, which owns Settings.
             return event.payload.error ? NO_EFFECT : { ...NO_EFFECT, snapshot: true };
         case 'sessionPullRequests.changed':
-            return { ...NO_EFFECT, board: true };
+            return { ...NO_EFFECT, pullRequestSessionIds: event.payload.sessionIds };
         default:
             return NO_EFFECT;
     }

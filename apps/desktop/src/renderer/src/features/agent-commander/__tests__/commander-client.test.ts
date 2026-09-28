@@ -1,10 +1,17 @@
-import type { BootstrapState, CommanderSnapshot } from '@caxri/protocol';
+import type {
+    BootstrapState,
+    CommanderBoard,
+    CommanderBoardRow,
+    CommanderSnapshot,
+    SessionPullRequests,
+} from '@caxri/protocol';
 import { defaultAppSettings } from '@caxri/protocol';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
+import { caxriQueryKey, queryClient } from '../../../queries/client';
 import {
     configureWorkbenchSnapshotSource,
     refreshWorkbench,
@@ -13,6 +20,7 @@ import {
 import {
     ensureAgentCommander,
     readAgentCommanderWorkbench,
+    refreshCommanderBoardPullRequests,
     useAgentCommanderStore,
 } from '../commander-client';
 
@@ -92,5 +100,108 @@ describe('Agent Commander snapshot', () => {
             'Agent Commander is no longer set up',
         );
         expect(useAgentCommanderStore.getState().identity).toBeUndefined();
+    });
+});
+
+/**
+ * A pull-request change patches the named rows in place rather than invalidating the whole board (issue caxri#1411), so
+ * the rows it did not name keep their objects and do not re-render.
+ */
+describe('refreshCommanderBoardPullRequests', () => {
+    const boardKey = caxriQueryKey('commander.board', undefined);
+
+    function boardRow(
+        sessionId: string,
+        overrides: Partial<CommanderBoardRow> = {},
+    ): CommanderBoardRow {
+        return {
+            activityState: 'idle',
+            agent: null,
+            commanderSession: false,
+            group: 'idle',
+            hasUnread: false,
+            lastActivityAt: 0,
+            projectId: 'project-1',
+            projectRoot: '/workspace/alpha',
+            projectTitle: 'alpha',
+            sessionId,
+            sessionTitle: sessionId,
+            ...overrides,
+        };
+    }
+
+    function pullRequests(overrides: Partial<SessionPullRequests> = {}): SessionPullRequests {
+        return { pullRequests: {}, refreshedAt: 5, ...overrides };
+    }
+
+    const opened = {
+        number: 42,
+        source: 'branch',
+        state: 'open',
+        title: 'Parser fix',
+        url: 'https://example.com/pull/42',
+    } as const;
+
+    beforeEach(() => {
+        mocks.request.mockReset();
+        queryClient.clear();
+    });
+
+    afterEach(() => {
+        queryClient.clear();
+    });
+
+    it('patches only the named rows from one fresh read, without refetching the board', async () => {
+        const untouched = boardRow('untouched');
+        const target = boardRow('target');
+        queryClient.setQueryData<CommanderBoard>(boardKey, {
+            generatedAt: 1,
+            projects: [],
+            pullRequestsRefreshedAt: 1,
+            rows: [untouched, target],
+        });
+        const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+        mocks.request.mockResolvedValueOnce(
+            pullRequests({ pullRequests: { target: opened, untouched: opened } }),
+        );
+
+        await refreshCommanderBoardPullRequests(new Set(['target']));
+
+        expect(mocks.request.mock.calls).toEqual([['session.pullRequests', undefined]]);
+        expect(invalidate).not.toHaveBeenCalled();
+        const board = queryClient.getQueryData<CommanderBoard>(boardKey);
+        expect(board?.rows[0]).toBe(untouched);
+        expect(board?.rows[1]).toEqual({ ...target, pullRequest: opened });
+        expect(board?.pullRequestsRefreshedAt).toBe(5);
+        invalidate.mockRestore();
+    });
+
+    it('re-reads a snapshot this window cached moments ago, because the event says it is stale', async () => {
+        queryClient.setQueryData(caxriQueryKey('session.pullRequests', undefined), pullRequests());
+        queryClient.setQueryData<CommanderBoard>(boardKey, {
+            generatedAt: 1,
+            projects: [],
+            pullRequestsRefreshedAt: 1,
+            rows: [boardRow('target')],
+        });
+        mocks.request.mockResolvedValueOnce(pullRequests({ pullRequests: { target: opened } }));
+
+        await refreshCommanderBoardPullRequests(new Set(['target']));
+
+        expect(mocks.request).toHaveBeenCalledOnce();
+        expect(queryClient.getQueryData<CommanderBoard>(boardKey)?.rows[0]?.pullRequest).toEqual(
+            opened,
+        );
+    });
+
+    it('asks a board that has not loaded yet to read again instead of patching it', async () => {
+        const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+
+        await refreshCommanderBoardPullRequests(new Set(['target']));
+
+        expect(invalidate).toHaveBeenCalledExactlyOnceWith({ queryKey: boardKey });
+        expect(mocks.request).not.toHaveBeenCalled();
+        expect(queryClient.getQueryData(boardKey)).toBeUndefined();
+        invalidate.mockRestore();
     });
 });

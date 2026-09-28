@@ -28,7 +28,13 @@ describe('commanderEventEffect', () => {
                 event('state.changed', { kind: 'full', reason: 'unknown' }),
                 identity,
             ),
-        ).toEqual({ board: true, ensure: false, reattach: false, snapshot: true });
+        ).toEqual({
+            board: true,
+            ensure: false,
+            pullRequestSessionIds: [],
+            reattach: false,
+            snapshot: true,
+        });
     });
 
     it("re-reads the snapshot only when a record change names the Commander's own rows", () => {
@@ -38,7 +44,13 @@ describe('commanderEventEffect', () => {
         );
         expect(
             commanderEventEffect(records(['other-session'], ['other-terminal']), identity),
-        ).toEqual({ board: true, ensure: false, reattach: false, snapshot: false });
+        ).toEqual({
+            board: true,
+            ensure: false,
+            pullRequestSessionIds: [],
+            reattach: false,
+            snapshot: false,
+        });
     });
 
     it('treats a record change before the first snapshot as possibly its own', () => {
@@ -75,13 +87,20 @@ describe('commanderEventEffect', () => {
         expect(commanderEventEffect(serverEvent, identity)).toEqual({
             board: true,
             ensure: shouldEnsure,
+            pullRequestSessionIds: [],
             reattach: true,
             snapshot: true,
         });
     });
 
     it('waits out a restart and leaves a profile takeover to the Workbench window', () => {
-        const none = { board: false, ensure: false, reattach: false, snapshot: false };
+        const none = {
+            board: false,
+            ensure: false,
+            pullRequestSessionIds: [],
+            reattach: false,
+            snapshot: false,
+        };
         expect(
             commanderEventEffect(
                 event('runtime.status', { restartCount: 1, status: 'restarting' }),
@@ -98,6 +117,7 @@ describe('commanderEventEffect', () => {
             expect(commanderEventEffect(event(name, {}), identity)).toEqual({
                 board: false,
                 ensure: false,
+                pullRequestSessionIds: [],
                 reattach: false,
                 snapshot: true,
             });
@@ -107,17 +127,33 @@ describe('commanderEventEffect', () => {
         }
     });
 
-    it('refreshes the board when pull requests change', () => {
+    /**
+     * A pull-request change names its Sessions, so the board patches those rows instead of refetching every row (issue
+     * caxri#1411).
+     */
+    it('patches only the named rows when pull requests change', () => {
         expect(
             commanderEventEffect(
-                event('sessionPullRequests.changed', { sessionIds: ['session-1'] }),
+                event('sessionPullRequests.changed', { sessionIds: ['session-1', 'session-2'] }),
                 identity,
             ),
-        ).toEqual({ board: true, ensure: false, reattach: false, snapshot: false });
+        ).toEqual({
+            board: false,
+            ensure: false,
+            pullRequestSessionIds: ['session-1', 'session-2'],
+            reattach: false,
+            snapshot: false,
+        });
     });
 
     it('ignores UI commands, which belong to the Workbench window', () => {
-        const none = { board: false, ensure: false, reattach: false, snapshot: false };
+        const none = {
+            board: false,
+            ensure: false,
+            pullRequestSessionIds: [],
+            reattach: false,
+            snapshot: false,
+        };
         expect(
             commanderEventEffect(event('command.execute', { command: 'palette.show' }), identity),
         ).toEqual(none);

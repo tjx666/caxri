@@ -124,15 +124,18 @@ export function useCaxriQuery<M extends CaxriMethod, TData = MethodResult<M>>(
 /**
  * One-shot read through the shared cache, for a builder that runs at the moment it needs the data (a native context
  * menu opening) instead of subscribing on every render. Shares `useCaxriQuery`'s key, so a fresh cached answer is
- * reused and targeted invalidation reaches it.
+ * reused and targeted invalidation reaches it. Pass `staleTime: 0` when the caller already knows the cached answer is
+ * out of date, such as right after a Server event said it changed.
  */
 export function fetchCaxriQuery<M extends CaxriMethod>(
     method: M,
     parameters: MethodParameters<M>,
+    options?: { staleTime?: number },
 ): Promise<MethodResult<M>> {
     return queryClient.query({
         queryKey: caxriQueryKey(method, parameters),
         queryFn: () => caxri.request(method, ...([parameters] as ParametersArgument<M>)),
+        ...options,
     });
 }
 
