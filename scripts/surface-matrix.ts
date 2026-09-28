@@ -57,6 +57,11 @@ const TERMINAL_HOST_ROOT = 'apps/server/src/terminal-host/';
 const EXTENSION_HOST_ROOT = 'apps/server/src/extension-host/';
 
 const CLI_ROOT = 'apps/cli/';
+/**
+ * `@caxri/client` is the Server connection library imported by Desktop Main, Desktop Preload, and the CLI (confirmed
+ * against the current tree), so a change there needs each consumer's proof.
+ */
+const CLIENT_ROOT = 'packages/client/';
 const MOBILE_ROOT = 'apps/mobile/';
 const PROTOCOL_ROOT = 'packages/protocol/';
 const EXTENSIONS_ROOT = 'extensions/';
@@ -68,7 +73,12 @@ const E2E_ROOT = 'e2e/';
  * additive, not exclusive: a file may need more than one proof.
  */
 function isDesktopMainPath(path: string): boolean {
-    if (path.startsWith(DESKTOP_MAIN_ROOT) || path.startsWith(DESKTOP_SHARED_ROOT)) return true;
+    if (
+        path.startsWith(DESKTOP_MAIN_ROOT) ||
+        path.startsWith(DESKTOP_SHARED_ROOT) ||
+        path.startsWith(CLIENT_ROOT)
+    )
+        return true;
     return (
         path.startsWith(DESKTOP_ROOT) &&
         !path.startsWith(DESKTOP_PRELOAD_ROOT) &&
@@ -96,7 +106,9 @@ const surfaceDefinitions: readonly SurfaceDefinition[] = [
         id: 'desktop-preload',
         label: 'Desktop preload',
         isMatch: (path) =>
-            path.startsWith(DESKTOP_PRELOAD_ROOT) || path.startsWith(DESKTOP_SHARED_ROOT),
+            path.startsWith(DESKTOP_PRELOAD_ROOT) ||
+            path.startsWith(DESKTOP_SHARED_ROOT) ||
+            path.startsWith(CLIENT_ROOT),
         proof: 'Confirm the typed IPC channel is consumed correctly by both its Main-process handler and its Renderer caller, and that it never bypasses the structured IPC contract with an untrusted shell string. Exercise the changed channel end-to-end over CDP or a Playwright Electron spec. See the `debug` skill.',
     },
     {
@@ -116,18 +128,18 @@ const surfaceDefinitions: readonly SurfaceDefinition[] = [
         id: 'terminal-host',
         label: 'Terminal Host',
         isMatch: (path) => path.startsWith(TERMINAL_HOST_ROOT),
-        proof: 'Terminal Host owns PTYs: exercise the affected spawn, input, resize, suspend, or exit path through a live Session/Terminal or a targeted regression, per the `debug` skill ownership map.',
+        proof: 'Terminal Host owns PTYs: exercise the affected spawn, input, resize, suspend, or exit path through a live Session/Terminal or a targeted regression. See the `debug` skill.',
     },
     {
         id: 'extension-host',
         label: 'Extension Host',
         isMatch: (path) => path.startsWith(EXTENSION_HOST_ROOT),
-        proof: 'Extension Host owns native ESM extensions: exercise the affected module-loader, API-factory, or workspace-bridge path through its Vitest regression or a live extension load, per the `debug` skill ownership map.',
+        proof: 'Extension Host owns native ESM extensions: exercise the affected module-loader, API-factory, or workspace-bridge path through its Vitest regression or a live extension load. See the `debug` skill.',
     },
     {
         id: 'cli',
         label: 'CLI',
-        isMatch: (path) => path.startsWith(CLI_ROOT),
+        isMatch: (path) => path.startsWith(CLI_ROOT) || path.startsWith(CLIENT_ROOT),
         proof: 'Verify the exact `caxri` command output or behavior on the real CLI surface, not just a setup script used to reach another surface. See the `acceptance` skill (cli surface).',
     },
     {
