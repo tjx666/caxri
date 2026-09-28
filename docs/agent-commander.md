@@ -232,9 +232,14 @@ into one of six groups, in this order: `attention`, `working`, `waiting`, `faile
   started often left no Session activity to group by.
   `Answered` means the Agent gave its final answer, not that the Commander verified it.
 
-The board never waits on GitHub. The window refetches the board, debounced, on every `state.changed`
-and `sessionPullRequests.changed`, and polls it every 10 seconds while visible so cached pull
-request and CI state keeps moving. Delegation receipts announce themselves rather than waiting for
+The board never waits on GitHub. The window refetches the board, debounced, on every `state.changed`,
+and polls it every 10 seconds while visible so cached pull request and CI state keeps moving even
+when an event is missed. A `sessionPullRequests.changed` event does not refetch the board: the
+window reads the `session.pullRequests` snapshot once per debounce window and patches only the rows
+of the Sessions the event named (`refreshCommanderBoardPullRequests`). Every other row keeps its
+object, so a new, merged, or unavailable pull request repaints one row rather than the whole board.
+The Commander window reads that snapshot itself because it does not mount the Workbench window's
+query invalidation. Delegation receipts announce themselves rather than waiting for
 that poll: creating a task, or changing its status or failure reason, sends a `state.changed` naming
 the task's Session, because many of those transitions (a startup deadline, an asynchronous result
 collection, a rejected follow-up) change no Session or Terminal record. Saves that only advance
@@ -366,7 +371,6 @@ Inside the Commander Terminal, the Commander calls the version-matched CLI throu
   and `commander.ensure` rebuilds a missing record. A `projects` role column would add a migration
   without fixing a known defect. Revisit it when a second kind of system Project appears or a real
   integrity defect does.
-- The board uses the cached pull-request snapshot and does not refresh pull requests row by row.
 - Stopping the Commander ends its current turn. Reopening resumes the conversation, not the turn.
 - There is no setting to stop the Commander whenever its window closes. The status bar chip and the
   explicit Stop cover the single-maintainer workflow; add one only when a real need appears.

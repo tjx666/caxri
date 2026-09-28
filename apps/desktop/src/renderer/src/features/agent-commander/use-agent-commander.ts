@@ -6,7 +6,11 @@ import { caxri } from '../../lib/caxri';
 import { caxriQueryKey, queryClient } from '../../queries/client';
 import { describeFailure } from '../../stores/toasts';
 import { refreshWorkbench, useWorkbenchStore } from '../../stores/workbench';
-import { ensureAgentCommander, useAgentCommanderStore } from './commander-client';
+import {
+    ensureAgentCommander,
+    refreshCommanderBoardPullRequests,
+    useAgentCommanderStore,
+} from './commander-client';
 import { commanderEventEffect } from './commander-events';
 
 /**
@@ -60,6 +64,24 @@ export function useAgentCommander(): { retry: () => void; status: AgentCommander
                 queryKey: caxriQueryKey('commander.board', undefined),
             });
         }, BOARD_REFRESH_DEBOUNCE_MS);
+        /**
+         * Sessions named by pull-request changes inside one debounce window, patched together by one read.
+         */
+        const pullRequestSessionIds = new Set<string>();
+        async function patchPendingPullRequestRows(): Promise<void> {
+            const sessionIds = new Set(pullRequestSessionIds);
+            pullRequestSessionIds.clear();
+            try {
+                await refreshCommanderBoardPullRequests(sessionIds);
+            } catch {
+                // A failed read leaves those rows as they were until the board's own poll re-reads them; the Server
+                // records the failed request, and a toast for a background badge refresh would only be noise.
+            }
+        }
+        const patchPullRequestRows = debounce(() => {
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, the patch swallows its own failure
+            void patchPendingPullRequestRows();
+        }, BOARD_REFRESH_DEBOUNCE_MS);
         const unsubscribe = caxri.onEvent((event) => {
             const effect = commanderEventEffect(event, useAgentCommanderStore.getState().identity);
             if (effect.reattach)
@@ -68,12 +90,18 @@ export function useAgentCommander(): { retry: () => void; status: AgentCommander
                 }));
             if (effect.snapshot) refreshCommanderSnapshot();
             if (effect.board) refetchBoard();
+            if (effect.pullRequestSessionIds.length > 0) {
+                for (const sessionId of effect.pullRequestSessionIds)
+                    pullRequestSessionIds.add(sessionId);
+                patchPullRequestRows();
+            }
             // Re-runs the start effect without its loading state: the pane keeps its screen while the Server resumes it.
             if (effect.ensure) setAttempt((current) => current + 1);
         });
         return () => {
             unsubscribe();
             refetchBoard.cancel();
+            patchPullRequestRows.cancel();
         };
     }, []);
 

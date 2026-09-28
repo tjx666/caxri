@@ -1,4 +1,9 @@
-import type { CommanderBoardRow, SessionPullRequest } from '@caxri/protocol';
+import type {
+    CommanderBoard,
+    CommanderBoardRow,
+    SessionPullRequest,
+    SessionPullRequests,
+} from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -6,6 +11,7 @@ import {
     commanderPullRequestBadge,
     commanderRowPresentation,
     commanderTaskBadge,
+    patchCommanderBoardPullRequests,
 } from '../commander-board';
 
 function row(overrides: Partial<CommanderBoardRow> = {}): CommanderBoardRow {
@@ -280,5 +286,102 @@ describe('commanderTaskBadge', () => {
                 updatedAt: 1,
             }),
         ).toMatchObject({ label: 'Needs you', toneClassName: 'text-warning' });
+    });
+});
+
+describe('patchCommanderBoardPullRequests', () => {
+    function board(rows: CommanderBoardRow[]): CommanderBoard {
+        return { generatedAt: 1, projects: [], pullRequestsRefreshedAt: 1, rows };
+    }
+
+    function snapshot(overrides: Partial<SessionPullRequests> = {}): SessionPullRequests {
+        return { pullRequests: {}, refreshedAt: 2, ...overrides };
+    }
+
+    const quiet = row({ sessionId: 'quiet', pullRequest: pullRequest({ number: 7 }) });
+
+    it('adds a newly opened pull request to its row and keeps every other row object', () => {
+        const target = row({ sessionId: 'target' });
+        const before = board([quiet, target]);
+
+        const after = patchCommanderBoardPullRequests(
+            before,
+            snapshot({
+                pullRequests: {
+                    quiet: pullRequest({ number: 7, state: 'merged' }),
+                    target: pullRequest({ number: 42 }),
+                },
+            }),
+            new Set(['target']),
+        );
+
+        expect(after).not.toBe(before);
+        expect(after.rows[0]).toBe(quiet);
+        expect(after.rows[1]).not.toBe(target);
+        expect(after.rows[1]).toEqual({ ...target, pullRequest: pullRequest({ number: 42 }) });
+        expect(after.pullRequestsRefreshedAt).toBe(2);
+    });
+
+    it('follows a lifecycle change such as a merge', () => {
+        const target = row({
+            sessionId: 'target',
+            pullRequest: pullRequest({ checks: 'pending' }),
+        });
+        const merged = pullRequest({ state: 'merged' });
+
+        const after = patchCommanderBoardPullRequests(
+            board([target, quiet]),
+            snapshot({ pullRequests: { target: merged } }),
+            new Set(['target']),
+        );
+
+        expect(after.rows[0]?.pullRequest).toEqual(merged);
+        expect(after.rows[1]).toBe(quiet);
+    });
+
+    it('marks a failed lookup unavailable and keeps the cached pull request beside it', () => {
+        const cached = pullRequest();
+        const target = row({ sessionId: 'target', pullRequest: cached });
+        const unavailable = { hint: 'Run gh auth login.', reason: 'not-logged-in' as const };
+
+        const after = patchCommanderBoardPullRequests(
+            board([quiet, target]),
+            snapshot({ pullRequests: { target: cached }, unavailable: { target: unavailable } }),
+            new Set(['target']),
+        );
+
+        expect(after.rows[0]).toBe(quiet);
+        expect(after.rows[1]).toEqual({ ...target, pullRequestUnavailable: unavailable });
+        expect(commanderPullRequestBadge(after.rows[1])).toBeUndefined();
+    });
+
+    it('drops the pull request and the failure once the snapshot no longer has them', () => {
+        const target = row({
+            sessionId: 'target',
+            pullRequest: pullRequest(),
+            pullRequestUnavailable: { hint: 'Retry later.', reason: 'network' },
+        });
+
+        const after = patchCommanderBoardPullRequests(
+            board([target]),
+            snapshot(),
+            new Set(['target']),
+        );
+
+        expect(after.rows[0]).not.toHaveProperty('pullRequest');
+        expect(after.rows[0]).not.toHaveProperty('pullRequestUnavailable');
+    });
+
+    it('returns the same board when no named row actually changed', () => {
+        const before = board([quiet]);
+        const unchanged = snapshot({ pullRequests: { quiet: pullRequest({ number: 7 }) } });
+
+        expect(
+            patchCommanderBoardPullRequests(
+                before,
+                unchanged,
+                new Set(['quiet', 'not-on-the-board']),
+            ),
+        ).toBe(before);
     });
 });
