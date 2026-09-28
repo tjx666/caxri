@@ -162,6 +162,34 @@ describe('createIdleExitMonitor', () => {
         });
     });
 
+    it('drops a check whose idle period ended and restarted while isBusy() was pending', async () => {
+        vi.useFakeTimers();
+        const onIdleExit = vi.fn();
+        const firstCheck = Promise.withResolvers<boolean>();
+        const isBusy = vi
+            .fn<() => Promise<boolean> | boolean>()
+            .mockReturnValueOnce(firstCheck.promise)
+            .mockReturnValue(false);
+        const monitor = createIdleExitMonitor({ isBusy, onIdleExit, thresholdMs: THRESHOLD_MS });
+
+        monitor.updateConnectionCount(0);
+        await vi.advanceTimersByTimeAsync(THRESHOLD_MS);
+        expect(isBusy).toHaveBeenCalledOnce();
+
+        // A client connects and leaves again while the first health check is still in flight.
+        monitor.updateConnectionCount(1);
+        monitor.updateConnectionCount(0);
+        firstCheck.resolve(false);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(onIdleExit).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(THRESHOLD_MS);
+        expect(onIdleExit).toHaveBeenCalledExactlyOnceWith({
+            deferralCount: 0,
+            idleDurationMs: THRESHOLD_MS,
+        });
+    });
+
     it('treats a rejected isBusy() check as busy rather than exiting on an unexpected error', async () => {
         vi.useFakeTimers();
         const onIdleExit = vi.fn();
