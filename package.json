@@ -18,6 +18,9 @@
         "lint:type-aware": "oxlint -c .oxlintrc.json --type-aware .",
         "lint:markdown": "markdownlint-cli2 \"**/*.md\"",
         "lint:staged": "lint-staged",
+        "gitleaks": "bun run scripts/gitleaks-scan.ts",
+        "docs-check": "bun run scripts/documentation-check.ts",
+        "source-size-ratchet": "bun run scripts/source-size-ratchet.ts",
         "knip": "knip",
         "doctor": "react-doctor --no-score --blocking warning",
         "doctor:changed": "bun run scripts/doctor-changed.ts",
@@ -129,7 +132,8 @@
                     "scripts/fixtures/eslint/view-container-reads/**/*.ts",
                     "scripts/fixtures/eslint/color-utilities/**/*.ts",
                     "scripts/run-e2e-failure-isolation.ts",
-                    "scripts/run-e2e-pools.ts"
+                    "scripts/run-e2e-pools.ts",
+                    "scripts/surface-matrix.ts"
                 ],
                 "ignore": [
                     ".agents/skills/deep-review/scripts/vitest.config.ts",

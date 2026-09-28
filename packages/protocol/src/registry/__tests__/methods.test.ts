@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { internalMethods, MAX_FILE_BROWSE_ENTRIES, methods } from '../methods';
+import { MAX_FILE_BROWSE_ENTRIES } from '../../domain/file-contract';
+import { internalMethods, methods } from '../methods';
 
 describe('noParameters default', () => {
     it('lets a caller omit params entirely on a no-argument method', () => {

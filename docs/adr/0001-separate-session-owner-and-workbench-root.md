@@ -1,6 +1,10 @@
+---
+kind: adr
+status: accepted
+---
+
 # Separate Session ownership from the Workbench Root
 
-- Status: accepted
 - Date: 2026-08-14
 - Amended by: ADR 0005 (target, pending)
 

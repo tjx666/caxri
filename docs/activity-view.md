@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Activity view
 
 The Activity view is one of the Primary Side Bar's two bodies. It answers one question across every

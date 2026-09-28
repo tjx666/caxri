@@ -52,10 +52,19 @@ or cancels the delivery, or a concrete blocker requires their input.
    import graph cannot see which Electron workflows a Renderer or Server change reaches: when the
    change is user-visible, add one `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line naming the specs
    that cover it (see `docs/ci-performance.md`). Set it before pushing, since the policy reads the
-   body at push time. Read back the resulting PR.
-6. Treat queued or failed required checks, unresolved conflicts, and active review findings as real
-   readiness blockers, unless the diff qualifies for [Fast merge without CI](#fast-merge-without-ci)
-   or a failed case qualifies for the CI-only parity exception below.
+   body at push time.
+   Run `bun run scripts/surface-matrix.ts` against the pushed diff (`--base origin/main` is the
+   default) and paste its Markdown output into the PR body. It reports which product surfaces the
+   diff touches — Desktop main/preload/Renderer, Server, Terminal Host, Extension Host, CLI,
+   Mobile, protocol contracts, extensions, e2e, docs, contributor skills, CI — and the proof this
+   repository already requires for each one, plus a reverse-state reminder for a diff that adds a
+   one-way user action. Before the PR is ready, resolve every listed proof row to `done` or
+   `waived: <reason>`; a row left `PENDING` is unproven, not passing. Use `--json` when scripting
+   the body instead of reading it by eye. Read back the resulting PR.
+6. Treat queued or failed required checks, unresolved conflicts, unresolved surface-matrix proof
+   rows, and active review findings as real readiness blockers, unless the diff qualifies for
+   [Fast merge without CI](#fast-merge-without-ci) or a failed case qualifies for the CI-only parity
+   exception below.
    Repair the owning branch and refresh the exact-head state instead of merging
    stale evidence. Watch checks with `bun run scripts/watch-ci.ts --run <id>` using the
    harness-specific ownership rules in the reference below. Concurrent sessions, including other

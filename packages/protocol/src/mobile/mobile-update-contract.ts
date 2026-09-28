@@ -46,7 +46,7 @@ export const mobileUpdatePrepareResultSchema = z.strictObject({
 const noParameters = z.strictObject({}).default({});
 
 /**
- * Desktop-delivered Android updates; see `docs/mobile/UPDATE.md`. Both are granted to every paired role because they
+ * Desktop-delivered Android updates; see `docs/mobile/update.md`. Both are granted to every paired role because they
  * expose only the bundle Desktop ships and a download token scoped to the requesting device.
  */
 export const mobileUpdateMethods = {

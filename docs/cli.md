@@ -1,4 +1,13 @@
+---
+kind: living
+status: current
+---
+
 # The `caxri` CLI
+
+This is the user-facing manual: what the CLI does and why. For Agent Endpoint capability, credential,
+and installation-contract detail an agent needs to work on the CLI safely, see
+[CLI authority and the distributed Agent guide](../.agents/skills/project-architecture/references/cli.md).
 
 The scriptable `caxri` CLI talks only to the authenticated, profile-scoped Server. It never
 reads Caxri's SQLite database, settings, or logs directly. Local help and protocol introspection

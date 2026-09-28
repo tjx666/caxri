@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Visible Agent delegation
 
 Visible delegation runs a task in a managed Claude, Codex or Grok Terminal, in a sibling pane of the caller's

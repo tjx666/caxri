@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Renderer performance observability
 
 Caxri measures one explicitly named Renderer scenario at a time and emits a bounded,

@@ -53,7 +53,7 @@ beyond the packaged application itself.
 - Normal commits follow the event plan in `docs/ci-performance.md`. Source pushes may run optimized
   E2E, but they never package or publish a release.
 - The release workflow validates the version and tag, builds the release-signed Android update APK
-  that Desktop serves to paired phones (`docs/mobile/UPDATE.md`), builds and probes the unsigned
+  that Desktop serves to paired phones (`docs/mobile/update.md`), builds and probes the unsigned
   Apple Silicon DMG, verifies it, and publishes the DMG and SHA-256 checksum. Packaged-app verification remains a
   release responsibility even though product checks and the full E2E suite stay in PR CI. Runner
   routing, availability, trust, and recovery follow `docs/self-hosted-runner.md`. A release step

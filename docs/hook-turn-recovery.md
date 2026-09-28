@@ -1,3 +1,8 @@
+---
+kind: living
+status: current
+---
+
 # Hook turn recovery
 
 A lifecycle hook can establish a running turn even when provider metadata is temporarily absent.

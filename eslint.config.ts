@@ -71,9 +71,11 @@ export default defineConfig(
          * which (as an unrestricted `files` pattern) broadens the overall file-discovery superset to every extension
          * under a `scripts/` directory. Because the shared preset's TypeScript `languageOptions` block has no `files`
          * filter of its own, ESLint would try to parse native helpers with the TypeScript parser and crash. Shell and
-         * Swift sources have their own compilers and were never meant to be JS/TS-linted.
+         * Swift sources have their own compilers and were never meant to be JS/TS-linted; binary font assets, such as
+         * the mobile Terminal fonts under `apps/mobile/scripts/terminal-fonts/`, fail with "Parsing error: Invalid
+         * character".
          */
-        '**/*.{sh,swift}',
+        '**/*.{sh,swift,ttf,otf,woff,woff2}',
         /**
          * Negative fixtures for `scripts/__tests__/eslint-toolchain-contract.test.ts`: they exist solely to trip
          * specific rules and would otherwise fail this repository's own `--max-warnings=0` gate. The contract test

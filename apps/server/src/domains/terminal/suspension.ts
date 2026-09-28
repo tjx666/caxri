@@ -16,6 +16,13 @@ interface TerminalSuspensionServiceOptions {
     database: CaxriDatabase;
     logger: StructuredLogger;
     now?: () => number;
+    /**
+     * Reconciles a Terminal that finished an automatic (`idle`/`untouched`) suspend while its Session was, or had just
+     * become, the selected one — see the race explained on `suspendTerminal`. The caller is expected to wire this to
+     * the same restore `session.select` triggers (e.g. `restoreInterruptedTerminalsInBackground`), so the Terminal
+     * converges back to running without the user having to reselect.
+     */
+    onSuspendedSessionReselected?: (sessionId: string) => void;
     selectedSessionId: () => string | undefined;
     send: (event: ServerEvent) => void;
     settings: () => AppSettings;
@@ -91,10 +98,28 @@ export class TerminalSuspensionService {
         return suspended;
     }
 
+    /**
+     * `decideTerminalSuspensions` (called from `suspendDecided`) snapshots the selected Session once at the top of the
+     * sweep, but the teardown below is a real async barrier (`TerminalManager#suspend` awaits killing the PTY and
+     * capturing its final screen). A `session.select` that lands anywhere in that window — before this call starts, or
+     * while it is in flight — is invisible to the snapshot, so without this fence the just-selected Session's Terminal
+     * would end up `suspended` with nothing left to retry it (GitHub issue #1427). `archived`/`detached` are explicit
+     * user actions on a specific Session and must proceed regardless of what is selected, so only the automatic
+     * `idle`/`untouched` reasons are fenced.
+     */
     private async suspendTerminal(
         terminalId: string,
         reason: TerminalSuspensionReason | 'archived' | 'detached',
     ): Promise<boolean> {
+        const isAutomaticSweep = reason === 'idle' || reason === 'untouched';
+        // Closes the gap between one decision's teardown and the next: skip outright if the selection already
+        // changed before this Terminal's own teardown even started.
+        if (
+            isAutomaticSweep &&
+            this.options.selectedSessionId() ===
+                this.options.database.getTerminal(terminalId)?.sessionId
+        )
+            return false;
         try {
             const record = await this.options.terminals.suspend(
                 terminalId,
@@ -112,6 +137,10 @@ export class TerminalSuspensionService {
             this.options.logger.write('info', logEventCatalog.terminal.suspended, {
                 fields: { reason, sessionId: record.sessionId, terminalId },
             });
+            // Closes the narrower gap: the selection changed while this Terminal's own teardown was in flight, so
+            // the kill already happened and the record is genuinely `suspended` — reconcile it back to running.
+            if (isAutomaticSweep && this.options.selectedSessionId() === record.sessionId)
+                this.options.onSuspendedSessionReselected?.(record.sessionId);
             return true;
         } catch (error) {
             this.options.logger.write('warn', logEventCatalog.terminal.suspendFailed, {
@@ -148,6 +177,18 @@ export class TerminalSuspensionService {
         }
         this.publish(parked);
         return parked;
+    }
+
+    /**
+     * Wires the reselection-recovery callback after construction: the caller's
+     * `restoreInterruptedTerminalsInBackground` does not exist yet when this service is constructed (it depends on the
+     * Terminal restore supervisor, created afterward), so the constructor option alone cannot reach it. See
+     * `onSuspendedSessionReselected`'s own doc comment.
+     */
+    setOnSuspendedSessionReselected(
+        onSuspendedSessionReselected: (sessionId: string) => void,
+    ): void {
+        this.options.onSuspendedSessionReselected = onSuspendedSessionReselected;
     }
 
     /**

@@ -50,6 +50,7 @@ import {
 import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
+import { notifyListenersThenRethrow } from '../state/notify-listeners';
 import { BinaryStreamClient } from './binary-stream-client';
 import { discoverDesktopCredential, discoverServerManifest, MAX_MANIFEST_BYTES } from './discovery';
 
@@ -269,9 +270,7 @@ export class ServerClient {
         this.desktopLease = desktopLease;
         if (endpoint && welcome.features?.includes('binary-streams-v1')) {
             this.binaryStreams = new BinaryStreamClient({
-                emitEvent: (event) => {
-                    for (const listener of this.eventListeners) listener(event);
-                },
+                emitEvent: (event) => notifyListenersThenRethrow(this.eventListeners, event),
                 endpoint,
                 issueTicket: (id, operation) => this.issueStreamTicket(id, operation),
                 onTerminalTransportFailure: () => this.closeTransport(),
@@ -328,7 +327,7 @@ export class ServerClient {
                 this.socket.close(1000);
                 return;
             } else if (event.success) {
-                for (const listener of this.eventListeners) listener(event.data.event);
+                notifyListenersThenRethrow(this.eventListeners, event.data.event);
             } else {
                 const desktopCommand = localServerDesktopCommandSchema.safeParse(raw);
                 if (desktopCommand.success) {

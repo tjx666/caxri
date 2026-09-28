@@ -24,7 +24,7 @@ import {
     runExternalStatusCommand,
 } from './external-status';
 import type { GitService } from './git';
-import { VercelDeploymentStore } from './project-status-vercel-store';
+import { VercelDeploymentStore } from './project-status';
 import type { SessionTranscriptContext } from './session-context';
 import { SessionContextService } from './session-context';
 import { withSessionDeployment } from './session-pull-request-deployment';

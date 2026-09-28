@@ -1,4 +1,4 @@
-import { createRecoveringEventClient } from '@caxri/client/state';
+import { createRecoveringEventClient, notifyListeners } from '@caxri/client/state';
 import type {
     CaxriBridge,
     CaxriMethod,
@@ -122,8 +122,18 @@ async function request<M extends CaxriMethod>(
 
 const eventListeners = new Set<(event: ServerEvent) => void>();
 const eventClient = createRecoveringEventClient({
+    /**
+     * `notifyListeners` isolates each listener so one throwing subscriber cannot stop delivery to the rest, and cannot
+     * make the event unrecoverable: this recovering client's cursor has already advanced past `event` by the time
+     * `emit` runs, so a bubbled exception here would both skip the remaining listeners and permanently drop the event
+     * instead of ever replaying it.
+     */
     emit: (event) => {
-        for (const listener of eventListeners) listener(event);
+        notifyListeners(eventListeners, event, (error) => {
+            // Diagnostics must never include the event payload (it may carry Terminal output or
+            // Agent transcripts); report only the event's type and the error.
+            console.error(`[caxri] Server event listener threw for "${event.event}"`, error);
+        });
     },
     recover: async (afterCursor) => {
         const reply = await request('events.recover', { afterCursor });
