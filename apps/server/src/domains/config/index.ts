@@ -37,17 +37,17 @@ import { logEventCatalog, parseJsonc, redactLogValue } from '@caxri/system';
 import { notifyListeners } from '@caxri/utils';
 import { applyEdits, modify } from 'jsonc-parser';
 
-import { atomicWrite } from './atomic-file';
+import { atomicWrite } from '../atomic-file';
+import { draculaTheme, importTheme, serializeTheme } from '../theme';
+import type { WatchHandle } from '../watch-hub';
+import { WatchHub } from '../watch-hub';
 import {
     JSONC_FORMATTING_OPTIONS,
     prepareKeybindingsSource,
     prepareSettingsSource,
     prepareThemeSource,
-} from './config-reconcile';
-import { ConfigSourceReadError, readBoundedConfigSource } from './config-source';
-import { draculaTheme, importTheme, serializeTheme } from './theme';
-import type { WatchHandle } from './watch-hub';
-import { WatchHub } from './watch-hub';
+} from './reconcile';
+import { ConfigSourceReadError, readBoundedConfigSource } from './source';
 
 type ConfigKind = 'settings' | 'keybindings' | 'theme';
 
