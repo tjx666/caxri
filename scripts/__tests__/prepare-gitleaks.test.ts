@@ -54,8 +54,13 @@ describe('gitleaksReleaseKey', () => {
         expect(gitleaksReleaseKey({ arch: 'x64', platform: 'darwin' })).toBe('darwin-x64');
     });
 
+    it('resolves the two Linux architectures the guards CI job runs on', () => {
+        expect(gitleaksReleaseKey({ arch: 'arm64', platform: 'linux' })).toBe('linux-arm64');
+        expect(gitleaksReleaseKey({ arch: 'x64', platform: 'linux' })).toBe('linux-x64');
+    });
+
     it('fails closed on an unsupported platform instead of silently skipping verification', () => {
-        expect(() => gitleaksReleaseKey({ arch: 'x64', platform: 'linux' })).toThrow(
+        expect(() => gitleaksReleaseKey({ arch: 'x64', platform: 'win32' })).toThrow(
             /Unsupported platform/,
         );
     });

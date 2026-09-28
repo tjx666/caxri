@@ -44,12 +44,14 @@ beyond the packaged application itself.
   and updates every coupled manifest, bundled extension engine range, and TypeScript version
   source. It intentionally stops before commit, push, tag, or publication.
 - `.github/workflows/release.yml` is the only remote release path. An exact
-  `release: v<package-version>` commit pushed to `main` must satisfy the release preparation in
+  `release: v<package-version>` commit landing on `main` must satisfy the release preparation in
   `RELEASING.md` and the exact-release CI profile in `docs/ci-performance.md`. Its lightweight CI
   run preserves the trusted `workflow_run` handoff but skips platform checks and E2E, relying on the
   merged changes' PR CI. The fast-path requires the commit to match `release:prepare`'s exact path
   set and generated contents; any additional, missing, or modified content falls back to normal
-  main-push CI. Only a successful CI `workflow_run` for the same commit may start packaging.
+  main-push CI. Only a successful CI `workflow_run` for the same commit may start packaging. `main`
+  requires the `guards` status check with no bypass, so the release commit reaches `main` through a
+  pull request squash-merged with the exact release subject, not a direct push — see `RELEASING.md`.
 - Normal commits follow the event plan in `docs/ci-performance.md`. Source pushes may run optimized
   E2E, but they never package or publish a release.
 - The release workflow validates the version and tag, builds the release-signed Android update APK
@@ -59,8 +61,9 @@ beyond the packaged application itself.
   routing, availability, trust, and recovery follow `docs/self-hosted-runner.md`. A release step
   that fails only on the runner is diagnosed there over SSH, as its Remote diagnosis section
   describes, before any rerun.
-- Follow `RELEASING.md` when preparing the release commit. Creating or pushing that commit still
-  requires explicit user authorization because the push triggers the remote release.
+- Follow `RELEASING.md` when preparing the release commit and opening its pull request. Creating that
+  commit, opening its pull request, and merging it still require explicit user authorization because
+  the merge triggers the remote release.
 - After the GitHub Release publishes successfully, install it locally by default with
   `bun run install:caxri` (standing owner preference) and report the installed version. Skip only
   when the user asked not to install or the release itself failed.
