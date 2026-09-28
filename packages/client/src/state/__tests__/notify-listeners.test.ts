@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { notifyListeners } from '../notify-listeners';
+import { notifyListeners, notifyListenersThenRethrow } from '../notify-listeners';
 
 describe('notifyListeners', () => {
     it('delivers the value to every listener exactly once even when an earlier listener throws', () => {
@@ -63,5 +63,30 @@ describe('notifyListeners', () => {
 
         expect(() => notifyListeners([throwing, survives], 'event')).not.toThrow();
         expect(survives).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('notifyListenersThenRethrow', () => {
+    it('delivers to every listener before rethrowing the first failure', () => {
+        const firstError = new Error('first');
+        const first = vi.fn(() => {
+            throw firstError;
+        });
+        const second = vi.fn(() => {
+            throw new Error('second');
+        });
+        const third = vi.fn();
+
+        expect(() => notifyListenersThenRethrow(new Set([first, second, third]), 'value')).toThrow(
+            firstError,
+        );
+        expect(third).toHaveBeenCalledExactlyOnceWith('value');
+    });
+
+    it('returns normally when every listener succeeds', () => {
+        const listener = vi.fn();
+
+        expect(() => notifyListenersThenRethrow([listener], 1)).not.toThrow();
+        expect(listener).toHaveBeenCalledExactlyOnceWith(1);
     });
 });

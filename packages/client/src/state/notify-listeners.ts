@@ -27,3 +27,21 @@ export function notifyListeners<T>(
         }
     }
 }
+
+/**
+ * Delivers `value` to every listener like {@link notifyListeners}, then rethrows the first listener failure.
+ *
+ * Use this where the caller already owns a failure path for a throwing delivery (for example the supervise client's
+ * `receive` closes the transport). Isolation keeps a throwing listener from starving later ones; the rethrow keeps that
+ * caller's failure path instead of turning the error into an uncaught exception or silently swallowing it.
+ */
+export function notifyListenersThenRethrow<T>(
+    listeners: Iterable<(value: T) => void>,
+    value: T,
+): void {
+    let failure: { error: unknown } | undefined;
+    notifyListeners(listeners, value, (error) => {
+        failure ??= { error };
+    });
+    if (failure) throw failure.error;
+}
