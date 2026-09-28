@@ -46,10 +46,9 @@ import {
 } from '../../stores/workbench';
 import { closeTerminal } from '../terminal/terminal-commands';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
+import { beginFileOpenIntent, isCurrentFileOpenIntent } from './editor-open-intent';
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
 import { focusEditor, queueEditorNavigation, revealEditorNavigation } from './editor-reveal';
-
-const fileOpenIntentState = { current: 0 };
 
 interface PendingDocumentOperation {
     discarded: boolean;
@@ -365,15 +364,14 @@ export async function openFileForSession(
     if (isVirtualEditorTabPath(path)) return false;
     const session = getBootstrap()?.sessions.find((candidate) => candidate.id === sessionId);
     if (!session) return false;
-    fileOpenIntentState.current += 1;
-    const intent = fileOpenIntentState.current;
+    const intent = beginFileOpenIntent();
     const operation = trackDocumentOperation(session.id, path);
     markEditorOpenStarted();
     try {
         const opened = await tryCommand('Unable to open file', async () => {
             const document = await caxri.request('files.read', { sessionId: session.id, path });
             if (
-                intent !== fileOpenIntentState.current ||
+                !isCurrentFileOpenIntent(intent) ||
                 operation.discarded ||
                 !getBootstrap()?.sessions.some((candidate) => candidate.id === session.id) ||
                 getBootstrap()?.sessions.find((candidate) => candidate.id === session.id)
