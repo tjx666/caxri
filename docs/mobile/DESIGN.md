@@ -57,6 +57,11 @@ The implemented encrypted frame, subscription, and heartbeat contract is documen
   the Caxri frame encryption still applies.
 - Connect to candidate addresses in parallel, keep the first socket that opens, close the rest, and
   only then send the handshake. A pairing handshake is single-use and must never be raced.
+  React Native Android ignores `close()` on a socket that is still connecting
+  ([react-native#35554](https://github.com/facebook/react-native/issues/35554)), so a losing,
+  timed-out, or cancelled socket that opens late is closed again at that point and never carries a
+  hello. Otherwise it idles until Server's handshake deadline and counts as a false
+  `handshakeTimeout`.
 - Foreground recovery: when the app returns to the foreground, probe the current connection. If the
   app was in the background for more than 10 seconds or the probe fails, open a new connection at
   once instead of waiting for the backoff timer. Android vendors such as HyperOS cut background

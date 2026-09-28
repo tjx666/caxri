@@ -44,6 +44,7 @@ import {
 import { z } from 'zod';
 
 import type { MobileCredential, MobileCredentialStore } from './credential-store';
+import { discardSocket, isSocketDiscarded } from './discard-socket';
 import type { MobileSubscriptionListener } from './mobile-frame-router';
 import { MobileFrameRouter } from './mobile-frame-router';
 import { MobileHeartbeat } from './mobile-heartbeat';
@@ -162,10 +163,15 @@ const openSocketAt = async (
         }
         function onError(): void {
             cleanup();
-            socket.close();
+            discardSocket(socket);
             reject(new MobilePairingError('unreachable', 'Caxri could not be reached.'));
         }
         function onOpen(): void {
+            // A cancelled pairing's socket can still open on Android; it fails here and `discardSocket` closes it.
+            if (isSocketDiscarded(socket)) {
+                onError();
+                return;
+            }
             cleanup();
             resolve();
         }
@@ -177,6 +183,10 @@ const openSocketAt = async (
     return socket;
 };
 
+/**
+ * Races one socket per advertised address and keeps the first to open. Only the winner ever carries a hello; every
+ * other candidate is discarded, including one still connecting that React Native Android would otherwise leave open.
+ */
 export const openSocket = async (
     addresses: string[],
     port: number,
@@ -189,10 +199,10 @@ export const openSocket = async (
                 openSocketAt(address, port, runtime, (socket) => sockets.push(socket)),
             ),
         );
-        for (const socket of sockets) if (socket !== winner) socket.close();
+        for (const socket of sockets) if (socket !== winner) discardSocket(socket);
         return winner;
     } catch {
-        for (const socket of sockets) socket.close();
+        // Every candidate rejects only after `openSocketAt` discarded it, so nothing is left to close here.
         throw new MobilePairingError('unreachable', 'Caxri could not be reached.');
     }
 };
