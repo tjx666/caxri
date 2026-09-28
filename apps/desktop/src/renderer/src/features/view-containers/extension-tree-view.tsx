@@ -3,7 +3,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 
 import type { ExtensionTreeViewState, TreeItemDto, ViewActionDescriptor } from '@caxri/protocol';
 import { projectStatusErrorLogsSchema } from '@caxri/protocol';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual';
 
 import { executeCommand } from '../../commands/execute';
 import { useScrollEdge } from '../../hooks/use-scroll-edge';
@@ -43,6 +43,7 @@ import {
 import { useExtensionTreeChildren } from './hooks/use-extension-tree-children';
 import { useExtensionTreeState } from './hooks/use-extension-tree-state';
 import { dispatchExtensionViewAction } from './view-container-commands';
+import { virtualTreeRenderedIndexes } from './virtual-tree-range';
 
 /**
  * Message guidance may wrap beyond the initial Empty layout, so its virtual row is measured after render.
@@ -439,6 +440,15 @@ function ExtensionTreeViewContent({
         }
     }, [children, errors, loadChildren, loading, requests, treeState]);
 
+    const focusedRowIndex = rows.findIndex(
+        (row) => row.kind === 'item' && isTreeItemFocused(treeState, row.item),
+    );
+    /**
+     * The row holding the tree's single roving Tab stop: the focused item, or the first item before anything was
+     * focused. The virtualizer keeps it mounted wherever the list is scrolled (`virtualTreeRenderedIndexes`).
+     */
+    const tabStopIndex =
+        focusedRowIndex === -1 ? rows.findIndex((row) => row.kind === 'item') : focusedRowIndex;
     // TanStack Virtual is knowingly incompatible with React Compiler memoization; the compiler
     // skips this component, which is the library's documented, expected behavior.
     // eslint-disable-next-line react-hooks/incompatible-library -- see above
@@ -453,11 +463,9 @@ function ExtensionTreeViewContent({
         getItemKey: (index) => visibleRowKey(rows[index]),
         getScrollElement: () => scrollElement.current,
         overscan: 10,
+        rangeExtractor: (range) =>
+            virtualTreeRenderedIndexes(defaultRangeExtractor(range), range.count, [tabStopIndex]),
     });
-    const focusedRowIndex = rows.findIndex(
-        (row) => row.kind === 'item' && isTreeItemFocused(treeState, row.item),
-    );
-    const firstItemIndex = rows.findIndex((row) => row.kind === 'item');
     const focusIndex = (index: number): void => {
         const row = rows.at(index);
         if (!isNavigableExtensionTreeRow(row)) return;
@@ -600,11 +608,7 @@ function ExtensionTreeViewContent({
                                         />
                                     ) : (
                                         <TreeItemRow
-                                            active={
-                                                focusedRowIndex === -1
-                                                    ? virtualRow.index === firstItemIndex
-                                                    : isTreeItemFocused(treeState, row.item)
-                                            }
+                                            active={virtualRow.index === tabStopIndex}
                                             index={virtualRow.index}
                                             isRefreshing={
                                                 row.item.variant === 'message' && isRootRefreshing

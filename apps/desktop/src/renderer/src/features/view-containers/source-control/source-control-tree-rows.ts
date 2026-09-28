@@ -1,3 +1,4 @@
+import { virtualTreeRenderedIndexes } from '../virtual-tree-range';
 import type { SourceControlTreeNode } from './source-control-tree';
 import type { TreeNavigationAction } from './source-control-tree-navigation';
 
@@ -137,9 +138,5 @@ export function sourceControlRenderedIndexes(
     pinnedIndexes: readonly number[],
 ): number[] {
     if (count === 0) return [];
-    const indexes = new Set(visibleIndexes);
-    indexes.add(0);
-    indexes.add(count - 1);
-    for (const index of pinnedIndexes) if (index >= 0 && index < count) indexes.add(index);
-    return [...indexes].toSorted((left, right) => left - right);
+    return virtualTreeRenderedIndexes(visibleIndexes, count, [0, count - 1, ...pinnedIndexes]);
 }

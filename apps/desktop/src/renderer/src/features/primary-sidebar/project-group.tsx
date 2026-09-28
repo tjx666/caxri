@@ -14,6 +14,7 @@ import { CreateSessionMenu, EmptyProjectSessionMenu } from '../session/create-se
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { ActiveSessionRow } from './active-session-row';
 import type { SessionOrderController } from './hooks/use-session-order';
+import { focusDisclosureRow } from './primary-sidebar-focus';
 import {
     primarySidebarCreateSessionRowId,
     primarySidebarRevealRowId,
@@ -179,7 +180,10 @@ export function ProjectGroup({
                             aria-expanded={expanded}
                             aria-label={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
                             tabIndex={-1}
-                            onClick={onToggle}
+                            onClick={(event) => {
+                                onToggle();
+                                focusDisclosureRow(event.currentTarget);
+                            }}
                         >
                             {/*
                              * The disclosure cue is this chevron, never the folder glyph beside it: a Project with a

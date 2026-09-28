@@ -17,3 +17,13 @@ export function focusPrimarySidebar(): void {
     if (!layout.primarySidebarVisible) layout.setPrimarySidebarVisible(true);
     focusChromeSurface('primarySidebar');
 }
+
+/**
+ * Hands focus from a group heading's disclosure chevron to the heading's own `treeitem`, its sibling. The chevron is a
+ * pointer target only (`tabIndex={-1}`), yet a click still focuses it, and a focused chevron is a focus owner inside
+ * `role="tree"` that the tree's arrow keys and roving Tab stop do not know, since both key off the rows (issue #1012).
+ * Clicking the row itself already focuses it; the chevron now ends in the same place.
+ */
+export function focusDisclosureRow(disclosure: HTMLElement): void {
+    disclosure.parentElement?.querySelector<HTMLElement>('[role="treeitem"]')?.focus();
+}
