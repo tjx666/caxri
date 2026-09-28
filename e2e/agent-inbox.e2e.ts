@@ -331,6 +331,42 @@ process.stdin.resume();
         await expect(approval).toHaveCount(0);
         await expect(running.page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
 
+        // A request whose approval window closes while it is on screen stays there, marked expired, instead of
+        // vanishing mid-read: the only action left is to acknowledge it.
+        const expiringBody = 'peer-message-expiring sentinel';
+        const expiring = await sender.request('agent.message.send', {
+            to: receiverCapture.context.endpoint.ref,
+            body: expiringBody,
+            ttlMs: 2_000,
+        });
+        await expect(approval.getByTestId('agent-message-body')).toContainText(expiringBody);
+        await expect(approval.getByTestId('agent-message-expired')).toBeVisible({
+            timeout: 10_000,
+        });
+        await expect(approval).toContainText('Peer message expired');
+        await expect(approval.getByTestId('agent-message-body')).toContainText(expiringBody);
+        await expect(approval.getByRole('button', { name: 'Approve message' })).toHaveCount(0);
+        await expect(approval.getByRole('button', { name: 'Deny' })).toHaveCount(0);
+        await running.page.screenshot({
+            path: test.info().outputPath('peer-approval-expired.png'),
+        });
+        await expect
+            .poll(
+                async () =>
+                    (
+                        await sender!.request('agent.message.receipt', {
+                            messageId: expiring.messageId,
+                        })
+                    ).status,
+            )
+            .toBe('expired');
+        const dismissExpired = approval.locator('button[data-approval-confirm]');
+        await expect(dismissExpired).toHaveText('Dismiss');
+        await expect(dismissExpired).toBeFocused();
+        await dismissExpired.click();
+        await expect(approval).toHaveCount(0);
+        await expect(approvalCount).toHaveCount(0);
+
         const staleBody = 'peer-message-stale privacy-sentinel';
         const stale = await sender.request('agent.message.send', {
             to: receiverCapture.context.endpoint.ref,
@@ -351,6 +387,9 @@ process.stdin.resume();
                     ).status,
             )
             .toBe('expired');
+        // Voided by the restart rather than by its deadline, but the same event for the reader.
+        await expect(approval.getByTestId('agent-message-expired')).toBeVisible();
+        await approval.locator('button[data-approval-confirm]').click();
         await expect(approval).toHaveCount(0);
         await expect(
             pageRequest(running.page, 'agent.message.held.get', { messageId: stale.messageId }),
