@@ -8,7 +8,7 @@ import type {
     SourceControlViewModel,
     SourceControlViewState,
 } from '@caxri/protocol';
-import { isVirtualEditorTabPath } from '@caxri/protocol';
+import { isCaxriError, isVirtualEditorTabPath } from '@caxri/protocol';
 import { queryOptions, useQuery } from '@tanstack/react-query';
 
 import {
@@ -29,6 +29,10 @@ import {
 import { subscribeViewEvents } from '../../view-event-bridge';
 import type { SourceControlClient } from '../../view-operation-client';
 import { controlledViewQueryKey } from '../../view-operation-client';
+import {
+    runSourceControlActionAgainstLatest,
+    SUPERSEDED,
+} from '../source-control-action-resolution';
 import { REFRESHING_ACTION_MESSAGE } from '../source-control-history-state';
 import type { SourceControlPanelState } from '../source-control-panel-state';
 import { resolveSourceControlPanelState } from '../source-control-panel-state';
@@ -261,20 +265,35 @@ export function useSourceControlController(
                   ),
         [providerGeneration, requestRefresh, session, updateNavigation, viewId],
     );
+    const refetchSnapshot = snapshot.refetch;
     const runAction = useCallback(
         async (action: SourceControlAction): Promise<void> => {
             if (action.disabled || !snapshot.data) return;
-            if (snapshot.isFetching) {
+            const label =
+                action.errorMessage ??
+                presentation?.actionErrorMessage ??
+                'Source Control action failed';
+            const run = (target: SourceControlAction, revision: string) =>
+                tryCommand(label, async () => {
+                    try {
+                        return await client.action({ actionId: target.id, revision });
+                    } catch (error) {
+                        if (isCaxriError(error) && error.code === 'CONFLICT') return SUPERSEDED;
+                        throw error;
+                    }
+                });
+            const outcome = await runSourceControlActionAgainstLatest({
+                action,
+                isRefreshing: snapshot.isFetching,
+                model: snapshot.data,
+                refetch: async () => (await refetchSnapshot({ cancelRefetch: false })).data,
+                run,
+            });
+            if (outcome === SUPERSEDED) {
                 pushToast('warning', REFRESHING_ACTION_MESSAGE);
                 return;
             }
-            const revision = snapshot.data.revision;
-            const result = await tryCommand(
-                action.errorMessage ??
-                    presentation?.actionErrorMessage ??
-                    'Source Control action failed',
-                () => client.action({ actionId: action.id, revision }),
-            );
+            const { result, revision } = outcome;
             if (!result || result.revision !== revision) return;
             for (const effect of result.effects) applyActionEffect(effect);
             if (result.refresh) requestRefresh();
@@ -285,6 +304,7 @@ export function useSourceControlController(
             requestRefresh,
             snapshot.data,
             snapshot.isFetching,
+            refetchSnapshot,
         ],
     );
     const selectMode = useCallback(

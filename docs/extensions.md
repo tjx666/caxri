@@ -187,7 +187,11 @@ unregistered error classifies exactly as it did before this contract existed.
 
 Server Core's wire handling of these two
 codes (retrying a superseded tree read, converting a superseded read into `CANCELLED` for the Renderer) is unchanged
-and keeps keying on the code string. Extensions cannot submit a Session ID, repository path, shell command, or
+and keeps keying on the code string. A superseded view action whose Extension Host generation did not turn over
+becomes `CONFLICT`: the provider refused it before running anything. The Source Control Renderer treats that
+`CONFLICT`, and a click that lands while its snapshot is still refreshing, the same way: it waits for the refresh,
+finds the action with the same command binding in the fresh model, and runs that, for at most three attempts before
+showing a warning. Extensions cannot submit a Session ID, repository path, shell command, or
 native API request. The Git domain owns Git execution, repository discovery, approved-repository identity,
 and the bounded Desktop bridge used by discard confirmation. A discard request carries only an
 opaque repository ID and either an all-changes intent or a relative file path; the Git domain derives the
