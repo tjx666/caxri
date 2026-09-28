@@ -17,9 +17,13 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   claiming coverage; a successful script exit does not prove the intended change occurred.
 - Iterate with the narrowest owning test, then run one changed-file check after the cohesive source
   batch is complete. Re-run only gates invalidated by later edits.
-- With no selector, run lint and related tests.
+- With no selector, run lint and related tests, plus the repository-wide typecheck whenever a
+  changed or deleted path can affect types: a TypeScript source, a `tsconfig*.json`, a
+  `package.json`, or `pnpm-lock.yaml`. Lint and tests alone once passed a type error that then
+  failed CI. An explicit selector runs exactly what it names.
 - With no file arguments, inspect committed changes since the `origin/main` merge base plus staged,
-  unstaged, and untracked files. `--staged` narrows this to the index.
+  unstaged, and untracked files, deletions included. `--staged` narrows this to the index. Deleted
+  paths only decide whether to typecheck; lint and tests see existing files.
 - Explicit files take priority over Git discovery.
 - `--lint` applies ESLint, oxlint type-aware (`.oxlintrc.json`, TS files only), and Prettier fixes
   to supported files. Always inspect the resulting diff. Appending file paths to `bun run format`
@@ -35,8 +39,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
 - For added or changed production structured-log writes, explicitly include
   `scripts/__tests__/logging-contract.test.ts` in the focused check. It scans call sites rather
   than importing them, so import-based related-test discovery cannot select this contract.
-- `--type` runs the repository-wide TypeScript check because TypeScript cannot safely validate one
-  file in isolation.
+- `--type` runs the repository-wide TypeScript check (about 16 seconds) because TypeScript cannot
+  safely validate one file in isolation.
 - `--knip` runs the repository-wide dead-code and unused-export gate for Renderer or shared-contract
   changes.
 - `--e2e` requires one or more explicit `e2e/*.e2e.ts` files, rebuilds Caxri, and runs only those
