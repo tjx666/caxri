@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
@@ -7,6 +7,7 @@ import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeabl
 import { Archive } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
+import type { SwipeRow } from '../open-swipe-row';
 
 const ACTION_WIDTH = 84;
 
@@ -25,7 +26,8 @@ const styles = StyleSheet.create({
 
 /**
  * A Session row that reveals Archive when swiped left, like a chat list's delete action. Only one row stays open at a
- * time: the list hands each row `onOpen`, and closes the previous row when another one opens.
+ * time: the row reports when a drag toward opening starts, when it opens, and when it closes or unmounts, and the list
+ * closes the previous row as soon as another one starts to open.
  */
 export const SessionSwipeRow = ({
     busy,
@@ -34,6 +36,7 @@ export const SessionSwipeRow = ({
     onArchive,
     onClose,
     onOpen,
+    onOpenStart,
     sessionId,
     theme,
 }: {
@@ -44,17 +47,28 @@ export const SessionSwipeRow = ({
      */
     enabled: boolean;
     onArchive: (sessionId: string) => Promise<boolean>;
-    onClose: (methods: SwipeableMethods) => void;
-    onOpen: (methods: SwipeableMethods) => void;
+    onClose: (row: SwipeRow) => void;
+    onOpen: (row: SwipeRow) => void;
+    onOpenStart: (row: SwipeRow) => void;
     sessionId: string;
     theme: MobileTheme;
 }) => {
     const swipeableReference = useRef<SwipeableMethods>(null);
+    const handleOpenStart = useCallback((): void => {
+        if (swipeableReference.current) onOpenStart(swipeableReference.current);
+    }, [onOpenStart]);
     const handleOpen = useCallback((): void => {
         if (swipeableReference.current) onOpen(swipeableReference.current);
     }, [onOpen]);
     const handleClose = useCallback((): void => {
         if (swipeableReference.current) onClose(swipeableReference.current);
+    }, [onClose]);
+    useEffect(() => {
+        const row = swipeableReference.current;
+        // An archived or recycled row unmounts without a close event, so it reports itself closed.
+        return () => {
+            if (row) onClose(row);
+        };
     }, [onClose]);
     const archive = useCallback(async (): Promise<void> => {
         const done = await onArchive(sessionId);
@@ -95,6 +109,7 @@ export const SessionSwipeRow = ({
             enabled={enabled}
             friction={1.5}
             onSwipeableClose={handleClose}
+            onSwipeableOpenStartDrag={handleOpenStart}
             onSwipeableWillOpen={handleOpen}
             overshootRight={false}
             ref={swipeableReference}
