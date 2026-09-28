@@ -6,15 +6,15 @@ import type { GitSummary } from '@caxri/protocol';
 import { execFileAsync, StructuredLogger } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ExternalStatusRunner } from '../external-status';
-import { ExternalStatusCliError } from '../external-status';
-import { ProjectStatusService } from '../project-status';
+import type { ExternalStatusRunner } from '../../external-status';
+import { ExternalStatusCliError } from '../../external-status';
+import { ProjectStatusService } from '..';
 import {
     loadBranchPublication,
     prepareStatusRepo,
     RemoteHeadCache,
     RepoRemoteCache as RepoRemoteCache,
-} from '../project-status-branch';
+} from '../branch';
 
 const head = 'a'.repeat(40);
 const remoteHead = 'b'.repeat(40);

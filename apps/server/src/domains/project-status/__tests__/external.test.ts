@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { CliFailureKind } from '../external-status';
-import { projectStatusCliError } from '../project-status-external';
+import type { CliFailureKind } from '../../external-status';
+import { projectStatusCliError } from '../external';
 
 const NON_LOG_FAILURE_KINDS: Array<Exclude<CliFailureKind, 'other'>> = [
     'not-found',

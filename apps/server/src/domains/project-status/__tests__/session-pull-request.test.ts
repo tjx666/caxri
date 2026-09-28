@@ -1,9 +1,9 @@
 import type { SessionPullRequest } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ExternalStatusRunner } from '../external-status';
-import { ProjectStatusService } from '../project-status';
-import type { SessionPullRequestResolution } from '../session-pull-request-parse';
+import type { ExternalStatusRunner } from '../../external-status';
+import type { SessionPullRequestResolution } from '../../session-pull-request-parse';
+import { ProjectStatusService } from '..';
 import { cleanupProjectStatusFixtures, gitSummary, logger } from './project-status.fixture';
 
 afterEach(cleanupProjectStatusFixtures);

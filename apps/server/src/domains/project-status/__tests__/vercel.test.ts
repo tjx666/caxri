@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { BranchPublicationContext } from '../project-status-branch';
-import type { VercelDependencies } from '../project-status-vercel';
-import { loadVercelDeployments } from '../project-status-vercel';
+import type { BranchPublicationContext } from '../branch';
+import type { VercelDependencies } from '../vercel';
+import { loadVercelDeployments } from '../vercel';
 
 const featureHead = 'a'.repeat(40);
 const defaultHead = 'b'.repeat(40);

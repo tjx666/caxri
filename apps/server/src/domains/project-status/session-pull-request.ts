@@ -2,14 +2,14 @@ import type { ProjectStatusOverview, PullRequestUnavailable } from '@caxri/proto
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { GitHubPullRequestStore } from './external-status';
+import type { GitHubPullRequestStore } from '../external-status';
 import {
     isNoPullRequest,
     pullRequestUnavailable as describePullRequestUnavailable,
-} from './external-status';
-import { githubPullRequestSchema, parseExternalJson } from './project-status-parse';
-import { pullRequestOrigin } from './session-pull-request-deployment';
-import type { SessionPullRequestResolution } from './session-pull-request-parse';
+} from '../external-status';
+import { pullRequestOrigin } from '../session-pull-request-deployment';
+import type { SessionPullRequestResolution } from '../session-pull-request-parse';
+import { githubPullRequestSchema, parseExternalJson } from './parse';
 
 /**
  * Reads the pull request a Session delivers from `SessionPullRequestService`, the one owner of that answer. The sidebar

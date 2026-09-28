@@ -267,9 +267,9 @@ function invalidateGitChangedQueries(
  * Invalidates both Project Status reads for one Session after `projectStatus.changed` — the Status panel's
  * `projectStatus.summary` and the status bar's `projectStatus.overview`. The two reads are computed independently, but
  * a summary refresh warms the same shared `GitHubPullRequestStore`/`LinearIssueStore`/`AcceptanceStore` records the
- * overview reads from (see `ProjectStatusService` in `apps/server/src/domains/project-status.ts`), so this refetch
- * normally costs no extra delivery-CLI call. This is what lets the status bar converge with the Status panel in the
- * same Server refresh instead of waiting out its own poll (issue caxri#1310).
+ * overview reads from (see `ProjectStatusService` in `apps/server/src/domains/project-status/index.ts`), so this
+ * refetch normally costs no extra delivery-CLI call. This is what lets the status bar converge with the Status panel in
+ * the same Server refresh instead of waiting out its own poll (issue caxri#1310).
  */
 function invalidateProjectStatusQuery(queryClient: QueryClient, sessionId: string): void {
     // Fire-and-forget: the refreshed query surfaces any error through React Query state.

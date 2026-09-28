@@ -2,7 +2,7 @@ import type { SessionDeployment, SessionPullRequest } from '@caxri/protocol';
 import { z } from 'zod';
 
 import type { GitHubPullRequestStore } from './external-status';
-import type { VercelDeploymentStore } from './project-status-vercel-store';
+import type { VercelDeploymentStore } from './project-status';
 
 /**
  * `gh pr view --json mergeCommit` reports `null` until the pull request is actually merged, and Caxri only asks about

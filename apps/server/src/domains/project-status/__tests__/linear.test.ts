@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { collectLinearCandidates } from '../project-status-linear';
+import { collectLinearCandidates } from '../linear';
 
 const teamKeys = new Set(['ABC', 'XYZ']);
 

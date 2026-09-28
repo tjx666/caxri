@@ -2,7 +2,7 @@ import type { ServerEvent } from '@caxri/protocol';
 import { defaultAppSettings } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ProjectStatusService } from '../project-status';
+import { ProjectStatusService } from '..';
 import {
     checkPayload,
     cleanupProjectStatusFixtures,

@@ -5,11 +5,11 @@ import type {
     ProjectStatusOverviewLinearIssue,
 } from '@caxri/protocol';
 
-import type { TranscriptLinearReference } from './agents';
-import { isNonIssuePrefix } from './agents';
-import type { LinearIssueStore } from './external-status';
-import { ExternalStatusCliError } from './external-status';
-import { extractLinearReferences, projectStatusCliError } from './project-status-external';
+import type { TranscriptLinearReference } from '../agents';
+import { isNonIssuePrefix } from '../agents';
+import type { LinearIssueStore } from '../external-status';
+import { ExternalStatusCliError } from '../external-status';
+import { extractLinearReferences, projectStatusCliError } from './external';
 
 /**
  * How many issues one branch may lead with. The status bar renders the first and counts the rest, and a branch that

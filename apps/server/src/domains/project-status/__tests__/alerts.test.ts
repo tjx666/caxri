@@ -6,7 +6,7 @@ import type {
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { ProjectStatusAlertTracker } from '../project-status-alerts';
+import { ProjectStatusAlertTracker } from '../alerts';
 
 function repo(overrides: Partial<ProjectStatusRepository> = {}): ProjectStatusRepository {
     return {

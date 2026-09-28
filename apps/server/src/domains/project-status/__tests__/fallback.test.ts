@@ -6,9 +6,9 @@ import type { GitSummary } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import type { ExternalStatusRunner } from '../external-status';
-import { ExternalStatusCliError } from '../external-status';
-import { ProjectStatusService } from '../project-status';
+import type { ExternalStatusRunner } from '../../external-status';
+import { ExternalStatusCliError } from '../../external-status';
+import { ProjectStatusService } from '..';
 
 const directories: string[] = [];
 const loggers: StructuredLogger[] = [];

@@ -4,7 +4,7 @@ import type {
     SessionPullRequest,
 } from '@caxri/protocol';
 
-import { parseGitHubPullRequest } from './project-status-parse';
+import { parseGitHubPullRequest } from './project-status';
 
 /**
  * Pure projections from GitHub CLI output to the sidebar's per-Session pull-request row.

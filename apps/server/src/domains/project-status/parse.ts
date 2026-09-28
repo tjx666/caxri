@@ -16,7 +16,7 @@ import {
 } from '@caxri/protocol';
 import { z } from 'zod';
 
-import { acceptanceUrl } from './acceptance-link';
+import { acceptanceUrl } from '../acceptance-link';
 
 /**
  * Wire shapes and projections for the three external CLIs Project Status reads. Kept beside `./project-status.ts`

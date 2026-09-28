@@ -1,8 +1,8 @@
 import type { ProjectStatusRepository } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ExternalStatusRunner } from '../external-status';
-import { parseReviewThreads, ReviewThreadStore } from '../project-status-review-threads';
+import type { ExternalStatusRunner } from '../../external-status';
+import { parseReviewThreads, ReviewThreadStore } from '../review-threads';
 
 const PR_URL = 'https://github.com/example/example/pull/7';
 const CONTEXT = { owner: 'example', repo: 'example' };

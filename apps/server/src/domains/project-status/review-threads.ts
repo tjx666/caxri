@@ -2,9 +2,9 @@ import type { ProjectStatusRepository, ProjectStatusReviewThread } from '@caxri/
 import { rememberBounded } from '@caxri/utils';
 import { z } from 'zod';
 
-import type { ExternalStatusCommandTelemetry, ExternalStatusRunner } from './external-status';
-import { parseExternalJson } from './project-status-parse';
-import { SingleFlight } from './single-flight';
+import type { ExternalStatusCommandTelemetry, ExternalStatusRunner } from '../external-status';
+import { SingleFlight } from '../single-flight';
+import { parseExternalJson } from './parse';
 
 type PullRequest = ProjectStatusRepository['pullRequest'];
 
