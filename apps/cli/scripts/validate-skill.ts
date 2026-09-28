@@ -11,38 +11,55 @@ function tokenize(command: string): string[] {
 
 /**
  * Resolves the command path of an inline mention the way the CLI does, dropping global options such as `--json`
- * wherever they appear. A placeholder value (`--timeout <milliseconds>`) fails that option's own validation; the raw
- * words still resolve because command lookup matches by prefix.
+ * wherever they appear. An option's placeholder value (`--timeout <milliseconds>`) is replaced with a valid sample
+ * first, so that option's own validation does not reject the documentation form. Returns undefined when the words are
+ * not a parseable invocation, such as a lone `--request-id`.
  */
-function mentionedCommandPath(words: readonly string[]): string[] {
+function mentionedCommandPath(words: readonly string[]): string[] | undefined {
+    const sampled = words.map((word, index) =>
+        index > 0 && words[index - 1].startsWith('-') && /^<.+>$/u.test(word) ? '1000' : word,
+    );
     try {
-        return parseCliArguments(words).tokens;
+        return parseCliArguments(sampled).tokens;
     } catch {
-        return [...words];
+        return undefined;
     }
+}
+
+interface CommandMention {
+    path: string[];
+    source: string;
 }
 
 /**
  * Collects inline code spans that name a command in prose. They carry placeholders such as `<id>`, so only their
- * command path can be resolved, not their arguments. A span qualifies when it starts with `caxri`, or when it starts
- * with any command path word and has more words: a bare group such as `agent dispatch` or a shorthand such as `stop
- * <id>` must fail because neither names a runnable command. A lone word is indistinguishable from a capability or field
- * name (`commander`, `status`), so a one-word command is written with the `caxri` prefix. Markdown lets an inline span
- * wrap across lines, so a span may contain newlines.
+ * command path can be resolved, not their arguments. A `caxri`-prefixed span always qualifies. Any other span qualifies
+ * when its command path starts with a command word followed by another command word, a `<placeholder>`, or an option,
+ * so a bare group (`agent dispatch`) and a shorthand (`stop <id>`) fail because neither names a runnable command, while
+ * field prose such as `message = null` is skipped. A lone word is indistinguishable from a capability or field name
+ * (`commander`, `status`), so a one-word command is written with the `caxri` prefix. Markdown lets an inline span wrap
+ * across lines, so a span may contain newlines.
  */
-function inlineCommandMentions(skill: string): string[][] {
+function inlineCommandMentions(skill: string): CommandMention[] {
     const commandWords = new Set<string>(CLI_COMMANDS.flatMap((command) => command.path));
     return skill
         .replaceAll(/^```[^\n]*\n[\s\S]*?\n```$/gmu, '')
         .matchAll(/`([^`]+)`/gu)
         .map((match) => tokenize(match[1]))
-        .flatMap((words) => {
-            if (words[0] === 'caxri') return [mentionedCommandPath(words.slice(1))];
-            return commandWords.has(words[0]) && words.length > 1
-                ? [mentionedCommandPath(words)]
-                : [];
+        .flatMap((words): CommandMention[] => {
+            const source = words.join(' ');
+            if (words[0] === 'caxri') {
+                const path = mentionedCommandPath(words.slice(1)) ?? words.slice(1);
+                return path.length > 0 ? [{ path, source }] : [];
+            }
+            const path = mentionedCommandPath(words);
+            const isCommand =
+                path !== undefined &&
+                path.length > 1 &&
+                commandWords.has(path[0]) &&
+                (commandWords.has(path[1]) || /^[<-]/u.test(path[1]));
+            return isCommand ? [{ path, source }] : [];
         })
-        .filter((path) => path.length > 0)
         .toArray();
 }
 
@@ -73,9 +90,9 @@ export function validateSkillCommands(skill: string): {
     }
 
     const mentions = inlineCommandMentions(skill);
-    for (const tokens of mentions) {
-        if (!findCliCommand(tokens))
-            throw new Error(`Skill mentions an unknown command: \`${tokens.join(' ')}\``);
+    for (const { path, source } of mentions) {
+        if (!findCliCommand(path))
+            throw new Error(`Skill mentions an unknown command: \`${source}\``);
     }
 
     const capabilityMarker = skill.match(/<!-- caxri-capabilities: ([^>]+) -->/u)?.[1];
