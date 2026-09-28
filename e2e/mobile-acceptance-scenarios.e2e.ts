@@ -135,6 +135,11 @@ test('executes one report-bound Android product scenario', async ({}) => {
         );
         return;
     }
+    // `MOB-UI-04` shares `executeMobileConversationScenario` with `MOB-CONV-*` below, so it keeps its own case.
+    if (environment.caseId.startsWith('MOB-UI-') && environment.caseId !== 'MOB-UI-04') {
+        await executeMobileUiAuditScenario(environment, artifacts);
+        return;
+    }
 
     switch (environment.caseId) {
         case 'MOB-SESSION-PUSH-01':
@@ -667,14 +672,6 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 { ...environment, launchId, sourceCommit },
                 artifacts,
             );
-            break;
-        case 'MOB-UI-01':
-        case 'MOB-UI-02':
-        case 'MOB-UI-03':
-        case 'MOB-UI-05':
-        case 'MOB-UI-06':
-        case 'MOB-UI-07':
-            await executeMobileUiAuditScenario(environment, artifacts);
             break;
         case 'MOB-CHANGES-01':
         case 'MOB-CHANGES-02':
