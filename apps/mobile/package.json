@@ -64,7 +64,7 @@
         "@react-native/metro-config": "0.86.3",
         "@types/react": "~19.2.18",
         "@yutengjing/vscode-icons": "^0.1.1",
-        "svgo": "catalog:",
+        "svgo": "^4.1.0",
         "typescript": "^6.0.3"
     },
     "engines": {
