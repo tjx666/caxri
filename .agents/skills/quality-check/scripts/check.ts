@@ -377,12 +377,17 @@ function parseNullSeparated(value: string): string[] {
     return value.split('\0').filter(Boolean);
 }
 
+/**
+ * Lists changed paths, reporting a rename as its removed source plus its added destination (`--no-renames`). Rename
+ * detection would otherwise hide the old path, and the old path is what a stale path-string reference still names.
+ */
 export async function discoverChangedFiles(root: string, isStaged: boolean): Promise<string[]> {
     const trackedArguments = isStaged
-        ? ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMRD', '--']
+        ? ['diff', '--cached', '--no-renames', '--name-only', '-z', '--diff-filter=ACMRD', '--']
         : [
               'diff',
               (await runCapture('git', ['merge-base', 'origin/main', 'HEAD'], root)).trim(),
+              '--no-renames',
               '--name-only',
               '-z',
               '--diff-filter=ACMRD',
@@ -540,20 +545,45 @@ function rendererContractTestCandidates(files: string[]): string[] {
     ];
 }
 
-export async function selectedTestCandidates(root: string, files: string[]): Promise<string[]> {
+const PATH_REFERENCE_CONFIGS = new Set(['components.json', 'doctor.config.jsonc']);
+
+/**
+ * `doctor.config.jsonc` and `components.json` name source paths as plain strings that import-based discovery cannot
+ * see. Removing or renaming a source file can leave either config stale without touching it, so any removed path, or an
+ * edit to either config, selects the path contract CI's full suite would otherwise be the first to run.
+ */
+function pathReferenceContractTestCandidates(
+    files: readonly string[],
+    removedFiles: readonly string[],
+): string[] {
+    return removedFiles.length > 0 || files.some((file) => PATH_REFERENCE_CONFIGS.has(file))
+        ? ['scripts/__tests__/doctor-config-paths.test.ts']
+        : [];
+}
+
+export async function selectedTestCandidates(
+    root: string,
+    files: string[],
+    removedFiles: readonly string[] = [],
+): Promise<string[]> {
     const candidates = [
         ...new Set([
             ...files.flatMap(testCandidatesForFile),
             ...(await directImportTestCandidates(root, files)),
             ...(await skillContractTestCandidates(root, files)),
             ...rendererContractTestCandidates(files),
+            ...pathReferenceContractTestCandidates(files, removedFiles),
         ]),
     ];
     return existingFiles(root, candidates);
 }
 
-async function runTests(root: string, files: string[]): Promise<number> {
-    const tests = await selectedTestCandidates(root, files);
+async function runTests(
+    root: string,
+    files: string[],
+    removedFiles: readonly string[],
+): Promise<number> {
+    const tests = await selectedTestCandidates(root, files, removedFiles);
     if (tests.length > 0) {
         await runTool(root, 'vitest', ['run', '--silent=passed-only', ...tests]);
     }
@@ -613,6 +643,7 @@ async function main(): Promise<void> {
             ? options.files.map((file) => repoRelativePath(root, cwd, file))
             : await discoverChangedFiles(root, options.isStaged);
     const files = await existingFiles(root, requestedFiles);
+    const removedFiles = requestedFiles.filter((file) => !files.includes(file));
     const e2eSpecs = options.e2e ? selectE2ESpecs(files, options.files.length > 0) : [];
     const summaries: string[] = [];
 
@@ -628,7 +659,7 @@ async function main(): Promise<void> {
             })),
         );
     }
-    if (options.test) summaries.push(`tests ${await runTests(root, files)}`);
+    if (options.test) summaries.push(`tests ${await runTests(root, files, removedFiles)}`);
     if (shouldTypecheck(options, requestedFiles)) {
         await runCapture('bun', ['run', 'typecheck'], root);
         summaries.push('typecheck');

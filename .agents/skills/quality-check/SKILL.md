@@ -22,8 +22,9 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   `package.json`, or `pnpm-lock.yaml`. Lint and tests alone once passed a type error that then
   failed CI. An explicit selector runs exactly what it names.
 - With no file arguments, inspect committed changes since the `origin/main` merge base plus staged,
-  unstaged, and untracked files, deletions included. `--staged` narrows this to the index. Deleted
-  paths only decide whether to typecheck; lint and tests see existing files.
+  unstaged, and untracked files, deletions included. A rename counts as its deleted source plus its
+  added destination. `--staged` narrows this to the index. Lint and tests see existing files;
+  deleted paths decide whether to typecheck and select the path-reference contract below.
 - Explicit files take priority over Git discovery.
 - `--lint` applies ESLint, oxlint type-aware (`.oxlintrc.json`, TS files only), and Prettier fixes
   to supported files. Always inspect the resulting diff. Appending file paths to `bun run format`
@@ -38,7 +39,10 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   Keep the checker's source roots aligned with Vitest's include patterns, including `extensions/`.
   It deliberately ignores dynamic and transitive imports so composition-root suites do not turn a
   focused check into a broad test run. Renderer source changes also run the design and theme
-  contracts, which scan that source tree at runtime without importing individual files.
+  contracts, which scan that source tree at runtime without importing individual files. A deleted
+  or renamed path, or an edit to `doctor.config.jsonc` or `components.json`, also runs
+  `scripts/__tests__/doctor-config-paths.test.ts`, because those configs name source paths as
+  plain strings.
 - For added or changed production structured-log writes, explicitly include
   `scripts/__tests__/logging-contract.test.ts` in the focused check. It scans call sites rather
   than importing them, so import-based related-test discovery cannot select this contract.
