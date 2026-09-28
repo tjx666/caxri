@@ -206,7 +206,7 @@ function ProviderHeader({
             <SourceControlTreeRow
                 rowId={`provider:${provider.id}`}
                 level={1}
-                className="git-repository-row flex min-w-0 flex-1 cursor-pointer items-center gap-2 overflow-hidden border-0 bg-transparent p-2 text-left text-foreground"
+                className="git-repository-row flex min-w-0 flex-1 cursor-pointer items-center overflow-hidden border-0 bg-transparent px-2 py-1.5 text-left text-foreground"
                 aria-expanded={expanded}
                 aria-keyshortcuts={provider.externalLink ? 'Meta Alt' : 'Alt'}
                 data-path={provider.rootPath}
@@ -253,39 +253,44 @@ function ProviderHeader({
                 }}
             >
                 {/*
-                 * VS Code SCM (`scm.css`): `.monaco-icon-label` is `flex: 0 1 auto; min-width: 0` and `.actions` is
-                 * `flex: 1 10000 auto; overflow: hidden` so the branch gives way first. The name container itself uses
-                 * `text-overflow: ellipsis`. Counts are a `shrink-0` sibling rather than meta's min-content — putting
-                 * the branch inside a `min-width: auto` box made that box as wide as the full branch and crushed the
-                 * folder name. A name that is still too wide after the branch has given way ellipsizes too.
+                 * Two lines so neither the name nor the branch has to give way to the other: a long worktree folder
+                 * name and a long branch each get the whole row width instead of splitting one line, where both used
+                 * to ellipsize down to a few characters. The second line starts under the name, past the chevron and
+                 * the repository glyph.
                  */}
-                <span className="git-repository-identity flex min-w-0 flex-initial items-center gap-1 overflow-hidden">
-                    {expanded ? (
-                        <ChevronDown className="shrink-0" size={13} />
-                    ) : (
-                        <ChevronRight className="shrink-0" size={13} />
-                    )}
-                    {/* 14px matches the Project Status tree rows, so the two sidebar panels agree on repository glyph size. */}
-                    <SourceControlIcon className="shrink-0" icon={provider.icon} size={14} />
-                    <strong className="git-repository-name min-w-0 truncate font-semibold">
-                        {provider.label}
-                    </strong>
-                    {provider.kindLabel && (
-                        <small className="git-repository-kind shrink-0 text-[11px] whitespace-nowrap text-muted">
-                            {provider.kindLabel}
-                        </small>
-                    )}
-                </span>
-                <span
-                    className="git-repository-meta ml-auto flex min-w-0 flex-[1_10000_auto] items-center justify-end overflow-hidden text-[11px] text-muted"
-                    aria-label={provider.descriptionAccessibilityLabel}
-                >
-                    <span className="git-repository-branch min-w-0 truncate">
-                        {provider.description}
+                <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="git-repository-identity flex h-5 min-w-0 items-center gap-1 overflow-hidden">
+                        {expanded ? (
+                            <ChevronDown className="shrink-0" size={13} />
+                        ) : (
+                            <ChevronRight className="shrink-0" size={13} />
+                        )}
+                        {/* 14px matches the Project Status tree rows, so the two sidebar panels agree on repository glyph size. */}
+                        <SourceControlIcon className="shrink-0" icon={provider.icon} size={14} />
+                        <strong className="git-repository-name min-w-0 truncate font-semibold">
+                            {provider.label}
+                        </strong>
+                        {provider.kindLabel && (
+                            <small className="git-repository-kind shrink-0 text-[11px] whitespace-nowrap text-muted">
+                                {provider.kindLabel}
+                            </small>
+                        )}
                     </span>
-                </span>
-                <span className="git-repository-counts shrink-0 text-[11px] whitespace-nowrap text-muted">
-                    {provider.countLabel}
+                    {(provider.description || provider.countLabel) && (
+                        <span className="git-repository-details flex min-w-0 items-center gap-1 pl-8.75 text-[11px] leading-4 text-muted">
+                            <span
+                                className="git-repository-meta flex min-w-0 overflow-hidden"
+                                aria-label={provider.descriptionAccessibilityLabel}
+                            >
+                                <span className="git-repository-branch min-w-0 truncate">
+                                    {provider.description}
+                                </span>
+                            </span>
+                            <span className="git-repository-counts shrink-0 whitespace-nowrap">
+                                {provider.countLabel}
+                            </span>
+                        </span>
+                    )}
                 </span>
             </SourceControlTreeRow>
             {foldedGroup && (
