@@ -1,6 +1,7 @@
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { sessionAgentTerminal } from '../../session/session-agent-terminal';
 import { AGENT_ACTIVITY_FINISHED_RETENTION_MS } from '../agent-activity-retention';
 import type { AgentActivitySelectionAnchor } from '../agent-activity-rows';
 import {
@@ -174,6 +175,41 @@ describe('agentActivityGroups', () => {
                 terminal('selected', { agentOperation: 'compacting' }),
             ),
         ).toBe(false);
+    });
+
+    /**
+     * The projection resolves every row's Terminal from a one-pass index instead of scanning all Terminals per Session
+     * (issue caxri#1111). The row must still carry the exact Terminal the single lookup picks, or the grouping would
+     * describe a different Agent than the glyph beside it.
+     */
+    it('resolves each row to the Terminal sessionAgentTerminal picks', () => {
+        const sessions = [
+            session('primary', { primaryAgentTerminalId: 'primary-agent' }),
+            session('foreign-primary', { primaryAgentTerminalId: 'primary-agent' }),
+            session('first-only'),
+            session('no-terminal'),
+        ];
+        const terminals = [
+            terminal('foreign-primary', { id: 'foreign-first' }),
+            terminal('primary', { id: 'primary-shell' }),
+            terminal('first-only', { id: 'first-only-first' }),
+            terminal('primary', { id: 'primary-agent' }),
+            terminal('foreign-primary', { id: 'foreign-second' }),
+            terminal('first-only', { id: 'first-only-second' }),
+        ];
+        const rows = groupsOf(sessions, terminals).flatMap((group) => group.rows);
+        expect(rows).toHaveLength(sessions.length);
+        for (const row of rows)
+            expect(row.terminal, row.session.id).toBe(sessionAgentTerminal(row.session, terminals));
+        const terminalIdBySession = Object.fromEntries(
+            rows.map((row) => [row.session.id, row.terminal?.id]),
+        );
+        expect(terminalIdBySession).toEqual({
+            'first-only': 'first-only-first',
+            'foreign-primary': 'foreign-first',
+            'no-terminal': undefined,
+            'primary': 'primary-agent',
+        });
     });
 
     it('keeps a finished Session listed until its retention window closes', () => {
