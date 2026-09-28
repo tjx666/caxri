@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer } from 'react';
 
-import type { ProcessState, TerminalFailureReason } from '@caxri/protocol';
+import type { AgentProvider, ProcessState, TerminalFailureReason } from '@caxri/protocol';
 import { agentProviderCatalog, defaultAppSettings } from '@caxri/protocol';
 import {
     CircleCheck,
@@ -82,11 +82,13 @@ const terminalRecoveryMessageClassName =
 function TerminalRecoveryActions({
     failureReason,
     processState,
+    provider,
     resumesAgentSession,
     terminalId,
 }: {
     failureReason: TerminalFailureReason | undefined;
     processState: ProcessState;
+    provider: AgentProvider | undefined;
     resumesAgentSession: boolean;
     terminalId: string;
 }) {
@@ -108,7 +110,7 @@ function TerminalRecoveryActions({
                         className="terminal-recovery-action min-h-6 flex-none px-2 text-inherit"
                         size="sm"
                         variant="ghost"
-                        onClick={() => terminalPaneHost().openSettings()}
+                        onClick={() => terminalPaneHost().openSettings(provider)}
                     >
                         <Settings2 size={12} /> Open Settings
                     </Button>
@@ -147,12 +149,14 @@ function TerminalRecoveryBar({
     failureDetail,
     failureReason,
     processState,
+    provider,
     resumesAgentSession,
     terminalId,
 }: {
     failureDetail: string | undefined;
     failureReason: TerminalFailureReason | undefined;
     processState: ProcessState;
+    provider: AgentProvider | undefined;
     resumesAgentSession: boolean;
     terminalId: string;
 }) {
@@ -197,6 +201,7 @@ function TerminalRecoveryBar({
             <TerminalRecoveryActions
                 failureReason={failureReason}
                 processState={processState}
+                provider={provider}
                 resumesAgentSession={resumesAgentSession}
                 terminalId={terminalId}
             />
@@ -431,6 +436,7 @@ export function TerminalPane({
                 failureDetail={terminal?.failureDetail}
                 failureReason={terminal?.failureReason}
                 processState={processState}
+                provider={provider}
                 resumesAgentSession={isResumesAgentSession}
                 terminalId={terminalId}
             />

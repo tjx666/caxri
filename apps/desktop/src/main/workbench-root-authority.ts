@@ -1,7 +1,7 @@
 import { realpath } from 'node:fs/promises';
 import { basename, dirname } from 'node:path';
 
-import type { MainRequest, TerminalFileLinkRefusalReason } from '@caxri/protocol';
+import type { BootstrapState, MainRequest, TerminalFileLinkRefusalReason } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
 import { dialog } from 'electron';
@@ -24,6 +24,10 @@ type OpenTerminalFileLinkParameters = Extract<
     MainRequest,
     { method: 'terminal.openFileLink' }
 >['params'];
+type OpenCommanderFileLinkParameters = Extract<
+    MainRequest,
+    { method: 'agentCommander.openFileLink' }
+>['params'];
 type ExternalOpenDecision = 'cancel' | 'open' | 'trust';
 
 interface WorkbenchRootAuthorityOptions {
@@ -32,6 +36,12 @@ interface WorkbenchRootAuthorityOptions {
     grants: ProjectRootGrants;
     logger(): PathBrowserLogger | undefined;
     nextTestRoot(): string | undefined;
+    /**
+     * Raises and focuses the Workbench window. Used only by `openCommanderFileLink`, so a native dialog or the opened
+     * editor always lands on the window the user can actually see, even though the request originated in the hidden
+     * Agent Commander window.
+     */
+    focusWindow(): Promise<void>;
 }
 
 async function chooseDirectory(
@@ -159,6 +169,130 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         return { opened: true as const };
     }
 
+    /**
+     * The first non-archived Session in `state`, preferring whichever one the Workbench currently has selected. Used
+     * only to host an external (outside every Project) file's read-only tab for the Agent Commander: such a file has no
+     * owning Project to search for a covering Session, so any live Session is as good as another. `undefined` means the
+     * Workbench has no Session at all to attach the tab to, which the caller treats as a cancellation.
+     */
+    function pickAnyVisibleSessionId(state: BootstrapState): string | undefined {
+        const sessions = state.sessions.filter((session) => session.archivedAt === undefined);
+        return (
+            sessions.find((session) => session.id === state.selectedSessionId)?.id ??
+            sessions[0]?.id
+        );
+    }
+
+    /**
+     * The Session that should receive a file link resolved inside `projectId`, for the Agent Commander only. Unlike
+     * `chooseTargetSession`, this never opens the interactive "Choose a Session" dialog: that dialog answers a click
+     * the user just made in a visible pane, but this hand-off starts in the Commander's hidden window, so it always
+     * resolves silently instead of surfacing a modal the user did not ask for. Preference order: the Session the
+     * Commander itself created in this Project (the one an operator watching the Commander most likely means), then the
+     * Workbench's currently selected Session, then the first. The zero-Session branch mirrors `chooseTargetSession`'s:
+     * Server Core will not create a Session inside a worktree Project no live Session is using as its Workbench Root.
+     */
+    async function pickCommanderFileLinkSession(
+        state: BootstrapState,
+        projectId: string,
+    ): Promise<
+        { sessionId: string } | { reason: TerminalFileLinkRefusalReason } | { canceled: true }
+    > {
+        const server = options.getServer();
+        const sessions = state.sessions.filter(
+            (session) =>
+                session.archivedAt === undefined && session.workbenchProjectId === projectId,
+        );
+        if (sessions.length === 0) {
+            const project = state.projects.find((candidate) => candidate.id === projectId);
+            if (!project) return { reason: 'project_gone' };
+            if (project.ownerProjectId !== undefined) return { reason: 'worktree_project_unbound' };
+            const created = await server.request('session.create', {
+                projectId,
+                defaultAgent: null,
+            });
+            return { sessionId: created.session.id };
+        }
+        if (sessions.length === 1) return { sessionId: sessions[0].id };
+        /**
+         * Best-effort: a failed board read (the Commander not yet initialized) just skips the Commander-created
+         * preference rather than blocking the open.
+         */
+        let board: Awaited<ReturnType<typeof server.request<'commander.board'>>> | undefined;
+        try {
+            board = await server.request('commander.board');
+        } catch {
+            board = undefined;
+        }
+        const commanderSessionIds = new Set(
+            board?.rows.filter((row) => row.commanderSession).map((row) => row.sessionId),
+        );
+        const preferred =
+            sessions.find((session) => commanderSessionIds.has(session.id)) ??
+            sessions.find((session) => session.id === state.selectedSessionId) ??
+            sessions[0];
+        return { sessionId: preferred.id };
+    }
+
+    /**
+     * The Agent Commander's counterpart to `openTerminalFileLink`. The Commander's own cwd is its hidden system
+     * Project, so it must never gain authority over another Project through this hand-off: every branch below resolves
+     * through the same Server-side `terminal.fileLink.resolve` used by every other Terminal (global across all visible
+     * Projects, independent of the source Terminal), and then always substitutes a real, visible Session for the
+     * Commander's own — see `pickCommanderFileLinkSession` and `pickAnyVisibleSessionId` — rather than trusting
+     * `resolved.sourceSessionId`, which would otherwise name the Commander's own invisible Session.
+     */
+    async function openCommanderFileLink(parameters: OpenCommanderFileLinkParameters) {
+        const server = options.getServer();
+        const resolved = await server.request('terminal.fileLink.resolve', {
+            terminalId: parameters.terminalId,
+            target: parameters.target,
+        });
+        if (resolved.status === 'ambiguous')
+            return {
+                status: resolved.status,
+                candidates: resolved.candidates,
+                truncated: resolved.truncated,
+            };
+        /**
+         * Past this point every branch either opens a native dialog or the Workbench editor, so raise the Workbench
+         * first. The ambiguous branch above deliberately skips this: it only returns data for the Commander's own
+         * already-mounted link picker, and stealing focus for that would be jarring rather than helpful.
+         */
+        await options.focusWindow();
+        const state = await server.request('app.bootstrap');
+        if (resolved.status === 'external') {
+            if (!resolved.trusted) {
+                const decision = await confirmExternalOpen(resolved.path);
+                if (decision === 'cancel') return { canceled: true as const };
+                if (decision === 'trust')
+                    await server.request('settings.trustFolder', { path: dirname(resolved.path) });
+            }
+            const sessionId = pickAnyVisibleSessionId(state);
+            if (!sessionId) return { canceled: true as const };
+            return {
+                opened: true as const,
+                document: await readExternalFileSnapshot(resolved.path),
+                sessionId,
+            };
+        }
+
+        const target = await pickCommanderFileLinkSession(state, resolved.projectId);
+        if (!('sessionId' in target))
+            return 'reason' in target
+                ? { canceled: true as const, reason: target.reason }
+                : { canceled: true as const };
+        await server.request('desktop.openFile', {
+            expectedIdentity: resolved.identity,
+            path: resolved.path,
+            sessionId: target.sessionId,
+            launchIfNeeded: false,
+            focusEditor: true,
+            ...(parameters.location && { location: parameters.location }),
+        });
+        return { opened: true as const };
+    }
+
     async function confirmExternalOpen(path: string): Promise<ExternalOpenDecision> {
         const folder = dirname(path);
         const result = await showMessageBox(options.getWindow(), {
@@ -228,6 +362,8 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         },
 
         openTerminalFileLink,
+
+        openCommanderFileLink,
 
         pathBrowser,
 

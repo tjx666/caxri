@@ -52,6 +52,7 @@ export function workbenchRootHarness(dialog: ElectronDialogMock) {
     );
 
     function authority(options: {
+        focusWindow?: () => Promise<void>;
         getServer?: DesktopServerConnection;
         grants?: ProjectRootGrants;
         nextTestRoot?: () => string | undefined;
@@ -61,6 +62,7 @@ export function workbenchRootHarness(dialog: ElectronDialogMock) {
         return {
             grants,
             instance: createWorkbenchRootAuthority({
+                focusWindow: options.focusWindow ?? (() => Promise.resolve()),
                 getServer: () => options.getServer ?? unusedServer,
                 getWindow: () => options.window as never,
                 grants,

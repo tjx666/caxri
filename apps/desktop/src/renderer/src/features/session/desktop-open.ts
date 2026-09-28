@@ -32,7 +32,8 @@ export function createDesktopOpenQueue(actions: DesktopOpenQueueActions) {
         async enqueue(request: DesktopOpenRequest): Promise<void> {
             const operation = (async () => {
                 await tail;
-                if (!(await actions.selectSession(request.sessionId)) || !request.path) return;
+                const selected = await actions.selectSession(request.sessionId);
+                if (!selected || !request.path) return;
                 await actions.openFile(request.sessionId, request.path, {
                     ...(request.location && { location: request.location }),
                     ...(request.focusEditor && { focusEditor: true }),

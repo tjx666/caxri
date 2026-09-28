@@ -30,6 +30,7 @@ export interface SettingsPageProperties {
     agentHookHealth?: AgentHookHealthMap;
     agentSkillHealth?: AgentSkillHealth;
     agentActionsFocusRequest?: { id: number; provider: AgentProvider };
+    agentExecutableFocusRequest?: { id: number; provider: AgentProvider };
     gitExclusionsFocusRequestId?: number;
     /**
      * Scrolls one `argv.jsonc` boot-flag row into view. One request for both flags, because they differ only by which
@@ -182,6 +183,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
     const searchInputReference = useRef<HTMLInputElement>(null);
     const handledFocusRequest = useRef(0);
     const handledAgentActionsFocusRequest = useRef(0);
+    const handledAgentExecutableFocusRequest = useRef(0);
     const handledGitExclusionsFocusRequest = useRef(0);
     const handledArgvRowFocusRequest = useRef(0);
     const handledNotificationsFocusRequest = useRef(0);
@@ -243,6 +245,17 @@ export function SettingsPage(properties: SettingsPageProperties) {
         );
         if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
     }, [list, properties.agentActionsFocusRequest, virtualizer]);
+
+    useEffect(() => {
+        const request = properties.agentExecutableFocusRequest;
+        if (!request || handledAgentExecutableFocusRequest.current === request.id) return;
+        handledAgentExecutableFocusRequest.current = request.id;
+        const index = list.findIndex(
+            (item) =>
+                item.kind === 'row' && item.row.id === `agents.${request.provider}.executable`,
+        );
+        if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
+    }, [list, properties.agentExecutableFocusRequest, virtualizer]);
 
     useEffect(() => {
         const requestId = properties.gitExclusionsFocusRequestId;

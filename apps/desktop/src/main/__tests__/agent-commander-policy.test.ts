@@ -27,6 +27,7 @@ describe('Agent Commander Renderer policy', () => {
         expect(() => policy.admit(request('agentCommander.stop'))).not.toThrow();
         expect(() => policy.admit(request('contextMenu.show', { items: [] }))).not.toThrow();
         for (const method of [
+            'agentCommander.openFileLink',
             'app.bootstrap',
             'app.records',
             'commander.stop',
@@ -57,6 +58,22 @@ describe('Agent Commander Renderer policy', () => {
             expect(() =>
                 policy.admit(request('terminal.restart', { terminalId: 'commander' })),
             ).not.toThrow();
+            expect(() =>
+                policy.admit(
+                    request('agentCommander.openFileLink', {
+                        terminalId: 'commander',
+                        target: 'notes.md',
+                    }),
+                ),
+            ).not.toThrow();
+            expect(() =>
+                policy.admit(
+                    request('agentCommander.openFileLink', {
+                        terminalId: 'workbench',
+                        target: 'notes.md',
+                    }),
+                ),
+            ).toThrow(expect.objectContaining({ code: 'FORBIDDEN' }));
             expect(() =>
                 policy.admit(request('terminal.input', { terminalId: 'workbench', data: 'x' })),
             ).toThrow(expect.objectContaining({ code: 'FORBIDDEN' }));
