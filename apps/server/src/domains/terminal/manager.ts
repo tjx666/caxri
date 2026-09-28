@@ -392,6 +392,9 @@ export class TerminalManager {
                 failureDetail = resolved.failureDetail;
                 throw resolved.error;
             }
+            // Resolution awaits; a closure that landed meanwhile already retired this ID and must not be re-reserved.
+            if (!this.database.getTerminal(record.id))
+                throw new CaxriError('CONFLICT', 'Terminal was closed before launch completed');
             await this.execution.reserve(record);
             if (options?.waitForAttachedSizeMs)
                 await this.execution.waitForAttachedSize(

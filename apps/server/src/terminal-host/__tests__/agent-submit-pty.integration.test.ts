@@ -141,6 +141,13 @@ describe('Terminal Host Agent submission over a real PTY', () => {
         });
         await runtime.accept(
             request(
+                'reserve',
+                { method: 'terminal.reserve', params: terminal },
+                'terminal.lifecycle',
+            ),
+        );
+        await runtime.accept(
+            request(
                 'start',
                 {
                     method: 'terminal.start',

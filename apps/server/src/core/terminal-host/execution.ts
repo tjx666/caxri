@@ -44,9 +44,10 @@ import {
     configureHostOutputRecovery,
 } from './host-actions';
 import { projectLiveTerminalHostEvent } from './host-event-projection';
-import { hotPathCompletions, settleHotPaths } from './hot-paths';
+import { afterHotPaths, hotPathCompletions, settleHotPaths } from './hot-paths';
 import type { TerminalInputReceipt } from './input-queue';
 import { TerminalInputQueue } from './input-queue';
+import { terminalStartRequest } from './launch-request';
 import { RemoteMobileTerminalControl } from './mobile-observation';
 import { buildShutdownCaptures } from './shutdown-captures';
 
@@ -278,6 +279,21 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         return { accepted: true, queue, ...(receipt && { receipt }) };
     }
 
+    /**
+     * Detaches the Terminal's live identity and view, returning the hot-path work admitted under it so the Host request
+     * that follows cannot overtake input or resize the Renderer already saw accepted.
+     */
+    private forgetIdentity(terminalId: string): {
+        completions: Array<Promise<void>>;
+        identity?: RemoteTerminalIdentity;
+    } {
+        const identity = this.identities.get(terminalId);
+        const completions = hotPathCompletions(this.inputQueues, this.resizeQueues, [terminalId]);
+        this.identities.delete(terminalId);
+        this.views.delete(terminalId);
+        return { completions, ...(identity && { identity }) };
+    }
+
     async reserve(record: TerminalRecord): Promise<void> {
         const previous = this.identities.get(record.id);
         this.retireInputQueue(
@@ -317,39 +333,17 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         const identity = this.identities.get(input.record.id);
         if (!identity) throw new Error('Terminal execution was not reserved');
         await identity.ready;
+        /**
+         * Closure, discard, a newer reservation, or Host loss may replace the identity while its reservation settles.
+         * Sending the start anyway would launch a PTY for a generation nothing tracks any more.
+         */
+        if (this.identities.get(input.record.id) !== identity)
+            throw new CaxriError('CONFLICT', 'Terminal generation changed before launch');
         const previousAgent = identity.agent;
         identity.agent = input.agent ? { launchId: input.agent.launchId } : undefined;
         try {
             const result = (await this.supervisor.request(
-                {
-                    method: 'terminal.start',
-                    params: {
-                        record: input.record,
-                        executable: input.executable,
-                        args: input.args,
-                        environment: input.environment as Record<string, string>,
-                        ...(input.agent && {
-                            agent: {
-                                launchId: input.agent.launchId,
-                                provider: input.agent.provider,
-                                executable: input.agent.executable,
-                                args: input.agent.args,
-                                environment: input.agent.environment as Record<string, string>,
-                            },
-                        }),
-                        ...(input.initialSnapshot && { initialSnapshot: input.initialSnapshot }),
-                        ...(this.views.get(input.record.id)?.size && {
-                            initialSize: this.views.get(input.record.id)!.size,
-                        }),
-                        ...(input.outputRecovery && { outputRecovery: input.outputRecovery }),
-                        ...(input.colors && {
-                            colors: {
-                                background: input.colors.background,
-                                foreground: input.colors.foreground,
-                            },
-                        }),
-                    },
-                },
+                terminalStartRequest(input, this.views.get(input.record.id)?.size),
                 terminalScope(identity, 'terminal.lifecycle'),
             )) as { processId: number };
             identity.processId = result.processId;
@@ -626,13 +620,12 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         const completions = hotPathCompletions(this.inputQueues, this.resizeQueues, [terminalId]);
         forgetAttachment(identity);
         this.background(
-            (async () => {
-                await Promise.allSettled(completions);
-                await this.supervisor.request(
+            afterHotPaths(completions, () =>
+                this.supervisor.request(
                     { method: 'terminal.detach', params: {} },
                     terminalScope(identity, 'terminal.view', view.attachmentId),
-                );
-            })(),
+                ),
+            ),
             'terminal.detach',
             terminalId,
         );
@@ -652,13 +645,12 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         );
         for (const identity of attached) forgetAttachment(identity);
         this.background(
-            (async () => {
-                await Promise.allSettled(completions);
-                await this.supervisor.request(
+            afterHotPaths(completions, () =>
+                this.supervisor.request(
                     { method: 'terminal.detachAll', params: {} },
                     { scope: 'server', capability: 'terminal.view' },
-                );
-            })(),
+                ),
+            ),
             'terminal.detachAll',
         );
     }
@@ -676,28 +668,41 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         return result.snapshot;
     }
 
-    close(terminalId: string, permanence: 'permanent' | 'reusable' = 'permanent'): void {
-        const identity = this.identities.get(terminalId);
-        const completions = hotPathCompletions(this.inputQueues, this.resizeQueues, [terminalId]);
-        this.identities.delete(terminalId);
-        this.views.delete(terminalId);
-        if (permanence === 'permanent') this.generations.delete(terminalId);
-        if (!identity) return;
+    /**
+     * Sends `terminal.retire` even without a live identity: a PTY that exited naturally, or a discarded launch, leaves
+     * its generation baseline on the Host, and only this signal releases it. With no identity the request is skipped
+     * unless a Host is running when it would be sent, since `request` would otherwise start a Host that never saw the
+     * Terminal. A live identity always sends it, so a reservation still waiting for Host startup is retired after it.
+     */
+    close(terminalId: string): void {
+        const { completions, identity } = this.forgetIdentity(terminalId);
+        this.generations.delete(terminalId);
         this.background(
-            (async () => {
-                await Promise.allSettled(completions);
+            afterHotPaths(completions, async () => {
+                if (!identity && !this.supervisor.isRunning()) return;
                 await this.supervisor.request(
-                    { method: 'terminal.stop', params: { persistSnapshot: false } },
-                    terminalScope(identity, 'terminal.lifecycle'),
+                    { method: 'terminal.retire', params: { terminalId } },
+                    { scope: 'server', capability: 'terminal.lifecycle' },
                 );
-            })(),
-            'terminal.stop',
+            }),
+            'terminal.retire',
             terminalId,
         );
     }
 
     discard(terminalId: string): void {
-        this.close(terminalId, 'reusable');
+        const { completions, identity } = this.forgetIdentity(terminalId);
+        if (!identity) return;
+        this.background(
+            afterHotPaths(completions, () =>
+                this.supervisor.request(
+                    { method: 'terminal.stop', params: { persistSnapshot: false } },
+                    terminalScope(identity, 'terminal.lifecycle'),
+                ),
+            ),
+            'terminal.stop',
+            terminalId,
+        );
     }
 
     markCoreStopping(): void {

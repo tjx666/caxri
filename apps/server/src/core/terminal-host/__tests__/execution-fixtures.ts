@@ -72,6 +72,10 @@ export class FakeTerminalHostControl implements TerminalHostControl {
     holdInputRequests = false;
     holdAgentInputRequests = false;
     holdResizeRequests = false;
+    /**
+     * Whether a ready Host is attached; `close` only retires a Terminal without a live identity while this holds.
+     */
+    running = true;
 
     emit(event: HostEvent): void {
         for (const listener of this.eventListeners) listener(event);
@@ -84,6 +88,10 @@ export class FakeTerminalHostControl implements TerminalHostControl {
     onEvent(listener: (event: HostEvent) => void): () => void {
         this.eventListeners.add(listener);
         return () => this.eventListeners.delete(listener);
+    }
+
+    isRunning(): boolean {
+        return this.running;
     }
 
     onExit(listener: (event: { code: number; signal: NodeJS.Signals | null }) => void): () => void {
@@ -133,6 +141,8 @@ export class FakeTerminalHostControl implements TerminalHostControl {
                 return Promise.resolve({ accepted: true });
             case 'terminal.stop':
                 return Promise.resolve({ snapshot, stopped: true });
+            case 'terminal.retire':
+                return Promise.resolve({ retired: true });
             case 'terminal.input':
                 if (this.declineNextInput) {
                     this.declineNextInput = false;

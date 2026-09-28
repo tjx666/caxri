@@ -35,8 +35,10 @@ import { TerminalExecutionEngine } from './engine';
 import type { AgentInputHandoff } from './engine/agent-input';
 import { noOpAgentInputHandoff } from './engine/agent-input';
 import { projectTerminalExecutionEvent } from './execution-event-projection';
+import { TerminalGenerationLedger } from './generation-ledger';
 import type {
     TerminalHostAuthority,
+    TerminalHostAuthorizationFailure,
     TerminalHostMessage,
     TerminalHostRequestEnvelope,
     TerminalShutdownFailure,
@@ -139,7 +141,7 @@ export interface TerminalHostRuntimeOptions {
 export class TerminalHostRuntime {
     private readonly colors = new Map<string, { background: string; foreground: string }>();
     private readonly engine: TerminalExecutionOwner;
-    private readonly generations = new Map<string, number>();
+    private readonly generations = new TerminalGenerationLedger();
     private readonly identities = new Map<string, RuntimeTerminalIdentity>();
     private readonly recoverySettings = new Map<AgentProvider, AgentOutputRecoverySettings>();
     /**
@@ -180,7 +182,15 @@ export class TerminalHostRuntime {
      * Emits only the request identity and classification. Private request parameters can contain Terminal input, launch
      * arguments, environment values, or snapshots and must never enter diagnostics.
      */
-    private logRequestFailure(envelope: TerminalHostRequestEnvelope, code: string): void {
+    /**
+     * `reason` is the closed authorization-failure enum, never the peer-supplied identity, so a denied stale reserve or
+     * start after `terminal.retire` stays distinguishable from a generation or attachment mismatch in the Host log.
+     */
+    private logRequestFailure(
+        envelope: TerminalHostRequestEnvelope,
+        code: string,
+        reason?: TerminalHostAuthorizationFailure,
+    ): void {
         this.options.logger.write('warn', logEventCatalog.terminalHost.requestFailed, {
             correlationId: envelope.id,
             context: envelope.observation,
@@ -188,6 +198,7 @@ export class TerminalHostRuntime {
                 method: envelope.request.method,
                 capability: envelope.scope.capability,
                 code,
+                ...(reason && { reason }),
                 ...(envelope.scope.scope === 'terminal' && {
                     terminalId: envelope.scope.terminalId,
                 }),
@@ -199,10 +210,8 @@ export class TerminalHostRuntime {
         return {
             bootId: this.options.bootId,
             credential: this.options.credential,
-            launchGeneration: (terminalId) => {
-                const current = this.generations.get(terminalId);
-                return current === undefined ? undefined : current + 1;
-            },
+            isRetired: (terminalId) => this.generations.isRetired(terminalId),
+            launchGeneration: (terminalId) => this.generations.launchGeneration(terminalId),
             terminal: (terminalId) => this.identities.get(terminalId),
         };
     }
@@ -391,7 +400,7 @@ export class TerminalHostRuntime {
                         initialSnapshot: request.params.initialSnapshot?.payload ?? '',
                         record,
                     });
-                    this.generations.set(record.id, scope.ptyGeneration);
+                    this.generations.recordStart(record.id, scope.ptyGeneration);
                     this.identities.get(record.id)!.running = true;
                     if (scope.ptyGeneration > 1)
                         this.options.logger.recordMetric('process.restarts', 1, {
@@ -592,6 +601,18 @@ export class TerminalHostRuntime {
                 this.engine.reconcileOutputRecoverySettings();
                 return { configured: true };
             }
+            case 'terminal.retire': {
+                const { terminalId } = request.params;
+                // Fence before the first await so a reserve or start arriving during Agent cancellation is rejected.
+                this.generations.retire(terminalId);
+                const identity = this.identities.get(terminalId);
+                if (identity?.agentLaunchId)
+                    await this.options.agentLauncher?.cancel(terminalId, identity.agentLaunchId);
+                this.engine.close(terminalId);
+                this.identities.delete(terminalId);
+                this.colors.delete(terminalId);
+                return { retired: true };
+            }
             case 'terminal.detachAll':
                 this.engine.detachAllViews();
                 for (const identity of this.identities.values()) delete identity.attachmentId;
@@ -604,7 +625,7 @@ export class TerminalHostRuntime {
     private async acceptEnvelope(envelope: TerminalHostRequestEnvelope): Promise<void> {
         const authorization = authorizeTerminalHostRequest(envelope, this.authority());
         if (!authorization.ok) {
-            this.logRequestFailure(envelope, 'CAPABILITY_DENIED');
+            this.logRequestFailure(envelope, 'CAPABILITY_DENIED', authorization.reason);
             this.options.send({
                 type: 'reply',
                 id: envelope.id,

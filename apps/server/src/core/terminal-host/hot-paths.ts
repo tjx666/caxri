@@ -39,3 +39,15 @@ export async function settleHotPaths(
         await Promise.allSettled(completions);
     }
 }
+
+/**
+ * Sends a Host request that invalidates an attachment or identity only after the hot-path work admitted under it has
+ * settled, so it cannot overtake input or a resize the Renderer already saw accepted.
+ */
+export async function afterHotPaths<T>(
+    completions: ReadonlyArray<Promise<void>>,
+    request: () => Promise<T>,
+): Promise<T> {
+    await Promise.allSettled(completions);
+    return request();
+}
