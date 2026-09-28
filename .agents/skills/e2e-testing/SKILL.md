@@ -221,10 +221,13 @@ owns the exact upload step per pool.
 **Artifact-content audit (issue #1446).** E2E fixtures are synthetic, so this audit is about the
 runner and the harness, not real user data:
 
-- The pool receipt and the `.jsonl` log attachments are structured and already narrow —
-  `packages/system/src/testing/error-log.ts` only ever captures `event`/`level`/`process`/`code`/
-  `method`, never a free-text buffer — and `assertE2EPoolReceipt` rejects an absolute path in a
-  receipt so it cannot carry the runner's home directory or account name. Safe to upload as-is.
+- The `.jsonl` log attachments are the raw structured logs (`e2e/support/error-gate.ts` copies the
+  file as-is), so their safety comes from the writer: `safeFields()` in
+  `packages/system/src/observability/logger.ts` passes every string field through `redactLogValue()`
+  (`packages/system/src/observability/redaction.ts`), which replaces the home directory with `$HOME`
+  and redacts secret-shaped text before anything reaches disk. Re-verify that path, not the narrower
+  receipt parser, after a logger change. The pool receipt is narrower still, and
+  `assertE2EPoolReceipt` rejects an absolute path in it. Both are safe to upload as-is.
 - Screenshots and `trace.zip` render Caxri's UI against synthetic fixtures (fake projects, fake file
   content), so the Editor/File Explorer/diff surfaces they capture are not real user data.
 - The Terminal pane is the one residual risk: it hosts a real PTY shell with the runner's real
