@@ -32,7 +32,7 @@ import {
     readRecordingBand,
     readRecordingRedShares,
 } from './mobile-motion-analysis.ts';
-import { assertStaysAbsent, swipeRowLeft } from './mobile-ui-audit-scenarios.ts';
+import { assertStaysAbsent, swipeRowBoundsLeft } from './mobile-ui-audit-scenarios.ts';
 
 type SemanticNodes = Awaited<ReturnType<typeof mobileSemantics>>;
 
@@ -157,15 +157,21 @@ async function tabSwitching(environment: ScenarioEnvironment, artifacts: string[
 }
 
 /**
- * A row whose Archive action is less than half revealed reads as sliding rather than open, so two rows may only pass
- * each other below this share while one closes and the other opens.
+ * Share of an Archive action at which a newly swiped row reads as half open.
  */
-const BOTH_ARCHIVES_LIMIT = 0.5;
+const HALF_REVEALED = 0.5;
+
+/**
+ * By the time the newly swiped row is half open, the previously open row must have dropped below this fraction of its
+ * own fully open share. It starts closing when the new drag starts, so the two cross while both slide; closing only
+ * when the new row is released would leave it fully open for the whole drag.
+ */
+const CLOSING_BELOW = 0.8;
 
 /**
  * Keeps at most one Session row open: starting to swipe a second row closes the first, a tap on another row closes the
  * open row without opening a Session, and scrolling the list closes it (#1280). The semantic tree only shows settled
- * states, so the recording is read frame by frame to prove the two Archive actions never show together mid-swipe.
+ * states, so the recording is read frame by frame to prove the open row closes while the next row is still dragged.
  */
 async function swipeRows(environment: ScenarioEnvironment, artifacts: string[]) {
     const { serial } = environment;
@@ -213,9 +219,13 @@ async function swipeRows(environment: ScenarioEnvironment, artifacts: string[]) 
         const openArchives = (nodes: SemanticNodes) =>
             nodes.filter(({ checkId }) => checkId.startsWith('session-swipe-archive-')).length;
 
+        /**
+         * Swipes reuse the row bounds read before recording. A semantic read right before a gesture can stall the first
+         * frames of the drag, which hides when the open row starts to close.
+         */
         recording = await startMobileFramebufferRecording(serial, remoteVideoPath);
         await pause(SETTLE_MS);
-        await swipeRowLeft(serial, first.id);
+        await swipeRowBoundsLeft(serial, first.bounds);
         const firstOpen = await waitForMobile(
             () => mobileSemantics(serial),
             (nodes) => hasCheck(nodes, archiveOf(first.id)),
@@ -224,7 +234,7 @@ async function swipeRows(environment: ScenarioEnvironment, artifacts: string[]) 
         await pause(SETTLE_MS);
         await capture(environment, 'first-row-open', artifacts);
 
-        await swipeRowLeft(serial, second.id);
+        await swipeRowBoundsLeft(serial, second.bounds);
         const secondOpen = await waitForMobile(
             () => mobileSemantics(serial),
             (nodes) =>
@@ -251,7 +261,7 @@ async function swipeRows(environment: ScenarioEnvironment, artifacts: string[]) 
         await assertStaysAbsent(serial, ['session-detail']);
         await capture(environment, 'tap-closed', artifacts);
 
-        await swipeRowLeft(serial, first.id);
+        await swipeRowBoundsLeft(serial, first.bounds);
         await waitForMobile(
             () => mobileSemantics(serial),
             (nodes) => hasCheck(nodes, archiveOf(first.id)),
@@ -289,23 +299,29 @@ async function swipeRows(environment: ScenarioEnvironment, artifacts: string[]) 
             const samples = await readRecordingRedShares(video, [firstArchive, secondArchive]);
             const peak = (index: number) =>
                 Math.max(0, ...samples.map(({ shares }) => shares[index]));
-            if (peak(0) < BOTH_ARCHIVES_LIMIT || peak(1) < BOTH_ARCHIVES_LIMIT)
+            const secondHalfOpen = samples.find(({ shares }) => shares[1] >= HALF_REVEALED);
+            if (!secondHalfOpen || peak(0) < HALF_REVEALED)
                 throw new Error('The recording does not show both Archive actions opening');
-            const bothShown = Math.max(0, ...samples.map(({ shares }) => Math.min(...shares)));
-            if (bothShown >= BOTH_ARCHIVES_LIMIT)
+            const firstWhenSecondHalfOpen = secondHalfOpen.shares[0];
+            if (firstWhenSecondHalfOpen >= CLOSING_BELOW * peak(0))
                 throw new Error(
-                    `Two Session rows showed their Archive action together (${bothShown.toFixed(2)} revealed)`,
+                    `The open Session row had not started closing (${firstWhenSecondHalfOpen.toFixed(2)} revealed) when the next row was half open`,
                 );
+            const bothRowsPeak = Math.max(0, ...samples.map(({ shares }) => Math.min(...shares)));
             await finish(environment, artifacts, {
                 archiveReveal: {
                     /**
-                     * Largest share of the Archive action both rows showed in the same frame.
+                     * Largest share of the Archive action both rows showed in the same frame, as the two cross.
                      */
-                    bothRowsPeak: Number(bothShown.toFixed(2)),
-                    firstRowPeak: Number(peak(0).toFixed(2)),
-                    limit: BOTH_ARCHIVES_LIMIT,
+                    bothRowsPeak: Number(bothRowsPeak.toFixed(2)),
+                    /**
+                     * Share of the first row's Archive action in the first frame where the second row is half open.
+                     */
+                    firstRowWhenSecondHalfOpen: Number(firstWhenSecondHalfOpen.toFixed(2)),
+                    firstRowLimit: Number((CLOSING_BELOW * peak(0)).toFixed(2)),
+                    halfRevealed: HALF_REVEALED,
+                    peaks: [Number(peak(0).toFixed(2)), Number(peak(1).toFixed(2))],
                     recordedFrames: samples.length,
-                    secondRowPeak: Number(peak(1).toFixed(2)),
                 },
                 openRows: {
                     afterSecondSwipe: 1,
