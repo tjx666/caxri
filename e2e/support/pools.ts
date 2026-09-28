@@ -52,11 +52,16 @@ export const clipboardCapabilitySpecs = [
  *   through `page.clock` does not count as one.
  * - No machine-level process enumeration, native application menu, or system capture surface.
  *
- * Two specs pass a mechanical screen of those conditions and are still deliberately excluded, recorded here so the
- * audit is not repeated: `logs-panel.e2e.ts` asserts the panel's own query cadence in real milliseconds, and
- * `menu-keybinding-recovery.e2e.ts` reads the installed native application menu. `scripts/__tests__/e2e-pools.test.ts`
- * holds a second, independent list of specs that must never be admitted; an audit that reaches the opposite conclusion
- * about one of them is a product decision, not a reclassification.
+ * Three specs pass a mechanical screen of those conditions and are still deliberately excluded, recorded here so the
+ * audit is not repeated: `logs-panel.e2e.ts` asserts the panel's own query cadence in real milliseconds,
+ * `menu-keybinding-recovery.e2e.ts` reads the installed native application menu, and `editor-find.e2e.ts` drives a
+ * `cmd+k cmd+s` chord — a sibling worker's window taking real OS focus between the two keystrokes fires a genuine
+ * `window` `blur` on this one, and `use-command-shortcuts.ts` deliberately cancels a pending chord on any blur (the
+ * same class of contention `clickTerminalLink`'s JSDoc documents for Terminal link modifiers, issue caxri#697).
+ * Confirmed by injecting a synthetic `blur` between the chord's two keystrokes locally: it reproduces the exact CI
+ * signature (`Search keyboard shortcuts` never becoming visible within 15s) deterministically (issue caxri#1418).
+ * `scripts/__tests__/e2e-pools.test.ts` holds a second, independent list of specs that must never be admitted; an audit
+ * that reaches the opposite conclusion about one of them is a product decision, not a reclassification.
  *
  * `agent-delegation.e2e.ts` was previously rejected for the third condition and is now admitted, because the margin it
  * lacked was a defect rather than a property: its synthetic CLI allowed a `spawnSync` only 5 seconds beyond the
@@ -84,7 +89,6 @@ export const parallelSafeSpecs = [
     'e2e/editor-breadcrumbs.e2e.ts',
     'e2e/editor-colors.e2e.ts',
     'e2e/editor-dotfiles.e2e.ts',
-    'e2e/editor-find.e2e.ts',
     'e2e/editor-split.e2e.ts',
     'e2e/editor-tabs.e2e.ts',
     'e2e/error-gate.e2e.ts',
