@@ -1,4 +1,5 @@
 import type { ServerOperation } from '@caxri/protocol';
+import { isCallerHandledFailure } from '@caxri/protocol';
 
 /**
  * Renderer polling and focus reads that succeed thousands of times a day without explaining anything. A slow call is
@@ -38,4 +39,21 @@ type RequestLogBoundary = 'control' | 'domain';
 
 export function shouldLogSuccessfulRequest(boundary: RequestLogBoundary, method: string): boolean {
     return !UNLOGGED_SUCCESS_METHODS[boundary].has(method);
+}
+
+/**
+ * Method-scoped failures the caller absorbs as an ordinary outcome, on top of the protocol-wide
+ * `isCallerHandledFailure` codes. A watcher-driven reload (`readDocuments` in the Renderer's external sync) reads a
+ * path the watcher just reported, and the user can delete it before the read lands — saving a file and moving it to
+ * Trash a few milliseconds later is enough. That `NOT_FOUND` is filesystem state, not a Caxri defect, and Desktop Main
+ * already records the same reply at `warn`; recording it at `error` here paged as a production error and failed the E2E
+ * error gate (https://github.com/tjx666/caxri/issues/1418).
+ */
+const CALLER_HANDLED_METHOD_FAILURES: Partial<Record<ServerOperation, ReadonlySet<string>>> = {
+    'files.read': new Set(['NOT_FOUND']),
+};
+
+export function requestFailureLogLevel(method: string, code: string): 'error' | 'warn' {
+    if (isCallerHandledFailure(code)) return 'warn';
+    return CALLER_HANDLED_METHOD_FAILURES[method as ServerOperation]?.has(code) ? 'warn' : 'error';
 }

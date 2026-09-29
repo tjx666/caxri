@@ -2,7 +2,6 @@ import type { WorkbenchRequestContext } from '@caxri/protocol';
 import {
     CaxriError,
     fromWireError,
-    isCallerHandledFailure,
     parseServerOperationRequest,
     toWireError,
     workbenchRequestContextSchema,
@@ -11,7 +10,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { DomainHandlers } from '../domains/domain-services';
-import { shouldLogSuccessfulRequest } from './request-observability';
+import { requestFailureLogLevel, shouldLogSuccessfulRequest } from './request-observability';
 
 /**
  * The raw operation as it enters the domain layer; nothing about it is trusted before validation.
@@ -103,7 +102,7 @@ export function createOperationDispatcher(
                 });
             } else {
                 logger.write(
-                    isCallerHandledFailure(wire.code) ? 'warn' : 'error',
+                    requestFailureLogLevel(envelope.method, wire.code),
                     logEventCatalog.ipc.requestFailed,
                     {
                         correlationId: envelope.id,
