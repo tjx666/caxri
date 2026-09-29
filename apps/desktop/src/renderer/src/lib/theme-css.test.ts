@@ -110,7 +110,7 @@ describe('applyCssTheme', () => {
 
         // Derived from the fixture, plus the foregrounds `applyCssTheme` computes, so a new color role
         // is covered here automatically instead of failing on a stale literal.
-        const derivedProperties = 5;
+        const derivedProperties = 7;
         expect(setProperty).toHaveBeenCalledTimes(
             Object.keys(theme.colors).length + derivedProperties,
         );
@@ -157,6 +157,28 @@ describe('applyCssTheme', () => {
         setProperty.mockClear();
         applyCssTheme(solarizedLightTheme);
         expect(setProperty).toHaveBeenCalledWith('--accent-foreground', '#000000');
+    });
+
+    it('never derives a diff stat color less readable than the weaker of success and danger', () => {
+        for (const theme of builtinThemes) {
+            setProperty.mockClear();
+            applyCssTheme(theme);
+            const properties = new Map(
+                setProperty.mock.calls.map(
+                    ([property, value]) => [property as string, value as string] as const,
+                ),
+            );
+            const weakest = Math.min(
+                contrastRatio(theme.colors.success, theme.colors.surface),
+                contrastRatio(theme.colors.danger, theme.colors.surface),
+            );
+            for (const property of ['--diff-stat-added', '--diff-stat-removed']) {
+                expect(
+                    contrastRatio(properties.get(property)!, theme.colors.surface),
+                    `${theme.id} ${property}`,
+                ).toBeGreaterThanOrEqual(weakest);
+            }
+        }
     });
 
     it('never writes properties for theme.terminal or theme.editor tokens', () => {

@@ -203,7 +203,7 @@ export function ActiveSessionRow({
                          * its title while every visible glyph lands on the same right edge. Pointer hover collapses the
                          * track entirely: Pin/Archive need ~42px, and a 14px ghost track would still let the title
                          * paint through those glyphs. The track sits inside the title line rather than in a column of
-                         * its own, so it shares a right edge with the status line's trailing `+N −M` below it.
+                         * its own, so it shares a right edge with the status line's trailing `+N -M` below it.
                          */}
                         <span className="session-indicators flex h-5 flex-none items-center justify-end group-hover/session-row:w-0 group-hover/session-row:min-w-0 group-hover/session-row:overflow-hidden">
                             <SessionPullRequestIndicator

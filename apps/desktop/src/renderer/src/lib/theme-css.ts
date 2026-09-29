@@ -1,5 +1,5 @@
 import type { ThemeTokens } from '@caxri/protocol';
-import { themeColorCssVariable } from '@caxri/protocol';
+import { diffStatColors, themeColorCssVariable } from '@caxri/protocol';
 import { contrastRatio } from '@caxri/utils';
 
 const MIN_TEXT_CONTRAST = 4.5;
@@ -32,4 +32,7 @@ export function applyCssTheme(theme: ThemeTokens): void {
         '--warning-badge-foreground',
         readableForeground(theme.colors.warningBadge, theme),
     );
+    const diffStat = diffStatColors(theme.colors.success, theme.colors.danger);
+    root.style.setProperty('--diff-stat-added', diffStat.added);
+    root.style.setProperty('--diff-stat-removed', diffStat.removed);
 }

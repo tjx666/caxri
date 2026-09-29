@@ -3,6 +3,7 @@ import { formatLineCount } from '@caxri/protocol';
 import { FileDiff, GitPullRequest } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
+import { DiffStatSign } from '../../components/diff-stat';
 import { StructuredTooltip } from '../../components/structured-tooltip';
 import { diffStatLabel } from '../../lib/diff-stat-label';
 import { AcceptanceStatus } from './acceptance-status';
@@ -31,16 +32,18 @@ function RepoChangesStatus({ additions, deletions }: { additions: number; deleti
                         {
                             label: 'Added',
                             value: (
-                                <span className="diff-stat text-success">
-                                    +{additions} {additions === 1 ? 'line' : 'lines'}
+                                <span className="diff-stat text-diff-stat-added">
+                                    <DiffStatSign sign="+" />
+                                    {additions} {additions === 1 ? 'line' : 'lines'}
                                 </span>
                             ),
                         },
                         {
                             label: 'Removed',
                             value: (
-                                <span className="diff-stat text-danger">
-                                    −{deletions} {deletions === 1 ? 'line' : 'lines'}
+                                <span className="diff-stat text-diff-stat-removed">
+                                    <DiffStatSign sign="-" />
+                                    {deletions} {deletions === 1 ? 'line' : 'lines'}
                                 </span>
                             ),
                         },
@@ -50,7 +53,7 @@ function RepoChangesStatus({ additions, deletions }: { additions: number; deleti
             }
             onClick={() => showSecondarySidebar('secondarySidebar.showGit')}
         >
-            +{formatLineCount(additions)} −{formatLineCount(deletions)}
+            +{formatLineCount(additions)} -{formatLineCount(deletions)}
         </StatusItem>
     );
 }

@@ -128,7 +128,7 @@ exec /bin/zsh -l
             'href',
             'https://github.com/tjx666/status-project/pull/11',
         );
-        await expect(changes).toHaveText('+2 −1');
+        await expect(changes).toHaveText('+2 -1');
         await expect(changes).toHaveCSS('font-feature-settings', '"case"');
         const [projectColor, branchColor, changesColor] = await Promise.all(
             [project, branch, changes].map((item) =>

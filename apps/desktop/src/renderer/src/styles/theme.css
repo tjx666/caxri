@@ -47,6 +47,8 @@
     --color-error-badge-foreground: var(--error-badge-foreground);
     --color-warning-badge: var(--warning-badge);
     --color-warning-badge-foreground: var(--warning-badge-foreground);
+    --color-diff-stat-added: var(--diff-stat-added);
+    --color-diff-stat-removed: var(--diff-stat-removed);
     --color-git-added: var(--git-added);
     --color-git-modified: var(--git-modified);
     --color-git-deleted: var(--git-deleted);
@@ -124,6 +126,9 @@
     --badge-foreground: #282a36;
     --error-badge-foreground: #282a36;
     --warning-badge-foreground: #282a36;
+    /* `diffStatColors(success, danger)`: the two roles at one shared lightness, so neither count reads heavier. */
+    --diff-stat-added: #6cd07e;
+    --diff-stat-removed: #ff938c;
     --overlay: color-mix(in srgb, var(--background) 60%, transparent);
     --shadow: #00000073;
     --indicator: color-mix(in srgb, var(--foreground) 45%, transparent);
@@ -160,9 +165,9 @@ body {
 }
 
 /*
- * A `+N −M` line-change count. The system UI font sets `+` and `−` on the lowercase math axis, below the lining figures'
- * center, so the heavy `+` drags an addition count down while a thin `−` does not and deletions read higher. The
- * OpenType `case` feature lifts both signs to the figures' center; tabular figures keep counts from shifting width.
+ * A `+N -M` line-change count. The system UI font sets `+` and `-` on the lowercase axis, below the lining figures'
+ * center, so the signs sag against the digits. The OpenType `case` feature lifts both signs to the figures' center;
+ * tabular figures keep counts from shifting width.
  */
 @utility diff-stat {
     font-variant-numeric: tabular-nums;

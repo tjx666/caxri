@@ -2,7 +2,7 @@ const LINE_COUNT_SUFFIXES = ['k', 'm', 'b'] as const;
 
 /**
  * Formats a changed-line count the way compact diff stats read (`684`, `1.9k`, `12.3k`, `123k`, `1.2m`): exact below a
- * thousand, then one decimal while the scaled figure is under 100 and whole units above it, so a `+N −M` pair stays
+ * thousand, then one decimal while the scaled figure is under 100 and whole units above it, so a `+N -M` pair stays
  * narrow enough for a tree row's trailing column. Callers that announce the count to assistive technology keep the
  * exact number there.
  *
