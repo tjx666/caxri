@@ -14,10 +14,12 @@ import type {
 } from 'caxri';
 import { isGlobMatch, ProjectStatusSummaryErrorMessage } from 'caxri';
 
+import { commitFilesToStatuses } from './commit-file-statuses';
 import {
     boundedActionLabel,
     boundedEditorResource,
     boundedSourceControlDescription,
+    sourceControlLineStats,
     sourceControlResourceProjection,
 } from './source-control-projection';
 import { boundedSourceControlResourceId } from './source-control-resource-id';
@@ -237,25 +239,6 @@ function hiddenFilesMessage(hiddenCount: number): string {
     return `${hiddenCount} excluded file${hiddenCount === 1 ? '' : 's'} hidden.`;
 }
 
-function commitFilesToStatuses(details: GitCommitDetails | undefined): GitFileStatus[] {
-    const status = {
-        'modified': { kind: 'modified', letter: 'M' },
-        'added': { kind: 'added', letter: 'A' },
-        'deleted': { kind: 'deleted', letter: 'D' },
-        'renamed': { kind: 'renamed', letter: 'R' },
-        'copied': { kind: 'added', letter: 'C' },
-        'type-changed': { kind: 'modified', letter: 'T' },
-        'unknown': { kind: 'modified', letter: '?' },
-    } as const;
-    return (details?.files ?? []).map((file) => ({
-        path: file.path,
-        ...(file.previousPath && { originalPath: file.previousPath }),
-        index: status[file.status].letter,
-        workingTree: ' ',
-        kind: status[file.status].kind,
-    }));
-}
-
 function resourcesForRepo(
     mode: GitSourceControlMode,
     repo: GitRepositorySummary,
@@ -276,6 +259,7 @@ function resourcesForRepo(
             icon: { kind: 'file-type' as const, name: projection.label },
             path: projection.path,
             decoration: decoration(file),
+            ...sourceControlLineStats(file),
             ...(resource && { editorResource: resource }),
             ...(resource !== undefined && {
                 action: registerAction({

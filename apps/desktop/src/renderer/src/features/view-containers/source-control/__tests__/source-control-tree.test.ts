@@ -32,6 +32,31 @@ describe('controlled Source Control resource tree', () => {
         ]);
     });
 
+    it('sums measured line counts into every ancestor directory', () => {
+        const measured = (path: string, additions: number, deletions: number) => ({
+            ...resource(path),
+            lineStats: { additions, deletions },
+        });
+        const [source] = buildSourceControlResourceTree([
+            measured('src/a.ts', 3, 1),
+            measured('src/nested/b.ts', 5, 0),
+            resource('src/nested/unmeasured.bin'),
+            resource('src/empty/unmeasured.txt'),
+        ]);
+        expect(source.kind === 'directory' && source.children.at(0)).not.toHaveProperty(
+            'lineStats',
+        );
+        expect(source).toMatchObject({
+            name: 'src',
+            lineStats: { additions: 8, deletions: 1 },
+            children: [
+                { name: 'empty' },
+                { name: 'nested', lineStats: { additions: 5, deletions: 0 } },
+                { name: 'a.ts' },
+            ],
+        });
+    });
+
     it('collects the selected directory and every nested directory for recursive disclosure', () => {
         const [agents] = buildSourceControlResourceTree([
             resource('.agents/acceptance/references/dev-server.md'),

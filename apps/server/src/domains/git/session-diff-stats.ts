@@ -7,7 +7,7 @@ import type {
 import { mapWithConcurrency } from '@caxri/system';
 
 import { SingleFlight } from '../single-flight';
-import { parseMobileNumstat } from './mobile-changes';
+import { parseGitNumstat } from './numstat';
 import { untrackedLineCount } from './working-file-reads';
 
 /**
@@ -126,7 +126,7 @@ export class SessionDiffStatStore {
                 ['diff', '--numstat', '-z', '--no-renames', '--ignore-submodules=all', base, '--'],
                 { maxBufferBytes: 4 * 1024 * 1024 },
             );
-            for (const file of parseMobileNumstat(numstat).values()) {
+            for (const file of parseGitNumstat(numstat).values()) {
                 additions += file.additions;
                 deletions += file.deletions;
             }

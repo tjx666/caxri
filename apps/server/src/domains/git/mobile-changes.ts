@@ -14,7 +14,7 @@ import {
     MOBILE_CHANGES_MAX_PATCH_LINES,
 } from '@caxri/protocol';
 
-import { lineCount, readWorkingFile, untrackedLineCount } from './working-file-reads';
+import { lineCount, readWorkingFile } from './working-file-reads';
 
 const MAX_LIST_BYTES = 48 * 1_024;
 
@@ -50,31 +50,7 @@ function status(kind: GitRepositorySummary['files'][number]['kind']): 'M' | 'A' 
     }
 }
 
-/**
- * Parses Git's NUL-delimited numstat, including its empty-path rename record.
- */
-export function parseMobileNumstat(
-    output: string,
-): Map<string, { additions: number; deletions: number }> {
-    const result = new Map<string, { additions: number; deletions: number }>();
-    const records = output.split('\0');
-    for (let index = 0; index < records.length; index += 1) {
-        const fields = /^(\d+|-)\t(\d+|-)\t(.*)$/su.exec(records[index]);
-        if (!fields) continue;
-        const path = fields[3] || records[(index += 2)];
-        if (!path) continue;
-        result.set(path, {
-            additions: fields[1] === '-' ? 0 : Number(fields[1]),
-            deletions: fields[2] === '-' ? 0 : Number(fields[2]),
-        });
-    }
-    return result;
-}
-
-async function mobileChangesList(
-    repo: GitRepositorySummary | undefined,
-    git: (root: string, arguments_: string[], maxBufferBytes?: number) => Promise<string>,
-): Promise<MobileChangesListResult> {
+function mobileChangesList(repo: GitRepositorySummary | undefined): MobileChangesListResult {
     if (!repo)
         return {
             isRepository: false,
@@ -91,44 +67,15 @@ async function mobileChangesList(
                 Buffer.byteLength(file.path, 'utf8') <= 2_048 &&
                 (!file.originalPath || Buffer.byteLength(file.originalPath, 'utf8') <= 2_048),
         );
-    const paths = sourceFiles.flatMap((file) =>
-        file.originalPath ? [file.originalPath, file.path] : [file.path],
-    );
-    const stats =
-        paths.length === 0 || !repo.head
-            ? new Map<string, { additions: number; deletions: number }>()
-            : parseMobileNumstat(
-                  await git(
-                      repo.rootPath,
-                      [
-                          'diff',
-                          '--numstat',
-                          '-z',
-                          '--no-renames',
-                          ...(repo.head ? ['HEAD'] : ['--cached']),
-                          '--',
-                          ...paths,
-                      ],
-                      1024 * 1024,
-                  ),
-              );
-    const untrackedCounts = await Promise.all(
-        sourceFiles.map((file) =>
-            file.kind === 'untracked' || !repo.head
-                ? untrackedLineCount(repo.rootPath, file.path, MOBILE_CHANGES_MAX_PATCH_BYTES)
-                : Promise.resolve(0),
-        ),
-    );
     const files: MobileChangesListResult['files'] = [];
+    // The status snapshot measures each file (see `withFileLineStats`); its repository totals cover only the tracked
+    // diff, so the lines of new files are added here.
     let additions = repo.head ? repo.additions : 0;
     const deletions = repo.head ? repo.deletions : 0;
-    for (const [index, file] of sourceFiles.entries()) {
+    for (const file of sourceFiles) {
         if (files.length >= MOBILE_CHANGES_MAX_FILES) break;
-        const tracked = stats.get(file.path);
-        const oldPath = file.originalPath ? stats.get(file.originalPath) : undefined;
-        let fileAdditions = tracked?.additions ?? 0;
-        const fileDeletions = repo.head ? (tracked?.deletions ?? 0) + (oldPath?.deletions ?? 0) : 0;
-        if (file.kind === 'untracked' || !repo.head) fileAdditions = untrackedCounts[index];
+        const fileAdditions = file.additions ?? 0;
+        const fileDeletions = file.deletions ?? 0;
         if (file.kind === 'untracked' || !repo.head) additions += fileAdditions;
         const candidate = {
             repositoryId: repo.id,
@@ -159,13 +106,8 @@ async function mobileChangesList(
 /**
  * Preserves the 64 KiB sealed frame budget even when one Session has many repositories.
  */
-export async function mobileChangesListForSummary(
-    summary: GitSummary,
-    git: (root: string, arguments_: string[], maxBufferBytes?: number) => Promise<string>,
-): Promise<MobileChangesListResult> {
-    const projections = await Promise.all(
-        summary.repositories.map((repo) => mobileChangesList(repo, git)),
-    );
+export function mobileChangesListForSummary(summary: GitSummary): MobileChangesListResult {
+    const projections = summary.repositories.map((repo) => mobileChangesList(repo));
     const result: MobileChangesListResult = {
         isRepository: summary.isRepository,
         files: [],

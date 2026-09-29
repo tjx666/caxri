@@ -46,6 +46,11 @@ export interface SourceControlResourceDecoration {
     tone: 'danger' | 'success' | 'warning';
 }
 
+export interface SourceControlLineStats {
+    additions: number;
+    deletions: number;
+}
+
 export interface SourceControlResource {
     /**
      * Stable provider identity, at most 480 characters.
@@ -70,6 +75,11 @@ export interface SourceControlResource {
      */
     path: string;
     decoration?: SourceControlResourceDecoration;
+    /**
+     * Lines the change adds and deletes, shown beside the resource and summed into its tree directories. Omit it when
+     * the provider did not measure the change.
+     */
+    lineStats?: SourceControlLineStats;
     /**
      * Generic editor target, at most 8,192 characters. Omit it when no bounded target can be represented.
      */

@@ -11,6 +11,7 @@ import { GitPullRequestErrorMessage } from 'caxri';
 import { z } from 'zod';
 
 import { SingleFlight } from '../single-flight';
+import { parseGitNumstat, sumGitLineStats, withGitLineStat } from './numstat';
 import { sharedGitRequest } from './request-signal';
 
 const PULL_REQUEST_CACHE_MS = 30_000;
@@ -94,17 +95,6 @@ function parseNameStatus(output: string): NameStatusFile[] {
         files.push({ path, status: nameStatus(code) });
     }
     return files;
-}
-
-function parseLineStats(output: string): { additions: number; deletions: number } {
-    let additions = 0;
-    let deletions = 0;
-    for (const line of output.split('\n')) {
-        const [added, deleted] = line.split('\t', 2);
-        if (/^\d+$/.test(added)) additions += Number(added);
-        if (/^\d+$/.test(deleted)) deletions += Number(deleted);
-    }
-    return { additions, deletions };
 }
 
 function parseCommitCount(output: string): number {
@@ -293,6 +283,7 @@ export class GitPullRequestService {
                     this.dependencies.git(repo.rootPath, [
                         'diff',
                         '--numstat',
+                        '-z',
                         '--no-renames',
                         range,
                         '--',
@@ -309,6 +300,7 @@ export class GitPullRequestService {
                               ))()
                         : Promise.resolve(0),
                 ]);
+                const lineStats = parseGitNumstat(lineStatsOutput);
                 const result: GitPullRequestChanges = {
                     repositoryId: repo.id,
                     number: view.number,
@@ -319,10 +311,10 @@ export class GitPullRequestService {
                     baseOid: view.baseRefOid,
                     headOid: view.headRefOid,
                     unpushedCommitCount,
-                    ...parseLineStats(lineStatsOutput),
+                    ...sumGitLineStats(lineStats.values()),
                     files: parseNameStatus(filesOutput)
                         .slice(0, MAX_PULL_REQUEST_FILES)
-                        .map(pullRequestFileStatus),
+                        .map((file) => withGitLineStat(pullRequestFileStatus(file), lineStats)),
                 };
                 if (cacheGeneration === this.cacheGeneration)
                     this.storeCache(cacheKey, {

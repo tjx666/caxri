@@ -1,3 +1,5 @@
+import type { SourceControlResource } from 'caxri';
+
 const MAX_ACCESSIBILITY_LABEL_LENGTH = 1_024;
 const MAX_EDITOR_RESOURCE_LENGTH = 8_192;
 const MAX_LABEL_LENGTH = 1_024;
@@ -52,4 +54,15 @@ export function boundedSourceControlDescription(description: string): string {
 
 export function boundedResourceTooltip(tooltip: string): string {
     return boundedSourceControlText(tooltip, MAX_TOOLTIP_LENGTH);
+}
+
+/**
+ * The resource's line counts, or nothing when the Git service did not measure the file.
+ */
+export function sourceControlLineStats(file: {
+    additions?: number;
+    deletions?: number;
+}): Pick<SourceControlResource, 'lineStats'> {
+    if (file.additions === undefined || file.deletions === undefined) return {};
+    return { lineStats: { additions: file.additions, deletions: file.deletions } };
 }
