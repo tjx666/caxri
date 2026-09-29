@@ -280,18 +280,13 @@ export async function executeMobileTerminalScrollFeelScenario(
             () => mobileSemantics(serial),
             (nodes) =>
                 nodes.some(({ checkId }) => checkId === 'terminal-live-webview') &&
-                nodes.some(({ checkId, enabled }) => checkId === 'terminal-take-over' && enabled),
+                nodes.some(({ checkId }) => checkId === 'terminal-release'),
         );
 
         /**
-         * Holding the lease gives the phone its own grid, so the whole document fits the viewport and a vertical drag
-         * reaches the application instead of first panning a Desktop-sized grid.
+         * A control device takes the lease automatically, which gives the phone its own grid, so the whole document
+         * fits the viewport and a vertical drag reaches the application instead of first panning a Desktop-sized grid.
          */
-        await tapMobileCheck(serial, 'terminal-take-over');
-        await waitForMobile(
-            () => mobileSemantics(serial),
-            (nodes) => nodes.some(({ checkId }) => checkId === 'terminal-release'),
-        );
         let leased = await waitForMobile(
             () => fixture.menuState(),
             ({ cols, rows }) =>

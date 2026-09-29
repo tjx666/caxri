@@ -62,7 +62,7 @@ export async function executeMobileTerminalScrollbackScenario(
     const fixture = await createMobileTerminalAcceptanceFixture(environment.serial);
     let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
     try {
-        const { surface } = await prepareMobileTerminalFixture(fixture, environment);
+        const { desktopSize, surface } = await prepareMobileTerminalFixture(fixture, environment);
         await fixture.pair();
         await tapMobileCheck(environment.serial, `session-row-${fixture.sessionId}`);
         await waitForMobile(
@@ -72,7 +72,18 @@ export async function executeMobileTerminalScrollbackScenario(
         await tapMobileCheck(environment.serial, 'session-segment-terminal');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
-            (nodes) => nodes.some(({ checkId }) => checkId === 'terminal-live-webview'),
+            (nodes) =>
+                nodes.some(({ checkId }) => checkId === 'terminal-live-webview') &&
+                nodes.some(({ checkId }) => checkId === 'terminal-release'),
+        );
+        /**
+         * A control device takes the lease automatically when the Terminal opens, which resizes the PTY to the phone.
+         * Wait for that resize before printing so the scrollback is produced on the grid the reader will scroll.
+         */
+        await waitForMobile(
+            () => fixture.menuState(),
+            ({ cols, rows }) =>
+                cols !== null && (cols !== desktopSize.cols || rows !== desktopSize.rows),
         );
         recording = await startMobileFramebufferRecording(environment.serial, remoteVideoPath);
 
