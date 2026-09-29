@@ -19,6 +19,7 @@ function showSecondarySidebar(command: Extract<CommandId, `secondarySidebar.show
 function RepoChangesStatus({ additions, deletions }: { additions: number; deletions: number }) {
     return (
         <StatusItem
+            className="diff-stat"
             icon={<FileDiff />}
             ariaLabel={`Open changes: ${additions} ${additions === 1 ? 'addition' : 'additions'}, ${deletions} ${deletions === 1 ? 'deletion' : 'deletions'}`}
             title={
@@ -28,7 +29,7 @@ function RepoChangesStatus({ additions, deletions }: { additions: number; deleti
                         {
                             label: 'Added',
                             value: (
-                                <span className="text-success">
+                                <span className="diff-stat text-success">
                                     +{additions} {additions === 1 ? 'line' : 'lines'}
                                 </span>
                             ),
@@ -36,8 +37,8 @@ function RepoChangesStatus({ additions, deletions }: { additions: number; deleti
                         {
                             label: 'Removed',
                             value: (
-                                <span className="text-danger">
-                                    -{deletions} {deletions === 1 ? 'line' : 'lines'}
+                                <span className="diff-stat text-danger">
+                                    −{deletions} {deletions === 1 ? 'line' : 'lines'}
                                 </span>
                             ),
                         },
@@ -47,7 +48,7 @@ function RepoChangesStatus({ additions, deletions }: { additions: number; deleti
             }
             onClick={() => showSecondarySidebar('secondarySidebar.showGit')}
         >
-            +{additions} -{deletions}
+            +{additions} −{deletions}
         </StatusItem>
     );
 }

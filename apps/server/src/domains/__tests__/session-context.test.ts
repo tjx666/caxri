@@ -204,7 +204,7 @@ describe('SessionContextService', () => {
         expect((await instance.read(session)).pullRequests).toEqual({});
     });
 
-    it('logs a routine missing transcript at debug, distinct from a security rejection', async () => {
+    it('counts a routine missing transcript without an immediate failure record', async () => {
         const { logger, write } = fakeLogger();
         getTerminal.mockReturnValueOnce({
             id: 't1',
@@ -225,9 +225,7 @@ describe('SessionContextService', () => {
         const failures = write.mock.calls.filter(
             ([, event]) => event === 'session_context.scan_failed',
         );
-        expect(failures).toHaveLength(1);
-        expect(failures[0][0]).toBe('debug');
-        expect(failures[0][2]).toMatchObject({ fields: { reason: 'missing' } });
+        expect(failures).toEqual([]);
     });
 
     it('logs a symlinked transcript as a security rejection at warn, not as a missing file', async () => {

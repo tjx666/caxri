@@ -93,8 +93,8 @@ export function SourceControlHistoryHoverDetails({
     return (
         <>
             <span className="text-muted">{details.data.summary}</span>
-            <span className="text-success">+{details.data.additions}</span>
-            <span className="text-danger">-{details.data.deletions}</span>
+            <span className="diff-stat text-success">+{details.data.additions}</span>
+            <span className="diff-stat text-danger">−{details.data.deletions}</span>
         </>
     );
 }

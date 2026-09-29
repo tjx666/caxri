@@ -125,10 +125,37 @@ export async function executeMobileTerminalScenario(
             () => mobileSemantics(environment.serial),
             (nodes) =>
                 nodes.some(({ checkId }) => checkId === 'terminal-live-webview') &&
-                nodes.some(({ checkId, enabled }) => checkId === 'terminal-take-over' && enabled),
+                nodes.some(({ checkId }) => checkId === 'terminal-release'),
         );
         await expect(surface).toHaveAttribute('data-terminal-attached', 'true');
         recording = await startMobileFramebufferRecording(environment.serial, remoteVideoPath);
+        /**
+         * A control device takes the lease automatically once the Terminal is ready, so the Desktop grid must already
+         * follow the phone. Release it to exercise the observing flow below; the release stays in force until the
+         * reader leaves the Terminal.
+         */
+        const autoLeased = await waitForMobile(
+            () => fixture.menuState(),
+            ({ cols, rows }) =>
+                cols !== null && (cols !== desktopSize.cols || rows !== desktopSize.rows),
+        );
+        expect({ cols: autoLeased.cols, rows: autoLeased.rows }).not.toEqual(desktopSize);
+        await capture(environment, 'auto-leased', artifacts);
+        await tapMobileCheck(environment.serial, 'terminal-release');
+        await waitForMobile(
+            () => fixture.menuState(),
+            ({ cols, rows }) => cols === desktopSize.cols && rows === desktopSize.rows,
+        );
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) =>
+                nodes.some(({ checkId, enabled }) => checkId === 'terminal-take-over' && enabled) &&
+                nodes.every(
+                    ({ checkId }) =>
+                        !(checkId === 'terminal-stale' || checkId === 'terminal-error'),
+                ),
+        );
+        await expect(surface).toHaveAttribute('data-terminal-attached', 'true');
         const observingSize = await fixture.menuState();
         expect({ cols: observingSize.cols, rows: observingSize.rows }).toEqual(desktopSize);
         await capture(environment, 'observing', artifacts);
@@ -404,6 +431,22 @@ export async function executeMobileTerminalScenario(
                 nodes.every(({ checkId }) => checkId !== 'connection-stale-banner') &&
                 nodes.some(({ checkId, enabled }) => checkId === 'terminal-take-over' && enabled),
         );
+        /**
+         * The reader released the lease, so network recovery and the resubscribe it triggers must not take it over
+         * again. Sample across the automatic-takeover window instead of trusting a single read.
+         */
+        for (let sample = 0; sample < 3; sample += 1) {
+            // eslint-disable-next-line no-await-in-loop -- Each sample must observe the released state over time.
+            const nodes = await mobileSemantics(environment.serial);
+            expect(nodes.some(({ checkId }) => checkId === 'terminal-release')).toBe(false);
+            expect(
+                nodes.some(({ checkId, enabled }) => checkId === 'terminal-take-over' && enabled),
+            ).toBe(true);
+            // eslint-disable-next-line no-await-in-loop -- Spacing between samples is the point of the loop.
+            await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+        const afterRecovery = await fixture.menuState();
+        expect({ cols: afterRecovery.cols, rows: afterRecovery.rows }).toEqual(desktopSize);
 
         await finish(environment, artifacts, {
             desktopAttachment: 'preserved',

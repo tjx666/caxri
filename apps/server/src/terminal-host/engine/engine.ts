@@ -94,7 +94,6 @@ export class TerminalExecutionEngine {
             holderId: string;
             live: LiveTerminal;
             previousSize: { cols: number; rows: number };
-            desktopSize?: { cols: number; rows: number };
             expiresAt: number;
             timer?: ReturnType<typeof setTimeout>;
         }
@@ -556,11 +555,11 @@ export class TerminalExecutionEngine {
     resize(terminalId: string, cols: number, rows: number): boolean {
         const live = this.terminals.get(terminalId);
         if (!live) return false;
-        const lease = this.sizeLeases.get(terminalId);
-        if (lease) {
-            lease.desktopSize = { cols, rows };
-            return true;
-        }
+        /**
+         * The attachment keeps the Desktop's latest grid; under a mobile lease it waits there until release.
+         */
+        this.attachments.resize(terminalId, { cols, rows });
+        if (this.sizeLeases.has(terminalId)) return true;
         return this.applySize(live, cols, rows);
     }
 
@@ -580,9 +579,6 @@ export class TerminalExecutionEngine {
                 holderId,
                 live,
                 previousSize: { cols: live.process.cols, rows: live.process.rows },
-                ...(this.attachments.size(terminalId) && {
-                    desktopSize: this.attachments.size(terminalId),
-                }),
                 expiresAt: 0,
             });
         }
@@ -611,7 +607,7 @@ export class TerminalExecutionEngine {
         this.clearSizeLease(terminalId);
         if (this.terminals.get(terminalId) !== lease.live) return;
         const size = this.attachments.has(terminalId)
-            ? (lease.desktopSize ?? this.attachments.size(terminalId) ?? lease.previousSize)
+            ? (this.attachments.size(terminalId) ?? lease.previousSize)
             : lease.previousSize;
         this.applySize(lease.live, size.cols, size.rows);
         this.emitSizeOwnership(lease.live);
@@ -707,8 +703,6 @@ export class TerminalExecutionEngine {
 
     detachView(terminalId: string): void {
         this.attachments.detach(terminalId);
-        const lease = this.sizeLeases.get(terminalId);
-        if (lease) lease.desktopSize = undefined;
         const live = this.terminals.get(terminalId);
         if (!live) return;
         this.flushObserverOutput(live);

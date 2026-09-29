@@ -13,6 +13,7 @@ import {
     captureMobileFramebuffer,
     mobileDisplayState,
     mobileSemantics,
+    releaseMobileTerminalLease,
     restoreMobileDisplayState,
     setMobileNetworkAvailable,
     startMobileFramebufferRecording,
@@ -303,18 +304,14 @@ async function runCoreJourney(
         () => mobileSemantics(environment.serial),
         (nodes) =>
             nodes.some(({ checkId }) => checkId === 'terminal-live-webview') &&
-            nodes.some(({ checkId, enabled }) => checkId === 'terminal-take-over' && enabled),
+            nodes.some(({ checkId }) => checkId === 'terminal-release'),
     );
     const surface = fixture.running.page.locator(
         `.terminal-pane[data-terminal-id="${fixture.journey.conversationTerminalId}"] .terminal-surface`,
     );
     await expect(surface).toHaveAttribute('data-terminal-attached', 'true');
-    await capture(environment, 'terminal-observing', artifacts, 'terminal-live-webview');
-    await tapMobileCheck(environment.serial, 'terminal-take-over');
-    await waitForMobile(
-        () => mobileSemantics(environment.serial),
-        (nodes) => nodes.some(({ checkId }) => checkId === 'terminal-release'),
-    );
+    // A control device takes the lease automatically when the Terminal opens; no tap is needed.
+    await capture(environment, 'terminal-auto-leased', artifacts, 'terminal-live-webview');
     await tapTerminalKey(environment.serial, 'down');
     await waitForMobile(
         () => fixture.journey.conversationMenuState(),
@@ -326,11 +323,7 @@ async function runCoreJourney(
         (state) => state?.submissions === 1,
     );
     await capture(environment, 'terminal-selection', artifacts, 'terminal-live-webview');
-    await tapMobileCheck(environment.serial, 'terminal-release');
-    await waitForMobile(
-        () => mobileSemantics(environment.serial),
-        (nodes) => nodes.some(({ checkId }) => checkId === 'terminal-take-over'),
-    );
+    await releaseMobileTerminalLease(environment.serial);
     await fixture.journey.seedChanges();
 
     const before = await pageRequest<{
@@ -687,13 +680,20 @@ async function executeFailureJourney(
                     `.terminal-pane[data-terminal-id="${terminalId}"] .terminal-surface`,
                 );
                 await expect(surface).toHaveAttribute('data-terminal-attached', 'true');
+                // The automatic lease follows the phone; release it to observe the restored Desktop grid.
                 await waitForMobile(
                     () => mobileSemantics(environment.serial),
                     (nodes) =>
                         nodes.some(({ checkId }) => checkId === 'session-detail') &&
                         nodes.some(({ checkId }) => checkId === 'terminal-live-view') &&
                         nodes.some(({ checkId }) => checkId === 'terminal-live-webview') &&
-                        nodes.some(({ checkId }) => checkId === 'terminal-take-over'),
+                        nodes.some(({ checkId }) => checkId === 'terminal-release'),
+                );
+                await releaseMobileTerminalLease(environment.serial);
+                const released = await waitForMobile(
+                    () => waitForDesktopConversationGrid(fixture, 'menu', 1),
+                    ({ state }) =>
+                        state?.cols === passive.state?.cols && state?.rows === passive.state?.rows,
                 );
                 await capture(
                     environment,
@@ -704,7 +704,7 @@ async function executeFailureJourney(
                 const passiveReadback = await waitForDesktopConversationGrid(fixture, 'menu', 1);
                 if (!passiveReadback.state)
                     throw new Error('Passive Desktop Terminal state disappeared');
-                expect(passiveReadback.state.generation).toBe(passive.state.generation);
+                expect(passiveReadback.state.generation).toBe(released.state?.generation);
                 expect(passiveReadback.state.cols).toBe(passive.state.cols);
                 expect(passiveReadback.state.rows).toBe(passive.state.rows);
                 await expect(surface).toHaveAttribute('data-terminal-attached', 'true');

@@ -298,7 +298,7 @@ export function logControlRequestOutcome(
             outcome: reply.ok ? 'success' : 'failure',
         });
     if (reply.ok) {
-        if (shouldLogSuccessfulRequest('control', request.method))
+        if (isSlow || shouldLogSuccessfulRequest('control', request.method))
             logger.write(isSlow ? 'warn' : 'debug', logEventCatalog.ipc.request, {
                 correlationId: request.id,
                 context: observationContext,

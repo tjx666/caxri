@@ -36,6 +36,14 @@ export class TerminalAttachments {
         return { wasAttached };
     }
 
+    /**
+     * Records a later Desktop fit for an attached view. The attach-time grid is otherwise stale after the window
+     * resizes, and a mobile size lease that starts afterwards would restore that stale grid on release.
+     */
+    resize(terminalId: string, size: TerminalGridSize): void {
+        if (this.attached.has(terminalId)) this.sizes.set(terminalId, size);
+    }
+
     detach(terminalId: string): void {
         this.attached.delete(terminalId);
         this.sizes.delete(terminalId);

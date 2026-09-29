@@ -141,7 +141,12 @@ export class TerminalResizeBurstTracker {
             !aggregate ||
             burstStartedAt === undefined ||
             lastSampleAt === undefined ||
-            (localAppliedCount === 0 && requestCount === 0)
+            (localAppliedCount === 0 && requestCount === 0) ||
+            /**
+             * One fit that left the grid where it was — every pane mount and Session switch — is not a burst, and was
+             * nearly all of this report's volume. Terminal Host already records the grid it applies.
+             */
+            (aggregate.sampleCount <= 1 && aggregate.changeCount === 0)
         )
             return;
 
