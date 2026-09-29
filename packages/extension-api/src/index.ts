@@ -33,6 +33,7 @@ export type {
     GitCommitDetails,
     GitCommitFile,
     GitCommitPage,
+    GitDetachedHead,
     GitFileStatus,
     GitPullRequestChanges,
     GitRepositorySummary,

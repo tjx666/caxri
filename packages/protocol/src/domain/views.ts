@@ -33,7 +33,7 @@ function createNamespacedIdentifierSchema(maxLength = MAX_NAMESPACED_IDENTIFIER_
 }
 
 export const viewContainerIdSchema = createNamespacedIdentifierSchema();
-const contributedViewContainerIdSchema = createNamespacedIdentifierSchema(
+export const contributedViewContainerIdSchema = createNamespacedIdentifierSchema(
     MAX_NAMESPACED_IDENTIFIER_LENGTH - SHOW_VIEW_CONTAINER_COMMAND_PREFIX.length,
 );
 export const viewIdSchema = createNamespacedIdentifierSchema();
@@ -468,12 +468,19 @@ const sourceControlProviderModelSchema = z.object({
      */
     rootPath: z.string().min(1).max(4_096).optional(),
     /**
-     * The repository's branch. Shown after the folder name and allowed to ellipsize so the name stays readable — VS
-     * Code's SCM provider row does the same. If the name is still too wide after the branch has given way, the name
-     * ellipsizes too. Counts still outrank both. Prose that a provider wants beside the row belongs in
-     * `descriptionTooltip`.
+     * What the repository has checked out — a branch, or a name for a detached commit — shown as the section's first
+     * row and allowed to ellipsize. Empty hides that row, for when it would only repeat `label`. Prose that a provider
+     * wants beside the row belongs in `descriptionTooltip`.
      */
     description: z.string().max(4_096),
+    /**
+     * Glyph of the description row: a branch, or a single commit for a detached HEAD.
+     */
+    descriptionKind: z.enum(['branch', 'commit']),
+    /**
+     * Short trailing status of the description row, such as unsynced commit counts (`↑2 ↓1`) or `detached`.
+     */
+    descriptionBadge: z.string().min(1).max(64).optional(),
     descriptionAccessibilityLabel: z.string().min(1).max(4_096),
     descriptionTooltip: z.string().min(1).max(4_096),
     /**
@@ -576,147 +583,6 @@ export const sourceControlActionResultSchema = z.object({
     refresh: z.boolean(),
 });
 
-const manifestIconResourcePathSchema = z
-    .string()
-    .min(1)
-    .max(1_024)
-    .regex(/^(?:\.\/)?(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[^\\]+\.(?:png|svg)$/i);
-
-const manifestContainerIconSchema = z.discriminatedUnion('kind', [
-    z.object({ kind: z.literal('builtin'), id: extensionBuiltinIconIdSchema }),
-    z.object({ kind: z.literal('resource'), path: manifestIconResourcePathSchema }),
-]);
-
-const manifestContainerSchema = z.object({
-    id: contributedViewContainerIdSchema,
-    title: z.string().min(1).max(200),
-    order: z.number().int().min(0).max(10_000).optional(),
-    icon: manifestContainerIconSchema,
-    command: extensionCommandIdSchema.optional(),
-});
-
-const manifestViewSchema = z.object({
-    id: viewIdSchema,
-    name: z.string().min(1).max(200),
-    type: z.enum(['tree', 'source-control']),
-    badge: z.literal(true).optional(),
-    presentation: controlledViewPresentationSchema.optional(),
-    configurationDependencies: z.array(z.string().min(1).max(200)).max(32).optional(),
-    actions: z
-        .array(
-            z.object({
-                command: extensionCommandIdSchema,
-                role: extensionViewActionRoleSchema,
-            }),
-        )
-        .max(32)
-        .optional(),
-    when: z.never().optional(),
-});
-
-const manifestCommandSchema = z.object({
-    command: extensionCommandIdSchema,
-    title: z.string().min(1).max(200),
-    description: z.string().max(1_024).optional(),
-    allowInEditable: z.boolean().optional(),
-    palette: z.boolean().optional(),
-});
-
-const manifestViewContainersSchema = z.object({
-    secondarySidebar: z.array(manifestContainerSchema).max(64).default([]),
-    panel: z.array(manifestContainerSchema).max(64).default([]),
-});
-
-const manifestViewsSchema = z.record(viewContainerIdSchema, z.array(manifestViewSchema).max(64));
-
-const manifestContributionsSchema = z.object({
-    viewsContainers: manifestViewContainersSchema.default({ secondarySidebar: [], panel: [] }),
-    views: manifestViewsSchema.default({}),
-    commands: z.array(manifestCommandSchema).max(256).default([]),
-});
-
-export const extensionManifestSchema = z
-    .object({
-        name: extensionIdSchema,
-        version: z.string().min(1).max(100),
-        type: z.literal('module'),
-        main: z
-            .string()
-            .min(1)
-            .max(1_024)
-            .regex(/^(?:\.\/)?(?!.*(?:^|\/)\.\.(?:\/|$)).+\.(?:js|mjs)$/),
-        engines: z.object({ caxri: z.string().min(1).max(100) }),
-        caxri: z.object({
-            capabilities: z.array(extensionCapabilitySchema).max(32).default([]),
-            testOnly: z.boolean().optional(),
-        }),
-        activationEvents: z.never().optional(),
-        contributes: manifestContributionsSchema.default({
-            viewsContainers: { secondarySidebar: [], panel: [] },
-            views: {},
-            commands: [],
-        }),
-    })
-    .superRefine((manifest, context) => {
-        const commandIds = new Set(manifest.contributes.commands.map(({ command }) => command));
-        for (const [containerId, views] of Object.entries(manifest.contributes.views)) {
-            for (const [viewIndex, view] of views.entries()) {
-                if (
-                    (view.configurationDependencies?.length ?? 0) > 0 &&
-                    !manifest.caxri.capabilities.includes('settings.read')
-                )
-                    context.addIssue({
-                        code: 'custom',
-                        message: 'Controlled view configuration dependencies require settings.read',
-                        path: [
-                            'contributes',
-                            'views',
-                            containerId,
-                            viewIndex,
-                            'configurationDependencies',
-                        ],
-                    });
-                const roles = new Set<string>();
-                const actions = view.actions ?? [];
-                for (const [actionIndex, action] of actions.entries()) {
-                    const path = [
-                        'contributes',
-                        'views',
-                        containerId,
-                        viewIndex,
-                        'actions',
-                        actionIndex,
-                    ];
-                    if (!commandIds.has(action.command))
-                        context.addIssue({
-                            code: 'custom',
-                            message: `View action command is not declared: ${action.command}`,
-                            path: [...path, 'command'],
-                        });
-                    const requiredPrefix = view.type === 'source-control' ? 'source.' : undefined;
-                    const isCompatibleTreeRefresh =
-                        view.type === 'tree' && action.role === 'resource.refresh';
-                    if (
-                        !isCompatibleTreeRefresh &&
-                        (!requiredPrefix || !action.role.startsWith(requiredPrefix))
-                    )
-                        context.addIssue({
-                            code: 'custom',
-                            message: `View action role is incompatible with ${view.type}: ${action.role}`,
-                            path: [...path, 'role'],
-                        });
-                    if (roles.has(action.role))
-                        context.addIssue({
-                            code: 'custom',
-                            message: `Duplicate view action role: ${action.role}`,
-                            path: [...path, 'role'],
-                        });
-                    roles.add(action.role);
-                }
-            }
-        }
-    });
-
 export type ViewContainerId = z.infer<typeof viewContainerIdSchema>;
 export type ViewId = z.infer<typeof viewIdSchema>;
 export type ViewContainerLocation = z.infer<typeof viewContainerLocationSchema>;
@@ -751,4 +617,3 @@ export type ExtensionTreeViewState = z.infer<typeof extensionTreeViewStateSchema
 export type ExtensionTreeViewStates = z.infer<typeof extensionTreeViewStatesSchema>;
 export type SourceControlViewState = z.infer<typeof sourceControlViewStateSchema>;
 export type SourceControlViewStates = z.infer<typeof sourceControlViewStatesSchema>;
-export type ExtensionManifest = z.infer<typeof extensionManifestSchema>;

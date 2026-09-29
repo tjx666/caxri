@@ -33,6 +33,7 @@ function model(revision: string, groupActions: SourceControlAction[]): SourceCon
                 icon: { kind: 'theme', id: 'repo' },
                 tooltip: 'project',
                 description: 'main',
+                descriptionKind: 'branch',
                 descriptionAccessibilityLabel: 'main',
                 descriptionTooltip: 'main',
                 countLabel: '1',
