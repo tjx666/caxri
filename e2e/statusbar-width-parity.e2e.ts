@@ -135,7 +135,7 @@ exec /bin/zsh -l
     await writeFile(join(root, 'source.ts'), 'const first = 1;\nconst second = 2;\n', 'utf8');
     await execFileAsync('git', ['add', 'tracked.txt', 'source.ts'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
-    // Gives the changed-lines chip a fixed "+2 −1" instead of a value that depends on scratch state.
+    // Gives the changed-lines chip a fixed "+2 -1" instead of a value that depends on scratch state.
     await writeFile(join(root, 'tracked.txt'), 'after\nadded\n', 'utf8');
 
     const running = await launchCaxri({
@@ -175,7 +175,7 @@ exec /bin/zsh -l
         await expect(project).toHaveText('width-project');
         await expect(branch).toHaveText('feat/width');
         await expect(pullRequest).toBeVisible();
-        await expect(changes).toHaveText('+2 −1');
+        await expect(changes).toHaveText('+2 -1');
 
         /**
          * `ActiveFileStatus` and `ActiveTerminalStatus` are mutually exclusive — `StatusBar` picks one from the active

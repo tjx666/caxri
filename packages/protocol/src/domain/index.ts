@@ -6,6 +6,7 @@ export * from './color.js';
 export * from './command-catalog.js';
 export * from './commands.js';
 export * from './default-keybindings.js';
+export * from './diff-stat-colors.js';
 export * from './domain.js';
 export * from './editor.js';
 export * from './extension-manifest.js';

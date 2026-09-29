@@ -50,7 +50,7 @@ function placeResource(root: SourceControlTreeDirectory, resource: SourceControl
 
 /**
  * Sums measured line counts, skipping unmeasured entries; `undefined` when none of them was measured, so a caller shows
- * nothing rather than a false `+0 −0`.
+ * nothing rather than a false `+0 -0`.
  */
 export function sumSourceControlLineStats(
     entries: Iterable<SourceControlResource['lineStats']>,
