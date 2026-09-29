@@ -16,6 +16,10 @@ import { createGlobalShortcutDispatchState, dispatchGlobalKeydown } from './use-
 vi.mock('../features/editor/git-review-comment-binding', () => ({
     listBoundGitReviewCommentEditors: () => new Set(),
 }));
+/**
+ * Opening Project search first reads the focused selection, which needs the `document` this `node` suite lacks.
+ */
+vi.mock('../lib/focused-text-selection', () => ({ focusedTextSelection: () => '' }));
 
 /**
  * Issue #1093: a global shortcut typed during the gap between a picker deciding to close and its modal registration
@@ -102,7 +106,7 @@ describe('dispatchGlobalKeydown', () => {
         expect(run).toHaveBeenCalledOnce();
     });
 
-    it('honors the same shortcut once the handoff has settled and the registration is clear', () => {
+    it('honors the same shortcut once the handoff has settled and the registration is clear', async () => {
         useWorkbenchStore.setState({
             bootstrap: { keybindings: [projectSearchShortcut] } as unknown as BootstrapState,
         });
@@ -111,6 +115,6 @@ describe('dispatchGlobalKeydown', () => {
         dispatchGlobalKeydown(createGlobalShortcutDispatchState(), event);
 
         expect(preventDefault).toHaveBeenCalledOnce();
-        expect(useDialogStore.getState().projectSearchOpen).toBe(true);
+        await vi.waitFor(() => expect(useDialogStore.getState().projectSearchOpen).toBe(true));
     });
 });
