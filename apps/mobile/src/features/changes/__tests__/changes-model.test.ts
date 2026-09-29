@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     changePathParts,
     changesSummary,
+    changesSummaryLabel,
     hasMultipleRepositories,
     parseUnifiedDiff,
     visibleDiffLines,
@@ -47,6 +48,10 @@ it('formats a path and summary for file rows', () => {
         filename: 'file.ts',
     });
     expect(changesSummary(1, 2, 0)).toBe('1 file changed · +2 −0');
+    expect(changesSummary(3, 1_940, 684)).toBe('3 files changed · +1.9k −684');
+    expect(changesSummaryLabel(3, 1_940, 684)).toBe(
+        '3 files changed, 1940 lines added, 684 removed',
+    );
 });
 
 it('shows repository names when paths can be ambiguous across repositories', () => {
