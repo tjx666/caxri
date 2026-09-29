@@ -25,6 +25,17 @@ const gitFileStatusSchema = z.object({
  */
 export const MAX_GIT_STATUS_FILES = 2_000;
 
+const gitDetachedHeadSchema = z.object({
+    /**
+     * Subject line of the checked-out commit.
+     */
+    subject: z.string().min(1).max(1_024),
+    /**
+     * A tag, else a remote branch (`origin/main`), whose tip is exactly this commit.
+     */
+    reference: z.string().min(1).max(1_024).optional(),
+});
+
 const gitRepoSummarySchema = z.object({
     id: z.string(),
     kind: z.enum(['primary', 'worktree', 'nested', 'submodule']),
@@ -37,6 +48,14 @@ const gitRepoSummarySchema = z.object({
         .string()
         .regex(/^[0-9a-f]{40}$/)
         .optional(),
+    /**
+     * Tracked remote branch; absent for an unpublished branch and for a detached HEAD.
+     */
+    upstream: z.string().min(1).max(1_024).optional(),
+    /**
+     * Human-readable identity of a detached HEAD; present only when `branch` is `(detached)`.
+     */
+    detachedHead: gitDetachedHeadSchema.optional(),
     ahead: z.number(),
     behind: z.number(),
     additions: z.number().int().nonnegative(),
@@ -141,6 +160,7 @@ export const gitBranchSchema = z.object({
 });
 
 export type GitFileStatus = z.infer<typeof gitFileStatusSchema>;
+export type GitDetachedHead = z.infer<typeof gitDetachedHeadSchema>;
 // eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across apps/desktop and apps/server/src/domains, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type GitRepositorySummary = z.infer<typeof gitRepoSummarySchema>;
 // eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across apps/desktop and apps/server/src/domains, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.

@@ -1,10 +1,71 @@
-import type { GitFileStatus } from '@caxri/protocol';
+import type { GitDetachedHead, GitFileStatus } from '@caxri/protocol';
+
+/**
+ * `git status --porcelain=v2 --branch` reports a detached HEAD as this branch name; `git.summary` passes it through.
+ */
+export const DETACHED_BRANCH = '(detached)';
+
+/**
+ * Names a detached HEAD from `git for-each-ref --points-at HEAD --format=%(refname)` output. A tag is the most
+ * deliberate name a pinned commit can have, so it wins over a remote branch whose tip merely happens to be there.
+ * Symbolic `<remote>/HEAD` aliases are skipped because they only restate the remote's default branch.
+ */
+export function detachedHeadReference(refnames: string): string | undefined {
+    const references = refnames
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+    const tag = references.find((reference) => reference.startsWith('refs/tags/'));
+    if (tag) return tag.slice('refs/tags/'.length);
+    const remote = references.find(
+        (reference) => reference.startsWith('refs/remotes/') && !reference.endsWith('/HEAD'),
+    );
+    return remote?.slice('refs/remotes/'.length);
+}
+
+/**
+ * A bare `(detached)` or a short SHA tells the reader nothing about which commit is checked out — submodules sit there
+ * permanently. Two cheap reads, paid only by detached repositories, name it the way a person would: the tag or remote
+ * branch at that commit, and its subject.
+ */
+export async function loadDetachedHead(
+    status: Pick<RepoStatus, 'branch' | 'head'>,
+    git: (arguments_: string[], options: { allowFailure: true }) => Promise<string>,
+): Promise<GitDetachedHead | undefined> {
+    if (status.branch !== DETACHED_BRANCH || !status.head) return undefined;
+    const [subjectOutput, referencesOutput] = await Promise.all([
+        git(['log', '-1', '--format=%s', 'HEAD'], { allowFailure: true }),
+        git(
+            [
+                'for-each-ref',
+                '--points-at',
+                'HEAD',
+                '--format=%(refname)',
+                'refs/tags',
+                'refs/remotes',
+            ],
+            { allowFailure: true },
+        ),
+    ]);
+    const subject = subjectOutput.trim().slice(0, 1_024);
+    if (!subject) return undefined;
+    const reference = detachedHeadReference(referencesOutput)?.slice(0, 1_024);
+    return { subject, ...(reference && { reference }) };
+}
 
 export type StatusOutcome = 'fresh' | 'joined' | 'coalesced';
 
 export interface RepoStatus {
     branch: string;
     head?: string;
+    /**
+     * The tracked remote branch (`origin/main`); absent when the branch has never been published or HEAD is detached.
+     */
+    upstream?: string;
+    /**
+     * What a detached HEAD points at, in terms a reader recognizes: an exact tag, otherwise the commit subject.
+     */
+    detachedHead?: GitDetachedHead;
     ahead: number;
     behind: number;
     additions: number;
@@ -45,11 +106,12 @@ function parseStatusRecord(
 
 export function parseGitStatus(
     output: string,
-): Omit<RepoStatus, 'additions' | 'deletions' | 'changedFileCount' | 'truncated'> {
+): Omit<RepoStatus, 'additions' | 'deletions' | 'changedFileCount' | 'truncated' | 'detachedHead'> {
     const records = output.split('\0').filter(Boolean);
     const files: GitFileStatus[] = [];
     let branch = 'detached';
     let head: string | undefined;
+    let upstream: string | undefined;
     let ahead = 0;
     let behind = 0;
     for (let index = 0; index < records.length; index += 1) {
@@ -61,6 +123,10 @@ export function parseGitStatus(
         if (record.startsWith('# branch.oid ')) {
             const oid = record.slice('# branch.oid '.length);
             head = oid === '(initial)' ? undefined : oid;
+            continue;
+        }
+        if (record.startsWith('# branch.upstream ')) {
+            upstream = record.slice('# branch.upstream '.length);
             continue;
         }
         if (record.startsWith('# branch.ab ')) {
@@ -84,7 +150,7 @@ export function parseGitStatus(
         });
         if (record.startsWith('2 ')) index += 1;
     }
-    return { branch, head, ahead, behind, files };
+    return { branch, head, ...(upstream && { upstream }), ahead, behind, files };
 }
 
 interface ProducedSnapshot<Status> {
