@@ -24,6 +24,13 @@ import type { SessionRenameService } from './session-rename';
 const SESSION_RECORD_CAPACITY = 128;
 
 /**
+ * Waits before re-reading a transcript that lacked the finished turn. Claude Code fires its Stop hook a few
+ * milliseconds before the turn's reply reaches the transcript, so a first-turn read sees only the user's prompt;
+ * without these short re-reads a one-turn Session kept its placeholder name until another turn finished.
+ */
+const TRANSCRIPT_SETTLE_DELAYS_MS = [500, 2_000, 8_000] as const;
+
+/**
  * One suppressed naming attempt. The Terminal is stored beside the launch because a record is only in force while the
  * Session still owns that Terminal and the Terminal is still on that launch, and the eviction path has to decide that
  * without a live turn to read it from.
@@ -49,6 +56,10 @@ export class SessionAutoNamingService {
     private readonly retryTimers = new Map<string, NodeJS.Timeout>();
     private readonly blockedLaunches = new Map<string, BlockedLaunch>();
     private readonly retryDeferredCounts = new Map<string, number>();
+    /**
+     * Transcript re-reads already spent on the current completed turn; see {@link TRANSCRIPT_SETTLE_DELAYS_MS}.
+     */
+    private readonly transcriptSettleAttempts = new Map<string, number>();
     private closed = false;
 
     constructor(
@@ -123,6 +134,7 @@ export class SessionAutoNamingService {
         if (event.phase !== 'turnFinished') {
             if (event.phase === 'turnStarted' || event.phase === 'sessionIdentified') {
                 this.deferred.delete(session.id);
+                this.transcriptSettleAttempts.delete(session.id);
                 clearTimeout(this.retryTimers.get(session.id));
                 this.retryTimers.delete(session.id);
                 this.running.get(session.id)?.controller.abort();
@@ -193,13 +205,17 @@ export class SessionAutoNamingService {
         const execute = async (): Promise<void> => {
             const startedAt = performance.now();
             let failure: string | undefined;
-            let reason:
+            /**
+             * Widened by `as` because TypeScript does not see the assignments made inside the semaphore callback.
+             */
+            let reason = 'ineligible' as
                 | 'completed'
                 | 'ineligible'
                 | 'insufficientContext'
+                | 'transcriptPending'
                 | 'declined'
                 | 'failed'
-                | NonNullable<ReturnType<typeof lowCostSandboxFailureReason>> = 'ineligible';
+                | NonNullable<ReturnType<typeof lowCostSandboxFailureReason>>;
             try {
                 await this.executions.run(async () => {
                     if (!isEligible()) return;
@@ -240,7 +256,7 @@ export class SessionAutoNamingService {
                             : { opening: [], recent: [] };
                         if (!isEligible()) return;
                         if (!hasTitleNamingMaterial(context)) {
-                            reason = 'insufficientContext';
+                            reason = 'transcriptPending';
                             return;
                         }
                         const candidate = await this.agents.generateTitle(target.provider, {
@@ -298,6 +314,13 @@ export class SessionAutoNamingService {
                  */
                 const retryDeferredCount = this.retryDeferredCounts.get(session.id) ?? 0;
                 this.retryDeferredCounts.delete(session.id);
+                const settleAttempt = this.transcriptSettleAttempts.get(session.id) ?? 0;
+                const settleDelay =
+                    reason === 'transcriptPending' && !controller.signal.aborted
+                        ? TRANSCRIPT_SETTLE_DELAYS_MS[settleAttempt]
+                        : undefined;
+                if (reason === 'transcriptPending' && settleDelay === undefined)
+                    reason = 'insufficientContext';
                 this.logger.write(
                     reason === 'failed' ? 'warn' : 'info',
                     logEventCatalog.agent.automaticNamingFinished,
@@ -309,11 +332,28 @@ export class SessionAutoNamingService {
                             ...(failure && { failure }),
                             sessionId: session.id,
                             ...(retryDeferredCount > 0 && { retryDeferredCount }),
+                            ...(settleAttempt > 0 && { transcriptSettleAttempt: settleAttempt }),
                         },
                     },
                 );
-                if (!controller.signal.aborted && !this.blockedLaunches.has(session.id))
-                    this.retryAfter.set(session.id, Date.now() + 60_000);
+                if (settleDelay === undefined) {
+                    this.transcriptSettleAttempts.delete(session.id);
+                    if (!controller.signal.aborted && !this.blockedLaunches.has(session.id))
+                        this.retryAfter.set(session.id, Date.now() + 60_000);
+                } else {
+                    this.transcriptSettleAttempts.set(session.id, settleAttempt + 1);
+                    if (this.transcriptSettleAttempts.size > SESSION_RECORD_CAPACITY)
+                        this.transcriptSettleAttempts.delete(
+                            this.transcriptSettleAttempts.keys().next().value!,
+                        );
+                    clearTimeout(this.retryTimers.get(session.id));
+                    const timer = setTimeout(() => {
+                        this.retryTimers.delete(session.id);
+                        this.observe(event);
+                    }, settleDelay);
+                    timer.unref();
+                    this.retryTimers.set(session.id, timer);
+                }
                 if (this.retryAfter.size > SESSION_RECORD_CAPACITY)
                     this.retryAfter.delete(this.retryAfter.keys().next().value!);
                 this.running.delete(session.id);
@@ -341,6 +381,7 @@ export class SessionAutoNamingService {
         this.deferred.delete(sessionId);
         this.blockedLaunches.delete(sessionId);
         this.retryDeferredCounts.delete(sessionId);
+        this.transcriptSettleAttempts.delete(sessionId);
     }
 
     async close(): Promise<void> {
@@ -351,6 +392,7 @@ export class SessionAutoNamingService {
         await Promise.allSettled(this.running.values().map((task) => task.promise));
         this.retryAfter.clear();
         this.retryDeferredCounts.clear();
+        this.transcriptSettleAttempts.clear();
         this.deferred.clear();
         this.blockedLaunches.clear();
     }
