@@ -15,6 +15,7 @@ import type {
 import { isGlobMatch, ProjectStatusSummaryErrorMessage } from 'caxri';
 
 import { commitFilesToStatuses } from './commit-file-statuses';
+import { formatRepoCountLabel, repoBranchRow as repoBranchRow } from './repo-row-labels';
 import {
     boundedActionLabel,
     boundedEditorResource,
@@ -468,14 +469,7 @@ export function buildSourceControlViewModel({
              * modes. State the count on the repository row and make it the way back to it.
              */
             const uncommittedCount = mode === 'working' ? 0 : workingCount;
-            /**
-             * The branch owns this slot in every mode. A pull request or commit subject used to replace it, and cost
-             * more than it returned: the identifier it led with is already the group caption one row below (`PR #1738
-             * Changes`), the subject behind that identifier never survived the row's width, and while either was
-             * showing, the branch — which appears nowhere else in the panel — was simply gone. Both move to the hover,
-             * where the width is not scarce.
-             */
-            const description = repo.branch;
+            const branchRow = repoBranchRow(repo);
             /**
              * Omitted when both are zero: `0 ahead, 0 behind` is the steady state and told the hover's reader nothing.
              */
@@ -494,16 +488,18 @@ export function buildSourceControlViewModel({
                 pullRequest && unpushedCommitCount > 0
                     ? `${unpushedCommitCount} local commit${unpushedCommitCount === 1 ? '' : 's'} ${unpushedCommitCount === 1 ? 'is' : 'are'} not included in pull request #${pullRequest.number}`
                     : undefined;
+            const trackingSummary = repo.upstream ? `tracking ${repo.upstream}` : undefined;
+            const hoverParts = [
+                branchRow.summary,
+                trackingSummary,
+                aheadBehindLabel,
+                revisionSummary,
+                unpushedSummary,
+            ].filter(Boolean);
             const descriptionAccessibilityLabel = boundedSourceControlDescription(
-                [repo.branch, aheadBehindLabel, revisionSummary, unpushedSummary]
-                    .filter(Boolean)
-                    .join(', '),
+                hoverParts.join(', '),
             );
-            const descriptionTooltip = boundedSourceControlDescription(
-                [repo.branch, aheadBehindLabel, revisionSummary, unpushedSummary]
-                    .filter(Boolean)
-                    .join(' · '),
-            );
+            const descriptionTooltip = boundedSourceControlDescription(hoverParts.join(' · '));
             const groupLabel = pullRequest
                 ? `PR #${pullRequest.number} Changes`
                 : mode === 'commit'
@@ -565,7 +561,9 @@ export function buildSourceControlViewModel({
                 icon: themeIcon(repoKindIcons[repo.kind]),
                 tooltip: repo.rootPath,
                 rootPath: repo.rootPath,
-                description,
+                description: branchRow.description,
+                descriptionKind: branchRow.kind,
+                ...(branchRow.badge && { descriptionBadge: branchRow.badge }),
                 descriptionAccessibilityLabel,
                 descriptionTooltip,
                 ...(pullRequest && {
@@ -580,8 +578,6 @@ export function buildSourceControlViewModel({
                     mode === 'pull-request' && detailErrorsByRepo.has(repo.id)
                         ? ' · Unavailable'
                         : formatRepoCountLabel({
-                              ahead: mode === 'working' ? repo.ahead : 0,
-                              behind: mode === 'working' ? repo.behind : 0,
                               count,
                               uncommittedCount,
                               unpushedCommitCount,
@@ -658,26 +654,3 @@ export function buildSourceControlViewModel({
  * Joins a repository row's trailing counts, omitting every zero part: a synced, clean repository shows no `↑0 ↓0 · 0`
  * noise, only the parts that ask for attention.
  */
-export function formatRepoCountLabel(counts: {
-    ahead: number;
-    behind: number;
-    count: number;
-    uncommittedCount: number;
-    unpushedCommitCount: number;
-}): string {
-    const sync = [
-        counts.ahead > 0 ? `↑${counts.ahead}` : '',
-        counts.behind > 0 ? `↓${counts.behind}` : '',
-    ]
-        .filter(Boolean)
-        .join(' ');
-    return [
-        sync,
-        counts.count > 0 ? `${counts.count}` : '',
-        counts.unpushedCommitCount > 0 ? `${counts.unpushedCommitCount} unpushed` : '',
-        counts.uncommittedCount > 0 ? `${counts.uncommittedCount} uncommitted` : '',
-    ]
-        .filter(Boolean)
-        .map((part) => ` · ${part}`)
-        .join('');
-}

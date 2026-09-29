@@ -16,7 +16,18 @@ export interface GitFileStatus {
     deletions?: number;
 }
 
-// eslint-disable-next-line unicorn/name-replacements -- Repository is the public domain term for each discovered Git root.
+export interface GitDetachedHead {
+    /**
+     * Subject line of the checked-out commit.
+     */
+    subject: string;
+    /**
+     * A tag, else a remote branch (`origin/main`), whose tip is exactly this commit.
+     */
+    reference?: string;
+}
+
+// eslint-disable-next-line unicorn/name-replacements -- public Extension API name mirrored from @caxri/protocol; renaming it is a cross-package API change outside this edit.
 export interface GitRepositorySummary {
     id: string;
     kind: 'primary' | 'worktree' | 'nested' | 'submodule';
@@ -24,6 +35,14 @@ export interface GitRepositorySummary {
     rootPath: string;
     branch: string;
     head?: string;
+    /**
+     * Tracked remote branch; absent for an unpublished branch and for a detached HEAD.
+     */
+    upstream?: string;
+    /**
+     * Human-readable identity of a detached HEAD; present only when `branch` is `(detached)`.
+     */
+    detachedHead?: GitDetachedHead;
     ahead: number;
     behind: number;
     additions: number;

@@ -6,7 +6,7 @@ import type {
     SourceControlExternalLink,
     SourceControlViewModel,
 } from '@caxri/protocol';
-import { ChevronDown, ChevronRight, GitBranch } from 'lucide-react';
+import { ChevronDown, ChevronRight, GitBranch, GitCommitHorizontal } from 'lucide-react';
 
 import { DiffStat } from '../../../components/diff-stat';
 import { DisclosureMotion } from '../../../components/disclosure-motion';
@@ -348,16 +348,18 @@ function ProviderHeader({
 
 /**
  * The repository's branch (or whatever reference the provider describes) as the section's first child row, with the
- * full row width to itself. It carries no action of its own; hovering or focusing it shows the same detail the header
- * tooltip does.
+ * full row width to itself and an optional trailing status such as `↑2 ↓1`. It carries no action of its own, so it has
+ * no hover fill; hovering or focusing it shows the same detail the header tooltip does. An empty description means the
+ * provider judged the row redundant with the header, and it is omitted.
  */
 function ProviderBranchRow({ provider }: { provider: ProviderModel }) {
     if (!provider.description) return null;
+    const Icon = provider.descriptionKind === 'commit' ? GitCommitHorizontal : GitBranch;
     return (
         <SourceControlTreeRow
             rowId={`provider-branch:${provider.id}`}
             level={2}
-            className="git-repository-branch-row flex h-7 w-full min-w-0 cursor-default items-center gap-1 border-0 bg-transparent px-2 text-left text-[12px] text-muted hover:bg-elevated"
+            className="git-repository-branch-row flex h-7 w-full min-w-0 cursor-default items-center gap-1 border-0 bg-transparent px-2 text-left text-[12px] text-muted"
             tooltip={
                 <StructuredTooltip
                     title={provider.description}
@@ -366,14 +368,19 @@ function ProviderBranchRow({ provider }: { provider: ProviderModel }) {
             }
         >
             {/* Sits in the chevron column of the group captions below, so the branch text lines up with their labels. */}
-            <GitBranch aria-hidden="true" className="shrink-0" size={13} />
+            <Icon aria-hidden="true" className="shrink-0" size={13} />
             <span
-                className="git-repository-meta flex min-w-0 overflow-hidden"
+                className="git-repository-meta flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
                 aria-label={provider.descriptionAccessibilityLabel}
             >
                 <span className="git-repository-branch min-w-0 truncate">
                     {provider.description}
                 </span>
+                {provider.descriptionBadge && (
+                    <span className="git-repository-branch-badge shrink-0 text-[11px] whitespace-nowrap tabular-nums opacity-80">
+                        {provider.descriptionBadge}
+                    </span>
+                )}
             </span>
         </SourceControlTreeRow>
     );

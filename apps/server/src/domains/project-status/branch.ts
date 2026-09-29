@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import type { ExternalStatusRunner } from '../external-status';
 import { ExternalStatusCliError, parseExternalJson } from '../external-status';
+import { DETACHED_BRANCH } from '../git/status';
 import { projectStatusCliError } from './external';
 
 type Publication = NonNullable<ProjectStatusRepository['publication']>;
@@ -218,10 +219,6 @@ export async function loadBranchPublication(
 
 type OptionalGit = (cwd: string, arguments_: readonly string[]) => Promise<string>;
 
-/**
- * `git status --porcelain=v2 --branch` reports a detached HEAD as this branch name; `git.summary` passes it through.
- */
-const DETACHED_BRANCH = '(detached)';
 /**
  * How long `origin`'s URL and default branch are reused for one repository root.
  */
