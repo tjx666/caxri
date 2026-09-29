@@ -16,12 +16,12 @@ import {
     pathSchema,
     permissionAutoAllowStatusSchema,
     runtimeStatusSchema,
-    updateStateSchema,
 } from '../domain/domain.js';
 import { editorNavigationTargetSchema } from '../domain/editor.js';
 import { lowCostSandboxFailureReasonSchema } from '../domain/low-cost-generation.js';
 import { settingsTargetSchema } from '../domain/settings-target.js';
 import { terminalResourceAlertSchema } from '../domain/terminal-resources.js';
+import { updateStateSchema } from '../domain/update-state.js';
 import {
     extensionIdSchema,
     extensionViewChangeSchema,

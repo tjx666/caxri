@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { viewBadgeSchema } from '../../domain/views';
+import { viewBadgeSchema } from '../../domain/view-badges';
 import { methods } from '../methods';
 
 describe('badge protocol', () => {

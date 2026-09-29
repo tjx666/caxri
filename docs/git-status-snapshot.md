@@ -240,6 +240,20 @@ production announces itself with `git.changed`, so the Renderer's `git.changed` 
 `refresh: true` overview keys; otherwise the open card would refetch, force, and announce again in a
 loop. Those keys rely on their 30-second `staleTime` instead ([issue #859](https://github.com/tjx666/caxri/issues/859)).
 
+## Per-file line counts
+
+Each snapshot file carries optional `additions`/`deletions`
+(`apps/server/src/domains/git/numstat.ts`). Tracked files come from the same
+`git diff --numstat -z --no-renames HEAD` the repository totals already ran, with a renamed file's
+old-path deletions folded into it. `git diff` cannot see an untracked file, or any file of an unborn
+repository, so those are counted from disk through the shared working-file read semaphore, capped at
+200 files and 1 MiB each; a file past the cap omits both counts rather than showing a false zero. The
+repository `additions`/`deletions` totals stay tracked-only, so the Status Bar and project status keep
+their meaning. Commit details and pull-request changes attach the same per-file counts from their own
+numstat reads. The Git extension publishes them as `SourceControlResource.lineStats`, the Source
+Control tree shows them on each file row and sums them into every directory row, and mobile Changes
+reads them from the snapshot instead of running its own numstat.
+
 ## Measurement contract
 
 `apps/server/src/domains/git/index.ts` — `GitService.git()` wraps every `execFile('git', …)` call with a

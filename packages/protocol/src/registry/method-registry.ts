@@ -57,7 +57,6 @@ import {
     terminalSnapshotSchema,
     themeImportWarningSchema,
     themeTokensSchema,
-    updateStateSchema,
 } from '../domain/domain.js';
 import { fileInternalMethods, fileMethods } from '../domain/file-contract.js';
 import { gitInternalMethods, gitMethods } from '../domain/git-contract.js';
@@ -76,6 +75,7 @@ import {
 import { terminalLongPasteMethods } from '../domain/terminal-long-paste.js';
 import { terminalReadMethods } from '../domain/terminal-read-contract.js';
 import { terminalReferenceMethods } from '../domain/terminal-reference-contract.js';
+import { updateStateSchema } from '../domain/update-state.js';
 import {
     extensionCommandIdSchema,
     extensionErrorSchema,

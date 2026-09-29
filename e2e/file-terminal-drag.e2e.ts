@@ -199,7 +199,7 @@ test('Files entries dragged to Terminal insert shell-safe cwd-relative paths wit
     }
 });
 
-test('Git changed files dragged to Terminal insert shell-safe paths without executing or opening an Editor', async () => {
+test('Git changed files and folders dragged to Terminal insert shell-safe paths without executing or opening an Editor', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-git-terminal-drag-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const rootInput = join(testDirectory, 'project');
@@ -210,13 +210,19 @@ test('Git changed files dragged to Terminal insert shell-safe paths without exec
     const nestedFileName = "nested file with 'quote'.txt";
     const mainFilePath = join(rootInput, mainFileName);
     const nestedFilePath = join(nestedRoot, nestedFileName);
-    await writeFile(mainFilePath, 'before\n', 'utf8');
+    const folderName = "changed 'folder'";
+    const folderFilePath = join(rootInput, folderName, 'inside.txt');
+    await mkdir(join(rootInput, folderName));
+    await Promise.all([
+        writeFile(mainFilePath, 'before\n', 'utf8'),
+        writeFile(folderFilePath, 'before\n', 'utf8'),
+    ]);
     await execFileAsync('git', ['init', '-b', 'main'], { cwd: rootInput });
     await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], {
         cwd: rootInput,
     });
     await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: rootInput });
-    await execFileAsync('git', ['add', mainFileName], { cwd: rootInput });
+    await execFileAsync('git', ['add', mainFileName, folderName], { cwd: rootInput });
     await execFileAsync('git', ['commit', '-m', 'Initial project file'], { cwd: rootInput });
 
     await writeFile(nestedFilePath, 'before\n', 'utf8');
@@ -230,6 +236,7 @@ test('Git changed files dragged to Terminal insert shell-safe paths without exec
     await Promise.all([
         writeFile(mainFilePath, 'changed\n', 'utf8'),
         writeFile(nestedFilePath, 'changed\n', 'utf8'),
+        writeFile(folderFilePath, 'changed\n', 'utf8'),
     ]);
 
     const root = await realpath(rootInput);
@@ -242,12 +249,11 @@ test('Git changed files dragged to Terminal insert shell-safe paths without exec
         const terminalInput = running.page.locator('.xterm-helper-textarea');
         await expect(gitPanel.locator('.git-repository-section')).toHaveCount(2);
 
-        const dragGitFile = async (
-            fileName: string,
+        const dragGitRow = async (
+            source: Locator,
             expectedCwdPath: string,
             resultPath: string,
         ): Promise<void> => {
-            const source = gitPanel.getByRole('treeitem', { name: fileName, exact: true });
             await expect(source).toBeVisible();
             await terminalInput.click();
             await running.page.keyboard.type("printf '%s' ");
@@ -266,11 +272,22 @@ test('Git changed files dragged to Terminal insert shell-safe paths without exec
          * Keep command receipts outside the watched repository: adding a Git row would refresh and temporarily inert
          * the drag source while the next native drag is in flight.
          */
-        await dragGitFile(mainFileName, mainFileName, join(testDirectory, '.git-main-drop-result'));
-        await dragGitFile(
-            nestedFileName,
+        const fileRow = (name: string): Locator =>
+            gitPanel.getByRole('treeitem', { name, exact: true });
+        await dragGitRow(
+            fileRow(mainFileName),
+            mainFileName,
+            join(testDirectory, '.git-main-drop-result'),
+        );
+        await dragGitRow(
+            fileRow(nestedFileName),
             join('nested repo', nestedFileName),
             join(testDirectory, '.git-nested-drop-result'),
+        );
+        await dragGitRow(
+            gitPanel.locator(`.git-tree-directory[data-path="${folderName}"]`),
+            folderName,
+            join(testDirectory, '.git-folder-drop-result'),
         );
         await expect(running.page.locator('.workbench-pane')).toHaveCount(1);
         await expect(running.page.locator('.terminal-drop-preview')).toHaveCount(0);

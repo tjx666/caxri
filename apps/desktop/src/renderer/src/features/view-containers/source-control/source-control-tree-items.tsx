@@ -14,9 +14,13 @@ import { cn } from '../../../lib/utilities';
 import { openFile } from '../../editor/document-commands';
 import { sourceControlDecorationClassName } from './source-control-decorations';
 import { SourceControlIcon } from './source-control-icon';
+import { SourceControlLineStats } from './source-control-line-stats';
 import { sourceControlActionMenuItems } from './source-control-row-menu';
 import type { SourceControlTreeNode } from './source-control-tree';
-import { sourceControlDirectoryExpansionKeys } from './source-control-tree';
+import {
+    sourceControlDirectoryExpansionKeys,
+    sourceControlLineStatsLabel,
+} from './source-control-tree';
 import { useSourceControlTreeFocus } from './source-control-tree-focus';
 import { treeNavigationAction } from './source-control-tree-navigation';
 import { SourceControlTreeRow } from './source-control-tree-row';
@@ -281,6 +285,7 @@ function SourceControlVirtualRow({
     if (node.kind === 'directory') {
         const isExpanded = row.isExpanded;
         const expansionKey = row.expansionKey ?? `${providerKey}:${node.path}`;
+        const directoryPath = resolveRepoFilePath(repositoryRootPath, node.path);
         return (
             <div className={virtualRowClassName} style={position}>
                 <SourceControlTreeRow
@@ -290,8 +295,11 @@ function SourceControlVirtualRow({
                     style={{ paddingLeft: 8 + depth * 14 }}
                     aria-expanded={isExpanded}
                     aria-keyshortcuts="Alt"
+                    aria-description={sourceControlLineStatsLabel(node.lineStats)}
                     data-path={node.path}
                     {...setInfo}
+                    draggable={Boolean(directoryPath)}
+                    onDragStart={(event) => handleResourceDragStart(event, directoryPath)}
                     onClick={(event) =>
                         setDirectoriesExpanded(
                             event.altKey
@@ -314,7 +322,8 @@ function SourceControlVirtualRow({
                         entry={{ kind: 'directory', name: node.name }}
                         expanded={isExpanded}
                     />
-                    <span className="truncate">{node.name}</span>
+                    <span className="min-w-0 flex-1 truncate">{node.name}</span>
+                    <SourceControlLineStats lineStats={node.lineStats} />
                 </SourceControlTreeRow>
             </div>
         );
@@ -352,6 +361,7 @@ function SourceControlVirtualRow({
                 style={{ paddingLeft: 10 + depth * 14 }}
                 data-path={resource.path}
                 aria-label={resource.accessibilityLabel}
+                aria-description={sourceControlLineStatsLabel(resource.lineStats)}
                 aria-keyshortcuts={openablePath ? 'Alt' : undefined}
                 {...setInfo}
                 draggable={Boolean(resourcePath)}
@@ -362,6 +372,14 @@ function SourceControlVirtualRow({
                 <span className={cn('min-w-0 flex-1 truncate', resourceColorClassName(resource))}>
                     {node.name}
                 </span>
+                <SourceControlLineStats
+                    lineStats={resource.lineStats}
+                    className={
+                        trailingActions.length > 0
+                            ? 'group-focus-within:invisible group-hover:invisible'
+                            : undefined
+                    }
+                />
                 <Decoration
                     resource={resource}
                     className={

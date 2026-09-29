@@ -12,6 +12,7 @@ import {
     boundedActionLabel,
     boundedEditorResource,
     boundedResourceTooltip,
+    sourceControlLineStats,
     sourceControlResourceProjection,
 } from './source-control-projection';
 import { boundedSourceControlResourceId } from './source-control-resource-id';
@@ -128,6 +129,7 @@ export function buildSourceControlHistoryDetails(options: {
                 icon: { kind: 'file-type' as const, name: projection.label },
                 path: projection.path,
                 decoration: detailStatus[file.status],
+                ...sourceControlLineStats(file),
                 ...(resource && { editorResource: resource, action }),
             };
         }),

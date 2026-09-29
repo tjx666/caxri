@@ -14,8 +14,8 @@ import {
     themeImportFormatIds,
     themeTokenSourceIds,
     themeTokensSchema,
-    updateStateSchema,
 } from '../domain.js';
+import { updateStateSchema } from '../update-state.js';
 
 describe('identifierSchema and pathSchema bounds', () => {
     it('rejects an empty identifier', () => {

@@ -6,6 +6,10 @@ interface SourceControlTreeDirectory {
     kind: 'directory';
     name: string;
     path: string;
+    /**
+     * Sum of every measured resource beneath the directory; absent when none of them carries line counts.
+     */
+    lineStats?: SourceControlResource['lineStats'];
 }
 
 interface SourceControlTreeResource {
@@ -57,11 +61,22 @@ export function buildSourceControlResourceTree(
         path: '',
     };
     for (const resource of resources) placeResource(root, resource);
-    const sort = (directory: SourceControlTreeDirectory): void => {
+    const finish = (directory: SourceControlTreeDirectory): SourceControlResource['lineStats'] => {
         directory.children = directory.children.toSorted(compareTreeNodesDirectoriesFirst);
-        for (const child of directory.children) if (child.kind === 'directory') sort(child);
+        let lineStats: SourceControlResource['lineStats'];
+        for (const child of directory.children) {
+            const childStats =
+                child.kind === 'directory' ? finish(child) : child.resource.lineStats;
+            if (!childStats) continue;
+            lineStats = {
+                additions: (lineStats?.additions ?? 0) + childStats.additions,
+                deletions: (lineStats?.deletions ?? 0) + childStats.deletions,
+            };
+        }
+        if (lineStats) directory.lineStats = lineStats;
+        return lineStats;
     };
-    sort(root);
+    finish(root);
     return root.children;
 }
 
@@ -89,4 +104,14 @@ export function sourceControlDirectoryExpansionKeys(
     return collectTreeSubtree(node, (directory) =>
         directory.children.filter(isSourceControlTreeDirectory),
     ).map((directory) => `${providerKey}:${directory.path}`);
+}
+
+/**
+ * A row's `+N −M` in words, where bare signed digits would read as arithmetic.
+ */
+export function sourceControlLineStatsLabel(
+    lineStats: SourceControlResource['lineStats'],
+): string | undefined {
+    if (!lineStats) return undefined;
+    return `${lineStats.additions} ${lineStats.additions === 1 ? 'line' : 'lines'} added, ${lineStats.deletions} removed`;
 }
