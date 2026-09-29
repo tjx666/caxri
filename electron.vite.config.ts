@@ -102,7 +102,14 @@ export default defineConfig(async ({ command }) => {
                 // oxlint-disable-next-line typescript/no-deprecated -- see above: knip compatibility
                 rollupOptions: {
                     input: {
-                        index: resolve('apps/desktop/src/main/index.ts'),
+                        index: resolve('apps/desktop/src/main/bootstrap.ts'),
+                    },
+                    output: {
+                        /**
+                         * Keeps the Main graph chunk beside the bootstrap entry: Main resolves `preload/` and the
+                         * Renderer relative to its own `import.meta.url`.
+                         */
+                        chunkFileNames: '[name]-[hash].js',
                     },
                 },
             },

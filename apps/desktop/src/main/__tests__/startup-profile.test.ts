@@ -27,6 +27,7 @@ describe('StartupProfile', () => {
             serverAttachedMs: 300,
             windowCreatedMs: null,
             readyToShowMs: null,
+            windowShownMs: null,
             rendererReadyMs: null,
             loaderRemovedMs: 600,
             firstFrameMs: 620,

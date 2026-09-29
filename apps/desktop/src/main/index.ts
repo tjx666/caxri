@@ -40,7 +40,6 @@ import {
     reopenAuxiliaryWindowsAtStartup,
 } from './auxiliary-window-lifecycle';
 import { consoleErrorLogFields } from './console-error-fields';
-import { decideCrashRecovery } from './crash-policy';
 import { createDesktopActions } from './desktop-actions';
 import { createDesktopLogger } from './desktop-logger';
 import type { DesktopNotifications } from './desktop-notifications';
@@ -63,6 +62,7 @@ import { createMenuKeybindingFailureInjection } from './menu-keybinding-failure'
 import { createMenuRefreshController } from './menu-refresh';
 import { createOnDemandWindows } from './on-demand-windows';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
+import { observeRendererCrashes } from './renderer-crash-recovery';
 import { loadRendererEntry } from './renderer-entry';
 import { observeRendererHangs } from './renderer-hang-observer';
 import { RendererReadiness } from './renderer-readiness';
@@ -79,6 +79,8 @@ import {
 } from './window-chrome';
 import { createWindowCloseHandler } from './window-close';
 import { resolveE2EWindowMode } from './window-mode';
+import type { WindowPlacement } from './window-placement';
+import { defaultWindowState, showWhenPlaced } from './window-placement';
 import { installWorkbenchIpc } from './workbench-ipc';
 import { createWorkbenchRootAuthority } from './workbench-root-authority';
 
@@ -117,6 +119,11 @@ if (ownsProfileInstance) {
     let mainRenderer: WebContents | undefined;
     let supervisor: DesktopServerConnection;
     let mainLogger: ReturnType<typeof createDesktopLogger> | undefined;
+    /**
+     * Resolves once Server Core is attached and Main's Server-backed services exist. The Workbench window is created
+     * before that, so every Renderer request and the events handshake wait on it instead of failing `UNAVAILABLE`.
+     */
+    const serverReady = Promise.withResolvers<void>();
     const startupProfile = new StartupProfile(performance.timeOrigin, () => mainLogger);
     startupProfile.mark('mainModule', bootStartedAt);
     /**
@@ -231,10 +238,10 @@ if (ownsProfileInstance) {
         readStatus: () => supervisor.request('host.status'),
         stopServer: () => supervisor.stopServer(),
     });
-    function createWindow(initialState: PersistedWindowState, zoomLevel: number): BrowserWindow {
-        const zoomFactor = zoomFactorForLevel(zoomLevel);
+    function createWindow(placement: Promise<WindowPlacement>): BrowserWindow {
+        const zoomFactor = zoomFactorForLevel(windowZoom.level());
         const window = new BrowserWindow({
-            ...initialState.bounds,
+            ...defaultWindowState.bounds,
             minWidth: 960,
             minHeight: 640,
             title: 'Caxri',
@@ -246,8 +253,11 @@ if (ownsProfileInstance) {
                 nodeIntegration: false,
                 sandbox: true,
                 /**
-                 * Applied before the first paint so a zoomed window never flashes at 100% first.
+                 * The window stays hidden while it loads in parallel with Server Core startup; an unthrottled page
+                 * reaches its first paint, and so `ready-to-show`, without waiting for visibility. Throttling returns
+                 * once the window is shown.
                  */
+                backgroundThrottling: false,
                 zoomFactor,
             },
         });
@@ -257,7 +267,6 @@ if (ownsProfileInstance) {
             if (isMainFrame) eventRelay.rendererPending();
         });
         let persistTimer: NodeJS.Timeout | undefined;
-        let rendererCrashTimestampsMs: number[] = [];
         const persistWindowState = (): void => {
             /**
              * `before-quit` performs the final ordered write before Server shutdown.
@@ -291,15 +300,10 @@ if (ownsProfileInstance) {
             scheduleWindowState();
             sendFullScreenState();
         });
-        if (initialState.isMaximized) window.maximize();
         /**
-         * `setFullScreen(true)` here fires `enter-full-screen` synchronously, before `mainWindow` is assigned by the
-         * caller (it's only set once `createWindow` returns), so the module-level `sendEvent`/`mainWindow` path can't
-         * be used for this push. `did-finish-load` covers the matching case where the Renderer loads (or
-         * reloads/crash-recovers) while already fullscreen, so it observes the current state instead of missing the
-         * one-shot restore event above.
+         * `did-finish-load` covers the Renderer loading (or reloading/crash-recovering) while already fullscreen, so it
+         * observes the current state instead of missing the one-shot `enter-full-screen` of a restored placement.
          */
-        if (initialState.isFullScreen) window.setFullScreen(true);
         startupProfile.mark('windowCreated');
         mainLogger?.write('info', logEventCatalog.window.created);
         window.webContents.on('did-finish-load', sendFullScreenState);
@@ -308,8 +312,12 @@ if (ownsProfileInstance) {
             mainLogger?.write('info', logEventCatalog.window.readyToShow, {
                 durationMs: performance.now() - bootStartedAt,
             });
-            if (e2eWindowMode === 'visible') window.show();
             updateService.startAutomaticCheck({ isE2E: process.env.CAXRI_E2E === '1' });
+        });
+        showWhenPlaced(window, placement, () => {
+            startupProfile.mark('windowShown');
+            window.webContents.setBackgroundThrottling(true);
+            if (e2eWindowMode === 'visible') window.show();
         });
         /**
          * Passive page content never inherits authority from an explicitly trusted Terminal link.
@@ -335,59 +343,9 @@ if (ownsProfileInstance) {
             });
         });
         observeRendererHangs(window.webContents, logEventCatalog.window, () => mainLogger);
-        window.webContents.on('render-process-gone', (_event, details) => {
-            if (details.reason === 'clean-exit' || window.isDestroyed()) return;
-            const { decision, crashTimestampsMs } = decideCrashRecovery(
-                rendererCrashTimestampsMs,
-                Date.now(),
-            );
-            rendererCrashTimestampsMs = crashTimestampsMs;
-            if (decision.action === 'reload') {
-                mainLogger?.write('warn', logEventCatalog.window.renderProcessGone, {
-                    fields: {
-                        code: 'RENDER_PROCESS_GONE',
-                        reason: details.reason,
-                        exitCode: details.exitCode,
-                        crashCount: decision.crashCount,
-                        delayMs: decision.delayMs ?? 0,
-                    },
-                });
-                setTimeout(() => {
-                    if (!window.isDestroyed()) window.reload();
-                }, decision.delayMs);
-                return;
-            }
-            mainLogger?.write('error', logEventCatalog.window.renderProcessCrashLoop, {
-                fields: {
-                    code: 'RENDER_PROCESS_CRASH_LOOP',
-                    reason: details.reason,
-                    exitCode: details.exitCode,
-                    crashCount: decision.crashCount,
-                },
-            });
-            // `render-process-gone` is a synchronous listener; recovering from a repeated crash by
-            // relaunching or exiting cannot block this handler, so the recovery flow below is
-            // deliberately fire-and-forget rather than awaited.
-            (async () => {
-                const result = await dialog.showMessageBox(window, {
-                    type: 'error',
-                    title: 'Caxri Keeps Crashing',
-                    message:
-                        'The Caxri window has crashed repeatedly and automatic reload stopped.',
-                    detail: 'Relaunch Caxri, or quit to investigate.',
-                    buttons: ['Relaunch', 'Quit'],
-                    defaultId: 0,
-                    cancelId: 1,
-                });
-                try {
-                    await supervisor.shutdown();
-                } catch {
-                    // Best-effort shutdown; the window still needs to relaunch or exit below.
-                }
-                if (result.response === 0) app.relaunch();
-                app.exit(0);
-                // eslint-disable-next-line unicorn/prefer-await -- see comment above
-            })().catch(() => {});
+        observeRendererCrashes(window, {
+            logger: () => mainLogger,
+            shutdown: () => supervisor.shutdown(),
         });
         const requestWindowClose = createWindowCloseHandler({
             close: () => {
@@ -465,24 +423,30 @@ if (ownsProfileInstance) {
             isFullScreen: window.isFullScreen(),
         };
     }
-    async function openMainWindow(): Promise<void> {
+    async function readWindowPlacement(): Promise<WindowPlacement> {
+        const readState = async (): Promise<PersistedWindowState> => {
+            try {
+                return await supervisor.request('app.windowState.get');
+            } catch {
+                return defaultWindowState;
+            }
+        };
+        const [state, zoomLevel] = await Promise.all([readState(), windowZoom.load()]);
+        return { state, zoomLevel };
+    }
+
+    /**
+     * Creates the Workbench window at once and shows it when `placement` lands. Startup passes a placement that waits
+     * for Server Core, so the Renderer loads while Server Core is still starting.
+     */
+    function openMainWindow(placement?: Promise<WindowPlacement>): void {
         if (mainWindow) return;
-        let initialState: PersistedWindowState;
-        try {
-            initialState = await supervisor.request('app.windowState.get');
-        } catch {
-            initialState = {
-                bounds: { width: 1440, height: 900 },
-                isMaximized: false,
-                isFullScreen: false,
-            };
-        }
-        mainWindow = createWindow(initialState, await windowZoom.load());
+        mainWindow = createWindow(placement ?? readWindowPlacement());
         mainRenderer = mainWindow.webContents;
     }
 
     async function focusMainWindow(): Promise<BrowserWindow> {
-        await openMainWindow();
+        openMainWindow();
         const window = mainWindow!;
         await rendererReadiness.wait(window.webContents);
         if (window.isMinimized()) window.restore();
@@ -546,23 +510,37 @@ if (ownsProfileInstance) {
     function installIpc(): void {
         const dispatchCommand = createElectronIpcCommandAdapter({
             server: {
-                invoke: (request, _context, invocation) =>
-                    request.method === 'events.recover'
+                invoke: async (request, _context, invocation) => {
+                    await serverReady.promise;
+                    return request.method === 'events.recover'
                         ? eventRelay.recover(request.params.afterCursor)
-                        : supervisor.forward(request.method, request.params, invocation.requestId),
+                        : supervisor.forward(request.method, request.params, invocation.requestId);
+                },
             },
             desktop: {
                 isAvailable: () => Boolean(mainWindow && !mainWindow.isDestroyed()),
-                invoke: ((request: CaxriRequest) => {
+                invoke: (async (request: CaxriRequest) => {
                     if (!isMainRequest(request))
                         throw new CaxriError(
                             'INTERNAL',
                             'Server command reached the Desktop adapter',
                         );
+                    await serverReady.promise;
                     return handleMainMethod(request);
                 }) satisfies CommandAdapter['invoke'],
             },
         });
+        const completeRendererHandshake = (): void => {
+            eventRelay.rendererReady();
+            if (mainRenderer) rendererReadiness.ready(mainRenderer);
+            // A failed readiness handshake is only logged, so this is deliberately fire-and-forget.
+            // eslint-disable-next-line unicorn/prefer-await -- see comment above
+            supervisor.markDesktopReady().catch((error: unknown) =>
+                mainLogger?.write('error', logEventCatalog.serverConnection.desktopReadyFailed, {
+                    fields: { error: errorMessage(error, 'unknown') },
+                }),
+            );
+        };
         installWorkbenchIpc({
             isQuitting: () => isQuitStarted,
             isRecovering: () => supervisor.isRecovering(),
@@ -572,20 +550,8 @@ if (ownsProfileInstance) {
             onStartupFrame: (frame) => startupProfile.complete(frame),
             onEventsReady: () => {
                 startupProfile.mark('rendererReady');
-                eventRelay.rendererReady();
-                if (mainRenderer) rendererReadiness.ready(mainRenderer);
-                // `onEventsReady` is a synchronous listener; a failed readiness handshake is only
-                // logged, so this is deliberately fire-and-forget rather than awaited.
-                // eslint-disable-next-line unicorn/prefer-await -- see comment above
-                supervisor.markDesktopReady().catch((error: unknown) =>
-                    mainLogger?.write(
-                        'error',
-                        logEventCatalog.serverConnection.desktopReadyFailed,
-                        {
-                            fields: { error: errorMessage(error, 'unknown') },
-                        },
-                    ),
-                );
+                // eslint-disable-next-line no-void -- replays the synchronous handshake once Server Core is attached
+                void serverReady.promise.then(completeRendererHandshake);
             },
             renderer: () => mainRenderer,
             companion: agentCommander?.companion(),
@@ -724,15 +690,22 @@ if (ownsProfileInstance) {
             }));
             supervisor.onEvent(sendEvent);
             wirePowerWake(powerMonitor, () => (quitIntent = 'system-shutdown'), supervisor);
-            if (
-                !(await shouldContinueStartup({
-                    dialog,
-                    logger: mainLogger,
-                    quit: () => app.quit(),
-                    supervisor,
-                }))
-            )
-                return;
+            const attaching = shouldContinueStartup({
+                dialog,
+                logger: mainLogger,
+                quit: () => app.quit(),
+                supervisor,
+            });
+            // The window loads while Server Core starts; its IPC waits on `serverReady`, and it shows once placed.
+            installIpc();
+            const startupPlacement = async (): Promise<WindowPlacement> => {
+                if (!(await attaching)) return new Promise<never>(() => {});
+                await serverReady.promise;
+                await menuRefreshController.refresh();
+                return readWindowPlacement();
+            };
+            openMainWindow(startupPlacement());
+            if (!(await attaching)) return;
             startupProfile.mark('serverAttached');
             notifications = createDesktopNotifications({
                 sendEvent,
@@ -746,10 +719,8 @@ if (ownsProfileInstance) {
                 supervisor,
             });
             void notifications.initialize(); // eslint-disable-line no-void -- background-only startup state
-            installIpc();
             processExplorer.installIpc();
-            await menuRefreshController.refresh();
-            await openMainWindow();
+            serverReady.resolve();
             // `openMainWindow` alone only creates the window; wait for its Renderer too (see `reopenAuxiliaryWindowsAtStartup`).
             await rendererReadiness.wait(mainWindow!.webContents);
             await reopenAuxiliaryWindowsAtStartup(agentCommander, processExplorer);
@@ -758,10 +729,7 @@ if (ownsProfileInstance) {
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         .catch(() => {});
     app.on('activate', () => {
-        // `activate` is a synchronous listener; a failed reopen is not user-actionable here, so this
-        // is deliberately fire-and-forget rather than awaited.
-        // eslint-disable-next-line unicorn/prefer-await -- see comment above
-        if (!mainWindow) openMainWindow().catch(() => {});
+        openMainWindow();
         // `activate` is a synchronous listener; a failed validation pass surfaces on the next one.
         // eslint-disable-next-line unicorn/prefer-await -- see comment above
         supervisor.request('session.validateWorkbenchRoots').catch(() => {});

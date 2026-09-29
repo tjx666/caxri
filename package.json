@@ -155,6 +155,7 @@
             },
             "apps/desktop": {
                 "entry": [
+                    "src/main/bootstrap.ts",
                     "src/preload/process-explorer.ts",
                     "src/renderer/src/agent-commander-main.tsx",
                     "src/renderer/src/main.tsx",
@@ -165,7 +166,7 @@
                 "entry": [
                     "src/terminal-host/agent-launcher/process.ts",
                     "src/extension-host/process.ts",
-                    "src/core/process.ts",
+                    "src/core/bootstrap.ts",
                     "src/terminal-host/process.ts"
                 ]
             },

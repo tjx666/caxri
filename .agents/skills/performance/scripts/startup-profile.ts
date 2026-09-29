@@ -29,6 +29,7 @@ const DESKTOP_FIELDS = [
     'serverAttachedMs',
     'windowCreatedMs',
     'readyToShowMs',
+    'windowShownMs',
     'rendererReadyMs',
     'loaderRemovedMs',
     'firstFrameMs',
