@@ -281,6 +281,7 @@ function SourceControlVirtualRow({
     if (node.kind === 'directory') {
         const isExpanded = row.isExpanded;
         const expansionKey = row.expansionKey ?? `${providerKey}:${node.path}`;
+        const directoryPath = resolveRepoFilePath(repositoryRootPath, node.path);
         return (
             <div className={virtualRowClassName} style={position}>
                 <SourceControlTreeRow
@@ -292,6 +293,8 @@ function SourceControlVirtualRow({
                     aria-keyshortcuts="Alt"
                     data-path={node.path}
                     {...setInfo}
+                    draggable={Boolean(directoryPath)}
+                    onDragStart={(event) => handleResourceDragStart(event, directoryPath)}
                     onClick={(event) =>
                         setDirectoriesExpanded(
                             event.altKey
