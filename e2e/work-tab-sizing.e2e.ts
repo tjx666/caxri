@@ -694,7 +694,7 @@ test('a drag hover preview activates a Terminal tab without pulling focus into i
     }
 });
 
-test('the bar hides "+" with no tabs at all and reserves its drag corner only without the primarySidebar', async () => {
+test('the bar hides "+" with no tabs at all and reserves its drag corner only without either sidebar', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-drag-corner-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const rootInput = join(testDirectory, 'project');
@@ -715,11 +715,11 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
         await expect(actions).toHaveCount(1);
         await expect(actions.locator(':scope > div')).toHaveCSS('opacity', '0');
 
-        // The hidden-at-rest + still reserves its slot. With the sidebar closed the corner remains the draggable
-        // handle beside that slot.
+        // Neither sidebar may sit beside the bar: an open SecondarySidebar ends it at that rail, not the window corner.
         await running.page.keyboard.press('Meta+BracketLeft');
         await expect(running.page.locator('.primary-sidebar-title')).toHaveCount(0);
-        await expect(dragCorner).toHaveCount(1);
+        await expect(dragCorner).toHaveCount(0);
+        await running.page.keyboard.press('Meta+BracketRight');
         await expect(dragCorner).toHaveJSProperty('offsetWidth', 32);
 
         /**

@@ -43,9 +43,25 @@ test('Session inline rename validates input and survives Renderer reload', async
         await createProjectSession(running.page);
         const sessionId = await selectedSessionId(running.page);
         const card = sessionCard(running.page, sessionId);
+        const restingHeight = (await card.boundingBox())?.height;
+        const titleLeft = await card
+            .locator('.session-title')
+            .evaluate((element) => element.getBoundingClientRect().left);
         await card.dblclick();
         const input = card.getByRole('textbox', { name: 'Rename Untitled' });
         await expect(input).toBeFocused();
+        // The input swaps in for the title line without resizing the row or shifting the text: a `flex-1` inside the
+        // column once crushed it to 16px and shrank the row by 4px.
+        expect((await card.boundingBox())?.height).toBe(restingHeight);
+        expect(
+            await input.evaluate((element) => ({
+                height: element.getBoundingClientRect().height,
+                textLeft:
+                    element.getBoundingClientRect().left +
+                    element.clientLeft +
+                    Number(getComputedStyle(element).paddingLeft.replace('px', '')),
+            })),
+        ).toEqual({ height: 24, textLeft: titleLeft });
         expect(
             await input.evaluate((element) => ({
                 end: (element as HTMLInputElement).selectionEnd,
