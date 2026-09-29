@@ -26,6 +26,8 @@ names. Unclear tasks defer naming; generation uses the existing isolated, tool-d
 The first substantive user request determines the generated title's language; an issue-only or image-only request
 uses the assistant's explanation. Generated titles are checked against that language and cannot be a bare issue key.
 An invalid non-SKIP result gets one corrective generation attempt before naming defers to a later turn.
+A transcript that still lacks a user or assistant message is re-read after 0.5, 2, and 8 seconds before naming
+defers, because Claude Code's Stop hook can arrive a few milliseconds before the reply reaches the transcript.
 An unknown-provenance native title that is only an issue key is treated as provisional under automatic ownership;
 an explicitly user-owned native title remains authoritative.
 `sessions.automatic_naming` persists the exact provider binding and pending title before native rename, then records

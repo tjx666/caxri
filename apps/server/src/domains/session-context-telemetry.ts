@@ -45,15 +45,6 @@ function increment(
 }
 
 /**
- * A `missing` transcript is the ordinary state before an Agent has written its first line, and every visible Session
- * without one polls this path every minute; logging it at `warn` would make routine idleness indistinguishable from a
- * real problem. Every other reason is either a security rejection or an IO failure, worth surfacing immediately.
- */
-function levelFor(reason: TranscriptScanFailureReason): 'debug' | 'warn' {
-    return reason === 'missing' ? 'debug' : 'warn';
-}
-
-/**
  * Owns what `SessionContextService`'s incremental transcript scan records about itself (issue #1032). One immediate
  * record per failure and per cursor reset — the same shapes `GitSummaryTelemetry` uses for `git.summary` — keeps a
  * symlink rejection or a truncated transcript visible the moment it happens, while the per-Session, per-window
@@ -119,12 +110,14 @@ export class SessionContextTelemetry {
     }
 
     /**
-     * Records one scan pass that produced nothing, at `debug` for the routine `missing` case and `warn` for a real
-     * security rejection or IO failure, so a maintainer can grep for exactly the failure class a report describes.
+     * Records one scan pass that produced nothing. A `missing` transcript is the ordinary state before an Agent has
+     * written its first line and every visible Session without one polls this path, so it is counted only in the window
+     * aggregate. Every other reason is a security rejection or an IO failure, logged at `warn` immediately.
      */
     recordFailure(sessionId: string, reason: TranscriptScanFailureReason): void {
         increment(this.window(sessionId).failures, reason);
-        this.logger.write(levelFor(reason), logEventCatalog.sessionContext.scanFailed, {
+        if (reason === 'missing') return;
+        this.logger.write('warn', logEventCatalog.sessionContext.scanFailed, {
             fields: { sessionId, reason },
         });
     }

@@ -249,8 +249,12 @@ for this Agent. Showing the Terminal.` A plain shell never shows this notice.
   wheel step follows the finger; a flick released while moving keeps gliding. Android Acceptance
   `MOB-TERM-SCROLL-FEEL-01` measures this against a synthetic full-screen application for both SGR
   wheel reports and cursor-key scrolling.
-- **Take over**: a floating `Take over` button (control devices) resizes the PTY to the phone through
-  a Server lease and opens the system keyboard. The phone keeps the text size it showed while
+- **Take over**: a control device takes the lease automatically once the Terminal is ready and the
+  phone grid size is known, without raising the keyboard. The automatic attempt happens once per
+  subscription. A floating `Release` button hands the size back, and a released Terminal stays
+  released (including across resubscribe and network recovery) until the reader leaves the Terminal.
+  View and reply devices stay watch-only. The floating `Take over` button (shown while released)
+  resizes the PTY to the phone through a Server lease and opens the system keyboard. The phone keeps the text size it showed while
   observing, so the leased grid holds as many cells as fit at that size instead of switching to a
   large full-size font. Pinching while leased changes the text size, and the lease is then re-applied
   at the new grid so the content reflows to fill the phone. Desktop mirrors the leased grid until

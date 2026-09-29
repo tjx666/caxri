@@ -114,7 +114,9 @@ swipes inside the content area, away from Android's Back gesture edges, and chec
 An identifier existing in source does not prove that the current Agent, device role, and segment
 render it. Choose a visible composer entry before entering text. During a mobile Terminal lease,
 Desktop's rendered grid follows the phone; verify window geometry separately, and expect the
-Desktop grid to return only after release. For pinch claims, inject one native two-pointer gesture
+Desktop grid to return only after release. Control devices take the lease automatically when the
+Terminal opens; Release keeps it released until the reader leaves the Terminal, so tap it before
+asserting observing behavior. For pinch claims, inject one native two-pointer gesture
 and inspect the resulting framebuffer; parallel single-pointer swipes do not establish pinch behavior.
 Keep injected render failures active until the error screen's explicit retry action clears them;
 a one-shot mutation during render can be consumed by React's automatic replay without showing the boundary.

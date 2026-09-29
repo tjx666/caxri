@@ -211,6 +211,9 @@
    drag gap; those stay put while the tabs scroll under them. */
 .work-tab-scroll,
 .work-tab-sticky {
+    /* `overflow-x: auto` computes `overflow-y` to `auto`, and the active tab's hairline hangs 1px below the rail,
+       which painted the shared 8px vertical scrollbar thumb at the rail's right edge. */
+    overflow-y: hidden;
     scrollbar-color: var(--muted) transparent;
     scrollbar-width: thin;
 }
