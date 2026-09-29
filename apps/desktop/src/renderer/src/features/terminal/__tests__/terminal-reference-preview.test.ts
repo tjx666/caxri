@@ -71,7 +71,7 @@ describe('terminalReferencePreviewCard', () => {
         ).toEqual({
             body: 'Explains why. Trailer: value',
             detail: 'caxri \u{00B7} f36a02a',
-            facts: ['Ada Lovelace', '2 days ago', '+12 \u{2212}4 in 3 files'],
+            facts: ['Ada Lovelace', '2 days ago', '+12 -4 in 3 files'],
             title: 'Serialize Session-state writes',
         });
     });
