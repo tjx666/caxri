@@ -26,10 +26,17 @@ export function SessionRenameInput({
     const errorId = `session-rename-error-${sessionId}`;
     return (
         <>
+            {/*
+             * The input replaces the 20px title line inside a `flex-col`, so `flex-1` there would set a zero flex-basis
+             * along the column and crush `h-6` to the line height — shrinking the whole row mid-rename. Instead it
+             * keeps its 24px box and bleeds 2px into the card's `py-1` on each side, and 5px (padding + border) to the
+             * left so the edited text sits exactly where the title was: the row neither shrinks nor grows, and the
+             * text does not jump. Size and weight match `.session-title` for the same reason.
+             */}
             <Input
                 ref={focusInput}
                 appearance="workbench"
-                className="session-rename flex-1 text-foreground"
+                className="session-rename -mx-1.25 -my-0.5 w-auto text-[13px] font-medium text-foreground"
                 aria-label={`Rename ${title}`}
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? errorId : undefined}
