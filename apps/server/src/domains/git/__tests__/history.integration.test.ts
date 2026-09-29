@@ -131,7 +131,12 @@ describe('Git commit history', () => {
             path: 'src',
         });
         expect(details.commit.parents).toHaveLength(2);
-        expect(details.files).toContainEqual({ path: 'src/feature.ts', status: 'added' });
+        expect(details.files).toContainEqual({
+            path: 'src/feature.ts',
+            status: 'added',
+            additions: 1,
+            deletions: 0,
+        });
         expect(details.filesTruncated).toBe(false);
         // The merge brings in `feature\n` via its first parent: one added line, nothing deleted.
         expect(details.additions).toBe(1);

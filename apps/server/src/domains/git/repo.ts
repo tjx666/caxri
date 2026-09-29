@@ -18,10 +18,11 @@ import type { GitChangeTracker } from './change-tracker';
 import { describeGitSummaryFailure } from './errors';
 import type { GitMetadataWatcher } from './metadata-watcher';
 import { isMissingRepoRoot, MissingRepoRootCache } from './missing-root-cache';
+import { measureWorkingTreeLineStats, WORKING_TREE_NUMSTAT_ARGUMENTS } from './numstat';
 import { registerGitProjection } from './projection';
 import { sharedGitRequest } from './request-signal';
 import type { RepoStatus } from './status';
-import { parseGitLineStats, parseGitStatus, RepoStatusStore } from './status';
+import { parseGitStatus, RepoStatusStore } from './status';
 import { GitSummaryTelemetry } from './summary-telemetry';
 import type { GitSummaryRequester, SummaryTrace } from './summary-trace';
 import type { RepoTopologyRegistry } from './topology';
@@ -218,20 +219,19 @@ export class GitRepoService {
                 ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all'],
                 { maxBufferBytes: MAX_GIT_STATUS_BUFFER_BYTES },
             ),
-            this.tracedGit(trace, rootPath, ['diff', '--numstat', '--no-renames', 'HEAD', '--'], {
-                allowFailure: true,
-            }),
+            this.tracedGit(trace, rootPath, WORKING_TREE_NUMSTAT_ARGUMENTS, { allowFailure: true }),
         ]);
         const parsed = parseGitStatus(statusOutput);
         const changedFileCount = parsed.files.length;
         const isTruncated = changedFileCount > MAX_GIT_STATUS_FILES;
-        return {
-            ...parsed,
-            changedFileCount,
-            truncated: isTruncated,
-            files: isTruncated ? parsed.files.slice(0, MAX_GIT_STATUS_FILES) : parsed.files,
-            ...parseGitLineStats(lineStatsOutput),
-        };
+        const files = isTruncated ? parsed.files.slice(0, MAX_GIT_STATUS_FILES) : parsed.files;
+        const lineStats = await measureWorkingTreeLineStats(
+            rootPath,
+            files,
+            lineStatsOutput,
+            parsed.head,
+        );
+        return { ...parsed, changedFileCount, truncated: isTruncated, ...lineStats };
     }
 
     private async canonicalRepositoryRoot(

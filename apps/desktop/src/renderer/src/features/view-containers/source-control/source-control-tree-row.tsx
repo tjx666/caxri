@@ -54,7 +54,11 @@ export function SourceControlTreeRow({
                 properties.className,
             )}
             aria-level={level}
-            aria-description={menuItems?.length ? 'Press Shift+F10 for actions' : undefined}
+            aria-description={
+                [properties['aria-description'], hasMenu && 'Press Shift+F10 for actions']
+                    .filter(Boolean)
+                    .join('. ') || undefined
+            }
             data-row-id={rowId}
             role="treeitem"
             tabIndex={treeRowTabIndex(focus.activeRowId, rowId)}

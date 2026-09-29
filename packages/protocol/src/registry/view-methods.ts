@@ -2,13 +2,13 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/domain.js';
+import { viewBadgeSchema } from '../domain/view-badges.js';
 import {
     extensionViewEventContextSchema,
     sourceControlActionResultSchema,
     sourceControlHistoryDetailsSchema,
     sourceControlHistoryPageSchema,
     sourceControlViewModelSchema,
-    viewBadgeSchema,
     viewIdSchema,
 } from '../domain/views.js';
 import type { MethodSpec } from '../transport/method-spec.js';
