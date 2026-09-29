@@ -32,17 +32,18 @@ export function lineCount(content: Buffer): number {
 
 /**
  * Lines an untracked file adds, which `git diff` never reports because the file has no index entry. A binary, moving,
- * or over-cap file counts as zero rather than failing the whole count.
+ * or over-cap file is unmeasured (`undefined`) rather than failing the whole count; totals treat it as zero, while a
+ * per-file display shows no count instead of a misleading `+0 −0`.
  */
 export async function untrackedLineCount(
     rootPath: string,
     path: string,
     maxBytes: number,
-): Promise<number> {
+): Promise<number | undefined> {
     try {
         const content = await readWorkingFile(resolve(rootPath, path), maxBytes);
-        return !content || content.includes(0) ? 0 : lineCount(content);
+        return !content || content.includes(0) ? undefined : lineCount(content);
     } catch {
-        return 0;
+        return undefined;
     }
 }

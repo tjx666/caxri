@@ -74,7 +74,8 @@ export class SessionDiffStatStore {
     constructor(private readonly options: SessionDiffStatOptions) {
         this.countUntrackedLines =
             options.countUntrackedLines ??
-            ((rootPath, path) => untrackedLineCount(rootPath, path, MAX_UNTRACKED_FILE_BYTES));
+            (async (rootPath, path) =>
+                (await untrackedLineCount(rootPath, path, MAX_UNTRACKED_FILE_BYTES)) ?? 0);
         this.now = options.now ?? Date.now;
     }
 
