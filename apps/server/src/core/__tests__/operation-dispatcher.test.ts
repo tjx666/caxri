@@ -200,6 +200,9 @@ describe('createOperationDispatcher', () => {
                 'logs.query': () => {
                     throw new CaxriError('IO', 'Log query failed');
                 },
+                'files.read': () => {
+                    throw new CaxriError('NOT_FOUND', 'Requested path no longer exists');
+                },
             }),
             logger,
         );
@@ -217,7 +220,20 @@ describe('createOperationDispatcher', () => {
         await expect(
             dispatch({ id: 'r3', method: 'logs.query', params: { limit: 100 } }),
         ).rejects.toMatchObject({ code: 'IO', message: 'Log query failed' });
+        await expect(
+            dispatch({
+                id: 'r4',
+                method: 'files.read',
+                params: { sessionId: 'session-1', path: 'a.ts' },
+            }),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND' });
         const records = await logRecords(logger);
+        expect(records[0]).toMatchObject({ level: 'error', fields: { code: 'NOT_FOUND' } });
+        expect(records[3]).toMatchObject({
+            level: 'warn',
+            correlationId: 'r4',
+            fields: { method: 'files.read', code: 'NOT_FOUND' },
+        });
         expect(records[0].fields?.stack).toBeNull();
         expect(records[1].fields?.stack).toContain('unexpected boom');
         expect(records[2]).toMatchObject({
