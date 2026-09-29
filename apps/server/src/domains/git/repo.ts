@@ -22,7 +22,7 @@ import { measureWorkingTreeLineStats, WORKING_TREE_NUMSTAT_ARGUMENTS } from './n
 import { registerGitProjection } from './projection';
 import { sharedGitRequest } from './request-signal';
 import type { RepoStatus } from './status';
-import { parseGitStatus, RepoStatusStore } from './status';
+import { loadDetachedHead, parseGitStatus, RepoStatusStore } from './status';
 import { GitSummaryTelemetry } from './summary-telemetry';
 import type { GitSummaryRequester, SummaryTrace } from './summary-trace';
 import type { RepoTopologyRegistry } from './topology';
@@ -225,13 +225,11 @@ export class GitRepoService {
         const changedFileCount = parsed.files.length;
         const isTruncated = changedFileCount > MAX_GIT_STATUS_FILES;
         const files = isTruncated ? parsed.files.slice(0, MAX_GIT_STATUS_FILES) : parsed.files;
-        const lineStats = await measureWorkingTreeLineStats(
-            rootPath,
-            files,
-            lineStatsOutput,
-            parsed.head,
-        );
-        return { ...parsed, changedFileCount, truncated: isTruncated, ...lineStats };
+        const [lineStats, detachedHead] = await Promise.all([
+            measureWorkingTreeLineStats(rootPath, files, lineStatsOutput, parsed.head),
+            loadDetachedHead(parsed, this.tracedGit.bind(this, trace, rootPath)),
+        ]);
+        return { ...parsed, detachedHead, changedFileCount, truncated: isTruncated, ...lineStats };
     }
 
     private async canonicalRepositoryRoot(
@@ -521,6 +519,8 @@ export class GitRepoService {
                     rootPath: repo.rootPath,
                     branch: status.branch,
                     head: status.head,
+                    upstream: status.upstream,
+                    detachedHead: status.detachedHead,
                     ahead: status.ahead,
                     behind: status.behind,
                     additions: status.additions,
