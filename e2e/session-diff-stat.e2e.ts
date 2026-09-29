@@ -44,7 +44,7 @@ test('Session row shows its Workbench Root’s line diff and follows working-tre
         await writeFile(join(repo, 'README.md'), 'Edited by the Agent\n');
         await writeFile(join(repo, 'notes.md'), 'first\nsecond\n');
 
-        await expect(diffStat).toHaveText('+3−1', { timeout: 15_000 });
+        await expect(diffStat).toHaveText('+3-1', { timeout: 15_000 });
         await expect(row).toHaveAccessibleDescription(/Branch changes: 3 lines added, 1 removed\./);
         // The stat and the title line's delivery track end on one right edge, so a PR glyph sits directly above it.
         const rightEdges = await row.evaluate((element) =>

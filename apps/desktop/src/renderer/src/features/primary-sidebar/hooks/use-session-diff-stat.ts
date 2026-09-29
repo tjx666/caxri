@@ -42,7 +42,7 @@ export function useSessionDiffStat(sessionId: string): SessionDiffStat | undefin
 }
 
 /**
- * The row's `+N −M` in words for its accessible description, where bare signed digits would read as arithmetic.
+ * The row's `+N -M` in words for its accessible description, where bare signed digits would read as arithmetic.
  */
 export function sessionDiffStatAriaLabel(stat: SessionDiffStat | undefined): string | undefined {
     if (!stat) return undefined;

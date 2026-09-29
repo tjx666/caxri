@@ -1,9 +1,15 @@
-import { draculaTheme } from '@caxri/protocol';
+import { diffStatColors, draculaTheme } from '@caxri/protocol';
 
 export interface MobileTheme {
     background: string;
     border: string;
     danger: string;
+    /**
+     * The `+N -M` changed-line counts, matching Desktop's `--diff-stat-added` / `--diff-stat-removed`: `success` and
+     * `danger` moved to one lightness so neither count reads heavier (see `diffStatColors`).
+     */
+    diffStatAdded: string;
+    diffStatRemoved: string;
     /**
      * Raised controls and pills that sit on `surface`.
      */
@@ -52,10 +58,14 @@ export interface MobileTheme {
  * Phase one deliberately shares Desktop's canonical Dracula palette. Keeping the semantic mapping here preserves a
  * single mobile theme entry point while appearance modes remain a later product decision.
  */
+const diffStat = diffStatColors(draculaTheme.colors.success, draculaTheme.colors.danger);
+
 export const mobileTheme = {
     background: draculaTheme.colors.background,
     border: draculaTheme.colors.border,
     danger: draculaTheme.colors.danger,
+    diffStatAdded: diffStat.added,
+    diffStatRemoved: diffStat.removed,
     elevated: draculaTheme.colors.elevated,
     gitAdded: draculaTheme.colors.gitAdded,
     gitConflicting: draculaTheme.colors.gitConflicting,

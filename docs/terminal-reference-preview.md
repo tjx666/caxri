@@ -21,7 +21,7 @@ reference's own metadata above that affordance line:
 
 | Reference kind       | Card contents                                                              |
 | -------------------- | -------------------------------------------------------------------------- |
-| Commit sha           | subject, `repository · shortSha`, author, relative age, `+N −M in K files` |
+| Commit sha           | subject, `repository · shortSha`, author, relative age, `+N -M in K files` |
 | GitHub issue / PR    | title, the configured link detail, state and number, author, relative age  |
 | Configured link rule | the rule's own label and detail only — no request is made                  |
 | File path            | the existing affordance hint only                                          |

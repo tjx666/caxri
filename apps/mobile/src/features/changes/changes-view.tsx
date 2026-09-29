@@ -1,9 +1,9 @@
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
-import { formatLineCount } from '@caxri/protocol';
 import { RotateCw } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
+import { ChangesDiffStat } from './changes-diff-stat';
 import { ChangesListContent } from './changes-list-content';
 import type { ChangedFile, ChangesViewState } from './changes-model';
 import { changedFilesSummary, changesSummaryLabel } from './changes-model';
@@ -47,12 +47,11 @@ export const ChangesView = ({
                     {state.snapshot ? (
                         <>
                             {changedFilesSummary(state.snapshot.changedFileCount)} ·{' '}
-                            <Text style={{ color: theme.success }}>
-                                +{formatLineCount(state.snapshot.additions)}
-                            </Text>{' '}
-                            <Text style={{ color: theme.danger }}>
-                                −{formatLineCount(state.snapshot.deletions)}
-                            </Text>
+                            <ChangesDiffStat
+                                additions={state.snapshot.additions}
+                                deletions={state.snapshot.deletions}
+                                theme={theme}
+                            />
                         </>
                     ) : (
                         'Changes'

@@ -2,9 +2,8 @@ import { useCallback } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
 import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native';
 
-import { formatLineCount } from '@caxri/protocol';
-
 import type { MobileTheme } from '../../theme/tokens';
+import { ChangesDiffStat } from './changes-diff-stat';
 import type { ChangedFile, ChangesViewState } from './changes-model';
 import { changePathParts, changeStatusLabel, hasMultipleRepositories } from './changes-model';
 import { changesStyles as styles } from './changes-styles';
@@ -69,10 +68,11 @@ const ChangeFileRow = ({
             </View>
             {file.additions === undefined ? null : (
                 <Text style={styles.stats}>
-                    <Text style={{ color: theme.success }}>+{formatLineCount(file.additions)}</Text>{' '}
-                    <Text style={{ color: theme.danger }}>
-                        −{formatLineCount(file.deletions ?? 0)}
-                    </Text>
+                    <ChangesDiffStat
+                        additions={file.additions}
+                        deletions={file.deletions ?? 0}
+                        theme={theme}
+                    />
                 </Text>
             )}
         </Pressable>

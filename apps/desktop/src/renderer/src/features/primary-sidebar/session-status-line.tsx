@@ -14,7 +14,7 @@ import type { SessionStatusTerminal } from './session-status';
  * finishing, or failing). Compaction is an operation inside a running turn and does not move it, so `Compacting · 12m
  * ago` still counts from the start of that turn.
  *
- * The trailing `+N −M` is the Workbench Root's lines changed since its branch forked off the default branch (see
+ * The trailing `+N -M` is the Workbench Root's lines changed since its branch forked off the default branch (see
  * `sessionDiffStatSchema`), so Sessions sharing one root show the same numbers.
  *
  * The whole line is `aria-hidden`: the status icon's label names the state, and the row's accessible description (see

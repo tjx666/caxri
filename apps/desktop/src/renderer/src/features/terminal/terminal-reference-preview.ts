@@ -126,7 +126,7 @@ function commitFacts(
     const facts = [preview.author, relativeTime(preview.authoredAt, now)].filter(Boolean);
     const fileLabel = preview.changedFileCount === 1 ? 'file' : 'files';
     facts.push(
-        `+${preview.insertions} \u{2212}${preview.deletions} in ${preview.changedFileCount} ${fileLabel}`,
+        `+${preview.insertions} -${preview.deletions} in ${preview.changedFileCount} ${fileLabel}`,
     );
     return facts;
 }
