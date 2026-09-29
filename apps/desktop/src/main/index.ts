@@ -52,6 +52,7 @@ import {
     installSecondInstanceFocus,
     remoteDebuggingState,
 } from './desktop-profile';
+import { e2eLaunchLogFields } from './e2e-launch';
 import { createMainEventRelay } from './event-relay';
 import { createGpuDiagnostics } from './gpu-diagnostics';
 import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
@@ -68,6 +69,7 @@ import { RendererReadiness } from './renderer-readiness';
 import { ProjectRootGrants } from './root-grants';
 import { DesktopServerConnection, resolveDesktopLaunch, wirePowerWake } from './server-connection';
 import { shouldContinueStartup } from './server-startup';
+import { StartupProfile } from './startup-profile';
 import { createTestRootPathResolver } from './test-root';
 import { UpdateService, updateStateLogFields } from './updates';
 import {
@@ -115,6 +117,8 @@ if (ownsProfileInstance) {
     let mainRenderer: WebContents | undefined;
     let supervisor: DesktopServerConnection;
     let mainLogger: ReturnType<typeof createDesktopLogger> | undefined;
+    const startupProfile = new StartupProfile(performance.timeOrigin, () => mainLogger);
+    startupProfile.mark('mainModule', bootStartedAt);
     /**
      * Main is the process the Renderer cannot observe from the inside. Creating a Worker, loading its script out of
      * `app.asar`, and brokering a `BroadcastChannel` all traverse the browser process, so a blocked Main loop looks
@@ -296,9 +300,11 @@ if (ownsProfileInstance) {
          * one-shot restore event above.
          */
         if (initialState.isFullScreen) window.setFullScreen(true);
+        startupProfile.mark('windowCreated');
         mainLogger?.write('info', logEventCatalog.window.created);
         window.webContents.on('did-finish-load', sendFullScreenState);
         window.once('ready-to-show', () => {
+            startupProfile.mark('readyToShow');
             mainLogger?.write('info', logEventCatalog.window.readyToShow, {
                 durationMs: performance.now() - bootStartedAt,
             });
@@ -563,7 +569,9 @@ if (ownsProfileInstance) {
             logger: () => mainLogger,
             onRendererDiagnostic: gpuDiagnostics.recordRendererDiagnostic,
             readEventLoopStalls: () => eventLoopMonitor?.summary(),
+            onStartupFrame: (frame) => startupProfile.complete(frame),
             onEventsReady: () => {
+                startupProfile.mark('rendererReady');
                 eventRelay.rendererReady();
                 if (mainRenderer) rendererReadiness.ready(mainRenderer);
                 // `onEventsReady` is a synchronous listener; a failed readiness handshake is only
@@ -636,6 +644,7 @@ if (ownsProfileInstance) {
             mainLogger ??= createMainLogger();
             processErrorMonitor.attach(mainLogger);
             eventLoopMonitor = startEventLoopMonitor(mainLogger);
+            startupProfile.mark('appReady');
             mainLogger.write('info', logEventCatalog.app.ready, {
                 durationMs: performance.now() - bootStartedAt,
                 fields: {
@@ -652,22 +661,10 @@ if (ownsProfileInstance) {
             // GPU collection is asynchronous and must never delay window startup.
             // eslint-disable-next-line no-void -- snapshot failures write their own bounded diagnostic
             void gpuDiagnostics.captureBaseline();
-            if (process.env.CAXRI_E2E === '1') {
+            if (process.env.CAXRI_E2E === '1')
                 mainLogger.write('info', logEventCatalog.e2e.launch, {
-                    fields: {
-                        agentMode: e2eAgentPolicy?.mode ?? 'blocked',
-                        agentProvider:
-                            e2eAgentPolicy?.mode === 'real'
-                                ? e2eAgentPolicy.provider
-                                : e2eAgentPolicy?.mode === 'fake'
-                                  ? Object.keys(e2eAgentPolicy.executables)
-                                        .toSorted((left, right) => left.localeCompare(right))
-                                        .join(',')
-                                  : null,
-                        windowMode: e2eWindowMode,
-                    },
+                    fields: e2eLaunchLogFields(e2eAgentPolicy, e2eWindowMode),
                 });
-            }
             updateService = new UpdateService({
                 acceptanceDiscovery: createAcceptanceUpdateFixture({
                     environment: process.env,
@@ -736,6 +733,7 @@ if (ownsProfileInstance) {
                 }))
             )
                 return;
+            startupProfile.mark('serverAttached');
             notifications = createDesktopNotifications({
                 sendEvent,
                 currentDirectory,

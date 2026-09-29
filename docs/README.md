@@ -43,6 +43,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [renderer-performance.md](renderer-performance.md)                 | Renderer performance observability                             |
 | [secondary-sidebar-trees.md](secondary-sidebar-trees.md)           | Files/Source Control/extension tree rendering                  |
 | [self-hosted-runner.md](self-hosted-runner.md)                     | Self-hosted macOS CI/release runner                            |
+| [startup-performance.md](startup-performance.md)                   | Launch milestone log, packaged startup runner, rejected tricks |
 | [server-architecture.md](server-architecture.md)                   | Current Server/Client architecture contract                    |
 | [session-compaction.md](session-compaction.md)                     | Batch Session compaction command                               |
 | [session-content-search.md](session-content-search.md)             | Session content search                                         |
