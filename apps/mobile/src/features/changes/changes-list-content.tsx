@@ -67,8 +67,9 @@ const ChangeFileRow = ({
                     </Text>
                 ) : null}
             </View>
-            <Text style={[styles.stats, { color: theme.muted }]}>
-                +{formatLineCount(file.additions)} −{formatLineCount(file.deletions)}
+            <Text style={styles.stats}>
+                <Text style={{ color: theme.success }}>+{formatLineCount(file.additions)}</Text>{' '}
+                <Text style={{ color: theme.danger }}>−{formatLineCount(file.deletions)}</Text>
             </Text>
         </Pressable>
     );

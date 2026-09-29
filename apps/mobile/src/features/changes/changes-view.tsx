@@ -1,11 +1,12 @@
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
+import { formatLineCount } from '@caxri/protocol';
 import { RotateCw } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesListContent } from './changes-list-content';
 import type { ChangedFile, ChangesViewState } from './changes-model';
-import { changesSummary, changesSummaryLabel } from './changes-model';
+import { changedFilesSummary, changesSummaryLabel } from './changes-model';
 import { changesStyles as styles } from './changes-styles';
 
 export const COMMIT_DRAFT = 'Commit the current changes with a clear message.';
@@ -43,13 +44,19 @@ export const ChangesView = ({
                     style={[styles.summary, { color: theme.text }]}
                     testID="changes-summary"
                 >
-                    {state.snapshot
-                        ? changesSummary(
-                              state.snapshot.changedFileCount,
-                              state.snapshot.additions,
-                              state.snapshot.deletions,
-                          )
-                        : 'Changes'}
+                    {state.snapshot ? (
+                        <>
+                            {changedFilesSummary(state.snapshot.changedFileCount)} ·{' '}
+                            <Text style={{ color: theme.success }}>
+                                +{formatLineCount(state.snapshot.additions)}
+                            </Text>{' '}
+                            <Text style={{ color: theme.danger }}>
+                                −{formatLineCount(state.snapshot.deletions)}
+                            </Text>
+                        </>
+                    ) : (
+                        'Changes'
+                    )}
                 </Text>
                 <Pressable
                     accessibilityLabel="Refresh changes"

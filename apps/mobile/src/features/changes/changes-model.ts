@@ -1,5 +1,3 @@
-import { formatLineCount } from '@caxri/protocol';
-
 type DiffLineKind = 'header' | 'hunk' | 'context' | 'added' | 'removed' | 'meta';
 
 export interface DiffLine {
@@ -137,8 +135,8 @@ export const changePathParts = (path: string): { directory: string; filename: st
 export const hasMultipleRepositories = (files: ChangedFile[]): boolean =>
     new Set(files.map((file) => file.repositoryId)).size > 1;
 
-export const changesSummary = (count: number, additions: number, deletions: number): string =>
-    `${count} ${count === 1 ? 'file' : 'files'} changed · +${formatLineCount(additions)} −${formatLineCount(deletions)}`;
+export const changedFilesSummary = (count: number): string =>
+    `${count} ${count === 1 ? 'file' : 'files'} changed`;
 
 /**
  * The summary in words with exact counts, for the screen reader; the visible summary uses compact counts.
