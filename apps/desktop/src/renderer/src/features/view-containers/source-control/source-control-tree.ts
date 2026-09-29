@@ -49,6 +49,24 @@ function placeResource(root: SourceControlTreeDirectory, resource: SourceControl
 }
 
 /**
+ * Sums measured line counts, skipping unmeasured entries; `undefined` when none of them was measured, so a caller shows
+ * nothing rather than a false `+0 −0`.
+ */
+export function sumSourceControlLineStats(
+    entries: Iterable<SourceControlResource['lineStats']>,
+): SourceControlResource['lineStats'] {
+    let total: SourceControlResource['lineStats'];
+    for (const entry of entries) {
+        if (!entry) continue;
+        total = {
+            additions: (total?.additions ?? 0) + entry.additions,
+            deletions: (total?.deletions ?? 0) + entry.deletions,
+        };
+    }
+    return total;
+}
+
+/**
  * Builds a presentation-only directory tree from provider-owned resource paths.
  */
 export function buildSourceControlResourceTree(
@@ -63,16 +81,11 @@ export function buildSourceControlResourceTree(
     for (const resource of resources) placeResource(root, resource);
     const finish = (directory: SourceControlTreeDirectory): SourceControlResource['lineStats'] => {
         directory.children = directory.children.toSorted(compareTreeNodesDirectoriesFirst);
-        let lineStats: SourceControlResource['lineStats'];
-        for (const child of directory.children) {
-            const childStats =
-                child.kind === 'directory' ? finish(child) : child.resource.lineStats;
-            if (!childStats) continue;
-            lineStats = {
-                additions: (lineStats?.additions ?? 0) + childStats.additions,
-                deletions: (lineStats?.deletions ?? 0) + childStats.deletions,
-            };
-        }
+        const lineStats = sumSourceControlLineStats(
+            directory.children.map((child) =>
+                child.kind === 'directory' ? finish(child) : child.resource.lineStats,
+            ),
+        );
         if (lineStats) directory.lineStats = lineStats;
         return lineStats;
     };
@@ -104,14 +117,4 @@ export function sourceControlDirectoryExpansionKeys(
     return collectTreeSubtree(node, (directory) =>
         directory.children.filter(isSourceControlTreeDirectory),
     ).map((directory) => `${providerKey}:${directory.path}`);
-}
-
-/**
- * A row's `+N −M` in words, where bare signed digits would read as arithmetic.
- */
-export function sourceControlLineStatsLabel(
-    lineStats: SourceControlResource['lineStats'],
-): string | undefined {
-    if (!lineStats) return undefined;
-    return `${lineStats.additions} ${lineStats.additions === 1 ? 'line' : 'lines'} added, ${lineStats.deletions} removed`;
 }

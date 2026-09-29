@@ -8,6 +8,7 @@ import type {
 } from '@caxri/protocol';
 import { ChevronDown, ChevronRight, GitBranch } from 'lucide-react';
 
+import { DiffStat } from '../../../components/diff-stat';
 import { DisclosureMotion } from '../../../components/disclosure-motion';
 import type { StructuredTooltipData } from '../../../components/structured-tooltip';
 import { StructuredTooltip } from '../../../components/structured-tooltip';
@@ -15,6 +16,7 @@ import { Button } from '../../../components/ui/button';
 import { Empty } from '../../../components/ui/empty';
 import { Spinner } from '../../../components/ui/spinner';
 import { Tooltip } from '../../../components/ui/tooltip';
+import { diffStatLabel } from '../../../lib/diff-stat-label';
 import { openExternalUrl } from '../../../lib/external-link';
 import { cn } from '../../../lib/utilities';
 import { pushToast } from '../../../stores/toasts';
@@ -29,6 +31,7 @@ import { sourceControlActionMenuItems } from './source-control-row-menu';
 import {
     buildSourceControlResourceTree,
     sourceControlGroupExpansionKeys,
+    sumSourceControlLineStats,
 } from './source-control-tree';
 import { SourceControlTreeItems } from './source-control-tree-items';
 import { SourceControlTreeRow } from './source-control-tree-row';
@@ -396,6 +399,7 @@ function GroupCaption({
             subtreeTarget(controller, provider, [group], false),
             !expanded,
         );
+    const lineStats = sumSourceControlLineStats(group.resources.map(({ lineStats }) => lineStats));
     return (
         <div className="git-changes-caption group flex items-center justify-between pr-2 text-[10px] font-bold tracking-[0.06em] text-muted uppercase">
             <SourceControlTreeRow
@@ -405,6 +409,7 @@ function GroupCaption({
                 className="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
                 aria-expanded={expanded}
                 aria-keyshortcuts={externalLink ? 'Meta Alt' : 'Alt'}
+                aria-description={lineStats && diffStatLabel(lineStats)}
                 tooltip={rowTooltip({ title: group.label }, externalLink)}
                 menuItems={sourceControlActionMenuItems(group.actions, controller.runAction)}
                 onClick={(event) => {
@@ -431,6 +436,12 @@ function GroupCaption({
             </SourceControlTreeRow>
             <span className="git-changes-actions flex items-center gap-1">
                 <GroupActionButtons controller={controller} group={group} />
+                {lineStats && (
+                    <DiffStat
+                        {...lineStats}
+                        className="mr-1 text-[11px] font-normal tracking-normal normal-case"
+                    />
+                )}
                 <span>{group.count}</span>
             </span>
         </div>

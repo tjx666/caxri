@@ -1,5 +1,7 @@
 import type { SourceControlAction, SourceControlHistoryDescriptor } from '@caxri/protocol';
 
+import { DiffStat } from '../../../components/diff-stat';
+import { diffStatLabel } from '../../../lib/diff-stat-label';
 import { describeFailure } from '../../../stores/toasts';
 import { useSourceControlHistoryDetails } from './hooks/use-source-control-history-details';
 import { SourceControlTreeRow } from './source-control-tree-row';
@@ -93,8 +95,8 @@ export function SourceControlHistoryHoverDetails({
     return (
         <>
             <span className="text-muted">{details.data.summary}</span>
-            <span className="diff-stat text-success">+{details.data.additions}</span>
-            <span className="diff-stat text-danger">−{details.data.deletions}</span>
+            <DiffStat additions={details.data.additions} deletions={details.data.deletions} />
+            <span className="sr-only">{diffStatLabel(details.data)}</span>
         </>
     );
 }

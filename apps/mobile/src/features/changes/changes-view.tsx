@@ -5,7 +5,7 @@ import { RotateCw } from 'lucide-react-native';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesListContent } from './changes-list-content';
 import type { ChangedFile, ChangesViewState } from './changes-model';
-import { changesSummary } from './changes-model';
+import { changesSummary, changesSummaryLabel } from './changes-model';
 import { changesStyles as styles } from './changes-styles';
 
 export const COMMIT_DRAFT = 'Commit the current changes with a clear message.';
@@ -31,6 +31,15 @@ export const ChangesView = ({
             <View style={[styles.toolbar, { borderColor: theme.border }]}>
                 <Text
                     accessibilityRole="header"
+                    accessibilityLabel={
+                        state.snapshot
+                            ? changesSummaryLabel(
+                                  state.snapshot.changedFileCount,
+                                  state.snapshot.additions,
+                                  state.snapshot.deletions,
+                              )
+                            : undefined
+                    }
                     style={[styles.summary, { color: theme.text }]}
                     testID="changes-summary"
                 >

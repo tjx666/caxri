@@ -170,7 +170,7 @@ exec /bin/zsh -l
         });
         const pullRequest = running.page.getByRole('link', { name: 'Open pull request #11' });
         const changes = running.page.getByRole('button', {
-            name: 'Open changes: 2 additions, 1 deletion',
+            name: 'Open changes: 2 lines added, 1 removed',
         });
         await expect(project).toHaveText('width-project');
         await expect(branch).toHaveText('feat/width');
