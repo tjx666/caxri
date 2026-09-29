@@ -260,6 +260,19 @@ describe('Terminal execution output boundaries', () => {
             await Promise.all(engine.shutdown().map(({ capture }) => capture));
         }
     });
+    it('restores a desktop resize made before the lease instead of the attach-time size', async () => {
+        const { engine, size } = fixture();
+        try {
+            await engine.attach('terminal', { cols: 80, rows: 24 });
+            engine.resize('terminal', 110, 83);
+            engine.takeOver('terminal', 'connection:subscription', { cols: 42, rows: 20 }, 12_000);
+            engine.releaseTakeOver('terminal', 'connection:subscription');
+            expect(size()).toEqual({ cols: 110, rows: 83 });
+        } finally {
+            await Promise.all(engine.shutdown().map(({ capture }) => capture));
+        }
+    });
+
     it('resyncs observers when a size change they did not request reshapes the grid', async () => {
         const { engine, events } = fixture();
         const gaps = () => events.filter((event) => event.type === 'observerGap').length;
