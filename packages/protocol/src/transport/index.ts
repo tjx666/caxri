@@ -10,6 +10,7 @@ export * from './method-spec.js';
 export * from './principal.js';
 export * from './renderer-diagnostic.js';
 export * from './renderer-error.js';
+export * from './renderer-performance-diagnostic.js';
 export * from './request-lifetime.js';
 export * from './server-artifact.js';
 export * from './transport.js';
