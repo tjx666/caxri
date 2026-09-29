@@ -244,6 +244,7 @@ describe('Terminal resize burst diagnostics', () => {
         vi.useFakeTimers();
         const pausedEmit = vi.fn();
         const paused = new TerminalResizeBurstTracker({ emit: pausedEmit, now: Date.now });
+        paused.sample({ cols: 3, rows: 59 }, { localApplied: true, requestSent: true });
         paused.sample({ cols: 4, rows: 59 }, { localApplied: true, requestSent: true });
 
         paused.pause();
@@ -256,6 +257,7 @@ describe('Terminal resize burst diagnostics', () => {
 
         const disposedEmit = vi.fn();
         const disposed = new TerminalResizeBurstTracker({ emit: disposedEmit, now: Date.now });
+        disposed.sample({ cols: 79, rows: 59 }, { localApplied: true, requestSent: true });
         disposed.sample({ cols: 80, rows: 59 }, { localApplied: true, requestSent: true });
 
         disposed.dispose();
@@ -273,20 +275,13 @@ describe('Terminal resize burst diagnostics', () => {
 
         tracker.sample({ cols: 120, rows: 40 }, { localApplied: true, requestSent: true });
         vi.advanceTimersByTime(250);
-        expect(emit).toHaveBeenCalledOnce();
-        expect(emit).toHaveBeenLastCalledWith(
-            expect.objectContaining({
-                sampleCount: 1,
-                changeCount: 0,
-                startCols: 120,
-                finalCols: 120,
-            }),
-        );
+        // A single fit that changed nothing is not a burst, but it still seeds the next one.
+        expect(emit).not.toHaveBeenCalled();
 
         tracker.sample({ cols: 130, rows: 40 }, { localApplied: true, requestSent: true });
         vi.advanceTimersByTime(250);
 
-        expect(emit).toHaveBeenCalledTimes(2);
+        expect(emit).toHaveBeenCalledOnce();
         expect(emit).toHaveBeenLastCalledWith(
             expect.objectContaining({
                 sampleCount: 1,
@@ -299,29 +294,18 @@ describe('Terminal resize burst diagnostics', () => {
         );
     });
 
-    it('reports no change when a seeded burst only re-samples the existing grid', () => {
+    it('omits a single fit that leaves the grid unchanged, such as a pane mount or Session switch', () => {
         vi.useFakeTimers();
         const emit = vi.fn();
         const tracker = new TerminalResizeBurstTracker({ emit, now: Date.now });
 
         tracker.sample({ cols: 120, rows: 40 }, { localApplied: true, requestSent: true });
-        vi.advanceTimersByTime(250);
-        expect(emit).toHaveBeenCalledOnce();
-
+        tracker.pause();
+        tracker.resume();
         tracker.sample({ cols: 120, rows: 40 }, { localApplied: false, requestSent: true });
         vi.advanceTimersByTime(250);
 
-        expect(emit).toHaveBeenCalledTimes(2);
-        expect(emit).toHaveBeenLastCalledWith(
-            expect.objectContaining({
-                sampleCount: 1,
-                changeCount: 0,
-                startCols: 120,
-                startRows: 40,
-                finalCols: 120,
-                finalRows: 40,
-            }),
-        );
+        expect(emit).not.toHaveBeenCalled();
     });
 
     it('keeps the final grid while marking a saturated sample count as truncated', () => {

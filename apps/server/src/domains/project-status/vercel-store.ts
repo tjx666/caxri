@@ -4,10 +4,12 @@ import type { ProjectStatusState } from '@caxri/protocol';
 import { rememberBounded } from '@caxri/utils';
 
 import type { ExternalStatusRunner } from '../external-status';
+import type { BranchPublicationContext } from './branch';
 import type { VercelLink } from './external';
 import { vcListArguments } from './external';
 import { parseVercelList } from './parse';
-import { findVercelLink, mapProjectStatusDeployment } from './vercel';
+import type { VercelDependencies } from './vercel';
+import { findVercelLink, loadVercelDeployments, mapProjectStatusDeployment } from './vercel';
 
 /**
  * Production moves only when something is merged and rebuilt, so a minute-old answer is still the right one to draw a
@@ -20,6 +22,11 @@ const PRODUCTION_TTL_MS = 60_000;
  * expensive one in the sidebar, so absence is remembered far longer than presence.
  */
 const UNLINKED_TTL_MS = 30 * 60_000;
+/**
+ * A build still queued or running changes within seconds, so its answer is reused only briefly; a settled branch keeps
+ * the production TTL.
+ */
+const PENDING_DEPLOYMENTS_TTL_MS = 15_000;
 const MAX_ENTRIES = 256;
 
 export interface VercelProductionDeployment {
@@ -34,6 +41,16 @@ export interface VercelProductionDeployment {
 interface StoredProduction {
     fetchedAt: number;
     value?: VercelProductionDeployment;
+}
+
+type BranchDeployments = Awaited<ReturnType<typeof loadVercelDeployments>>;
+
+function hasUnsettledDeployment({ deployments }: BranchDeployments): boolean {
+    return [
+        deployments?.production,
+        deployments?.preview,
+        ...(deployments?.branchDeployments ?? []),
+    ].some((deployment) => deployment?.state === 'pending' || deployment?.state === 'queued');
 }
 
 export interface VercelDeploymentStoreOptions {
@@ -52,6 +69,10 @@ export interface VercelDeploymentStoreOptions {
  */
 export class VercelDeploymentStore {
     private readonly productions = new Map<string, StoredProduction>();
+    private readonly branches = new Map<
+        string,
+        { fetchedAt?: number; value: Promise<BranchDeployments> }
+    >();
     /**
      * Shared with the Status panel's `loadVercelDeployments` so the expensive project discovery is paid once per
      * process rather than once per reader.
@@ -100,6 +121,29 @@ export class VercelDeploymentStore {
         return { commitSha: mapped.commit?.sha, state: mapped.state };
     }
 
+    private async loadBranch(
+        dependencies: Omit<VercelDependencies, 'links'>,
+        context: BranchPublicationContext,
+        rootPath: string,
+        mergeCommit: string | undefined,
+        entry: () => { fetchedAt?: number },
+    ): Promise<BranchDeployments> {
+        const value = await loadVercelDeployments(
+            { ...dependencies, links: this.links },
+            context,
+            rootPath,
+            mergeCommit,
+        );
+        /**
+         * An unsettled build is pre-aged so it expires after the short pending TTL instead of the full one.
+         */
+        const ttl = this.options.productionTtlMs ?? PRODUCTION_TTL_MS;
+        entry().fetchedAt = hasUnsettledDeployment(value)
+            ? this.now() - ttl + PENDING_DEPLOYMENTS_TTL_MS
+            : this.now();
+        return value;
+    }
+
     /**
      * The deployment currently serving production for a GitHub repository, or `undefined` when the repository has no
      * Vercel project, no production build yet, or the provider could not be reached. Every outcome is cached; a caller
@@ -124,7 +168,40 @@ export class VercelDeploymentStore {
         return value;
     }
 
+    /**
+     * The Status panel's deployment tree for one branch. Every refresh of every Session on a repository used to ask
+     * `vc` for the same two or three lists again, which made Vercel the Server's most expensive subprocess by far. The
+     * key holds everything that selects the answer — repository, branch, HEAD, and merge commit — so a new commit or
+     * merge queries at once, concurrent readers share one in-flight query, and a forced refresh always asks again.
+     */
+    deployments(
+        dependencies: Omit<VercelDependencies, 'links'>,
+        context: BranchPublicationContext,
+        rootPath: string,
+        mergeCommit: string | undefined,
+        isForced: boolean,
+    ): Promise<BranchDeployments> {
+        const key = [
+            `${context.owner}/${context.repo}`.toLowerCase(),
+            context.branch,
+            context.head ?? '',
+            mergeCommit ?? '',
+        ].join('\u{0}');
+        const stored = this.branches.get(key);
+        if (!isForced && stored) {
+            if (stored.fetchedAt === undefined) return stored.value;
+            const ttl = this.options.productionTtlMs ?? PRODUCTION_TTL_MS;
+            if (this.now() - stored.fetchedAt < ttl) return stored.value;
+        }
+        const entry: { fetchedAt?: number; value: Promise<BranchDeployments> } = {
+            value: this.loadBranch(dependencies, context, rootPath, mergeCommit, () => entry),
+        };
+        rememberBounded(this.branches, key, entry, MAX_ENTRIES);
+        return entry.value;
+    }
+
     clear(): void {
+        this.branches.clear();
         this.productions.clear();
         this.links.clear();
     }

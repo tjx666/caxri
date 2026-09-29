@@ -36,23 +36,23 @@ function createTelemetry(windowMs = 60_000) {
 }
 
 describe('SessionContextTelemetry', () => {
-    it('logs a routine missing transcript at debug and a real rejection at warn', () => {
+    it('counts a routine missing transcript only in the aggregate and logs a real rejection at warn', () => {
         const { telemetry, writesOf } = createTelemetry();
         telemetry.recordFailure('session-a', 'missing');
         telemetry.recordFailure('session-a', 'symlinkRejected');
         telemetry.recordFailure('session-a', 'hardlinkRejected');
         telemetry.recordFailure('session-a', 'identityMismatch');
 
-        expect(writesOf('session_context.scan_failed', 'debug')).toEqual([
-            {
-                durationMs: undefined,
-                fields: { sessionId: 'session-a', reason: 'missing' },
-                level: 'debug',
-            },
-        ]);
         expect(
-            writesOf('session_context.scan_failed', 'warn').map((record) => record.fields.reason),
-        ).toEqual(['symlinkRejected', 'hardlinkRejected', 'identityMismatch']);
+            writesOf('session_context.scan_failed').map(({ fields, level }) => [
+                level,
+                fields.reason,
+            ]),
+        ).toEqual([
+            ['warn', 'symlinkRejected'],
+            ['warn', 'hardlinkRejected'],
+            ['warn', 'identityMismatch'],
+        ]);
     });
 
     it('logs a cursor reset immediately as a state transition, not just inside the window aggregate', () => {
