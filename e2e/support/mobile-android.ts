@@ -333,6 +333,19 @@ export async function tapMobileCheckByBounds(serial: string, checkId: string): P
     ]);
 }
 
+/**
+ * Control devices take the Terminal lease automatically, so watch-only assertions first release it. Release stays in
+ * force until the reader leaves the Terminal, so the take-over control returns and nothing re-acquires the lease.
+ */
+export async function releaseMobileTerminalLease(serial: string): Promise<void> {
+    await tapMobileCheck(serial, 'terminal-release');
+    await waitForMobile(
+        () => mobileSemantics(serial),
+        (nodes) =>
+            nodes.some(({ checkId, enabled }) => checkId === 'terminal-take-over' && enabled),
+    );
+}
+
 export async function waitForMobile<T>(
     read: () => T | Promise<T>,
     isAccepted: (value: T) => boolean,

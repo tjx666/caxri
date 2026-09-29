@@ -14,7 +14,7 @@ import type { TerminalControlTarget } from './control-input';
 import { chunkTerminalText, sendTerminalControlInput } from './control-input';
 import type { TerminalKey } from './key-input';
 import { controlByteFor, pressTerminalKey } from './key-input';
-import { canAdoptTerminalLease } from './lease-admission';
+import { canAdoptTerminalLease, shouldAutoTakeOverTerminal } from './lease-admission';
 import { createTerminalOutputQueue } from './output-queue';
 import type { TerminalResyncReason } from './resync-policy';
 import { terminalResyncPlan } from './resync-policy';
@@ -327,6 +327,13 @@ export const useLiveTerminal = ({
     );
 
     const leased = hasLease && role === 'control';
+    /**
+     * Automatic takeover bookkeeping; see `shouldAutoTakeOverTerminal`. Leaving the Terminal forgets a release.
+     */
+    const autoTakeOver = useRef({
+        attemptedSubscriptionId: null as string | null,
+        isReleasedByUser: false,
+    });
 
     const currentTarget = (): TerminalControlTarget | null => {
         const handle = subscription.current;
@@ -452,6 +459,7 @@ export const useLiveTerminal = ({
     const release = async (): Promise<void> => {
         const target = lease.current;
         if (!target) return;
+        autoTakeOver.current.isReleasedByUser = true;
         try {
             await request('mobile.terminal.release', target);
             if (lease.current === target) {
@@ -529,15 +537,42 @@ export const useLiveTerminal = ({
     };
 
     const displayState = terminalViewState(state, isStopped, isConnected, subscriptionAvailable);
+    const canControl = canUseTerminalControls({
+        connected: isConnected && subscriptionAvailable,
+        generation: currentGeneration,
+        hasSubscription,
+        role,
+        state: displayState,
+    });
+    const canTakeOver = canControl && hasSize;
+    const takeOverReference = useRef(takeOver);
+    useLayoutEffect(() => {
+        takeOverReference.current = takeOver;
+    });
+    useEffect(() => {
+        const subscriptionId = hasSubscription
+            ? (subscription.current?.subscriptionId ?? null)
+            : null;
+        if (
+            !shouldAutoTakeOverTerminal({
+                ...autoTakeOver.current,
+                canTakeOver,
+                hasLease: leased,
+                subscriptionId,
+            })
+        )
+            return;
+        autoTakeOver.current.attemptedSubscriptionId = subscriptionId;
+        // eslint-disable-next-line no-void -- The hook reports takeover failures in the UI.
+        void takeOverReference.current();
+    }, [canTakeOver, hasSubscription, leased]);
+    useEffect(() => {
+        if (!visible) autoTakeOver.current.isReleasedByUser = false;
+    }, [visible]);
+
     return {
         atBottom,
-        canControl: canUseTerminalControls({
-            connected: isConnected && subscriptionAvailable,
-            generation: currentGeneration,
-            hasSubscription,
-            role,
-            state: displayState,
-        }),
+        canControl,
         ctrl,
         error,
         hasLease: leased,
