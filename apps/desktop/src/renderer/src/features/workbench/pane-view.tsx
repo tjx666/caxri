@@ -15,6 +15,7 @@ import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
 import { usePointerDragResize } from '../../hooks/use-pointer-drag-resize';
 import { hasTerminalDraggedPath } from '../../lib/file-drag';
 import { cn } from '../../lib/utilities';
+import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useSessionState, useTerminal } from '../../stores/selectors';
 import { EditorSurface } from '../editor/editor-surface';
 import { workPanelId, workTabId } from '../tabs/work-tab-accessibility';
@@ -72,7 +73,7 @@ function leadingPaneId(node: PaneLayoutNode): string {
  * Whether the leading pane's tab bar reaches the window's right edge. It does until a side-by-side split puts another
  * pane beside it, after which the bar is only as wide as its own pane and anything it reserves at its trailing end —
  * the drag corner — lands in the middle of the window instead of in the corner, wedged between the "+" button and the
- * neighbouring pane's first tab.
+ * neighbouring pane's first tab. An open SecondarySidebar ends the bar at that rail the same way, whatever the split.
  */
 function isLeadingBarWindowWide(node: PaneLayoutNode): boolean {
     if (node.type === 'pane') return true;
@@ -418,6 +419,9 @@ export function PaneView({ isVisible, sessionId }: { isVisible: boolean; session
         setMounted({ layout, panes });
     }
     useTabFocusRecovery(layout, isVisible);
+    const isSecondarySidebarVisible = useChromeLayoutStore(
+        (state) => state.secondarySidebarVisible,
+    );
     if (!layout) return null;
     return (
         <PaneViewSessionProvider value={sessionId}>
@@ -435,7 +439,10 @@ export function PaneView({ isVisible, sessionId }: { isVisible: boolean; session
                                 isVisible={isVisible}
                                 layout={layout}
                                 pane={pane}
-                                spansWindowWidth={isLeadingBarWindowWide(layout.root)}
+                                spansWindowWidth={
+                                    !isSecondarySidebarVisible &&
+                                    isLeadingBarWindowWide(layout.root)
+                                }
                             />
                         </PaneMountPortal>
                     ))}
