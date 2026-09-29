@@ -30,6 +30,7 @@ import {
 } from '../features/preview/preview-commands';
 import { focusPrimarySidebar } from '../features/primary-sidebar/primary-sidebar-focus';
 import { openProcessExplorer } from '../features/process-explorer/process-explorer-commands';
+import { openSeededProjectSearch } from '../features/project-search/project-search-seed';
 import { toggleScreencastMode } from '../features/screencast/screencast';
 import { deleteProject, hideSelectedProject } from '../features/session/project-removal-commands';
 import {
@@ -355,7 +356,8 @@ const commandContext: CommandContext = {
         openSettings: (view = 'ui') => useDialogStore.getState().openSettings(view),
         openPalette: () => useDialogStore.getState().setPaletteOpen(true),
         openSessionContentSearch: () => useDialogStore.getState().setSessionContentSearchOpen(true),
-        openProjectSearch: () => useDialogStore.getState().setProjectSearchOpen(true),
+        // eslint-disable-next-line no-void -- floating-promise discard: seeding never rejects
+        openProjectSearch: () => void openSeededProjectSearch(),
         openPathBrowser: () => {
             const bootstrap = getBootstrap();
             if (getSelectedSession() && selectSelectedProject(bootstrap))

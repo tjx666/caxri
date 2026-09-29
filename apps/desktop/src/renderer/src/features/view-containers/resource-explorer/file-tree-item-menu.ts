@@ -8,8 +8,11 @@ import {
     openFileWithDefaultApp,
     revealFile,
 } from '../../../lib/desktop-file-actions';
+import { projectRelativePath } from '../../../lib/file-path';
+import { useDialogStore } from '../../../stores/dialogs';
 import { openFilePreview } from '../../preview/preview-commands';
 import { canPreviewPath } from '../../preview/preview-registry';
+import { projectSearchFolderInclude } from '../../project-search/project-search-seed';
 import { rememberFile } from './file-actions';
 import { FILE_OPERATION_BUSY_REASON } from './file-operation-state';
 
@@ -29,6 +32,18 @@ export interface FileTreeItemMenuOptions {
     projectRoot: string;
     startCreate: (itemKind: 'file' | 'directory') => void;
     startRename: () => void;
+}
+
+/**
+ * Opens Project search scoped to one directory, keeping the query the user last searched for, as VS Code's Explorer
+ * does.
+ */
+function findInFolder(directory: string, projectRoot: string): void {
+    const relativeDirectory = projectRelativePath(directory, projectRoot);
+    if (relativeDirectory === undefined) return;
+    useDialogStore
+        .getState()
+        .openProjectSearch({ include: projectSearchFolderInclude(relativeDirectory) });
 }
 
 /**
@@ -67,6 +82,10 @@ export function fileTreeItemMenu({
         {
             label: 'Open in Terminal',
             onSelect: () => openFileInTerminal(isDirectory ? entry.path : parentDirectory),
+        },
+        isDirectory && {
+            label: 'Find in Folder…',
+            onSelect: () => findInFolder(entry.path, projectRoot),
         },
         CONTEXT_MENU_SEPARATOR,
         {
