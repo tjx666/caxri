@@ -9,6 +9,7 @@ import Editor from '@monaco-editor/react';
 import { useEditorOptions } from '@/hooks/use-editor-options';
 
 import { applyEditorTheme } from '../../lib/editor-theme';
+import { registerTextSelectionSource } from '../../lib/focused-text-selection';
 import { monaco } from '../../lib/monaco';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { publishSourceScroll } from '../preview/preview-scroll-sync';
@@ -208,6 +209,15 @@ export function CodeEditor({
                     editor,
                     editorInstanceId,
                 );
+                const unregisterSelection = registerTextSelectionSource(
+                    editor.getContainerDomNode(),
+                    () => {
+                        const selection = editor.getSelection();
+                        const model = editor.getModel();
+                        return selection && model ? model.getValueInRange(selection) : '';
+                    },
+                );
+                editor.onDidDispose(unregisterSelection);
                 foldEditorOnOpen(editor, editorInstanceId, foldOnOpenThresholdReference.current);
                 publishEditorStatus(editor, statusKeyReference.current);
                 markEditorMounted();

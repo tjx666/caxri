@@ -27,6 +27,14 @@ export type CreateSessionAnchor = 'heading' | 'emptyProject';
  */
 export type StatusBarPicker = 'branch' | 'workbenchRoot';
 
+/**
+ * Fields an opener writes into the Project search draft. An omitted field keeps whatever the user last left there.
+ */
+interface ProjectSearchSeed {
+    include?: string;
+    query?: string;
+}
+
 interface DialogState {
     archivedSessionsOpen: boolean;
     settingsRequest: { id: number; view: SettingsView; provider?: AgentProvider };
@@ -37,6 +45,12 @@ interface DialogState {
     sessionlessSettingsDismissedId: number;
     paletteOpen: boolean;
     projectSearchOpen: boolean;
+    /**
+     * The latest seed for the Project search draft, carried as a bumped revision so opening twice with the same seed
+     * still re-applies it over whatever the user typed in between. The draft is local state of the always-mounted
+     * dialog shell, and this is the channel an opener reaches it through.
+     */
+    projectSearchSeedRequest: { id: number; seed: ProjectSearchSeed };
     sessionContentSearchOpen: boolean;
     agentActionsOpen: boolean;
     agentActionsTerminalId?: string;
@@ -92,6 +106,7 @@ interface DialogState {
     dismissSessionlessSettings(): void;
     setPaletteOpen(isOpen: boolean): void;
     setProjectSearchOpen(isOpen: boolean): void;
+    openProjectSearch(seed?: ProjectSearchSeed): void;
     setSessionContentSearchOpen(isOpen: boolean): void;
     openAgentActions(terminalId: string): void;
     setAgentActionsOpen(isOpen: boolean): void;
@@ -128,6 +143,7 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     sessionlessSettingsDismissedId: 0,
     paletteOpen: false,
     projectSearchOpen: false,
+    projectSearchSeedRequest: { id: 0, seed: {} },
     sessionContentSearchOpen: false,
     agentActionsOpen: false,
     agentActionsTerminalId: undefined,
@@ -150,6 +166,11 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
         set((state) => ({ sessionlessSettingsDismissedId: state.settingsRequest.id })),
     setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     setProjectSearchOpen: (projectSearchOpen) => set({ projectSearchOpen }),
+    openProjectSearch: (seed = {}) =>
+        set((state) => ({
+            projectSearchOpen: true,
+            projectSearchSeedRequest: { id: state.projectSearchSeedRequest.id + 1, seed },
+        })),
     setSessionContentSearchOpen: (sessionContentSearchOpen) => set({ sessionContentSearchOpen }),
     openAgentActions: (agentActionsTerminalId) =>
         set({ agentActionsOpen: true, agentActionsTerminalId }),

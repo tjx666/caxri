@@ -5,6 +5,7 @@ vi.mock('../../../../lib/caxri', () => ({ caxri: { request: vi.fn() } }));
 
 import type { ContextMenuEntries } from '../../../../lib/context-menu';
 import { serializeContextMenu } from '../../../../lib/context-menu';
+import { useDialogStore } from '../../../../stores/dialogs';
 import { FILE_OPERATION_BUSY_REASON, pasteDisabledReason } from '../file-operation-state';
 import type { FileTreeItemMenuOptions } from '../file-tree-item-menu';
 import { fileTreeItemMenu } from '../file-tree-item-menu';
@@ -46,6 +47,7 @@ describe('fileTreeItemMenu', () => {
             'Open',
             'Reveal in Finder',
             'Open in Terminal',
+            'Find in Folder…',
             '---',
             'Cut',
             'Copy',
@@ -63,6 +65,26 @@ describe('fileTreeItemMenu', () => {
         const fileLabels = labels(fileTreeItemMenu(options(file)));
         expect(fileLabels).toContain('Open with Default App');
         expect(fileLabels).not.toContain('New File');
+        expect(fileLabels).not.toContain('Find in Folder…');
+    });
+
+    it('opens Project search scoped to the directory while keeping the previous query', () => {
+        const findInFolder = fileTreeItemMenu(
+            options({ kind: 'directory', name: 'b', path: '/project/src/b' }),
+        ).find((entry) => entry && 'label' in entry && entry.label === 'Find in Folder…');
+        if (!findInFolder || !('onSelect' in findInFolder))
+            throw new Error('Find in Folder is missing');
+        useDialogStore.getState().setProjectSearchOpen(false);
+        const previousId = useDialogStore.getState().projectSearchSeedRequest.id;
+
+        findInFolder.onSelect();
+
+        const state = useDialogStore.getState();
+        expect(state.projectSearchOpen).toBe(true);
+        expect(state.projectSearchSeedRequest).toEqual({
+            id: previousId + 1,
+            seed: { include: 'src/b/**' },
+        });
     });
 
     it('keeps Paste and Duplicate visible but disabled with their reasons, without a shortcut hint for a Paste that cannot run', () => {
