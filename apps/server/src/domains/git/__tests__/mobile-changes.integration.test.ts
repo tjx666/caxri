@@ -114,6 +114,10 @@ describe('mobile changes Git projection', () => {
             deletions: 0,
         });
         expect(list.files.find((file) => file.path === 'added.txt')?.repositoryName).toBeTruthy();
+        // Git has no line count for a binary file, so the row carries none instead of `+0 −0`.
+        expect(list.files.find((file) => file.path === 'binary.bin')).not.toHaveProperty(
+            'additions',
+        );
         expect(list.files.find((file) => file.path === 'moved.txt')).toMatchObject({
             status: 'R',
             originalPath: 'rename.txt',

@@ -5,6 +5,7 @@ import {
     buildSourceControlResourceTree,
     sourceControlDirectoryExpansionKeys,
     sourceControlGroupExpansionKeys,
+    sumSourceControlLineStats,
 } from '../source-control-tree';
 
 function resource(path: string): SourceControlResource {
@@ -82,5 +83,21 @@ describe('controlled Source Control resource tree', () => {
             'pull-request:repo:docs/adr',
             'pull-request:repo:src',
         ]);
+    });
+});
+
+describe('sumSourceControlLineStats', () => {
+    it('totals measured entries and ignores unmeasured ones', () => {
+        expect(
+            sumSourceControlLineStats([
+                { additions: 1_900, deletions: 600 },
+                undefined,
+                { additions: 40, deletions: 84 },
+            ]),
+        ).toEqual({ additions: 1_940, deletions: 684 });
+    });
+
+    it('reports nothing when no entry was measured', () => {
+        expect(sumSourceControlLineStats([undefined, undefined])).toBeUndefined();
     });
 });

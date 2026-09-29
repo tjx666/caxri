@@ -3,13 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { parseGitNumstat, sumGitLineStats, withGitLineStat } from '../numstat';
 
 describe('Git numstat', () => {
-    it('parses NUL-delimited line counts, including binary placeholders and rename records', () => {
+    it('parses NUL-delimited line counts, skipping binary records and following rename records', () => {
         const stats = parseGitNumstat(
             '2\t1\tmodified.txt\u{0}-\t-\tbinary.bin\u{0}4\t3\t\u{0}old name.txt\u{0}new\nname.txt\u{0}',
         );
         expect([...stats]).toEqual([
             ['modified.txt', { additions: 2, deletions: 1 }],
-            ['binary.bin', { additions: 0, deletions: 0 }],
             ['new\nname.txt', { additions: 4, deletions: 3 }],
         ]);
         expect(sumGitLineStats(stats.values())).toEqual({ additions: 6, deletions: 4 });

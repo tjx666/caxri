@@ -16,8 +16,11 @@ export interface ParsedDiff {
 }
 
 export interface ChangedFile {
-    additions: number;
-    deletions: number;
+    /**
+     * Absent when Git has no line count for the file, such as a binary file.
+     */
+    additions?: number;
+    deletions?: number;
     path: string;
     originalPath?: string;
     repositoryId: string;
@@ -135,5 +138,11 @@ export const changePathParts = (path: string): { directory: string; filename: st
 export const hasMultipleRepositories = (files: ChangedFile[]): boolean =>
     new Set(files.map((file) => file.repositoryId)).size > 1;
 
-export const changesSummary = (count: number, additions: number, deletions: number): string =>
-    `${count} ${count === 1 ? 'file' : 'files'} changed · +${additions} −${deletions}`;
+export const changedFilesSummary = (count: number): string =>
+    `${count} ${count === 1 ? 'file' : 'files'} changed`;
+
+/**
+ * The summary in words with exact counts, for the screen reader; the visible summary uses compact counts.
+ */
+export const changesSummaryLabel = (count: number, additions: number, deletions: number): string =>
+    `${count} ${count === 1 ? 'file' : 'files'} changed, ${additions} ${additions === 1 ? 'line' : 'lines'} added, ${deletions} removed`;

@@ -39,7 +39,8 @@ export interface GitLineStat {
 
 /**
  * Parses Git's NUL-delimited `--numstat -z` output into per-path line counts, including the empty-path record Git emits
- * for a detected rename or copy (keyed by the new path). A binary file's `-` placeholders count as zero.
+ * for a detected rename or copy (keyed by the new path). A binary file's `-\t-` record is skipped: Git has no line
+ * count for it, and showing `+0 −0` would read as "unchanged".
  */
 export function parseGitNumstat(output: string): Map<string, GitLineStat> {
     const result = new Map<string, GitLineStat>();
@@ -49,7 +50,7 @@ export function parseGitNumstat(output: string): Map<string, GitLineStat> {
         const fields = /^(\d+|-)\t(\d+|-)\t([\s\S]*)$/u.exec(records[index]);
         if (!fields) continue;
         const path = fields[3] || records[(index += 2)];
-        if (!path) continue;
+        if (!path || (fields[1] === '-' && fields[2] === '-')) continue;
         const previous = result.get(path);
         result.set(path, {
             additions: (previous?.additions ?? 0) + (fields[1] === '-' ? 0 : Number(fields[1])),

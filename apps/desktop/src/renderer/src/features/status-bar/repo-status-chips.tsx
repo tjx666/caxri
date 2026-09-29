@@ -1,8 +1,10 @@
 import type { CommandId, ProjectStatusOverview } from '@caxri/protocol';
+import { formatLineCount } from '@caxri/protocol';
 import { FileDiff, GitPullRequest } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { StructuredTooltip } from '../../components/structured-tooltip';
+import { diffStatLabel } from '../../lib/diff-stat-label';
 import { AcceptanceStatus } from './acceptance-status';
 import type { ChipVisibility } from './chip-priority';
 import { LinearIssueStatus } from './linear-issue-status';
@@ -21,7 +23,7 @@ function RepoChangesStatus({ additions, deletions }: { additions: number; deleti
         <StatusItem
             className="diff-stat"
             icon={<FileDiff />}
-            ariaLabel={`Open changes: ${additions} ${additions === 1 ? 'addition' : 'additions'}, ${deletions} ${deletions === 1 ? 'deletion' : 'deletions'}`}
+            ariaLabel={`Open changes: ${diffStatLabel({ additions, deletions })}`}
             title={
                 <StructuredTooltip
                     title="Primary repository changes"
@@ -48,7 +50,7 @@ function RepoChangesStatus({ additions, deletions }: { additions: number; deleti
             }
             onClick={() => showSecondarySidebar('secondarySidebar.showGit')}
         >
-            +{additions} −{deletions}
+            +{formatLineCount(additions)} −{formatLineCount(deletions)}
         </StatusItem>
     );
 }

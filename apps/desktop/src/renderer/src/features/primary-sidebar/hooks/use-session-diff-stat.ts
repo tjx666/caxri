@@ -1,6 +1,7 @@
 import type { SessionDiffStat } from '@caxri/protocol';
 
 import { usePolledQuery } from '../../../hooks/use-polled-query';
+import { diffStatLabel } from '../../../lib/diff-stat-label';
 import { useCaxriQuery } from '../../../queries/client';
 
 /**
@@ -45,5 +46,5 @@ export function useSessionDiffStat(sessionId: string): SessionDiffStat | undefin
  */
 export function sessionDiffStatAriaLabel(stat: SessionDiffStat | undefined): string | undefined {
     if (!stat) return undefined;
-    return `Branch changes: ${stat.additions} ${stat.additions === 1 ? 'line' : 'lines'} added, ${stat.deletions} removed.`;
+    return `Branch changes: ${diffStatLabel(stat)}.`;
 }

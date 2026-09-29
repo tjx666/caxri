@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    changedFilesSummary,
     changePathParts,
-    changesSummary,
+    changesSummaryLabel,
     hasMultipleRepositories,
     parseUnifiedDiff,
     visibleDiffLines,
@@ -46,7 +47,11 @@ it('formats a path and summary for file rows', () => {
         directory: 'src/sub/',
         filename: 'file.ts',
     });
-    expect(changesSummary(1, 2, 0)).toBe('1 file changed · +2 −0');
+    expect(changedFilesSummary(1)).toBe('1 file changed');
+    expect(changedFilesSummary(3)).toBe('3 files changed');
+    expect(changesSummaryLabel(3, 1_940, 684)).toBe(
+        '3 files changed, 1940 lines added, 684 removed',
+    );
 });
 
 it('shows repository names when paths can be ambiguous across repositories', () => {

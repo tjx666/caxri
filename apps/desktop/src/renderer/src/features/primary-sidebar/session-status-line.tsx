@@ -1,5 +1,6 @@
 import type { SessionRecord } from '@caxri/protocol';
 
+import { DiffStat } from '../../components/diff-stat';
 import { useRelativeTime } from '../../hooks/use-relative-time';
 import { cn } from '../../lib/utilities';
 import { useSessionDiffStat } from './hooks/use-session-diff-stat';
@@ -51,10 +52,10 @@ export function SessionStatusLine({
              * beneath them reads as clutter rather than information. The hover card still states it in words.
              */}
             {diffStat && (
-                <span className="session-diff-stat ml-auto flex flex-none gap-1 pl-2 diff-stat group-hover/session-row:hidden">
-                    <span className="text-success">+{diffStat.additions}</span>
-                    <span className="text-danger">−{diffStat.deletions}</span>
-                </span>
+                <DiffStat
+                    {...diffStat}
+                    className="session-diff-stat ml-auto pl-2 group-hover/session-row:hidden"
+                />
             )}
         </span>
     );
