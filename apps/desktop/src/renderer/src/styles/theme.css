@@ -158,3 +158,13 @@ body,
 body {
     font-size: 13px;
 }
+
+/*
+ * A `+N −M` line-change count. The system UI font sets `+` and `−` on the lowercase math axis, below the lining figures'
+ * center, so the heavy `+` drags an addition count down while a thin `−` does not and deletions read higher. The
+ * OpenType `case` feature lifts both signs to the figures' center; tabular figures keep counts from shifting width.
+ */
+@utility diff-stat {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'case';
+}
