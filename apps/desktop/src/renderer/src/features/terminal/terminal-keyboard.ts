@@ -1,3 +1,5 @@
+import { registerTextSelectionSource } from '../../lib/focused-text-selection';
+
 interface ClipboardDataLike {
     files: ArrayLike<{ type: string }>;
     items: ArrayLike<{ type: string }>;
@@ -65,8 +67,8 @@ export function terminalImagePasteInput(
 }
 
 /**
- * Registers the native copy bridge and provider-capability image-paste interception at their required DOM boundaries.
- * Electron's Edit
+ * Registers the native copy bridge, the Terminal's selection for selection-seeded commands such as Project search, and
+ * provider-capability image-paste interception at their required DOM boundaries. Electron's Edit
  *
  * > Copy role targets `document`, while xterm's paste event targets its container; keeping both listeners here makes
  * > their focus and disposal rules a single lifecycle contract.
@@ -98,9 +100,13 @@ export function registerTerminalClipboardHandlers(
     };
     document.addEventListener('copy', handleCopy, { capture: true });
     container.addEventListener('paste', handlePaste, { capture: true });
+    const unregisterSelectionSource = registerTextSelectionSource(container, () =>
+        options.getSelection(),
+    );
     return () => {
         document.removeEventListener('copy', handleCopy, true);
         container.removeEventListener('paste', handlePaste, true);
+        unregisterSelectionSource();
     };
 }
 

@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from 'react';
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import type { FileSearchMatch } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
@@ -73,7 +73,19 @@ async function openSearchMatch(
  */
 export function ProjectSearchDialog() {
     const isOpen = useDialogStore((state) => state.projectSearchOpen);
+    const seedRequest = useDialogStore((state) => state.projectSearchSeedRequest);
     const draft = useProjectSearchDraft();
+    /**
+     * Applied during render rather than in an effect so the opening frame already shows the seeded query and scope,
+     * instead of painting the previous draft — and firing a search for it — for one frame first.
+     */
+    const [appliedSeedId, setAppliedSeedId] = useState(seedRequest.id);
+    if (seedRequest.id !== appliedSeedId) {
+        setAppliedSeedId(seedRequest.id);
+        const { include, query } = seedRequest.seed;
+        if (query !== undefined) draft.setQuery(query);
+        if (include !== undefined) draft.setInclude(include);
+    }
     return (
         <Dialog open={isOpen} onOpenChange={setProjectSearchOpen}>
             <PickerDialogContent
