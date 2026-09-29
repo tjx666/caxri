@@ -30,7 +30,7 @@ description: Measure and protect Caxri startup, Server Core responsiveness, and 
    fast run from a cache that stopped working, and keep regression protection in the syscall-count
    assertions in `metadata-cache.test.ts` and `probe-fanout.test.ts`.
 3. Read the correlated Desktop Main, Server Core, Terminal Host, and Extension Host JSONL logs
-   from the active runtime profile's `<userData>/logs/` directory. Use `app.ready`,
+   from the active runtime profile's `<userData>/logs/` directory. Use `app.ready`, `app.startup_profile`,
    `server_connection.attached`, `window.ready_to_show`, `server_core.ready`, `pty.spawned`,
    `file.list`, `git.command`, `agent.probe`, `watcher.ready`, `pty.first_input`, and
    `pty.throughput_summary` to locate the owner. Add timing logs at operation boundaries for new
@@ -63,6 +63,11 @@ subtree-inclusive Fiber `actualDuration`; Caxri removed `react-scan/lite` 0.5.7 
 commit trees failed the parent/child duration consistency required to derive self time. Add a future
 attribution tool only with bounded, internally consistent output and an avoidable
 props/state/context/hook cause.
+
+For launch latency, measure packaged builds with the median runner in
+[startup performance](../../../docs/startup-performance.md) and compare `app.startup_profile`
+milestones. Read its "Measured and rejected" list before proposing a startup trick; the Node compile
+cache and an unthrottled hidden window were already measured without gain.
 
 The large-Project startup gate requires Server Core, Terminal, Files, and single- or
 multi-repository Git to become usable within three seconds. A performance change must retain that
