@@ -16,8 +16,11 @@ export interface ParsedDiff {
 }
 
 export interface ChangedFile {
-    additions: number;
-    deletions: number;
+    /**
+     * Absent when Git has no line count for the file, such as a binary file.
+     */
+    additions?: number;
+    deletions?: number;
     path: string;
     originalPath?: string;
     repositoryId: string;
