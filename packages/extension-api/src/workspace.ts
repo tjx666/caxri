@@ -6,6 +6,14 @@ export interface GitFileStatus {
     index: string;
     workingTree: string;
     kind: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked' | 'conflicted';
+    /**
+     * Lines this change adds, when the Git service measured them; binary files count as zero.
+     */
+    additions?: number;
+    /**
+     * Lines this change deletes; present exactly when `additions` is.
+     */
+    deletions?: number;
 }
 
 // eslint-disable-next-line unicorn/name-replacements -- Repository is the public domain term for each discovered Git root.
@@ -68,6 +76,14 @@ export interface GitCommitFile {
     path: string;
     previousPath?: string;
     status: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'type-changed' | 'unknown';
+    /**
+     * Lines this change adds, when the Git service measured them; binary files count as zero.
+     */
+    additions?: number;
+    /**
+     * Lines this change deletes; present exactly when `additions` is.
+     */
+    deletions?: number;
 }
 
 export interface GitCommitDetails {

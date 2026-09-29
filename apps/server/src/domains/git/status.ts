@@ -87,17 +87,6 @@ export function parseGitStatus(
     return { branch, head, ahead, behind, files };
 }
 
-export function parseGitLineStats(output: string): Pick<RepoStatus, 'additions' | 'deletions'> {
-    let additions = 0;
-    let deletions = 0;
-    for (const line of output.split('\n')) {
-        const [added, deleted] = line.split('\t', 2);
-        if (/^\d+$/.test(added)) additions += Number(added);
-        if (/^\d+$/.test(deleted)) deletions += Number(deleted);
-    }
-    return { additions, deletions };
-}
-
 interface ProducedSnapshot<Status> {
     generation: number;
     status: Status;

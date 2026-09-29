@@ -19,6 +19,7 @@ export type {
     SourceControlHistoryDetails,
     SourceControlHistoryItem,
     SourceControlHistoryPage,
+    SourceControlLineStats,
     SourceControlMode,
     SourceControlProvider,
     SourceControlProviderModel,

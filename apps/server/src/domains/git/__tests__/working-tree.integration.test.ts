@@ -106,6 +106,30 @@ async function isPresent(path: string): Promise<boolean> {
 }
 
 describe('GitWorkingTreeService', () => {
+    it('measures each changed file, counting untracked files from disk and folding renames', async () => {
+        const directory = await createRepo('caxri-git-line-stats-');
+        await writeFile(join(directory, 'tracked.txt'), 'one\ntwo\nthree\n', 'utf8');
+        await writeFile(join(directory, 'original.txt'), 'content\n', 'utf8');
+        await git(directory, 'add', '.');
+        await git(directory, 'commit', '-m', 'initial');
+        await writeFile(join(directory, 'tracked.txt'), 'one\n2\n', 'utf8');
+        await git(directory, 'mv', 'original.txt', 'renamed.txt');
+        await writeFile(join(directory, 'new.txt'), 'a\nb\nc\n', 'utf8');
+        const { git: service, sessionId } = await createService(directory);
+
+        const [repo] = (await service.summary(sessionId)).repositories;
+        const stats = Object.fromEntries(
+            repo.files.map((file) => [file.path, [file.additions, file.deletions]]),
+        );
+        expect(stats).toEqual({
+            'tracked.txt': [1, 2],
+            'renamed.txt': [1, 1],
+            'new.txt': [3, 0],
+        });
+        // Repository totals keep measuring only the tracked diff.
+        expect([repo.additions, repo.deletions]).toEqual([2, 3]);
+    });
+
     it('discards a tracked modification back to the committed content', async () => {
         const directory = await createRepo('caxri-git-discard-');
         await writeFile(join(directory, 'tracked.txt'), 'before\n', 'utf8');

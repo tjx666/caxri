@@ -1,11 +1,21 @@
 import { z } from 'zod';
 
+/**
+ * One changed file's line counts, present when the producer measured them and always together. Binary files count as
+ * zero; a new file past the producer's counting cap omits both.
+ */
+export const gitFileLineStatsShape = {
+    additions: z.number().int().nonnegative().optional(),
+    deletions: z.number().int().nonnegative().optional(),
+};
+
 const gitFileStatusSchema = z.object({
     path: z.string(),
     originalPath: z.string().optional(),
     index: z.string(),
     workingTree: z.string(),
     kind: z.enum(['modified', 'added', 'deleted', 'renamed', 'untracked', 'conflicted']),
+    ...gitFileLineStatsShape,
 });
 
 /**

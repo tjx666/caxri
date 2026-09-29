@@ -394,9 +394,7 @@ export class GitService {
         const summary = shouldRefresh
             ? await this.repositoryService.refreshSummary(sessionId, 'repository')
             : await this.summary(sessionId, 0, 'repository');
-        return mobileChangesListForSummary(summary, (root, arguments_, maxBufferBytes) =>
-            this.git(root, arguments_, { maxBufferBytes }),
-        );
+        return mobileChangesListForSummary(summary);
     }
 
     async mobileChangesDiff(sessionId: string, repoId: string, path: string) {

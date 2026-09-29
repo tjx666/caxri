@@ -2,6 +2,7 @@ import type { GitCommitDetails, GitCommitFile } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import { COMMIT_FORMAT, parseCommitLog } from './commit-log';
+import { parseGitNumstat, sumGitLineStats, withGitLineStat } from './numstat';
 
 const MAX_COMMIT_FILES = 500;
 
@@ -34,24 +35,6 @@ export function parseCommitFiles(output: string): GitCommitFile[] {
         files.push({ path, status: commitFileStatus(code) });
     }
     return files;
-}
-
-/**
- * Sums `git diff-tree --numstat -z` output, including rename/copy records and binary-file placeholders.
- */
-function sumCommitNumstat(output: string): { additions: number; deletions: number } {
-    const fields = output.split('\0');
-    let additions = 0;
-    let deletions = 0;
-    for (let index = 0; index < fields.length; index += 1) {
-        // `[^]` (rather than `.`) includes legal newlines embedded in a NUL-delimited Git filename.
-        const record = /^(\d+|-)\t(\d+|-)\t([\s\S]*)$/.exec(fields[index]);
-        if (!record) continue;
-        if (record[1] !== '-') additions += Number(record[1]);
-        if (record[2] !== '-') deletions += Number(record[2]);
-        if (record[3] === '') index += 2;
-    }
-    return { additions, deletions };
 }
 
 /**
@@ -100,10 +83,11 @@ export async function readCommitDetails(
         options.git(numstatArguments),
     ]);
     const files = parseCommitFiles(filesOutput);
+    const lineStats = parseGitNumstat(numstatOutput);
     return {
         commit,
-        files: files.slice(0, MAX_COMMIT_FILES),
+        files: files.slice(0, MAX_COMMIT_FILES).map((file) => withGitLineStat(file, lineStats)),
         filesTruncated: files.length > MAX_COMMIT_FILES,
-        ...sumCommitNumstat(numstatOutput),
+        ...sumGitLineStats(lineStats.values()),
     };
 }
