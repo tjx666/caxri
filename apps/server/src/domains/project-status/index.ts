@@ -46,7 +46,6 @@ import {
     repoPullRequestNumber,
     resolvePullRequestTarget,
 } from './session-pull-request';
-import { loadVercelDeployments } from './vercel';
 import { VercelDeploymentStore } from './vercel-store';
 import type { WatchOutcome } from './watch';
 import { deliveryKeys, DeliveryWatch, isInFlight } from './watch';
@@ -172,6 +171,7 @@ export class ProjectStatusService {
             command,
             arguments: arguments_,
             subject,
+            isOptional: command === 'git', // Only branch publication's local ahead/behind probes, which fall back.
             run: () => this.runner(command, arguments_, cwd),
         });
     }
@@ -317,15 +317,15 @@ export class ProjectStatusService {
             github,
             (async () => {
                 const state = await github;
-                return loadVercelDeployments(
+                return this.vercel.deployments(
                     {
-                        links: this.vercel.links,
                         onParseFailure: (error) => this.logExternalParseFailure('vc', error),
                         run: (arguments_, cwd) => this.runCommand('vc', arguments_, cwd),
                     },
                     prepared.context,
                     prepared.repository.rootPath,
                     state.mergeCommit,
+                    isForced,
                 );
             })(),
             readBranchPublication(
