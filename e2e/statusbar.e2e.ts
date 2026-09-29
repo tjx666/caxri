@@ -110,7 +110,7 @@ exec /bin/zsh -l
             name: 'Open pull request #11',
         });
         const changes = running.page.getByRole('button', {
-            name: 'Open changes: 2 additions, 1 deletion',
+            name: 'Open changes: 2 lines added, 1 removed',
         });
         await expect(project).toHaveText('status-project');
         await expect(
@@ -182,7 +182,7 @@ exec /bin/zsh -l
         await writeFile(join(root, 'untracked.txt'), 'new\n', 'utf8');
         await expect(
             running.page.getByRole('button', {
-                name: 'Open changes: 2 additions, 1 deletion',
+                name: 'Open changes: 2 lines added, 1 removed',
             }),
         ).toBeVisible();
         /**

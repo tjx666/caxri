@@ -5,22 +5,20 @@ import type { SourceControlAction, SourceControlResource } from '@caxri/protocol
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
+import { DiffStat } from '../../../components/diff-stat';
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
+import { diffStatLabel } from '../../../lib/diff-stat-label';
 import { startFilePathDrag } from '../../../lib/file-drag';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../../lib/repository-file-path';
 import { cn } from '../../../lib/utilities';
 import { openFile } from '../../editor/document-commands';
 import { sourceControlDecorationClassName } from './source-control-decorations';
 import { SourceControlIcon } from './source-control-icon';
-import { SourceControlLineStats } from './source-control-line-stats';
 import { sourceControlActionMenuItems } from './source-control-row-menu';
 import type { SourceControlTreeNode } from './source-control-tree';
-import {
-    sourceControlDirectoryExpansionKeys,
-    sourceControlLineStatsLabel,
-} from './source-control-tree';
+import { sourceControlDirectoryExpansionKeys } from './source-control-tree';
 import { useSourceControlTreeFocus } from './source-control-tree-focus';
 import { treeNavigationAction } from './source-control-tree-navigation';
 import { SourceControlTreeRow } from './source-control-tree-row';
@@ -295,7 +293,7 @@ function SourceControlVirtualRow({
                     style={{ paddingLeft: 8 + depth * 14 }}
                     aria-expanded={isExpanded}
                     aria-keyshortcuts="Alt"
-                    aria-description={sourceControlLineStatsLabel(node.lineStats)}
+                    aria-description={node.lineStats && diffStatLabel(node.lineStats)}
                     data-path={node.path}
                     {...setInfo}
                     draggable={Boolean(directoryPath)}
@@ -323,7 +321,16 @@ function SourceControlVirtualRow({
                         expanded={isExpanded}
                     />
                     <span className="min-w-0 flex-1 truncate">{node.name}</span>
-                    <SourceControlLineStats lineStats={node.lineStats} />
+                    {node.lineStats && (
+                        <>
+                            <DiffStat {...node.lineStats} className="text-[11px]" />
+                            {/*
+                             * Stands in for a file row's status letter (`gap-2` + `min-w-4`) so directory counts line
+                             * up in the same column as the file counts beneath them.
+                             */}
+                            <span aria-hidden="true" className="ml-0.5 w-4 flex-none" />
+                        </>
+                    )}
                 </SourceControlTreeRow>
             </div>
         );
@@ -361,7 +368,7 @@ function SourceControlVirtualRow({
                 style={{ paddingLeft: 10 + depth * 14 }}
                 data-path={resource.path}
                 aria-label={resource.accessibilityLabel}
-                aria-description={sourceControlLineStatsLabel(resource.lineStats)}
+                aria-description={resource.lineStats && diffStatLabel(resource.lineStats)}
                 aria-keyshortcuts={openablePath ? 'Alt' : undefined}
                 {...setInfo}
                 draggable={Boolean(resourcePath)}
@@ -372,14 +379,16 @@ function SourceControlVirtualRow({
                 <span className={cn('min-w-0 flex-1 truncate', resourceColorClassName(resource))}>
                     {node.name}
                 </span>
-                <SourceControlLineStats
-                    lineStats={resource.lineStats}
-                    className={
-                        trailingActions.length > 0
-                            ? 'group-focus-within:invisible group-hover:invisible'
-                            : undefined
-                    }
-                />
+                {resource.lineStats && (
+                    <DiffStat
+                        {...resource.lineStats}
+                        className={cn(
+                            'text-[11px]',
+                            trailingActions.length > 0 &&
+                                'group-focus-within:invisible group-hover:invisible',
+                        )}
+                    />
+                )}
                 <Decoration
                     resource={resource}
                     className={

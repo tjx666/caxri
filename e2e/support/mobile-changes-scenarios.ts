@@ -251,6 +251,8 @@ export async function executeMobileChangesScenario(
                 break;
             }
             case 'MOB-CHANGES-02': {
+                // The 3,000-line oversized file proves compact counts (`+3k`) in the list.
+                await capture(environment, 'limits-list', artifacts, 'changes-summary');
                 const placeholders = await captureUnreviewableDiffs(environment, artifacts);
                 expect(placeholders).toBe(2);
                 await finish(environment, artifacts, {

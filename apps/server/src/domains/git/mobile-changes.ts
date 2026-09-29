@@ -83,8 +83,10 @@ function mobileChangesList(repo: GitRepositorySummary | undefined): MobileChange
             path: file.path,
             ...(file.originalPath && { originalPath: file.originalPath }),
             status: status(file.kind),
-            additions: fileAdditions,
-            deletions: fileDeletions,
+            ...(file.additions !== undefined && {
+                additions: fileAdditions,
+                deletions: fileDeletions,
+            }),
         };
         if (
             Buffer.byteLength(JSON.stringify({ files: [...files, candidate] }), 'utf8') >
