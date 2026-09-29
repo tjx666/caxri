@@ -18,6 +18,8 @@ export const registeredColorRoles = [
     'border',
     'danger',
     'danger-foreground',
+    'diff-stat-added',
+    'diff-stat-removed',
     'elevated',
     'error-badge',
     'error-badge-foreground',

@@ -25,6 +25,11 @@ const gitFileStatusSchema = z.object({
  */
 export const MAX_GIT_STATUS_FILES = 2_000;
 
+/**
+ * `git status --porcelain=v2 --branch` reports a detached HEAD as this branch name; `git.summary` passes it through.
+ */
+export const DETACHED_BRANCH = '(detached)';
+
 const gitDetachedHeadSchema = z.object({
     /**
      * Subject line of the checked-out commit.
