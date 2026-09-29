@@ -174,8 +174,19 @@ test('Source Control explains an Xcode license block and recovers after Retry', 
         await expect(panel.getByText('No Git repository')).toHaveCount(0);
 
         await rm(git);
-        await panel.getByRole('button', { name: 'Retry', exact: true }).click();
-        await expect(panel.locator('.git-repository-section')).toBeVisible();
+        const retry = panel.getByRole('button', { name: 'Retry', exact: true });
+        const repo = panel.locator('.git-repository-section');
+        /**
+         * The failed snapshot's change event queues follow-up refreshes. One of them can start after `rm(git)` and
+         * recover the panel on its own: Retry turns disabled for that fetch and then unmounts, so a plain `click()`
+         * waits out its timeout on a button that no longer exists (https://github.com/tjx666/caxri/issues/1418).
+         * Recovery is the contract; Retry is clicked whenever it is still offered and enabled.
+         */
+        await expect(async () => {
+            if ((await retry.count()) > 0 && (await retry.isEnabled()))
+                await retry.click({ timeout: 1_000 });
+            await expect(repo).toBeVisible({ timeout: 1_000 });
+        }).toPass();
         await expect(panel.getByText('Git is not available')).toHaveCount(0);
     } finally {
         await running.app.close();

@@ -14,7 +14,6 @@ import type {
 import {
     CaxriError,
     durableServerEventSchema,
-    isCallerHandledFailure,
     isNonExpiringServerOperation,
     logEventCatalog,
     parseServerOperationRequest,
@@ -28,6 +27,7 @@ import type { ProtocolRecoveryState } from '../domains/protocol-recovery';
 import { isAtomicStructuralMethod } from './atomic-structural-methods';
 import type { DomainOperationDispatcher } from './operation-dispatcher';
 import { createOperationDispatcher } from './operation-dispatcher';
+import { requestFailureLogLevel } from './request-observability';
 
 interface PendingOperation {
     abortCleanup?: () => void;
@@ -218,7 +218,7 @@ export class ServerDomainService extends EventTarget {
         } catch (error) {
             const wire = toWireError(error);
             this.dependencies.logger.write(
-                isCallerHandledFailure(wire.code) ? 'warn' : 'error',
+                requestFailureLogLevel(method, wire.code),
                 logEventCatalog.ipc.requestFailed,
                 {
                     correlationId: requestId,
