@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { rendererDiagnosticSchema, rendererPerformanceSurfaces } from '../renderer-diagnostic.js';
+import { rendererDiagnosticSchema } from '../renderer-diagnostic.js';
+import { rendererPerformanceSurfaces } from '../renderer-performance-diagnostic.js';
 
 const validDiagnostic = {
     kind: 'terminal-renderer',

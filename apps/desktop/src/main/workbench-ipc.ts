@@ -1,4 +1,8 @@
-import type { CaxriReply, TerminalRendererDiagnostic } from '@caxri/protocol';
+import type {
+    CaxriReply,
+    StartupFrameDiagnostic,
+    TerminalRendererDiagnostic,
+} from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
@@ -54,6 +58,7 @@ export interface WorkbenchIpcOptions {
      */
     readEventLoopStalls?(): EventLoopStallSummary | undefined;
     onEventsReady?(): void;
+    onStartupFrame?(diagnostic: StartupFrameDiagnostic): void;
     renderer(): WebContents | undefined;
     /**
      * Optional second Renderer (the Agent Commander window) that shares the Workbench preload and Main's single
@@ -128,6 +133,10 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
         const diagnostic = parsed.data;
         if (diagnostic.kind === 'terminal-renderer') {
             options.onRendererDiagnostic?.(diagnostic);
+            return;
+        }
+        if (diagnostic.kind === 'startup-frame') {
+            options.onStartupFrame?.(diagnostic);
             return;
         }
         if (diagnostic.kind === 'gpu-incident-budget') {

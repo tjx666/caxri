@@ -104,6 +104,10 @@ export const logEventCatalog = {
         ready: 'app.ready',
         secondInstanceFocusFailed: 'app.second_instance_focus_failed',
         secondInstanceFocused: 'app.second_instance_focused',
+        /**
+         * One per launch: every startup milestone in Main-clock milliseconds, closed by the Workbench's first frame.
+         */
+        startupProfile: 'app.startup_profile',
     },
     configuration: {
         loadFailed: 'configuration.load_failed',
