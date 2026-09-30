@@ -3,7 +3,8 @@ import { join } from 'node:path';
 
 import type { AgentEnvironment } from '../../contract';
 import type { AgentTranscriptLocation } from '../../transcript-security';
-import { resolveCodexHome } from './paths';
+import { resolveCodexHome, resolveCodexStateDirectories } from './paths';
+import { CODEX_ROLLOUT_NAME_PATTERN, readCodexCurrentRolloutId } from './rollouts';
 
 /**
  * One day of local Codex activity is a few hundred rollouts; a folder past this budget fails closed.
@@ -13,7 +14,6 @@ const MAX_CODEX_SESSION_DAY_ENTRIES = 4_096;
  * Codex thread ids are UUIDv7, so the first 48 bits carry the thread's creation time in milliseconds.
  */
 const UUID_V7_PATTERN = /^([\da-f]{8})-([\da-f]{4})-7[\da-f]{3}-[\da-f]{4}-[\da-f]{12}$/i;
-const ROLLOUT_NAME_PATTERN = /^rollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-[\da-f-]{36}\.jsonl$/i;
 
 function codexSessionsRoot(environment: AgentEnvironment): string {
     return join(resolveCodexHome(environment), 'sessions');
@@ -44,7 +44,7 @@ async function findRolloutName(
             scanned += 1;
             if (scanned > MAX_CODEX_SESSION_DAY_ENTRIES) return;
             const name = entry.name.toLowerCase();
-            if (entry.isFile() && name.endsWith(suffix) && ROLLOUT_NAME_PATTERN.test(name))
+            if (entry.isFile() && name.endsWith(suffix) && CODEX_ROLLOUT_NAME_PATTERN.test(name))
                 return entry.name;
         }
     } catch {
@@ -61,11 +61,12 @@ async function findRolloutName(
 }
 
 /**
- * Codex writes each thread to `sessions/YYYY/MM/DD/rollout-<wall clock>-<thread id>.jsonl`. The wall clock and the day
- * folder use the machine's local time and are sampled separately from the UUIDv7 thread id (about 3% of local rollouts
- * land one second apart), so the path cannot be derived purely. The thread id's own timestamp picks the day folder,
- * which is then listed for the file carrying that id; the neighbouring days absorb midnight and timezone drift. Only
- * directory entries are read here, never transcript contents.
+ * Codex writes each thread to `sessions/YYYY/MM/DD/rollout-<wall clock>-<thread id>.jsonl` (see
+ * {@link CODEX_ROLLOUT_NAME_PATTERN} for the reverted-thread form). The wall clock and the day folder use the machine's
+ * local time and are sampled separately from the UUIDv7 thread id (about 3% of local rollouts land one second apart),
+ * so the path cannot be derived purely. The thread id's own timestamp picks the day folder, which is then listed for
+ * the file carrying that id; the neighbouring days absorb midnight and timezone drift. Only directory entries are read
+ * here, never transcript contents.
  */
 export async function locateCodexTranscript(
     context: { agentSessionId: string },
@@ -73,10 +74,23 @@ export async function locateCodexTranscript(
     signal?: AbortSignal,
 ): Promise<AgentTranscriptLocation | undefined> {
     signal?.throwIfAborted();
-    const createdAt = uuidV7Timestamp(context.agentSessionId);
+    if (uuidV7Timestamp(context.agentSessionId) === undefined) return;
+    /**
+     * A reverted thread continues in `rollout-<wall clock>-<thread id>_<rollout id>.jsonl`, written on the revert's day
+     * rather than the thread's, so the rollout ID's own timestamp picks the day folder. The abandoned original rollout
+     * stays on disk and must not be read as the live transcript.
+     */
+    const rolloutId = await readCodexCurrentRolloutId(
+        context.agentSessionId,
+        resolveCodexStateDirectories(environment),
+    );
+    signal?.throwIfAborted();
+    const createdAt = uuidV7Timestamp(rolloutId ?? context.agentSessionId);
     if (createdAt === undefined) return;
     const sessionsRoot = codexSessionsRoot(environment);
-    const suffix = `-${context.agentSessionId.toLowerCase()}.jsonl`;
+    const suffix = rolloutId
+        ? `-${context.agentSessionId.toLowerCase()}_${rolloutId.toLowerCase()}.jsonl`
+        : `-${context.agentSessionId.toLowerCase()}.jsonl`;
     /**
      * Cancellation must retain the caller's scan slot until all directory handles have settled.
      */
