@@ -66,8 +66,10 @@ props/state/context/hook cause.
 
 For launch latency, measure packaged builds with the median runner in
 [startup performance](../../../docs/startup-performance.md) and compare `app.startup_profile`
-milestones. Read its "Measured and rejected" list before proposing a startup trick; the Node compile
-cache and an unthrottled hidden window were already measured without gain.
+milestones. Read its "Startup design" and "Not applicable" sections before proposing a startup
+trick. A sound, low-risk optimization ships even when today's A/B is within noise, since the
+startup path keeps growing; reject one only for a measured regression, real risk, or a dev-debugging
+cost.
 
 The large-Project startup gate requires Server Core, Terminal, Files, and single- or
 multi-repository Git to become usable within three seconds. A performance change must retain that

@@ -1,10 +1,10 @@
 import type { GitRepositorySummary, ProjectStatusRepository } from '@caxri/protocol';
+import { DETACHED_BRANCH } from '@caxri/protocol';
 import { parseGitHubRemote } from '@caxri/utils';
 import { z } from 'zod';
 
 import type { ExternalStatusRunner } from '../external-status';
 import { ExternalStatusCliError, parseExternalJson } from '../external-status';
-import { DETACHED_BRANCH } from '../git/status';
 import { projectStatusCliError } from './external';
 
 type Publication = NonNullable<ProjectStatusRepository['publication']>;

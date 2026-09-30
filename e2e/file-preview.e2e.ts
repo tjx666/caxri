@@ -50,10 +50,8 @@ const BADGE_SVG =
  * heading, a highlighted block, a diagram, and an object-URL image after the Renderer decorates the mounted DOM.
  */
 test('previews Markdown and SVG in a virtual editor tab', async () => {
-    allowE2EErrors([
-        { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
-        { source: 'server-core', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
-    ]);
+    // The missing-file preview's `files.read` NOT_FOUND is caller-handled, so Server Core logs it at `warn`.
+    allowE2EErrors([{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 }]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-preview-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');

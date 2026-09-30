@@ -1,0 +1,69 @@
+import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
+import type { BrowserWindow } from 'electron';
+import { app, dialog } from 'electron';
+
+import { decideCrashRecovery } from './crash-policy';
+
+/**
+ * Reloads a crashed Workbench Renderer with backoff and, once it is crash-looping, asks whether to relaunch or quit.
+ */
+export function observeRendererCrashes(
+    window: BrowserWindow,
+    options: { logger: () => StructuredLogger | undefined; shutdown: () => Promise<void> },
+): void {
+    let rendererCrashTimestampsMs: number[] = [];
+    window.webContents.on('render-process-gone', (_event, details) => {
+        if (details.reason === 'clean-exit' || window.isDestroyed()) return;
+        const { decision, crashTimestampsMs } = decideCrashRecovery(
+            rendererCrashTimestampsMs,
+            Date.now(),
+        );
+        rendererCrashTimestampsMs = crashTimestampsMs;
+        if (decision.action === 'reload') {
+            options.logger()?.write('warn', logEventCatalog.window.renderProcessGone, {
+                fields: {
+                    code: 'RENDER_PROCESS_GONE',
+                    reason: details.reason,
+                    exitCode: details.exitCode,
+                    crashCount: decision.crashCount,
+                    delayMs: decision.delayMs ?? 0,
+                },
+            });
+            setTimeout(() => {
+                if (!window.isDestroyed()) window.reload();
+            }, decision.delayMs);
+            return;
+        }
+        options.logger()?.write('error', logEventCatalog.window.renderProcessCrashLoop, {
+            fields: {
+                code: 'RENDER_PROCESS_CRASH_LOOP',
+                reason: details.reason,
+                exitCode: details.exitCode,
+                crashCount: decision.crashCount,
+            },
+        });
+        // `render-process-gone` is a synchronous listener; recovering from a repeated crash by
+        // relaunching or exiting cannot block this handler, so the recovery flow below is
+        // deliberately fire-and-forget rather than awaited.
+        (async () => {
+            const result = await dialog.showMessageBox(window, {
+                type: 'error',
+                title: 'Caxri Keeps Crashing',
+                message: 'The Caxri window has crashed repeatedly and automatic reload stopped.',
+                detail: 'Relaunch Caxri, or quit to investigate.',
+                buttons: ['Relaunch', 'Quit'],
+                defaultId: 0,
+                cancelId: 1,
+            });
+            try {
+                await options.shutdown();
+            } catch {
+                // Best-effort shutdown; the window still needs to relaunch or exit below.
+            }
+            if (result.response === 0) app.relaunch();
+            app.exit(0);
+            // eslint-disable-next-line unicorn/prefer-await -- see comment above
+        })().catch(() => {});
+    });
+}

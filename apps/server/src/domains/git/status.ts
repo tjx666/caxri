@@ -1,9 +1,5 @@
 import type { GitDetachedHead, GitFileStatus } from '@caxri/protocol';
-
-/**
- * `git status --porcelain=v2 --branch` reports a detached HEAD as this branch name; `git.summary` passes it through.
- */
-export const DETACHED_BRANCH = '(detached)';
+import { DETACHED_BRANCH } from '@caxri/protocol';
 
 /**
  * Names a detached HEAD from `git for-each-ref --points-at HEAD --format=%(refname)` output. A tag is the most

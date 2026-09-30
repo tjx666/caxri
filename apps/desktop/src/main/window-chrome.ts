@@ -32,7 +32,7 @@ export function trafficLightPositionForZoom(zoomFactor: number): Point {
     };
 }
 
-function applyWindowZoom(window: BrowserWindow, level: number): void {
+export function applyWindowZoom(window: BrowserWindow, level: number): void {
     if (window.isDestroyed()) return;
     window.webContents.setZoomLevel(level);
     if (process.platform === 'darwin')
