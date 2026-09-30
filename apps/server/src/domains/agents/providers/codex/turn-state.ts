@@ -8,10 +8,35 @@ import { findCodexStateDatabases } from './state-databases';
 interface CodexTurnRow {
     turn_id: string;
     status: string;
+    /**
+     * Unix seconds; absent from stores that predate the column.
+     */
+    started_at?: number | null;
+}
+
+/**
+ * Codex records `started_at` in whole seconds, so a turn the current process started can read up to a second earlier
+ * than the process start Caxri captured in milliseconds.
+ */
+const TURN_START_PRECISION_MS = 1000;
+
+/**
+ * A Codex process that exits mid-turn (Caxri restarted, the PTY was killed) never writes `turn_aborted`, so its turn
+ * stays `inProgress` in `thread_turns` forever. The resumed process only prints "Conversation interrupted" and never
+ * repairs the row. A latest turn that started before the current Agent process can therefore not still be running.
+ * Exact hook turns are exempt: the current process reported them itself.
+ */
+function isOrphanedTurn(row: CodexTurnRow, processStartedAt: number | undefined): boolean {
+    return (
+        row.status === 'inProgress' &&
+        processStartedAt !== undefined &&
+        typeof row.started_at === 'number' &&
+        row.started_at * 1000 + TURN_START_PRECISION_MS < processStartedAt
+    );
 }
 
 export async function readCodexTurnState(
-    context: Pick<AgentSnapshotContext, 'agentSessionId' | 'agentTurnId'>,
+    context: Pick<AgentSnapshotContext, 'agentSessionId' | 'agentTurnId' | 'startedAt'>,
     stateDirectories: string[],
 ): Promise<Pick<LocalAgentState, 'activitySource' | 'activityTurnId' | 'status'> | undefined> {
     if (!context.agentSessionId) return undefined;
@@ -59,23 +84,28 @@ export async function readCodexTurnState(
                 : rolloutId
                   ? ` ORDER BY thread_id = ? DESC, ${recency}`
                   : ` ORDER BY ${recency}`;
+            const startedAt = columns.has('started_at') ? ', started_at' : '';
             const row = database
                 .prepare(
-                    `SELECT turn_id, status FROM thread_turns WHERE ${threadFilter}${isExactTurn ? ' AND turn_id = ?' : ''}${order} LIMIT 1`,
+                    `SELECT turn_id, status${startedAt} FROM thread_turns WHERE ${threadFilter}${isExactTurn ? ' AND turn_id = ?' : ''}${order} LIMIT 1`,
                 )
                 .get(
                     ...rolloutIds,
                     ...(isExactTurn ? [context.agentTurnId] : []),
                     ...(!isExactTurn && rolloutId ? [rolloutId] : []),
                 ) as CodexTurnRow | undefined;
+            const isOrphaned =
+                row !== undefined && !isExactTurn && isOrphanedTurn(row, context.startedAt);
             const status =
-                row?.status === 'inProgress'
+                !isOrphaned && row?.status === 'inProgress'
                     ? 'running'
-                    : row?.status === 'failed'
-                      ? 'failed'
-                      : row?.status === 'completed' || row?.status === 'interrupted'
-                        ? 'completed'
-                        : undefined;
+                    : isOrphaned
+                      ? 'completed'
+                      : row?.status === 'failed'
+                        ? 'failed'
+                        : row?.status === 'completed' || row?.status === 'interrupted'
+                          ? 'completed'
+                          : undefined;
             if (row && status)
                 return {
                     activitySource: isExactTurn ? 'exactTurn' : 'latestTurn',
