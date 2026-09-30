@@ -27,9 +27,12 @@ import { codexDelegationAdapter, codexPrimaryTurnFailure } from './delegation';
 import { codexHookAdapter } from './hooks';
 import { generateCodexLowCostText } from './low-cost-generation';
 import { resolveCodexHome, resolveCodexStateDirectories } from './paths';
+import { CODEX_ROLLOUT_NAME_PATTERN, parseCodexRolloutName } from './rollouts';
+import type { SqliteColumn } from './state-databases';
 import { findCodexStateDatabases } from './state-databases';
 import { appendCodexTimelineRecord } from './timeline';
 import { locateCodexTranscript } from './transcript';
+import { readCodexTurnState, readCodexTurnStatus } from './turn-state';
 
 /**
  * A one-shot app-server sees the active conversation as an unloaded thread; 0.110.0 made that rename path durable.
@@ -276,10 +279,6 @@ export async function renameCodexSession(
     }
 }
 
-interface SqliteColumn {
-    name: string;
-}
-
 interface CodexThreadRow {
     id: string;
     session_is_subagent?: number | null;
@@ -300,86 +299,8 @@ const CODEX_THREAD_ID_TIMESTAMP_CHARACTERS = 13;
  * this probe cannot attribute — and spending one database query per candidate is the cost being bounded.
  */
 const MAX_CODEX_OPEN_THREAD_CANDIDATES = 4;
-const CODEX_ROLLOUT_NAME_PATTERN =
-    /^rollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-([\da-f]{8}-[\da-f]{4}-7[\da-f]{3}-[\da-f]{4}-[\da-f]{12})\.jsonl$/i;
 const CODEX_SQLITE_WHITESPACE =
     'char(9,10,11,12,13,32,133,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288)';
-
-interface CodexTurnRow {
-    turn_id: string;
-    status: string;
-}
-
-async function readCodexTurnState(
-    context: Pick<AgentSnapshotContext, 'agentSessionId' | 'agentTurnId'>,
-    stateDirectories: string[],
-): Promise<Pick<LocalAgentState, 'activitySource' | 'activityTurnId' | 'status'> | undefined> {
-    if (!context.agentSessionId) return undefined;
-    const databasePaths = await findCodexStateDatabases(
-        stateDirectories,
-        /^thread_history_\d+\.sqlite$/,
-    );
-    for (const path of databasePaths) {
-        let database: Database.Database | undefined;
-        try {
-            database = new Database(path, { fileMustExist: true, readonly: true });
-            const columns = new Set(
-                (database.prepare('PRAGMA table_info(thread_turns)').all() as SqliteColumn[]).map(
-                    (column) => column.name,
-                ),
-            );
-            if (['thread_id', 'turn_id', 'status'].some((column) => !columns.has(column))) continue;
-            const isExactTurn = context.agentTurnId !== undefined;
-            /**
-             * A validated hook supplies the exact turn and remains authoritative. Restored PTYs may not inherit the
-             * current hook environment, though, so a bound thread also needs a persisted-state fallback: Codex writes
-             * `inProgress` before rendering work and advances `rollout_ordinal` for every new turn. Older supported
-             * stores predate that column; their insertion order is the only available recency signal.
-             *
-             * @see https://github.com/openai/codex/blob/5af85998/codex-rs/thread-store/src/local/thread_history.rs
-             */
-            const order = isExactTurn
-                ? ''
-                : columns.has('rollout_ordinal')
-                  ? ' ORDER BY rollout_ordinal DESC'
-                  : ' ORDER BY rowid DESC';
-            const row = database
-                .prepare(
-                    `SELECT turn_id, status FROM thread_turns WHERE thread_id = ?${isExactTurn ? ' AND turn_id = ?' : ''}${order} LIMIT 1`,
-                )
-                .get(context.agentSessionId, ...(isExactTurn ? [context.agentTurnId] : [])) as
-                CodexTurnRow | undefined;
-            const status =
-                row?.status === 'inProgress'
-                    ? 'running'
-                    : row?.status === 'failed'
-                      ? 'failed'
-                      : row?.status === 'completed' || row?.status === 'interrupted'
-                        ? 'completed'
-                        : undefined;
-            if (row && status)
-                return {
-                    activitySource: isExactTurn ? 'exactTurn' : 'latestTurn',
-                    activityTurnId: row.turn_id,
-                    status,
-                };
-        } catch {
-            /**
-             * Codex owns this private database schema; missing tables and schema drift degrade to unknown.
-             */
-        } finally {
-            database?.close();
-        }
-    }
-    return undefined;
-}
-
-async function readCodexTurnStatus(
-    context: Pick<AgentSnapshotContext, 'agentSessionId' | 'agentTurnId'>,
-    stateDirectories: string[],
-): Promise<LocalAgentState['status']> {
-    return (await readCodexTurnState(context, stateDirectories))?.status;
-}
 
 function isWritableOpenFile(access: string): boolean {
     const normalized = access.trim().toLowerCase();
@@ -413,8 +334,8 @@ export function codexSessionIdsFromOpenFiles(
             suffix.split(sep).length !== 4
         )
             continue;
-        const match = CODEX_ROLLOUT_NAME_PATTERN.exec(basename(file.path));
-        const sessionId = match?.[1];
+        // A reverted thread's live rollout carries its rollout ID after the stable thread ID.
+        const sessionId = parseCodexRolloutName(basename(file.path))?.threadId;
         if (!sessionId || !CODEX_THREAD_ID_PATTERN.test(sessionId)) continue;
         if (!isOpaqueAgentSessionId(sessionId)) continue;
         sessionIds.add(sessionId);
