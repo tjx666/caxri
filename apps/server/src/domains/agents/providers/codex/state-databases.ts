@@ -1,6 +1,13 @@
 import { opendir } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
+/**
+ * One `PRAGMA table_info` row; Codex's private schemas are capability-detected column by column.
+ */
+export interface SqliteColumn {
+    name: string;
+}
+
 const MAX_CODEX_STATE_DIRECTORY_ENTRIES = 2_048;
 export const MAX_CODEX_STATE_DATABASES = 32;
 

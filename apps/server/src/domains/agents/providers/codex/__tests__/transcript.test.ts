@@ -1,8 +1,9 @@
 import * as filesystem from 'node:fs/promises';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 
+import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resolveSafeAgentTranscriptPath } from '../../../transcript-security';
@@ -19,6 +20,11 @@ vi.mock('node:fs/promises', async (importOriginal) => {
  */
 const THREAD_ID = '019e676d-8740-7bb2-8bcb-f189c8260607';
 const THREAD_CREATED_AT = 0x019e676d8740;
+/**
+ * UUIDv7 rollout written by a revert a week after the thread, whose leading 48 bits encode 2026-06-03T23:32:11.648Z.
+ */
+const REVERTED_ROLLOUT_ID = '019e8fd4-8b00-7c21-9a3e-5f0d6e7c8b9a';
+const REVERTED_ROLLOUT_CREATED_AT = 0x019e8fd48b00;
 
 function localDaySegments(time: number, dayOffset = 0): [string, string, string] {
     const day = new Date(time);
@@ -58,7 +64,13 @@ describe('locateCodexTranscript', () => {
     it('retains canceled lookups until every directory operation settles', async () => {
         const pending = Array.from({ length: 3 }, () => Promise.withResolvers<never>());
         let calls = 0;
-        vi.spyOn(filesystem, 'opendir').mockImplementation(() => pending[calls++].promise);
+        const actual = await vi.importActual<typeof filesystem>('node:fs/promises');
+        // Only the rollout day folders are held open; the reverted-rollout pointer lookup scans state folders first.
+        vi.spyOn(filesystem, 'opendir').mockImplementation((path, options) =>
+            String(path).includes(`${sep}sessions${sep}`)
+                ? pending[calls++].promise
+                : actual.opendir(path, options),
+        );
         const controller = new AbortController();
         let isSettled = false;
         const lookup = locateCodexTranscript(
@@ -75,6 +87,7 @@ describe('locateCodexTranscript', () => {
                 isSettled = true;
             }
         })();
+        await vi.waitFor(() => expect(calls).toBe(pending.length));
         controller.abort();
         pending[0].reject(controller.signal.reason);
         try {
@@ -158,6 +171,23 @@ describe('locateCodexTranscript', () => {
                 environment(),
             ),
         ).toBe(undefined);
+    });
+
+    it('follows a reverted thread to its current rollout instead of the abandoned original', async () => {
+        const original = localDaySegments(THREAD_CREATED_AT);
+        await writeRollout(original, `rollout-${original.join('-')}T11-14-52-${THREAD_ID}.jsonl`);
+        const reverted = localDaySegments(REVERTED_ROLLOUT_CREATED_AT);
+        const { path } = await writeRollout(
+            reverted,
+            `rollout-${reverted.join('-')}T09-34-55-${THREAD_ID}_${REVERTED_ROLLOUT_ID}.jsonl`,
+        );
+        const state = new Database(join(home, '.codex', 'state_5.sqlite'));
+        state.exec('CREATE TABLE threads (id TEXT PRIMARY KEY, rollout_path TEXT)');
+        state.prepare('INSERT INTO threads VALUES (?, ?)').run(THREAD_ID, path);
+        state.close();
+
+        const location = await locateCodexTranscript({ agentSessionId: THREAD_ID }, environment());
+        expect(location?.path).toBe(path);
     });
 
     it('honors CODEX_HOME over the home default', async () => {
