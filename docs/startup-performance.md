@@ -20,7 +20,8 @@ Each field is milliseconds since the Main process time origin:
 | `appReadyMs`       | Electron `app.whenReady()` resolved                                   |
 | `serverAttachedMs` | Main attached to a running Server Core (launched or adopted)          |
 | `windowCreatedMs`  | The Workbench `BrowserWindow` was constructed                         |
-| `readyToShowMs`    | The window painted its inline startup loader and was shown            |
+| `readyToShowMs`    | The hidden window painted its inline startup loader                   |
+| `windowShownMs`    | The window was placed (bounds, zoom) and shown                        |
 | `rendererReadyMs`  | The preload attached its event listener                               |
 | `loaderRemovedMs`  | The Workbench attached and removed `#startup-loader`                  |
 | `firstFrameMs`     | Two animation frames later: the attached Workbench has been presented |
@@ -47,34 +48,44 @@ first launch; the rest are warm restarts, each with a freshly spawned Server Cor
 interleaved per round so machine drift lands on both sides. `--env label:KEY=VALUE` runs one build
 under two environments.
 
+## Startup design
+
+- **Window first.** Main creates the Workbench window right after `app.whenReady()`, before Server
+  Core attaches, so the Renderer loads its bundle while Server Core starts. Renderer requests and
+  the events handshake wait on Server Core attachment in Main instead of failing `UNAVAILABLE`.
+  The window stays hidden until its saved bounds and zoom, both owned by Server Core, have been
+  applied (`window-placement.ts`), so it never appears at the default size and jumps.
+- **Unthrottled while hidden.** `backgroundThrottling: false` until the window is shown, so the
+  hidden page reaches its first paint and first frames without waiting for visibility.
+- **Node compile cache.** Packaged builds enable `module.enableCompileCache()` for Main and Server
+  Core from dedicated bootstrap entries (`apps/desktop/src/main/bootstrap.ts`,
+  `apps/server/src/core/bootstrap.ts`), because ESM compiles every static import before any module
+  body runs. Both flush once loaded; Node otherwise writes the cache only on a normal exit. The
+  cache lives in `<userData>/compile-cache`. Dev builds leave it off.
+
 ## Current baseline
 
-Warm medians on an Apple Silicon laptop, empty profile, September 2026:
+Warm medians on an Apple Silicon laptop, empty profile, September 2026, before and after the
+window-first change with the compile cache and unthrottled hidden window:
 
-| Milestone          |  ms |
-| ------------------ | --: |
-| `appReadyMs`       | 135 |
-| `serverAttachedMs` | 464 |
-| `windowCreatedMs`  | 530 |
-| `readyToShowMs`    | 624 |
-| `firstFrameMs`     | 697 |
+| Milestone          | Before | After |
+| ------------------ | -----: | ----: |
+| `appReadyMs`       |    116 |   113 |
+| `serverAttachedMs` |    416 |   464 |
+| `windowCreatedMs`  |    477 |   173 |
+| `readyToShowMs`    |    565 |   273 |
+| `windowShownMs`    |      - |   478 |
+| `firstFrameMs`     |    607 |   507 |
 
-About half of the launch sits between `appReady` and `serverAttached`: Main does not create the
-window until Server Core, including its Extension Host start (~70 ms), is listening.
+Server Core attachment is now the critical path: the window waits for its placement, and the
+Workbench for Server Core data. Attachment got slower because the Renderer now loads in parallel
+and competes for CPU. The next lever is showing the window before attachment, which needs its
+placement without a Server Core round trip.
 
-## Measured and rejected
+## Not applicable
 
-These were A/B tested with the runner and showed no gain outside run-to-run noise, so they are not
-enabled. Retest them only when the startup path changes materially.
-
-- **Node compile cache** (`module.enableCompileCache()` from a bootstrap entry, Main and Server
-  Core). The cache was verified to hit (1.5 MB of bytecode for Server Core's main chunk), yet
-  neither `firstFrameMs` nor Server Core's process uptime moved: V8 compiles lazily, so the
-  avoided parse work is small.
-- **Unthrottled hidden window** (`backgroundThrottling: false` until `ready-to-show`). The window
-  is hidden only until its first paint of static HTML, so there is nothing to unthrottle.
-- **Renderer V8 code cache** was not attempted: packaged Renderer pages load from `file://`, and
-  Chromium keeps a disk code cache only for HTTP(S) and schemes registered with `codeCache: true`.
-- **VS Code's GPU channel feature switches** were not attempted: Chromium 155 no longer defines
+- **Renderer V8 code cache**: packaged Renderer pages load from `file://`, and Chromium keeps a disk
+  code cache only for HTTP(S) and schemes registered with `codeCache: true`.
+- **VS Code's GPU channel feature switches**: Chromium 155 no longer defines
   `EarlyEstablishGpuChannel` or `EstablishGpuChannelAsync`, and `CalculateNativeWinOcclusion` is
   Windows-only.

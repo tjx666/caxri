@@ -46,7 +46,7 @@ export default defineConfig(async () => {
                         import.meta.dirname,
                         'src/domains/files/project-search-worker.ts',
                     ),
-                    'server-core': resolve(import.meta.dirname, 'src/core/process.ts'),
+                    'server-core': resolve(import.meta.dirname, 'src/core/bootstrap.ts'),
                     'terminal-host': resolve(import.meta.dirname, 'src/terminal-host/process.ts'),
                 },
                 output: {

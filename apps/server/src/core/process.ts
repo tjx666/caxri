@@ -1,3 +1,4 @@
+import { flushCompileCache } from 'node:module';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -105,6 +106,11 @@ const processContext = {
 };
 logger.updateBaseContext(processContext);
 processManifest.publish('ready', { context: processContext });
+/**
+ * Persists the compile cache `bootstrap.ts` enabled (a no-op when it did not). Node otherwise writes it only on a
+ * normal exit, and this module's top-level await does not settle until shutdown.
+ */
+flushCompileCache();
 /**
  * The first resource sample reads process state immediately. Start it only after Core readiness so diagnostics cannot
  * contend with Project watcher installation on the startup critical path.

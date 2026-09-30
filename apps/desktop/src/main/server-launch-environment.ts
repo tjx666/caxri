@@ -72,6 +72,10 @@ export function buildServerLaunchEnvironment(
         ...(processEnvironment.CAXRI_TEST_ROOT_PATHS && {
             CAXRI_TEST_ROOT_PATHS: processEnvironment.CAXRI_TEST_ROOT_PATHS,
         }),
+        // Set by Main's packaged bootstrap (`bootstrap.ts`) so Server Core shares its compile cache directory.
+        ...(processEnvironment.CAXRI_COMPILE_CACHE_DIR && {
+            CAXRI_COMPILE_CACHE_DIR: processEnvironment.CAXRI_COMPILE_CACHE_DIR,
+        }),
         ...(options.agentHooksPath && {
             CAXRI_AGENT_HOOKS_PATH: options.agentHooksPath,
         }),

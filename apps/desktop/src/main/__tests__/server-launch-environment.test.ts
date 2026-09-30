@@ -15,6 +15,17 @@ describe('buildServerLaunchEnvironment', () => {
         expect(environment.CAXRI_DESKTOP_LAUNCH).toBeDefined();
     });
 
+    it('forwards the compile cache directory only when Main enabled one', () => {
+        expect(buildServerLaunchEnvironment(baseOptions, {})).not.toHaveProperty(
+            'CAXRI_COMPILE_CACHE_DIR',
+        );
+        expect(
+            buildServerLaunchEnvironment(baseOptions, {
+                CAXRI_COMPILE_CACHE_DIR: '/fake/compile-cache',
+            }),
+        ).toMatchObject({ CAXRI_COMPILE_CACHE_DIR: '/fake/compile-cache' });
+    });
+
     it('forwards an internal idle-exit threshold override unconditionally, not only under E2E', () => {
         const environment = buildServerLaunchEnvironment(baseOptions, {
             CAXRI_SERVER_IDLE_EXIT_MS: '5000',

@@ -12,6 +12,7 @@ const startupMilestones = [
     'serverAttached',
     'windowCreated',
     'readyToShow',
+    'windowShown',
     'rendererReady',
     'loaderRemoved',
     'firstFrame',
