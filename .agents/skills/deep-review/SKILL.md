@@ -142,7 +142,7 @@ unavailable, say so and offer light mode; never substitute a single-agent "deep"
 ## Sources of truth
 
 - `AGENTS.md` for repository commands and hard boundaries
-- `CONTEXT.md` for the project's ubiquitous language and canonical domain terms
+- `GLOSSARY.md` for the project's ubiquitous language and canonical domain terms
 - [project architecture topic router](../project-architecture/SKILL.md) for the process,
   persistence, security, recovery, or performance contract needed by the assigned review dimension;
   do not load all topics as a shared baseline

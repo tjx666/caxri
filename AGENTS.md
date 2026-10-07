@@ -45,7 +45,7 @@ directories.
   Do not defer necessary documentation to a post-delivery permission question. If an authorized
   delivery omitted it, complete it as follow-up work; ask only when a real product decision or
   material scope expansion needs the user's direction.
-- [CONTEXT.md](CONTEXT.md) is the product glossary; use its terms and avoid its `_Avoid_` aliases.
+- [GLOSSARY.md](GLOSSARY.md) is the product glossary; use its terms and avoid its `_Avoid_` aliases.
   [docs/README.md](docs/README.md) indexes every doc by kind. Doc kinds, frontmatter, and
   retirement follow `write-docs`.
 - Use `.agents/skills/` for agent-discoverable, task-routed execution workflows and the architecture
