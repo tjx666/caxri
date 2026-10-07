@@ -369,6 +369,67 @@ describe('Session title record bounds', () => {
         expect(context.recent.map((entry) => entry.text)).toEqual(['closing request']);
         await rm(baseRoot, { force: true, recursive: true });
     });
+
+    /**
+     * Pasted screenshots are stored as base64 inside the prompt record itself. Two of them pushed a real opening
+     * request past the record bound, so the Session was later named after a background task notification instead.
+     */
+    it.each([
+        {
+            provider: 'Claude',
+            opening: JSON.stringify({
+                type: 'user',
+                message: {
+                    content: [
+                        { type: 'text', text: 'translate the video prompt' },
+                        { type: 'image', source: { type: 'base64', data: 'A'.repeat(300_000) } },
+                    ],
+                },
+            }),
+        },
+        {
+            provider: 'Codex',
+            opening: JSON.stringify({
+                type: 'response_item',
+                payload: {
+                    type: 'message',
+                    role: 'user',
+                    content: [
+                        { type: 'input_text', text: 'translate the video prompt' },
+                        {
+                            type: 'input_image',
+                            image_url: `data:image/png;base64,${'A'.repeat(300_000)}`,
+                        },
+                    ],
+                },
+            }),
+        },
+    ])('keeps a $provider opening request that carries inline screenshots', async ({ opening }) => {
+        const baseRoot = await mkdtemp(join(tmpdir(), 'caxri-title-media-'));
+        const root = join(baseRoot, 'project');
+        await mkdir(root);
+        const path = join(root, 'transcript.jsonl');
+        const notification = JSON.stringify({
+            type: 'user',
+            promptSource: 'system',
+            message: {
+                content:
+                    '<task-notification>\n<summary>Keep polling PR checks</summary>\n</task-notification>',
+            },
+        });
+        await writeFile(
+            path,
+            `${[opening, message('assistant', 'opening reply'), notification].join('\n')}\n`,
+            'utf8',
+        );
+        const context = await readAgentTitleMessages({ baseRoot, path, root });
+        expect(context.opening.map((entry) => entry.text)).toEqual([
+            'translate the video prompt',
+            'opening reply',
+        ]);
+        expect(context.recent).toEqual([]);
+        await rm(baseRoot, { force: true, recursive: true });
+    });
 });
 
 describe('Session title split-window scanning', () => {

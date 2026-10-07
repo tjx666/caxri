@@ -5,13 +5,16 @@ export interface VisibleTranscriptMessage {
 }
 
 /**
- * Markers that open an injected instruction envelope rather than something the user or the Agent wrote.
+ * Markers that open an injected instruction envelope rather than something the user or the Agent wrote. Claude Code
+ * records a background task completion as a `user` record opening with `<task-notification>`; it is the harness
+ * reporting, not a request, so it must never become a Session's naming subject or a search snippet. Timeline projection
+ * still classifies it from the raw text before this strip runs.
  */
 const INJECTED_BLOCK_PATTERN =
-    /^(?:# AGENTS\.md instructions|<environment_context>|<permissions instructions>|<system-reminder>|<INSTRUCTIONS>|<user_instructions>|<user-prompt-submit-hook>|<local-command|<command-name>|<command-message>)/u;
+    /^(?:# AGENTS\.md instructions|<environment_context>|<permissions instructions>|<system-reminder>|<INSTRUCTIONS>|<user_instructions>|<user-prompt-submit-hook>|<local-command|<command-name>|<command-message>|<task-notification>)/u;
 
 const INJECTED_MARKER_PATTERN =
-    /# AGENTS\.md instructions|<environment_context>|<permissions instructions>|<system-reminder>|<INSTRUCTIONS>|<user_instructions>|<user-prompt-submit-hook>|<local-command|<command-name>|<command-message>/u;
+    /# AGENTS\.md instructions|<environment_context>|<permissions instructions>|<system-reminder>|<INSTRUCTIONS>|<user_instructions>|<user-prompt-submit-hook>|<local-command|<command-name>|<command-message>|<task-notification>/u;
 
 /**
  * Tool input and output are separate provider blocks, but may carry the same injected envelopes as messages.
