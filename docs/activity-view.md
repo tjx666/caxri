@@ -251,5 +251,5 @@ summarize transcripts, or add event granularity beyond the six `AgentActivitySta
 queue board would reuse this projection.
 
 See [Notifications](notifications.md) for the transient toast and reminder path, and
-[CONTEXT.md](../CONTEXT.md) for the Agent Activity, Attention, and Unread Attention vocabulary this
+[GLOSSARY.md](../GLOSSARY.md) for the Agent Activity, Attention, and Unread Attention vocabulary this
 view renders.

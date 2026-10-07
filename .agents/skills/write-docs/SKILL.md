@@ -1,6 +1,6 @@
 ---
 name: write-docs
-description: Place, classify, and retire Caxri documentation — CONTEXT.md, docs/adr, docs/*.md living docs, and .agents/skills/*/references contracts. Use when adding or editing a Markdown doc, deciding whether a change needs a docs update, writing or retiring an ADR, closing a plan/spike/research note, or running `scripts/documentation-check.ts`. Do not use for skill-invocation routing (see `.agents/invocation.md`) or for CONTEXT.md's own glossary discipline (see `domain-modeling`).
+description: Place, classify, and retire Caxri documentation — GLOSSARY.md, docs/adr, docs/*.md living docs, and .agents/skills/*/references contracts. Use when adding or editing a Markdown doc, deciding whether a change needs a docs update, writing or retiring an ADR, closing a plan/spike/research note, or running `scripts/documentation-check.ts`. Do not use for skill-invocation routing (see `.agents/invocation.md`) or for GLOSSARY.md's own glossary discipline (see `domain-modeling`).
 ---
 
 # Write Docs
@@ -14,12 +14,12 @@ boundary, an operator procedure, or a decision that would otherwise look arbitra
 Every doc has exactly one kind, and each kind has exactly one responsibility. Do not restate one
 kind's content inside another.
 
-| Kind         | Lives at                 | Owns                                                                                                                         |
-| ------------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| Glossary     | `CONTEXT.md` (root only) | Product vocabulary only — no implementation, no rationale. Governed by `domain-modeling`; this skill only links to it.       |
-| `adr`        | `docs/adr/NNNN-slug.md`  | One decision that is hard to reverse, surprising without context, and a real trade-off. Can be a single paragraph.           |
-| `living`     | `docs/**/*.md` (default) | The what/why of **current shipped** behavior, a core module, a protocol, or operator knowledge. Changes as behavior changes. |
-| `historical` | `docs/**/*.md`           | A retired plan, spike, or research note kept only because a current doc cites it as evidence.                                |
+| Kind         | Lives at                  | Owns                                                                                                                         |
+| ------------ | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Glossary     | `GLOSSARY.md` (root only) | Product vocabulary only — no implementation, no rationale. Governed by `domain-modeling`; this skill only links to it.       |
+| `adr`        | `docs/adr/NNNN-slug.md`   | One decision that is hard to reverse, surprising without context, and a real trade-off. Can be a single paragraph.           |
+| `living`     | `docs/**/*.md` (default)  | The what/why of **current shipped** behavior, a core module, a protocol, or operator knowledge. Changes as behavior changes. |
+| `historical` | `docs/**/*.md`            | A retired plan, spike, or research note kept only because a current doc cites it as evidence.                                |
 
 Agent-facing how-to and contracts (`.agents/skills/*/references/**`) are a separate genre this skill
 does not classify: they tell an agent how to work safely inside a boundary, and they **link** to the
@@ -43,7 +43,7 @@ status: current
 
 Only `kind` and `status` are allowed. No `owner`, `date`, or `author` field — those get mechanically
 bumped by whoever touches the file next and rot into noise instead of evidence; use `git log` for
-provenance. `CONTEXT.md`, `AGENTS.md`, `README.md`, and `.agents/skills/**` do not carry this
+provenance. `GLOSSARY.md`, `AGENTS.md`, `README.md`, and `.agents/skills/**` do not carry this
 frontmatter; it is a `docs/` convention only.
 
 ### `kind` (closed enum)

@@ -2,8 +2,8 @@
  * Validates the documentation contract defined by `.agents/skills/write-docs/SKILL.md`: closed-enum frontmatter on
  * every `docs/**\/*.md` file, `docs/README.md` index completeness, relative Markdown link targets and their `#heading`
  * anchors (same-document ones included), backticked repository paths, and backticked TypeScript source filenames
- * written without a repository root. `CONTEXT.md` and `AGENTS.md` get link/path checks only — they carry no frontmatter
- * and are not part of the `docs/` index.
+ * written without a repository root. `GLOSSARY.md` and `AGENTS.md` get link/path checks only — they carry no
+ * frontmatter and are not part of the `docs/` index.
  *
  * Every filesystem existence check walks each path segment through `readdir` instead of `existsSync`, because macOS's
  * default case-insensitive-but-preserving filesystem would silently accept a stale-cased reference (e.g.
@@ -52,7 +52,7 @@ export type DocumentStatus = (typeof DOC_STATUS_VALUES)[number];
 const SKIP_PATH_CHECK_STATUSES = new Set<string>(['historical', 'superseded']);
 
 const DOCS_INDEX_RELATIVE_PATH = 'docs/README.md';
-const ALWAYS_CHECKED_ROOT_FILES = ['CONTEXT.md', 'AGENTS.md'];
+const ALWAYS_CHECKED_ROOT_FILES = ['GLOSSARY.md', 'AGENTS.md'];
 
 export interface ParsedFrontmatter {
     kind?: string;
