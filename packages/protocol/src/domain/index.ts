@@ -37,6 +37,7 @@ export * from './terminal-reference.js';
 export * from './terminal-reference-contract.js';
 export * from './terminal-resources.js';
 export * from './terminal-title.js';
+export * from './tree-item.js';
 export * from './update-state.js';
 export * from './update-version.js';
 export * from './view-badges.js';

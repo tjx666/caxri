@@ -86,6 +86,7 @@ type ServiceHandlerMethods =
     | 'git.discard'
     | 'git.discard.preflight'
     | 'git.discard.apply'
+    | 'git.mergePullRequest'
     | 'git.diffDocument'
     | 'git.pullRequestChanges'
     | 'git.pullRequestDiffDocument'
@@ -431,6 +432,7 @@ export function createServiceHandlers(services: {
         'git.discard': () => mainOwned('git.discard'),
         'git.discard.preflight': (parameters) => git.discardPreflight(parameters),
         'git.discard.apply': (parameters) => git.discardApply(parameters),
+        'git.mergePullRequest': (parameters) => git.mergePullRequest(parameters),
         'git.diffDocument': ({ sessionId, repositoryId, path }) =>
             git.diffDocument(sessionId, repositoryId, path),
         'git.pullRequestChanges': (parameters, signal) =>

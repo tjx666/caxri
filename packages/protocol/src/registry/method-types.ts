@@ -213,6 +213,7 @@ export const effectfulCommandRecovery = {
     'git.switchBranch': 'durable',
     'git.sync': 'durable',
     'git.discard': 'durable',
+    'git.mergePullRequest': 'durable',
     'gitReview.add': 'memory',
     'gitReview.edit': 'memory',
     'gitReview.remove': 'memory',

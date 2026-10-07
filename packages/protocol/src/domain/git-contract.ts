@@ -105,6 +105,22 @@ export const gitMethods = {
         }),
         result: z.null(),
     },
+    /**
+     * Merges the repository's GitHub pull request through `gh pr merge`, using the first merge method the repository
+     * allows in the order squash, merge commit, rebase. `headSha` is the head the user saw when they chose to merge; it
+     * is passed as `--match-head-commit`, so a push that lands after that moment makes GitHub reject the merge instead
+     * of merging commits nobody looked at. Branch deletion is left to the repository's own setting.
+     */
+    'git.mergePullRequest': {
+        ...serverWrite,
+        params: z.object({
+            sessionId: identifierSchema,
+            repositoryId: identifierSchema,
+            number: z.number().int().positive(),
+            headSha: z.string().regex(/^[0-9a-f]{40}$/),
+        }),
+        result: z.object({ method: z.enum(['squash', 'merge', 'rebase']) }),
+    },
     'git.remoteHost': {
         ...serverRead,
         params: z.object({

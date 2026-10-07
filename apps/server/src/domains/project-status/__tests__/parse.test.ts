@@ -202,6 +202,31 @@ describe('parseGitHubPullRequest', () => {
     );
 
     it.each([
+        [{ mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN' }, 'clean'],
+        [{ mergeable: 'MERGEABLE', mergeStateStatus: 'HAS_HOOKS' }, 'clean'],
+        [{ mergeable: 'MERGEABLE', mergeStateStatus: 'UNSTABLE' }, 'unstable'],
+        [{ mergeable: 'MERGEABLE', mergeStateStatus: 'BLOCKED' }, 'blocked'],
+        [{ mergeable: 'MERGEABLE', mergeStateStatus: 'BEHIND' }, 'behind'],
+        [{ mergeable: 'CONFLICTING', mergeStateStatus: 'UNKNOWN' }, 'conflicting'],
+        [{ mergeable: 'UNKNOWN', mergeStateStatus: 'DIRTY' }, 'conflicting'],
+        [{ mergeable: 'UNKNOWN', mergeStateStatus: 'UNKNOWN' }, 'unknown'],
+        [{}, undefined],
+    ])('reduces GitHub mergeability %o to %s', (fields, mergeState) => {
+        const result = parseGitHubPullRequest(
+            JSON.stringify({
+                number: 42,
+                title: 'Delivery',
+                url: 'https://github.com/acme/widget/pull/42',
+                state: 'OPEN',
+                headRefOid: 'a'.repeat(40),
+                ...fields,
+            }),
+        ).pullRequest;
+        expect(result?.mergeState).toBe(mergeState);
+        expect(result?.headSha).toBe('a'.repeat(40));
+    });
+
+    it.each([
         [undefined, 'cancelled'],
         ['SUCCESS', 'success'],
         ['IN_PROGRESS', 'pending'],

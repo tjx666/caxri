@@ -196,7 +196,7 @@ function treeItemPresentation(row: VisibleItemRow, isRefreshing: boolean) {
             // Hover and keyboard focus only: this tree has no persistent selected row, so it must not borrow a
             // selection color to stand in for one. Keyboard focus adds the accent inset ring the Files and Source
             // Control trees already draw, because the focus fill alone is a wash the pointer can paint too.
-            'flex w-full min-w-0 items-center gap-2 border-0 bg-transparent text-left text-foreground focus-visible:bg-list-focus-background focus-visible:text-list-focus-foreground focus-visible:shadow-[inset_0_0_0_2px_var(--accent)] focus-visible:outline-none',
+            'group/tree-row flex w-full min-w-0 items-center gap-2 border-0 bg-transparent text-left text-foreground focus-visible:bg-list-focus-background focus-visible:text-list-focus-foreground focus-visible:shadow-[inset_0_0_0_2px_var(--accent)] focus-visible:outline-none',
             isHeader ? 'h-8 border-b border-border font-semibold' : isMessage ? 'min-h-40' : 'h-7',
             !isMessage
                 ? 'pr-2 hover:bg-list-hover-background hover:text-list-hover-foreground'

@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Tooltip } from '../../components/ui/tooltip';
 import { ExtensionTreeItemIcon, ExtensionTreeTrailingIcon } from './extension-tree-item-icon';
 import { ExtensionTreeMessage } from './extension-tree-message';
+import { ExtensionTreeRowActions } from './extension-tree-row-actions';
 import type { VisibleItemRow } from './extension-tree-rows';
 import type { TreeRowAction } from './extension-tree-state';
 import { pointerTreeRowAction } from './extension-tree-state';
@@ -73,6 +74,7 @@ export function ExtensionTreeRowContent({
                 </span>
             )}
             <ExtensionTreeTrailingIcon icon={row.item.trailingIcon} />
+            <ExtensionTreeRowActions actions={row.item.actions} />
         </>
     );
 }

@@ -160,5 +160,15 @@ export interface WorkspaceGit {
         },
         token?: CancellationToken,
     ): Promise<GitCommitDetails>;
+    /**
+     * Merges the repository's GitHub pull request with the first merge method the repository allows (squash, merge
+     * commit, then rebase). `headSha` pins the merge to the head the user saw, so GitHub rejects it if the branch
+     * moved. Requires `git.write`. Rejects with GitHub's own reason when the merge is refused.
+     */
+    mergePullRequest(
+        repoId: string,
+        pullRequest: { number: number; headSha: string },
+        token?: CancellationToken,
+    ): Promise<{ method: 'squash' | 'merge' | 'rebase' }>;
     remoteHost(repoId: string, token?: CancellationToken): Promise<string | null>;
 }
