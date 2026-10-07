@@ -4,6 +4,7 @@ import { StringDecoder } from 'node:string_decoder';
 
 import { sessionRenameTitleSchema } from '@caxri/protocol';
 
+import { compactInlineMediaPayloads } from './inline-media';
 import type { AgentTranscriptLocation } from './transcript-security';
 import { openSafeAgentTranscript } from './transcript-security';
 import { extractVisibleTranscriptMessage } from './visible-transcript-message';
@@ -41,7 +42,8 @@ const RECENT_MESSAGE_LIMIT = 6;
 
 /**
  * A single tool record can occupy megabytes on one line. Line buffering must not follow it: a conversation message is
- * capped well below this, so a record past the limit is discarded instead of held in Server memory.
+ * capped well below this, so a record past the limit is discarded instead of held in Server memory. Inline screenshots
+ * are collapsed first, because they are what pushes an opening request past the limit.
  */
 const MAX_RECORD_CHARS = 256 * 1024;
 
@@ -170,6 +172,7 @@ async function* readRangeLines(handle: FileHandle, range: ScanRange): AsyncGener
         pending = lines.pop() ?? '';
         const complete = isFragmentPending && lines.length > 0 ? lines.slice(1) : lines;
         isFragmentPending &&= lines.length === 0;
+        if (pending.length > MAX_RECORD_CHARS) pending = compactInlineMediaPayloads(pending);
         if (pending.length > MAX_RECORD_CHARS) {
             pending = '';
             isFragmentPending = true;
