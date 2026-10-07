@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { setImmediate } from 'node:timers/promises';
 
+import { compactInlineMediaPayloads } from '../inline-media';
 import type { AgentTranscriptLocation } from '../transcript-security';
 import { openSafeAgentTranscript } from '../transcript-security';
 import { extractVisibleTranscriptMessage } from '../visible-transcript-message';
@@ -87,14 +88,17 @@ export class TranscriptSearchReader {
                 signal.throwIfAborted();
                 if (index % 64 === 0) await setImmediate();
                 if (!line.trim()) continue;
-                if (line.length > MAX_RECORD_CHARS) {
+                // A pasted screenshot is what pushes a prompt record past the ceiling, so it is collapsed before the check.
+                const recordLine =
+                    line.length > MAX_RECORD_CHARS ? compactInlineMediaPayloads(line) : line;
+                if (recordLine.length > MAX_RECORD_CHARS) {
                     isPartial = true;
                     chunkRole = undefined;
                     continue;
                 }
                 let record: unknown;
                 try {
-                    record = JSON.parse(line);
+                    record = JSON.parse(recordLine);
                 } catch {
                     isPartial = true;
                     chunkRole = undefined;
