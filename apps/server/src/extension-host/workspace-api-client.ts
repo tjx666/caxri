@@ -38,6 +38,20 @@ export function createWorkspaceApiClient(
                     },
                     token,
                 ),
+            mergePullRequest: (
+                repoId: string,
+                pullRequest: { number: number; headSha: string },
+                token?: CancellationToken,
+            ) =>
+                request<{ method: 'squash' | 'merge' | 'rebase' }>(
+                    'git.mergePullRequest',
+                    {
+                        repositoryId: repoId,
+                        number: pullRequest.number,
+                        headSha: pullRequest.headSha,
+                    },
+                    token,
+                ),
             pullRequestChanges: (repoId: string, refresh = 0, token?: CancellationToken) =>
                 request<GitPullRequestChanges | null>(
                     'git.pullRequestChanges',

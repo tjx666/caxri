@@ -32,6 +32,7 @@ export const extensionWorkspaceOperations = [
     'git.summary',
     'git.sync',
     'git.discard',
+    'git.mergePullRequest',
     'git.pullRequestChanges',
     'git.commits',
     'git.commitDetails',

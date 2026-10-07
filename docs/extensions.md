@@ -341,6 +341,26 @@ Renderer draws as React text nodes: raw HTML and tables are dropped, images coll
 and links open through the same external-link policy. HTML, scripts, commands, and `command:` URLs are
 not part of this contract.
 
+`TreeItem.actions` adds up to three inline actions to an ordinary row. Each is a command, a
+validated theme icon, and an optional `confirmation` (title, message, confirm label). The Renderer
+shows them as icon buttons at the end of the row while it is hovered or holds keyboard focus,
+keeps a running action visible and disabled until its command settles, and dispatches through the
+same `viewContainers.executeCommand` path as the row's own command. A `confirmation` is shown as
+literal text in the Workbench confirmation modal; cancelling dispatches nothing. Inline actions do
+not replace `TreeItem.command`, which stays the row's activation.
+
+The Status extension uses this for its pull request row: a merge action appears on an open pull
+request whose head is known and that GitHub does not report as conflicting. It calls
+`workspace.git.mergePullRequest`, which needs `git.write`. Server Core reads the repository's allowed
+merge methods, picks squash, then a merge commit, then rebase, and runs `gh pr merge` with
+`--match-head-commit` set to the head the row showed, so a later push makes GitHub refuse the merge
+instead of merging unseen commits. It never passes `--delete-branch`; the repository's own
+auto-delete setting owns the remote branch, and a linked worktree may still have the local one
+checked out. The action merges a pull request whose filtered checks passed and whose merge state is
+clean without asking; it confirms first when checks are failing or still running, or when GitHub
+reports the pull request `blocked`, `behind`, or not yet computed. GitHub's `unstable` alone does not
+ask, because the only red or running checks left may be ones the user chose to ignore.
+
 The shared Renderer owns virtualization, the side bar scroll cue
 ([secondary-sidebar-trees.md](secondary-sidebar-trees.md)), ThemeIcon rendering, roving focus,
 arrow/Home/End navigation, expansion, loading/empty/provider-error rows, local Retry, tooltip presentation, and

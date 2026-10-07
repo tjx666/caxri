@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { treeItemSchema } from '../tree-item';
 import {
     extensionTreeViewStatesSchema,
     MAX_TREE_ITEM_TOOLTIP_MARKDOWN,
@@ -7,7 +8,6 @@ import {
     sourceControlHistoryPageSchema,
     sourceControlViewModelSchema,
     sourceControlViewStatesSchema,
-    treeItemSchema,
     viewCatalogSnapshotSchema,
     viewContainerIdSchema,
 } from '../views';
