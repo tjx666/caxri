@@ -9,7 +9,7 @@ one Electron app.
 
 - **Projects and Sessions.** A Project is a user-authorized folder. Sessions are durable
   units of work beneath it, each owning its Terminals, layout, and workbench state. The shared
-  vocabulary lives in [CONTEXT.md](CONTEXT.md).
+  vocabulary lives in [GLOSSARY.md](GLOSSARY.md).
 - **Real PTYs, no wrappers.** Shell and Agent CLIs (Claude Code, Codex, …) run in genuine
   pseudo-terminals. Caxri observes them; it never proxies or rewrites their I/O.
 - **Attention you can trust.** Each Session's Primary Agent reports waiting / completed / failed
@@ -95,7 +95,7 @@ architecture contracts live in the owning `.agents/skills/` entries. Bundle budg
 
 | Document                                                                               | Contents                                                   |
 | -------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| [CONTEXT.md](CONTEXT.md)                                                               | Product language: Projects, Sessions, Attention            |
+| [GLOSSARY.md](GLOSSARY.md)                                                             | Product language: Projects, Sessions, Attention            |
 | [DESIGN.md](DESIGN.md)                                                                 | Authoritative UI and interaction spec                      |
 | [AGENTS.md](AGENTS.md)                                                                 | Contributor standing orders for coding agents              |
 | [docs/README.md](docs/README.md)                                                       | Full index of every living doc, ADR, and historical record |

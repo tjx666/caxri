@@ -378,8 +378,8 @@ describe('parseCliArguments', () => {
     });
 
     it('captures every argument after --files', () => {
-        expect(parseCliArguments(['--files', 'docs/cli.md', 'CONTEXT.md'])).toEqual({
-            files: ['docs/cli.md', 'CONTEXT.md'],
+        expect(parseCliArguments(['--files', 'docs/cli.md', 'GLOSSARY.md'])).toEqual({
+            files: ['docs/cli.md', 'GLOSSARY.md'],
         });
     });
 
@@ -400,7 +400,7 @@ describe('relativeToRepoRoot', () => {
     });
 
     it("resolves a relative --files path against the invoking shell's directory", () => {
-        expect(relativeToRepoRoot('/repo', '../CONTEXT.md', '/repo/docs')).toBe('CONTEXT.md');
+        expect(relativeToRepoRoot('/repo', '../GLOSSARY.md', '/repo/docs')).toBe('GLOSSARY.md');
     });
 });
 
@@ -435,14 +435,14 @@ describe('runDocumentationCheck', () => {
             'docs/README.md',
             '# Index\n\n[cli.md](cli.md)\n[adr/0001-example.md](adr/0001-example.md)\n',
         );
-        await writeRepoFile(repoRoot, 'CONTEXT.md', '# Context\n\nSee [docs](docs/README.md).\n');
+        await writeRepoFile(repoRoot, 'GLOSSARY.md', '# Glossary\n\nSee [docs](docs/README.md).\n');
         await writeRepoFile(repoRoot, 'AGENTS.md', '# Agents\n\nSee `docs/cli.md`.\n');
 
         const issues = await runDocumentationCheck(repoRoot, [
             'docs/cli.md',
             'docs/adr/0001-example.md',
             'docs/README.md',
-            'CONTEXT.md',
+            'GLOSSARY.md',
             'AGENTS.md',
         ]);
         expect(issues).toEqual([]);
