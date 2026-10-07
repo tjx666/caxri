@@ -119,6 +119,38 @@ describe('Session content search', () => {
         ).toEqual([claude.session.id]);
     });
 
+    it('finds a request that carried a screenshot and skips task notifications', async () => {
+        const f = await fixture();
+        const claude = await f.add('claude', 'placeholder');
+        const screenshot = { type: 'image', source: { type: 'base64', data: 'A'.repeat(300_000) } };
+        await writeFile(
+            claude.path,
+            `${[
+                {
+                    type: 'user',
+                    message: {
+                        content: [{ type: 'text', text: 'screenshot-request-marker' }, screenshot],
+                    },
+                },
+                {
+                    type: 'user',
+                    message: {
+                        content: '<task-notification>notification-marker</task-notification>',
+                    },
+                },
+            ]
+                .map((record) => JSON.stringify(record))
+                .join('\n')}\n`,
+        );
+        const service = new SessionContentSearch(f.database, f.environment);
+        expect(
+            (await service.search('screenshot-request-marker')).matches.map(
+                (match) => match.sessionId,
+            ),
+        ).toEqual([claude.session.id]);
+        expect((await service.search('notification-marker')).matches).toEqual([]);
+    });
+
     it('reports missing, unsafe and capped coverage without a false complete empty result', async () => {
         const f = await fixture();
         const created = await f.add('claude', 'a'.repeat(1000));

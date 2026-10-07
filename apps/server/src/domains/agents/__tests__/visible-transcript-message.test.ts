@@ -8,6 +8,19 @@ const chunk = (sessionUpdate: string, text: string) => ({
 });
 
 describe('visible transcript messages', () => {
+    it('treats a background task notification as harness output, not a user request', () => {
+        expect(
+            extractVisibleTranscriptMessage({
+                type: 'user',
+                promptSource: 'system',
+                message: {
+                    content:
+                        '<task-notification>\n<status>completed</status>\n<summary>Poll checks</summary>\n</task-notification>',
+                },
+            }),
+        ).toBeUndefined();
+    });
+
     it('keeps searchable text beyond the title excerpt for Claude and Codex', () => {
         const text = `${'a'.repeat(2000)} searchable ending`;
         expect(
