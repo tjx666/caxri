@@ -2,6 +2,7 @@ import type {
     ProjectStatusCheck,
     ProjectStatusRepository as ProjectStatusRepo,
     ProjectStatusState,
+    PullRequestMergeState,
     SessionPullRequestState,
 } from '@caxri/protocol';
 import { isIgnoredCheck } from '@caxri/protocol';
@@ -36,7 +37,10 @@ type GitHubCheck = z.infer<typeof githubCheckSchema>;
 
 export const githubPullRequestSchema = z.object({
     body: z.string().optional(),
+    headRefOid: z.string().optional(),
     isDraft: z.boolean().optional(),
+    mergeable: z.string().optional(),
+    mergeStateStatus: z.string().optional(),
     mergeCommit: z.object({ oid: z.string() }).nullish(),
     state: z.string().optional(),
     number: z.number().int().positive().optional(),
@@ -190,6 +194,36 @@ function pullRequestLifecycle(
 }
 
 /**
+ * Reduces GitHub's two mergeability fields to one state. `mergeable: CONFLICTING` wins because it is the only one of
+ * the two that GitHub settles before `mergeStateStatus` does; `HAS_HOOKS` merges like `CLEAN` once the hooks pass, and
+ * `DRAFT` is already carried by the lifecycle.
+ *
+ * @see https://docs.github.com/en/graphql/reference/enums#mergestatestatus
+ */
+function pullRequestMergeState(
+    mergeable: string | undefined,
+    mergeStateStatus: string | undefined,
+): PullRequestMergeState | undefined {
+    if (mergeable === undefined && mergeStateStatus === undefined) return undefined;
+    if (mergeable?.toUpperCase() === 'CONFLICTING') return 'conflicting';
+    switch (mergeStateStatus?.toUpperCase()) {
+        case 'CLEAN':
+        case 'HAS_HOOKS':
+            return 'clean';
+        case 'UNSTABLE':
+            return 'unstable';
+        case 'BLOCKED':
+            return 'blocked';
+        case 'BEHIND':
+            return 'behind';
+        case 'DIRTY':
+            return 'conflicting';
+        default:
+            return 'unknown';
+    }
+}
+
+/**
  * Projects one `gh pr view` payload. `ignoredChecks` is applied here rather than at each consumer so the Status panel's
  * rollup, the PrimarySidebar's CI badge, and the delivery-failure alert can never disagree about whether a pull request
  * is failing: they all read this one filtered result.
@@ -210,6 +244,7 @@ export function parseGitHubPullRequest(
     );
     const checks = visible.map((check) => projectCheck(check));
     checks.sort((a, b) => CHECK_ORDER.indexOf(a.state) - CHECK_ORDER.indexOf(b.state));
+    const mergeState = pullRequestMergeState(raw.mergeable, raw.mergeStateStatus);
     return {
         body: raw.body ?? '',
         mergeCommit:
@@ -230,6 +265,9 @@ export function parseGitHubPullRequest(
             state: checks.length === 0 && rollup.length > 0 ? 'neutral' : aggregateChecks(checks),
             checks,
             hiddenCheckCount: rollup.length - visible.length,
+            ...(raw.headRefOid &&
+                /^[\da-f]{40}$/.test(raw.headRefOid) && { headSha: raw.headRefOid }),
+            ...(mergeState && { mergeState }),
         },
     };
 }

@@ -64,6 +64,9 @@ export function createHarness(
         summary: vi.fn<WorkspaceGit['summary']>(() => Promise.resolve(summary)),
         sync: vi.fn<WorkspaceGit['sync']>(() => Promise.resolve()),
         discard: vi.fn<WorkspaceGit['discard']>(() => Promise.resolve(null)),
+        mergePullRequest: vi.fn<WorkspaceGit['mergePullRequest']>(() =>
+            Promise.resolve({ method: 'squash' }),
+        ),
         pullRequestChanges: vi.fn<WorkspaceGit['pullRequestChanges']>(() => Promise.resolve(null)),
         commits: vi.fn<WorkspaceGit['commits']>(() => Promise.resolve(commitPage)),
         commitDetails: vi.fn<WorkspaceGit['commitDetails']>(() => Promise.resolve(commitDetails)),

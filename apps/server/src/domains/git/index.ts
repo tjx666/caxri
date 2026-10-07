@@ -28,6 +28,7 @@ import { assertInsideRoot, isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';
 import { SingleFlight } from '../single-flight';
 import { GitBlameService } from './blame';
+import { listLocalBranches } from './branches';
 import { GitChangeTracker } from './change-tracker';
 import type { GitCommandOptions } from './command';
 import { runGitCommand } from './command';
@@ -38,6 +39,7 @@ import type { GitMetadataWatcherOptions } from './metadata-watcher';
 import { GitMetadataWatcher } from './metadata-watcher';
 import { mobileChangesDiff, mobileChangesListForSummary } from './mobile-changes';
 import { GitPullRequestService } from './pull-request';
+import { mergeGitHubPullRequest } from './pull-request-merge';
 import { loadTerminalReferenceContext, resolveTerminalCommitLink } from './reference-links';
 import { loadTerminalReferencePreview } from './reference-preview';
 import { parseGitRemoteHost } from './remote-host';
@@ -49,7 +51,6 @@ import { RepoTopologyRegistry } from './topology';
 import { GitWorkingTreeService } from './working-tree';
 
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
-const MAX_LOCAL_BRANCHES = 1_000;
 
 interface DiffTarget {
     candidate: string;
@@ -177,30 +178,6 @@ export class GitService {
 
     private originRemote(rootPath: string): Promise<string> {
         return this.git(rootPath, ['remote', 'get-url', 'origin'], { allowFailure: true });
-    }
-
-    private async listBranches(
-        repo: GitRepoSummary,
-    ): Promise<Array<{ name: string; committedAt: number }>> {
-        // Most recently committed branches first (GitLens-style recency); the earlier
-        // `--sort=refname` is the tiebreaker — with multiple keys the last one is primary.
-        // `%00` keeps the name/date split unambiguous: branch names cannot contain NUL.
-        const output = await this.git(repo.rootPath, [
-            'for-each-ref',
-            `--count=${MAX_LOCAL_BRANCHES}`,
-            '--sort=refname',
-            '--sort=-committerdate',
-            '--format=%(refname:short)%00%(committerdate:unix)',
-            'refs/heads',
-        ]);
-        return output
-            .split('\n')
-            .map((line) => line.trim())
-            .filter(Boolean)
-            .map((line) => {
-                const [name, committedAt] = line.split('\0', 2);
-                return { name, committedAt: Number(committedAt) * 1_000 };
-            });
     }
 
     private async resolveHistoryPath(
@@ -472,12 +449,14 @@ export class GitService {
         parameters: ServerOperationParameters<'git.branches'>,
     ): Promise<Array<{ name: string; committedAt: number }>> {
         const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
-        return this.listBranches(repo);
+        return listLocalBranches((arguments_) => this.git(repo.rootPath, arguments_));
     }
 
     async switchBranch(parameters: ServerOperationParameters<'git.switchBranch'>): Promise<null> {
         const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
-        const branches = await this.listBranches(repo);
+        const branches = await listLocalBranches((arguments_) =>
+            this.git(repo.rootPath, arguments_),
+        );
         if (branches.every((candidate) => candidate.name !== parameters.branch))
             throw new CaxriError('NOT_FOUND', 'The selected local branch no longer exists');
         if (repo.branch !== parameters.branch) {
@@ -501,6 +480,17 @@ export class GitService {
         parameters: ServerOperationParameters<'git.discard.apply'>,
     ): ReturnType<GitWorkingTreeService['discardApply']> {
         return this.workingTreeService.discardApply(parameters);
+    }
+
+    async mergePullRequest(parameters: ServerOperationParameters<'git.mergePullRequest'>) {
+        const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
+        return mergeGitHubPullRequest(repo, parameters, {
+            forget: (owner, repoName, number) =>
+                this.externalStatus.github.forget(owner, repoName, number),
+            logger: this.logger,
+            originRemote: (rootPath) => this.originRemote(rootPath),
+            run: this.externalStatus.run,
+        });
     }
 
     pullRequestChanges(parameters: ServerOperationParameters<'git.pullRequestChanges'>) {

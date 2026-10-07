@@ -32,6 +32,10 @@ describe('Extension workspace API client', () => {
             kind: 'file',
             path: 'src/index.ts',
         });
+        await workspace.git.mergePullRequest('repository-1', {
+            number: 42,
+            headSha: 'a'.repeat(40),
+        });
 
         expect(harness.calls).toEqual([
             ['git.sync', { repositoryId: 'repository-1' }],
@@ -41,6 +45,10 @@ describe('Extension workspace API client', () => {
                     repositoryId: 'repository-1',
                     scope: { kind: 'file', path: 'src/index.ts' },
                 },
+            ],
+            [
+                'git.mergePullRequest',
+                { repositoryId: 'repository-1', number: 42, headSha: 'a'.repeat(40) },
             ],
         ]);
     });

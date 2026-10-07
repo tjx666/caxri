@@ -242,3 +242,15 @@ export function ExtensionTreeTrailingIcon({ icon }: { icon: TreeItemDto['trailin
         />
     );
 }
+
+/**
+ * An inline action's glyph. It deliberately skips `themeIconClassNames`: on a button the icon names an action rather
+ * than a state, so it takes the button's own foreground instead of, say, the merged violet `git-merge` wears as a row
+ * icon.
+ */
+export function ExtensionTreeActionIcon({ icon }: { icon: TreeItemDto['icon'] }) {
+    const iconId = themeIconId(icon);
+    const Icon =
+        iconId && iconId in themeIcons ? themeIcons[iconId as keyof typeof themeIcons] : File;
+    return <Icon aria-hidden="true" data-theme-icon={iconId} size={14} />;
+}

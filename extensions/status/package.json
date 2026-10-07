@@ -17,6 +17,7 @@
     },
     "caxri": {
         "capabilities": [
+            "git.write",
             "projects.read"
         ]
     },
@@ -56,6 +57,11 @@
                 "command": "caxri.project-status.refresh",
                 "title": "Refresh Project Status",
                 "description": "Refresh Project Status from GitHub, Linear, and Vercel"
+            },
+            {
+                "command": "caxri.project-status.mergePullRequest",
+                "title": "Merge Pull Request",
+                "palette": false
             }
         ]
     }

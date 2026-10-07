@@ -8,7 +8,8 @@ import type {
 import caxri, { EventEmitter } from 'caxri';
 
 import { statusBadge } from './status-badge';
-import type { StatusNode } from './status-tree';
+import type { StatusNode } from './status-item';
+import { isMergePullRequestArguments, MERGE_PULL_REQUEST_COMMAND } from './status-merge';
 import { buildStatusRootNodes } from './status-tree';
 
 export class ProjectStatusProvider implements TreeDataProvider<StatusNode> {
@@ -84,6 +85,20 @@ export function activate(context: ExtensionContext): void {
         caxri.commands.registerCommand('caxri.project-status.refresh', () =>
             provider.refresh(true),
         ),
+        caxri.commands.registerCommand(MERGE_PULL_REQUEST_COMMAND, async (target: unknown) => {
+            if (!isMergePullRequestArguments(target))
+                throw new Error('Merge Pull Request needs a pull request from the Status panel');
+            try {
+                await caxri.workspace.git.mergePullRequest(target.repositoryId, {
+                    number: target.number,
+                    headSha: target.headSha,
+                });
+            } finally {
+                // Refresh on failure too: a rejected merge usually means the row was stale (a new push, a new conflict),
+                // and the forced read shows why instead of offering the same doomed button again.
+                provider.refresh(true);
+            }
+        }),
         /**
          * Deliberately no `onDidChangeActiveContext` subscription. The Workbench already rebuilds this View per active
          * Session and re-reads its root on remount, so refreshing here only retired the Host handles the remount was
