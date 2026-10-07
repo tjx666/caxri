@@ -1,19 +1,13 @@
 import type {
-    Command,
     ProjectStatusDeployment,
     ProjectStatusRepository,
     ProjectStatusSummary,
-    TreeItemRichTooltip,
     TreeItemTooltipRow,
-    TreeItemVariant,
 } from 'caxri';
-import {
-    ProjectStatusSummaryErrorMessage,
-    ThemeIcon,
-    TreeItem,
-    TreeItemCollapsibleState,
-} from 'caxri';
+import { ProjectStatusSummaryErrorMessage, TreeItemCollapsibleState } from 'caxri';
 
+import type { StatusNode } from './status-item';
+import { item } from './status-item';
 import {
     acceptanceDescription,
     acceptanceRowLabel,
@@ -32,7 +26,7 @@ import {
     reviewThreadLocation,
     unresolvedCommentsLabel,
 } from './status-labels';
-import type { StatusTooltip } from './status-presentation';
+import { mergePullRequestAction, mergeStateLabel } from './status-merge';
 import {
     acceptanceIcon,
     branchDeploymentRowDescription,
@@ -49,11 +43,6 @@ import {
     stateIcons,
     stateTones,
 } from './status-presentation';
-
-export interface StatusNode {
-    item: TreeItem;
-    children?: readonly StatusNode[];
-}
 
 const missingGitRepoErrors = new Set<string>([
     ProjectStatusSummaryErrorMessage.missingGitRepository,
@@ -77,78 +66,6 @@ const providerNames = {
     linear: 'Linear',
     vercel: 'Vercel',
 } as const satisfies Record<ProjectStatusFailure['source'], string>;
-
-function item(
-    id: string,
-    label: string,
-    options: {
-        accessibilityLabel?: string;
-        children?: readonly StatusNode[];
-        collapsibleState?: TreeItemCollapsibleState;
-        command?: Command;
-        description?: string;
-        icon?: string;
-        /**
-         * `#RRGGBB` tint for `icon`, for a row standing in for content whose palette an external system owns.
-         */
-        iconColor?: string;
-        trailingIcon?: string;
-        tooltip?: StatusTooltip;
-        url?: string;
-        variant?: TreeItemVariant;
-    } = {},
-): StatusNode {
-    const treeItem = new TreeItem(
-        label,
-        options.collapsibleState ??
-            (options.children?.length
-                ? TreeItemCollapsibleState.Collapsed
-                : TreeItemCollapsibleState.None),
-    );
-    treeItem.id = id;
-    treeItem.variant = options.variant;
-    treeItem.description = options.description;
-    treeItem.tooltip = richTooltip(label, options.tooltip, options.url);
-    treeItem.accessibilityInformation = {
-        label:
-            options.accessibilityLabel ?? [label, options.description].filter(Boolean).join(', '),
-    };
-    if (options.icon) treeItem.iconPath = new ThemeIcon(options.icon, options.iconColor);
-    if (options.trailingIcon) treeItem.trailingIcon = new ThemeIcon(options.trailingIcon);
-    if (options.url) {
-        treeItem.command = {
-            command: 'caxri.openExternal',
-            title: `Open ${label}`,
-            arguments: [options.url],
-        };
-    }
-    if (options.command) treeItem.command = options.command;
-    return { item: treeItem, children: options.children };
-}
-
-/**
- * Every Status row wears the same hover card, so the panel never mixes a rich card with a plain multi-line string. The
- * row's own destination becomes the trailing `link` row unless the caller already published that URL under a more
- * specific label, which keeps a deployment from repeating its alias.
- */
-function richTooltip(
-    label: string,
-    tooltip: StatusTooltip | undefined,
-    url: string | undefined,
-): TreeItemRichTooltip {
-    const rows = tooltip?.rows ?? [];
-    return {
-        kind: 'rich',
-        title: tooltip?.title ?? label,
-        ...(tooltip?.description && { description: tooltip.description }),
-        ...(tooltip?.markdown && { markdown: tooltip.markdown }),
-        ...(tooltip?.badge && { badge: tooltip.badge }),
-        rows:
-            url && rows.every((row) => row.url !== url)
-                ? [...rows, { label: 'link', value: linkText(url), url }]
-                : rows,
-    };
-}
 
 /**
  * Vscode-fe-helper's "Unresolved Comments" group: the review feedback a delivery still owes, one row per thread. The
@@ -520,8 +437,10 @@ function buildRepoChildren(
                 ),
             );
         }
+        const mergeAction = mergePullRequestAction(repo, pullRequest);
         nodes.push(
             item(`${prefix}:pr`, `#${pullRequest.number} ${pullRequest.title}`, {
+                actions: mergeAction ? [mergeAction] : undefined,
                 /**
                  * The leading icon aggregates the check states shown by the child rows, rather than spending the
                  * description on a `CI failed` string that competed with the title for width. The lifecycle moved up to
@@ -534,6 +453,9 @@ function buildRepoChildren(
                     badge: { label: lifecycleLabel, tone: lifecycle?.tone ?? 'neutral' },
                     rows: [
                         { label: 'checks', value: checkLabel(pullRequest.state) },
+                        ...(pullRequest.lifecycle === 'open' && pullRequest.mergeState
+                            ? [{ label: 'merge', value: mergeStateLabel(pullRequest.mergeState) }]
+                            : []),
                         ...(pullRequest.hiddenCheckCount > 0
                             ? [
                                   {

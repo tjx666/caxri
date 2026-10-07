@@ -171,8 +171,9 @@ export function externalStatusCommandOperation(
     arguments_: readonly string[],
 ): string {
     if (source === 'gh') {
-        if (arguments_[0] === 'pr' && ['list', 'view'].includes(arguments_[1]))
+        if (arguments_[0] === 'pr' && ['list', 'merge', 'view'].includes(arguments_[1]))
             return `pr.${arguments_[1]}`;
+        if (arguments_[0] === 'repo' && arguments_[1] === 'view') return 'repo.view';
         // The quota probe is a fixed `rateLimit` self-query; its text is a literal, never user content.
         return arguments_[0] === 'api' &&
             arguments_[1] === 'graphql' &&

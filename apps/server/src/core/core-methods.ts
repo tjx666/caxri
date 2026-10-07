@@ -45,6 +45,7 @@ export const coreForwardedMethods = [
     'git.commits',
     'git.diffDocument',
     'git.fileHead',
+    'git.mergePullRequest',
     'git.overview',
     'git.pullRequestChanges',
     'git.pullRequestDiffDocument',

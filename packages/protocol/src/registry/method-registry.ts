@@ -75,13 +75,13 @@ import {
 import { terminalLongPasteMethods } from '../domain/terminal-long-paste.js';
 import { terminalReadMethods } from '../domain/terminal-read-contract.js';
 import { terminalReferenceMethods } from '../domain/terminal-reference-contract.js';
+import { treeChildrenResultSchema } from '../domain/tree-item.js';
 import { updateStateSchema } from '../domain/update-state.js';
 import {
     extensionCommandIdSchema,
     extensionErrorSchema,
     extensionIdSchema,
     MAX_EXTENSION_COMMAND_ARGUMENTS,
-    treeChildrenResultSchema,
     viewCatalogSnapshotSchema,
     viewIdSchema,
 } from '../domain/views.js';

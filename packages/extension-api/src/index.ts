@@ -120,6 +120,31 @@ export interface TreeItemRichTooltip {
     rows?: readonly TreeItemTooltipRow[];
 }
 
+/**
+ * Asks the user before an inline action runs. The copy contract mirrors the Workbench confirmation modal: `title` asks
+ * the question, `message` states what confirming changes and how reversible it is, and `confirmLabel` names the
+ * action.
+ */
+export interface TreeItemActionConfirmation {
+    title: string;
+    message: string;
+    confirmLabel: string;
+}
+
+/**
+ * A command shown as an icon button at the end of its row while the row is hovered or focused, like VS Code's inline
+ * `view/item/context` actions. `command.title` is the button's tooltip and accessible name.
+ */
+export interface TreeItemAction {
+    command: Command;
+    icon: ThemeIcon;
+    /**
+     * Set when this occurrence of the action needs a second look before it runs. The Workbench shows the question and
+     * only dispatches the command once the user confirms.
+     */
+    confirmation?: TreeItemActionConfirmation;
+}
+
 export class TreeItem {
     id?: string;
     /**
@@ -136,6 +161,10 @@ export class TreeItem {
      */
     trailingIcon?: ThemeIcon;
     command?: Command;
+    /**
+     * Inline actions, in display order. They run independently of `command`, which stays the row's own activation.
+     */
+    actions?: readonly TreeItemAction[];
     accessibilityInformation?: { label: string };
 
     constructor(
@@ -199,6 +228,14 @@ export type ProjectStatusState =
     | 'queued'
     | 'neutral'
     | 'unknown';
+
+/**
+ * Whether GitHub would merge a pull request right now. `unstable` has a non-required check failing or still running;
+ * `blocked` waits on a branch-protection requirement; `behind` must be updated with its base first; `unknown` means
+ * GitHub has not finished computing it.
+ */
+export type PullRequestMergeState =
+    'clean' | 'unstable' | 'blocked' | 'behind' | 'conflicting' | 'unknown';
 
 export interface ProjectStatusCheck {
     name: string;
@@ -387,6 +424,14 @@ export interface ProjectStatusRepository {
          */
         lifecycle?: 'draft' | 'open' | 'merged' | 'closed';
         /**
+         * The head commit GitHub reports; pass it to `workspace.git.mergePullRequest` so the merge is pinned to it.
+         */
+        headSha?: string;
+        /**
+         * Whether GitHub would merge right now; absent when the provider omitted it.
+         */
+        mergeState?: PullRequestMergeState;
+        /**
          * Unresolved, non-outdated review threads; absent when they were not read.
          */
         unresolvedReviewThreads?: ProjectStatusReviewThread[];
@@ -517,6 +562,7 @@ const caxri: CaxriApi = Object.freeze({
             commits: () => unavailable('workspace.git.commits'),
             commitDetails: () => unavailable('workspace.git.commitDetails'),
             discard: () => unavailable('workspace.git.discard'),
+            mergePullRequest: () => unavailable('workspace.git.mergePullRequest'),
             pullRequestChanges: () => unavailable('workspace.git.pullRequestChanges'),
             remoteHost: () => unavailable('workspace.git.remoteHost'),
             summary: () => unavailable('workspace.git.summary'),

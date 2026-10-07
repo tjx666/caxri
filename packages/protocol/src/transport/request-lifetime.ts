@@ -21,7 +21,7 @@ const nonExpiringServerOperations = new Set([
     'terminal.input',
 ]);
 
-const nonExpiringViewOperations = new Set(['git.sync', 'git.discard']);
+const nonExpiringViewOperations = new Set(['git.sync', 'git.discard', 'git.mergePullRequest']);
 
 /**
  * Durable Files mutations, save/copy, and Runtime-authorized destructive Git apply lack a safe retry boundary, while

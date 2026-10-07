@@ -1,6 +1,6 @@
 import type { TreeItemDto } from '@caxri/protocol';
 import { treeItemSchema } from '@caxri/protocol';
-import type { ThemeIcon, TreeItem } from 'caxri';
+import type { Command, ThemeIcon, TreeItem } from 'caxri';
 import { TreeItemCollapsibleState } from 'caxri';
 
 function collapsibleState(value: number): TreeItemDto['collapsibleState'] {
@@ -15,6 +15,14 @@ function collapsibleState(value: number): TreeItemDto['collapsibleState'] {
  */
 function themeIcon(icon: ThemeIcon) {
     return { kind: 'theme', id: icon.id, ...(icon.color && { color: icon.color }) };
+}
+
+function command(value: Command) {
+    return {
+        id: value.command,
+        title: value.title,
+        ...(value.arguments && { arguments: [...value.arguments] }),
+    };
 }
 
 /**
@@ -32,12 +40,19 @@ export function serializeTreeItem(handle: string, item: TreeItem): TreeItemDto {
         collapsibleState: collapsibleState(item.collapsibleState),
         ...(item.iconPath && { icon: themeIcon(item.iconPath) }),
         ...(item.trailingIcon && { trailingIcon: themeIcon(item.trailingIcon) }),
-        ...(item.command && {
-            command: {
-                id: item.command.command,
-                title: item.command.title,
-                ...(item.command.arguments && { arguments: [...item.command.arguments] }),
-            },
+        ...(item.command && { command: command(item.command) }),
+        ...(item.actions?.length && {
+            actions: item.actions.map((action) => ({
+                command: command(action.command),
+                icon: themeIcon(action.icon),
+                ...(action.confirmation && {
+                    confirmation: {
+                        title: action.confirmation.title,
+                        message: action.confirmation.message,
+                        confirmLabel: action.confirmation.confirmLabel,
+                    },
+                }),
+            })),
         }),
     });
 }

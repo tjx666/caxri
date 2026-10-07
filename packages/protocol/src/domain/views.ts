@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-import { parseExternalHttpUrl } from '../configuration/trusted-domains.js';
 import { hexColorSchema } from './color.js';
 
 export const MAX_VIEW_TREE_ITEMS = 1_000;
@@ -214,90 +213,7 @@ export const viewCatalogSnapshotSchema = z.object({
     extensions: z.array(extensionDescriptorSchema).max(MAX_VIEW_CATALOG_EXTENSIONS),
 });
 
-export const treeItemCommandSchema = z.object({
-    id: extensionCommandIdSchema,
-    title: z.string().min(1).max(200),
-    arguments: z.array(z.unknown()).max(MAX_EXTENSION_COMMAND_ARGUMENTS).optional(),
-});
-
 export const treeItemIdSchema = z.string().min(1).max(480);
-export const treeItemVariantSchema = z.enum(['header', 'message']);
-const treeItemTooltipUrlSchema = z
-    .string()
-    .min(1)
-    .max(16_384)
-    .refine((value) => parseExternalHttpUrl(value).ok, 'Expected a safe HTTP(S) URL');
-const treeItemTooltipBadgeSchema = z.object({
-    label: z.string().min(1).max(64),
-    tone: z.enum(['neutral', 'success', 'warning', 'danger']),
-});
-const treeItemTooltipRowSchema = z.object({
-    label: z.string().min(1).max(64),
-    value: z.string().min(1).max(2_048),
-    url: treeItemTooltipUrlSchema.optional(),
-});
-const treeItemTooltipRowsSchema = z
-    .array(treeItemTooltipRowSchema)
-    .max(8)
-    .refine(
-        (rows) =>
-            new Set(rows.map((row) => `${row.label}\0${row.value}\0${row.url ?? ''}`)).size ===
-            rows.length,
-        'Rich tooltip rows must be unique',
-    );
-export const treeItemRichTooltipSchema = z
-    .object({
-        kind: z.literal('rich'),
-        title: z.string().min(1).max(1_024),
-        /**
-         * Prose that explains the title, such as a provider error's recovery hint. Structured facts belong in `rows`.
-         */
-        description: z.string().min(1).max(1_024).optional(),
-        /**
-         * Authored Markdown prose rendered through `parseMarkdownBlocks`, never as HTML. Mutually exclusive with
-         * `description`.
-         */
-        markdown: z.string().min(1).max(MAX_TREE_ITEM_TOOLTIP_MARKDOWN).optional(),
-        badge: treeItemTooltipBadgeSchema.optional(),
-        /**
-         * Empty when the title (and badge) already carry the whole hover, so a row without structured facts still uses
-         * the same card instead of falling back to the plain-text tooltip.
-         */
-        rows: treeItemTooltipRowsSchema.default([]),
-    })
-    .refine(
-        (tooltip) => tooltip.description === undefined || tooltip.markdown === undefined,
-        'A rich tooltip carries either description or markdown, not both',
-    );
-
-export const treeItemSchema = z
-    .object({
-        handle: z.string().min(1).max(512),
-        id: treeItemIdSchema.optional(),
-        variant: treeItemVariantSchema.optional(),
-        label: z.string().min(1).max(1_024),
-        description: z.string().max(1_024).optional(),
-        tooltip: z.union([z.string().max(4_096), treeItemRichTooltipSchema]).optional(),
-        accessibilityLabel: z.string().min(1).max(1_024),
-        collapsibleState: z.enum(['none', 'collapsed', 'expanded']),
-        icon: viewIconSchema.optional(),
-        trailingIcon: viewIconSchema.optional(),
-        command: treeItemCommandSchema.optional(),
-    })
-    .superRefine((item, context) => {
-        if (item.variant === 'message' && item.collapsibleState !== 'none')
-            context.addIssue({
-                code: 'custom',
-                message: 'A message TreeItem must be a leaf',
-                path: ['collapsibleState'],
-            });
-    });
-
-export const treeChildrenResultSchema = z.object({
-    items: z.array(treeItemSchema).max(MAX_VIEW_TREE_ITEMS),
-    reset: z.literal(true).optional(),
-});
-
 export const extensionTreeViewStateSchema = z.object({
     expandedItemIds: z.array(treeItemIdSchema).max(MAX_VIEW_TREE_PERSISTED_IDS),
     initializedItemIds: z.array(treeItemIdSchema).max(MAX_VIEW_TREE_PERSISTED_IDS),
@@ -611,8 +527,6 @@ export type ControlledViewPresentation = z.infer<typeof controlledViewPresentati
 export type ContributedCommandDescriptor = z.infer<typeof contributedCommandDescriptorSchema>;
 export type ExtensionDescriptor = z.infer<typeof extensionDescriptorSchema>;
 export type ViewCatalogSnapshot = z.infer<typeof viewCatalogSnapshotSchema>;
-export type TreeItemDto = z.infer<typeof treeItemSchema>;
-export type TreeChildrenResult = z.infer<typeof treeChildrenResultSchema>;
 export type ExtensionTreeViewState = z.infer<typeof extensionTreeViewStateSchema>;
 export type ExtensionTreeViewStates = z.infer<typeof extensionTreeViewStatesSchema>;
 export type SourceControlViewState = z.infer<typeof sourceControlViewStateSchema>;

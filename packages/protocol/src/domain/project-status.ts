@@ -169,6 +169,21 @@ const projectStatusErrorSchema = z.object({
     logs: projectStatusErrorLogsSchema.optional(),
 });
 
+/**
+ * Whether GitHub would merge the pull request right now, reduced from its `mergeable` and `mergeStateStatus` fields.
+ * `clean` merges as is; `unstable` has a non-required check that is failing or still running; `blocked` is waiting on a
+ * branch-protection requirement such as a required check or review; `behind` must be updated with its base first;
+ * `conflicting` cannot merge until its conflicts are resolved; `unknown` means GitHub has not finished computing it.
+ */
+export const pullRequestMergeStateSchema = z.enum([
+    'clean',
+    'unstable',
+    'blocked',
+    'behind',
+    'conflicting',
+    'unknown',
+]);
+
 const projectStatusRepoSchema = z.object({
     id: z.string(),
     kind: z.enum(['primary', 'worktree', 'nested', 'submodule']),
@@ -212,6 +227,17 @@ const projectStatusRepoSchema = z.object({
             state: projectStatusStateSchema,
             checks: z.array(projectStatusCheckSchema),
             hiddenCheckCount: z.number().int().nonnegative(),
+            /**
+             * The head commit GitHub reports, which a merge is pinned to so a later push cannot ride along unseen.
+             */
+            headSha: z
+                .string()
+                .regex(/^[0-9a-f]{40}$/)
+                .optional(),
+            /**
+             * Absent when the provider omitted the mergeability fields.
+             */
+            mergeState: pullRequestMergeStateSchema.optional(),
             /**
              * Absent when the threads were not read — the pull request is no longer open, or the read failed — so a
              * consumer never mistakes "unknown" for "nothing left to address".
@@ -336,6 +362,7 @@ export function acceptanceProjectStatusState(
     }
 }
 export type ProjectStatusCheck = z.infer<typeof projectStatusCheckSchema>;
+export type PullRequestMergeState = z.infer<typeof pullRequestMergeStateSchema>;
 export type ProjectStatusLinearIssue = z.infer<typeof projectStatusLinearIssueSchema>;
 export type ProjectStatusReviewThread = z.infer<typeof projectStatusReviewThreadSchema>;
 export type LinearIssueSource = z.infer<typeof linearIssueSourceSchema>;
