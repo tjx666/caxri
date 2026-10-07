@@ -5,7 +5,7 @@ Every file under `docs/**/*.md` is listed here exactly once, grouped by its fron
 contract, and when to update or retire a doc. `bun run scripts/documentation-check.ts` fails when
 this index drifts from the files on disk.
 
-The product glossary lives in [CONTEXT.md](../CONTEXT.md), not here — it defines terms, this index
+The product glossary lives in [GLOSSARY.md](../GLOSSARY.md), not here — it defines terms, this index
 explains behavior.
 
 ## Living docs
