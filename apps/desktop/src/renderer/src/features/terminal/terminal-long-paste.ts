@@ -29,7 +29,7 @@ export function shouldPrepareLongPaste(options: {
  * Caxri used to summarize the paste itself with a low-cost model call before the Agent saw anything, which held
  * Terminal input for the length of that call and left nothing behind when it timed out. The Agent is better placed to
  * decide what the text is worth: it can read the file, grep it, or hand it to a small-model subagent. So this says
- * where the file is, how big it is, and names the subagent route — and then gets out of the way.
+ * where the file is, how big it is, and names the subagent route, and then gets out of the way.
  */
 export function formatLongPasteReference(
     result: Exclude<TerminalLongPasteResult, { status: 'passthrough' }>,

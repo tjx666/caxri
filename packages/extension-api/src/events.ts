@@ -41,7 +41,7 @@ export class EventEmitter<T> implements DisposableLike {
         if (this.isDisposed) return;
         /**
          * Isolates each listener the same way `@caxri/utils`'s `notifyListeners` does, so one throwing subscriber
-         * cannot stop delivery to the rest — the most likely place for that to happen is a third-party extension's own
+         * cannot stop delivery to the rest: the most likely place for that to happen is a third-party extension's own
          * listener. This package ships to extension authors and must stay dependency-free, so the isolation is inlined
          * here instead of importing the shared helper. There is no host-side logger reachable from this zero-dependency
          * layer, so a listener failure is swallowed rather than reported (caxri#1441).

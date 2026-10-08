@@ -12,7 +12,7 @@ import { isNoPullRequest } from './command';
  * only way to tell whether the project's current production deployment was built from _this_ delivery; the Status
  * panel's merge action adds `mergeable` and `mergeStateStatus`, which decide whether it is offered and confirmed.
  * Fetching the union once and sharing the record replaces the four independent `gh pr view` calls those surfaces used
- * to issue for the same pull request — `statusCheckRollup`, by far the most expensive field in GraphQL points, is now
+ * to issue for the same pull request: `statusCheckRollup`, by far the most expensive field in GraphQL points, is now
  * paid for once per pull request per TTL.
  */
 const PULL_REQUEST_FIELDS = [
@@ -34,8 +34,8 @@ const PULL_REQUEST_FIELDS = [
 
 /**
  * Deliberately longer than the Renderer's 60s polls (`status-bar.tsx`, `primary-sidebar.tsx`). At exactly 60s every
- * poll landed just past expiry — `usePolledQuery` schedules the next request after the previous one settles, so the gap
- * is always 60s plus the round trip — and the shared record was refetched on every single poll, which is the cost this
+ * poll landed just past expiry: `usePolledQuery` schedules the next request after the previous one settles, so the gap
+ * is always 60s plus the round trip, and the shared record was refetched on every single poll, which is the cost this
  * store exists to remove. The extra 30s absorbs that skew; a Server-side event still refreshes earlier when something
  * actually changes.
  */
@@ -167,9 +167,9 @@ export class GitHubPullRequestStore {
         const cached = this.cached(lookupKey, lookup.maxAgeMs);
         if (cached) return cached.json;
         /**
-         * Keyed by lookup shape rather than by repository. Two concurrent first lookups of the same pull request — one
-         * by branch, one by number — therefore still spend two queries, because nothing can prove they are the same
-         * pull request until one of them answers. Keying by `owner/repo` would coalesce that case, at the price of
+         * Keyed by lookup shape rather than by repository. Two concurrent first lookups of the same pull request (one
+         * by branch, one by number) therefore still spend two queries, because nothing can prove they are the same pull
+         * request until one of them answers. Keying by `owner/repo` would coalesce that case, at the price of
          * serialising genuinely different pull requests in one repository, which is exactly what the sidebar sweep does
          * across Sessions. The miss costs one extra query and heals immediately: the answer registers a branch alias
          * onto the record, so every later lookup of either shape joins it.

@@ -47,8 +47,8 @@ function DialogOverlay({ className, ...properties }: DialogPrimitive.Backdrop.Pr
 type DialogPopupProperties = DialogPrimitive.Popup.Props & {
     /**
      * Overrides the close button's accessible name. "Close" describes the mechanism, which is enough wherever closing
-     * simply abandons the dialog. A dialog whose closing carries its own meaning — setting a decision aside rather than
-     * answering it — has to say that meaning here, because the glyph is identical either way.
+     * simply abandons the dialog. A dialog whose closing carries its own meaning (setting a decision aside rather than
+     * answering it) has to say that meaning here, because the glyph is identical either way.
      */
     closeLabel?: string;
     ref?: Ref<HTMLDivElement>;
@@ -135,7 +135,7 @@ export function PickerDialogContent({
  * Pickers open from keyboard commands, so Base UI has no trigger to hand focus back to on close. `finalFocus` therefore
  * decides from the element that held focus when the picker opened (see `lib/picker-final-focus.ts`). This component
  * lives inside the Portal, which mounts it fresh on every open, so a `useState` initializer captures that element
- * exactly once per open — even for pickers whose `Dialog` stays mounted while closed.
+ * exactly once per open, even for pickers whose `Dialog` stays mounted while closed.
  *
  * The shared restorer owns the focus call and preserves an explicit handoff to another surface.
  */

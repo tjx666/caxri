@@ -22,7 +22,7 @@ const ISSUE_TTL_MS = 90_000;
  */
 const FAILURE_TTL_MS = 60_000;
 /**
- * A workspace's team keys are effectively static — a new team is created a handful of times in a product's life — and
+ * A workspace's team keys are effectively static (a new team is created a handful of times in a product's life) and
  * this is the allow-list that decides whether a bare `ABC-123` in a branch name or a conversation is a real issue. One
  * query per workspace per six hours buys that decision for every Session.
  */
@@ -32,7 +32,7 @@ const MAX_ISSUE_RECORDS = 256;
 const MAX_TEAM_KEY_RECORDS = 32;
 
 /**
- * https://linear.app/developers/graphql — `teams` is readable with the same scope the issue query already needs.
+ * https://linear.app/developers/graphql: `teams` is readable with the same scope the issue query already needs.
  */
 export const LINEAR_TEAM_KEYS_QUERY = 'query TeamKeys{teams(first:250){nodes{key}}}';
 
@@ -89,8 +89,8 @@ export interface LinearIssueStoreOptions {
 /**
  * The Server's single projection of a Linear issue, and the single owner of the workspace's team-key allow-list.
  *
- * Two surfaces read the same issues — the Status panel resolves every reference a pull request body names, and the
- * status bar resolves the one issue it leads with — so a shared record is what keeps a Session's Linear state from
+ * Two surfaces read the same issues: the Status panel resolves every reference a pull request body names, and the
+ * status bar resolves the one issue it leads with, so a shared record is what keeps a Session's Linear state from
  * costing two CLI spawns per refresh.
  *
  * The allow-list exists because the cheap sources of an issue identifier are also the ambiguous ones. An `ABC-42`

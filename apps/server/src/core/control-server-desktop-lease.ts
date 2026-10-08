@@ -52,7 +52,7 @@ export interface DesktopLeaseHost {
 
 /**
  * Settles a Desktop's reverse reply to a Server-issued `desktop-command`, if `raw` parses as one. Returns `true` once
- * `raw` is recognized as a Desktop reply frame — even a stale one the caller should otherwise ignore — so the caller's
+ * `raw` is recognized as a Desktop reply frame, even a stale one the caller should otherwise ignore, so the caller's
  * schema-detection chain can move on to the next frame kind without re-parsing.
  */
 export function didHandleDesktopReply(
@@ -90,8 +90,8 @@ function rejectDesktopCommands(host: DesktopLeaseHost, state: ClientState): void
 
 /**
  * Detaches the outstanding liveness-probe pong listener, if any. Called wherever a grace window resolves or becomes
- * moot — recovery, an ordinary renewal, revocation, and Host shutdown — so a pong that arrives late on a discarded
- * socket can never reach a `state` it no longer applies to.
+ * moot (recovery, an ordinary renewal, revocation, and Host shutdown) so a pong that arrives late on a discarded socket
+ * can never reach a `state` it no longer applies to.
  */
 export function clearLeaseLivenessProbe(state: ClientState): void {
     if (!state.leaseLivenessPongListener) return;
@@ -131,7 +131,7 @@ export function revokeDesktop(
 
 /**
  * Arms (or re-arms) the lease-expiry timer without touching the grace state. Callers that are starting a fresh lease
- * period — an initial `hello` or a successful renewal — clear `leaseGraceActive` themselves via `renewDesktop`;
+ * period, an initial `hello` or a successful renewal, clear `leaseGraceActive` themselves via `renewDesktop`;
  * `onDesktopLeaseTimerFired` re-arms this timer for the grace window while intentionally leaving `leaseGraceActive`
  * set.
  */
@@ -150,8 +150,8 @@ function armLeaseTimer(
  * to the Desktop's own wake-triggered `renewLeaseNow()` fast path
  * (`packages/client/src/supervise/server-connection.ts`): that call is fire-and-forget over a socket the Server cannot
  * independently confirm is still live, so a dropped or delayed renewal must not be the only way to survive the grace
- * window. `ws` answers a received ping with a pong automatically at the protocol level — no client-side code is
- * required — so a pong is evidence the peer's TCP connection and event loop are actually live, not just that
+ * window. `ws` answers a received ping with a pong automatically at the protocol level (no client-side code is
+ * required), so a pong is evidence the peer's TCP connection and event loop are actually live, not just that
  * `readyState` still reports `OPEN` (which a half-open connection can do indefinitely). A pong that lands before the
  * grace timer fires again recovers the lease exactly like a renewal; see `clearLeaseLivenessProbe` for how a stale pong
  * (after replace, an ordinary renewal, revocation, or Host shutdown) is kept from resurrecting stale state.
@@ -174,8 +174,8 @@ function probeDesktopLiveness(host: DesktopLeaseHost, state: ClientState, graceM
 /**
  * Handles a fired lease-expiry (or grace) timer. See `DESKTOP_LEASE_GRACE_MS` for why a bare `revokeDesktop` on first
  * fire is wrong: a suspended-then-woken Desktop looks identical, at this instant, to a genuinely dead one. The first
- * fire only starts a grace window — and, via `probeDesktopLiveness`, a server-initiated liveness check that does not
- * depend on the Desktop's own renewal reaching the wire — only a _second_ fire, with no renewal or recovering pong in
+ * fire only starts a grace window (and, via `probeDesktopLiveness`, a server-initiated liveness check that does not
+ * depend on the Desktop's own renewal reaching the wire); only a _second_ fire, with no renewal or recovering pong in
  * between, revokes the lease. `renewDesktop` clears `leaseGraceActive` on every successful renewal, so either path
  * landing during the grace window cancels the revocation entirely.
  */

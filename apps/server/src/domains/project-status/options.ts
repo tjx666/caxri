@@ -21,7 +21,7 @@ export interface ProjectStatusServiceOptions {
      */
     vercel?: VercelDeploymentStore;
     /**
-     * Every Session whose delivery failures should raise a notification — in practice every unarchived Session. Without
+     * Every Session whose delivery failures should raise a notification: in practice every unarchived Session. Without
      * it only the selected Session is watched.
      */
     listWatchedSessions?: () => readonly string[];

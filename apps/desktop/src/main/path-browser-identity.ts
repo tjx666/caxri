@@ -51,8 +51,8 @@ export async function directoryIdentity(
         if (shouldFollowWorkspaceLinks) path = await realpath(path);
         const before = await lstat(path, { bigint: true });
         // Separate messages because the two refusals need different fixes: a symlinked location has to be reached
-        // through its canonical path, while a file simply cannot be browsed. Reporting `/tmp` — a link to
-        // `/private/tmp` on macOS — as "not a directory" sent readers looking for a missing file that was there.
+        // through its canonical path, while a file simply cannot be browsed. Reporting `/tmp` (a link to
+        // `/private/tmp` on macOS) as "not a directory" sent readers looking for a missing file that was there.
         if (before.isSymbolicLink())
             throw new CaxriError('PATH_DENIED', 'Browse location is a symbolic link');
         if (!before.isDirectory())

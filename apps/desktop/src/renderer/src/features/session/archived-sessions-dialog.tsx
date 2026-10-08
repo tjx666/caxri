@@ -66,7 +66,7 @@ type ToggleSessions = (sessionIds: readonly string[], isChecked: boolean) => voi
 /**
  * The dialog is mounted for the app's lifetime, so everything that reads the Workbench stores lives in the body below.
  * Base UI's Portal renders nothing while the dialog is closed, so the body's hooks and its whole-archive derivation
- * only run while it is open — reading Projects, Sessions, and Terminals out here instead would rerun
+ * only run while it is open: reading Projects, Sessions, and Terminals out here instead would rerun
  * `deriveArchivedSessionView` on every Terminal title and agent-metadata update, several times a second while an agent
  * runs, for a dialog nobody opened.
  */

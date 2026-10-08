@@ -17,7 +17,7 @@ import { useViewBadges } from './hooks/use-view-badges';
  * the rest of the rail empty.
  *
  * `useViewBadges` follows the selected Session and re-resolves on every switch, and its result is a freshly built
- * record every time. Read in the surface, that re-rendered the surface — and with it every `ChromeTabPanel` it renders,
+ * record every time. Read in the surface, that re-rendered the surface, and with it every `ChromeTabPanel` it renders,
  * including the hidden containers that stay mounted by design and have no stake in a tab's badge. Reading the badges
  * where they are shown keeps a badge change inside the strip.
  */

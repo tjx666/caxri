@@ -44,7 +44,7 @@ export function shouldLogSuccessfulRequest(boundary: RequestLogBoundary, method:
 /**
  * Method-scoped failures the caller absorbs as an ordinary outcome, on top of the protocol-wide
  * `isCallerHandledFailure` codes. A watcher-driven reload (`readDocuments` in the Renderer's external sync) reads a
- * path the watcher just reported, and the user can delete it before the read lands — saving a file and moving it to
+ * path the watcher just reported, and the user can delete it before the read lands: saving a file and moving it to
  * Trash a few milliseconds later is enough. That `NOT_FOUND` is filesystem state, not a Caxri defect, and Desktop Main
  * already records the same reply at `warn`; recording it at `error` here paged as a production error and failed the E2E
  * error gate (https://github.com/tjx666/caxri/issues/1418).

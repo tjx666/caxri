@@ -30,8 +30,8 @@ const emptyShape: DirectoryShape = {
 
 /**
  * Directory listings are cached because every file in a directory triggers the same directory-level checks. The cache
- * is keyed on the directory's mtime, which changes whenever a direct child is added, removed, or renamed — exactly the
- * events this rule observes — so a long-lived lint process (the VS Code ESLint server) sees edits instead of serving
+ * is keyed on the directory's mtime, which changes whenever a direct child is added, removed, or renamed (exactly the
+ * events this rule observes), so a long-lived lint process (the VS Code ESLint server) sees edits instead of serving
  * stale shapes forever.
  */
 const directoryShapes = new Map<string, { mtimeMs: number; shape: DirectoryShape }>();

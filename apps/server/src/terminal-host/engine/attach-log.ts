@@ -1,7 +1,7 @@
 /**
  * Content-free `pty.attach` log evidence so a "frozen Terminal" report can be traced end to end: after a
  * `server_connection.reconnected` outage these lines prove whether the Renderer actually re-fetched the authoritative
- * screen for each pane, and their absence localizes the fault to the Renderer resync trigger. Only sizes are logged —
+ * screen for each pane, and their absence localizes the fault to the Renderer resync trigger. Only sizes are logged:
  * never snapshot bytes.
  */
 export function attachLogFields(options: {

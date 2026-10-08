@@ -149,7 +149,7 @@ export class AgentCommanderWindowController {
     }
 
     /**
-     * Loads bounds/open state persisted at the previous quit and returns whether the Commander was open then — the
+     * Loads bounds/open state persisted at the previous quit and returns whether the Commander was open then: the
      * cold-start signal `index.ts` uses to decide whether to reopen it once the Workbench is ready. The bounds are
      * clamped to the attached displays when the window opens, not here. A failed read (Server unreachable, corrupted
      * state) keeps the window's built-in default bounds and answers `false`, so a boot-time hiccup never blocks startup
@@ -213,7 +213,7 @@ export class AgentCommanderWindowController {
                 ...this.boundsMemory.boundsForOpen(),
                 minWidth: 760,
                 minHeight: 480,
-                title: 'Agent Commander — Caxri',
+                title: 'Agent Commander - Caxri',
                 backgroundColor: '#282a36',
                 titleBarStyle: 'hiddenInset',
                 /**

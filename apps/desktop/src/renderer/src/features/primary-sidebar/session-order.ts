@@ -55,9 +55,9 @@ export function sessionIdsKey(sessions: ReadonlyArray<Pick<SessionRecord, 'id'>>
 
 /**
  * Where `Alt+ArrowUp` / `Alt+ArrowDown` moves a Session: next to its neighbor among the rows its list shows. Hidden
- * rows are not keyboard drop targets — moving into the collapsed tail would unmount the focused row — and a row that
- * has left the list or its group since it rendered (archived, removed, moved to another Project) is skipped, because
- * the ids are resolved against the current records rather than the ones the row last rendered with.
+ * rows are not keyboard drop targets (moving into the collapsed tail would unmount the focused row) and a row that has
+ * left the list or its group since it rendered (archived, removed, moved to another Project) is skipped, because the
+ * ids are resolved against the current records rather than the ones the row last rendered with.
  */
 export function keyboardReorderTarget({
     direction,

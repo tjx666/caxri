@@ -92,7 +92,7 @@ const themeIcons = {
     /**
      * A production deployment that succeeded, which is the one row on this panel that means the work is live. It keeps
      * the rocket's shape and adds the success tone `themeIconClassNames` gives it, because the plain rocket is also the
-     * Deployments group's glyph — where it counts deployments and asserts nothing about how they went.
+     * Deployments group's glyph, where it counts deployments and asserts nothing about how they went.
      */
     'rocket-success': Rocket,
     /**
@@ -162,7 +162,7 @@ function isLinearStatusIconId(iconId: string | undefined): iconId is LinearStatu
 
 /**
  * The one place a tree icon may leave the theme's palette. The provider supplies this only for content whose colors an
- * external system owns — a Linear workflow state, whose color each workspace configures — and the protocol has already
+ * external system owns (a Linear workflow state, whose color each workspace configures) and the protocol has already
  * checked it is a `#RRGGBB` literal (`viewIconSchema`). Everything Caxri defines stays on `themeIconClassNames`.
  */
 function themeIconColor(icon: TreeItemDto['icon']): string | undefined {
@@ -231,8 +231,8 @@ export function ExtensionTreeTrailingIcon({ icon }: { icon: TreeItemDto['trailin
         <Icon
             aria-hidden="true"
             /**
-             * The same palette the leading slot uses. A glyph that carries a state — a pull request's merged, open, or
-             * draft lifecycle — means the same thing in either slot, so moving it here must not drain its color; the
+             * The same palette the leading slot uses. A glyph that carries a state (a pull request's merged, open, or
+             * draft lifecycle) means the same thing in either slot, so moving it here must not drain its color; the
              * trailing slot's original occupant, a deployment environment, has no state and so still falls back to
              * `--muted`.
              */

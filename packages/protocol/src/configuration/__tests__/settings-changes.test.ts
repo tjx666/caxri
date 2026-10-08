@@ -25,7 +25,7 @@ describe('Default settings reconciliation', () => {
     });
 
     /**
-     * An absent key already parses to the current default through the schema, so it must not be rewritten — otherwise
+     * An absent key already parses to the current default through the schema, so it must not be rewritten: otherwise
      * every reconciliation would materialize keys the user deliberately left out.
      */
     it('ignores a key the file does not carry', () => {

@@ -34,12 +34,12 @@ export interface DocumentTabPathResolution {
 }
 
 /**
- * Availability of the tab menu's desktop actions — Open with Default App, Reveal in Finder, Open in Terminal — which
- * all hand a path to the operating system through Server Core.
+ * Availability of the tab menu's desktop actions (Open with Default App, Reveal in Finder, Open in Terminal) which all
+ * hand a path to the operating system through Server Core.
  *
  * An external document is withheld even though it has a real absolute path: it sits outside every authorized Project
  * root, so Server Core would refuse the request, and a disabled item with a reason explains that before the click
- * rather than through an error toast after it. Clipboard items are unaffected — copying a path claims no authority —
+ * rather than through an error toast after it. Clipboard items are unaffected: copying a path claims no authority,
  * which is why this state is separate from `unavailableReason`.
  */
 export function documentTabDesktopActionState(

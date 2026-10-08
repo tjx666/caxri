@@ -3,7 +3,7 @@ import type { GitDiffTab } from '@caxri/protocol';
 /**
  * The multi-diff document feeds from the same `changedFileCount`-capped `files[]` the Git panel's sidebar truncation
  * banner reads (`git-repo-section.tsx`, `MAX_GIT_STATUS_FILES`); only the working-tree source is ever capped that way,
- * so a Pull Request's multi-diff list — bounded separately at a different limit — never shows this banner.
+ * so a Pull Request's multi-diff list (bounded separately at a different limit) never shows this banner.
  */
 export function shouldShowGitTruncationBanner(
     source: GitDiffTab['source'],

@@ -31,8 +31,8 @@ async function terminalIds(page: Page): Promise<string[]> {
 }
 
 /**
- * A tab whose Terminal the Runtime no longer owns renders an empty pane that no close reaches, so tab identity — not
- * tab count — is what proves the layout stayed consistent.
+ * A tab whose Terminal the Runtime no longer owns renders an empty pane that no close reaches, so tab identity (not tab
+ * count) is what proves the layout stayed consistent.
  *
  * Polled rather than sampled once: a close that overtakes its own create legitimately shows the doomed tab for a frame
  * or two, and only a tab that is still orphaned once the system settles is the defect.
@@ -144,8 +144,8 @@ test('Command+Shift+K and Command+T/W affect only the active Terminal and pause 
         /**
          * A new Terminal's pane attaches its PTY asynchronously (`use-terminal-pane-runtime.ts`). Pressing `Meta+W`
          * before that round-trip resolves queues `terminal.close` behind it on the Server's ordered command queue
-         * (`apps/server/src/core/control-server.ts`) and the tab is still open when the assertion below runs — a race
-         * no human could hit by hand, but one Playwright's instant keypress does under CI's contended pool. Mirrors the
+         * (`apps/server/src/core/control-server.ts`) and the tab is still open when the assertion below runs, a race no
+         * human could hit by hand, but one Playwright's instant keypress does under CI's contended pool. Mirrors the
          * same wait in `session-title.e2e.ts`.
          */
         const openedTerminalId = await openedTab.getAttribute('data-terminal-id');
@@ -267,15 +267,15 @@ test('Cmd+Backslash opens fresh Terminals in right panes and keeps the newest pa
 
 /**
  * `Cmd+T` immediately followed by `Cmd+W` can send a layout write that still carries the Terminal the very next command
- * deletes. Whether the two round-trips actually interleave that way depends on machine load — it reproduced on CI's
- * contended pool and never on an idle laptop — so the interleaving is driven here instead of waited for: the layout
+ * deletes. Whether the two round-trips actually interleave that way depends on machine load: it reproduced on CI's
+ * contended pool and never on an idle laptop, so the interleaving is driven here instead of waited for: the layout
  * captured while both tabs existed is replayed after the close, which is byte-for-byte the write the losing race
  * sends.
  *
  * Only a real Electron run proves the transport and persistence half: the write crosses Desktop and Server, and no unit
- * test can show that the Runtime prunes a stale placement before storing it. The Renderer's own two defences —
- * declining to re-place a Terminal closed mid-creation, and adopting the Runtime's pruned canonical state — are covered
- * narrowly in `terminal-commands.test.ts` and `workbench-session-state.test.ts`, because the replay below bypasses the
+ * test can show that the Runtime prunes a stale placement before storing it. The Renderer's own two defences, declining
+ * to re-place a Terminal closed mid-creation, and adopting the Runtime's pruned canonical state, are covered narrowly
+ * in `terminal-commands.test.ts` and `workbench-session-state.test.ts`, because the replay below bypasses the
  * Renderer's create path by sending the layout straight over IPC.
  */
 test('a Terminal closed while its layout write was in flight leaves no tab behind', async () => {

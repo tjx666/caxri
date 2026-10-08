@@ -86,7 +86,7 @@ function AgentActionRow({ action, location, onSelect }: AgentActionRowProperties
 
 /**
  * The recents to render. `recordRecent` returns the list the Server just persisted, which arrives before the settings
- * push that carries it, so an override wins over `actionSettings` — but only for the provider it was recorded against,
+ * push that carries it, so an override wins over `actionSettings`, but only for the provider it was recorded against,
  * since switching Terminals can change the provider before that push lands.
  */
 function visibleRecentActions(
@@ -106,7 +106,7 @@ function visibleRecentActions(
 /**
  * The dialog's target line: which Agent is about to receive the action, and which Session or Terminal it belongs to.
  * Its own component so the branch between a shared title and a Session/Terminal pair stays out of the picker's control
- * flow — the picker only decides _what_ to submit, never how the target is described.
+ * flow; the picker only decides _what_ to submit, never how the target is described.
  */
 function AgentActionTargetNote({
     id,

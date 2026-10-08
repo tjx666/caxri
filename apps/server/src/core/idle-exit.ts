@@ -10,14 +10,14 @@ import { logEventCatalog } from '@caxri/system';
  * 30 minutes comfortably outlives every ordinary Desktop restart or update-adoption gap (quit, install, relaunch is a
  * matter of seconds; a user who postpones the relaunch prompt still has a wide window) while still reclaiming a Server
  * left behind by a crashed or force-killed Desktop in well under the 41-hour orphan this feature exists to fix (issue
- * #1234). It is not a user-facing setting — see `idleExitThresholdMs` on `ServerCoreOptions` and the
+ * #1234). It is not a user-facing setting: see `idleExitThresholdMs` on `ServerCoreOptions` and the
  * `CAXRI_SERVER_IDLE_EXIT_MS` internal override read in `apps/server/src/core/process.ts`.
  */
 export const DEFAULT_IDLE_EXIT_MS = 30 * 60_000;
 
 export interface IdleExitMonitorOptions {
     /**
-     * Resolves `true` while shutdown must be postponed (currently: at least one live PTY — see
+     * Resolves `true` while shutdown must be postponed (currently: at least one live PTY, see
      * `ServerIdleExitDeferralReason`). A rejection is treated as busy: an idle-exit sweep has nobody to ask for
      * confirmation, so an unexpected health-check failure must defer rather than risk destroying live work.
      */
@@ -46,7 +46,7 @@ export interface IdleExitMonitor {
 }
 
 /**
- * Watches the aggregate authenticated connection count (Desktop, Mobile, Agent, and CLI clients combined — see
+ * Watches the aggregate authenticated connection count (Desktop, Mobile, Agent, and CLI clients combined: see
  * `server-core.ts`'s wiring) and, once it has stayed at zero for `thresholdMs`, triggers `onIdleExit` unless `isBusy()`
  * says live work is in flight, in which case it logs a deferral and rechecks after another full `thresholdMs` window.
  *
@@ -162,7 +162,7 @@ export interface IdleExitConnectionTracker {
 
 /**
  * Aggregates the authenticated connection count across every transport (control clients plus Mobile) into the single
- * total `IdleExitMonitor` needs — see `server-core.ts`'s wiring. `ControlServer` and `MobileGateway` each report only
+ * total `IdleExitMonitor` needs: see `server-core.ts`'s wiring. `ControlServer` and `MobileGateway` each report only
  * their own count; nothing else on this object cares which transport contributed it.
  */
 export function createIdleExitConnectionTracker(): IdleExitConnectionTracker {
@@ -193,7 +193,7 @@ export function createIdleExitConnectionTracker(): IdleExitConnectionTracker {
  * Internal override for `DEFAULT_IDLE_EXIT_MS`, forwarded from Desktop to Server Core the same way as the other
  * `CAXRI_*_MS` dev/test seams in `apps/desktop/src/main/server-connection.ts` (unconditionally, not gated behind
  * `CAXRI_E2E`, so `switch-worktree dev` live verification can use it too). There is no user-facing setting for this
- * value — see `DEFAULT_IDLE_EXIT_MS`'s rationale.
+ * value: see `DEFAULT_IDLE_EXIT_MS`'s rationale.
  */
 export const IDLE_EXIT_ENVIRONMENT_KEY = 'CAXRI_SERVER_IDLE_EXIT_MS';
 /**

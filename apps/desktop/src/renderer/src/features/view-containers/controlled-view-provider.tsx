@@ -30,7 +30,7 @@ export function ControlledViewProvider({
 }) {
     /**
      * Deliberately independent of the selected Session. A context value that changed identity on every switch
-     * re-rendered every consumer beneath it — which for the Files view is all 49 visible rows and their context-menu
+     * re-rendered every consumer beneath it, which for the Files view is all 49 visible rows and their context-menu
      * wrappers, roughly 550 of the 699 component updates one Session switch used to cost. Both clients resolve the
      * current Session when a request is actually made instead, so nothing here has to move.
      */

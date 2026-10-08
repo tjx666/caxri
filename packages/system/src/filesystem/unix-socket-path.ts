@@ -60,8 +60,8 @@ export async function ensurePrivateUnixSocketDirectory(directory: string): Promi
  *
  * The preferred directory wins whenever it fits, so the socket normally stays inside whatever temporary root the caller
  * already owns and is cleaned up with it. It does not always fit: the macOS per-user temp directory is 49 bytes on its
- * own, and any caller that nests a further directory under it — the E2E harness gives each Playwright worker its own
- * `caxri-e2e-<pool>-<index>` TMPDIR — pushes a socket past the limit. Both of Caxri's private sockets failed that way,
+ * own, and any caller that nests a further directory under it (the E2E harness gives each Playwright worker its own
+ * `caxri-e2e-<pool>-<index>` TMPDIR) pushes a socket past the limit. Both of Caxri's private sockets failed that way,
  * each with a different symptom and neither naming the real cause: the Managed Agent launcher threw at Terminal Host
  * module top level and surfaced as `pty.spawn_failed` ("Terminal Host exited before ready"), while the Agent lifecycle
  * hook bridge failed its `listen` with `EINVAL` and left hooks quietly uninstalled.

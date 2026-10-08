@@ -94,7 +94,7 @@ const BUG_REPORT_SCREENSHOT_DIRECTORY = 'caxri-bug-reports';
 const BUG_REPORT_SCREENSHOT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 /**
  * Only Caxri's own screenshot files are pruning candidates. The directory lives in the world-writable OS temp root, so
- * anything else in it — a foreign file, a directory, a symlink someone planted at a Caxri-shaped name — is not ours to
+ * anything else in it (a foreign file, a directory, a symlink someone planted at a Caxri-shaped name) is not ours to
  * delete.
  */
 const BUG_REPORT_SCREENSHOT_NAME = /^caxri-bug-report-.*\.jpg$/;
@@ -312,8 +312,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 const { projectId } = request.params;
                 const state = await supervisor.request('app.bootstrap');
                 /**
-                 * The Terminal count is taken over the same set Server Core deletes — this Project plus the worktree
-                 * Projects registered on its behalf — so the number the user consents to is defined by the cascade
+                 * The Terminal count is taken over the same set Server Core deletes (this Project plus the worktree
+                 * Projects registered on its behalf), so the number the user consents to is defined by the cascade
                  * rather than by a second rule maintained here. The worktree half contributes nothing today: the Server
                  * refuses to create a Session inside an auto-registered Project at all. Taking the union is what keeps
                  * that a property of the Server's rule instead of an assumption made at this call site.
@@ -529,7 +529,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 };
             }
             /**
-             * Some Agent CLIs — Claude Code among them — have no Caxri-safe way to accept a pasted clipboard image, so
+             * Some Agent CLIs (Claude Code among them) have no Caxri-safe way to accept a pasted clipboard image, so
              * the report references an on-disk screenshot the Agent can open with its own file tools instead. The file
              * is deliberately unredacted, because it is exactly the capture the user already reviewed in the bug-report
              * preview. It therefore stays outside any Project in the OS temp directory, in a Caxri-owned folder pruned

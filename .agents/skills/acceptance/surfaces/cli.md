@@ -2,7 +2,7 @@
 
 Use this surface for `caxri` command behavior a person decides about: what a
 command prints, which exit code and error code it returns, what a mutation
-changed in the selected profile. The proof is the command's own output — text,
+changed in the selected profile. The proof is the command's own output: text,
 not pixels. That is the cheapest and strongest evidence here: a stable `--json`
 value is harder to fake than a screenshot, and it needs no window.
 
@@ -64,7 +64,7 @@ as a desktop case does.
 - **Don't open a browser or a window for a CLI criterion.** If the outcome is
   satisfied by output, a screenshot adds noise, not proof.
 - **Make the assertion legible.** Cite the specific value that proves the
-  criterion, or name it in the `description` — not a 10k-line log the reviewer
+  criterion, or name it in the `description`, not a 10k-line log the reviewer
   must scan.
 - **Never upload secrets.** Pairing links, QR payloads, delegation credentials,
   tokens, Agent transcripts, Session names, and Project paths stay out of the

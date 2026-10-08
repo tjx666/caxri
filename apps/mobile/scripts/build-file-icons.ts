@@ -433,7 +433,7 @@ if (oversizeIcons.length > 0) {
     );
     const byIconDescending = [...byIcon].toSorted((left, right) => right[1].bytes - left[1].bytes);
     for (const [icon, { bytes, names }] of byIconDescending) {
-        console.error(`  ${icon} — ${Math.round(bytes / 1_024)} KB — ${names.join(', ')}`);
+        console.error(`  ${icon}: ${Math.round(bytes / 1_024)} KB (${names.join(', ')})`);
     }
     // Fail the build loudly instead of shipping a silent icon regression; the generated file above is still written
     // so the app keeps working with the default-icon fallback while a maintainer fixes the oversized entry.

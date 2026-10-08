@@ -422,7 +422,7 @@ describe('path browsing', () => {
             // One budget covers the whole browse, so a hung mount costs this listing a single timeout.
             expect(createdProbes).toBe(1);
             /**
-             * An unprobed link is invisible in the result — it simply keeps the neutral icon — so without this record a
+             * An unprobed link is invisible in the result (it simply keeps the neutral icon), so without this record a
              * stale mount degrades the path browser with nothing to find afterwards. The reason separates a hung target
              * from a merely slow one, and the count is what turns one occurrence into a rate.
              */

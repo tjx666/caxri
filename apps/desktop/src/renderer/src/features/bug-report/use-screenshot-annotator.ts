@@ -28,7 +28,7 @@ function loadImage(source: string): Promise<HTMLImageElement> {
 
 /**
  * Editing state for the annotation editor: the marks themselves, the active tool, the selection, and the display scale
- * the overlay and the rasterizer share. Kept out of the components so the flow stays reviewable in one place — the
+ * the overlay and the rasterizer share. Kept out of the components so the flow stays reviewable in one place: the
  * components below it only translate pointer events into these calls.
  */
 export function useScreenshotAnnotator(initialAnnotations: readonly ScreenshotAnnotation[]) {
@@ -40,7 +40,7 @@ export function useScreenshotAnnotator(initialAnnotations: readonly ScreenshotAn
     const [focusAnnotationId, setFocusAnnotationId] = useState<string>();
     /**
      * Image pixels per displayed CSS pixel. The overlay draws in image coordinates, so strokes, arrow heads, and badges
-     * have to be multiplied by this to stay the same physical size the user drew at — and the rasterizer reuses it so
+     * have to be multiplied by this to stay the same physical size the user drew at, and the rasterizer reuses it so
      * the exported file matches the preview.
      */
     const [displayScale, setDisplayScale] = useState(1);

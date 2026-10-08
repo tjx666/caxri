@@ -53,7 +53,7 @@ export const EDITOR_OPTION_KEYS = [
 
 /**
  * Monaco spells this one `true | false | 'active'` rather than as a plain enum, so the three-way setting is mapped here
- * instead of being stored in Monaco's own shape — a settings file should not have to know that.
+ * instead of being stored in Monaco's own shape: a settings file should not have to know that.
  */
 const BRACKET_PAIR_GUIDES = { active: 'active', all: true, off: false } as const;
 
@@ -63,7 +63,7 @@ const BRACKET_PAIR_GUIDES = { active: 'active', all: true, off: false } as const
  * new `editor.*` setting reaches every surface through one place.
  *
  * The defaults deliberately turn on behavior VS Code ships on and Monaco leaves off, because a standalone Monaco is the
- * editor core without the product decisions layered on top of it — sticky scroll, bracket pair colorization, and linked
+ * editor core without the product decisions layered on top of it: sticky scroll, bracket pair colorization, and linked
  * editing are all things a VS Code user has every reason to expect and no way to ask for. Each one is a setting rather
  * than a hardcode, so the opinion is a starting point rather than a verdict.
  */
@@ -79,9 +79,9 @@ export function resolveEditorOptions(
          *
          * Monaco and VS Code both default to `auto`, which only does this for a pair the editor auto-inserted during
          * this session (`cursorDeleteOperations.ts`: the pair must appear in `autoClosedCharacters`). That makes the
-         * behavior depend on invisible history — the same `()` deletes as a pair or as one character depending on
-         * whether the editor happened to type it — and the pair that is already in the file is exactly the one a user
-         * is editing. It only ever fires on an adjacent empty pair, so `(foo)` is never touched.
+         * behavior depend on invisible history: the same `()` deletes as a pair or as one character depending on
+         * whether the editor happened to type it, and the pair that is already in the file is exactly the one a user is
+         * editing. It only ever fires on an adjacent empty pair, so `(foo)` is never touched.
          */
         autoClosingDelete: settings['editor.autoClosingDelete'],
         bracketPairColorization: {

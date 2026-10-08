@@ -7,7 +7,7 @@ const DEFAULT_EVENT_GATE_TIMEOUT_MS = 5_000;
 /**
  * Push-based alternative to polling a mutable events array with `expect.poll`/`vi.waitFor`. Both of those resample on a
  * fixed interval, so on a loaded self-hosted runner each tick competes for the same starved event loop the watcher
- * callback itself is waiting on — the polling interval adds its own delay on top of the real watcher/settle latency,
+ * callback itself is waiting on: the polling interval adds its own delay on top of the real watcher/settle latency,
  * which is what turns load into a hard timeout instead of just a slower pass (see issue #1259). Resolving from inside
  * `push` settles a waiting `waitFor` in the same tick the matching event actually arrives, no matter how long the gap
  * to the next scheduled poll tick would have been.

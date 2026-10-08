@@ -95,7 +95,7 @@ export interface ExternalStatusLimiterOptions {
      */
     pausePath?: string;
     /**
-     * Reads GitHub's GraphQL budget. Must bypass this limiter — it is the probe that decides whether to pause.
+     * Reads GitHub's GraphQL budget. Must bypass this limiter: it is the probe that decides whether to pause.
      */
     probeQuota?: () => Promise<GitHubQuota | undefined>;
     reloadIntervalMs?: number;
@@ -107,14 +107,14 @@ function defaultExternalStatusPausePath(): string {
 
 /**
  * One circuit breaker per external source. A rate-limited `gh` call pauses only `gh`, until the reset GitHub itself
- * reports, and the pause is durable across processes — the previous behaviour retried every thirty seconds from four
+ * reports, and the pause is durable across processes: the previous behaviour retried every thirty seconds from four
  * independent call sites, which is what kept the account limited instead of letting it recover.
  */
 export class ExternalStatusLimiter {
     private readonly circuits = new Map<ExternalStatusQuotaSource, SourceCircuit>();
     /**
      * When the quota probe last _ran_, as opposed to when it last produced a reading. A CLI that cannot report a
-     * GraphQL budget — unauthenticated, proxied, or stubbed — would otherwise be re-probed before every single request,
+     * GraphQL budget (unauthenticated, proxied, or stubbed) would otherwise be re-probed before every single request,
      * silently doubling the `gh` spawns this limiter exists to reduce.
      */
     private lastProbeAt = 0;
@@ -276,8 +276,8 @@ export class ExternalStatusLimiter {
 
     /**
      * Re-reads the shared file and writes back the per-source maximum. A blind overwrite would erase a pause a sibling
-     * Server recorded for a _different_ source inside this process's reload window — that Server keeps honouring its
-     * own pause, but every newly started Server would read a file that no longer mentions it and spend a request
+     * Server recorded for a _different_ source inside this process's reload window: that Server keeps honouring its own
+     * pause, but every newly started Server would read a file that no longer mentions it and spend a request
      * rediscovering a limit the pause file exists to broadcast. The merge is not atomic across processes; it narrows
      * the lost-update window to the read-write pair rather than the whole reload interval, which is all a best-effort
      * hint needs.

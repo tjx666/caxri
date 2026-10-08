@@ -48,7 +48,7 @@ describe('GitProvider refresh nonce', () => {
 
     /**
      * A watcher-driven refresh used to drop every settled commit detail, so the panel repainted as `Loading last
-     * commit…` with no files and then back to the identical content — the periodic flash. The detail is re-requested
+     * commit…` with no files and then back to the identical content: the periodic flash. The detail is re-requested
      * either way; what must not happen is the empty frame in between.
      */
     it('keeps the settled last-commit files on screen while a watcher-driven re-read runs', async () => {

@@ -325,7 +325,7 @@ describe('Session rename', () => {
 
     /**
      * Naming a brand new Agent Session is the very first thing a user does to it, and until the Agent CLI reports a
-     * session id there is nothing to synchronize — not a failure to report. Refusing the rename here made that first
+     * session id there is nothing to synchronize, not a failure to report. Refusing the rename here made that first
      * action fail with "The primary Agent session has not been identified yet" and discarded the typed name with it.
      */
     it('commits a rename locally while the Agent has not reported a session id yet', async () => {

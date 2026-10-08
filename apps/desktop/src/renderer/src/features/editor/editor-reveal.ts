@@ -27,16 +27,16 @@ const pendingByInstance = new Map<string, EditorRevealIntent>();
 
 /**
  * When the most recent intent was queued, or `0` once one has been applied. Every intent kind ends in `editor.focus()`,
- * so between queueing one and the commit that mounts the model, keyboard focus genuinely sits on `document.body` —
- * which is indistinguishable from the loss `useTabFocusRecovery` exists to repair. Without this signal, opening a file
- * from the file picker paints a focus ring on the freshly created tab for as long as Monaco's lazy import takes, and
- * then pulls focus into the editor anyway.
+ * so between queueing one and the commit that mounts the model, keyboard focus genuinely sits on `document.body`, which
+ * is indistinguishable from the loss `useTabFocusRecovery` exists to repair. Without this signal, opening a file from
+ * the file picker paints a focus ring on the freshly created tab for as long as Monaco's lazy import takes, and then
+ * pulls focus into the editor anyway.
  */
 const intentQueueState = { queuedAt: 0 };
 
 /**
- * Bounded rather than a plain flag so a model that never mounts — its tab closed mid-open, a surface that failed to
- * render — cannot switch focus recovery off for the rest of the session. Generous next to Monaco's lazy import, short
+ * Bounded rather than a plain flag so a model that never mounts (its tab closed mid-open, a surface that failed to
+ * render) cannot switch focus recovery off for the rest of the session. Generous next to Monaco's lazy import, short
  * next to any human reaction.
  */
 const QUEUED_INTENT_GRACE_MS = 2_000;
@@ -53,7 +53,7 @@ export function hasPendingEditorIntent(now: number = Date.now()): boolean {
 
 /**
  * Queues the strongest intent rather than the latest one. `applyReveal` and `applyNavigation` both end in
- * `editor.focus()`, so a bare `focus` asks for strictly less than a queued `match` or `navigation` — and one open can
+ * `editor.focus()`, so a bare `focus` asks for strictly less than a queued `match` or `navigation`, and one open can
  * legitimately queue both under the same key: `openFileForSession` queues the location first, then focuses the model in
  * the same tick. Overwriting there would open the file and leave the caret on line 1.
  */
@@ -83,7 +83,7 @@ function registeredEditor(path: string, instanceId?: string): MonacoEditor | und
 /**
  * `monaco.editor.ScrollType.Immediate`, inlined so this module does not pull Monaco's lazily imported bundle in for one
  * enum. Monaco's reveal methods default to a smooth scroll, and a smooth scroll is abandoned when the editor lays out
- * while it is still animating — which is exactly when these reveals run, on the commit that mounts the model. Once
+ * while it is still animating, which is exactly when these reveals run, on the commit that mounts the model. Once
  * `editor.smoothScrolling` defaulted on, clicking a Terminal `path:line` link for an already-open document left the
  * caret on the right line with the viewport still at the top. Every reveal here is a jump the user asked for by name,
  * so it should land at once regardless of how ordinary scrolling is animated.

@@ -161,8 +161,8 @@ export function fileTreeRowTooltip(
 }
 
 /**
- * The screen-reader description of a symlink row. It carries the same facts the tooltip gives a sighted mouse user —
- * where the link points and whether it resolves — minus the path already announced as the row's own name.
+ * The screen-reader description of a symlink row. It carries the same facts the tooltip gives a sighted mouse user:
+ * where the link points and whether it resolves, minus the path already announced as the row's own name.
  */
 export function symlinkRowDescription(entry: Pick<FileEntry, 'linkKind' | 'linkTarget'>): string {
     const target = entry.linkTarget === undefined ? '' : ` to ${entry.linkTarget}`;
@@ -172,7 +172,7 @@ export function symlinkRowDescription(entry: Pick<FileEntry, 'linkKind' | 'linkT
 
 /**
  * Everything the row shows that its own name cannot carry, joined into one `aria-describedby` string. The name stays
- * the bare file name — it is what the user typed to find the row and what every role query matches — so the
+ * the bare file name: it is what the user typed to find the row and what every role query matches, so the
  * followable-symlink reason, the child-repository kind, and the Git change ride along here instead. Empty when the row
  * shows none of them, which is the common case.
  *

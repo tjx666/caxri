@@ -66,7 +66,7 @@ const RETRY_GPU_ACCELERATION: TerminalRendererConfirmAction = {
 };
 
 /**
- * `unsupported` normally means a live `getContext('webgl2')` probe failed, which a later re-probe can pass — so the
+ * `unsupported` normally means a live `getContext('webgl2')` probe failed, which a later re-probe can pass, so the
  * retry stays. It cannot pass in a window launched with hardware acceleration off: the probe would run against a GPU
  * the app declined at boot, and offering it would relabel a settled no as something still worth clicking (DESIGN.md
  * principle 9). Only then is Settings the honest answer, and it is also the only route back from that state.
@@ -95,10 +95,10 @@ export function terminalRendererIndicator(
           : !isRetrying || status.reason === 'context-loss-limit'
             ? RETRY_GPU_ACCELERATION
             : undefined;
-    // An actionable chip leads with what clicking does, matching the `Open Process Explorer — …` chips beside it, so
+    // An actionable chip leads with what clicking does, matching the `Open Process Explorer, …` chips beside it, so
     // the accessible name and the tooltip promise exactly the same thing. A confirming action's title is already a
-    // question, so it reads as the promise directly.
-    const lead = action ? `${action.title} — ` : '';
+    // question, so it reads as the promise directly and is followed by a space; any other title is joined with a colon.
+    const lead = action ? `${action.title}${/[!.?]$/.test(action.title) ? ' ' : ': '}` : '';
     return {
         ...(action && { action }),
         ariaLabel: `${lead}Terminal is using software rendering. ${detail}`,

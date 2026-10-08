@@ -354,7 +354,7 @@ test('typing a name that does not exist offers to create a file or folder', asyn
 
         // Empty state used to be a dead end ("No matching file or folder."); it now offers to
         // create the typed name, a trailing slash meaning a folder. `notes.md` is a bare name, so
-        // this also exercises the Project-wide search fallback — the Project is empty, so it finds
+        // this also exercises the Project-wide search fallback: the Project is empty, so it finds
         // nothing and the create row is the only option in the list.
         await input.fill('notes.md');
         await expect(input).toHaveAttribute('aria-busy', 'false');

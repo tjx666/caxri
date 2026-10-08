@@ -12,7 +12,7 @@ import { planTabFocusRecovery } from './tab-focus-recovery';
  *
  * Three edits take the focused element away, and none of them leaves focus anywhere useful: closing the focused tab,
  * dragging it into another pane, and closing a pane's only tab. `WorkTab` marks a leaving tab `inert` for its exit
- * animation — which blurs whatever was focused inside it — and a collapsing pane unmounts its bar outright. Either way
+ * animation, which blurs whatever was focused inside it, and a collapsing pane unmounts its bar outright. Either way
  * the browser falls back to `document.body`, from which no arrow key, `Tab`, or tablist-scoped shortcut works any
  * more.
  *
@@ -34,13 +34,13 @@ export function useTabFocusRecovery(layout: PaneLayout | undefined, isEnabled: b
          * synchronously would still see the leaving tab focused and conclude nothing was lost.
          */
         requestAnimationFrame(() => {
-            // Recovering only from `document.body` — the browser's "nothing is focused" state — keeps this to repairing
+            // Recovering only from `document.body`, the browser's "nothing is focused" state, keeps this to repairing
             // a loss rather than competing for focus with anything that legitimately took it in the meantime.
             if (document.activeElement !== document.body) return;
             /**
              * An Editor that is about to take focus has already said so. Monaco is lazily imported, so a file opened
              * with focus (the file picker, a Terminal path link) leaves focus on `document.body` for the frames between
-             * the layout commit and the editor mounting — which reads here as a loss to repair. Claiming the tab button
+             * the layout commit and the editor mounting, which reads here as a loss to repair. Claiming the tab button
              * in the meantime paints a focus ring the user never asked for and then loses it again to the editor.
              */
             if (hasPendingEditorIntent()) return;
@@ -48,7 +48,7 @@ export function useTabFocusRecovery(layout: PaneLayout | undefined, isEnabled: b
             if (!target) return;
             /**
              * Scoped to the active pane's own bar: a tab dragged across panes exists twice for the length of the exit
-             * animation — the arriving copy plus the leaving `inert` ghost in the old bar — and a document-order lookup
+             * animation, the arriving copy plus the leaving `inert` ghost in the old bar, and a document-order lookup
              * by id would find the ghost, where `focus()` silently does nothing.
              */
             const button = document
@@ -65,7 +65,7 @@ export function useTabFocusRecovery(layout: PaneLayout | undefined, isEnabled: b
         if (!isEnabled) return;
         /**
          * `focusin` fires only when something _gains_ focus, so focus falling back to `document.body` leaves this flag
-         * standing — which is precisely the state worth repairing. Focus somewhere outside the panes entirely (the
+         * standing, which is precisely the state worth repairing. Focus somewhere outside the panes entirely (the
          * sidebar, a Settings field) clears it, so a layout edit the user made from elsewhere never yanks focus back.
          *
          * The whole pane counts, not just its tab bar: a Terminal hands focus to xterm's helper textarea the moment its

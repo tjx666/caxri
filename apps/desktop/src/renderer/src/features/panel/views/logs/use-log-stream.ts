@@ -43,7 +43,7 @@ export function useLogStream(process: LogProcess | undefined): LogStream {
         setFoldedPage(undefined);
         // Restarting the stream for the new process filter is itself a new viewing session, so the
         // gap epoch is bumped (not reset to 0, for the same reason `clearLogStream` bumps rather
-        // than resets — see its doc comment) rather than dropped back to `emptyLogStream`'s.
+        // than resets, see its doc comment) rather than dropped back to `emptyLogStream`'s.
         setState((current) => ({ ...emptyLogStream, gapEpoch: current.gapEpoch + 1 }));
     }
 

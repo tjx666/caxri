@@ -1,4 +1,4 @@
-# Render layer — per-scenario render counts
+# Render layer: per-scenario render counts
 
 The render layer answers one question the code and screenshot layers structurally cannot: **how much
 React work does this interaction actually cost?** A screenshot cannot show that one click
@@ -36,7 +36,7 @@ CAXRI_REACT_SCAN=1 CAXRI_DEV_CDP_PORT=9233 CAXRI_E2E=1 \
 
 An empty Workbench renders almost nothing, so its counts prove nothing. Give it at least one Project
 and several Sessions before sampling. Over CDP: press `Meta+O` (modifier bit `4`), click the
-`Shell` choice in the dialog, then add Sessions through the typed IPC surface — `project.create`
+`Shell` choice in the dialog, then add Sessions through the typed IPC surface: `project.create`
 alone returns `PATH_DENIED` because a Project root may only arrive through the picker seam.
 
 ```js
@@ -67,7 +67,7 @@ bun run .agents/skills/audit-ux/scripts/render-count.ts sample \
 A sample ends when no render has arrived for `--settle-ms` (default 1500), or when `--seconds` runs
 out. This matters: a Session switch reaches the Renderer only after a Server round trip, and a
 fixed short window once reported **zero renders** for a switch whose work simply had not arrived
-yet. `settled=no` in the header means the window closed while renders were still coming — raise
+yet. `settled=no` in the header means the window closed while renders were still coming; raise
 `--seconds` before reading those counts as complete. `--json FILE` keeps every instance; the table
 is truncated by `--limit`.
 
@@ -119,8 +119,8 @@ mounts  updates  firstMs  lastMs  hidden  instance
   Aggregating by name inflates counts, can make a child look busier than its parent, and hides the
   most valuable boot finding of all: the same component mounted twice.
 - **`mounts` vs `updates`.** Updates are wasted work when nothing that instance shows changed.
-  Mounts in a scenario that should not create anything mean a remount — a `key=` change or a new
-  element identity above it — and no memoization fixes that.
+  Mounts in a scenario that should not create anything mean a remount (a `key=` change or a new
+  element identity above it) and no memoization fixes that.
 - **`hidden`** marks an instance whose DOM node has zero size or is detached. Work the user pays for
   and cannot see; the screenshot layer is blind to it by construction.
 - **`repeated components (name×instances@firstMs)`** separates the two meanings of a repeated name
@@ -130,7 +130,7 @@ mounts  updates  firstMs  lastMs  hidden  instance
 - A count is not a finding. State the expectation first ("one Session switch should re-render the
   two affected Session cards and the tab strip"), then the observed number.
 
-### Known-intended patterns — do not report these
+### Known-intended patterns: do not report these
 
 - A Panel or secondary-sidebar container **stays mounted after its first show**
   (`apps/desktop/src/renderer/src/features/view-containers/view-container-surface.tsx`, the "stays
@@ -141,7 +141,7 @@ mounts  updates  firstMs  lastMs  hidden  instance
   wrapper instances from the primitives; they scale with the number of rows, not with a defect.
 - **`FloatingTree` and `MenuRoot` each take exactly one update right after mounting.** Base UI
   registers a freshly mounted menu into its floating tree, which sets state one level up. The
-  signature is a 1:1 instance-to-update ratio at a `lastMs` just past the mount phase — at one
+  signature is a 1:1 instance-to-update ratio at a `lastMs` just past the mount phase: at one
   measured boot, 57 `FloatingTree` plus 56 `MenuRoot` accounted for 113 of 217 post-mount updates.
   It is per menu instance, not per defect, so the way to lower it is to create fewer menus
   (issue #1107), never to chase the update itself.
@@ -155,7 +155,7 @@ mounts  updates  firstMs  lastMs  hidden  instance
   persists that into `localStorage['react-scan-options']`, then merges the stored options back over
   the ones `start()` receives. The collector removes that key before arming; if you write your own
   probe and skip it, every count silently comes back zero.
-- **Zero counts after a click.** Usually the target was already in its destination state —
+- **Zero counts after a click.** Usually the target was already in its destination state:
   `session-row-trigger.tsx` only selects when `!selected`, so clicking the active card is a no-op.
   The script fails with "the interaction never reached React" rather than reporting the scenario as
   free. Check the enumeration above and pick another target.
@@ -167,13 +167,13 @@ mounts  updates  firstMs  lastMs  hidden  instance
   zero updates) whatever the interaction did. Take one throwaway sample first and compare only the
   ones after it.
 - **Repeated `sample` runs share the window.** Arming resets the counters, so consecutive samples
-  are independent — but the app state is not. A scenario that changed the active Session changed the
+  are independent, but the app state is not. A scenario that changed the active Session changed the
   starting point of the next sample.
 - **Stopping the instance.** Never `pkill -f Electron`. The surviving process whose `ps` command is
   literally `Caxri Dev` is the one that keeps the port open; follow the `debug` skill's procedure and
   confirm the CDP port is silent afterwards.
 
-## 6. Worked example — real numbers from one session
+## 6. Worked example: real numbers from one session
 
 1 Project, 5 Sessions, 49 visible file-tree rows, unpackaged dev instance on port 9233.
 
@@ -192,7 +192,7 @@ How to read that set:
 - The two warm tab switches (29–39 instances) are the healthy baseline for "change which view is
   visible", and the Refresh click (9 instances, 0 mounts) is the healthy baseline for "re-fetch this
   view's data". Both are strengths worth recording.
-- Against those baselines, **one Session switch touching 719 instances is the finding** — it
+- Against those baselines, **one Session switch touching 719 instances is the finding**: it
   re-rendered all 49 `FileTreeItem` rows, 110 `ContextMenuTrigger` instances, and 3 hidden
   `ChromeTabPanel`s, none of which depend on which Session is selected.
 - Expanding one folder rendered 53 `FileTreeItem` instances, i.e. the 49 rows already on screen
@@ -204,7 +204,7 @@ How to read that set:
 
 Both file-tree findings above had one cause: the Session scope reached each row as a prop, so every
 switch replaced all 49 rows' props even when the booleans a row draws from were identical in the new
-scope. Three things carried that identity down — the `scopeId`/`sessionId` props themselves, the
+scope. Three things carried that identity down: the `scopeId`/`sessionId` props themselves, the
 `requestFocus`/`setEditing` callbacks that captured `scopeId`, and the controlled-view context value,
 which was rebuilt whenever the selected Session changed because both view clients captured the
 Session id. Moving the scope into `resource-explorer-scope-store` and resolving the Session per
@@ -225,7 +225,7 @@ Session-switch sample entirely. What remains is tracked rather than unexplained:
   two wrong answers before issue #1356 measured the right one, and both are instructive.
 
   The first wrong answer: "`app.bootstrap` is replaced wholesale, so every derived array is a new
-  reference". False — `mergeStructurally` keeps every unchanged record's identity. The second wrong
+  reference". False: `mergeStructurally` keeps every unchanged record's identity. The second wrong
   answer over-corrected: a structural-sharing test that only changed `selectedSessionId` "proved"
   `sessions`/`projects` survive a switch. A real switch does more than that: the Server stamps
   `lastOpenedAt` on the opened Session and on its Project, so both arrays and those two records
@@ -264,7 +264,7 @@ identities reached every row on each switch:
 3. Each row received an inline `onBeginRename` closure.
 4. Each row received its own freshly filtered `visibleSessions` array.
 5. There was no `memo` boundary. React Compiler caches a parent's `.map()` block as a whole, so
-   when any input of that block changes — and `selectedSessionId` always does — every row element
+   when any input of that block changes, and `selectedSessionId` always does, every row element
    is recreated and every compiled child renders again. A cleanly compiled child skips nothing on
    its own; only a `memo` boundary compares its props.
 
@@ -286,7 +286,7 @@ surface under repair. A cause is confirmed by the count dropping, not by the cod
 
 ## 7. Naming the cause
 
-A render finding must name the avoidable cause — the prop, state, context, or hook identity that
+A render finding must name the avoidable cause: the prop, state, context, or hook identity that
 moved. This script deliberately does not diff Fiber inputs: react-scan 0.5.7 has no supported option
 for it, and a guessed cause is worse than none. When the table shows an anomaly, hand it to the
 `react-rerender-audit` skill, which localizes the owning hook and the remount boundary, and can add

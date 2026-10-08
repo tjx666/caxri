@@ -178,7 +178,7 @@ export const serverEventPayloads = {
     }),
     /**
      * Repository-identity invalidation signal: every Session whose Git projection includes one of the listed
-     * repositories must refetch. Payload carries opaque repository ids only — never a `.git` path or repository
+     * repositories must refetch. Payload carries opaque repository ids only, never a `.git` path or repository
      * content.
      */
     'git.changed': z.object({
@@ -195,9 +195,9 @@ export const serverEventPayloads = {
     'projectStatus.changed': z.object({ sessionId: identifierSchema }),
     /**
      * One-shot delivery-failure alert: a CI check or a Vercel deployment just transitioned into failure. The payload is
-     * deliberately identity-only — repository, branch, the failing item's name, and its public provider URL — so a
-     * system notification can be composed without any build log, diff, or credential crossing the process boundary.
-     * Emitted once per transition; the Runtime owns deduplication, not the notification layer.
+     * deliberately identity-only (repository, branch, the failing item's name, and its public provider URL) so a system
+     * notification can be composed without any build log, diff, or credential crossing the process boundary. Emitted
+     * once per transition; the Runtime owns deduplication, not the notification layer.
      */
     'projectStatus.alert': z.object({
         sessionId: identifierSchema,
@@ -239,17 +239,17 @@ export const serverEventPayloads = {
      * `reason` carries who caused the switch, not only which authorization step ran, because re-rooting a Session
      * re-roots the Files tree, Source Control, Project Status and the Editor at once:
      *
-     * - `selected` / `authorized` — the user switched roots through the picker, the candidate prompt, or Main's
+     * - `selected` / `authorized`: the user switched roots through the picker, the candidate prompt, or Main's
      *   confirmation. Nothing needs to be announced; they already know.
-     * - `followed` — an Agent entered a proven linked worktree and `workbench.newWorktreeBehavior` allowed Caxri to move
+     * - `followed`, an Agent entered a proven linked worktree and `workbench.newWorktreeBehavior` allowed Caxri to move
      *   the Session with it. The user did not ask for this, and the only other cue is the folder name in the status
      *   bar, so the Renderer owes them a notice with an undo. Keeping this distinct from `selected` / `authorized` is
      *   the entire reason the Renderer can tell "you did this" from "an Agent did this": collapsing these values back
      *   into one silently restores that gap.
-     * - `fallback` — Caxri returned the Session to its own Project after the active worktree became unusable.
+     * - `fallback`: Caxri returned the Session to its own Project after the active worktree became unusable.
      *
-     * `followed` is deliberately not a fourth spelling of the authorization step. Both steps — selecting an already
-     * authorized Project, or registering one first — happen on the user's path _and_ on the Agent's, so the step alone
+     * `followed` is deliberately not a fourth spelling of the authorization step. Both steps (selecting an already
+     * authorized Project, or registering one first) happen on the user's path _and_ on the Agent's, so the step alone
      * can never identify the origin. Server keeps the two apart internally (`commitSelection` takes an explicit
      * `origin` and logs both), and only collapses them here, where the Renderer needs one decision.
      *
@@ -287,10 +287,10 @@ export const serverEventPayloads = {
     'updates.state': updateStateSchema,
     /**
      * Main-originated resync signal after the Desktop↔Host connection dropped and re-attached (observed in production
-     * on macOS sleep/wake). Transient events sent during the outage — PTY output above all — were never delivered and
-     * are not replayable, so the Renderer must re-attach mounted Terminal panes to Runtime's authoritative screen
-     * snapshot and refresh converged state. The fields mirror the `server_connection.reconnected` structured log line
-     * so a stuck report can be correlated across the Renderer and Main.
+     * on macOS sleep/wake). Transient events sent during the outage, PTY output above all, were never delivered and are
+     * not replayable, so the Renderer must re-attach mounted Terminal panes to Runtime's authoritative screen snapshot
+     * and refresh converged state. The fields mirror the `server_connection.reconnected` structured log line so a stuck
+     * report can be correlated across the Renderer and Main.
      */
     'host.connectionChanged': z.discriminatedUnion('status', [
         z.object({
@@ -324,7 +324,7 @@ export const serverEventPayloads = {
     /**
      * Fires whenever the Session-scoped "Always allow in this Session" grant (issue caxri#1295) is enabled or revoked,
      * so Desktop and every paired mobile device update their indicator live without polling. Content-free: no tool
-     * name, request content, or reason beyond the boolean state and grant timestamp. Transient — a client that
+     * name, request content, or reason beyond the boolean state and grant timestamp. Transient, a client that
      * reconnects gets the current state from `session.permissionAutoAllowStatus` / `mobile.attention.list`'s
      * `autoAllow` field instead of a replayed event.
      */

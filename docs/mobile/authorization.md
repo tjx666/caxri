@@ -118,7 +118,7 @@ Both methods resolve the submitted path with `realpath` before checking containm
 segment and a symlink whose target escapes the home directory are rejected the same way; only a
 canonical path that still resolves inside home is accepted. Rejection never logs the attempted path.
 After `mobile.project.add` succeeds, the access controller grants the new Project ID to the
-requesting device in the device registry — an additive, non-generation-bumping write, so the
+requesting device in the device registry, an additive, non-generation-bumping write, so the
 device's existing credential keeps working and immediately gains access to the new Project on its
 next `mobile.dashboard` read.
 

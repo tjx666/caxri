@@ -1,7 +1,7 @@
 /**
  * Curated labels for `themeTokensSchema` keys (`packages/protocol/src/domain/domain.ts`) so the Theme editor never
- * surfaces a raw camelCase JSON key as a field label (DESIGN.md "Settings" — plain-language field labels). Unknown keys
- * — a future schema field this map has not been updated for — fall back to a camelCase-to-sentence-case splitter so the
+ * surfaces a raw camelCase JSON key as a field label (DESIGN.md "Settings": plain-language field labels). Unknown keys
+ * (a future schema field this map has not been updated for) fall back to a camelCase-to-sentence-case splitter so the
  * UI still degrades to something readable instead of raw JSON.
  */
 const THEME_TOKEN_LABELS: Readonly<Record<string, string>> = {

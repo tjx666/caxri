@@ -639,7 +639,7 @@ describe('ProjectStatusService', () => {
             await logger(),
             runner,
             {
-                // Time never advances, so only the fingerprint — never a TTL — can invalidate the cached summary.
+                // Time never advances, so only the fingerprint (never a TTL) can invalidate the cached summary.
                 now: () => 1_000_000,
                 settings: () => ({
                     ...defaultAppSettings,

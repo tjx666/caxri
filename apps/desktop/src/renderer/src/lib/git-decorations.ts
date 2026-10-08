@@ -15,8 +15,8 @@ export interface GitDecoration {
 
 /**
  * Absolute filesystem path to the decoration that path carries, covering changed files and every ancestor directory up
- * to — but not including — the Workbench Root's own repository root. A submodule or nested-repository root in between
- * is decorated like any other folder.
+ * to, but not including, the Workbench Root's own repository root. A submodule or nested-repository root in between is
+ * decorated like any other folder.
  */
 export type GitDecorationIndex = ReadonlyMap<string, GitDecoration>;
 
@@ -24,7 +24,7 @@ export const EMPTY_GIT_DECORATION_INDEX: GitDecorationIndex = new Map();
 
 /**
  * A repository that lives inside the Project's own: a `.gitmodules`-declared submodule, or a directory someone cloned
- * in on their own. Linked worktrees and the Project's own repository are deliberately absent — a worktree is a peer
+ * in on their own. Linked worktrees and the Project's own repository are deliberately absent: a worktree is a peer
  * checkout rather than something nested in this tree, and the Project root is not a folder the tree draws.
  */
 export type GitChildRepoKind = 'submodule' | 'nested';
@@ -119,8 +119,8 @@ export function gitDecorationForFile(file: GitFileStatus): GitDecoration {
  * Raises a directory row to `kind` when nothing louder is already there, and reports whether it moved.
  *
  * Directory decorations are order-independent by construction: the result is the maximum severity written to that path,
- * whatever sequence the writes arrive in. That matters because two unrelated writers reach a child repository's root —
- * the parent repository reports the child as one gitlink change, and the child's own contents climb to it — and which
+ * whatever sequence the writes arrive in. That matters because two unrelated writers reach a child repository's root
+ * (the parent repository reports the child as one gitlink change, and the child's own contents climb to it), and which
  * one runs first is just the order `summary.repositories` happens to hold.
  *
  * Never carries a letter. A letter claims the entry itself changed, and every path this writes is a folder in the tree,
@@ -145,7 +145,7 @@ function recordAncestors(
 ): void {
     // Strictly below the boundary: the Workbench Root's own repository root is the one folder that stays undecorated.
     // The trailing separator is what makes "below" mean containment rather than a string prefix. Without it a boundary
-    // of `/repo` also swallows `/repo-vendor`, a sibling directory that shares the prefix and none of the ancestors —
+    // of `/repo` also swallows `/repo-vendor`, a sibling directory that shares the prefix and none of the ancestors:
     // reachable whenever a symlinked child repository canonicalizes to such a sibling path.
     const boundaryPrefix = boundaryPath.endsWith('/') ? boundaryPath : `${boundaryPath}/`;
     let directory = absolutePath.slice(0, absolutePath.lastIndexOf('/'));
@@ -176,7 +176,7 @@ function recordRepo(
  * Where ancestor propagation stops: the repository root of the selected Workbench Root itself.
  *
  * A change inside a submodule is still a change the user needs to see once its folder is collapsed, so a child
- * repository root is a destination rather than a wall — only the one root the tree never draws is excluded. A linked
+ * repository root is a destination rather than a wall, only the one root the tree never draws is excluded. A linked
  * worktree counts as that root too: it is a peer checkout of the Project's own repository, not something nested in it.
  *
  * The shallowest such root wins if a summary ever reports more than one, since propagation has to stop at the outermost

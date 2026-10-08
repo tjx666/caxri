@@ -138,7 +138,7 @@ test('Project search opens name results and reveals grouped content matches', as
         await expect(nameResult).toBeVisible();
         await expect(nameResult.locator('[data-file-icon="file_type_typescript"]')).toBeVisible();
         /*
-         * The first result is selected without a keystroke and the input — not the row — keeps focus, which is what
+         * The first result is selected without a keystroke and the input (not the row) keeps focus, which is what
          * `aria-activedescendant` exists to report. Asserted against the first row rather than a named file:
          * `target-name.test.ts` sorts ahead of `target-name.ts`, and the claim here is about the selection arriving on
          * its own, not about which filename won the sort.
@@ -148,7 +148,7 @@ test('Project search opens name results and reveals grouped content matches', as
         const activeDescendant = await nameSearch.getAttribute('aria-activedescendant');
         expect(activeDescendant).toBe(await nameRows.first().getAttribute('id'));
 
-        // A single click only moves the selection — it fills the preview opposite it and opens nothing.
+        // A single click only moves the selection; it fills the preview opposite it and opens nothing.
         await nameResult.click();
         await expect(nameResult).toHaveAttribute('aria-selected', 'true');
         await expect(
@@ -238,7 +238,7 @@ test('Project search opens name results and reveals grouped content matches', as
 
         /*
          * Opening the match moves the keyboard into the editor, and that focus lands a tick after the editor paints.
-         * Pressing the shortcut before it settles sends the keystroke into the gap, where nothing claims it — on a
+         * Pressing the shortcut before it settles sends the keystroke into the gap, where nothing claims it, on a
          * loaded pool that is the difference between a green run and an overlay that never opens.
          */
         await expect
@@ -251,7 +251,7 @@ test('Project search opens name results and reveals grouped content matches', as
         await running.page.keyboard.press('Meta+Shift+F');
         /*
          * Reopening returns to the last search rather than to an empty one, with the query selected so the next
-         * keystroke replaces it — the same bargain VS Code's Search view makes. The selection is the load-bearing half:
+         * keystroke replaces it, the same bargain VS Code's Search view makes. The selection is the load-bearing half:
          * without it a preserved query is a trap rather than a shortcut.
          */
         const timedOut = running.page.getByRole('combobox', { name: 'Search Project contents' });

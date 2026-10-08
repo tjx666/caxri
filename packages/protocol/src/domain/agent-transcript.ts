@@ -3,9 +3,8 @@
  * path (like `git-diff.ts` tabs), so it persists and restores without any special casing; the Runtime resolves the
  * terminal's current transcript file at read time.
  *
- * Tab identity is the terminal ID alone — the stable semantic title is resolved from the Terminal record at render
- * time, so a provider switch can update the label without creating a duplicate tab while PTY window titles cannot
- * rename it.
+ * Tab identity is the terminal ID alone: the stable semantic title is resolved from the Terminal record at render time,
+ * so a provider switch can update the label without creating a duplicate tab while PTY window titles cannot rename it.
  */
 export interface AgentTranscriptTab {
     terminalId: string;

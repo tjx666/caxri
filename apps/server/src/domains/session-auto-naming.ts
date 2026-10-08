@@ -75,7 +75,7 @@ export class SessionAutoNamingService {
     /**
      * Whether a suppression record still describes something that can be retried. It stops being in force the moment
      * its launch ends, its Terminal stops being the Session's primary Agent Terminal, or the Session is archived or
-     * deleted — in each case the next completed turn arrives under a new identity that the record cannot match.
+     * deleted: in each case the next completed turn arrives under a new identity that the record cannot match.
      */
     private isBlockedLaunchInForce(sessionId: string, blocked: BlockedLaunch): boolean {
         const session = this.database.getSession(sessionId);
@@ -91,7 +91,7 @@ export class SessionAutoNamingService {
      *
      * Capacity is applied to records that are still in force, never to the map as it was last left: a Session that has
      * since been retired leaves behind an entry that can never be matched again, and evicting a live entry to make room
-     * for it would re-admit an attempt already known to fail — the user would be asked about the same unavailable
+     * for it would re-admit an attempt already known to fail: the user would be asked about the same unavailable
      * sandbox again on the very next completed turn. Re-inserting the current Session also moves it to the end of the
      * insertion order, so when every remaining record is in force the oldest one loses and the launch just recorded is
      * never the one dropped. `MAX_TERMINALS_GLOBAL` keeps the in-force set well under the bound today, which leaves
@@ -111,7 +111,7 @@ export class SessionAutoNamingService {
     /**
      * The suppressions a freshly connected client still has to be told about.
      *
-     * The live notice is a transient event, so it is simply lost while macOS has no window open — the Server keeps
+     * The live notice is a transient event, so it is simply lost while macOS has no window open: the Server keeps
      * running turns, and the user comes back to a Session that silently kept its placeholder name. Reading the
      * suppression records the service already maintains gives the reason somewhere to wait, and reusing
      * {@link isBlockedLaunchInForce} means a launch that has since ended, changed Terminal, or been archived is never

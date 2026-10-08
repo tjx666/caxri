@@ -691,7 +691,7 @@ describe('Automatic Session naming sandbox suppression', () => {
 
     /**
      * The boundary the fault sat on. One live Session is suppressed first, so it holds the oldest record, and then
-     * exactly enough Sessions are retired behind it to overflow the bound — archived ones, which keep their Terminals,
+     * exactly enough Sessions are retired behind it to overflow the bound: archived ones, which keep their Terminals,
      * and deleted ones. Evicting by insertion order alone would forget the live launch here and ask the user about the
      * same unavailable sandbox again on its very next completed turn.
      */

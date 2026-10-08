@@ -10,8 +10,8 @@ import { panelsStyles as styles } from './panels-styles';
 
 /**
  * The vscode-icons artwork Desktop's Files explorer uses. A symlink wears a small arrow badge on top of whichever icon
- * its target resolved to, matching Desktop's `FileTypeIcon`. `dimmed` mirrors the row's own dimming — a broken symlink
- * or an ignored entry — so the icon and its row text read as one muted unit rather than a bright glyph beside
+ * its target resolved to, matching Desktop's `FileTypeIcon`. `dimmed` mirrors the row's own dimming (a broken symlink
+ * or an ignored entry), so the icon and its row text read as one muted unit rather than a bright glyph beside
  * greyed-out text.
  */
 export const FileTypeIcon = ({

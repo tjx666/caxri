@@ -74,8 +74,8 @@ export function resolvePaneDropZone(
 }
 
 /**
- * Geometry only, mirroring {@link resolvePaneDropZone}: given the left edges/widths of a pane bar's tabs — the dragged
- * tab itself already excluded — and the drop point's x, resolves which array index a reorder or cross-pane move-in drop
+ * Geometry only, mirroring {@link resolvePaneDropZone}: given the left edges/widths of a pane bar's tabs (the dragged
+ * tab itself already excluded) and the drop point's x, resolves which array index a reorder or cross-pane move-in drop
  * should insert at. `undefined` means "past every tab," i.e. append to the end.
  */
 export function resolveTabDropIndex(

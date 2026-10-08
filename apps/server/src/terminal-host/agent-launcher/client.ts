@@ -269,7 +269,7 @@ export function runManagedAgentLauncher(
                     // Host already confirmed the executable existed while building this plan; a spawn-time ENOENT
                     // means it was removed, renamed, or unmounted in the race since (issue caxri#1345). The launcher
                     // process is about to exit and hand this PTY straight back to an ordinary interactive shell, so
-                    // this is the only chance to explain why — without it, the Terminal silently "downgrades" to a
+                    // this is the only chance to explain why: without it, the Terminal silently "downgrades" to a
                     // plain shell with no visible reason.
                     if ((error as NodeJS.ErrnoException).code === 'ENOENT')
                         process.stderr.write(

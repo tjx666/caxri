@@ -28,7 +28,7 @@ the agreed criteria before publishing. A second plan check is optional, only
 to check the primary's revisions; there is no third plan-feedback response.
 Count the two stages separately. After
 either stage's limit, the primary owns remaining corrections and verification.
-The acceptance-checker **is** the plan gate — never ask the user to approve a
+The acceptance-checker **is** the plan gate: never ask the user to approve a
 plan; ask the user only for a user-owned prerequisite or a product decision
 that changes the plan. In both stages, the primary supplies an explicit file
 list and the relevant diff text or prepared diff artifact paths. The acceptance-checker
@@ -62,7 +62,7 @@ phrasing: unit / integration / regression / snapshot tests, coverage,
 "CI is green". Run them, then report them as **one line of narrative**.
 
 Enforced before publication: every matching item (matched on title, category, AND
-`method` — "run `bun run check`" under a product-sounding title still matches) is
+`method`: "run `bun run check`" under a product-sounding title still matches) is
 **rejected** before the plan is frozen; a plan containing only such checks
 **fails local validation**. The line is the _subject_ of the check, not who judged it:
 a Terminal behavior asserted by a command is a fine check (`verifier: "program"`);
@@ -170,7 +170,7 @@ _would the user click accept/reject on this?_
    directory containing case placeholders, `report.md`, `proposal.md`, and `assets/`. Inside Go use
    `.records/go/<run-id>/acceptance/round-<n>/`; for standalone verification use
    `.records/acceptance/<timestamp>/round-<n>/`. Replace the `proposal.md` placeholder with this
-   round's note to the reviewer — ingest posts it into the acceptance discussion, and `finalize`
+   round's note to the reviewer: ingest posts it into the acceptance discussion, and `finalize`
    refuses the untouched placeholder.
 
 Read [references/report.md](references/report.md) before authoring the report and
@@ -321,13 +321,13 @@ explicitly; a missing type holds the delivery at `uncertain` no matter how good
 the work is.
 
 The final response MUST include the published acceptance URL together with the
-coverage result — never only a check-result id or a prose claim. Keep local reports under
+coverage result: never only a check-result id or a prose claim. Keep local reports under
 `.records/` and expose only the **acceptance** (`/acceptance/<acceptanceId>`), the stable
 cross-round decision surface; append `?r=<roundIndex>` for this round's fixed snapshot.
 Put no images, local paths, local file links, or internal run-page paths in the
 chat reply.
 
-Write the link as a plain-text line, never inside a fenced or inline code block — the
+Write the link as a plain-text line, never inside a fenced or inline code block: the
 chat client only linkifies plain text, and a code block makes it unclickable:
 
 Acceptance: <https://app.lobehub.com/acceptance/ACCEPTANCE_ID> (the placeholder is the id ingest printed; it stays inside the URL)

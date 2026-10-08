@@ -466,7 +466,7 @@ describe('SessionPullRequestService', () => {
         let ignoredChecks: string[] = [];
         const { service } = await harness({
             gh,
-            // Time never advances, so only the rule change — never a TTL — can invalidate the projection.
+            // Time never advances, so only the rule change, never a TTL, can invalidate the projection.
             now: () => 0,
             settings: () => ({
                 ...defaultAppSettings,

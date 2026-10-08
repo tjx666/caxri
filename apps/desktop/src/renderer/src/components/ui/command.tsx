@@ -78,7 +78,7 @@ export function CommandGroup({
         <CommandPrimitive.Group
             data-slot="command-group"
             // Group-heading chrome (`8px` padding, `--muted`, 11px uppercase) is owned
-            // by the global `[cmdk-group-heading]` rule in `styles.css` — `cmdk` renders
+            // by the global `[cmdk-group-heading]` rule in `styles.css`: `cmdk` renders
             // that heading as an internal `<div cmdk-group-heading>` with no prop to
             // reach it via `className`.
             className={cn('overflow-hidden p-1 text-foreground', className)}

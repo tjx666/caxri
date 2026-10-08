@@ -36,7 +36,7 @@ function hasInlineHooks(source: string | undefined): boolean {
         if (!section) continue;
         if (section !== 'hooks' && !section.startsWith('hooks.')) continue;
         /**
-         * `[hooks.state]` (and its per-hook subtables) is Codex's own approval bookkeeping — the trusted hashes it
+         * `[hooks.state]` (and its per-hook subtables) is Codex's own approval bookkeeping: the trusted hashes it
          * records for hooks installed in `hooks.json`, including the managed ones. Treating it as a user-defined inline
          * hook would permanently block the managed install that produced those very records.
          */

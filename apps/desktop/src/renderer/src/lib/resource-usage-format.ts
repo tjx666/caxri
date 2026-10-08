@@ -4,8 +4,8 @@ const BYTES_PER_MEBIBYTE = 1024 * 1024;
 
 /**
  * Process readings arrive as `memoryMb` (`ps` RSS or Electron working set). Printing that verbatim (`2402.8 MB`) never
- * rolls over into GB, so every surface that shows one — the status bar chip, Process Explorer, the resource alert —
- * goes through the shared binary-unit `formatBytes` here instead of a one-off.
+ * rolls over into GB, so every surface that shows one (the status bar chip, Process Explorer, the resource alert) goes
+ * through the shared binary-unit `formatBytes` here instead of a one-off.
  */
 export function formatMemoryMb(memoryMb: number): string {
     return formatBytes(Math.round(memoryMb * BYTES_PER_MEBIBYTE));

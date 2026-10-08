@@ -6,8 +6,8 @@ import { tryCommand } from '../stores/toasts';
 import { caxri } from './caxri';
 
 /**
- * Hands one Workbench file to the desktop environment around it. Shared by the two menus that offer these actions — the
- * Files tree row and the editor tab — the same way `copy-file-path` is shared, so a file exposes one behavior no matter
+ * Hands one Workbench file to the desktop environment around it. Shared by the two menus that offer these actions (the
+ * Files tree row and the editor tab), the same way `copy-file-path` is shared, so a file exposes one behavior no matter
  * which entry point the user right-clicks.
  *
  * The Session is read from the current selection instead of taken as an argument: both menus render inside the selected
@@ -29,8 +29,8 @@ export function revealFile(path: string): Promise<void | undefined> {
 
 /**
  * Opens one file with whatever application the operating system registers for its type, so an `.html` document lands in
- * the browser rather than staying inside Caxri's editor. Main turns a refused launch — an unregistered file type, a
- * missing application — into an error, so the failure reaches the user as a toast instead of a click that appears to do
+ * the browser rather than staying inside Caxri's editor. Main turns a refused launch (an unregistered file type, a
+ * missing application) into an error, so the failure reaches the user as a toast instead of a click that appears to do
  * nothing.
  */
 export function openFileWithDefaultApp(path: string): Promise<void | undefined> {

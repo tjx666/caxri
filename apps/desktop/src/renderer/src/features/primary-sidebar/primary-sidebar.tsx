@@ -10,7 +10,7 @@ const NO_RECORDS: never[] = [];
 /**
  * The Primary Side Bar's shell: a header, a footer, and exactly one of two bodies.
  *
- * The two bodies answer different questions — the tree answers "which Sessions exist", in the order the user arranged,
+ * The two bodies answer different questions: the tree answers "which Sessions exist", in the order the user arranged,
  * while Activity answers "which ones are waiting on me", across every Project and ordered by state. Neither order can
  * hold the other, so they take turns in the same column rather than sitting side by side; the header's inbox toggle
  * switches between them.

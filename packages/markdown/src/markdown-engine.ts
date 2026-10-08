@@ -116,7 +116,7 @@ function renderTaskLists(state: StateCore): void {
  * Builds the renderer.
  *
  * `html: true` keeps the inline HTML that real READMEs depend on (`<details>`, centered banners). The output is
- * therefore untrusted and the host must sanitize it — the same split VS Code uses between its Markdown engine and its
+ * therefore untrusted and the host must sanitize it: the same split VS Code uses between its Markdown engine and its
  * preview webview.
  */
 export function createMarkdownEngine(): MarkdownIt {

@@ -49,9 +49,8 @@ const AGENT_ACTIONS_QUERY_KEY: readonly [CaxriMethod] = ['agentActions.list'];
  */
 const COMMANDER_STATUS_QUERY_KEY: readonly [CaxriMethod] = ['commander.status'];
 /**
- * Every repository's pending review comment count, across every Session — no arguments, so one invalidation covers
- * every mounted reader (the quit reminder, "Show Pending Review Comments") the same way `PULL_REQUESTS_QUERY_KEY`
- * does.
+ * Every repository's pending review comment count, across every Session; no arguments, so one invalidation covers every
+ * mounted reader (the quit reminder, "Show Pending Review Comments") the same way `PULL_REQUESTS_QUERY_KEY` does.
  */
 const GIT_REVIEW_PENDING_QUERY_KEY: readonly [CaxriMethod] = ['gitReview.pending'];
 
@@ -170,12 +169,12 @@ function isControlledOperationMatch(
  * `files.browse` query is ever cached in the Renderer for a predicate to match. `projectStatus.summary` and
  * `projectStatus.overview` are excluded: a Project Status read may shell out to a delivery CLI (e.g. `gh`), so a plain
  * file write never invalidates it. Those two queries instead follow the Server's own delivery push
- * (`projectStatus.changed`, `sessionPullRequests.changed` — see `invalidateProjectStatusQuery` and
+ * (`projectStatus.changed`, `sessionPullRequests.changed`: see `invalidateProjectStatusQuery` and
  * `invalidateSessionPullRequestDependentQueries` below) plus a low-frequency fallback poll on the status bar's own
  * side, for the same reason `git.changed` replaces polling for Git reads below. Git status/diff/blame queries
  * (`git.summary`, `git.overview`, `git.diffDocument`, `git.blame`) are no longer invalidated from here: a plain file
  * write does not always mean the working tree changed (e.g. an ignored file), so Git invalidation instead rides the
- * Server-emitted `git.changed` event, which is scoped to the repository identities that actually changed — see
+ * Server-emitted `git.changed` event, which is scoped to the repository identities that actually changed: see
  * `invalidateGitChangedQueries` below.
  */
 function invalidateFileDependentQueries(
@@ -210,7 +209,7 @@ function invalidateFileDependentQueries(
              * The Project search overlay is not a controlled view: it caches under the flat
              * `['files.search', `${sessionId}:${workbenchProjectId}`, options]` key `projectSearchQueryKey` builds.
              * Any write anywhere in the Project can add or drop a hit, so the whole scope is invalidated rather than
-             * one directory — an open search would otherwise keep listing matches at paths that no longer hold them.
+             * one directory: an open search would otherwise keep listing matches at paths that no longer hold them.
              */
             if (
                 isQueryMethod(query.queryKey, 'files.search') &&
@@ -233,7 +232,7 @@ function invalidateFileDependentQueries(
 /**
  * Invalidates the Session-scoped Git read queries a `git.changed` event covers: status/topology (`git.summary`,
  * `git.overview`), file diffs (`git.diffDocument`), and blame annotations (`git.blame`, `git.fileHead`). Unlike
- * {@link invalidateFileDependentQueries}, this runs unconditionally on every `git.changed` push — the Server already
+ * {@link invalidateFileDependentQueries}, this runs unconditionally on every `git.changed` push: the Server already
  * coalesces bursts of repository activity into one event before emitting it, so no additional client-side debounce is
  * needed here.
  *
@@ -264,7 +263,7 @@ function invalidateGitChangedQueries(
 }
 
 /**
- * Invalidates both Project Status reads for one Session after `projectStatus.changed` — the Status panel's
+ * Invalidates both Project Status reads for one Session after `projectStatus.changed`: the Status panel's
  * `projectStatus.summary` and the status bar's `projectStatus.overview`. The two reads are computed independently, but
  * a summary refresh warms the same shared `GitHubPullRequestStore`/`LinearIssueStore`/`AcceptanceStore` records the
  * overview reads from (see `ProjectStatusService` in `apps/server/src/domains/project-status/index.ts`), so this
@@ -342,7 +341,7 @@ function invalidatePermissionAutoAllowQuery(queryClient: QueryClient, sessionId:
 
 /**
  * Refreshes the review comments for one Session + repository, and the cross-repository pending summary, after their own
- * `gitReview.changed` event — the Monaco bindings (`git-review-comment-binding.ts`) and the pending-comments
+ * `gitReview.changed` event: the Monaco bindings (`git-review-comment-binding.ts`) and the pending-comments
  * command/quit reminder both read through React Query rather than owning any comment state themselves.
  */
 function invalidateGitReviewQueries(
@@ -404,7 +403,7 @@ function invalidateAgentTranscriptQuery(queryClient: QueryClient, terminalId?: s
 
 /**
  * Drops every cached query keyed to one of `sessionIds` from the React Query cache. Called once a Session (or, with
- * every Session of a Project, a Project) is deleted — otherwise the cached reads (Git status, diffs, blame, file
+ * every Session of a Project, a Project) is deleted, otherwise the cached reads (Git status, diffs, blame, file
  * listings, ...) linger under the removed sessionId until the default garbage collector reclaims them, even though the
  * Session can never be selected again. Unlike {@link invalidateFileDependentQueries}, this matches any method: a deleted
  * Session's data should never resurface, not just the file-dependent subset.
@@ -425,7 +424,7 @@ export function removeSessionQueries(
                 return removedSessionIds.has(parameters.sessionId);
             /**
              * Controlled views and Extension Trees identify their Session through the `${sessionId}:...` context key
-             * rather than a `sessionId` parameter, so the sweep has to recognize both shapes — otherwise a deleted
+             * rather than a `sessionId` parameter, so the sweep has to recognize both shapes, otherwise a deleted
              * Session's cached views survive until garbage collection, which the Extension Tree deliberately delays.
              */
             const contextKey = parameters?.contextKey;
@@ -488,7 +487,7 @@ function removeAgentActionQueries(queryClient: QueryClient): void {
 
 /**
  * Wires `caxri.onEvent` runtime pushes to targeted query invalidation. Mounted once at the app root (see `app.tsx`)
- * alongside the existing Zustand `subscribeWorkbenchEvents` wiring — Session/Project bootstrap state stays on that
+ * alongside the existing Zustand `subscribeWorkbenchEvents` wiring: Session/Project bootstrap state stays on that
  * push-based Zustand path; this hook only owns the request/response reads that moved to React Query.
  */
 export function useRuntimeQueryInvalidation(): void {

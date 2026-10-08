@@ -51,8 +51,8 @@ export function hasDefaultProviderAutonomy(provider: AgentProvider): boolean {
 }
 
 /**
- * These launch arguments with `provider`'s autonomy tokens present or absent, leaving every other argument — including
- * a confinement argument such as Grok Build's `--sandbox workspace` — in place and in its original order.
+ * These launch arguments with `provider`'s autonomy tokens present or absent, leaving every other argument (including a
+ * confinement argument such as Grok Build's `--sandbox workspace`) in place and in its original order.
  *
  * Turning autonomy on when it is already on returns the arguments untouched rather than duplicating or re-positioning
  * the tokens; turning it on otherwise prepends them, the position the shipped defaults use. Turning it off drops every

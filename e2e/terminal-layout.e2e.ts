@@ -282,7 +282,7 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
 /**
  * The grid is fitted to the space left of the slider, so whatever the column count could not fill stays between the
  * last glyph and the slider: strictly less than one cell, because a full cell's worth would have become another column.
- * At the default 13px monospace that cell is about 8px, so 12 separates "rounding slack" from "a second reservation" —
+ * At the default 13px monospace that cell is about 8px, so 12 separates "rounding slack" from "a second reservation",
  * which is the defect this bounds. Caxri used to subtract a whole extra column on top of the addon's own scrollbar
  * reservation, leaving a right inset near twice the 20px shell-integration gutter on the left (issue #1100). A negative
  * gutter is the opposite failure: text running under the slider.
@@ -352,9 +352,9 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
         /**
          * Reports `null` for a pane whose xterm has not re-attached its scrollbar yet, rather than throwing.
          * Playwright's `expect.poll` retries a _failed assertion_ but propagates an exception out of the callback
-         * (`const value = await actual()` sits outside its try), so throwing here ends the poll below on its first tick
-         * — turning "the resize has not settled" into a hard failure whenever the runner is loaded enough that xterm
-         * rebuilds its scrollable element between the resize and the first sample.
+         * (`const value = await actual()` sits outside its try), so throwing here ends the poll below on its first
+         * tick, turning "the resize has not settled" into a hard failure whenever the runner is loaded enough that
+         * xterm rebuilds its scrollable element between the resize and the first sample.
          */
         const readGeometry = () =>
             terminalPanes.evaluateAll((panes) => {

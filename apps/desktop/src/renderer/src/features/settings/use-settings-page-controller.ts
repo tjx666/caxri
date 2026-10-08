@@ -374,7 +374,7 @@ export function useSettingsPageController() {
     }, []);
 
     /**
-     * Parses the raw source text for `kind` and, when valid, refreshes the structured value and persists immediately —
+     * Parses the raw source text for `kind` and, when valid, refreshes the structured value and persists immediately:
      * no debounce, since losing focus (or switching away) is already the deliberate commit boundary. An invalid parse
      * reports inline next to the editor and is never sent to the Server.
      */
@@ -454,7 +454,7 @@ export function useSettingsPageController() {
 
     // Only load once per mount: further edits inside this session must keep the in-memory state
     // instead of re-reading from disk (external changes already stay in sync via the event
-    // subscription above). Switching away from the Settings tab and back is a fresh mount — and
+    // subscription above). Switching away from the Settings tab and back is a fresh mount, and
     // therefore a fresh read, same as reopening any other document tab.
     useEffect(() => {
         if (!loaded) load();
@@ -647,7 +647,7 @@ export function useSettingsPageController() {
                     baseline: argvConfigAtLoad.current,
                 });
                 // The card is a status, not an event: retract the previous wording first so a write that changes which
-                // flags are pending — including one that returns the last of them to its launch value — can never leave
+                // flags are pending (including one that returns the last of them to its launch value) can never leave
                 // a stale instruction on screen.
                 dismissToastsMatching((message) => message.startsWith(ARGV_RESTART_NOTICE_PREFIX));
                 // Held until dismissed: the user is still looking at the Settings row they just flipped, so a

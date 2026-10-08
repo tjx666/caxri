@@ -9,8 +9,8 @@ interface OrderingHandlerOptions {
 }
 
 /**
- * The four methods that rearrange the Primary Side Bar. None of them changes what exists or which Session is selected —
- * they only record where a row sits — so each one answers with a full state change and nothing else.
+ * The four methods that rearrange the Primary Side Bar. None of them changes what exists or which Session is selected:
+ * they only record where a row sits, so each one answers with a full state change and nothing else.
  *
  * Pinning lives here rather than beside archiving because it is an ordering decision: `session.setPinned` decides
  * whether a Session appears in the Pinned group at all, and `session.reorderPinned` decides where inside it. Neither

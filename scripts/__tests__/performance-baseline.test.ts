@@ -384,7 +384,7 @@ describe('comparePerformanceSamplesToBaseline', () => {
         const baseline = armedBaseline();
         const result = comparePerformanceSamplesToBaseline({}, baseline);
         expect(result.missingFromCurrent).toEqual(['session.switch.durationMs']);
-        // Zero overlap with an armed baseline is a receipt-shape drift, not a measured comparison — it must never
+        // Zero overlap with an armed baseline is a receipt-shape drift, not a measured comparison: it must never
         // read as a clean "passed" run (Array.prototype.some on an empty `rows` is vacuously false).
         expect(result.state).toBe('drifted');
         expect(result.rows).toEqual([]);

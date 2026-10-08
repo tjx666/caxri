@@ -9,7 +9,7 @@ import type { RunningCaxri } from './support/helpers.ts';
 import { createShellSession, launchCaxri } from './support/helpers.ts';
 
 /**
- * Every row that offers the refresh command says `Refresh` — an error row that opens the logs instead still says `Open
+ * Every row that offers the refresh command says `Refresh`; an error row that opens the logs instead still says `Open
  * Logs`. Spelled out rather than read from `REFRESH_ACTION_LABEL`: a spec that imports the same constant the product
  * renders would pass through any rename. `status-fallback.test.ts` pins the product side to this same word.
  */

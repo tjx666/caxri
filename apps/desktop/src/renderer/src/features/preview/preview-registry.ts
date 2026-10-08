@@ -15,7 +15,7 @@ export interface PreviewerRegistration {
      * What double-clicking the file in the explorer opens.
      *
      * Every format registered today is also readable as text, so source stays the default and the preview is an
-     * explicit command — VS Code makes the same call with `priority.textEditor: 'option'`. A format with no useful text
+     * explicit command; VS Code makes the same call with `priority.textEditor: 'option'`. A format with no useful text
      * form (a spreadsheet, say) registers `preview` instead, and nothing else about the surface changes.
      */
     defaultView: 'preview' | 'source';

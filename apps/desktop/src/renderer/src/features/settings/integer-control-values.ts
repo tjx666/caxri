@@ -2,10 +2,10 @@ import type { IntegerSettingSpec } from '@caxri/protocol';
 
 /**
  * `incomplete` is deliberately not `invalid`. `<input type="number">` reports an empty string for text it cannot parse
- * yet, so `2.` — the keystroke in the middle of typing `2.5` into a setting that expects decimals — arrives here
- * looking exactly like a cleared field. Treating that as an error made a red border and an out-of-range sentence flash
- * for one keystroke of an entry that was never out of range. Nothing is written for either outcome; only `invalid` says
- * the user got something wrong.
+ * yet, so `2.` (the keystroke in the middle of typing `2.5` into a setting that expects decimals) arrives here looking
+ * exactly like a cleared field. Treating that as an error made a red border and an out-of-range sentence flash for one
+ * keystroke of an entry that was never out of range. Nothing is written for either outcome; only `invalid` says the
+ * user got something wrong.
  */
 export type IntegerSettingInputResult =
     | { status: 'incomplete' }

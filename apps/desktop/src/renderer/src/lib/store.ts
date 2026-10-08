@@ -9,9 +9,9 @@ const INSPECTOR_KEY = '__caxriStores';
 /**
  * Live Renderer stores, keyed by the name their `createStore` call gave them.
  *
- * Zustand stores are module-scoped singletons that nothing attaches to `window`, so a packaged build — which ships no
- * React DevTools hook — otherwise leaves a CDP session no way to read UI state at all: walking React fibers from the
- * DOM reaches components, not the stores behind them. This registry is that handle. A store joins it when its module is
+ * Zustand stores are module-scoped singletons that nothing attaches to `window`, so a packaged build (which ships no
+ * React DevTools hook) otherwise leaves a CDP session no way to read UI state at all: walking React fibers from the DOM
+ * reaches components, not the stores behind them. This registry is that handle. A store joins it when its module is
  * first imported, so the list grows as the app pulls features in rather than being complete at startup.
  */
 const stores = new Map<string, StoreApi<unknown>>();

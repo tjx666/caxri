@@ -2,7 +2,7 @@
  * Typography for the file preview surfaces (`features/preview/`).
  *
  * The preview body is one sanitized HTML string produced by `@caxri/markdown`, so its elements can carry no Tailwind
- * utilities — this file is where they get their appearance, and every color comes from the same semantic theme tokens
+ * utilities: this file is where they get their appearance, and every color comes from the same semantic theme tokens
  * the rest of the Workbench uses so an imported theme moves the preview with it.
  */
 
@@ -12,7 +12,7 @@
 
     /*
      * Containment, not decoration. A document can carry raw HTML, so it can carry a `class` or an inline `style` that
-     * asks for `position: fixed` — and unlike VS Code's preview, which lives in its own webview, this one renders
+     * asks for `position: fixed`, and unlike VS Code's preview, which lives in its own webview, this one renders
      * inside the Workbench document. `contain` makes this element the containing block for positioned descendants and
      * clips them to it, so the worst a document can lay out is its own pane.
      */

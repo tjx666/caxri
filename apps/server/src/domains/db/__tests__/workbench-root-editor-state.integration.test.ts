@@ -234,7 +234,7 @@ describe('CaxriDatabase Workbench Root editor state', () => {
         expect(filePaths(restoredOwnerState.paneLayout)).toEqual([join(ownerRoot, 'owner.ts')]);
         expect(activeFilePath(restoredOwnerState.paneLayout)).toBe(join(ownerRoot, 'owner.ts'));
         // The owner root was already arranged when `laterTerminal` was created on the worktree root, so it
-        // must still surface here — Terminal placement is Session-global, not scoped to one Root.
+        // must still surface here: Terminal placement is Session-global, not scoped to one Root.
         expect(listPaneTerminalIds(restoredOwnerState.paneLayout)).toEqual(
             expect.arrayContaining([created.terminal!.id, laterTerminal.id]),
         );
@@ -314,7 +314,7 @@ describe('CaxriDatabase Workbench Root editor state', () => {
         const identity = await lstat(worktreeRoot, { bigint: true });
 
         // Arrange the owner root so it gets its own stored snapshot, then do the same for the
-        // worktree root — both Roots are now "already arranged" and stop refreshing from `terminals`.
+        // worktree root: both Roots are now "already arranged" and stop refreshing from `terminals`.
         const ownerState = database.getSessionState(created.session.id);
         database.updateSessionState({
             ...ownerState,

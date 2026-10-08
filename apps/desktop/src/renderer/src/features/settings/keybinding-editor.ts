@@ -100,7 +100,7 @@ export interface KeybindingRowGroup {
 }
 
 /**
- * Groups rows under their catalog category, in the order each category first appears in `rows` — the same "declaration
+ * Groups rows under their catalog category, in the order each category first appears in `rows`: the same "declaration
  * order becomes display order" convention `settings-registry.ts` uses for Settings' own categories.
  * `commandDefinitions` does not keep every category's entries contiguous (`View` alone reappears in three separate
  * blocks), so the flat list this replaces put same-category shortcuts on opposite ends of the page (issue caxri#1289:
@@ -199,9 +199,9 @@ export function commitOnEnter(state: RecordingState): RecordingResolution | unde
 }
 
 /**
- * Blur must never silently drop an already-captured chord — the historical bug this closes, where clicking away from
- * the recording button discarded the shortcut the user just pressed. A captured chord commits on blur exactly like
- * Enter; only a blur before any key was captured has nothing to lose, so it cancels recording instead.
+ * Blur must never silently drop an already-captured chord: the historical bug this closes, where clicking away from the
+ * recording button discarded the shortcut the user just pressed. A captured chord commits on blur exactly like Enter;
+ * only a blur before any key was captured has nothing to lose, so it cancels recording instead.
  */
 export function commitOnBlur(state: RecordingState): RecordingResolution {
     if (!state.pending) return cancelRecording();

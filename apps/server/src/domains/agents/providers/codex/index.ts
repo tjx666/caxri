@@ -54,8 +54,8 @@ const CODEX_APP_SERVER_ERROR_DETAIL_MAX_LENGTH = 300;
 
 /**
  * Extracts the app-server's own JSON-RPC 2.0 `error.message` (issue caxri#1345), so a rejected rename shows the CLI's
- * actual reason — not logged in, rate limited, thread not found — instead of only "Codex app-server rejected the
- * Session rename". Bounded so a pathological response cannot inflate the rename toast or its log record.
+ * actual reason (not logged in, rate limited, thread not found) instead of only "Codex app-server rejected the Session
+ * rename". Bounded so a pathological response cannot inflate the rename toast or its log record.
  */
 function codexAppServerErrorDetail(error: unknown): string | undefined {
     const message = (error as { message?: unknown } | undefined)?.message;
@@ -296,7 +296,7 @@ const CODEX_THREAD_ID_TIMESTAMP_CHARACTERS = 13;
 /**
  * How many of a Codex process's open threads may be inspected before the probe gives up. Only the foreground
  * conversation and threads it spawned can appear here, so a deeper set means the process is running background work
- * this probe cannot attribute — and spending one database query per candidate is the cost being bounded.
+ * this probe cannot attribute, and spending one database query per candidate is the cost being bounded.
  */
 const MAX_CODEX_OPEN_THREAD_CANDIDATES = 4;
 const CODEX_SQLITE_WHITESPACE =
@@ -313,7 +313,7 @@ function isWritableOpenFile(access: string): boolean {
  *
  * More than one open rollout is the normal shape rather than an error: a `/new` inside a running Codex keeps the
  * conversation it just left open for minutes while it writes the replacement, and a background thread holds its own
- * rollout too. Refusing to decide there is what let a Terminal keep a conversation the user had already abandoned — the
+ * rollout too. Refusing to decide there is what let a Terminal keep a conversation the user had already abandoned: the
  * binding never caught up, so restarting Caxri resumed the retired thread instead of the visible one. Ordering is the
  * thread id's own UUIDv7 timestamp (its first 48 bits, which {@link CODEX_THREAD_ID_PATTERN} already requires) rather
  * than the file name's local-time stamp, so a DST fall-back hour cannot reverse two threads.
@@ -355,7 +355,7 @@ export function codexSessionIdsFromOpenFiles(
  *
  * The three outcomes are distinct and the caller must not collapse them: a state means the process was identified,
  * `undefined` means the probe could not decide and heuristic discovery may still run, and `null` means the probe proved
- * this process owns no claimable thread — heuristic discovery must then stay out.
+ * this process owns no claimable thread: heuristic discovery must then stay out.
  */
 async function readCodexStateFromProcess(
     context: AgentSnapshotContext,
@@ -382,7 +382,7 @@ async function readCodexStateFromProcess(
     );
     /**
      * The probe listed this process's files and found no rollout among them. Codex only creates a thread once it
-     * receives a first message, so this is proof of a thread-less Agent rather than a failed probe — `openFiles` is
+     * receives a first message, so this is proof of a thread-less Agent rather than a failed probe: `openFiles` is
      * empty when the probe itself is unusable, and that case returned above.
      *
      * Falling through to cwd discovery here is what let an idle Terminal adopt the next thread a sibling Session
@@ -596,7 +596,7 @@ async function readCodexState(
      * `threads` carries `title` (the raw first prompt) and `name` (the displayed title) and no column recording which
      * writer set `name`; the rollout stream's `session_meta` has no title field, and its only event payload types are
      * `item_completed`, `task_complete`, `task_started`, `thread_goal_updated`, `thread_settings_applied`,
-     * `token_count`, and `turn_aborted` — none of them a rename. Both writers go through the same app-server
+     * `token_count`, and `turn_aborted`: none of them a rename. Both writers go through the same app-server
      * `thread/name/set` this provider itself calls for {@link renameCodexSession}.
      *
      * An unknown title source does not grant Caxri authority to overwrite the native name. The Session naming service

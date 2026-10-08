@@ -518,7 +518,7 @@ export const internalMethods = {
     ...mobileInternalMethods,
     ...workbenchInternalMethods,
     /**
-     * The selected Session's identities and the visible Project IDs — the slice of `app.bootstrap` the Extension bridge
+     * The selected Session's identities and the visible Project IDs: the slice of `app.bootstrap` the Extension bridge
      * needs on every view operation and domain event. Reading the whole bootstrap there accounted for ~98% of
      * production `app.bootstrap` calls (#1185).
      */

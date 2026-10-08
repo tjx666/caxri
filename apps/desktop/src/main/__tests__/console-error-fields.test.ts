@@ -7,7 +7,7 @@ const MARKER = 'caxri-secret-marker-9f2a';
 describe('consoleErrorLogFields', () => {
     /**
      * The contract this file exists to hold. `desktop.jsonl` is copied verbatim into the diagnostics export, returned
-     * by `logs.query`, and collected as an E2E artifact, and this is the only log field no call site controls — it
+     * by `logs.query`, and collected as an E2E artifact, and this is the only log field no call site controls; it
      * forwards whatever any Renderer code printed at error level. If the console text ever comes back, this fails.
      */
     it('never carries the console text in any field', () => {

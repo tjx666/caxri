@@ -70,7 +70,7 @@ describe('Acceptance session delete fixture', () => {
 
         await command('confirm', 1);
         await expect(fixture.confirm(sessionId, prompt)).resolves.toEqual({ response: 0 });
-        // The command is consumed, so no second deletion can ride on it — not even after a restart reuses the profile.
+        // The command is consumed, so no second deletion can ride on it, not even after a restart reuses the profile.
         await expect(fixture.confirm(sessionId, prompt)).rejects.toThrow();
         await command('confirm', 2, { sessionId: 'a-different-session' });
         await expect(fixture.confirm(sessionId, prompt)).rejects.toThrow('does not match');

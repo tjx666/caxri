@@ -4,7 +4,7 @@ import { Check, Minus } from 'lucide-react';
 import { cn } from '@/lib/utilities';
 
 /**
- * Deliberate opt-in control (pre-submit choices). Instant preferences use Switch instead — see the Settings redline in
+ * Deliberate opt-in control (pre-submit choices). Instant preferences use Switch instead; see the Settings redline in
  * DESIGN.md.
  */
 export function Checkbox({ className, ...properties }: CheckboxPrimitive.Root.Props) {

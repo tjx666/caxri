@@ -71,7 +71,7 @@ export function useSessionRename(
             /**
              * Record how the row was focused before the input replaces it. `focus()` always applies `:focus-visible`,
              * so restoring focus after a rename started by double-click drew a white ring around a row the user had
-             * only ever clicked — a focus indicator standing for keyboard navigation that never happened.
+             * only ever clicked: a focus indicator standing for keyboard navigation that never happened.
              */
             restoreFocusVisibleReference.current =
                 treeRow(rowId)?.matches(':focus-visible') === true;
@@ -140,8 +140,8 @@ export function useSessionRename(
     }, []);
 
     /**
-     * The `session.rename` command's way in. Renaming is React state owned by this hook, so a command — which runs
-     * outside React entirely — asks through a bumped revision on the dialog store rather than reaching into the row.
+     * The `session.rename` command's way in. Renaming is React state owned by this hook, so a command (which runs
+     * outside React entirely) asks through a bumped revision on the dialog store rather than reaching into the row.
      * Bumped rather than set to a boolean so asking twice for the same Session re-opens the editor the second time.
      */
     const renameRequest = useDialogStore((state) => state.renameSessionRequest);
@@ -172,8 +172,8 @@ export function useSessionRename(
 
     /**
      * Memoized for the same reason as `useSessionOrder`'s return (issues #1108 and #1356): every Session row receives
-     * these methods as props, and a fresh controller object on every render of the Project tree — including a plain
-     * Session switch, which never touches renaming — would render every row again whether or not its own content
+     * these methods as props, and a fresh controller object on every render of the Project tree (including a plain
+     * Session switch, which never touches renaming) would render every row again whether or not its own content
      * changed. React Compiler does not help here either: it refuses to optimize any function containing an ESLint rule
      * suppression, and the effect above carries one.
      */

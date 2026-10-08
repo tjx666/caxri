@@ -5,7 +5,7 @@ import { setArchivedSessionsOpen } from '../../stores/dialogs';
 
 /**
  * The global Archived Sessions entry. The footer row holds nothing else, so the whole row is the button: a short
- * visible label on the left, the count on the right. A glyph-only chip was tried and reverted — it left most of the row
+ * visible label on the left, the count on the right. A glyph-only chip was tried and reverted: it left most of the row
  * dead to clicks and read as a stray control.
  */
 export function PrimarySidebarFooter({ archivedCount }: { archivedCount: number }) {

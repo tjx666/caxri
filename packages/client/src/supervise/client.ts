@@ -622,7 +622,7 @@ export class ServerClient {
     /**
      * Forces an immediate Desktop lease renewal outside the normal `DESKTOP_LEASE_RENEW_MS` interval. Electron's
      * `powerMonitor` `resume`/`unlock-screen` events fire once Main's event loop is running again after a macOS sleep,
-     * but the interval timer above only fires on its own next tick — which can land after Server Core's lease timer
+     * but the interval timer above only fires on its own next tick, which can land after Server Core's lease timer
      * (already woken from the same suspend) has fired first. Calling this from the `resume` handler closes that race
      * instead of waiting for the interval to catch up; it is a no-op without an active Desktop lease.
      */

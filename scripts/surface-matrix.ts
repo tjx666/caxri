@@ -15,7 +15,7 @@ import { execFileAsync } from './exec';
  * Diff-driven surface/proof matrix. Agents changing one Caxri product surface routinely forget a sibling surface the
  * same diff also touches (Desktop preload without Renderer, a protocol contract without one of its four clients, ...).
  * This CLI reports every product surface a diff reaches and the proof the repository already requires for that surface,
- * so an agent — or the `pull-request` skill — can check the matrix instead of re-deriving it from memory each time.
+ * so an agent, or the `pull-request` skill, can check the matrix instead of re-deriving it from memory each time.
  *
  * Classification reuses the path predicates `ci-execution-plan.ts` and `ci-path-policy.ts` maintain for CI scope
  * decisions instead of inventing a second, driftable classifier: the same `docs/`, `.agents/skills/`, and
@@ -152,7 +152,7 @@ const surfaceDefinitions: readonly SurfaceDefinition[] = [
         id: 'protocol',
         label: 'Protocol contracts',
         isMatch: (path) => path.startsWith(PROTOCOL_ROOT),
-        proof: 'Confirm all four clients that import `@caxri/protocol` — Desktop, Server, CLI, Mobile — still compile against and correctly consume the changed contract.',
+        proof: 'Confirm all four clients that import `@caxri/protocol` (Desktop, Server, CLI, Mobile) still compile against and correctly consume the changed contract.',
     },
     {
         id: 'extensions',
@@ -226,7 +226,7 @@ export interface SurfaceMatrixResult {
 
 /**
  * Curated one-way user actions worth a reminder: Caxri's product invariants call out exactly this shape of bug ("a
- * one-way door is a bug: create needs delete, enable needs disable"). This list is intentionally small and advisory —
+ * one-way door is a bug: create needs delete, enable needs disable"). This list is intentionally small and advisory:
  * see `detectReverseStateGaps` for why it never fails the run.
  */
 const REVERSIBLE_ACTION_PAIRS: ReadonlyArray<readonly [forward: string, reverse: string]> = [
@@ -257,7 +257,7 @@ function extractAddedLines(diffText: string): string {
 
 /**
  * Word-stem, not whole-word, matching: it must catch "created"/"creates"/"creating" as well as "create". That trades
- * precision for recall on purpose — the caller only ever surfaces this as a question to confirm, never as a failing
+ * precision for recall on purpose: the caller only ever surfaces this as a question to confirm, never as a failing
  * check, so a false positive costs one glance and a false negative costs a silently shipped one-way door.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/surface-matrix.test.ts
@@ -347,7 +347,7 @@ export function renderSurfaceMatrixMarkdown(
         );
         for (const entry of result.entries) {
             lines.push(
-                `| ${entry.label} | ${formatFileList(entry.files)} | ${entry.proof} | PENDING — mark \`done\` or \`waived: <reason>\` |`,
+                `| ${entry.label} | ${formatFileList(entry.files)} | ${entry.proof} | PENDING: mark \`done\` or \`waived: <reason>\` |`,
             );
         }
     }
@@ -361,7 +361,7 @@ export function renderSurfaceMatrixMarkdown(
         '',
         '### Reverse-state check',
         '',
-        'A one-way door is a bug: confirm this diff does not add a user action (create, enable, start, connect, grant, subscribe, register, mount, show, expand, pin, lock, suspend, ...) without also shipping — or explicitly deferring, with a stated reason — its reverse (delete, disable, stop, disconnect, revoke, unsubscribe, unregister, unmount, hide, collapse, unpin, unlock, resume, ...).',
+        'A one-way door is a bug: confirm this diff does not add a user action (create, enable, start, connect, grant, subscribe, register, mount, show, expand, pin, lock, suspend, ...) without also shipping (or explicitly deferring, with a stated reason) its reverse (delete, disable, stop, disconnect, revoke, unsubscribe, unregister, unmount, hide, collapse, unpin, unlock, resume, ...).',
     );
     if (!result.reverseState.evaluated) {
         lines.push(

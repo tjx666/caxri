@@ -37,8 +37,8 @@ export function workbenchRootNotice(
     return {
         kind: 'followed',
         message: payload.followedProjectTitle
-            ? `Switched to worktree "${payload.followedProjectTitle}" — an Agent moved there.`
-            : 'Switched to another worktree — an Agent moved there.',
+            ? `Switched to worktree "${payload.followedProjectTitle}": an Agent moved there.`
+            : 'Switched to another worktree: an Agent moved there.',
         projectId: payload.workbenchProjectId,
         ...(payload.followedProjectTitle && { projectTitle: payload.followedProjectTitle }),
         // Undo is offered only when a different, still-known root can actually be restored.

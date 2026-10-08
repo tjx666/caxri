@@ -217,7 +217,7 @@ export interface AgentProviderDescriptor {
      * Classifies an already-accepted `turnFinished` signal's own turn as a provider failure the CLI's hooks could not
      * report, from that provider's persisted transcript content. Only a provider with no native StopFailure-class hook
      * event needs this (issue caxri#1345); Claude and Grok already report their own failure classification through
-     * `hooks.ts`. An undefined result leaves the signal exactly as `turnFinished` — this only ever adds a failure the
+     * `hooks.ts`. An undefined result leaves the signal exactly as `turnFinished`: this only ever adds a failure the
      * transcript unambiguously proves, never guesses one from an inconclusive read.
      */
     resolvePrimaryTurnFailure?(
@@ -251,7 +251,7 @@ export interface AgentProviderDescriptor {
      */
     resumeArguments(agentSessionId: string): string[];
     /**
-     * Derives the absolute path of the provider's on-disk transcript for a bound Agent session. Pure path derivation —
+     * Derives the absolute path of the provider's on-disk transcript for a bound Agent session. Pure path derivation:
      * no filesystem access; absent when the provider keeps no per-session transcript file.
      */
     transcriptPath?(
@@ -287,7 +287,7 @@ export interface AgentProviderDescriptor {
 }
 
 /**
- * The directory a provider will key its own per-workspace state by — session metadata and transcripts — which is the
+ * The directory a provider will key its own per-workspace state by, session metadata and transcripts, which is the
  * directory the Agent process is in, not the one its PTY launched in. They diverge when the Agent moves itself, as
  * Claude Code's built-in `EnterWorktree` does. `agentCwd` is set only after Git topology proved it, so falling back to
  * the launch root keeps every Terminal without a proven divergence on exactly its previous behavior.

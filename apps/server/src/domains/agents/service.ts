@@ -107,7 +107,7 @@ function createCliAdapter(
         async renameSession(context): Promise<AgentSessionRenameResult> {
             /**
              * Unreachable in the product: `SessionRenameService` decides not to synchronize before it asks for an
-             * adapter. Kept as an internal guard rather than user-facing copy — whether a provider implements rename at
+             * adapter. Kept as an internal guard rather than user-facing copy: whether a provider implements rename at
              * all is not something to tell the user about their own Session name (issue #982).
              *
              * The three `UNAVAILABLE` throws below are a different case, and #982's "a Session title belongs to Caxri
@@ -236,7 +236,7 @@ export class AgentService {
                 /**
                  * `durationMs` alone cannot say whether a cache regressed, because it moves with machine load; the hit
                  * rate's slope across records can. The counters are cumulative precisely so that slope survives sparse
-                 * sampling — Server Core runs its logger at 'info', so in production only an availability transition, a
+                 * sampling: Server Core runs its logger at 'info', so in production only an availability transition, a
                  * provider's first probe, and a slow probe keep their record. Any two surviving records still give the
                  * rate between them, which a per-probe delta could not.
                  */

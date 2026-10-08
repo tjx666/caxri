@@ -146,7 +146,7 @@ describe('StructuredLogger', () => {
             logger.write('info', logEventCatalog.serverCore.ready);
             // Regression for issue #237: the sync logger's appendFileSync per record froze the
             // event loop whenever the disk stalled; write() must now enqueue without touching fs.
-            // Checked synchronously — awaiting a read would race the async drain, which may land
+            // Checked synchronously: awaiting a read would race the async drain, which may land
             // the record before the read resolves.
             expect(existsSync(logger.path)).toBe(false);
             await logger.flush();
@@ -259,7 +259,7 @@ describe('StructuredLogger', () => {
             const bigField = 'y'.repeat(RECORD_PAYLOAD_BYTES);
             /**
              * Each record is a fifth of `MAX_LOG_BYTES` plus JSON overhead, so four fill a generation and 20 rotate at
-             * indices 4, 8, 12, and 16 — leaving four populated epochs (current, `.1`, `.2`, `.3`) and evicting the
+             * indices 4, 8, 12, and 16: leaving four populated epochs (current, `.1`, `.2`, `.3`) and evicting the
              * oldest ([0..3]) once a fifth rotation would otherwise be needed for `.4`.
              */
             for (let index = 0; index < 20; index++) {

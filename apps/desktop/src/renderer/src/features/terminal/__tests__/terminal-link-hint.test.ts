@@ -254,7 +254,7 @@ describe('createTerminalLinkHintController', () => {
         const onModifierChange = vi.fn();
         const controller = createTerminalLinkHintController(terminal);
         // xterm reprovides a link from `_lastMouseEvent`, so a still pointer replays the move that
-        // happened before the key press — its `metaKey` is `false` while Cmd is actually held.
+        // happened before the key press: its `metaKey` is `false` while Cmd is actually held.
         const staleMove = {
             clientX: 100,
             clientY: 200,

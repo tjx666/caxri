@@ -91,7 +91,7 @@ Use these when a focused `check` is the wrong width, not as the default after ev
 - Format: `bun run format` / `bun run format:check`. Markdown: `bun run format:md` /
   `bun run format:md:check`.
 - Full local gates: `bun run lint` (syntactic ESLint), `bun run lint:type-aware` (oxlint/tsgolint
-  type-aware rules — see `docs/type-aware-linting.md`), and `bun run typecheck`.
+  type-aware rules, see `docs/type-aware-linting.md`), and `bun run typecheck`.
 - `bun run test` is **not** one of them. The full unit suite is a remote gate that CI runs on every
   pushed head, so `bun run test` and a bare `vitest run` refuse to start locally. Only the user
   authorizes a local full run, by setting `CAXRI_FULL_SUITE_AUTHORIZED=1`; an agent never sets that
@@ -133,6 +133,12 @@ a standalone or repository-wide run.
   it is cheap (well under a second) and because a scoped run would miss an index gap the changed
   Markdown itself did not touch. `check --lint` and the pre-commit hook run it whenever the changed
   or staged set includes a `.md` file.
+- **`bun run em-dash-check`** (`scripts/em-dash-check.ts`) fails on any em-dash (U+2014) in a
+  tracked text file outside the vendored `licenses/` and `tools/` trees. Rewrite the sentence with
+  a colon, semicolon, comma, period, or parentheses. Only the exact `'—'` string literal (the UI
+  empty-value placeholder) is allowed; code that needs the character itself writes `\u2014`. It
+  scans the whole tree in one `git grep`, so `check --lint`, the pre-commit hook, and the `guards`
+  job run it unscoped.
 
-All three also sit in the full CI platform-check manifest (`scripts/ci-platform-gates.ts`), so
+All four also sit in the full CI platform-check manifest (`scripts/ci-platform-gates.ts`), so
 `bun run scripts/ci-platform-checks.ts` exercises them even outside a diff.

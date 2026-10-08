@@ -10,14 +10,14 @@ import type {
 /**
  * The two outcomes `docs/extensions.md` defines as typed non-faults, for Source Control snapshots as well as Tree RPC.
  * They are the ordinary result of a Session switch, an extension reconfiguration, or an Extension Host restart racing a
- * request that is still in flight, and they reach this catch from every generation-checked path — `treeChildren`,
+ * request that is still in flight, and they reach this catch from every generation-checked path: `treeChildren`,
  * `activate`, `executeCommand`, `viewOperation`, and `workspace.*` calls alike. Neither may be reported as a fault that
  * recommends restarting a healthy Extension Host: an automated recovery path reading `remediation` would otherwise
  * restart the process on routine turnover.
  *
  * `CANCELLED` and `GENERATION_EXPIRED` are NOT reserved words of the Extension API (see `docs/extensions.md`): a
  * provider may throw either string as its own `code`. Matching this map is therefore necessary but not sufficient for
- * the non-fault classification — {@link extensionRequestFailureRecord} additionally requires the error to be
+ * the non-fault classification: {@link extensionRequestFailureRecord} additionally requires the error to be
  * Caxri-originated, see {@link hostError}.
  */
 const NON_FAULT_REASONS: ReadonlyMap<string, FailureReason> = new Map([
@@ -28,12 +28,12 @@ const NON_FAULT_REASONS: ReadonlyMap<string, FailureReason> = new Map([
 /**
  * The private registry of Caxri-originated errors. An error thrown by extension code is ordinary data owned by that
  * extension: any property or well-known `Symbol.for` key placed on it could be read, copied, or forged by the same code
- * that threw it. A `WeakSet` keyed by object identity has no such surface — it is not a property on the error, not a
+ * that threw it. A `WeakSet` keyed by object identity has no such surface: it is not a property on the error, not a
  * registry reachable through a well-known symbol, and not exposed on `globalThis`.
  *
  * Membership proves who minted an object, not who threw it: an extension does receive host-minted rejections from
  * `caxri.*` API calls and could re-throw one from its own provider. That is why {@link providerFailure} never lets an
- * object that crossed extension code keep its membership — it re-mints from host-owned request state instead.
+ * object that crossed extension code keep its membership: it re-mints from host-owned request state instead.
  */
 const hostOriginatedErrors = new WeakSet<Error>();
 
@@ -68,7 +68,7 @@ export function isHostOriginatedError(error: unknown): boolean {
  * It is deliberately not merged into {@link hostOriginatedErrors}: membership there means "the host decided this", and
  * {@link providerFailure} strips it precisely because an extension can re-throw a host rejection. Membership here means
  * the narrower "the extension declared this one outcome", which survives the trip because declaring it is the point.
- * The factory mints only `GENERATION_EXPIRED` for exactly that reason — a general `nonFailureError(code)` would let an
+ * The factory mints only `GENERATION_EXPIRED` for exactly that reason: a general `nonFailureError(code)` would let an
  * extension downgrade any real failure, which is what issue #606 closed.
  */
 const declaredSupersededErrors = new WeakSet<Error>();
@@ -91,8 +91,8 @@ export function supersededError(message: string): Error {
  * API layer records the host's decision here, keyed to the request through `AsyncLocalStorage` rather than through
  * anything the extension can reach.
  *
- * A `CANCELLED` is recorded only when it arrives in Server Core's own reply — the controlled-view scope fence rejects a
- * `workspace.request` whose Session is no longer active with that code — and never when it follows the token the
+ * A `CANCELLED` is recorded only when it arrives in Server Core's own reply: the controlled-view scope fence rejects a
+ * `workspace.request` whose Session is no longer active with that code, and never when it follows the token the
  * extension passed to the call, which may be the extension's own `CancellationTokenSource`. When that token is the
  * host's request token, {@link HostRequestState.cancelled} already corroborates it.
  */
@@ -144,9 +144,9 @@ export function recordHostApiRejection(
 }
 
 /**
- * What the host itself knows about the request whose provider call just failed. Every fact comes from host-owned state
- * — the request's own `CancellationTokenSource`, the provider/instance registration, and the
- * {@link ProviderRequestScope} the API layer wrote to — never from the error object.
+ * What the host itself knows about the request whose provider call just failed. Every fact comes from host-owned state:
+ * the request's own `CancellationTokenSource`, the provider/instance registration, and the {@link ProviderRequestScope}
+ * the API layer wrote to: never from the error object.
  */
 export interface HostRequestState {
     /**
@@ -174,11 +174,11 @@ function readErrorCode(error: unknown): string | undefined {
 }
 
 /**
- * Normalizes a failure that crossed extension code — a provider call, a contributed command, or `activate()` — into a
+ * Normalizes a failure that crossed extension code (a provider call, a contributed command, or `activate()`) into a
  * fresh host-owned error.
  *
- * The returned object is always new, so any `hostError` membership the extension may have obtained — for example by
- * re-throwing a rejection it received from a `caxri.*` API call — never survives the trip. The non-fault codes are
+ * The returned object is always new, so any `hostError` membership the extension may have obtained (for example by
+ * re-throwing a rejection it received from a `caxri.*` API call) never survives the trip. The non-fault codes are
  * re-minted as host-originated only when host state proves the outcome:
  *
  * - The bundled Git extension's own `assertNotCancelled` throws its own `CANCELLED` after the host cancelled the request
@@ -190,7 +190,7 @@ function readErrorCode(error: unknown): string | undefined {
  * Each of those is the host's decision reported back, not an extension fault. A `CANCELLED` or `GENERATION_EXPIRED` the
  * host cannot corroborate stays a fault, so extension code cannot silence a real failure by choosing the code (issue
  * #606). The one exception is an object minted by {@link supersededError}, which is the extension declaring the single
- * outcome only it can see — that a request arrived against its own stale model revision (issue #614). Object identity,
+ * outcome only it can see: that a request arrived against its own stale model revision (issue #614). Object identity,
  * not the code string, is what separates it from a forged `GENERATION_EXPIRED`. `fallbackCode` keeps each boundary's
  * existing wire code for an uncoded failure.
  */
@@ -218,7 +218,7 @@ export function providerFailure(
 }
 
 /**
- * Runs extension code — a provider call, a contributed command, or `activate()` — inside `scope` and normalizes any
+ * Runs extension code (a provider call, a contributed command, or `activate()`) inside `scope` and normalizes any
  * failure through {@link providerFailure}. `hostState` is read at catch time so turnover that happened while the
  * extension code was running still corroborates. Pass a shared `scope` when several calls belong to one request.
  */

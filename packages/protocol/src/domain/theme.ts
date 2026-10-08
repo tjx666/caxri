@@ -5,7 +5,7 @@ import { hexColorSchema } from './color.js';
 const hex = hexColorSchema;
 
 /**
- * Import-format ids only. `builtin` and `custom` are persistence sources, not import formats — they stay off this list
+ * Import-format ids only. `builtin` and `custom` are persistence sources, not import formats: they stay off this list
  * so a new parser must extend both this tuple and `themeTokenSourceIds`.
  */
 export const themeImportFormatIds = ['iterm2', 'warp', 'vscode'] as const;
@@ -66,11 +66,11 @@ export const themeTokensSchema = z.object({
          *
          * The state names carry VS Code's meanings, which are not interchangeable. A list is `active` when it holds
          * keyboard focus; a title bar is `active` when the _window_ is. `titleBar*` is for the title and drag region
-         * only — the root tab bar happens to be draggable, which is not a reason to paint tabs with it.
+         * only: the root tab bar happens to be draggable, which is not a reason to paint tabs with it.
          *
          * A theme that supplies none of these gets each role's documented fallback from the roles resolved in the same
          * import. Nothing falls back onto `background` / `surface` / `elevated` in reverse, and an explicit value is
-         * kept exactly as written even when it equals another role's — a theme painting its active tab the editor color
+         * kept exactly as written even when it equals another role's, a theme painting its active tab the editor color
          * is stating a preference, not making a mistake to correct.
          */
         tabActiveBackground: hex,

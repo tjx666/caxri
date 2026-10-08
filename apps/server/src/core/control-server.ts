@@ -118,8 +118,8 @@ export class ControlServer {
 
     /**
      * Desktop lease arming/revocation lives in `control-server-desktop-lease.ts` as plain `DesktopLeaseHost` functions
-     * (see `DESKTOP_LEASE_GRACE_MS` there). The cast below is safe — `this` structurally satisfies `DesktopLeaseHost`
-     * at runtime; TypeScript only rejects a plain assignment because the members it needs are `private` here, and a
+     * (see `DESKTOP_LEASE_GRACE_MS` there). The cast below is safe: `this` structurally satisfies `DesktopLeaseHost` at
+     * runtime; TypeScript only rejects a plain assignment because the members it needs are `private` here, and a
      * private member can satisfy assignability only against another private member of the exact same class.
      */
     private get leaseHost(): DesktopLeaseHost {

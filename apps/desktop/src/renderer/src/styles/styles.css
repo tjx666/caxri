@@ -22,7 +22,7 @@
     /*
      * Notifications are the one floating surface that deliberately outranks a modal, so this value is load-bearing
      * rather than arbitrary. DESIGN.md's rule is that a modal owns the screen and everything standing on top of the
-     * workbench hides while one is open — but every failure raised inside the Settings dialog is reported through this
+     * workbench hides while one is open, but every failure raised inside the Settings dialog is reported through this
      * channel and nowhere else, so hiding it (or sinking it under the z-50 backdrop, where the blur would make it
      * unreadable) would turn each of those failures into silence. Sitting above the dialog popup (z-51) keeps the
      * report perceivable while the dialog still owns Escape, the backdrop, and the pointer.
@@ -41,8 +41,8 @@
  * Sonner lays every child (icon, content, cancel/action buttons) out as one flex row by default, so a message long
  * enough to need an action button had nowhere to shrink but its own text column (issue: text wrapped into a narrow
  * strip beside a fixed-width button). The grid below keeps the icon and message text on row 1 across the full card
- * width (spanning the trailing button columns), and the buttons sit on row 2 — a secondary `[data-cancel]` in column 3,
- * the primary `[data-action]` in column 4 — so they always land on their own row under the text instead of squeezing it. The close button stays `position:
+ * width (spanning the trailing button columns), and the buttons sit on row 2 (a secondary `[data-cancel]` in column 3,
+ * the primary `[data-action]` in column 4), so they always land on their own row under the text instead of squeezing it. The close button stays `position:
  * absolute` (Sonner's own layout), just re-anchored to the top-right corner instead of Sonner's default top-left.
  */
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] {
@@ -137,7 +137,7 @@
 
 :root {
     /*
-     * Motion tokens — the single timing source for every layer of the motion stack
+     * Motion tokens: the single timing source for every layer of the motion stack
      * (DESIGN.md "Motion"): CSS transitions read them directly, tw-animate overlay classes
      * pick them up through `--tw-duration`, and JS (Motion transitions, presence-cleanup
      * fallbacks, tests) resolves them via `motionDurationMs` in `lib/motion.ts`. Never
@@ -177,7 +177,7 @@
  * `data-overflow-fade="off"` drops the mask while a Session title is scrolling to its tail, so the
  * already-revealed end is not faded again.
  *
- * The mask uses black/transparent as luminance, not a theme color — it never paints.
+ * The mask uses black/transparent as luminance, not a theme color: it never paints.
  */
 .overflow-fade {
     overflow: hidden;
@@ -206,8 +206,8 @@
 }
 
 /* Native horizontal scrollbars overwhelm the 36px tab strip; keep its thumb discoverable but quiet.
-   Targets the two rails that actually overflow — the scrolling document rail and the anchored Terminal
-   segment beside it — not the outer `.work-tabs` row, which also holds the New Terminal button and the
+   Targets the two rails that actually overflow (the scrolling document rail and the anchored Terminal
+   segment beside it), not the outer `.work-tabs` row, which also holds the New Terminal button and the
    drag gap; those stay put while the tabs scroll under them. */
 .work-tab-scroll,
 .work-tab-sticky {
@@ -255,14 +255,14 @@
 }
 
 /*
- * Truncates from the head instead of the tail, for a value whose meaning is at its end — a filesystem path, where
+ * Truncates from the head instead of the tail, for a value whose meaning is at its end: a filesystem path, where
  * `…/features/path-browser/` says far more than `/Users/tj/code/caxri-worktre…`. The path must be wrapped in one child
  * element; the two halves only work together.
  *
  * `direction: rtl` on the box is what moves the overflow, and so the ellipsis, to the start. It also makes the box an
  * RTL paragraph, which reorders the path's own neutral characters: `~/code/` renders as `/code/~`, because a leading
  * `~` with nothing strong before it takes the paragraph's direction. The child re-embeds the text as LTR so it reads
- * in its own order inside an RTL box. `unicode-bidi: plaintext` on the box is the other obvious fix and the wrong one —
+ * in its own order inside an RTL box. `unicode-bidi: plaintext` on the box is the other obvious fix and the wrong one:
  * it resolves direction from the first strong character, which is LTR for every path, putting the ellipsis back at the
  * tail. Both were verified against the real Renderer before this was written.
  */
@@ -289,9 +289,9 @@
 /*
  * User-toggled disclosures transition intrinsic height natively: `interpolate-size:
  * allow-keywords` (Chromium 129+) lets `height` interpolate 0 ↔ auto, so the container is a
- * plain block — no measured pixel heights and no grid-track workaround. The container stays
+ * plain block, no measured pixel heights and no grid-track workaround. The container stays
  * mounted across toggles while `DisclosureMotion` (components/disclosure-motion.tsx) mounts
- * content in the same commit that flips `data-expanded`, which is an ordinary style change —
+ * content in the same commit that flips `data-expanded`, which is an ordinary style change:
  * the transition runs without rAF double-flips or `@starting-style`. Only user-toggled
  * disclosures receive `data-motion`, so restored startup state is still.
  */
@@ -361,7 +361,7 @@
 
 /*
  * `cmdk` (`command-palette.tsx`) renders each `Command.Group`'s heading as an internal `<div
- * cmdk-group-heading="">` with no prop to reach it via `className` — only the group wrapper itself
+ * cmdk-group-heading="">` with no prop to reach it via `className`, only the group wrapper itself
  * is reachable. This attribute-selector rule is the only way to style that heading.
  */
 [cmdk-group-heading] {
@@ -396,7 +396,7 @@
 }
 /*
  * xterm.css hardcodes `background-color: #000` on the viewport (for macOS scrollbar opacity), and
- * the renderer canvas only paints the theme background over the character grid — so the reserved
+ * the renderer canvas only paints the theme background over the character grid, so the reserved
  * gutter would show as a black strip. VS Code clears the viewport background the same way and lets
  * the terminal container own the background color.
  */

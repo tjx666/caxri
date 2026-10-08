@@ -393,7 +393,7 @@ describe('AgentHookServer', () => {
          * The sweep used to stop after a fixed number of directory entries, so a stale socket was reclaimed only if it
          * happened to be reached before unrelated temp files exhausted the budget. A routine macOS `$TMPDIR` already
          * holds several thousand entries, which is what made the two removal assertions in this suite fail
-         * intermittently — and, in production, what let a crashed Server's socket survive forever. The bound now counts
+         * intermittently, and, in production, what let a crashed Server's socket survive forever. The bound now counts
          * profile-owned candidates, so foreign entries cannot starve it however many there are.
          */
         it('reclaims a stale socket that unrelated directory entries would have crowded out', async () => {

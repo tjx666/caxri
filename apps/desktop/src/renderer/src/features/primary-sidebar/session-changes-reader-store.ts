@@ -12,8 +12,8 @@ interface SessionChangesReaderState {
 /**
  * Bounds another Session's `git.overview` reads to one card at a time (issue #859).
  *
- * Each Session card owns its own open state, and hover and keyboard focus can leave two cards open together — focus
- * opens one, the pointer another — so gating the read on a card's own open state alone does not bound the fan-out. A
+ * Each Session card owns its own open state, and hover and keyboard focus can leave two cards open together: focus
+ * opens one, the pointer another, so gating the read on a card's own open state alone does not bound the fan-out. A
  * card that loses the claim while still open keeps showing what it already read; it just stops asking.
  */
 export const useSessionChangesReaderStore = createStore<SessionChangesReaderState>(

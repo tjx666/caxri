@@ -114,7 +114,7 @@ function TerminalPaneTab({
                         className={cn(
                             'terminal-progress-tab inline-flex flex-none items-center gap-1 tabular-nums',
                             /**
-                             * `--accent` marks exactly one thing at a time — the focused pane/tab (DESIGN.md principle
+                             * `--accent` marks exactly one thing at a time: the focused pane/tab (DESIGN.md principle
                              * 2). This badge renders on every tab with progress, active or not, so a background `npm
                              * install` must not wear the same accent color the focused tab's ring already owns.
                              */
@@ -292,12 +292,11 @@ function PaneTabEntry(properties: PaneTabProperties & { isOnlySessionTerminal: b
     const liveTerminal = useTerminal(terminalId ?? '');
     /**
      * `AnimatePresence` keeps this component mounted through its exit transition after `tab` drops out of the pane, but
-     * a Terminal close removes the record `useTerminal` reads in that same store update — without this snapshot the
-     * exit render sees `terminal === undefined` and bails to `null` one commit into the transition, unmounting
-     * `WorkTab` before it ever renders `aria-hidden`/plays its exit animation. This follows React's documented
-     * "adjusting state during render" pattern
-     * (https://react.dev/reference/react/useState#storing-information-from-previous-renders) instead of a ref, since
-     * this repo's lint config forbids reading `ref.current` during render.
+     * a Terminal close removes the record `useTerminal` reads in that same store update: without this snapshot the exit
+     * render sees `terminal === undefined` and bails to `null` one commit into the transition, unmounting `WorkTab`
+     * before it ever renders `aria-hidden`/plays its exit animation. This follows React's documented "adjusting state
+     * during render" pattern (https://react.dev/reference/react/useState#storing-information-from-previous-renders)
+     * instead of a ref, since this repo's lint config forbids reading `ref.current` during render.
      */
     const [lastKnownTerminal, setLastKnownTerminal] = useState<TerminalRecord | undefined>(
         liveTerminal,
@@ -389,7 +388,7 @@ function PaneTabActions({
 
 /**
  * Moves roving tab focus one step through `tabs` and selects whatever it lands on, leaving focus where it was when the
- * key has no target — the ends of the rail for `ArrowLeft`/`ArrowRight`.
+ * key has no target: the ends of the rail for `ArrowLeft`/`ArrowRight`.
  */
 function navigatePaneTabs(
     tabs: readonly PaneTab[],
@@ -405,7 +404,7 @@ function navigatePaneTabs(
     const targetTab = document.querySelector<HTMLElement>(`#${CSS.escape(workTabId(target))}`);
     /**
      * Terminal activation normally moves focus into xterm. The marker exists for activations that must not take the
-     * keyboard — roving tab navigation here, drag hover previews in `previewTab` — and is removed on blur, so the
+     * keyboard (roving tab navigation here, drag hover previews in `previewTab`) and is removed on blur, so the
      * Terminal process effect can preserve the WAI-ARIA tab focus without changing mouse selection behavior.
      */
     if (targetTab) {
@@ -417,7 +416,7 @@ function navigatePaneTabs(
 }
 
 /**
- * The two containers the bar lays out — the anchored Terminal segment and the scrolling document rail — plus the visual
+ * The two containers the bar lays out, the anchored Terminal segment and the scrolling document rail, plus the visual
  * order both of them are navigated in. Resolved here rather than inline so `PaneTabBar` reads as layout.
  */
 function paneTabSegments(tabs: readonly PaneTab[]): {
@@ -489,7 +488,7 @@ function PaneTabSegment({
  * Whether a segment still owns width on the bar, and the `AnimatePresence` callback that ends it. Occupancy outlives
  * the segment's last tab on purpose: the commit that empties the segment is the same one that starts that tab's exit
  * animation, so collapsing on tab count alone would clip the tab away mid-flight and hand its width to the other
- * segment a beat early. An empty segment is hidden rather than unmounted — its rail is what the tab-bar specs and the
+ * segment a beat early. An empty segment is hidden rather than unmounted: its rail is what the tab-bar specs and the
  * stylesheet's scrollbar rules address, and it has to survive a pane that is holding only the other kind.
  */
 function useSegmentOccupancy(tabs: readonly PaneTab[]): {
@@ -509,8 +508,8 @@ function useSegmentOccupancy(tabs: readonly PaneTab[]): {
 /**
  * The scrolling half of one segment: the rail its tabs sit on, the two zero-width sentinels `useScrollEdges` watches,
  * and the gradient fade shown on whichever edge is actually hiding a tab. `overflow-x-auto` gives no cue of its own
- * that there is more to either side, and both segments can overflow — the documents routinely, the Terminals once
- * enough of them share the anchored half — so each gets its own rather than the bar cueing only one of them.
+ * that there is more to either side, and both segments can overflow (the documents routinely, the Terminals once enough
+ * of them share the anchored half), so each gets its own rather than the bar cueing only one of them.
  */
 function PaneTabScrollRail({
     children,
@@ -576,8 +575,8 @@ function PaneTabScrollRail({
 
 /**
  * The tablist itself: the anchored Terminal segment, the scrolling document rail beside it, and the insertion line a
- * drag draws across both. Both containers stay mounted for the pane's whole life — which of the two a tab belongs to is
- * fixed by its resource kind — so the only thing that changes as tabs come and go is how the width is split.
+ * drag draws across both. Both containers stay mounted for the pane's whole life (which of the two a tab belongs to is
+ * fixed by its resource kind), so the only thing that changes as tabs come and go is how the width is split.
  */
 function PaneTabList({
     activeTabId,
@@ -635,7 +634,7 @@ function PaneTabList({
             <PaneTabScrollRail
                 /**
                  * Sized to its own tabs so the scrolling rail keeps the rest of the bar, capped at half of it and
-                 * scrolling internally past that — a Session with many Terminals must not squeeze the documents out in
+                 * scrolling internally past that: a Session with many Terminals must not squeeze the documents out in
                  * the other direction. With no documents to make room for it takes the whole bar instead, so Terminals
                  * alone still divide the full width evenly the way iTerm2 and Chrome do.
                  */
@@ -722,7 +721,7 @@ export function PaneTabBar({
     } = usePaneTabDrag(pane, listReference);
     const { anchoredTabs, orderedTabs, railTabs } = paneTabSegments(pane.tabs);
     /**
-     * Whether this pane owns `activePaneId` — DESIGN.md principle 2's "one durable accent focus per screen": the tab
+     * Whether this pane owns `activePaneId`, DESIGN.md principle 2's "one durable accent focus per screen": the tab
      * border and the pane ring express the same focus and count as one. After a split, only the focused pane's active
      * tab wears the accent border; an unfocused pane's active tab keeps its selection fill (VS Code's unfocused editor
      * group behavior) but drops the accent, so two panes never both claim the screen's one accent at once.
@@ -739,7 +738,7 @@ export function PaneTabBar({
                 'work-tabs group/work-tabs flex h-11 flex-none bg-surface',
                 // Only the Workbench-level bar carries the frameless window's drag region and the windowed traffic-light
                 // inset; a pane bar inside a split is an ordinary surface. Being the drag region is also what earns it
-                // the title-bar fill — a pane bar inside a split is not a title bar and keeps `surface`.
+                // the title-bar fill: a pane bar inside a split is not a title bar and keeps `surface`.
                 isRootBar &&
                     'bg-title-bar-active-background text-title-bar-active-foreground [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground',
                 isRootBar &&
@@ -780,7 +779,7 @@ export function PaneTabBar({
                 whole titlebar and nothing in it would be draggable. The corner inherits the bar's drag region and
                 stays just wide enough to grab. It exists only for that state: `primary-sidebar-title` is a drag
                 region of its own, so while the sidebar is open the window already moves from there and reserving a
-                second strip would only wedge dead space beside "+" — iTerm2 ends its bar at the button too. The same
+                second strip would only wedge dead space beside "+": iTerm2 ends its bar at the button too. The same
                 goes for a bar that stops in the middle of the window: the leading pane of a side-by-side split has a
                 neighbour on its right, not the window corner, so reserving the strip there is the dead space this
                 exists to avoid rather than the grab handle it exists to provide. */}

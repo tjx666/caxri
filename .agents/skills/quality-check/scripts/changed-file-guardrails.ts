@@ -1,9 +1,10 @@
 /**
  * Diff-scoped guardrails `check.ts`'s lint gate wires in whenever the changed-file set touches the file types they own:
- * the source-size ratchet (`scripts/source-size-ratchet.ts`) for code, and `documentation-check.ts` for Markdown. Both
- * gates read the changed-file diff themselves through Git rather than taking a file list, so this only decides
- * _whether_ to invoke each one from the bucket split `check.ts` already computes for its own autofix pipeline. Kept out
- * of `check.ts` itself to keep that file under its own source-size ratchet.
+ * the source-size ratchet (`scripts/source-size-ratchet.ts`) for code, `documentation-check.ts` for Markdown, and the
+ * repository-wide `scripts/em-dash-check.ts` for either. All gates read the repository state themselves through Git
+ * rather than taking a file list, so this only decides _whether_ to invoke each one from the bucket split `check.ts`
+ * already computes for its own autofix pipeline. Kept out of `check.ts` itself to keep that file under its own
+ * source-size ratchet.
  */
 
 export interface ChangedFileGuardrailOptions {
@@ -29,6 +30,10 @@ export async function runChangedFileGuardrails(
     if (options.hasChangedMarkdown) {
         await options.runCapture('bun', ['run', 'docs-check'], options.root);
         ran.push('docs-check');
+    }
+    if (options.hasChangedMarkdown || options.hasChangedSourceCode) {
+        await options.runCapture('bun', ['run', 'em-dash-check'], options.root);
+        ran.push('em-dash-check');
     }
     return ran;
 }

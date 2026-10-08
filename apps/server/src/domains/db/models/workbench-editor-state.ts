@@ -70,8 +70,8 @@ function remapStoredEditorPath(path: string, previousPath: string, nextPath: str
 
 /**
  * Rewrites every stored snapshot of one Workbench Root, including the Sessions parked on another root. `mutate` returns
- * `undefined` for a snapshot it leaves untouched, which is also how a caller declines work it has already done — see
- * the operation-id check in {@link remapWorkbenchEditorState}.
+ * `undefined` for a snapshot it leaves untouched, which is also how a caller declines work it has already done: see the
+ * operation-id check in {@link remapWorkbenchEditorState}.
  */
 function mutateRootStates(
     database: CaxriDrizzleDatabase,

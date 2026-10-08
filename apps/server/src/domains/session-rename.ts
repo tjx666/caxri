@@ -97,7 +97,7 @@ export class SessionRenameService {
         /**
          * A provider without rename integration is the same situation as an Agent that has not produced a session yet:
          * there is nothing to synchronize, which is an implementation fact rather than something the user did wrong.
-         * Refusing here also contradicted the Session row itself — double-click and Enter never consulted the
+         * Refusing here also contradicted the Session row itself: double-click and Enter never consulted the
          * capability, so the user typed a name, pressed Enter, and watched it vanish behind an error toast.
          */
         if (!agentProviderCatalog[terminal.provider].capabilities.nativeRename)
@@ -113,8 +113,8 @@ export class SessionRenameService {
             terminal = this.database.getTerminal(currentSession.primaryAgentTerminalId);
         }
         /**
-         * A Terminal whose Agent has not produced a session yet — a Session the user opened and named before typing
-         * anything — has nothing to synchronize, not a failure to report. Refusing the rename here made the very first
+         * A Terminal whose Agent has not produced a session yet (a Session the user opened and named before typing
+         * anything) has nothing to synchronize, not a failure to report. Refusing the rename here made the very first
          * thing a user does to a new Session fail, and the name they typed was discarded with it. Skipping provider
          * sync still commits the title locally, and `renameSession` marks the Session manually titled, so automatic
          * naming will not overwrite it once the Agent does start.

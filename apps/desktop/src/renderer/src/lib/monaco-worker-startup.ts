@@ -71,7 +71,7 @@ function release(tracked: TrackedWorker): void {
  * Watches one Worker's startup without changing anything about it.
  *
  * The first message of any kind is proof the script ran: Monaco's Worker bootstrap installs its `onmessage` at the top
- * of the module body, so an answer can only come from a Worker that executed. Listening is deliberately passive —
+ * of the module body, so an answer can only come from a Worker that executed. Listening is deliberately passive:
  * `addEventListener` alongside Monaco's own handler, never `onmessage`, which Monaco owns and would lose.
  *
  * @returns The same Worker, so this can wrap a `MonacoEnvironment.getWorker` return value in place.
@@ -112,7 +112,7 @@ function createWorkerErrorEvent(): Event {
  * Releases every Worker that missed its startup budget, and tells Monaco each one is gone.
  *
  * Terminating alone does not recover anything: Monaco is waiting on a reply, and a terminated Worker is exactly as
- * silent as a stalled one. The `error` event is the part Monaco can act on — it is the only signal a Worker owner has
+ * silent as a stalled one. The `error` event is the part Monaco can act on: it is the only signal a Worker owner has
  * for "this Worker will not answer", and it is dispatched on the Worker itself so Monaco's own handler receives it
  * through the listener it already registered. Terminating afterwards releases the thread.
  *

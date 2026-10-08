@@ -174,17 +174,17 @@ Server Core itself cancelled or expired a `caxri.*` call the extension awaited d
 mid-read). Extension-triggered state does not count: a tree provider's own refresh, a registration the extension
 disposed itself, or a `caxri.*` call made outside any Server-supplied view context (from `activate()` or a timer)
 that the controlled-view scope fence rejected. Any other error thrown by
-extension code — from a provider, a contributed command, or `activate()` — is logged as a real fault regardless of
+extension code (from a provider, a contributed command, or `activate()`) is logged as a real fault regardless of
 which `code` it carries, and a host-minted rejection an extension re-throws gains nothing from its origin.
 
 `caxri.supersededError(message)` is the one exception, and it exists because one staleness is genuinely
 invisible to the host: a provider's own model revision. A provider that keeps a revision and rejects
-requests carrying an older one — as the bundled Git extension does for superseded snapshots and expired
-actions — throws this instead of constructing its own `GENERATION_EXPIRED`, and the call is then logged
+requests carrying an older one (as the bundled Git extension does for superseded snapshots and expired
+actions) throws this instead of constructing its own `GENERATION_EXPIRED`, and the call is then logged
 at `debug` with `remediation: none`. What the classifier recognizes is the object the host minted, not
 the code on it: a copy carrying the same `code` and message is still a fault, so the guarantee above is
 unchanged for every extension that does not call this factory. Calling it is a trust contract the
-extension author takes on — Caxri records the outcome as routine because the extension said it was, so
+extension author takes on: Caxri records the outcome as routine because the extension said it was, so
 wrapping a genuine failure in it hides that failure from diagnostics. There is deliberately no general
 `nonFailureError(code)`; this factory can express only "superseded". Outside the Extension Host the
 same call returns an equivalent unregistered error, so a provider stays unit-testable and an
@@ -217,7 +217,7 @@ command bindings. Refresh, Sync, Discard All, single-file discard/delete, diff o
 execute through revision-bound action capabilities. Renderer understands only generic
 snapshot/history/details/action operations and generic effects such as open-editor, toast, and
 refresh. A provider may also publish one `externalLink`, which the Renderer opens in the default
-browser on an Alt-activated row instead of routing through the action registry — there is no
+browser on an Alt-activated row instead of routing through the action registry; there is no
 Extension Host work behind it. Resource identity remains stable and bounded independently from full Git paths.
 Git also bounds path-derived labels, tooltips, accessibility text, and tree paths to the controlled
 surface contract. An encoded diff URI that exceeds the generic open-editor limit is omitted instead
@@ -263,8 +263,8 @@ badge is a severity and carries no `count` field at all; say how many in `descri
 `undefined` or `null` when unavailable; the Host normalizes that result to wire-safe `null`. An
 explicit zero is hidden.
 
-An extension reports what the activity means and never how it looks — no color, icon, or priority
-crosses the API — so one container never shows two views' badges in two unrelated colors. The
+An extension reports what the activity means and never how it looks: no color, icon, or priority
+crosses the API, so one container never shows two views' badges in two unrelated colors. The
 Workbench draws its own fixed glyph for `error` and `warning`, keeping severity legible without
 color, and paints each kind from its own theme role (`badge`, `errorBadge`, `warningBadge`).
 
@@ -272,7 +272,7 @@ Within a container, severity takes the badge outright: `error` beats `warning`, 
 every tally, which then does not appear on the chip at all. Only `count` badges are totalled, and
 their total is capped at `99+`; summing across kinds would let 20 ordinary items and 1 failure
 render as a red `21`. Severity and tally never share a chip, because a digit would displace the
-glyph and leave the fill as the only difference between "5 changes" and "5 failures" — nothing to a
+glyph and leave the fill as the only difference between "5 changes" and "5 failures"; nothing to a
 colorblind user or in a greyscale capture. This matches VS Code, whose composite-bar badges are a
 strict `progress` > `icon` > `number` ladder and whose `ErrorBadge`/`WarningBadge` have no number.
 The displaced tally is not lost: every contributing view's description is joined and published as
@@ -336,7 +336,7 @@ always rendered as text; an optional URL must be credential-free HTTP(S), is val
 Host, and still crosses Main's trusted-origin confirmation before the operating system can open it.
 The `markdown` body (at most 8 KiB, exclusive with `description`) is for authored prose such as a pull
 request review comment. `@caxri/markdown`'s `parseMarkdownBlocks` reduces it to a closed, HTML-free
-block tree — paragraphs, headings, lists, quotes, code, emphasis, and HTTP(S) links — that the
+block tree (paragraphs, headings, lists, quotes, code, emphasis, and HTTP(S) links) that the
 Renderer draws as React text nodes: raw HTML and tables are dropped, images collapse to their alt text,
 and links open through the same external-link policy. HTML, scripts, commands, and `command:` URLs are
 not part of this contract.

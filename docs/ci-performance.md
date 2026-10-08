@@ -22,9 +22,9 @@ trust, offline behavior, and recovery are owned by
 | ------- | -------: | ------: | -------------: | -----: | -----: | -------------: | ---------: | ------------------------------------------- |
 | 1       |     3:35 |    9:44 |           0:48 |   0:49 |   0:59 |           0:43 |       8:46 | green                                       |
 | 2       |     3:28 |    7:52 |           0:46 |   0:45 |   0:59 |           0:44 |       6:49 | green                                       |
-| 3       |     3:20 | skipped |              — |      — | failed |              — |          — | late copy-timeout rejection                 |
-| 4       |     3:12 | skipped |              — |      — | failed |              — |          — | same rejection plus hosted worktree timeout |
-| 5       |     3:40 | skipped |              — |      — | failed |              — |          — | late copy-timeout rejection                 |
+| 3       |     3:20 | skipped |           None |   None | failed |           None |       None | late copy-timeout rejection                 |
+| 4       |     3:12 | skipped |           None |   None | failed |           None |       None | same rejection plus hosted worktree timeout |
+| 5       |     3:40 | skipped |           None |   None | failed |           None |       None | late copy-timeout rejection                 |
 
 The two green E2E jobs vary by almost two minutes on the same head, so one hosted sample is not a
 trend. Attempts 3–5 also show that a nominal rerun is not evidence when the same deterministic race
@@ -55,12 +55,12 @@ question with its own answer below.
 The two pools absorb CPU contention very differently. The one-worker `desktop-exclusive` pool leaves
 most of the machine idle and barely competes with the checks branch. The three-worker `parallel-safe`
 pool is already using the runner, so every core the checks take is one its Electron workers wanted,
-and a stalled Renderer there does not merely run slower — an interaction that races an asynchronous
+and a stalled Renderer there does not merely run slower: an interaction that races an asynchronous
 re-render starts losing it, which is a flaky test rather than a slow one.
 
 [Run 35553657625](https://github.com/tjx666/caxri/actions/runs/35553657625) is the first run where
 that window got large. `desktop-exclusive` ended at 02:26:49 and the checks branch ran until
-02:32:47, so 358s of the 452s three-worker pool — 79% of it — ran under full contention. Three
+02:32:47, so 358s of the 452s three-worker pool (79% of it) ran under full contention. Three
 specs failed that no change in that run had touched: `git-diff-tabs` (Monaco diff never mounted
 after the click), `terminal-commands` (a split remount that never reset its command tracker), and
 `toasts` (a toast dismiss button that never appeared). All three pass two deterministic local
@@ -71,7 +71,7 @@ This is a plausible cause rather than a proven one: the same run also added `age
 the pool, which raises in-pool CPU load by itself, and an earlier green run overlapped its
 three-worker pool with the checks branch completely. What both explanations share is CPU saturation
 during `parallel-safe`, so that is what the concurrent path reduces: Vitest runs with two workers
-there, matching the standalone checks job. Total CPU work is unchanged — a one-worker Vitest spreads
+there, matching the standalone checks job. Total CPU work is unchanged: a one-worker Vitest spreads
 the same work across a longer window, and the window is what reaches into the fragile pool. The
 extra worker lands during `desktop-exclusive`, which has the headroom for it.
 
@@ -98,7 +98,7 @@ Before the receipt recorded durations, attribution meant reading the job log, an
 worth knowing because it is the only way to re-derive a historical run. The `line` reporter prints
 `[N/M] spec:line › title` when a test **begins**, so a test's duration is the gap to the _next_
 line, not the gap from the previous one. Reading it the other way shifts every duration by one test
-and blames the wrong spec — it attributed 125s to `logs-panel.e2e.ts` when the cost belonged to
+and blames the wrong spec: it attributed 125s to `logs-panel.e2e.ts` when the cost belonged to
 `hook-turn-recovery.e2e.ts`. It also only works on a one-worker pool: with three workers the lines
 interleave and no per-test duration can be recovered from begin timestamps alone. That limitation is
 exactly why the duration belongs on the receipt instead.
@@ -124,7 +124,7 @@ Renderer poll) cut the two specs to 11.5s and 16.2s locally with no change to th
 Both resolvers fail closed on a value outside their bound, and the poll cap only lowers a cadence,
 so a spec asserting a fast tick is unaffected whether or not its launch opts in.
 
-After that repair the exclusive pool has no outlier left — it is a flat tail of 3–30s specs — so the
+After that repair the exclusive pool has no outlier left (it is a flat tail of 3–30s specs) so the
 remaining lever is moving work out of it rather than making individual tests faster.
 
 ### Auditing the exclusive pool for admission
@@ -136,7 +136,7 @@ time, and moved the split from 71/65 to 88/48. The rejections are the useful par
 - `logs-panel.e2e.ts` asserts its own query cadence in real milliseconds, which is a wall-clock
   assertion however fast the machine is.
 - `menu-keybinding-recovery.e2e.ts` reads the installed native application menu.
-- `agent-delegation.e2e.ts` — the single largest spec at 95s — drives the CLI through a `spawnSync`
+- `agent-delegation.e2e.ts` (the single largest spec at 95s) drives the CLI through a `spawnSync`
   with a 25-second timeout, which is exactly the "subprocess whose timeout has little headroom" the
   admission conditions exclude. **Later admitted**: see the round-two note below.
 - `codex-compaction.e2e.ts`, `updates.e2e.ts`, and `workbench-root.e2e.ts` pass the mechanical
@@ -150,7 +150,7 @@ The mechanical screen above matched keywords in spec sources, and keyword matche
 positives: it flagged `session-create-menu.e2e.ts` for "menu" when that spec touches no native menu,
 and flagged several specs for "clipboard" that only mention the word. Re-screening against the
 declared capability instead of the source text recovered roughly 100s of specs that were never
-actually disqualified — worth remembering the next time a screen is mistaken for a verdict.
+actually disqualified: worth remembering the next time a screen is mistaken for a verdict.
 
 That re-screen also surfaced a real defect. `clipboardCapabilitySpecs` is the list that keeps a
 clipboard-requesting spec out of the parallel pool, and it had fallen three entries behind the specs
@@ -262,15 +262,15 @@ changing workflow wiring.
 A ready source PR no longer runs the full suite. `scripts/ci-execution-plan.ts` routes it to the
 `affected` scope:
 
-- **Checks** — changed-file lint and repository typecheck through `bun run check`, then
+- **Checks**: changed-file lint and repository typecheck through `bun run check`, then
   `vitest related --run` over the changed sources. `related` walks the whole import graph, so a
   change in a shared package reaches every suite that transitively imports it.
-- **E2E** — the union of specs declared in the PR body with one
+- **E2E**: the union of specs declared in the PR body with one
   `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line, ordinary specs the PR changed, and specs that directly
   import a changed source file, each run once. The policy job has no dependency install, so the E2E
   job adds the import-derived specs. With nothing selected, the PR runs `e2e/smoke.e2e.ts`.
   Protected specs (performance, real Agent, failure isolation) never run on this path.
-- **Full-suite fallback** — a delta that touches a retry-protected path (workflows, CI runners,
+- **Full-suite fallback**: a delta that touches a retry-protected path (workflows, CI runners,
   `e2e/support/**`, toolchain files) or any workspace `package.json`, `tsconfig*.json`,
   `vite`/`vitest`/`electron.vite`/`playwright` config, or `patches/**` keeps the full optimized
   suite, as does a malformed or protected `CI-E2E-Tests` declaration.
@@ -316,10 +316,10 @@ and the receipt says it does not pay. Two same-branch runs, identical except for
 
 | Workers                                                                     | Serial spec time | Wall   | Workers busy | Cost per test | `parallel-safe` failures |
 | --------------------------------------------------------------------------- | ---------------- | ------ | ------------ | ------------- | ------------------------ |
-| 3 ([35555168511](https://github.com/tjx666/caxri/actions/runs/35555168511)) | 1218.5s          | 416.4s | 2.93 / 3     | —             | 1                        |
+| 3 ([35555168511](https://github.com/tjx666/caxri/actions/runs/35555168511)) | 1218.5s          | 416.4s | 2.93 / 3     | None          | 1                        |
 | 4 ([35557167068](https://github.com/tjx666/caxri/actions/runs/35557167068)) | 1444.5s          | 371.2s | 3.89 / 4     | **+18.5%**    | 2                        |
 
-Both counts keep their workers busy, so the fourth worker is not idling — **the same tests simply
+Both counts keep their workers busy, so the fourth worker is not idling: **the same tests simply
 take 18.5% longer to run**. That is the runner saturating, and it converts a theoretical 103s saving
 into 45s.
 
@@ -330,7 +330,7 @@ deterministic local repetitions at one worker. A single flaky failure costs a fu
 
 The general rule the measurement gives: read serial ÷ wall before changing a worker count. When it
 is already near the worker count, the pool is scheduling well and more workers buy contention, not
-time. Growth in the **serial** total between two runs is the signal that the runner is saturated —
+time. Growth in the **serial** total between two runs is the signal that the runner is saturated:
 wall time alone hides it.
 
 - Every successful product-affecting E2E-running path finishes with the fixed Renderer performance
@@ -373,7 +373,7 @@ wall time alone hides it.
 ## Performance regression baseline
 
 The fixed thresholds `renderer-performance` asserts catch a large, sudden regression but never a
-steady creep — a change that costs 3% every time never crosses a fixed number. `Run Renderer
+steady creep: a change that costs 3% every time never crosses a fixed number. `Run Renderer
 performance baseline gate` runs immediately after that step and additively compares the same
 receipt against a noise-derived, committed baseline, `scripts/performance-baseline.json`. A separate
 scheduled workflow, [Gradual-creep trend check](#gradual-creep-trend-check), watches for the creep the
@@ -385,7 +385,7 @@ after backtesting it against 98 real `renderer-performance-receipt` artifacts fr
 runs: that design false-failed 13 of the 98 runs on `durationMs`, 3 on `react.actualDurationP95Ms`,
 and 3 on `interactions.maxDurationMs`, because `k·MAD` collapses when a metric's bulk of samples
 cluster within a fraction of their own unit of the median (frame- or event-loop-quantized metrics)
-or the distribution is multimodal. It also could not detect the issue's motivating case at all — a
+or the distribution is multimodal. It also could not detect the issue's motivating case at all: a
 steady ~3% (~6ms) creep sits entirely within the natural 192-229ms run-to-run spread of a single
 sample, which is why gradual-creep detection is now a separate rolling-window check rather than
 something the per-run gate is asked to do.
@@ -396,7 +396,7 @@ something the per-run gate is asked to do.
 
 `scripts/performance-baseline.ts`'s `derivePerformanceMetricBaseline` classifies each metric as
 **continuous** or **discrete** by the _shape_ of its samples (`isDiscretePerformanceMetric`: every
-sample in the derivation window is a whole number), not by name — a dot-path allowlist of "count"
+sample in the derivation window is a whole number), not by name: a dot-path allowlist of "count"
 names would miss `interactions.maxDurationMs`, a genuine duration the Event Timing API quantizes to
 one of only four values (16/24/32/40ms):
 
@@ -420,13 +420,13 @@ relativeMargin) + absoluteMarginMs`. `k·MAD` (`k = 5`, `DEFAULT_PERFORMANCE_THR
   outliers (11.2ms and 15.5ms against a 3.4-6.8ms bulk) that no plausible margin absorbs without also
   hiding a real regression of similar size (1/98 leave-one-out and 2/49 time-split false failures even
   with the margin applied). The same backtest run against `react.surfaces.workbench.baseDurationMaxMs`
-  and `react.surfaces.secondary-sidebar.baseDurationMaxMs` — whose historical maxima are 3.3ms and
-  2.9ms, with no comparable outlier — found 0 false failures on both checks without any exclusion, so
+  and `react.surfaces.secondary-sidebar.baseDurationMaxMs` (whose historical maxima are 3.3ms and
+  2.9ms, with no comparable outlier) found 0 false failures on both checks without any exclusion, so
   those two stay gated instead of being swept into the same exception. An excluded metric's raw
   evidence (`historicalMaxMs`, `sampleCount`) is written into the committed baseline's own `excluded`
   map, not only logged by the derive command, so a later reader of `scripts/performance-baseline.json`
   can audit the exclusion without re-running the derivation. Add another name only with the same kind
-  of per-metric backtest evidence — this is a documented, narrow exception, not a place to route every
+  of per-metric backtest evidence: this is a documented, narrow exception, not a place to route every
   noisy metric or every variant of a noisy metric's family.
 
 A metric needs at least `MINIMUM_PERFORMANCE_SAMPLE_COUNT` (8) samples before any threshold is
@@ -439,13 +439,13 @@ warns, because a first-time arming has no larger corpus to draw from.
 re-verified in `scripts/__tests__/performance-baseline.test.ts`'s
 `durationMs historical backtest (real runner receipts)` suite):
 
-| Method                                                                                            | Result                                                                        |
-| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Flat `median + 5·MAD` (previous design)                                                           | 13/98 false failures                                                          |
-| Leave-one-out (hold out each of the 98 receipts, derive from the other 97, gate the held-out one) | 0/98 false failures                                                           |
-| Forward time-split (derive from the older 49 receipts, gate the newer 49)                         | 0/49 false failures                                                           |
-| Smallest injected fixed delay that reliably fails every one of the 98 receipts                    | **+57ms** (~27% over the ~211ms median)                                       |
-| Largest injected fixed delay that does _not_ reliably fail every receipt                          | +56ms (fails 97/98 — one receipt's own historical maximum already absorbs it) |
+| Method                                                                                            | Result                                                                       |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Flat `median + 5·MAD` (previous design)                                                           | 13/98 false failures                                                         |
+| Leave-one-out (hold out each of the 98 receipts, derive from the other 97, gate the held-out one) | 0/98 false failures                                                          |
+| Forward time-split (derive from the older 49 receipts, gate the newer 49)                         | 0/49 false failures                                                          |
+| Smallest injected fixed delay that reliably fails every one of the 98 receipts                    | **+57ms** (~27% over the ~211ms median)                                      |
+| Largest injected fixed delay that does _not_ reliably fail every receipt                          | +56ms (fails 97/98: one receipt's own historical maximum already absorbs it) |
 
 +57ms is the gate's practical sensitivity floor for `durationMs` today: a sudden regression smaller
 than that on a metric with this much natural spread can pass a single run, which is exactly why the
@@ -457,23 +457,23 @@ trend check below exists for the smaller, sustained case.
 gate fail a build; an unarmed baseline still runs the comparison and prints a full before/after table
 (state `unarmed`), but never fails CI on it. `scripts/performance-baseline-derive.ts` hardcodes
 `armed: options.source === 'runner'`, so a baseline derived from `--source local` samples can never
-be armed by construction — a contributor's own Mac, shared with sibling agent sessions and under
+be armed by construction: a contributor's own Mac, shared with sibling agent sessions and under
 different thermal and load conditions than the self-hosted CI runner, is evidence for the
 statistical method, never a stand-in for the runner's own noise. A missing or metric-less baseline
 reports `no-baseline`; a run whose changed files are not performance-relevant (see
 `isPerformanceRelevantPath` in `scripts/ci-path-policy.ts`) reports `skipped`. An armed baseline
-whose metric names have zero overlap with the current run — every one of them renamed or restructured
-away, for example a benchmark spec reshaping its JSON payload — reports `drifted` rather than
+whose metric names have zero overlap with the current run (every one of them renamed or restructured
+away, for example a benchmark spec reshaping its JSON payload) reports `drifted` rather than
 `passed`: `rows` is empty, so a naive "any row regressed" check is vacuously false, and `drifted` exists
 precisely so that vacuous truth is never mistaken for a clean run. `drifted` does not fail the build
 (re-deriving the baseline is an operator action, not a regression), but it also never renders as
 `PASSED` in the job log or step summary, and the table always names the vanished metrics. None of
-`unarmed`, `no-baseline`, `skipped`, or `drifted` ever reports as a `passed` comparison — the job log
+`unarmed`, `no-baseline`, `skipped`, or `drifted` ever reports as a `passed` comparison: the job log
 and step summary always show which of these states produced the outcome.
 
 ### Refreshing the baseline
 
-Refreshing is always this explicit, reviewable command — nothing writes
+Refreshing is always this explicit, reviewable command: nothing writes
 `scripts/performance-baseline.json` implicitly:
 
 ```bash
@@ -513,7 +513,7 @@ bun run performance:baseline:derive -- --source runner --spec e2e/renderer.perfo
 `--input-dir` recursively finds every `renderer-performance.json` under the given directory
 (matching the layout `gh run download` produces, one receipt per downloaded run) so a maintainer
 never has to loop over `--input` by hand. `--source runner` requires `--provenance`: a short
-free-text description of which artifacts this came from (an artifact/run id range and a date range —
+free-text description of which artifacts this came from (an artifact/run id range and a date range:
 never a local filesystem path, since the receipts live in an operator-chosen temp directory that
 must not end up in a committed, eventually-public file). The committed `scripts/performance-baseline.json`
 was armed this way from 98 receipts; its `provenance` field reads:
@@ -525,12 +525,12 @@ was armed this way from 98 receipts; its `provenance` field reads:
 Commit the resulting `scripts/performance-baseline.json`. Its `armed: true` and `source: "runner"`
 are then load-bearing: the next CI run compares against a real runner-noise threshold and can fail
 the job. Re-run the same recipe against a fresh window of runs to refresh the baseline as the
-product's genuine performance profile shifts — never hand-edit the JSON file.
+product's genuine performance profile shifts: never hand-edit the JSON file.
 
 ### Gradual-creep trend check
 
 The per-run gate's margin (see the backtest above: +57ms, ~27%, to reliably fail `durationMs`) is
-deliberately too wide to catch a steady 3-5% creep — the issue's motivating case — because that creep
+deliberately too wide to catch a steady 3-5% creep (the issue's motivating case) because that creep
 sits inside a single run's ordinary noise. `scripts/performance-trend.ts`'s `evaluatePerformanceTrend`
 instead compares the **median of the most recent `windowSize` runner receipts** against the committed
 baseline's median, so a persistent shift accumulates evidence across many runs instead of needing to
@@ -549,8 +549,8 @@ horizon of ordinary noise at each candidate `N`/`X`):
 `TREND_ELIGIBLE_METRICS` scopes the check to `durationMs` only, on the same bootstrap evidence: at
 this `N`/`X` every other continuous metric in the corpus (the per-request IPC timings, the React
 `actualDuration*` family) false-alarms 40-90% of the time, because their sub-millisecond scale
-amplifies rounding noise into double-digit percentages. `durationMs` — the scenario's overall
-wall-clock time, and the metric the issue's "steady 3% creep" example names — is the one metric this
+amplifies rounding noise into double-digit percentages. `durationMs` (the scenario's overall
+wall-clock time, and the metric the issue's "steady 3% creep" example names) is the one metric this
 bootstrap found suitable; extend the list only with the same kind of evidence recorded here.
 
 `evaluatePerformanceTrend` mirrors the per-run gate's never-silently-passed discipline with its own
@@ -559,10 +559,10 @@ per-run gate must not fail this one either), `no-eligible-metrics` (none of `TRE
 has a continuous armed baseline entry), `insufficient-receipts` (fewer than `windowSize` recent
 receipts were found), and `alarm` / `ok`.
 
-`.github/workflows/performance-trend.yml` runs this check on a GitHub-hosted `ubuntu-latest` runner —
+`.github/workflows/performance-trend.yml` runs this check on a GitHub-hosted `ubuntu-latest` runner,
 deliberately not `ci.yml`'s self-hosted `caxri-ci` runner, since it needs no Electron launch and no
 build. It triggers on a daily `schedule` (18:00 UTC) and `workflow_dispatch` (with `window` and
-`alarm_ratio` overrides) only — never `pull_request` — so it costs no self-hosted runner time and
+`alarm_ratio` overrides) only (never `pull_request`), so it costs no self-hosted runner time and
 stays out of the required PR guards. With `permissions: actions: read`, it lists the most recent
 `renderer-performance-receipt` artifacts via `gh api .../actions/artifacts`, downloads each with
 `gh run download`, and runs `bun run performance:trend:check -- --baseline
@@ -577,7 +577,7 @@ its table to the job's step summary and exits non-zero on `alarm`.
 Client/protocol/system packages, a performance E2E spec, or the baseline's own script/JSON files.
 An unrelated change (docs, an extension, a CLI-only fix) never pays for a comparison that cannot
 regress what the baseline measures. Outside CI, or when there is no changed-files signal to reason
-about at all, the gate always compares — an operator running it by hand wants a real answer, not a
+about at all, the gate always compares: an operator running it by hand wants a real answer, not a
 skip. The trend check has no such scoping: it never runs on a pull request in the first place, so
 every scheduled or manually dispatched run always compares.
 

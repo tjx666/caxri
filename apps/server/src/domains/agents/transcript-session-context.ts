@@ -39,7 +39,7 @@ const MAX_LINEAR_REFERENCES = 32;
 const MAX_ACCEPTANCE_REFERENCES = 8;
 /**
  * A transcript line is one JSON record; a tool invocation that pastes a whole file can make it very large. The content
- * patterns below are bounded scans, but running six of them over a multi-megabyte line buys nothing — the load-bearing
+ * patterns below are bounded scans, but running six of them over a multi-megabyte line buys nothing: the load-bearing
  * signals (`cwd`, `gitBranch`, a command line, a prompt) all sit near the front of their record.
  */
 const MAX_CONTENT_SCAN_CHARS = 64 * 1024;
@@ -53,7 +53,7 @@ const MAX_CONTENT_SCAN_CHARS = 64 * 1024;
  *
  * The `worktree add` flag run is capped at eight. Each `-flag` can match either as a bare flag or as a flag with a
  * separate value, so an unbounded `*` over that alternation backtracks exponentially: a line carrying thirty
- * consecutive `-` tokens and no trailing path took ~36ms, and each further pair doubled it — on Server Core's single
+ * consecutive `-` tokens and no trailing path took ~36ms, and each further pair doubled it: on Server Core's single
  * event loop, blocking every Session's IPC. A real `git worktree add` never carries eight flags.
  */
 const WORKING_DIRECTORY_PATTERN =
@@ -80,7 +80,7 @@ const LINEAR_IDENTIFIER_PATTERN = /\b([A-Z][A-Z\d]{1,9})-([1-9]\d{0,6})\b/g;
 /**
  * Prefixes that are never a Linear team, dropped before the bounded list rather than at the allow-list.
  *
- * Ordinary Agent prose is full of these — an eight-slot list filled with `UTF-8`, `GPT-4`, `SHA-256` and friends would
+ * Ordinary Agent prose is full of these: an eight-slot list filled with `UTF-8`, `GPT-4`, `SHA-256` and friends would
  * silently push out the one real marker the user typed, and the allow-list runs too late to save it. Rejecting them
  * here also keeps a repository that never mentions an issue from spawning `linear` to ask about a text encoding.
  *
@@ -258,7 +258,7 @@ function scanProse(text: string, scan: TranscriptSessionContextScan): void {
 }
 
 /**
- * The text of a tool invocation — a shell command line, a `workdir` argument. Deliberately not its output: a command
+ * The text of a tool invocation: a shell command line, a `workdir` argument. Deliberately not its output: a command
  * that prints a repository's history would backfill directories and markers nobody in this conversation chose.
  */
 function scanInvocation(text: string, scan: TranscriptSessionContextScan): void {
@@ -287,7 +287,7 @@ function blockText(content: unknown): string {
 }
 
 /**
- * Claude records both roles as a content-block array. Only typed `text` blocks are somebody's own words — a `user`
+ * Claude records both roles as a content-block array. Only typed `text` blocks are somebody's own words: a `user`
  * record also carries `tool_result` blocks, which are command output and deliberately not scanned.
  */
 function scanClaudeBlocks(blocks: readonly unknown[], scan: TranscriptSessionContextScan): void {

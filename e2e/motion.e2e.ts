@@ -20,7 +20,7 @@ import { pollUntil } from './support/polling.ts';
 /**
  * Mirrors `lib/motion.ts`'s `motionDurationMs` parsing so a `--motion-*` token and a computed CSS duration (which the
  * browser normalizes to a different unit/precision, e.g. `130ms` vs `0.13s`) compare as numbers instead of as strings.
- * Every expected timing in this spec is derived from a token through this helper — never a hardcoded millisecond
+ * Every expected timing in this spec is derived from a token through this helper, never a hardcoded millisecond
  * literal, per the DESIGN.md "Motion" contract this suite verifies.
  */
 function parseDurationMs(raw: string): number | null {
@@ -182,7 +182,7 @@ test('Project disclosure timing derives from motion tokens, unmounts children on
         await expect(disclosure).toHaveAttribute('data-expanded', 'false');
         await expect(disclosure).toHaveAttribute('data-motion');
         expect(await transitionDurationMs(disclosure)).toBe(collapseMs);
-        // Content stays mounted until the collapse transition settles, then releases — this is
+        // Content stays mounted until the collapse transition settles, then releases; this is
         // the presence cleanup disclosure-motion.tsx documents (transitionend or the token-based
         // fallback), not an immediate unmount on click.
         await expect(content).toHaveCount(0, { timeout: collapseMs + 2_000 });
@@ -226,7 +226,7 @@ test('Work tabs animate presence with motion-token durations and switch Sessions
         const firstSessionId = await selectedSessionId(running.page);
         const initialTab = running.page.locator('.work-tab[data-terminal-id]').first();
         // The very first tab is the AnimatePresence subtree's first render, so it must never
-        // animate in — it is already at full opacity, with no transient state to observe.
+        // animate in; it is already at full opacity, with no transient state to observe.
         await expect(initialTab).toHaveCSS('opacity', '1');
         // Motion's inline-style animation replaced the old CSS-keyframe attribute entirely.
         await expect(initialTab).not.toHaveAttribute('data-motion');
@@ -240,7 +240,7 @@ test('Work tabs animate presence with motion-token durations and switch Sessions
         /**
          * Both widths are re-read every iteration rather than sampling the sibling once up front. The second tab's
          * arrival also brings back the tab bar's "+" action, hidden while the Workbench holds a single tab, so the rail
-         * loses width at the same moment the tabs start sharing it — a `initialWidth` captured before that settles is
+         * loses width at the same moment the tabs start sharing it: a `initialWidth` captured before that settles is
          * stale on the high side and the ratio never closes.
          */
         await expect
@@ -312,7 +312,7 @@ test('Overlay popups animate with --motion-overlay-enter/--motion-overlay-exit t
         // a persistent Workbench tab now, with no `data-open`/`data-closed` popup lifecycle to
         // probe. The Archived Sessions manager, opened from a row inside Settings, is still a real
         // Dialog built on the same shared overlay primitive and motion tokens, so it stands in here
-        // for the generic `--motion-overlay-enter`/`-exit` contract — nothing below depends on what
+        // for the generic `--motion-overlay-enter`/`-exit` contract; nothing below depends on what
         // the dialog's own content is.
         const settingsTab = await openSettingsTab(running.page);
         await settingsTab.locator('.archived-sessions-entry').click();
@@ -373,7 +373,7 @@ test('prefers-reduced-motion completes disclosure and work-tab motion instantly'
         expect(await transitionDurationMs(disclosure)).toBe(0);
         // ...and separately, `motionEnabled` (animate && !reducedMotion) is false, so
         // DisclosureMotion drops the exit-presence retention entirely and unmounts content in
-        // the very same commit as the collapse — asserted with no wait, since there is no
+        // the very same commit as the collapse, asserted with no wait, since there is no
         // settle window left to poll for.
         expect(await content.count()).toBe(0);
         await toggle.click();
@@ -399,7 +399,7 @@ test('prefers-reduced-motion completes disclosure and work-tab motion instantly'
 });
 
 /**
- * KNOWN FAILING — implementation bug, not a test bug (see the final report for full diagnosis).
+ * KNOWN FAILING: implementation bug, not a test bug (see the final report for full diagnosis).
  * `motion-reduce:animate-none` (`.motion-reduce\:animate-none { animation: none }`, specificity 0-1-0 inside `@media
  * (prefers-reduced-motion: reduce)`) never wins the cascade against `data-open:animate-in[data-open]` /
  * `data-closed:animate-out[data-closed]` (specificity 0-2-0, from the extra attribute selector), so every

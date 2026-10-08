@@ -186,7 +186,7 @@ describe('Session pull request row selection', () => {
 
     /**
      * The reason this selector exists. `refreshedAt` moves on every poll, so the snapshot itself is never deeply equal
-     * to the previous one and structural sharing cannot reuse its reference — but a row's slice has to stay equal, or
+     * to the previous one and structural sharing cannot reuse its reference, but a row's slice has to stay equal, or
      * the sidebar repaints once a minute for data nobody changed.
      */
     it('leaves a row equal across a refresh that only moved the timestamp', () => {

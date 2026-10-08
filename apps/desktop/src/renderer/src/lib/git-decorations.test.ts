@@ -58,7 +58,7 @@ function nestedSummary(
 
 /**
  * A parent repository reports a submodule whose recorded commit moved as one change entry naming the submodule
- * directory itself — a gitlink. The path is a folder in the tree, not a file.
+ * directory itself: a gitlink. The path is a folder in the tree, not a file.
  */
 function gitlink(path: string): GitFileStatus {
     return file({ path, index: 'M', workingTree: ' ' });

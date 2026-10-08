@@ -167,7 +167,7 @@ function registerMonacoLanguages(): void {
                     [/^--- .*$/, 'meta.diff'],
                     [/^\+\+\+ .*$/, 'meta.diff'],
                     // A hunk header always has a space right after the opening `@@` (`@@ -a,b +c,d @@`);
-                    // requiring it — and excluding `@` from the first run — keeps a pathological run of
+                    // requiring it, and excluding `@` from the first run, keeps a pathological run of
                     // `@` characters from matching this pattern in more than one way (super-linear backtracking).
                     [/^@@ [^@]*@@.*$/, 'keyword.diff'],
                     [/^\+.*/, 'markup.inserted'],
@@ -180,7 +180,7 @@ function registerMonacoLanguages(): void {
 
 /**
  * Runs once at import time; the initializer's side effect (registering every Caxri-owned Monarch language) is what
- * matters here. Exported so this binding is never "unused" — an internal-only variable whose value is never read would
+ * matters here. Exported so this binding is never "unused": an internal-only variable whose value is never read would
  * otherwise trip `@typescript-eslint/no-unused-vars`.
  */
 export const isMonacoLanguagesRegistered: true = (registerMonacoLanguages(), true);
@@ -222,7 +222,7 @@ async function waitForLanguageTokens(
         const tokenTypes = new Set<string>();
         for (const token of tokenLine) if (token.type) tokenTypes.add(token.type);
         if (tokenTypes.size > 1) return;
-        // Each retry must observe the *next* animation frame in sequence — tokenization only
+        // Each retry must observe the *next* animation frame in sequence: tokenization only
         // advances between frames, so these awaits cannot run concurrently.
         // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see above
         await nextAnimationFrame();

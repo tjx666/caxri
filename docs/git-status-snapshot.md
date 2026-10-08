@@ -38,7 +38,7 @@ these bounded object fetches.
 
 ## Topology registry
 
-`apps/server/src/domains/git/topology.ts` — `RepoTopologyRegistry` is the single owner of linked-worktree
+`apps/server/src/domains/git/topology.ts`: `RepoTopologyRegistry` is the single owner of linked-worktree
 discovery. `repositoryKey` is the realpath of the shared common Git directory (`--git-common-dir`),
 so every linked worktree of one repository group resolves to the same key regardless of which root
 started the lookup. A `rootIndex` (canonical worktree root → `repositoryKey`) lets a cached lookup
@@ -62,15 +62,15 @@ from any sibling worktree join the same topology entry without spawning Git.
 
 ## Status snapshot lifecycle
 
-`apps/server/src/domains/git/status.ts` — `RepoStatusStore<Status>` is generation-keyed per canonical worktree
+`apps/server/src/domains/git/status.ts`: `RepoStatusStore<Status>` is generation-keyed per canonical worktree
 root. `status(rootPath, load)` reports one of three outcomes, all counted per-summary in the
 `SummaryTrace` (`apps/server/src/domains/git/summary-trace.ts`, `statusFresh` / `statusJoined` / `statusCoalesced`)
 and rolled into the `git.summary` log event:
 
-- **fresh** — no entry exists at the current generation; this call becomes the producer.
-- **joined** — a production for the current generation is in flight; this call awaits the same
+- **fresh**: no entry exists at the current generation; this call becomes the producer.
+- **joined**: a production for the current generation is in flight; this call awaits the same
   promise instead of spawning `git status` again.
-- **coalesced** — a settled snapshot already exists at the current generation; it is returned with
+- **coalesced**: a settled snapshot already exists at the current generation; it is returned with
   no Git spawn at all.
 
 **Stale-write guard and trailing coalescing.** A generation bump can land while a production is
@@ -78,7 +78,7 @@ still running. `produce()` checks the store's current generation against the ent
 after `load()` resolves; if the store advanced, the in-flight production re-runs once more at the
 newest generation instead of handing consumers a snapshot that already predates the change that
 superseded it. Because `entry.generation` is advanced before the recursive call, a burst of bumps
-during one production coalesces into at most one extra load — this is per-repository trailing
+during one production coalesces into at most one extra load: this is per-repository trailing
 coalescing, not a bump-per-load replay. A failed production is never cached: the entry is removed
 from the store on error so the next consumer retries instead of replaying a rejection.
 
@@ -87,11 +87,11 @@ from the store on error so the next consumer retries instead of replaying a reje
 
 ## Metadata watcher
 
-`apps/server/src/domains/git/metadata-watcher.ts` — `GitMetadataWatcher` opens exactly one `@parcel/watcher`
+`apps/server/src/domains/git/metadata-watcher.ts`: `GitMetadataWatcher` opens exactly one `@parcel/watcher`
 subscription per repository's common Git directory (`repoKey`), covering the commonDir itself and
 every linked worktree's `worktrees/<name>` entry underneath it. This is the only place `.git`
 content is watched; the general Project file watcher continues to exclude `.git` entirely, and raw
-`.git` paths never leave this module — callbacks only carry `repoKey` and worktree root strings.
+`.git` paths never leave this module; callbacks only carry `repoKey` and worktree root strings.
 
 `classifyGitMetadataPath(relativePath)` (exported, unit-tested directly) turns one path change into
 a `GitMetadataChange`:
@@ -131,19 +131,19 @@ the currently selected linked worktree, and shared ref events include all known 
 Session projections retain every participating repository key so closing a sibling Session cannot
 detach a child watcher that is still in use.
 
-`apps/server/src/domains/git/change-tracker.ts` — `GitChangeTracker` owns the Session ↔ repository mapping
+`apps/server/src/domains/git/change-tracker.ts`: `GitChangeTracker` owns the Session ↔ repository mapping
 behind the `git.changed` Server event (`packages/protocol/src/registry/events.ts`). Each summary
 registers, via `registerSession`, the canonical roots it projected for one Session
-(`registerGitProjection`, `apps/server/src/domains/git/projection.ts`). A generation bump —
-`scheduleStatusChanged(roots)` from a working-tree write or `observeMetadataStatus`, or
-`scheduleTopologyChanged(repoKey)` from `observeMetadataTopology` — adds affected roots to a
+(`registerGitProjection`, `apps/server/src/domains/git/projection.ts`). A generation bump
+(`scheduleStatusChanged(roots)` from a working-tree write or `observeMetadataStatus`, or
+`scheduleTopologyChanged(repoKey)` from `observeMetadataTopology`) adds affected roots to a
 pending set and debounces a flush by 150ms (`CHANGE_EMIT_DELAY_MS`), folding a burst of bumps
 (rapid Agent writes, a rebase touching many refs) into one event.
 
 The flushed event carries only opaque identifiers: `repositoryIds` (via `computeRepoId`, a
 truncated SHA-256 of the root path, never the path itself), `sessionIds` of every Session whose
-projection includes one of the changed roots — including sibling Sessions of other Workbench
-Projects — and `scope: 'status' | 'topology'`. This removes dependence on the Renderer's Session
+projection includes one of the changed roots (including sibling Sessions of other Workbench
+Projects) and `scope: 'status' | 'topology'`. This removes dependence on the Renderer's Session
 `staleTime` window for correctness: a sibling Session referencing the same repository converges
 immediately instead of waiting out its cache.
 
@@ -153,7 +153,7 @@ only that repository, not its parent.
 
 ## Repository summary production and bounded projection
 
-`apps/server/src/domains/git/repo.ts` — `GitRepoService.produceSummary` is the only path that assembles a
+`apps/server/src/domains/git/repo.ts`: `GitRepoService.produceSummary` is the only path that assembles a
 `GitSummary`: it reads the shared topology (zero Git spawns when cached), filters worktrees to
 approved Project roots, produces/joins/coalesces status snapshots through `RepoStatusStore`, then
 discovers and status-snapshots child repositories (submodules, nested repos) with a
@@ -163,7 +163,7 @@ Every Git command spawned on behalf of one summary is funneled through `tracedGi
 increments a `SummaryTrace.commandCount`; the trace also tracks `worktreeListed`,
 `worktreeApproved`, `childRepositories`, and the fresh/joined/coalesced status counts. This is what
 the `git.summary` boundary log event (`loadSummary`, `apps/server/src/domains/git/repo.ts`) reports
-instead of leaving attribution to individual `git.command` records — fields: `durationMs`,
+instead of leaving attribution to individual `git.command` records; fields: `durationMs`,
 `commandCount`, `worktreeListed`, `worktreeApproved`, `childRepositories`, `fileCount`,
 `generation`, `truncated`, `isRepository`, `outcome`, `reason` (`'request' | 'refresh'`), `requester`
 (the closed entry-point enum `GitSummaryRequester`: `renderer`, `extension`, `overview`, `repository`,
@@ -176,7 +176,7 @@ at `info` only when its result differs from the previous one for that Session an
 `changed: true`; a repeat is written at `debug` with `changed: false`, so a steady-state watcher storm
 no longer fills the 5MB `server-core` generation. The comparison is a per-repository fingerprint of
 id, kind, branch, head, ahead/behind, additions/deletions, `changedFileCount`, `truncated`, and a
-SHA-256 of the sorted `path|status` file list — compared in memory, never written, so a same-count
+SHA-256 of the sorted `path|status` file list, compared in memory, never written, so a same-count
 change to which files are dirty still counts as a transition. `joined` and `queued` records are
 always `debug`. Volume is restored by one `git.refresh_summary` record at `info` per Session per
 60-second activity window: `refreshes`, `changed`, `repeated`, `joined`, `queued`, `commandCount`, the
@@ -223,7 +223,7 @@ files remain fully diffable.
 
 **`git.summary` vs `git.overview`.** `git.overview` (`GitService.overview`,
 `apps/server/src/domains/git/index.ts`) awaits the same `summary()` producer and strips `files` from
-each repository via a rest-omit projection — it never triggers a second `git status`. The Status
+each repository via a rest-omit projection; it never triggers a second `git status`. The Status
 Bar (`apps/desktop/src/renderer/src/features/status-bar/status-bar.tsx`) queries `git.overview` exclusively so
 branch/count rendering never pulls the full `files[]` IPC payload into the Renderer, while staying
 on the same snapshot generation the Source Control provider reads through `git.summary`.
@@ -256,10 +256,10 @@ reads them from the snapshot instead of running its own numstat.
 
 ## Measurement contract
 
-`apps/server/src/domains/git/index.ts` — `GitService.git()` wraps every `execFile('git', …)` call with a
+`apps/server/src/domains/git/index.ts`: `GitService.git()` wraps every `execFile('git', …)` call with a
 bounded `AsyncSemaphore` (`MAX_CONCURRENT_GIT_COMMANDS = 8`, unchanged) and logs `git.command` with
 `queueMs` (time spent waiting for a semaphore slot) split from `execMs` (actual process wall time),
-plus `operation` (argv[0], or `argv[0].subcommand` for `worktree`/`remote`/`stash`/`submodule` —
+plus `operation` (argv[0], or `argv[0].subcommand` for `worktree`/`remote`/`stash`/`submodule`,
 `classifyGitOperation`) and a non-reversible `repository` hash (`hashRepoPath`, SHA-256 of the cwd,
 truncated). No source content, Terminal output, or raw filesystem path is logged. Command failures
 log `git.command_failed` with the same fields. The `git.summary` boundary event (see above) is the
@@ -275,23 +275,23 @@ asserts against it rather than the last `git.command` record.
 - `GitService.evictSessions` / `GitService.close` (`apps/server/src/domains/git/index.ts:538-551`) additionally
   clear Pull Request state and, on `close`, stop the change tracker's pending flush timer and
   `unsubscribe` every metadata watcher.
-- Project/Session deletion or authorization changes flow through this same eviction path — never a
-  separate ad hoc teardown — keeping the Server file-descriptor gate intact (watcher subscriptions
+- Project/Session deletion or authorization changes flow through this same eviction path, never a
+  separate ad hoc teardown, keeping the Server file-descriptor gate intact (watcher subscriptions
   are the scarce resource, bounded at 16 groups).
 
 ## Non-goals
 
-- No libgit2, nodegit, isomorphic-git, or Renderer/native Git implementation — all discovery and
+- No libgit2, nodegit, isomorphic-git, or Renderer/native Git implementation: all discovery and
   status reads go through structured `execFile('git', …)` argv.
 - No TTL or time-based expiry backs branch/index/working-tree correctness. Every refresh path is a
   generation bump driven by an actual write, metadata-watcher classification, or an explicit
-  `refresh` nonce — never elapsed time.
+  `refresh` nonce, never elapsed time.
 - The general Project file watcher never recurses into `.git`; the Git metadata watcher is a
   separate, narrow-scope subscription, and raw `.git` paths never reach `files.changed`, the
   Renderer, or diagnostics/logs.
 - Topology discovery does not imply authorization. An unauthorized linked worktree can appear in
   `RepoTopologyRegistry` (for Workbench Root candidate flows) without being reachable through Git
-  SecondarySidebar, diff, history, Files, the CLI, or an Agent Endpoint — `GitRepoService` re-checks
+  SecondarySidebar, diff, history, Files, the CLI, or an Agent Endpoint; `GitRepoService` re-checks
   approved Project roots on every summary.
 - No increase to the global Git concurrency limit (`MAX_CONCURRENT_GIT_COMMANDS = 8`); reduced
   command counts are the mechanism, not added parallelism.

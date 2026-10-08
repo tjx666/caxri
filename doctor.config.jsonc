@@ -94,7 +94,7 @@
                 // False positive: the rule looks for a revoke beside the create, and this module
                 // deliberately separates them. One preview asset is shared by every element that
                 // refers to it, so the URL is refcounted and `releaseAsset` revokes it when the
-                // last holder lets go — revoking beside `createObjectURL` would break the sharing
+                // last holder lets go; revoking beside `createObjectURL` would break the sharing
                 // the cache exists for. `__tests__/preview-asset-client.test.ts` covers every
                 // acquire/release path, including the revoke.
                 "files": [

@@ -7,7 +7,7 @@ import { pushToast } from './toasts';
  *
  * The live `agent.automaticNamingUnavailable` event is transient, so a failure that happens while macOS has no window
  * open is simply dropped: the user would come back to a Session that silently kept its placeholder name. The Server
- * therefore replays every suppression that is still in force in each bootstrap snapshot — which means a plain reconnect
+ * therefore replays every suppression that is still in force in each bootstrap snapshot, which means a plain reconnect
  * would re-toast a failure the user already read, unless the window remembers what it reported. A window that was
  * actually closed and reopened starts empty and sees each notice exactly once.
  */

@@ -141,8 +141,8 @@ describe('readClaudeSessionMetadata', () => {
 
     /**
      * Several Terminals in one Project probe on the same PTY-activity burst, so on a cold cache they arrive together
-     * and the cache — which only helps a probe that starts after an earlier one finished writing it — saves nothing.
-     * The assertion is the syscall count rather than a timing: three probes, one `readdir` and one `open` per file.
+     * and the cache, which only helps a probe that starts after an earlier one finished writing it, saves nothing. The
+     * assertion is the syscall count rather than a timing: three probes, one `readdir` and one `open` per file.
      */
     it('scans the directory once for probes that arrive together on a cold cache', async () => {
         const { config, sessions } = await createConfigDirectory();

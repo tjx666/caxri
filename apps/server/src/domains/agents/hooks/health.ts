@@ -53,7 +53,7 @@ export function hookHealthFor(
     if (status.kind === 'conflict') return { kind: 'conflict', message: status.message };
     if (status.kind === 'unparseable') return { kind: 'error', message: status.message };
     /**
-     * `hookHealthLabel`'s `drifted` case ("Changed outside Caxri — restart Agent Terminals to reapply it") already
+     * `hookHealthLabel`'s `drifted` case ("Changed outside Caxri: restart Agent Terminals to reapply it") already
      * states both the cause and the fix. This used to also carry a `message` ("Caxri hook entries were edited outside
      * Caxri."), and `hookHealthLabel` appends any `message` after its own label, so the row repeated "outside Caxri"
      * twice in one sentence (DESIGN.md principle 6, "say each meaning once"). No message here.

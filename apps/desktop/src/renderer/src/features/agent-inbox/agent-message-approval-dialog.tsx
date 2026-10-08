@@ -43,14 +43,14 @@ function approvalConfirmButton(popup: HTMLElement | null): HTMLButtonElement | n
  *
  * Escape, the close button, and an outside click set the request aside instead of answering it: the text is inert, so a
  * reflex keystroke must not manufacture a final rejection the sender can read. That only holds because the deferred
- * request stops being modal and keeps standing in `AgentMessageApprovalWaitingList` and the status bar's count — an
+ * request stops being modal and keeps standing in `AgentMessageApprovalWaitingList` and the status bar's count; an
  * Escape that silently left the request unanswered with nowhere to answer it would be worse than the trap it replaced.
  *
  * The queue itself lives in `useHeldMessageQueueStore`, fed by `subscribeHeldMessageQueue` from the App, so the status
  * bar reads the same requests this dialog and its waiting list do.
  *
- * A request that expires while it is on screen — its approval window closed, or the Server voided it because the
- * receiving Agent restarted — stays on screen, marked expired, with Dismiss as its only action (see
+ * A request that expires while it is on screen, its approval window closed, or the Server voided it because the
+ * receiving Agent restarted, stays on screen, marked expired, with Dismiss as its only action (see
  * `HeldMessageQueue.expired`): the reader learns that what they were reading is void instead of watching it vanish, or
  * be replaced by the next request mid-decision.
  */
@@ -109,18 +109,18 @@ export function AgentMessageApprovalDialog() {
      *
      * Why a listener and not a single attempt: Base UI resolves `initialFocus` in a microtask and only calls `.focus()`
      * a frame later (`FloatingFocusManager` through `enqueueFocus`). A body that lands between those two points finds
-     * focus still outside the dialog — on the Agent's Terminal — so the effect declines to move it, and the queued
-     * focus then parks on the popup with nobody left to hand it over. That is how this dialog ended up focusing its own
+     * focus still outside the dialog, on the Agent's Terminal, so the effect declines to move it, and the queued focus
+     * then parks on the popup with nobody left to hand it over. That is how this dialog ended up focusing its own
      * container in roughly every other run. Listening for the popup's own `focus` closes that window.
      *
      * Why it hands over exactly once: the popup carries `tabIndex={-1}`, so clicking any non-interactive part of the
-     * dialog — the title, the sender table, the message body — focuses it. Re-running the hand-over there would yank
+     * dialog (the title, the sender table, the message body) focuses it. Re-running the hand-over there would yank
      * focus mid-drag and wipe the text selection, and the body is the one thing a reviewer needs to be able to read and
      * copy before deciding. `focus` does not bubble, so this never fires while the user is on a real control.
      *
      * Why `document.body` counts as parked: from the second message onward it is the only state this ever sees.
      * Approving disables the button while the request is in flight, which drops focus to the body, and Base UI does not
-     * restore it — its restore path requires the old element to be hidden, and a disabled button is still visible. Its
+     * restore it: its restore path requires the old element to be hidden, and a disabled button is still visible. Its
      * own initial-focus effect does not re-run either, since nothing it depends on changed. Delete that half and every
      * message after the first one opens with no focused control.
      */
@@ -138,7 +138,7 @@ export function AgentMessageApprovalDialog() {
                 return;
             }
             const confirm = approvalConfirmButton(popup);
-            // An in-flight request disables the button, and focusing a disabled element is a no-op — retry on the next
+            // An in-flight request disables the button, and focusing a disabled element is a no-op; retry on the next
             // focus rather than spending the hand-over on nothing.
             if (!confirm || confirm.disabled) return;
             isHandedOver = true;
@@ -150,7 +150,7 @@ export function AgentMessageApprovalDialog() {
     }, [isBodyLoading]);
 
     /**
-     * Expiry removes Approve and Deny from under the reader, and a removed button drops focus to the document body —
+     * Expiry removes Approve and Deny from under the reader, and a removed button drops focus to the document body,
      * outside the dialog's focus trap. Dismiss takes the confirming slot, so hand focus to it unless the user is
      * already on another control in the dialog.
      */
@@ -225,7 +225,7 @@ export function AgentMessageApprovalDialog() {
                             // Base UI focuses exactly what this resolver names and never falls back when it names an
                             // element (`FloatingFocusManager`: `elToFocus || getDefaultFocusElement()`). Naming the
                             // confirming button while the body still loads makes it `disabled`, `.focus()` a no-op, and
-                            // focus stay outside the dialog entirely — keystrokes would reach the Agent behind it. The
+                            // focus stay outside the dialog entirely: keystrokes would reach the Agent behind it. The
                             // popup itself always accepts focus, and the effect above hands it over once the read settles.
                             return confirm?.disabled === false ? confirm : contentReference.current;
                         }}

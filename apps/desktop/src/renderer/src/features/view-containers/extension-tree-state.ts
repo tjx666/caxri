@@ -247,7 +247,7 @@ export function pointerTreeRowAction(
         return isCollapsible ? (isRecursive ? 'toggle-recursive' : 'toggle') : 'none';
     /**
      * Recursive disclosure outranks the row's command: on a row that both opens a page and has children, the whole row
-     * — not only its chevron — owes Option-click the same recursive toggle every other collapsible row gives (issue
+     * (not only its chevron) owes Option-click the same recursive toggle every other collapsible row gives (issue
      * #1126), and the command keeps the plain click it already had.
      */
     if (isCollapsible && isRecursive) return 'toggle-recursive';

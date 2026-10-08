@@ -17,7 +17,7 @@ export function externalOpenRejectionMessage(reason: ExternalOpenRejectionReason
 
 /**
  * Single Renderer entry point for opening a URL outside the app. Main denies every `window.open`/`target="_blank"`
- * navigation (`setWindowOpenHandler` in `apps/desktop/src/main/index.ts`), so a raw anchor never actually navigates —
+ * navigation (`setWindowOpenHandler` in `apps/desktop/src/main/index.ts`), so a raw anchor never actually navigates:
  * every external link must route through the `external.open` IPC method instead, which re-checks the URL and prompts
  * for untrusted domains.
  */

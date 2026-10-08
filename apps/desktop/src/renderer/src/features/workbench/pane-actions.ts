@@ -49,7 +49,7 @@ export function selectPaneTab(tabId: string): void {
 }
 
 /**
- * Focusing a pane without changing which tab it shows — the fallback target for every command that resolves "where does
+ * Focusing a pane without changing which tab it shows: the fallback target for every command that resolves "where does
  * this happen" from the layout rather than from DOM focus.
  */
 export function focusPane(paneId: string): void {
@@ -101,7 +101,7 @@ export function findPaneTabId(resource: PaneResource): string | undefined {
 }
 
 /**
- * Whether {@link focusPaneInDirection} would move focus anywhere for `direction` — the `when` gate behind
+ * Whether {@link focusPaneInDirection} would move focus anywhere for `direction`: the `when` gate behind
  * `workbench.focusPaneLeft/Right/Up/Down`, so the command palette and native menu never offer a move that would
  * silently no-op at a single pane or the edge of the Workbench.
  */
@@ -113,7 +113,7 @@ export function canFocusPaneInDirection(direction: PaneFocusDirection): boolean 
 
 /**
  * Moves keyboard focus and `activePaneId` to the pane geometrically adjacent to the active one, then hands focus to
- * that pane's own active tab content — a Terminal reclaims xterm focus, a document reclaims its tab (mirroring
+ * that pane's own active tab content: a Terminal reclaims xterm focus, a document reclaims its tab (mirroring
  * `useTabFocusRecovery`'s DOM lookup, the existing pattern for restoring focus to a tab after a layout edit takes it
  * away). A single pane, or `direction` pointing off the edge of the Workbench, leaves focus untouched.
  */

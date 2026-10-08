@@ -107,7 +107,7 @@ function mapDeploymentCommit(
 
 /**
  * Which Vercel project serves this GitHub repository. Vercel has no reverse lookup, so the answer is assembled by
- * listing the account's teams and asking each one for a deployment carrying this repository's metadata — expensive
+ * listing the account's teams and asking each one for a deployment carrying this repository's metadata: expensive
  * enough that the result is cached for the life of the process.
  */
 export async function findVercelLink(

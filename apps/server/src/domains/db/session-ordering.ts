@@ -9,8 +9,8 @@ import {
 import type { CaxriDatabaseConnection } from './database-connection';
 
 /**
- * The list after the drop. Both Session lists reorder the same way — lift the dragged id out, put it back beside the
- * anchor — so the rule lives here once rather than being spelled out per list.
+ * The list after the drop. Both Session lists reorder the same way: lift the dragged id out, put it back beside the
+ * anchor, so the rule lives here once rather than being spelled out per list.
  */
 function idsAfterDrop(
     ids: readonly string[],
@@ -56,9 +56,9 @@ export function reorderSessionInProject(
 }
 
 /**
- * Reorders the Pinned group. Unlike `reorderSessionInProject` this deliberately spans Projects — the group's whole
- * point is that it collects Sessions from all of them — but both rows still have to be pinned, so a drag can never pull
- * an ordinary Session into the group's numbering.
+ * Reorders the Pinned group. Unlike `reorderSessionInProject` this deliberately spans Projects: the group's whole point
+ * is that it collects Sessions from all of them, but both rows still have to be pinned, so a drag can never pull an
+ * ordinary Session into the group's numbering.
  */
 export function reorderPinnedSession(
     database: CaxriDatabaseConnection,

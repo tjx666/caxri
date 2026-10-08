@@ -283,7 +283,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         /**
          * Both lookups run for a bare filter, and they run together. The directory listing answers "what is here"; the
          * Project search answers "where else is this name". Gating the second on the first being empty hid it almost
-         * always, because a substring match inside one directory nearly always hits something — typing `app` at the
+         * always, because a substring match inside one directory nearly always hits something: typing `app` at the
          * repository root could never reach a deeper `app-menu.ts`. See issue #986.
          */
         const isSearchable = isBareFilter(input, filter);

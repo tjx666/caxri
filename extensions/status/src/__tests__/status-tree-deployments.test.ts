@@ -45,7 +45,7 @@ describe('Status extension Deployments row', () => {
             errors: [],
             deployments: {
                 url: 'https://vercel.com/team/project/deployments',
-                // The branch's own history already carries today's Production and Preview builds — the exact
+                // The branch's own history already carries today's Production and Preview builds: the exact
                 // scenario #1291 reported as the same commit rendering twice, once here and once as a bare
                 // "Production"/"Preview" summary row with no visible text telling the two apart.
                 branchDeployments: [production, preview, olderProductionDeployment],
@@ -60,7 +60,7 @@ describe('Status extension Deployments row', () => {
             'refactor(ui) simplify the status tree',
             olderProductionDeployment.hostname,
         ]);
-        // Each overlapping row says which environment it is and that it is the current one, in text — not only via
+        // Each overlapping row says which environment it is and that it is the current one, in text, not only via
         // an unlabelled trailing glyph.
         expect(deployments?.children?.map((node) => node.item.description)).toEqual([
             'Production · Latest',
@@ -114,7 +114,7 @@ describe('Status extension Deployments row', () => {
             id: 'fixture',
             kind: 'primary',
             name: 'project',
-            // Git's own internal name for a detached HEAD (`status.ts`'s `parseGitStatus`) — never something to print
+            // Git's own internal name for a detached HEAD (`status.ts`'s `parseGitStatus`), never something to print
             // as though it were a real branch, and never worth an empty "Deployments 0 on detached" row either.
             branch: 'detached',
             acceptances: [],

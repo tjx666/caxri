@@ -129,7 +129,7 @@ if (ownsProfileInstance) {
     /**
      * Main is the process the Renderer cannot observe from the inside. Creating a Worker, loading its script out of
      * `app.asar`, and brokering a `BroadcastChannel` all traverse the browser process, so a blocked Main loop looks
-     * from the Renderer like a Worker that exists and never runs — the exact shape of issue #962, which was diagnosable
+     * from the Renderer like a Worker that exists and never runs, the exact shape of issue #962, which was diagnosable
      * only as "something outside the Renderer" because no main-thread metric existed. Server Core has had this monitor
      * since its own freeze investigation; Main never did.
      */

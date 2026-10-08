@@ -55,8 +55,8 @@ or cancels the delivery, or a concrete blocker requires their input.
    body at push time.
    Run `bun run scripts/surface-matrix.ts` against the pushed diff (`--base origin/main` is the
    default) and paste its Markdown output into the PR body. It reports which product surfaces the
-   diff touches — Desktop main/preload/Renderer, Server, Terminal Host, Extension Host, CLI,
-   Mobile, protocol contracts, extensions, e2e, docs, contributor skills, CI — and the proof this
+   diff touches (Desktop main/preload/Renderer, Server, Terminal Host, Extension Host, CLI,
+   Mobile, protocol contracts, extensions, e2e, docs, contributor skills, CI), and the proof this
    repository already requires for each one, plus a reverse-state reminder for a diff that adds a
    one-way user action. Before the PR is ready, resolve every listed proof row to `done` or
    `waived: <reason>`; a row left `PENDING` is unproven, not passing. Use `--json` when scripting
@@ -80,7 +80,7 @@ or cancels the delivery, or a concrete blocker requires their input.
    subsequent runner status before diagnosing infrastructure failure. Keep following queued work
    through transient disconnects; do not mark the issue Blocked or end delivery solely because
    one status sample says offline. Inspect completed failed jobs even while the final gate queues.
-   A failed unit, integration, or E2E case gets two local repetitions of the related cases — the
+   A failed unit, integration, or E2E case gets two local repetitions of the related cases: the
    failed cases plus, when they touch the changed behavior, the delivery's focused tests. Repairing
    CI never runs the local full unit or E2E suite (it occupies the user's machine; only the user's
    explicit request authorizes one) and never reruns CI repeatedly: checks share one self-hosted
@@ -121,25 +121,25 @@ or cancels the delivery, or a concrete blocker requires their input.
 
 `main` requires the `guards` status check (gitleaks, `docs-check`, `source-size-ratchet` on a
 GitHub-hosted runner, see [ADR 0011](../../../docs/adr/0011-required-merge-guards.md)) to pass
-before anything merges, and that requirement applies with no bypass — a raw `git push` to `main` is
+before anything merges, and that requirement applies with no bypass: a raw `git push` to `main` is
 rejected outright, so every change, including a one-line documentation fix, goes through a pull
 request. What "fast merge" skips is the separate self-hosted `checks`/`e2e` job: one self-hosted
 runner serves every session, and a full pass costs 20-25 minutes of it, so spending that on a diff CI
 cannot meaningfully judge starves every sibling delivery queued behind it. Three classes of change
 therefore skip waiting on `checks`/`e2e` once their own local gates and `guards` pass:
 
-- **Documentation only** — `docs/`, `AGENTS.md`, `.agents/**`, or another tracked `.md` that no
+- **Documentation only**: `docs/`, `AGENTS.md`, `.agents/**`, or another tracked `.md` that no
   shipped code reads. Open a pull request from a branch (no separate worktree needed for a
   documentation-only diff) and merge it as soon as `guards` reports success, without waiting for
   `checks`/`e2e`.
-- **Renderer styling only** — token, spacing, color, or layout values with no behavior change,
+- **Renderer styling only**: token, spacing, color, or layout values with no behavior change,
   even when the change ships a test alongside them. Same as above: open the pull request and merge
   once `guards` passes.
-- **Locally verified code change** — any other diff whose PR `CI-E2E-Tests` specs pass locally
+- **Locally verified code change**: any other diff whose PR `CI-E2E-Tests` specs pass locally
   and, for a user-visible change, whose behavior was accepted over CDP. A queued `checks`/`e2e` run
   can wait an hour or more behind sibling deliveries, so the owner allows the PR to merge once
   `guards` passes, without waiting for `checks`/`e2e`. A `checks`/`e2e` run that already finished
-  red still blocks unless step 6 waived it; `guards` itself never gets waived — its failure means
+  red still blocks unless step 6 waived it; `guards` itself never gets waived; its failure means
   fix the diff, not merge around it.
 
 Run the gates that actually cover the changed files first, and require them to pass:
@@ -157,11 +157,11 @@ reference one another, so prose edited here can fail a unit test no markdown lin
 
 One line outside the first two classes disqualifies them. A diff that also touches `apps/`,
 `packages/`, `extensions/`, `e2e/`, `scripts/`, `tools/`, a workflow YAML, `package.json`, or
-`pnpm-lock.yaml` returns to the normal path — documentation bundled with a code change is a code
+`pnpm-lock.yaml` returns to the normal path; documentation bundled with a code change is a code
 change and needs the third class's gates. For a PR, the exception removes the wait, not the merge
 authorization step 7 still requires.
 
-Merging does not stop the PR's run, and merging a documentation PR to `main` may start one — a
+Merging does not stop the PR's run, and merging a documentation PR to `main` may start one; a
 queued job keeps its place in line and will still take the runner for a head nobody is waiting on.
 Cancel it explicitly:
 

@@ -306,7 +306,7 @@ async function fetchRun(runId: string): Promise<GhRunView> {
         // GitHub's run-jobs list endpoint (`/actions/runs/<id>/jobs`) intermittently 404s for hours while the run
         // itself stays queryable, which used to trap the watcher in an endless retry loop that never reported the
         // run's conclusion. Degrade to status-only polling: per-job early failure notifications pause, but terminal
-        // success/failure detection — the watcher's core contract — keeps working.
+        // success/failure detection, the watcher's core contract, keeps working.
         const { stdout } = await execFileAsync(
             'gh',
             [

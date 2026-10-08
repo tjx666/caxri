@@ -25,8 +25,8 @@ export const draculaTheme: ThemeTokens = {
         border: '#191a21',
         selection: '#44475a',
         /**
-         * Dracula paints every "this is the active one" edge pink — `tab.activeBorderTop`, `activityBar.activeBorder`,
-         * and `progressBar.background` are all `#ff79c6` — which is exactly the set `accent` covers here. Its
+         * Dracula paints every "this is the active one" edge pink (`tab.activeBorderTop`, `activityBar.activeBorder`,
+         * and `progressBar.background` are all `#ff79c6`), which is exactly the set `accent` covers here. Its
          * `focusBorder` (`#6272a4`) is the comment blue and far too quiet to carry a focus ring, so it is deliberately
          * not the source.
          */
@@ -62,8 +62,8 @@ export const draculaTheme: ThemeTokens = {
         /**
          * Upstream Dracula gives `list.focusBackground` and `list.hoverBackground` the same `#44475a75`, so the row the
          * keyboard is on and the row the pointer happens to be over paint identically and a keyboard user cannot tell
-         * where focus is. VS Code keeps the two apart by weight — a quiet neutral wash for hover against a stronger,
-         * outlined fill for focus — so this raises the alpha of the palette's own selection grey instead of inventing a
+         * where focus is. VS Code keeps the two apart by weight (a quiet neutral wash for hover against a stronger,
+         * outlined fill for focus), so this raises the alpha of the palette's own selection grey instead of inventing a
          * color: hover 46% < focus 75% < `listActiveSelectionBackground` opaque, which keeps the three list states in
          * one ramp and still reads as Dracula.
          */

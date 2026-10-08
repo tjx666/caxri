@@ -21,7 +21,7 @@ const MISSING_SESSION_REASON = 'That Session no longer exists.';
 
 /**
  * Archived Sessions stay in the bootstrap snapshot with an `archivedAt`, so this answers "does the record still exist",
- * which is exactly what every follow-up below needs — including Undo, whose whole job is to reach an archived one.
+ * which is exactly what every follow-up below needs, including Undo, whose whole job is to reach an archived one.
  */
 function hasSession(sessionId: string): boolean {
     return Boolean(getBootstrap()?.sessions.some((session) => session.id === sessionId));
@@ -80,7 +80,7 @@ export const toastActionHandlers: ToastActionHandlers = {
          * tree, Source Control, Project Status and the editor at once.
          *
          * Both ends of that move count as still applying. The snapshot is only caught up to the followed root once the
-         * `state.changed` that accompanies the switch lands, which is after this notice is raised — so in the first
+         * `state.changed` that accompanies the switch lands, which is after this notice is raised, so in the first
          * moments the Session still reads as the root the undo returns to, and refusing then would kill the live button
          * for the four seconds it is on screen.
          */

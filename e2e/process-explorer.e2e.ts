@@ -42,7 +42,7 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         });
 
         const memoryAction = running.page.getByRole('button', {
-            name: /^Open Process Explorer — Terminal memory: [\d.]+ MB$/,
+            name: /^Open Process Explorer, Terminal memory: [\d.]+ MB$/,
         });
         /**
          * This visible-window workflow owns native keyboard focus and Process Explorer lifecycle. Mouse tooltip
@@ -57,7 +57,7 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         await processPage.waitForLoadState('domcontentloaded');
 
         await expect(
-            processPage.getByText('Process Explorer — Caxri', { exact: true }),
+            processPage.getByText('Process Explorer - Caxri', { exact: true }),
         ).toBeVisible();
         const grid = processPage.getByRole('treegrid', { name: 'Caxri processes' });
         await expect(grid.getByRole('columnheader')).toHaveCount(4);
@@ -256,7 +256,7 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
 
         await running.page.bringToFront();
         const childProcessAction = running.page.getByRole('button', {
-            name: /^Open Process Explorer — Terminal: \d+ child processes?$/,
+            name: /^Open Process Explorer, Terminal: \d+ child processes?$/,
         });
         await childProcessAction.focus();
         await expect(childProcessAction).toBeFocused();

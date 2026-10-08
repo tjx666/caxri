@@ -4,8 +4,8 @@ import { createStore } from '../lib/store';
  * One modal question. The copy contract mirrors VS Code's modal message: the title asks the question, the message names
  * the consequence of confirming, and the buttons name the outcomes rather than restating "Yes"/"No".
  *
- * Destructive commands (Delete Session, Delete Project) still use the native confirm dialog Main owns — see DESIGN.md
- * "Confirmations" — so this request deliberately has no danger styling to reach for.
+ * Destructive commands (Delete Session, Delete Project) still use the native confirm dialog Main owns (see DESIGN.md
+ * "Confirmations"), so this request deliberately has no danger styling to reach for.
  */
 export interface ConfirmRequest {
     /**

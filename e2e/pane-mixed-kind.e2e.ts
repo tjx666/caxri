@@ -57,7 +57,7 @@ async function openAndPinFile(page: Page, name: string): Promise<Locator> {
 
 /**
  * Starts a tab drag over another pane's surface and leaves it hanging there. The `DataTransfer` is parked on `window`
- * because a `drop` dispatched from a second `evaluate` call has to carry the same one the `dragstart` populated —
+ * because a `drop` dispatched from a second `evaluate` call has to carry the same one the `dragstart` populated:
  * without it the drop reads no tab id and silently does nothing, which would make a hover-activation regression look
  * like a passing test.
  */
@@ -114,7 +114,7 @@ async function cancelTabDragFrom(page: Page, tab: Locator): Promise<void> {
     /**
      * Hovering rather than pressing a measured box is what keeps the press on the tab: `hover` runs Playwright's
      * actionability checks, including waiting for the layout box to stop moving, while a box read once and pressed a
-     * few calls later can already be stale — tabs share their bar's width, so one tab leaving re-lays out the rest.
+     * few calls later can already be stale: tabs share their bar's width, so one tab leaving re-lays out the rest.
      */
     await tab.hover();
     await page.mouse.down();
@@ -156,7 +156,7 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
         /**
          * Close and Split are layout operations, so a Terminal tab has to offer the same ones a document tab does;
          * before this pass it offered only "Move to New Session", which is the one entry that really is the Terminal's
-         * own. And a pane holding a single tab cannot split it off itself — the reducer no-ops — so the menu says why
+         * own. And a pane holding a single tab cannot split it off itself (the reducer no-ops) so the menu says why
          * instead of offering four items that do nothing.
          */
         await terminalTab.click({ button: 'right' });
@@ -239,7 +239,7 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
          * Every pane's active tab is `tabIndex=0`, so plain `Tab` traversal can put focus in a pane the user has not
          * clicked. That is a real pane change: leaving `activePaneId` behind would point the focus ring, the Status
          * Bar, and every layout-resolved command at the pane they just left. `focus()` is the same programmatic path
-         * traversal and a cancelled drag take — no click follows it to finish the job.
+         * traversal and a cancelled drag take; no click follows it to finish the job.
          */
         await fileTab.getByRole('tab').focus();
         await expect.poll(() => activePaneId(running.page)).toBe(documentPaneId);
@@ -263,7 +263,7 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
         await expect(running.page.locator('.work-tab')).toHaveCount(2);
         /**
          * The drag just did both of the things a single tab bar cannot repair on its own: it moved the focused tab into
-         * another pane — so `activePaneId` is no longer the bar that lost it — and it collapsed the source pane, which
+         * another pane (so `activePaneId` is no longer the bar that lost it) and it collapsed the source pane, which
          * unmounts that bar outright. Focus must still land on the tab that survived, not on `document.body`.
          *
          * Waiting for the count first is what makes this a real check: until the exit animation ends, the leaving copy
@@ -275,7 +275,7 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
 
         /**
          * Closing the focused tab deletes the element holding keyboard focus, and the browser's fallback is
-         * `document.body` — from which no arrow key or tablist shortcut works. The document left behind does not grab
+         * `document.body`, from which no arrow key or tablist shortcut works. The document left behind does not grab
          * focus the way a Terminal does, which is exactly why this direction is the one that stranded the user.
          *
          * Arrow-key navigation is what puts focus on the Terminal's own tab button and keeps it there; activating that
@@ -315,8 +315,8 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
 /**
  * The two interactions that reach a tab without ever producing the `click` the rest of the tab bar is built around: a
  * drag the user cancels, and the tab's own context menu. Both leave the Workbench in a state no single event can
- * describe — a press with no selection behind it, and a portal that holds focus while its action destroys the element
- * it would hand focus back to — so both are only observable end to end.
+ * describe: a press with no selection behind it, and a portal that holds focus while its action destroys the element it
+ * would hand focus back to, so both are only observable end to end.
  */
 test('a cancelled drag and a context-menu close both leave focus and the active pane agreeing', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-pane-focus-settle-e2e-'));
@@ -353,7 +353,7 @@ test('a cancelled drag and a context-menu close both leave focus and the active 
          * Pressing a tab in an inactive pane deliberately leaves the pane activation to the `click` that normally
          * follows, so one click costs one persist instead of two. A drag cancelled with `Escape` is the case where that
          * click never comes: `pointerdown → focusin → dragstart → dragend`. Focus is now in the document pane, so
-         * `activePaneId` has to follow it — otherwise the focus ring, the Status Bar, and every layout-resolved command
+         * `activePaneId` has to follow it; otherwise the focus ring, the Status Bar, and every layout-resolved command
          * keep pointing at the Terminal pane the user left.
          *
          * Asserted before releasing the button, because a real cancelled drag never produces a `pointerup` either.
@@ -365,7 +365,7 @@ test('a cancelled drag and a context-menu close both leave focus and the active 
         /**
          * The menu's own action destroys the tab the right click landed on. Closing through it must still leave focus
          * on the surviving tab rather than on `document.body`, where no arrow key or tablist shortcut reaches. Nothing
-         * calls `focus()` afterwards here — that would hide the very result under test.
+         * calls `focus()` afterwards here; that would hide the very result under test.
          */
         await terminalTab.click({ button: 'right' });
         await chooseContextMenuItem(running.app, 'Close');
@@ -384,11 +384,11 @@ test('a cancelled drag and a context-menu close both leave focus and the active 
 
 /**
  * Regression for #815: `PaneMountPortal` moves a pane's stable content into whichever DOM slot the split tree currently
- * gives it, and every earlier test here only exercises that move as a runtime split — one pane's portal already homed,
- * a sibling's freshly appended beside it. A reload instead builds a brand-new Renderer tree from an already-split
+ * gives it, and every earlier test here only exercises that move as a runtime split: one pane's portal already homed, a
+ * sibling's freshly appended beside it. A reload instead builds a brand-new Renderer tree from an already-split
  * persisted layout, so both panes' portals mount for the first time in the same commit as `PaneView` itself: the
  * original "parent ready later than child" scenario the portal's slot-relocation effect has to handle without one
- * pane's content racing the other's onto screen. Nothing here waits or retries for that race — a plain visibility
+ * pane's content racing the other's onto screen. Nothing here waits or retries for that race; a plain visibility
  * assertion is what would flake if the effect still ran on the wrong signal.
  */
 test('a Session with a mixed-kind split layout renders every pane on a fresh mount', async () => {

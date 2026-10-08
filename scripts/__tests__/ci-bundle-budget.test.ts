@@ -131,10 +131,10 @@ describe('ci-bundle-budget', () => {
             ],
             times: [{ budgetSeconds: 180, label: 'build', seconds: 6 }],
         });
-        expect(markdown).toContain('### Bundle budget — `1234567`');
+        expect(markdown).toContain('### Bundle budget: `1234567`');
         expect(markdown).toContain('| build | 6.0 s | 180 s | +20.0% |');
         expect(markdown).toContain('| Caxri.app | 220.00 MiB | 290.00 MiB | +10.0% |');
-        expect(markdown).toContain('| out/renderer › fonts | 10.00 MiB | — | n/a |');
+        expect(markdown).toContain('| out/renderer › fonts | 10.00 MiB | \u{2014} | n/a |');
         expect(markdown).toContain('last green `main` build (`abcdef1`');
     });
 

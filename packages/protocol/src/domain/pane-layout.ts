@@ -17,7 +17,7 @@ export type PaneResource =
 /**
  * One appearance of a resource in one pane.
  *
- * `id` is occurrence identity — ordering, selection, close, DOM ids, and motion all key off it — while `resource` is
+ * `id` is occurrence identity (ordering, selection, close, DOM ids, and motion all key off it) while `resource` is
  * content identity, owning the PTY process or the document model and its dirty buffer. Keeping them apart is what lets
  * the same file sit in two panes with independent cursors, and what stops closing one occurrence from closing both.
  */
@@ -125,7 +125,7 @@ export function isRepeatablePaneResource(resource: PaneResource): boolean {
  *
  * The Workbench's subject is the Session's Agent conversation; the documents opened to read alongside it are transient.
  * A single scrolling rail treats both the same and lets a handful of files push the Agent Terminal off screen, so the
- * two are separated here — once, in the layout contract — rather than by a rendering rule the reducer could disagree
+ * two are separated here (once, in the layout contract) rather than by a rendering rule the reducer could disagree
  * with. {@link orderPaneTabs} is what keeps `PaneNode.tabs` itself in this order, so keyboard navigation, "Close to the
  * Right", and the visual rail all walk one sequence.
  */

@@ -21,7 +21,7 @@ const FAILURE_REASON_LABELS: Record<TerminalFailureReason, string> = {
 /**
  * A stopped Terminal is not one state: `session-model.ts`'s `isMobileTerminalStopped` collapses `stopped`, `dead`,
  * `failed`, `interrupted`, `suspended`, and `detached` into a single boolean so the rest of the phone screen can treat
- * them alike, but that collapse must not reach the status chip a Session's Terminal renders — a clean exit and a crash
+ * them alike, but that collapse must not reach the status chip a Session's Terminal renders: a clean exit and a crash
  * are different facts. This mirrors Desktop's `getTerminalExitPresentation` tone split: `failed` and `dead` are
  * unexpected stops (`danger`); `stopped` is a clean exit; `interrupted`, `suspended`, and `detached` are automatic
  * Desktop-side transitions rather than errors, so they stay `muted` exactly as Desktop's own `neutral` tone does for

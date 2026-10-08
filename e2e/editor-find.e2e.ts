@@ -46,7 +46,7 @@ test('editor folding chords, app chords, and Find controls remain available', as
          * Caxri and Monaco run independent keybinding resolvers, so ownership of a `Cmd+K` sequence is decided once, at
          * its leading chord: typed into the editor the whole sequence is Monaco's and the app command must stay inert,
          * while the same sequence typed anywhere else runs. Both halves are asserted here because only the pair proves
-         * the split — either one alone passes with the app simply never binding the sequence.
+         * the split; either one alone passes with the app simply never binding the sequence.
          */
         // Settings is a Workbench tab now, not a modal (issue caxri#1289): `[data-settings-page]` is the
         // replacement scope for the former `role="dialog"` query (see `openSettingsTab` in `support/helpers.ts`). This

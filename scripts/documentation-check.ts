@@ -2,8 +2,8 @@
  * Validates the documentation contract defined by `.agents/skills/write-docs/SKILL.md`: closed-enum frontmatter on
  * every `docs/**\/*.md` file, `docs/README.md` index completeness, relative Markdown link targets and their `#heading`
  * anchors (same-document ones included), backticked repository paths, and backticked TypeScript source filenames
- * written without a repository root. `GLOSSARY.md` and `AGENTS.md` get link/path checks only — they carry no
- * frontmatter and are not part of the `docs/` index.
+ * written without a repository root. `GLOSSARY.md` and `AGENTS.md` get link/path checks only: they carry no frontmatter
+ * and are not part of the `docs/` index.
  *
  * Every filesystem existence check walks each path segment through `readdir` instead of `existsSync`, because macOS's
  * default case-insensitive-but-preserving filesystem would silently accept a stale-cased reference (e.g.
@@ -191,7 +191,7 @@ export async function isPathPresentCaseSensitive(
  * Reports whether `git` itself would never track `relativePath` (e.g. `apps/server/dist/server`, an Android
  * `build/outputs/...` artifact). Docs legitimately cite where a build lands even though the artifact does not exist in
  * a clean checkout, and nested `.gitignore` files (like `apps/mobile/.gitignore`'s `android/`) are exactly what `git
- * check-ignore` already resolves correctly — re-deriving that logic by hand here is the kind of second copy that
+ * check-ignore` already resolves correctly: re-deriving that logic by hand here is the kind of second copy that
  * drifts.
  */
 export async function isGitIgnoredPath(repoRoot: string, relativePath: string): Promise<boolean> {

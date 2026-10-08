@@ -95,7 +95,7 @@ describe('findTerminalLinks with CJK prose', () => {
     });
 
     it('splits a path from glued CJK prose at a word-separator parenthesis', () => {
-        // Regression: `realpath '/…/串联 (src/api/workflows/es-reindex.ts)'` ENOENT — the CJK
+        // Regression: `realpath '/…/串联 (src/api/workflows/es-reindex.ts)'` ENOENT: the CJK
         // prefix and wrapping parentheses were folded into the clicked path.
         expect(findTerminalLinks('串联 (src/api/workflows/es-reindex.ts) 已完成')).toEqual([
             {

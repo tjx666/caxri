@@ -64,7 +64,7 @@ export function reportTerminalOperationError(error: unknown, fallback: string): 
 }
 
 /**
- * A blocked OSC 52 write is expected policy enforcement, not a failure — it uses `info` (which auto-dismisses) rather
+ * A blocked OSC 52 write is expected policy enforcement, not a failure; it uses `info` (which auto-dismisses) rather
  * than the persistent `error` styling reserved for `onWriteFailure` below.
  */
 export const OSC52_BLOCK_MESSAGES: Record<Osc52BlockReason, string> = {
@@ -194,7 +194,7 @@ export function registerTerminalPaneLinks(
              * the same shared result union (`terminalFileLinkOpenResultSchema`), but a ternary combining two
              * independently named aliases of that identical union makes TypeScript compute their "best common type"
              * across branches instead of keeping the declared union, and it collapses the subtype `{ opened: true;
-             * document; sessionId }` into the plain `{ opened: true }` member it structurally overlaps with — silently
+             * document; sessionId }` into the plain `{ opened: true }` member it structurally overlaps with, silently
              * losing `document`/`sessionId` from the inferred type. Assigning into a pre-typed variable checks each
              * branch against that type independently and keeps every member intact.
              */

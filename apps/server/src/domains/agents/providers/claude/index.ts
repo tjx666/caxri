@@ -224,9 +224,9 @@ function sessionStartedAt(metadata: ClaudeSessionMetadata): number {
 }
 
 /**
- * Claude Code's `idle` means only "no turn is running right now" — it is written at launch before any turn, after a
- * turn ends, and while the prompt sits empty. It is not evidence that the Agent is blocked on the user, so it must not
- * map to `waiting`: the PrimarySidebar renders a durable amber "needs attention" cue for a waiting Session that never
+ * Claude Code's `idle` means only "no turn is running right now": it is written at launch before any turn, after a turn
+ * ends, and while the prompt sits empty. It is not evidence that the Agent is blocked on the user, so it must not map
+ * to `waiting`: the PrimarySidebar renders a durable amber "needs attention" cue for a waiting Session that never
  * consults read state, which left every finished Session permanently marked. A genuinely blocked Agent reports itself
  * through the explicit `PermissionRequest` hook (`attentionRequested`), so nothing is lost by reading `idle` as the end
  * of a turn instead.

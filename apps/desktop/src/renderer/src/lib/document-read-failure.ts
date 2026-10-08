@@ -7,8 +7,8 @@ import { describeFailure, isCancelledRequest } from '../stores/toasts';
 const DOCUMENT_READ_FAILURE_LABEL = "Couldn't open this file";
 
 /**
- * A cancelled read is not a failure the user can act on — Main refuses queued Renderer work once quit starts, and the
- * Host client cancels everything in flight when a lease is replaced — so it is never dressed up as one
+ * A cancelled read is not a failure the user can act on: Main refuses queued Renderer work once quit starts, and the
+ * Host client cancels everything in flight when a lease is replaced, so it is never dressed up as one
  * (`isCancelledRequest` documents the same rule for toasts). It still may not leave the spinner running forever,
  * because nothing re-issues the read afterwards, so it gets a neutral state that offers the retry.
  */

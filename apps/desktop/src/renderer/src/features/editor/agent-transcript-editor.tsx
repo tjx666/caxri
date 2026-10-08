@@ -59,7 +59,7 @@ export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
                 <span className="truncate">{query.data.path}</span>
                 {query.data.truncated && (
                     <span className="ml-auto flex-none text-warning">
-                        Truncated — showing the newest part
+                        Truncated: showing the newest part
                     </span>
                 )}
             </div>

@@ -11,7 +11,7 @@ const TRAFFIC_LIGHT_HEIGHT_PX = 14;
 const TRAFFIC_LIGHT_X_PX = 15;
 
 /**
- * `window.zoomLevel` uses Chromium's own scale — each step is 20% — which is also VS Code's `window.zoomLevel`, so a
+ * `window.zoomLevel` uses Chromium's own scale (each step is 20%), which is also VS Code's `window.zoomLevel`, so a
  * value copied between the two means the same size.
  *
  * @see https://www.electronjs.org/docs/latest/api/web-contents#contentssetzoomlevellevel
@@ -51,8 +51,8 @@ export function mainWindowChromeOptions(
          * On macOS the window starts as a translucent `vibrancy` material behind a transparent page, so the inline
          * startup loader in `renderer/index.html` floats the Caxri mark over the blurred desktop before any bundle has
          * run; the mounted workbench then paints its own opaque theme background over the material. Other platforms
-         * keep the deliberate color literal — the one left in the app — which mirrors the default theme's
-         * `--background` and prevents a white flash on launch; an imported theme cannot change it.
+         * keep the deliberate color literal (the one left in the app), which mirrors the default theme's `--background`
+         * and prevents a white flash on launch; an imported theme cannot change it.
          */
         ...(platform === 'darwin'
             ? { backgroundColor: '#00000000', vibrancy: 'under-window' as const }

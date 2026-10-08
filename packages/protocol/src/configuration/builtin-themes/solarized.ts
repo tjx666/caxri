@@ -62,7 +62,7 @@ export const solarizedDarkTheme: ThemeTokens = {
         tabInactiveBackground: '#004052',
         /**
          * Solarized's `base1` reads 4.23:1 on the tab fill above, and this theme's `muted` is dimmer still, so neither
-         * clears AA. Lifted toward `foreground` only as far as AA needs (4.72:1) — far enough below `#eee8d5` that an
+         * clears AA. Lifted toward `foreground` only as far as AA needs (4.72:1): far enough below `#eee8d5` that an
          * inactive tab still reads as the quieter one.
          */
         tabInactiveForeground: '#9eaaa7',

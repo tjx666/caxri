@@ -8,7 +8,7 @@ carries the full type surface but no working implementation: every method throws
 Caxri. The real implementation is injected by the Extension Host at load time, replacing these
 stubs.
 
-That split is deliberate — it lets an extension be type-checked, bundled, and unit-tested with
+That split is deliberate: it lets an extension be type-checked, bundled, and unit-tested with
 ordinary Node tooling, while making it obvious at runtime when code that expects the Host is running
 somewhere else.
 
@@ -24,8 +24,8 @@ export function activate(): Disposable {
 
 ## What it covers
 
-- Source control view providers — groups, resources, actions, history pages, and their decorations.
-- Workspace Git reads — repository summary, status, commits, commit details, and pull request changes.
+- Source control view providers: groups, resources, actions, history pages, and their decorations.
+- Workspace Git reads: repository summary, status, commits, commit details, and pull request changes.
 - `Disposable` and the glob matcher used by the Host's path settings.
 
 `docs/extensions.md` in the repository describes the extension model, how the Host loads an

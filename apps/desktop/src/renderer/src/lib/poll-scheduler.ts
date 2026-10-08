@@ -90,11 +90,11 @@ export function parseE2EMaxPollIntervalMs(source: string | undefined): number | 
  * Caps a configured cadence for focused Electron coverage that has to observe a poll actually firing.
  *
  * Several product cadences are minutes-scale on purpose (`projectStatus.overview` is a low-frequency fallback behind
- * Server-pushed invalidation — see `invalidateProjectStatusQuery` and `invalidateSessionPullRequestDependentQueries` in
- * `queries/invalidation.ts` — and `session.pullRequests` polls once a minute). A workflow proving that an availability
+ * Server-pushed invalidation, see `invalidateProjectStatusQuery` and `invalidateSessionPullRequestDependentQueries` in
+ * `queries/invalidation.ts`, and `session.pullRequests` polls once a minute). A workflow proving that an availability
  * indicator recovers once the underlying CLI works again has to wait out one whole tick, which cost `pr-unknown.e2e.ts`
  * a full minute on the single-worker CI pool. The cap is opt-in per launch through `CAXRI_E2E_MAX_POLL_INTERVAL_MS` and
- * only ever lowers a cadence, so a spec asserting a fast cadence — the Logs panel's one-second tick — is unaffected
+ * only ever lowers a cadence, so a spec asserting a fast cadence, the Logs panel's one-second tick, is unaffected
  * whether or not its launch opts in. Production never exposes the bridge and therefore never has a cap.
  */
 export function resolvePollIntervalMs(intervalMs: number): number {
@@ -135,7 +135,7 @@ export interface VisibilityAwarePoll {
 /**
  * Runs `callback` on a fixed `intervalMs` cadence, registered under `label` in the shared poll registry, while the
  * document is visible. The interval is torn down the moment the document becomes hidden and `callback` fires
- * immediately (in addition to restarting the interval) the moment the document becomes visible again — the same "pause
+ * immediately (in addition to restarting the interval) the moment the document becomes visible again: the same "pause
  * while hidden, refresh once on resume" contract `usePolledQuery` gives React Query callers, for call sites that poll
  * outside React Query (e.g. the standalone Process Explorer window sampling `processExplorer.snapshot()`).
  */

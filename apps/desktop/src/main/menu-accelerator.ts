@@ -1,6 +1,6 @@
 /**
  * Keybinding key names are DOM `KeyboardEvent.key` values lowercased; Electron accelerators use its own token set. Any
- * name that differs between the two has to be translated explicitly — an unmapped name falls through uppercased, and
+ * name that differs between the two has to be translated explicitly; an unmapped name falls through uppercased, and
  * Electron silently refuses to register the accelerator (`ARROWLEFT` is not a token, `Left` is), leaving the menu item
  * with no working shortcut even though the Renderer's own DOM handler still fires.
  *

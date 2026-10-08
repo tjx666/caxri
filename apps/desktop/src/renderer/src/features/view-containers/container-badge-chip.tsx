@@ -6,14 +6,14 @@ import type { ContainerBadge } from './view-badges';
  * The container tab's aggregated badge.
  *
  * A badge draws a glyph or a tally, never both, and severity always wins the chip. That is VS Code's own composite-bar
- * rule — `getVisibleBadges()` in `compositeBarActions.ts` is a strict ladder over mutually exclusive `progress`,
- * `icon`, and `number` badges, and its `ErrorBadge`/`WarningBadge` have no number to show in the first place. Letting a
- * tally win instead left severity riding on the fill alone, so the Status tab's `5` and the Git tab's `5` were the same
- * size, shape, and position and differed only by color — indistinguishable to a colorblind user and in any greyscale
- * capture. {@link ContainerBadge} now makes that state unrepresentable rather than guarding it here.
+ * rule: `getVisibleBadges()` in `compositeBarActions.ts` is a strict ladder over mutually exclusive `progress`, `icon`,
+ * and `number` badges, and its `ErrorBadge`/`WarningBadge` have no number to show in the first place. Letting a tally
+ * win instead left severity riding on the fill alone, so the Status tab's `5` and the Git tab's `5` were the same size,
+ * shape, and position and differed only by color, indistinguishable to a colorblind user and in any greyscale capture.
+ * {@link ContainerBadge} now makes that state unrepresentable rather than guarding it here.
  *
  * The glyph is the Workbench's, never the extension's: a badge reports meaning and the Workbench owns how meaning
- * looks. The tally the glyph displaced is not dropped — it stays in the joined `description` the tab publishes as its
+ * looks. The tally the glyph displaced is not dropped; it stays in the joined `description` the tab publishes as its
  * tooltip and its accessible description, which is one thing Caxri does not copy from VS Code (`computeTitle()` there
  * drops the number from the label too).
  */

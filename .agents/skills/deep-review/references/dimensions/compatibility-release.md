@@ -49,7 +49,7 @@ Emit a `release_checks` item, not a defect, when safety depends on state source 
 
 ## Rule sources
 
-- `AGENTS.md` ("Product invariants" — the pre-release no-compatibility-layer policy is authoritative;
+- `AGENTS.md` ("Product invariants": the pre-release no-compatibility-layer policy is authoritative;
   it governs every bullet above that touches IPC, persisted shape, or previous-build compatibility)
 - `.agents/skills/build/SKILL.md`
 - `.agents/skills/release/SKILL.md`
@@ -61,7 +61,7 @@ Emit a `release_checks` item, not a defect, when safety depends on state source 
 
 - An additive persisted field with a validated default and old-shape fallback (optional, not required)
 - A non-schema IPC/persisted shape change, or a revert that leaves durable state unreadable to the
-  reverted code, before the owner has declared the public release — AGENTS.md's documented reset or
+  reverted code, before the owner has declared the public release, AGENTS.md's documented reset or
   reinstall workflow is the accepted recovery path, not a preserved compatibility layer
 - Unsigned/not-notarized local artifacts when the change does not claim public distribution
 - Missing full-suite execution during iteration when focused validation covers the change

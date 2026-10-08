@@ -101,7 +101,7 @@ function useRuntimeAttachment(): void {
                     default:
                         // `assertNever(target.kind, ...)`, not `assertNever(target, ...)`: with only one member today,
                         // `SettingsTarget` is a plain object type rather than a real union, so TypeScript cannot narrow
-                        // the whole value to `never` here — only its literal `kind` property does. Once a second
+                        // the whole value to `never` here; only its literal `kind` property does. Once a second
                         // `kind` is added this still catches an unhandled case, because `target.kind` then narrows to
                         // that member's literal instead of `never`.
                         assertNever(target.kind, 'Unhandled Settings deep-link target');
@@ -182,7 +182,7 @@ export function App() {
                     /*
                      * PrimarySidebar/SecondarySidebar widths are device-local UI state (`stores/chrome-layout.ts`), not part
                      * of the Server-synced Session; each panel writes its own custom property directly on
-                     * drag and through React on commit/reset. The 6px tracks are the divider hit areas — see
+                     * drag and through React on commit/reset. The 6px tracks are the divider hit areas; see
                      * `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
                      */
                     'app-shell grid h-screen w-screen grid-rows-[minmax(0,1fr)_24px] bg-background',

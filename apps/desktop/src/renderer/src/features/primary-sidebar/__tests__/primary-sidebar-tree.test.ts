@@ -64,7 +64,7 @@ describe('flattenPrimarySidebarRows', () => {
 
     it('puts the Pinned group ahead of every Project, with namespaced row ids', () => {
         // Pinning moves a Session, so the caller hands the pinned ids to the Pinned group and withholds them from the
-        // owning Project — `beta` is left with no Sessions of its own and falls back to its "New Session" row.
+        // owning Project; `beta` is left with no Sessions of its own and falls back to its "New Session" row.
         const rows = flattenPrimarySidebarRows(
             [
                 { id: 'alpha', sessionIds: ['alpha-1'] },

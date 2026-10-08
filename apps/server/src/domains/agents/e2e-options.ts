@@ -16,7 +16,7 @@ const MAX_E2E_UNKNOWN_RECOVERY_MS = 30_000;
  *
  * The production window itself is 2 minutes and is pinned, with its three-probe rule, by
  * `__tests__/hook-launch-tracker.test.ts`. The Electron workflow only has to prove that the Server, the hook bridge,
- * and the Renderer are wired to that recovery — which it proves identically against a short window — so the E2E spends
+ * and the Renderer are wired to that recovery, which it proves identically against a short window, so the E2E spends
  * seconds instead of the two real minutes it used to burn on the single-worker CI pool.
  */
 export function resolveE2EAgentUnknownRecoveryMs(

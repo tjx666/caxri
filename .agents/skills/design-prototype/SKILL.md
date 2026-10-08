@@ -1,17 +1,17 @@
 ---
 name: design-prototype
-description: Produce an interactive single-file HTML design prototype using the REAL Caxri design system (the Renderer's shadcn primitives + theme.css tokens + Tailwind v4 semantic utilities) with production-style React — no build step, opens directly in a browser. Use when asked for a design prototype / interactive mockup / 交互原型 / 出个原型 / 讨论原型设计, or to explore a redesign of a surface before committing to implementation.
+description: Produce an interactive single-file HTML design prototype using the REAL Caxri design system (the Renderer's shadcn primitives + theme.css tokens + Tailwind v4 semantic utilities) with production-style React; no build step, opens directly in a browser. Use when asked for a design prototype / interactive mockup / 交互原型 / 出个原型 / 讨论原型设计, or to explore a redesign of a surface before committing to implementation.
 ---
 
 # Design Prototype
 
-One HTML file, double-click to open, fully interactive, rendered by the **actual design system** —
+One HTML file, double-click to open, fully interactive, rendered by the **actual design system**:
 the Renderer's own `@/components/ui/*` shadcn primitives, the real `theme.css` semantic tokens, and
-Tailwind v4 utilities compiled in the browser — while the source stays **production-style React**
+Tailwind v4 utilities compiled in the browser, while the source stays **production-style React**
 (`import { Button } from '@/components/ui/button'`, `className="bg-surface text-muted"`, hooks).
 Promotion to production is mostly "split into files", not "rewrite".
 
-Prototype code may be quick-and-dirty (one file, inline data, no IPC) — but the **interaction must
+Prototype code may be quick-and-dirty (one file, inline data, no IPC), but the **interaction must
 be complete**: states, transitions, and affordances are the point of a prototype, not its code
 style.
 
@@ -27,12 +27,12 @@ per prototype (no build): single HTML  =  <script runtime + theme> + @tailwindcs
 
 - The runtime bundles `react`, `react-dom/client`, every `@/components/ui/*` primitive,
   `@/lib/utilities` (`cn`), shared hooks, `lucide-react`, `motion/react`, `cmdk`, and `zustand`
-  from this repo's own source and `node_modules` — versions, tokens, and component behavior match
+  from this repo's own source and `node_modules`: versions, tokens, and component behavior match
   production by construction.
 - `caxri-prototype-theme.js` inlines the real `theme.css` + `styles.css` + `tw-animate-css` into a
   `text/tailwindcss` stylesheet; `@tailwindcss/browser` (pinned to the repo's Tailwind version)
   compiles the prototype's utility classes at runtime, including the `@theme inline` token
-  bridge — so `bg-surface` resolves to the live Dracula tokens and `bg-blue-500` fails to compile,
+  bridge, so `bg-surface` resolves to the live Dracula tokens and `bg-blue-500` fails to compile,
   exactly like production.
 - A small `window.require` shim + babel's `transform-modules-commonjs` lets the prototype keep
   real `import` statements, and a registered TSX preset keeps TypeScript syntax working in the
@@ -46,14 +46,14 @@ per prototype (no build): single HTML  =  <script runtime + theme> + @tailwindcs
    bun run .agents/skills/design-prototype/scripts/build-runtime.ts /tmp/my-proto
    ```
 
-   Always rerun after design-system or `entry.mjs` changes — rebuilding is ~2s and always safe.
+   Always rerun after design-system or `entry.mjs` changes: rebuilding is ~2s and always safe.
    The two vendored files cache under `assets/` keyed by exact version, so only the first build on
    a machine needs network access.
 
 2. **Copy [`references/template.html`](references/template.html)** into the same dir, rename, and
    replace the sample `App` with the real surface. Keep the runtime shim block untouched.
 
-3. **Open it** (`open /tmp/my-proto/xxx.html`) — no server, no build.
+3. **Open it** (`open /tmp/my-proto/xxx.html`), no server, no build.
 
 ## Verify before delivering
 
@@ -67,13 +67,13 @@ bun run .agents/skills/design-prototype/scripts/verify-prototype.ts /tmp/my-prot
 The script exits 1 on any page/console error and waits for a `bg-surface` probe to resolve
 (Tailwind finished compiling) instead of sleeping.
 
-Then **Read the screenshot** — a prototype is a visual deliverable; don't ship it sight-unseen.
+Then **Read the screenshot**: a prototype is a visual deliverable; don't ship it sight-unseen.
 Click through every interactive state (the toggle strip, dialogs, menus) and screenshot the key
 ones.
 
 ## What's in the runtime (extend freely)
 
-See [`assets/entry.mjs`](assets/entry.mjs) — the single source of truth for the importable module
+See [`assets/entry.mjs`](assets/entry.mjs): the single source of truth for the importable module
 map: every `@/components/ui/*` primitive, `@/components/shortcut-badge`, `@/lib/utilities` (`cn`),
 `@/lib/motion`, every `@/hooks/*`, plus `react`, `react-dom(/client)`, `lucide-react`,
 `motion/react`, `cmdk`, `zustand`, `class-variance-authority`, `clsx`, and `tailwind-merge`.
@@ -85,28 +85,28 @@ build script (~2s). That error is the "extend and rebuild" signal, not a templat
 
 ## Pitfalls
 
-- **Keep `import React from 'react'` in the prototype** even when unused — babel-standalone's
+- **Keep `import React from 'react'` in the prototype** even when unused: babel-standalone's
   react preset uses the classic JSX runtime. (The bundled runtime itself compiles with
   `--jsx=automatic`; that flag is already in the build script.)
 - TypeScript syntax works via the template's registered `tsx` preset (`data-presets="react,tsx"`),
-  but it is strip-only — nothing type-checks the prototype; annotations are documentation.
+  but it is strip-only; nothing type-checks the prototype; annotations are documentation.
 - **Keep the `TooltipProvider` wrapper** from the template (production wraps the whole tree in it,
-  `app.tsx`). `CommandTooltip`'s shortcut hint resolves to nothing in a prototype — there is no
+  `app.tsx`). `CommandTooltip`'s shortcut hint resolves to nothing in a prototype: there is no
   keybinding bootstrap; use plain `Tooltip` content instead.
 - **Only semantic color utilities compile** (`bg-surface`, `text-muted`, `bg-accent`,
-  `border-border`, `text-danger`, `bg-[var(--selection)]`) — the default palette is unregistered,
+  `border-border`, `text-danger`, `bg-[var(--selection)]`), the default palette is unregistered,
   so `bg-zinc-800` silently produces no CSS. An unstyled-looking element usually means a non-token
   color class.
 - The primitives are compositional shadcn style: `Empty` + `EmptyTitle` (+ `EmptyMedia`),
-  `Dialog` + `DialogContent`…, not prop bags — check the component source in
+  `Dialog` + `DialogContent`…, not prop bags: check the component source in
   `apps/desktop/src/renderer/src/components/ui/` for the exact API.
-- `theme.css` sets `html, body, #root { height: 100%; overflow: hidden }` like the real workbench
-  — give your surface its own scroll container, as production does.
+- `theme.css` sets `html, body, #root { height: 100%; overflow: hidden }` like the real workbench:
+  give your surface its own scroll container, as production does.
 - Prototypes have no Electron preload: never touch `window.caxri`; fake data inline.
 
 ## Design bar (same as production surfaces)
 
-A prototype is a surface — DESIGN.md applies to what it _demonstrates_:
+A prototype is a surface: DESIGN.md applies to what it _demonstrates_:
 
 - Show **at least one non-happy-path state** (empty / loading / error / in-progress), ideally
   behind a state-toggle strip like the template's. A happy-path-only prototype under-specifies the
@@ -114,9 +114,9 @@ A prototype is a surface — DESIGN.md applies to what it _demonstrates_:
 - Honor the redlines: type-scale tiers (13/12/11px), the 4px spacing grid, radius 4/6/8, one
   durable `--accent` focus per screen, quiet chrome. Loading is `Spinner`/skeleton; boolean
   preferences are `Switch`, pre-submit opt-ins are `Checkbox`.
-- Research precedent first for substantial new surfaces — Call the Skill tool with "competitors"
+- Research precedent first for substantial new surfaces: Call the Skill tool with "competitors"
   (VS Code / GitLens references) before inventing a new interaction pattern.
 - Don't paint affordances you don't wire (a hover tint with no click, a kbd hint with no key
-  handler) — in an _interactive_ prototype a dead affordance is a spec bug.
+  handler): in an _interactive_ prototype a dead affordance is a spec bug.
 - Annotate anything deliberately out of scope in an HTML comment so the implementer knows it's a
   cut, not a decision.

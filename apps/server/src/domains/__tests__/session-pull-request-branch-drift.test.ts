@@ -35,8 +35,8 @@ function githubWithBranch(
 
 /**
  * Issue #1035: the transcript scan only advances on a `gh pr create` run inside that one transcript, so a Session that
- * moved on — next pull request opened from another conversation, or simply a new branch — kept showing the delivery
- * that already landed, contradicting the status bar that has always queried by branch.
+ * moved on (next pull request opened from another conversation, or simply a new branch) kept showing the delivery that
+ * already landed, contradicting the status bar that has always queried by branch.
  */
 describe('session pull request branch drift', () => {
     it('hands the row to the branch pull request once the transcript one has merged', async () => {

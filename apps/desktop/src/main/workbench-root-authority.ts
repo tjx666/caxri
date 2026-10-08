@@ -88,7 +88,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
              * its Workbench Root, and it refuses to create a Session inside such a Project. If that binding vanished
              * between resolve and open, refuse instead of asking for a Session the Server would reject. A missing
              * Project row is the same situation one step further along, and `project?.ownerProjectId !== undefined`
-             * used to read as "this is a top-level Project" for it — so the open fell through to `session.create`
+             * used to read as "this is a top-level Project" for it, so the open fell through to `session.create`
              * against a Project id that no longer named anything.
              */
             const project = state.projects.find((candidate) => candidate.id === projectId);
@@ -239,7 +239,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
      * Project, so it must never gain authority over another Project through this hand-off: every branch below resolves
      * through the same Server-side `terminal.fileLink.resolve` used by every other Terminal (global across all visible
      * Projects, independent of the source Terminal), and then always substitutes a real, visible Session for the
-     * Commander's own — see `pickCommanderFileLinkSession` and `pickAnyVisibleSessionId` — rather than trusting
+     * Commander's own (see `pickCommanderFileLinkSession` and `pickAnyVisibleSessionId`), rather than trusting
      * `resolved.sourceSessionId`, which would otherwise name the Commander's own invisible Session.
      */
     async function openCommanderFileLink(parameters: OpenCommanderFileLinkParameters) {

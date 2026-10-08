@@ -6,9 +6,9 @@ import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
 
 /**
- * The glyph is sized here rather than by each caller's `size` prop, so that `icon` can take any rendered element — a
- * Lucide component, a Linear workflow glyph — without every call site having to know which of the two status-bar
- * heights it is rendering into. CSS wins over an SVG's `width`/`height` attributes, and neither icon family scales its
+ * The glyph is sized here rather than by each caller's `size` prop, so that `icon` can take any rendered element: a
+ * Lucide component, a Linear workflow glyph, without every call site having to know which of the two status-bar heights
+ * it is rendering into. CSS wins over an SVG's `width`/`height` attributes, and neither icon family scales its
  * `viewBox` with `size`, so the result is identical to the prop. 13px is the `base` type tier this item sits at;
  * DESIGN.md "Spacing and radius" records why the two bar glyph boxes are allowed to state it.
  */
@@ -51,7 +51,7 @@ export function StatusItem({
                     aria-label={ariaLabel}
                     onClick={(event) => {
                         // Main denies every `window.open`/target=_blank navigation, so this anchor
-                        // is semantic only — the actual navigation goes through `external.open`.
+                        // is semantic only; the actual navigation goes through `external.open`.
                         event.preventDefault();
                         // eslint-disable-next-line no-void -- intentional floating-promise discard, openExternalUrl reports its own failure
                         void openExternalUrl(href, (message) => pushToast('error', message));

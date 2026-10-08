@@ -285,7 +285,7 @@ function repoHarnessTestCandidates(file: string): string[] {
  * Splits changed files into the three pipelines this gate runs, so `.md` files match CI's tool ownership split:
  * markdownlint owns Markdown semantics, Prettier owns formatting for every `FORMAT_EXTENSIONS` file (including `.md`),
  * and ESLint + Prettier own `CODE_EXTENSIONS`. ESLint additionally lints the fenced code blocks of the Markdown bucket
- * — see `eslintTargets`.
+ * (see `eslintTargets`).
  */
 export function lintBucketsForFiles(files: string[]): LintBuckets {
     const codeFiles: string[] = [];
@@ -450,7 +450,7 @@ export function eslintArguments(files: string[]): string[] {
 /**
  * Markdown belongs to the ESLint pass as well, not only to markdownlint and Prettier: `markdownProcessorConfig` in
  * `eslint.config.ts` turns fenced JS/TS blocks into virtual files, so a doc whose snippet breaks a lint rule fails the
- * repository-wide `lint` gate. Leaving `.md` out let a documentation change pass this focused check and then fail CI —
+ * repository-wide `lint` gate. Leaving `.md` out let a documentation change pass this focused check and then fail CI:
  * the one outcome the gate exists to prevent.
  */
 export function eslintTargets({ codeFiles, markdownFiles }: LintBuckets): string[] {

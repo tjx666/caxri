@@ -488,7 +488,7 @@ describe('ConfigurationService', () => {
 
             // A push-based wait for the specific `settings.changed` event settles the instant the watcher (native
             // callback or fallback poll) actually processes the replacement, instead of resampling on a fixed
-            // interval that itself competes for the same event loop under CI load — see issue #1259.
+            // interval that itself competes for the same event loop under CI load: see issue #1259.
             await diagnose(gate.waitFor((event) => event.event === 'settings.changed'));
             expect(service.getSettings().value['terminal.fontSize']).toBe(16);
             expect(gate.events.filter((event) => event.event === 'settings.changed')).toEqual([

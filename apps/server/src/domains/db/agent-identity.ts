@@ -270,7 +270,7 @@ export class AgentIdentity {
     /**
      * Records that the hosted Agent moved off the Terminal's launch root, or clears the divergence when it returned.
      * The caller must already have proven `agentCwd` against the owning Project's Git worktree topology; this method
-     * performs no path authorization and deliberately leaves `terminals.cwd` — the authorized launch root — untouched.
+     * performs no path authorization and deliberately leaves `terminals.cwd` (the authorized launch root) untouched.
      */
     setTerminalAgentCwd(
         terminalId: string,
@@ -290,7 +290,7 @@ export class AgentIdentity {
      *
      * The tab title is part of that binding now that it carries the Agent's conversation name: leaving it in place
      * would show the retired conversation's name against a brand new one until the first probe of the replacement
-     * happens to report a title of its own — and forever if it never does.
+     * happens to report a title of its own, and forever if it never does.
      *
      * A diverged Agent working directory belongs to the retired process too: the replacement starts in the Terminal's
      * launch root, so keeping the old worktree would point transcript resolution at the wrong provider directory.

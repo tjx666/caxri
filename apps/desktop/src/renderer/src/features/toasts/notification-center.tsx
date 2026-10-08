@@ -76,7 +76,7 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
     /**
      * Whether the follow-up still applies is answered on click, not on render: this list does not re-render when the
      * Session or editor an old entry points at goes away, so a button disabled at render time would be judged against
-     * state that has since moved. The reason replaces the buttons in place — the honest alternative to a control that
+     * state that has since moved. The reason replaces the buttons in place: the honest alternative to a control that
      * looks live and does nothing.
      */
     const runAction = (action: ToastAction): void => {

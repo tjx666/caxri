@@ -86,8 +86,8 @@ export interface LinearCandidateInput {
     conversation?: readonly TranscriptLinearReference[];
     pullRequestBody?: string;
     /**
-     * The workspace's real team keys. An empty set means "not known" — never "none exist" — so the low-precision
-     * sources contribute nothing rather than everything.
+     * The workspace's real team keys. An empty set means "not known" (never "none exist"), so the low-precision sources
+     * contribute nothing rather than everything.
      */
     teamKeys: ReadonlySet<string>;
 }
@@ -97,7 +97,7 @@ export interface LinearCandidateInput {
  *
  * The three sources are not equally trustworthy, and the rules differ accordingly:
  *
- * - A **pull request body** states the link on purpose — a `linear.app` URL or a `Fixes ABC-1` marker — so it keeps the
+ * - A **pull request body** states the link on purpose (a `linear.app` URL or a `Fixes ABC-1` marker), so it keeps the
  *   precision rules `extractLinearReferences` already applies and needs no further gate. This is also the only source
  *   the Status panel reads, and its behavior is unchanged.
  * - A **branch name** and a **conversation** yield bare markers, which are shaped exactly like `UTF-8`, `RFC-2119`, and
@@ -198,7 +198,7 @@ export async function loadPullRequestLinearIssues(
  *
  * The chip renders one issue and counts the remainder, so resolving the tail would spend a CLI query per refresh on a
  * title and a state colour nothing draws. A failed lookup degrades to the bare identifier rather than surfacing a
- * provider error — the status bar has no room to explain one, and the Status panel already reports Linear outages
+ * provider error: the status bar has no room to explain one, and the Status panel already reports Linear outages
  * properly.
  */
 export async function loadOverviewLinearIssues(
@@ -215,7 +215,7 @@ export async function loadOverviewLinearIssues(
     const remaining = (): number => Math.max(0, deadlineMs - (performance.now() - startedAt));
     let teamKeys: ReadonlySet<string> = new Set<string>();
     if (requiresTeamKeys(sources.branch, sources.conversation)) {
-        // An allow-list still loading is "unknown", which admits no low-precision marker — the same narrowing an
+        // An allow-list still loading is "unknown", which admits no low-precision marker: the same narrowing an
         // unavailable CLI already gets.
         const outcome = await settleWithin(store.allowedTeamKeys(cwd), remaining());
         if (outcome.settled && 'value' in outcome) teamKeys = outcome.value;

@@ -26,7 +26,7 @@ import { openTerminalSearch } from './terminal-search';
 import type { TerminalSize } from './terminal-size';
 
 /**
- * Reveals a Terminal wherever it is placed. A Terminal owns exactly one tab occurrence, so this is a plain selection —
+ * Reveals a Terminal wherever it is placed. A Terminal owns exactly one tab occurrence, so this is a plain selection:
  * there is no separate "which pane should it go to" question to answer.
  */
 export function activateTerminal(terminalId: string): void {
@@ -95,7 +95,7 @@ export async function createTerminalForSession(
              * Every Root the Session has already arranged gets this Terminal placed into it as a background tab before
              * `terminal.create` even resolves (`SessionsModel.addTerminalToAllRootStates`), including the active Root
              * this caller is about to update. Refreshing first, instead of mutating the caller's stale cached layout,
-             * means `openResource` below finds that placement already there and reuses its tab id — computing a second,
+             * means `openResource` below finds that placement already there and reuses its tab id, computing a second,
              * competing tab id here would fight the server's for the same Terminal and flash a duplicate.
              */
             await refreshWorkbench();
@@ -409,7 +409,7 @@ export function copyActiveTerminalSelection(terminalId: string): void {
 }
 
 /**
- * Answers only "does this Terminal currently own a selection" — focus is checked by the caller.
+ * Answers only "does this Terminal currently own a selection": focus is checked by the caller.
  */
 export function hasActiveTerminalSelection(terminalId: string): boolean {
     return selectionHandlers.get(terminalId)?.hasSelection() ?? false;

@@ -190,11 +190,11 @@ interface PerformanceGateRow {
 }
 
 /**
- * `unarmed`: baseline exists but was never armed (local-only, or explicitly disarmed) — recorded, never gates.
- * `no-baseline`: baseline file is missing or has no metrics yet — nothing to compare against. `skipped`: the gate
- * script decided no performance-relevant path changed; see `isPerformanceRelevantPath`. `drifted`: an armed baseline's
- * metric names have zero overlap with the current run (every one landed in `missingFromCurrent`) — a receipt-shape
- * change (renamed or restructured metrics), not a measured comparison, so it must never be reported as `passed`.
+ * `unarmed`: baseline exists but was never armed (local-only, or explicitly disarmed): recorded, never gates.
+ * `no-baseline`: baseline file is missing or has no metrics yet: nothing to compare against. `skipped`: the gate script
+ * decided no performance-relevant path changed; see `isPerformanceRelevantPath`. `drifted`: an armed baseline's metric
+ * names have zero overlap with the current run (every one landed in `missingFromCurrent`), a receipt-shape change
+ * (renamed or restructured metrics), not a measured comparison, so it must never be reported as `passed`.
  */
 type PerformanceGateState = 'drifted' | 'failed' | 'no-baseline' | 'passed' | 'skipped' | 'unarmed';
 
@@ -238,7 +238,7 @@ export interface DerivePerformanceMetricBaselineOptions {
 
 /**
  * Derives one metric's gate threshold from repeated samples. Throws below `MINIMUM_PERFORMANCE_SAMPLE_COUNT` rather
- * than returning a threshold built on too little evidence — a caller that wants to skip an under-sampled metric should
+ * than returning a threshold built on too little evidence, a caller that wants to skip an under-sampled metric should
  * catch this and omit it.
  *
  * `isDiscretePerformanceMetric` decides the shape:
@@ -371,7 +371,7 @@ export function comparePerformanceSamplesToBaseline(
         });
     }
     const hasRegression = rows.some((row) => row.status === 'regressed');
-    // Zero overlap between the baseline's metric names and the current run means nothing was actually compared — an
+    // Zero overlap between the baseline's metric names and the current run means nothing was actually compared, an
     // empty `rows.some(...)` is vacuously `false`, which would otherwise read as "passed". Report it as its own
     // `drifted` state instead so a receipt-shape rename can never look like a clean run.
     const isTotalDrift = rows.length === 0;
@@ -428,24 +428,24 @@ export function formatPerformanceGateTable(result: PerformanceGateResult): strin
 export function formatPerformanceGateVerdict(result: PerformanceGateResult): string {
     switch (result.state) {
         case 'skipped': {
-            return `SKIPPED — ${result.reason ?? 'no performance-relevant path changed'}`;
+            return `SKIPPED: ${result.reason ?? 'no performance-relevant path changed'}`;
         }
         case 'no-baseline': {
-            return `NO-BASELINE — ${result.reason ?? 'scripts/performance-baseline.json has no armed metrics yet'}`;
+            return `NO-BASELINE: ${result.reason ?? 'scripts/performance-baseline.json has no armed metrics yet'}`;
         }
         case 'unarmed': {
-            return `UNARMED — recorded ${result.rows.length} metric(s); baseline is not armed, see docs/ci-performance.md`;
+            return `UNARMED: recorded ${result.rows.length} metric(s); baseline is not armed, see docs/ci-performance.md`;
         }
         case 'passed': {
-            return `PASSED — ${result.rows.length}/${result.rows.length} metric(s) within threshold`;
+            return `PASSED: ${result.rows.length}/${result.rows.length} metric(s) within threshold`;
         }
         case 'failed': {
             const regressed = result.rows.filter((row) => row.status === 'regressed').length;
-            return `FAILED — ${regressed}/${result.rows.length} metric(s) exceeded their threshold`;
+            return `FAILED: ${regressed}/${result.rows.length} metric(s) exceeded their threshold`;
         }
         case 'drifted': {
             return (
-                `DRIFTED — none of the ${result.missingFromCurrent.length} armed baseline metric(s) were found in ` +
+                `DRIFTED: none of the ${result.missingFromCurrent.length} armed baseline metric(s) were found in ` +
                 `the current run; re-derive scripts/performance-baseline.json, see docs/ci-performance.md`
             );
         }

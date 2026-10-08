@@ -449,7 +449,7 @@ export interface ClientState {
     /**
      * The pong listener registered by `probeDesktopLiveness` while a liveness probe is outstanding. Present only during
      * the window between entering grace and the probe resolving (a pong recovers the lease) or becoming moot (a renewal
-     * lands through another path, the lease is revoked, or the Host is closing) — see `clearLeaseLivenessProbe`.
+     * lands through another path, the lease is revoked, or the Host is closing): see `clearLeaseLivenessProbe`.
      */
     leaseLivenessPongListener?: () => void;
     leaseTimer?: NodeJS.Timeout;

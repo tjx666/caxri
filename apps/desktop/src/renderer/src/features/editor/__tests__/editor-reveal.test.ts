@@ -149,8 +149,8 @@ describe('Editor navigation', () => {
 
 /**
  * The signal `useTabFocusRecovery` reads to stand down. Monaco is lazily imported, so between opening a file with focus
- * and the commit that mounts its Editor, nothing is focused — and focus recovery would otherwise read that as a loss
- * and paint a focus ring on the new Document tab.
+ * and the commit that mounts its Editor, nothing is focused, and focus recovery would otherwise read that as a loss and
+ * paint a focus ring on the new Document tab.
  */
 describe('pending Editor intent', () => {
     it('reports nothing outstanding once the queued intent reaches its Editor', () => {

@@ -60,7 +60,7 @@ export interface StickyFileTreeRow {
  *
  * Slot `n` holds the depth-`n` ancestor (or the row itself) of whatever row sits just below the `n` rows already
  * pinned, as long as that directory's own row has scrolled above the slot and its subtree is still on screen. When the
- * subtree's last row rises past the slot's bottom edge, the pinned row is pushed up with it and nothing deeper pins —
+ * subtree's last row rises past the slot's bottom edge, the pinned row is pushed up with it and nothing deeper pins:
  * the same hand-off the next sibling folder performs in VS Code.
  *
  * This replaces per-row `position: sticky`, which relied on every expanded directory's subtree being nested in the DOM

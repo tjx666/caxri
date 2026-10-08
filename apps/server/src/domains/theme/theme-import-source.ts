@@ -14,7 +14,7 @@ import { CaxriError } from '@caxri/protocol';
  * Position of a parse failure, for a user repairing a hand-edited theme.
  *
  * The parser's own message is deliberately not forwarded: `yaml` and `plist` both quote the offending source fragment,
- * and diagnostics must exclude file contents. Only the numeric line/column survives — from `yaml`'s structured
+ * and diagnostics must exclude file contents. Only the numeric line/column survives: from `yaml`'s structured
  * `linePos`, or from the `line N, column N` suffix `parseJsonc` composes itself.
  *
  * @param error Whatever the format parser threw.

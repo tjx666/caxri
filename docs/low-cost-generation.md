@@ -11,7 +11,7 @@ access outside that boundary remain available.
 
 Long Terminal pastes do not use this path. Caxri saves the original to a local file and hands the
 Agent its path, because the Agent is better placed than Server Core to decide whether the text is
-worth a summary — and a model call on the paste path holds Terminal input until it returns. See
+worth a summary, and a model call on the paste path holds Terminal input until it returns. See
 [Terminal long paste](#terminal-long-paste).
 
 Before launch, Server Core resolves the Project, executable, temporary working directory, and

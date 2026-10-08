@@ -16,8 +16,8 @@ The verified baseline is `1.0.24 (68e414c661e3) [stable]` on macOS arm64.
 Default arguments are `--yolo` (`--yolo` is Grok Build's alias for
 `--always-approve`). Caxri does not inject `--sandbox`; Grok Build's own default
 is `off` (unrestricted). A user who wants confinement can add `--sandbox workspace`
-or another documented mode in Initial arguments — a flag and its value may share a
-line — and `prepareLaunch` passes that value through unchanged. Automatic background suspension is disabled for this
+or another documented mode in Initial arguments (a flag and its value may share a
+line) and `prepareLaunch` passes that value through unchanged. Automatic background suspension is disabled for this
 provider. Do not substitute `--no-leader`: the verified binary rejects that newer
 option.
 
@@ -58,8 +58,8 @@ this integration. Rename fails explicitly instead of saving a Caxri-only alias.
 
 The metadata probe reads `generated_title` from the bound conversation's
 `summary.json` and publishes it as the Session and Terminal title. Grok owns that
-value: it writes only its own generated title there — never a provisional copy of
-the first prompt, as Codex does — and refreshes it after later turns, so Caxri
+value: it writes only its own generated title there (never a provisional copy of
+the first prompt, as Codex does) and refreshes it after later turns, so Caxri
 adopts each refresh on the next probe. The read requires the exact session
 identity a hook already confirmed; an unbound Terminal reads no title, because
 directory recency cannot separate simultaneous same-directory conversations. The

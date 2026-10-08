@@ -23,7 +23,7 @@ export const EVENT_LOOP_STALL_EVENT = logEventCatalog.process.eventLoopStall;
 const EVENT_LOOP_MONITOR_INTERVAL_MS = 500;
 const EVENT_LOOP_STALL_WARN_MS = 250;
 /**
- * A stall this many times the warn threshold escalates to `error` — at that point requests are visibly timing out.
+ * A stall this many times the warn threshold escalates to `error`: at that point requests are visibly timing out.
  */
 const ERROR_ESCALATION_FACTOR = 10;
 /**
@@ -39,8 +39,8 @@ const SUSPENSION_CEILING_MS = 10_000;
 const SUSPENSION_CPU_RATIO = 0.1;
 
 /**
- * Why the gap happened. `process-suspension` is an expected non-fault — the whole process was frozen by the OS, most
- * often a macOS lid close — and never escalates, so the `error` count keeps its signal value. `event-loop-block` is the
+ * Why the gap happened. `process-suspension` is an expected non-fault (the whole process was frozen by the OS, most
+ * often a macOS lid close) and never escalates, so the `error` count keeps its signal value. `event-loop-block` is the
  * real defect this monitor exists to catch.
  */
 export type EventLoopStallKind = 'event-loop-block' | 'process-suspension';
@@ -84,8 +84,8 @@ export interface EventLoopStallSummary {
 }
 
 /**
- * Declared as closure properties rather than methods: both are handed around on their own — a `stop` stored for
- * shutdown, a `summary` passed to a diagnostic sink — and neither ever reads `this`.
+ * Declared as closure properties rather than methods: both are handed around on their own (a `stop` stored for
+ * shutdown, a `summary` passed to a diagnostic sink), and neither ever reads `this`.
  */
 export interface EventLoopMonitor {
     stop: () => void;

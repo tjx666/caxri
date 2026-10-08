@@ -12,7 +12,7 @@ function normalizeRepoPath(path: string): string {
  * in a row: once as a `<name> · submodule` entry inside the parent's change list, and again as the submodule's own
  * repository section directly below it, with its branch and its real file changes. The gitlink row carried no detail
  * the section did not already carry better, so the parent's list drops it. A submodule the snapshot is not showing
- * separately — one outside the approved Project — keeps its ordinary gitlink row.
+ * separately, one outside the approved Project, keeps its ordinary gitlink row.
  */
 export function submodulePathsWithOwnSection(
     repo: GitRepositorySummary,

@@ -6,8 +6,8 @@ import type { LogQueryRecord, LogQueryResult } from '@caxri/protocol';
  * server reports records were dropped between polls.
  *
  * `gapEpoch` is a monotonically increasing generation counter for the gap banner (see `log-viewer-panel.tsx`'s
- * dismiss button). `gap` alone can't tell a dismissed drop from a brand-new one — it only ever flips `false -> true`
- * and then latches — so a dismiss action has nothing to compare against. `gapEpoch` instead increments on every event
+ * dismiss button). `gap` alone can't tell a dismissed drop from a brand-new one: it only ever flips `false -> true`
+ * and then latches, so a dismiss action has nothing to compare against. `gapEpoch` instead increments on every event
  * that should be treated as a *new* generation worth re-surfacing the banner for: a fresh page that actually advances
  * the cursor while reporting a gap (the only "newly detected gap" signal the `logs.query` payload exposes), and
  * `clearLogStream`/a process-filter switch, both of which start a new viewing session the user hasn't acknowledged

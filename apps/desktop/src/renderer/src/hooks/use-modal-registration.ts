@@ -11,11 +11,11 @@ import { useDialogStore } from '@/stores/dialogs';
  *
  * `useLayoutEffect` rather than `useEffect`, because unregistering is a passive effect otherwise: it would not run
  * until React flushes effects on its own schedule, which a busy main thread (a picker's own async open, Monaco's lazy
- * import) can push past the very next keystroke. A shortcut typed in that gap — including the one that would reopen the
- * picker that just closed — reads `isModalOpen()` as still true and is silently swallowed even though the app already
+ * import) can push past the very next keystroke. A shortcut typed in that gap (including the one that would reopen the
+ * picker that just closed) reads `isModalOpen()` as still true and is silently swallowed even though the app already
  * decided to close the dialog (issue #1093). A layout effect commits synchronously in the same turn as the `open`
- * prop's own state update, so by the time the browser can dispatch another keydown the unregister has already happened
- * — no keystroke is queued or reordered, the stale read is just never possible.
+ * prop's own state update, so by the time the browser can dispatch another keydown the unregister has already happened:
+ * no keystroke is queued or reordered, and the stale read is just never possible.
  */
 export function useModalRegistration(open: boolean | undefined): void {
     const id = useId();

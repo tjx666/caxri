@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react';
 
 /**
- * VS Code's `worktree` codicon — the glyph its Source Control view uses for a linked Git worktree row. Vendored inline
+ * VS Code's `worktree` codicon: the glyph its Source Control view uses for a linked Git worktree row. Vendored inline
  * (rather than via an icon font or static asset URL) because tree-row icons must inherit `currentColor`, and lucide has
  * no equivalent glyph.
  *

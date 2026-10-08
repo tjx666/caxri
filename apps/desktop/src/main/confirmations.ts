@@ -15,7 +15,7 @@ import type { MessageBoxOptions } from 'electron';
 export type ExternalLinkChoice = 'open_once' | 'trust' | 'trust_parent' | 'cancel';
 
 /**
- * A second trust button makes the generic label ambiguous — "Trust Domain" no longer says which domain — so the
+ * A second trust button makes the generic label ambiguous ("Trust Domain" no longer says which domain), so the
  * exact-origin button names its host once there is something to confuse it with. With no parent candidate the wording,
  * the count, and the indices stay exactly as they were.
  */
@@ -31,16 +31,16 @@ function externalLinkButtons(target: URL, canTrust: boolean, parentHostname?: st
 }
 
 /**
- * The full URL — not just the host — is what makes consent meaningful: a plausible host can still carry a hostile path
- * or query, and this dialog is the last point where the user can see it. When a wildcard rule is on offer the detail
- * also has to say how much wider it is, because nothing in `venice.ai` distinguishes a domain one party owns from a
- * hosting domain anyone can publish under.
+ * The full URL (not just the host) is what makes consent meaningful: a plausible host can still carry a hostile path or
+ * query, and this dialog is the last point where the user can see it. When a wildcard rule is on offer the detail also
+ * has to say how much wider it is, because nothing in `venice.ai` distinguishes a domain one party owns from a hosting
+ * domain anyone can publish under.
  */
 function externalLinkDetail(target: URL, canTrust: boolean, parentHostname?: string): string {
     if (!canTrust) return `${target.href}\n\nYou can open this link once.`;
     if (!parentHostname)
         return `${target.href}\n\nYou can open this link once or trust this exact origin for future links. Trusted origins can be reviewed or removed in Settings.`;
-    return `${target.href}\n\nTrusting ${target.host} covers that host alone. Trusting *.${parentHostname} covers every subdomain of ${parentHostname}, including ones you have never visited — on a shared hosting domain that means sites other people control. Both rules can be reviewed or removed in Settings.`;
+    return `${target.href}\n\nTrusting ${target.host} covers that host alone. Trusting *.${parentHostname} covers every subdomain of ${parentHostname}, including ones you have never visited. On a shared hosting domain that means sites other people control. Both rules can be reviewed or removed in Settings.`;
 }
 
 export function externalLinkPrompt(
@@ -156,8 +156,8 @@ const NAMED_WORKTREE_PROJECT_LIMIT = 5;
  * of its own, so this cascade is the only way one is ever removed. That makes naming them part of the consent: the user
  * is deleting records they cannot see.
  *
- * The copy is careful about what does _not_ go with them. Such a Project never holds a Session of its own — the Server
- * refuses to create one there — so the Sessions in play are the ones adopting the worktree as their Workbench Root, and
+ * The copy is careful about what does _not_ go with them. Such a Project never holds a Session of its own (the Server
+ * refuses to create one there), so the Sessions in play are the ones adopting the worktree as their Workbench Root, and
  * those survive with their root reset. Saying "and their Sessions" would name a set that is always empty while implying
  * the one set that is never deleted.
  */
@@ -270,7 +270,7 @@ export function unsavedChangesPrompt(name: string): MessageBoxOptions {
         detail: "Your changes will be lost if you don't save them.",
         buttons: ['Save', "Don't Save", 'Cancel'],
         /**
-         * MacOS convention: Enter saves, Escape cancels — never the destructive choice.
+         * MacOS convention: Enter saves, Escape cancels, never the destructive choice.
          */
         defaultId: 0,
         cancelId: 2,

@@ -7,8 +7,8 @@ import { tryCommand } from '../../stores/toasts';
  *
  * This is the only click in the product that changes how every future launch draws, so the copy has to carry all three
  * consequences at once: it restarts now, it lasts past this session, and Settings takes it back. VS Code gates its one
- * comparable boot-flag write the same way — confirm, then write, then restart
- * (`services/localization/electron-browser/localeService.ts`) — and never flips this particular flag for the user at
+ * comparable boot-flag write the same way: confirm, then write, then restart
+ * (`services/localization/electron-browser/localeService.ts`), and never flips this particular flag for the user at
  * all. Exported as data so the wording is covered by a unit test rather than only by a screenshot.
  */
 export const TURN_OFF_HARDWARE_ACCELERATION_CONFIRM = {

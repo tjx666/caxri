@@ -74,8 +74,8 @@ export interface PointerDragResizeHandlers {
 /**
  * Shared imperative mechanics for a pointer-driven resize divider: pointer capture, active-pointerId bookkeeping (so a
  * second, unrelated pointer can never move or end someone else's drag), value resolution with clamping, and Arrow-key
- * stepping. The caller owns everything about _how_ a value is applied — CSS custom property vs React state,
- * drag-affordance classes, aria attributes — via `resolveValue`/`onDragMove`/`onCommit`/`onCancel`; spread the returned
+ * stepping. The caller owns everything about _how_ a value is applied (CSS custom property vs React state,
+ * drag-affordance classes, aria attributes) via `resolveValue`/`onDragMove`/`onCommit`/`onCancel`; spread the returned
  * handlers onto the divider element.
  */
 export function usePointerDragResize(

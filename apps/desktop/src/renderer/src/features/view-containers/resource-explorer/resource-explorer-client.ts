@@ -58,8 +58,8 @@ export interface ResourceExplorerClient {
 }
 
 /**
- * Resolved per call rather than captured when the client is built. A captured id would make the client — and with it
- * the controlled-view context value carrying it — a new object on every Session switch, which re-renders every context
+ * Resolved per call rather than captured when the client is built. A captured id would make the client (and with it the
+ * controlled-view context value carrying it) a new object on every Session switch, which re-renders every context
  * consumer including all 49 visible file-tree rows. The id is only a scope selector for Server, so reading the current
  * selection at request time is equivalent.
  */

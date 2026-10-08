@@ -51,7 +51,7 @@ beyond the packaged application itself.
   set and generated contents; any additional, missing, or modified content falls back to normal
   main-push CI. Only a successful CI `workflow_run` for the same commit may start packaging. `main`
   requires the `guards` status check with no bypass, so the release commit reaches `main` through a
-  pull request squash-merged with the exact release subject, not a direct push — see `RELEASING.md`.
+  pull request squash-merged with the exact release subject, not a direct push; see `RELEASING.md`.
 - Normal commits follow the event plan in `docs/ci-performance.md`. Source pushes may run optimized
   E2E, but they never package or publish a release.
 - The release workflow validates the version and tag, builds the release-signed Android update APK

@@ -16,7 +16,7 @@ interface RunningCaxri {
 
 async function openProcessExplorer(running: RunningCaxri): Promise<Page> {
     const action = running.page.getByRole('button', {
-        name: /^Open Process Explorer — Terminal memory: [\d.]+ MB$/,
+        name: /^Open Process Explorer, Terminal memory: [\d.]+ MB$/,
     });
     await action.click();
     await expect.poll(() => running.app.windows().length).toBe(2);
@@ -26,7 +26,7 @@ async function openProcessExplorer(running: RunningCaxri): Promise<Page> {
 async function processExplorerWindowId(app: ElectronApp): Promise<number> {
     return app.evaluate(({ BrowserWindow }) => {
         const processExplorer = BrowserWindow.getAllWindows().find(
-            (window) => window.getTitle() === 'Process Explorer — Caxri',
+            (window) => window.getTitle() === 'Process Explorer - Caxri',
         );
         if (!processExplorer) throw new Error('Process Explorer window was not found');
         return processExplorer.id;
@@ -148,7 +148,7 @@ test('Process Explorer render exceptions offer a working reload', async () => {
         );
         await processPage.getByRole('button', { name: 'Reload Process Explorer' }).click();
         await expect(
-            processPage.getByText('Process Explorer — Caxri', { exact: true }),
+            processPage.getByText('Process Explorer - Caxri', { exact: true }),
         ).toBeVisible();
         await processPage.evaluate(() => {
             setTimeout(() => {
@@ -230,7 +230,7 @@ test('Process Explorer bounds renderer crash recovery and reopens cleanly', asyn
 
         const processPage = await openProcessExplorer(running);
         await expect(
-            processPage.getByText('Process Explorer — Caxri', { exact: true }),
+            processPage.getByText('Process Explorer - Caxri', { exact: true }),
         ).toBeVisible();
     } finally {
         try {

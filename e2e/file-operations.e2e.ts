@@ -43,7 +43,7 @@ async function injectTransientFileAbsence(path: string): Promise<{ restored: Pro
 }
 
 test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash workflows', async () => {
-    // Every conflicting move — rename, or paste/drag onto an existing name — opens the Finder-style
+    // Every conflicting move (rename, or paste/drag onto an existing name) opens the Finder-style
     // conflict dialog instead of failing flat, but `moveFile` (`file-actions.ts`) still always tries
     // `conflict: 'reject'` first so the dialog can offer Replace/Keep Both/Cancel. Those deliberate
     // probes are no longer declared here: `CONFLICT` is a caller-absorbed outcome and every boundary
@@ -329,7 +329,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
 
         // Keep Both: even though Replace is offered for this file-over-file collision too, choosing
         // Keep Both auto-suffixes the moved file instead, leaving the destination's original entry
-        // untouched — the same guarantee the old flat rejection used to promise before this dialog.
+        // untouched, the same guarantee the old flat rejection used to promise before this dialog.
         const draftCopyRow = fileList.getByTitle(join(root, 'draft copy.txt'), { exact: true });
         await draftCopyRow.dragTo(destinationRow);
         await expect(conflictDialog).toBeVisible();

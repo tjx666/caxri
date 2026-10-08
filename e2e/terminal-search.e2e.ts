@@ -105,7 +105,7 @@ test('Terminal search highlights and navigates matches without intercepting Edit
         await expect(firstSession).toHaveClass(/active/);
         /**
          * Session keep-alive holds the pane across a switch, so coming back finds the search bar exactly as it was left
-         * — open, still in regex mode, still complaining about the same query — rather than reset by a remount the user
+         * (open, still in regex mode, still complaining about the same query) rather than reset by a remount the user
          * never asked for. Matching VS Code, where the Terminal find widget belongs to the Terminal.
          */
         await expect(search).toBeVisible();

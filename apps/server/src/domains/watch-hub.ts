@@ -28,7 +28,7 @@ const NATIVE_RETRY_MAX_DELAY_MS = 300_000;
 /**
  * Coalescing window for "must rescan" advisories (see {@link isMustRescanAdvisory}). It has to exceed
  * `@parcel/watcher`'s own `Debounce::MAX_WAIT_TIME` of 500ms, because writes arriving faster than its 50ms
- * `MIN_WAIT_TIME` make it force a batch out on that 500ms ceiling — a steady advisory stream for as long as the writes
+ * `MIN_WAIT_TIME` make it force a batch out on that 500ms ceiling: a steady advisory stream for as long as the writes
  * last. Every window shorter than that ceiling forwards each advisory unchanged, which is why the 75ms Files batch and
  * the 150ms Renderer invalidation debounce downstream do not protect this path. Doubling the ceiling folds each pair of
  * forced flushes into one reconcile while capping the extra staleness a coalesced advisory can add at one second.
@@ -39,8 +39,8 @@ type WatchMode = 'native' | 'polling' | 'disposed';
 
 /**
  * Matches the macOS FSEvents "must rescan" advisory. `@parcel/watcher@2.6.0`'s `FSEventsBackend.cc` attaches one of
- * three messages to a batch when `kFSEventStreamEventFlagMustScanSubDirs` is set — "Events were dropped by the FSEvents
- * client.", "Events were dropped by the kernel.", or "Too many events." — always followed by "File system must be
+ * three messages to a batch when `kFSEventStreamEventFlagMustScanSubDirs` is set ("Events were dropped by the FSEvents
+ * client.", "Events were dropped by the kernel.", or "Too many events.") always followed by "File system must be
  * re-scanned." (see `src/macos/FSEventsBackend.cc:82-88`). The stream itself keeps running and its callback stays
  * registered (contrast `Watcher::notifyError` in `src/Watcher.cc:113-120`, which really does tear the subscription
  * down), so this is advisory, not a dead subscription: the caller should reconcile once and keep watching natively
@@ -155,8 +155,8 @@ class Registration implements WatchHandle {
     fallbackActive = false;
     /**
      * The options `register()` was called with, kept for the lifetime of the registration so a later fallback can retry
-     * the same native subscription. Absent for `registerPoller()` entries, which never have a native form — that
-     * absence is what tells `activateFallback` not to schedule a native-restore retry for them.
+     * the same native subscription. Absent for `registerPoller()` entries, which never have a native form: that absence
+     * is what tells `activateFallback` not to schedule a native-restore retry for them.
      */
     registerOptions?: WatchRegistrationOptions;
     /**
@@ -433,10 +433,10 @@ export class WatchHub {
     /**
      * Coalesces "must rescan" advisories into at most one reconcile per {@link RESCAN_THROTTLE_MS}. The first advisory
      * reconciles immediately, so an isolated one keeps today's zero added latency; every advisory arriving while the
-     * window is open is folded into a single catch-up reconcile at its close. Dropping an advisory is never an option —
-     * each one means the kernel coalesced away events the consumer has not seen — but running one reconcile per
-     * advisory during a `pnpm install` or a rebase spends whole seconds of Git and Files work re-deriving state that
-     * the next advisory invalidates milliseconds later.
+     * window is open is folded into a single catch-up reconcile at its close. Dropping an advisory is never an option:
+     * each one means the kernel coalesced away events the consumer has not seen, but running one reconcile per advisory
+     * during a `pnpm install` or a rebase spends whole seconds of Git and Files work re-deriving state that the next
+     * advisory invalidates milliseconds later.
      *
      * The advisory is also no longer worth one `info` record each: a dense window used to write one per forced flush
      * for as long as the writes lasted, against a 5MB log generation. One record per reconcile carries how many
@@ -474,7 +474,7 @@ export class WatchHub {
 
     /**
      * Disarms the coalescing window and forgets what it had folded in. Called wherever this registration stops owning
-     * native reconciliation — disposal, and degradation to the polling fallback.
+     * native reconciliation: disposal, and degradation to the polling fallback.
      */
     private closeRescanWindow(entry: Registration): void {
         if (entry.rescanTimer) clearTimeout(entry.rescanTimer);

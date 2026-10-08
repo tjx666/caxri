@@ -15,8 +15,8 @@ import type { AgentTranscriptLocation } from './transcript-security';
 import { openSafeAgentTranscript, resolveSafeAgentTranscriptPath } from './transcript-security';
 
 /**
- * Transport cap for one transcript read. Oversized transcripts keep their tail — the newest turns are what a live
- * inspection needs — and are flagged `truncated`.
+ * Transport cap for one transcript read. Oversized transcripts keep their tail: the newest turns are what a live
+ * inspection needs, and are flagged `truncated`.
  */
 export const MAX_AGENT_TRANSCRIPT_BYTES = 4 * 1024 * 1024;
 
@@ -200,7 +200,7 @@ async function readTranscriptTail(
 
 /**
  * Resolves and reads the on-disk transcript for a bound Agent Terminal. The path is derived Server-side from the
- * Terminal's durable identity (provider, cwd, Agent session) — the caller never supplies a filesystem path, so this
+ * Terminal's durable identity (provider, cwd, Agent session): the caller never supplies a filesystem path, so this
  * deliberate out-of-Project read cannot be steered anywhere the owning provider does not already write.
  */
 export async function readAgentTranscript(

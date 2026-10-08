@@ -107,7 +107,7 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
             .toBe(false);
         // Settings is a Workbench tab now, not a modal (issue caxri#1289): it occupies the
         // same pane a Terminal session would, so `Cmd+W` closes it outright to get the Terminal
-        // back in view before typing into it below — there is no "Close" button to click anymore.
+        // back in view before typing into it below; there is no "Close" button to click anymore.
         await running.page.keyboard.press('Meta+w');
 
         await typeTerminal(running.page, osc52(encoded('DISABLED_BLOCKED')));
@@ -191,7 +191,7 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
         await running.clipboard.writeText('CLOSE_SENTINEL');
         /**
          * Terminal > Close Terminal now archives a Session on its true last tab, same as `Cmd+W`, instead of destroying
-         * the Terminal — so give this Session a sibling Terminal and re-select `secondTerminalId`'s own tab first,
+         * the Terminal, so give this Session a sibling Terminal and re-select `secondTerminalId`'s own tab first,
          * keeping the close below an ordinary one that actually destroys the Terminal this clipboard assertion tracks.
          * Done before typing the delayed write so the 0.5s race against the close below is unchanged.
          */

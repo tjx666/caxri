@@ -11,7 +11,7 @@ State whether the architecture is sound, needs targeted repair, or warrants a br
 Order findings by severity and leverage. Use this shape:
 
 ```markdown
-### F1 — [Severity · Category · Effort S/M/L] User-visible consequence
+### F1: [Severity · Category · Effort S/M/L] User-visible consequence
 
 - **Context:** Why this file or boundary matters.
 - **Evidence:** `path/to/file.ts:42` and the relevant consumer/test.
@@ -36,9 +36,9 @@ For a subagent-backed audit, include only findings with an independent dispositi
 
 Close the findings section with two fixed lists so the report converts into work:
 
-- **Top priorities** — at most five finding IDs, ordered by the skill's consequence-and-leverage
+- **Top priorities**: at most five finding IDs, ordered by the skill's consequence-and-leverage
   ranking, each with a one-line reason.
-- **Quick wins** — S-effort findings worth doing regardless of ranking. Omit the list only when no
+- **Quick wins**: S-effort findings worth doing regardless of ranking. Omit the list only when no
   S-effort finding exists, and say so.
 
 ## Coverage matrix

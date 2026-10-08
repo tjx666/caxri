@@ -2,7 +2,7 @@ import type { RefObject } from 'react';
 import { useEffect, useState } from 'react';
 
 /**
- * Whether an element's content is wider than the box that renders it — i.e. whether CSS actually clipped it.
+ * Whether an element's content is wider than the box that renders it, i.e. whether CSS actually clipped it.
  *
  * A label styled with `text-ellipsis` gives no signal of its own that anything was cut off, so a caller that wants to
  * reveal the full text (a tooltip) can only tell by measuring. `scrollWidth`/`clientWidth` are both layout-rounded to

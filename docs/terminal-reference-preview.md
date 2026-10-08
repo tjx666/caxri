@@ -9,7 +9,7 @@ Durable record of the hover card that appears over a commit sha or a GitHub refe
 Terminal: what it shows, what it is allowed to read, and why each boundary is where it is.
 
 A Terminal is full of identifiers that are meaningful only if you already know them. `f36a02a` in
-`git log` output, `tjx666/caxri#445` in a CI summary, a bare `#912` an Agent just wrote — each one
+`git log` output, `tjx666/caxri#445` in a CI summary, a bare `#912` an Agent just wrote: each one
 answers a question the user has to leave the Terminal to ask. The affordance hint already told them
 the link was clickable; the card tells them whether it is the link they want before they spend a
 pane on it.
@@ -23,12 +23,12 @@ reference's own metadata above that affordance line:
 | -------------------- | -------------------------------------------------------------------------- |
 | Commit sha           | subject, `repository · shortSha`, author, relative age, `+N -M in K files` |
 | GitHub issue / PR    | title, the configured link detail, state and number, author, relative age  |
-| Configured link rule | the rule's own label and detail only — no request is made                  |
+| Configured link rule | the rule's own label and detail only: no request is made                   |
 | File path            | the existing affordance hint only                                          |
 
 The affordance line stays last, so the card never costs the user the instruction they were reading.
 `Esc` dismisses it; scrolling the Terminal dismisses it; moving the pointer off the link dismisses
-it. Everything remote renders through `textContent`, never markup — a card is built from program
+it. Everything remote renders through `textContent`, never markup; a card is built from program
 output and a repository the user does not control.
 
 ## Only two kinds of reference are worth a read
@@ -51,8 +51,8 @@ passing over a stack trace.
 
 `TerminalReferencePreviewStore` sits between the hover and the protocol:
 
-- **One read per reference.** Concurrent hovers over the same reference — two panes showing the same
-  sha, a pointer that left and came back — join one in-flight read.
+- **One read per reference.** Concurrent hovers over the same reference (two panes showing the same
+  sha, a pointer that left and came back) join one in-flight read.
 - **Cancellation is real.** The read travels on `caxri.requestWithSignal`, so a pointer moving on
   sends `requests.cancel` rather than abandoning a response the Server is still producing. The
   signal is aborted only when the _last_ waiter leaves.
@@ -60,7 +60,7 @@ passing over a stack trace.
   hover's own departure. Waiting for the read to settle first would hold a card nobody can see, and
   would let a slow read reorder itself in front of the next hover.
 - **Bounded memory.** 64 entries, least-recently-stored evicted, 60s TTL for a real card and 15s for
-  an `unavailable` one — a blank card is usually a transient state, and re-asking after a quarter of
+  an `unavailable` one: a blank card is usually a transient state, and re-asking after a quarter of
   a minute is how it recovers without a restart.
 
 A rejection is never propagated to the popup. The store returns `undefined` and the basic affordance
@@ -70,7 +70,7 @@ requested.
 ## The Server decides what a hover is allowed to read
 
 `terminal.reference.preview` (`apps/server/src/domains/git/reference-preview.ts`) takes a Terminal ID
-and a reference, and resolves the Project from the Terminal — the Renderer cannot submit a
+and a reference, and resolves the Project from the Terminal; the Renderer cannot submit a
 repository, a root, or a cwd.
 
 **A commit** resolves through the same abbreviation resolver `⌘ click` uses. An abbreviation matching
@@ -88,17 +88,17 @@ spending a request.
 ### Nothing rejects
 
 Every "nothing to show" case returns an `unavailable` card with a closed reason, never a rejected
-request — a hover the user did not ask for must not raise a toast they then have to dismiss. The
+request: a hover the user did not ask for must not raise a toast they then have to dismiss. The
 reasons are separately actionable on purpose:
 
-| Reason              | What the operator does about it        |
-| ------------------- | -------------------------------------- |
-| `cli-missing`       | install the GitHub CLI                 |
-| `not-authenticated` | `gh auth login`                        |
-| `rate-limited`      | wait for the quota to reset            |
-| `ambiguous`         | use a longer abbreviation              |
-| `not-found`         | nothing — the reference does not exist |
-| `failed`            | read the logs                          |
+| Reason              | What the operator does about it       |
+| ------------------- | ------------------------------------- |
+| `cli-missing`       | install the GitHub CLI                |
+| `not-authenticated` | `gh auth login`                       |
+| `rate-limited`      | wait for the quota to reset           |
+| `ambiguous`         | use a longer abbreviation             |
+| `not-found`         | nothing: the reference does not exist |
+| `failed`            | read the logs                         |
 
 The failure is logged as that reason enum, never the CLI's message: a blank card has to stay
 countable by cause, and `gh` output can carry a repository path or a token hint that must never

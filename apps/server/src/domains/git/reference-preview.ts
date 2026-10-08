@@ -36,7 +36,7 @@ export interface TerminalReferencePreviewOptions {
 /**
  * Whether a hover may spend a network request on this repository.
  *
- * A Terminal renders whatever a program writes, so `owner/repo#1` in its output is untrusted text — and hovering is
+ * A Terminal renders whatever a program writes, so `owner/repo#1` in its output is untrusted text, and hovering is
  * involuntary in a way clicking is not. Restricting rich metadata to the repositories the Session already has means
  * program output can never steer an outbound request at a repository of its choosing just by scrolling past the
  * pointer. The link itself still opens anywhere on an explicit `⌘ click`; only the unattended read is constrained.

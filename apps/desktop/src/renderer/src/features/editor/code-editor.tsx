@@ -95,7 +95,7 @@ export function CodeEditor({
     /**
      * Held in a ref rather than read from the effect's dependencies: folding is a decision about the moment a document
      * opens, and depending on the live value would collapse every editor that is already open the instant the setting
-     * changed — under the hands of whoever was reading one.
+     * changed, under the hands of whoever was reading one.
      */
     const foldOnOpenThresholdReference = useRef(foldOnOpenLineThreshold);
     const handleChange = useCallback(
@@ -112,7 +112,7 @@ export function CodeEditor({
      * Scroll position and cursor outlive the widget that showed them. The two halves run in different effect phases on
      * purpose:
      *
-     * - The layout cleanup records the outgoing model while Monaco is still alive — React runs it before
+     * - The layout cleanup records the outgoing model while Monaco is still alive: React runs it before
      *   `@monaco-editor/react`'s passive cleanup disposes the editor on unmount (a Session switch remounts the whole
      *   pane tree), and before its passive `path` effect swaps in another model;
      * - The passive body restores afterwards, once that swap has happened. It runs before the reveal registration below
@@ -156,7 +156,7 @@ export function CodeEditor({
     /**
      * Declared after the two effects above on purpose: the remembered position is restored and any queued reveal has
      * been applied by the time this runs, so both are visible to the decision in `foldEditorOnOpen`. The first mount
-     * cannot go through here — the wrapper creates the editor asynchronously — and is handled in `onMount` instead, in
+     * cannot go through here (the wrapper creates the editor asynchronously) and is handled in `onMount` instead, in
      * the same order.
      */
     useEffect(() => {

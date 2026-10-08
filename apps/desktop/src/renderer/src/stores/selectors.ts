@@ -117,7 +117,7 @@ export function useSelectedSession(): SessionRecord | undefined {
 
 /**
  * A Session by id rather than by selection. Required wherever a view may belong to a Session that is mounted but not on
- * screen — a Terminal in a kept-alive Workbench still resolves paths against its own Project root, not the selected
+ * screen: a Terminal in a kept-alive Workbench still resolves paths against its own Project root, not the selected
  * Session's (issue #657).
  */
 export function useSessionById(sessionId: string | undefined): SessionRecord | undefined {
@@ -157,7 +157,7 @@ export function useSessionState(sessionId?: string): SessionState | undefined {
  * The two ids a Session-scoped view keys its reads on, and nothing else from the Session.
  *
  * The narrowing is the point. `SessionState` also carries `paneLayout`, which moves on every work-tab switch, so a view
- * that read the whole record re-rendered for a tab change it has no stake in — including while it was hidden, where the
+ * that read the whole record re-rendered for a tab change it has no stake in, including while it was hidden, where the
  * user pays for the work and cannot even see the result.
  */
 export function useSessionViewScope(): {

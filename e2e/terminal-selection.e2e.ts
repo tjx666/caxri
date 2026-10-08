@@ -215,7 +215,7 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
 
         /**
          * SearchAddon represents its active match as a Terminal selection, so copy-on-select must skip exactly that
-         * navigation — and nothing else. An open search bar is not a reason to stop copying a mouse selection, which is
+         * navigation, and nothing else. An open search bar is not a reason to stop copying a mouse selection, which is
          * what a guard keyed on "is the search bar open" would do.
          */
         await running.clipboard.writeText('SEARCH_NAVIGATION_SENTINEL');

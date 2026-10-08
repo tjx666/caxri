@@ -1,7 +1,7 @@
 import type { PaneSplitSide, TerminalKind } from '@caxri/protocol';
 
 /**
- * The argument each follow-up needs to run again later, and — through its keys — the closed set of follow-ups a
+ * The argument each follow-up needs to run again later, and, through its keys, the closed set of follow-ups a
  * notification may offer.
  *
  * A toast lives four seconds. The notification center keeps the last hundred messages but, by design, no closures, so
@@ -46,7 +46,7 @@ export interface ToastActionParameters {
         terminalId: string;
         /**
          * The process this Terminal was running when the restart failed, absent when it was not running at all. Restart
-         * replaces a live PTY, so a retry taken long after the fact must first confirm nobody already restarted it —
+         * replaces a live PTY, so a retry taken long after the fact must first confirm nobody already restarted it:
          * repeating a submitted restart would kill whatever is running now.
          */
         processId?: number;
@@ -60,7 +60,7 @@ export interface ToastActionParameters {
         projectId: string;
         /**
          * The root the Agent moved to. Undo means "take back that move", so it stops applying the moment the Session is
-         * somewhere else — by then returning would be a third move the user never asked for.
+         * somewhere else: by then returning would be a third move the user never asked for.
          */
         followedProjectId: string;
     };
@@ -70,7 +70,7 @@ export type ToastActionId = keyof ToastActionParameters;
 
 /**
  * One follow-up as a notification carries it. `accessibleLabel` is the screen-reader name when the visible one is too
- * short to stand alone — three `Retry` buttons in the history are three different retries. It starts with the visible
+ * short to stand alone: three `Retry` buttons in the history are three different retries. It starts with the visible
  * label word for word (WCAG 2.5.3, Label in Name): a voice-control user says what the button shows, and a name that
  * rewords it leaves that command matching nothing.
  */
@@ -101,8 +101,8 @@ export const toastActionLabels: Record<ToastActionId, string> = {
 
 export interface ToastActionHandler<Id extends ToastActionId> {
     /**
-     * A reader-facing sentence when this follow-up can no longer run — the Session was closed, the editor's Project
-     * changed — or undefined when it still can.
+     * A reader-facing sentence when this follow-up can no longer run (the Session was closed, the editor's Project
+     * changed) or undefined when it still can.
      *
      * Asked at click time, never at render time: a button that has been sitting in history for ten minutes must be
      * judged against the state it is clicked in, and a history list does not re-render when that state moves.
@@ -116,7 +116,7 @@ export type ToastActionHandlers = { [Id in ToastActionId]: ToastActionHandler<Id
 /**
  * The answer when this window has no handler for a follow-up: a notification raised before the module graph that owns
  * the handlers has evaluated, or a follow-up that belongs to another window. It fails closed rather than rendering a
- * button that does nothing. It does not claim the follow-up is gone — nothing was checked — only that this window could
+ * button that does nothing. It does not claim the follow-up is gone, nothing was checked, only that this window could
  * not perform it.
  */
 export const UNKNOWN_TOAST_ACTION_REASON = 'Caxri could not run this action.';
@@ -127,8 +127,8 @@ const installed: { handlers?: Partial<ToastActionHandlers> } = {};
  * Installs what each follow-up actually does. The Workbench installs every handler; a narrower window installs only the
  * follow-ups its own surfaces raise.
  *
- * The behavior lives outside this store because the store may not import feature modules — the Renderer forbids the
- * import cycle that would create — while the features that raise notifications all import the store.
+ * The behavior lives outside this store because the store may not import feature modules (the Renderer forbids the
+ * import cycle that would create), while the features that raise notifications all import the store.
  */
 export function configureToastActions(handlers: Partial<ToastActionHandlers>): void {
     installed.handlers = handlers;

@@ -17,9 +17,9 @@ import { useWorkbenchRootPromptStore } from './workbench-root-prompt-store';
 /**
  * Non-modal prompt: Terminal and Editor interaction remain available while the user decides.
  *
- * It never takes focus by itself. `Shift+Escape` brings focus here from anywhere — including the Terminal that swallows
- * Tab — and `Escape` answers "Not Now"; {@link resolveWorkbenchRootPromptKey} records why those two chords and no
- * others. Answering the prompt by either route returns focus where it came from, so a keyboard user is never left on
+ * It never takes focus by itself. `Shift+Escape` brings focus here from anywhere (including the Terminal that swallows
+ * Tab) and `Escape` answers "Not Now"; {@link resolveWorkbenchRootPromptKey} records why those two chords and no others.
+ * Answering the prompt by either route returns focus where it came from, so a keyboard user is never left on
  * `document.body` with the next Tab restarting at the top of the document.
  */
 export function WorkbenchRootPrompt() {
@@ -50,7 +50,7 @@ export function WorkbenchRootPrompt() {
             setPending(false);
             // The answered prompt takes its focused button with it, so focus would otherwise land on `document.body`
             // and the next Tab would restart at the top of the document. Hand it back to the element `Shift+Escape`
-            // took it from, or — for a pointer answer, which recorded no origin — to the workbench's registered
+            // took it from, or (for a pointer answer, which recorded no origin) to the workbench's registered
             // fallback, which is the active pane's Terminal.
             restorePickerFocus(focusOrigin, promptElement);
         }
@@ -103,7 +103,7 @@ export function WorkbenchRootPrompt() {
                 A new Git worktree was created for this Session.
                 {/*
                  * `aria-keyshortcuts` is only read once focus is already here, and a live region announces its
-                 * content rather than its label — so the route in has to be part of what is announced.
+                 * content rather than its label, so the route in has to be part of what is announced.
                  */}
                 <span className="sr-only"> Press Shift+Escape to focus this notice.</span>
                 <span className="mt-1 block text-[11px] break-all text-muted">

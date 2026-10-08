@@ -78,7 +78,7 @@ const environment = (config: string) => ({
 describe('Claude probe realpath fan-out', () => {
     /**
      * Two calls: the requested Project root, and the one candidate that survived the in-memory filter. The count is the
-     * assertion — that it is identical for 4 and for 40 sessions is what proves the filter runs first.
+     * assertion: that it is identical for 4 and for 40 sessions is what proves the filter runs first.
      */
     it.each([4, 40])(
         'resolves only the requested Agent session when probing %i sessions',

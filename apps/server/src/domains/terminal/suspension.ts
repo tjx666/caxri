@@ -18,8 +18,8 @@ interface TerminalSuspensionServiceOptions {
     now?: () => number;
     /**
      * Reconciles a Terminal that finished an automatic (`idle`/`untouched`) suspend while its Session was, or had just
-     * become, the selected one — see the race explained on `suspendTerminal`. The caller is expected to wire this to
-     * the same restore `session.select` triggers (e.g. `restoreInterruptedTerminalsInBackground`), so the Terminal
+     * become, the selected one: see the race explained on `suspendTerminal`. The caller is expected to wire this to the
+     * same restore `session.select` triggers (e.g. `restoreInterruptedTerminalsInBackground`), so the Terminal
      * converges back to running without the user having to reselect.
      */
     onSuspendedSessionReselected?: (sessionId: string) => void;
@@ -101,8 +101,8 @@ export class TerminalSuspensionService {
     /**
      * `decideTerminalSuspensions` (called from `suspendDecided`) snapshots the selected Session once at the top of the
      * sweep, but the teardown below is a real async barrier (`TerminalManager#suspend` awaits killing the PTY and
-     * capturing its final screen). A `session.select` that lands anywhere in that window — before this call starts, or
-     * while it is in flight — is invisible to the snapshot, so without this fence the just-selected Session's Terminal
+     * capturing its final screen). A `session.select` that lands anywhere in that window (before this call starts, or
+     * while it is in flight) is invisible to the snapshot, so without this fence the just-selected Session's Terminal
      * would end up `suspended` with nothing left to retry it (GitHub issue #1427). `archived`/`detached` are explicit
      * user actions on a specific Session and must proceed regardless of what is selected, so only the automatic
      * `idle`/`untouched` reasons are fenced.
@@ -138,7 +138,7 @@ export class TerminalSuspensionService {
                 fields: { reason, sessionId: record.sessionId, terminalId },
             });
             // Closes the narrower gap: the selection changed while this Terminal's own teardown was in flight, so
-            // the kill already happened and the record is genuinely `suspended` — reconcile it back to running.
+            // the kill already happened and the record is genuinely `suspended`: reconcile it back to running.
             if (isAutomaticSweep && this.options.selectedSessionId() === record.sessionId)
                 this.options.onSuspendedSessionReselected?.(record.sessionId);
             return true;
@@ -267,7 +267,7 @@ export class TerminalSuspensionService {
     }
 
     /**
-     * Parks one Terminal because the user asked to stop it — the resource alert's `Stop`. It resumes through the same
+     * Parks one Terminal because the user asked to stop it: the resource alert's `Stop`. It resumes through the same
      * interrupted-restore path as an idle suspension, so the Agent conversation is not lost.
      */
     async suspendOnRequest(terminalId: string): Promise<boolean> {

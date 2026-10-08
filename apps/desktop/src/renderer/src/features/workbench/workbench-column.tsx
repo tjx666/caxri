@@ -15,8 +15,8 @@ import { Workbench } from './workbench';
  * The centre column of the app shell: the work surface with the Panel docked beneath it.
  *
  * The Panel lives inside this column rather than spanning the full window, so the PrimarySidebar and SecondarySidebar
- * keep their full height — the same arrangement VS Code ships, and the one that protects the SecondarySidebar's file
- * and source control trees from losing vertical room to a log stream.
+ * keep their full height: the same arrangement VS Code ships, and the one that protects the SecondarySidebar's file and
+ * source control trees from losing vertical room to a log stream.
  */
 export function WorkbenchColumn() {
     const isPanelVisible = useChromeLayoutStore((state) => state.panelVisible);

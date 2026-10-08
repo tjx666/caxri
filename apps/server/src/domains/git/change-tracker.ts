@@ -26,7 +26,7 @@ interface GitChangeTrackerOptions {
 /**
  * Owns the Session ↔ repository-identity mapping behind `git.changed`. Summaries register which canonical roots a
  * Session projects; generation bumps schedule one coalesced invalidation event naming every Session that projects an
- * affected repository — including sibling Sessions of other Workbench Projects — so no consumer waits out a stale-time
+ * affected repository (including sibling Sessions of other Workbench Projects), so no consumer waits out a stale-time
  * window for correctness. Payloads carry opaque ids only; no `.git` or working-tree path ever crosses this boundary.
  */
 export class GitChangeTracker {

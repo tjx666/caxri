@@ -18,10 +18,10 @@ import { createStore } from '../lib/store';
  * What the selected Session's Git status says about individual paths: how each changed path differs from HEAD, and
  * which directories are repositories of their own.
  *
- * A store rather than a context or a prop because the consumers — the file tree and the tab strip — render one
- * component per path and only a handful of those paths carry anything. A context would re-render every row whenever Git
- * reported anything at all; here each row subscribes to its own path and re-renders only when its own entry changes,
- * the same reason `resource-explorer-scope-store` holds expansion and selection.
+ * A store rather than a context or a prop because the consumers, the file tree and the tab strip, render one component
+ * per path and only a handful of those paths carry anything. A context would re-render every row whenever Git reported
+ * anything at all; here each row subscribes to its own path and re-renders only when its own entry changes, the same
+ * reason `resource-explorer-scope-store` holds expansion and selection.
  */
 interface GitDecorationState {
     childRepositories: GitChildRepoIndex;
