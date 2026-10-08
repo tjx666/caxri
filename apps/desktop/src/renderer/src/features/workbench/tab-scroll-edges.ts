@@ -22,7 +22,7 @@ export interface ScrollEdgeIntersection {
 }
 
 /**
- * Pure reducer over sentinel intersection updates — kept separate from the `IntersectionObserver`-driven hook below so
+ * Pure reducer over sentinel intersection updates, kept separate from the `IntersectionObserver`-driven hook below so
  * this is unit-testable without a browser (repo convention: extract logic out of the component/hook to test it).
  */
 export function applyScrollEdgeIntersections(
@@ -41,7 +41,7 @@ export function applyScrollEdgeIntersections(
 
 /**
  * Tracks which edges of a horizontally scrolling tab strip a caller should fade, so `PaneTabBar` can show "there is
- * more to scroll to" the way a horizontally scrolling list normally signals it — `overflow-x-auto` alone gives no such
+ * more to scroll to" the way a horizontally scrolling list normally signals it: `overflow-x-auto` alone gives no such
  * cue.
  *
  * Watches two zero-footprint sentinel elements the caller renders at the very start and end of the scrollable content

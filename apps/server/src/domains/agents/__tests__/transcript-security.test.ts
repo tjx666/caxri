@@ -123,7 +123,7 @@ describe('transcript-security failure reporting', () => {
 
     it('reports structureRejected when a resolved path escapes its declared root', async () => {
         const { calls, report } = reporter();
-        // A path that is not a direct child of `root` at all — the pre-lstat ancestry guard.
+        // A path that is not a direct child of `root` at all: the pre-lstat ancestry guard.
         const escapee = join(home, 'elsewhere.jsonl');
 
         const safe = await resolveSafeAgentTranscriptPath(location(escapee), report);

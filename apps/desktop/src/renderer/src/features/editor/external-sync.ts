@@ -99,7 +99,7 @@ async function syncFilesChanged(sessionId: string, changedPaths: readonly string
 }
 
 function onFilesChanged(sessionId: string, changedPaths: readonly string[]): void {
-    // Fire-and-forget: `syncFilesChanged` has no synchronous caller waiting on it — watcher events
+    // Fire-and-forget: `syncFilesChanged` has no synchronous caller waiting on it: watcher events
     // apply asynchronously and any failure surfaces through the normal request-rejection path.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void syncFilesChanged(sessionId, changedPaths);
@@ -142,7 +142,7 @@ function reconcileSelectedSession(sessionId: string, shouldPreserveDirty = false
             paths.push(path);
     }
     if (paths.length === 0) return;
-    // Fire-and-forget: reconciliation has no synchronous caller waiting on it — a failed read
+    // Fire-and-forget: reconciliation has no synchronous caller waiting on it: a failed read
     // surfaces through the normal request-rejection path, and there is no result to return here.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void syncReconcileSelectedSession(sessionId, workbenchProjectId, cached, paths);

@@ -30,15 +30,15 @@ import { cn } from '../../lib/utilities';
 /**
  * Wraps the tab in the shared `Tooltip` only when there is an untruncated title to reveal, so an Editor tab keeps its
  * current tooltip-free behavior. The tooltip hangs off the `role="tab"` button rather than the label span because that
- * is the focusable element — a native `title` attribute would be pointer-only.
+ * is the focusable element: a native `title` attribute would be pointer-only.
  *
  * `disabled` (rather than unmounting the wrapper) is what suppresses a redundant tooltip: Base UI's trigger owns the
  * tab's DOM `id` whenever this wrapper renders, so mounting and unmounting it as the label's measured overflow changes
  * would make that id blink in and out from under `aria-controls` and roving focus.
  *
  * `hoverOnly` because a tab is routinely focused by the app rather than by the user: `useTabFocusRecovery` hands the
- * active tab keyboard focus whenever a layout edit leaves focus on `document.body` — including after `Cmd+P` opens a
- * Document — and a focus-opened path tooltip then parks itself over the top of the Editor with nothing to dismiss it.
+ * active tab keyboard focus whenever a layout edit leaves focus on `document.body` (including after `Cmd+P` opens a
+ * Document) and a focus-opened path tooltip then parks itself over the top of the Editor with nothing to dismiss it.
  * The path is in the tab's accessible name either way (`WorkTabLabel`'s `sr-only` span), so nothing is lost.
  */
 function MaybeTooltip({
@@ -64,7 +64,7 @@ interface WorkTabProperties {
     active: boolean;
     accessory?: ReactNode;
     /**
-     * Whether the tab offers its own close affordance — the button and the middle-click shortcut. The Workbench's lone
+     * Whether the tab offers its own close affordance: the button and the middle-click shortcut. The Workbench's lone
      * tab sets `false`: closing it leaves an empty pane whose only content is the "New Terminal" button it just
      * replaced, so the X is an invitation to undo the workspace rather than to tidy it. This is the same threshold that
      * already drops the active accent and the bar's "+" (see `PaneTabBar`), and `cmd+w` plus the tab's context menu
@@ -88,7 +88,7 @@ interface WorkTabProperties {
     label: string;
     /**
      * Hover/focus detail shown alongside `label`. For a Terminal this is the untruncated title behind an abbreviated
-     * `label` (see `terminalTabLabel`), so it also replaces `label` in the accessible tree — the compression is a real
+     * `label` (see `terminalTabLabel`), so it also replaces `label` in the accessible tree: the compression is a real
      * loss of information a screen reader user needs back. A Document tab's `labelTooltip` is its full path, a
      * different (not fuller) representation of the same file, so `keepLabelAsAccessibleName` stops it from overriding
      * the filename a screen reader announces.
@@ -128,7 +128,7 @@ interface WorkTabProperties {
 
 /**
  * Animated `maxWidth` ceiling shared by every tab kind. It only has to exceed any realistic pane width: it exists to
- * give the enter/exit width animation a numeric value to travel between, and must stay numeric — Motion cannot
+ * give the enter/exit width animation a numeric value to travel between, and must stay numeric; Motion cannot
  * interpolate `'none'`, so a settled tab holding that string would make the exit animation collapse in one frame.
  */
 const TAB_MAX_WIDTH = 2000;
@@ -218,7 +218,7 @@ function WorkTabLabel({
                     'tab-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap',
                     preview && 'italic',
                     /*
-                     * Overrides the tab's own muted/foreground color, including on the inactive tabs — the point of
+                     * Overrides the tab's own muted/foreground color, including on the inactive tabs: the point of
                      * the decoration is to be readable across the whole rail without selecting each tab.
                      */
                     gitDecoration && gitDecorationClassName(gitDecoration.kind),
@@ -326,7 +326,7 @@ function WorkTabSelect({
     | 'tabId'
 > & {
     /**
-     * Everything the tab shows but its name cannot say — its unsaved state and its Git state. Empty when neither.
+     * Everything the tab shows but its name cannot say: its unsaved state and its Git state. Empty when neither.
      */
     description: string;
     tabDescriptionId: string;
@@ -415,8 +415,8 @@ export function WorkTab({
     const tabDescriptionId = `${tabId}-description`;
     /*
      * Rendered outside the `role="tab"` button below, so the tab's accessible name stays the bare filename and only the
-     * description carries these. "Unsaved changes" and the Git state are genuinely different facts — a file can be
-     * committed-clean with an unsaved buffer, or modified on disk with nothing pending — so both are spoken when both
+     * description carries these. "Unsaved changes" and the Git state are genuinely different facts: a file can be
+     * committed-clean with an unsaved buffer, or modified on disk with nothing pending, so both are spoken when both
      * hold.
      */
     const description = [
@@ -443,7 +443,7 @@ export function WorkTab({
                 !isPresent && 'pointer-events-none',
                 isVisuallyActive &&
                     // The `after` hairline erases the seam between the active tab and the editor below it, so it
-                    // tracks the tab's own fill rather than the canvas — a theme may give them different colors.
+                    // tracks the tab's own fill rather than the canvas: a theme may give them different colors.
                     "active bg-tab-active-background text-tab-active-foreground after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-tab-active-background after:content-['']",
                 isVisuallyActive &&
                     showActiveAccent !== false &&
@@ -473,7 +473,7 @@ export function WorkTab({
             }}
             // `maxWidth` is animated from 0 (rather than set as static CSS) because CSS resolves `min-width` above
             // `max-width`: a static floor would override the `maxWidth: 0` enter keyframe and the enter/exit width
-            // animation would never play. `minWidth`/`overflow` are deliberately absent here — see the `style` prop
+            // animation would never play. `minWidth`/`overflow` are deliberately absent here; see the `style` prop
             // above and the comment on `hasSettled`.
             initial={{ maxWidth: 0, opacity: 0 }}
             animate={{

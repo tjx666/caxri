@@ -12,11 +12,11 @@ type ProjectStatusPublication = NonNullable<ProjectStatusRepository['publication
 
 /**
  * Lifecycle wording, spelled out rather than title-cased from the enum. `delivered` and `accepted` differ by who acted
- * — the Agent finished, a person agreed — and that distinction is the whole reason a reviewer opens this row.
+ * (the Agent finished, a person agreed), and that distinction is the whole reason a reviewer opens this row.
  *
  * Kept byte-identical to `STATUS_LABELS` in the Desktop status bar's `acceptance-label` module, together with
- * {@link acceptanceVerdictLabels} and its counterpart there. The two cannot share a module — the architecture boundary
- * forbids Desktop importing `extension-api`, and `extension-api` imports nothing — so the copies are the contract:
+ * {@link acceptanceVerdictLabels} and its counterpart there. The two cannot share a module: the architecture boundary
+ * forbids Desktop importing `extension-api`, and `extension-api` imports nothing, so the copies are the contract:
  * change one and this row and the status bar chip name the same report two different things, with nothing failing.
  */
 const acceptanceStatusLabels: Record<AcceptanceStatus, string> = {
@@ -97,8 +97,8 @@ export function acceptanceDescription(
 export const REFRESH_ACTION_LABEL = 'Refresh';
 
 /**
- * The product word for a provider state, and the only place one is written. Every surface that shows a state — a check
- * badge, a deployment row, the `CI …` labels — reads it from here, so the raw provider enum (`success`, `failure`,
+ * The product word for a provider state, and the only place one is written. Every surface that shows a state (a check
+ * badge, a deployment row, the `CI …` labels) reads it from here, so the raw provider enum (`success`, `failure`,
  * `cancelled`) never reaches a user and one spelling of "canceled" survives.
  */
 const stateLabels: Record<ProjectStatusState, string> = {

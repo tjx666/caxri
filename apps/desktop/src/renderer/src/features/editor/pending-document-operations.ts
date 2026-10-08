@@ -45,8 +45,8 @@ export function remapPendingDocumentOperations(
 
 /**
  * Deliberately not narrowed by Workbench Root, unlike {@link remapPendingDocumentOperations} beside it. A rename is
- * root-relative — the same absolute path means a different destination per root — but a Trash is not: the path names
- * one file on disk, and an in-flight read or write of a file that just went to the Trash is stale under every root.
+ * root-relative (the same absolute path means a different destination per root) but a Trash is not: the path names one
+ * file on disk, and an in-flight read or write of a file that just went to the Trash is stale under every root.
  */
 export function discardPendingDocumentOperations(sessionId: string, path: string): void {
     for (const operation of pendingDocumentOperations) {

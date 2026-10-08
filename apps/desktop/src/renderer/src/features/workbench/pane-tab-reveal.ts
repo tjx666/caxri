@@ -51,7 +51,7 @@ export function planTabReveal(geometry: TabRevealGeometry): number | undefined {
  * The reveal cannot be a one-shot effect on `activeTabId`, because two things happen after that effect would run:
  *
  * 1. A freshly mounted tab enters from `maxWidth: 0` (see `useWorkTabMotion` in `../tabs/work-tab.tsx`), so measuring it
- *    in the commit that created it yields a near-zero scroll delta — and the animation then widens it right back out of
+ *    in the commit that created it yields a near-zero scroll delta, and the animation then widens it right back out of
  *    view. Reduced motion collapses that window to nothing but does not change the shape of the problem.
  * 2. A preview tab keeps its id when it is handed a different file (`replaced.id` reuse in `pane-layout-reducer.ts`), so a
  *    longer filename can widen the active tab without `activeTabId` ever changing.

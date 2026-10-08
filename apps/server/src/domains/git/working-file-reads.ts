@@ -7,8 +7,8 @@ import { AsyncSemaphore } from '@caxri/system';
 import { readBoundedRegularFile } from '../bounded-file-reader';
 
 /**
- * One descriptor budget for every working-tree file Git consumers read directly — mobile Changes patches and the
- * sidebar's untracked line counts — so neither can starve the other or the process of file descriptors.
+ * One descriptor budget for every working-tree file Git consumers read directly: mobile Changes patches and the
+ * sidebar's untracked line counts, so neither can starve the other or the process of file descriptors.
  */
 const workingFileReads = new AsyncSemaphore(8);
 

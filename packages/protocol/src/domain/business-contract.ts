@@ -172,7 +172,7 @@ export const settingsPatchChangeSchema = z.discriminatedUnion('key', [
         key: z.literal('updates.skippedVersion'),
         /**
          * Reachable from the update dialog's `Skip this version` and its matching reset, which is why it takes this
-         * structured single-key path rather than rewriting `settings.jsonc`. It grants no authority — the worst an
+         * structured single-key path rather than rewriting `settings.jsonc`. It grants no authority: the worst an
          * unwanted write can do is delay an update offer until the next release, and the Settings row makes that state
          * visible and clearable.
          */

@@ -133,7 +133,7 @@ test('Archived Sessions manager deletes only after native confirmation', async (
         await settingsTab.locator('.archived-sessions-entry').click();
         // The manager is its own dialog, floating over the Settings tab like any other modal
         // opened over a document (issue caxri#1289): Settings is a Workbench tab now, not a
-        // dialog, so there is no modal layer for it to close first — it stays open underneath.
+        // dialog, so there is no modal layer for it to close first; it stays open underneath.
         await expect(settingsTab).toBeVisible();
         const dialog = running.page.getByRole('dialog');
         const archivedRow = dialog.locator('.archived-manager-row');

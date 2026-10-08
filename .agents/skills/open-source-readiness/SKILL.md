@@ -9,7 +9,7 @@ Caxri is private today and will most likely be published. Treat every tracked fi
 issue, and CI artifact as already public, because by the time it is public it is too late to take
 any of them back.
 
-That last clause is the whole reason this skill exists. It is not caution — it is a measured
+That last clause is the whole reason this skill exists. It is not caution; it is a measured
 property of GitHub, recorded under [Why prevention is the only lever](#why-prevention-is-the-only-lever).
 
 ## The rule
@@ -23,7 +23,7 @@ safe merely because it looks harmless, is inside a test, is in a comment, or is 
 
 - **A private organization, repository, or project name.** Including in a URL, a Git remote fixture,
   a worktree name, or a branch name.
-- **A real ticket identifier**, and especially a ticket URL — the slug in a tracker URL usually
+- **A real ticket identifier**, and especially a ticket URL: the slug in a tracker URL usually
   carries the ticket's title, which is the part outsiders cannot otherwise read.
 - **An internal hostname**: preview deployments, staging, dashboards, admin panels, internal
   gateways. Platform preview URLs encode the owning team's slug.
@@ -47,7 +47,7 @@ Keep substitutions **the same byte length** when a test asserts on offsets, colu
 wrapped-line positions. Terminal link and hard-wrap fixtures do assert on those; changing a string's
 length there silently moves the assertion instead of failing it.
 
-Naming an upstream that is genuinely public is fine and often necessary — a public npm package, a
+Naming an upstream that is genuinely public is fine and often necessary: a public npm package, a
 public repository, a public product URL, a published CLI's documented commands. **Verify rather than
 assume**: check the package on the registry, or fetch the repository and confirm it resolves without
 authentication. Over-correcting a public dependency into a fake one makes the code wrong.
@@ -59,7 +59,7 @@ values in diagnostic output. Two additions belong to publishability specifically
 
 - **Actions run logs and artifacts become world-readable the moment visibility flips**, for every
   run still retained. A workflow step that uploads a whole directory publishes whatever landed in
-  it — Playwright traces, screenshots, videos, and the runner's own absolute paths, which carry the
+  it: Playwright traces, screenshots, videos, and the runner's own absolute paths, which carry the
   account name of a self-hosted runner's host.
 - Upload the **narrowest path that proves the failure**, not the enclosing directory, and set a
   retention window rather than relying on the default.
@@ -102,7 +102,7 @@ rg -n '://[a-z0-9.-]+\.(vercel\.app|internal)\b' --glob '!node_modules'
 Each of these reports matches on a clean tree; read them, do not expect silence. Judge each hit by
 whether an outsider learns something, not by whether the pattern fired.
 
-To audit history rather than the working tree, pickaxe the term and read the surrounding diff — the
+To audit history rather than the working tree, pickaxe the term and read the surrounding diff: the
 identifier alone rarely decides anything, and the lines around it usually do:
 
 ```bash
@@ -122,7 +122,7 @@ dereference those pull requests and garbage-collect the objects. The same page l
 > credentials.
 
 So a leaked credential can be rotated and cleaned, while an employer's ticket title or private
-repository name generally qualifies as neither — Support will decline, and the content stays.
+repository name generally qualifies as neither; Support will decline, and the content stays.
 Issue and pull request bodies are not touched by a history rewrite at all.
 
 The only complete remedy is publishing a fresh repository with a squashed history, which abandons
@@ -135,5 +135,5 @@ needing it.
   source does not start a compatibility contract, create users, or invite contributors.
 - The live migration checklist and the audit of what current history would expose live under
   `.records/open-source/`, which is gitignored on purpose. **Never copy their contents into a
-  tracked file, an issue, or a pull request** — those enumerate exactly the strings that must not
+  tracked file, an issue, or a pull request**: those enumerate exactly the strings that must not
   become public, so reproducing them anywhere tracked performs the leak it documents.

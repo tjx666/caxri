@@ -436,7 +436,7 @@ describe('executeCommand', () => {
             const [head] = activePane(layout).tabs;
             layout = splitTabIntoPane(layout, head.id, activePane(layout).id, 'right', id);
         }
-        // A second tab in the active pane, so only the ceiling — never the tab count — can block the split.
+        // A second tab in the active pane, so only the ceiling (never the tab count) can block the split.
         layout = openResource(layout, { kind: 'file', path: 'extra.ts' }, {}, id);
         expect(activePane(layout).tabs.length).toBeGreaterThan(1);
 
@@ -469,7 +469,7 @@ describe('executeCommand', () => {
 /**
  * Regression coverage for the DESIGN.md Interaction rules editable-focus shortcut policy on the native menu path (see
  * `runCommand`'s JSDoc). `useCommandShortcuts` already covers the DOM keydown path by gating before it ever calls
- * `runCommand`; these tests cover the other caller — the native menu, whose accelerator bypasses that DOM listener
+ * `runCommand`; these tests cover the other caller: the native menu, whose accelerator bypasses that DOM listener
  * entirely.
  */
 describe('runCommand editable-focus gate', () => {

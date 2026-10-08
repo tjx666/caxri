@@ -8,7 +8,7 @@ request, the audit stays fully read-only and reports conversationally.
 ## Ledger entry shape
 
 ```markdown
-### AD-owner-git-service-split — [OPEN · Architecture debt · M]
+### AD-owner-git-service-split: [OPEN · Architecture debt · M]
 
 - **Summary:** One-sentence user- or developer-visible consequence.
 - **Evidence:** `path/to/file.ts:42` plus the load-bearing consumer, refreshed on every revalidation.
@@ -21,7 +21,7 @@ request, the audit stays fully read-only and reports conversationally.
   reused, even after resolution.
 - **Status**: `OPEN` (revalidated as present), `RESOLVED` (re-verified gone; keep the entry with the
   resolving commit), or `STALE` (evidence no longer matches and the claim could not be revalidated).
-  "New" is not a status — a new finding is `OPEN` with `First seen` equal to the current run.
+  "New" is not a status: a new finding is `OPEN` with `First seen` equal to the current run.
 - Severity category and effort (S/M/L) follow the report-format definitions.
 
 ## Repeat-run workflow
@@ -36,7 +36,7 @@ When the ledger file exists, regardless of whether ledger writing was requested:
 3. Deduplicate new candidates against existing IDs by root cause before assigning a new ID.
 
 When ledger writing is authorized, update statuses and `Last verified` stamps, append new entries,
-and never delete resolved ones — the resolution history is the point. The ledger is the only file a
+and never delete resolved ones: the resolution history is the point. The ledger is the only file a
 ledger-mode audit may write; user-owned worktree changes to it are preserved like any other file.
 
 After an authorized fix wave (SKILL.md "When fixes are authorized"), re-verify each fixed finding

@@ -12,7 +12,7 @@ This skill owns the shape of components, hooks, state, and their tests.
 ## 1. Compose files, don't grow them
 
 A `.tsx` file holds at most three components. When a file wants a fourth, split by role before the
-`max-lines` gate ever matters — 800 physical lines is a hard stop, not a target:
+`max-lines` gate ever matters; 800 physical lines is a hard stop, not a target:
 
 | Role                                                  | Split target                                 |
 | ----------------------------------------------------- | -------------------------------------------- |
@@ -27,8 +27,8 @@ owns a file, the mirrored structure becomes visible and extractable.
 ## 2. Keep components render-only
 
 A component body is wiring: read hooks, derive a few values, return JSX. When the non-render logic
-grows past roughly three cohesive statements — a mutation with invalidation, a derived data merge,
-an event workflow — extract it:
+grows past roughly three cohesive statements (a mutation with invalidation, a derived data merge,
+an event workflow), extract it:
 
 - Reused rendering-coupled logic → a `use*` hook in a sibling `.ts` module.
 - Pure computation (formatting, sorting, merging, parsing) → plain functions in a sibling `.ts`
@@ -57,7 +57,7 @@ and time formatter drifting apart; do not add another.
   or more features need → `apps/desktop/src/renderer/src/lib/`, with a colocated `*.test.ts`.
 - A hook needed by two or more features → `apps/desktop/src/renderer/src/hooks/` (`@/hooks` is the
   only shared hooks directory).
-- On the second use of a feature-local helper, promote it in the same change — moving it later is
+- On the second use of a feature-local helper, promote it in the same change; moving it later is
   never cheaper, and the second copy is where drift starts.
 
 A helper may stay feature-local while it encodes feature vocabulary (e.g. an editor-status key
@@ -72,17 +72,17 @@ builder); genuinely generic code should not.
   loses everything it loaded when the user switches away and back. Across all of
   `features/**`, `caxri/server-reads-through-query` enforces this for both `caxri.request` and
   `caxri.requestWithSignal`: the RPC belongs in a `queryFn`, a `mutationFn`, a `*-client.ts`
-  module, or a `*-commands.ts` module. Those two filenames are the whole exemption — a feature's
+  module, or a `*-commands.ts` module. Those two filenames are the whole exemption; a feature's
   `*-actions.ts` is its UI-action layer and gets no pass, so moving a request there is not a fix.
   A runtime that owns fetching
   itself (opaque handles, provider-driven resets, per-request cancellation) still writes its result
   into the shared cache with `setQueryData`, so the data keeps Session-scoped keys, one
-  garbage-collection policy, and one invalidation sweep — see
+  garbage-collection policy, and one invalidation sweep; see
   `features/view-containers/extension-tree-client.ts`.
 - Mutations call `caxri.request` inside a `tryCommand(...)` wrapper so failures surface uniformly.
   Discarded promises use `void` with the repository's explanatory `eslint-disable` comment.
 - Query invalidation after a mutation belongs in `queries/invalidation.ts` (or a predicate defined
-  beside the query layer), not as a hand-maintained method list inside a component file — a list
+  beside the query layer), not as a hand-maintained method list inside a component file: a list
   the component owns is a list every future query silently misses.
 - Client state lives in zustand stores under `stores/` or a feature-local `*-store`/state module;
   components subscribe with narrow selectors (`useStore((s) => s.slice)`) rather than whole-store
@@ -106,7 +106,7 @@ over-render or memoize defensively.
 
 - Never unit-test a `.tsx`; rendering and interaction belong to `e2e-testing`.
 - Every extracted `.ts` sibling (pure helpers, store logic, mutation workflows with mockable
-  boundaries) gets a colocated `*.test.ts` — that coverage is the payoff justifying the
+  boundaries) gets a colocated `*.test.ts`; that coverage is the payoff justifying the
   extraction, so an extraction PR without tests for the moved logic is incomplete.
 - Shared `lib/` and `hooks/` modules are test-mandatory: they are about to be depended on by
   features that will not re-test them.
@@ -114,7 +114,7 @@ over-render or memoize defensively.
 ## 7. UI primitives and accessibility
 
 - Build on `components/ui/` primitives (`Tooltip`, `Select`, …) instead of native fallbacks. In
-  particular, hover explanations use the shared `Tooltip`, not a bare `title` attribute — the
+  particular, hover explanations use the shared `Tooltip`, not a bare `title` attribute: the
   native tooltip is inconsistent and easy to miss, and mixing both in one surface breaks the
   DESIGN.md contract that sighted mouse users get the same information assistive tech gets.
 - Every interactive element carries an accessible name (`aria-label` or visible text) that matches

@@ -161,7 +161,7 @@ export function assessExpectationDrift(
          * decision at the new head, which the head-scoped fingerprint reads as a new revision and would publish as a
          * verbatim duplicate of a comment the workflow says never to duplicate.
          *
-         * What this guard actually owns is unfinished drift — a decision nobody published, or one still waiting on the
+         * What this guard actually owns is unfinished drift: a decision nobody published, or one still waiting on the
          * user. Those still block, and the published record stays active and visible either way.
          */
         const unsettled = activeRecords(issue.expectationDrift)

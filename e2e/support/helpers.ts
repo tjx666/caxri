@@ -531,7 +531,7 @@ export async function openAddProjectDialog(page: Page): Promise<void> {
 }
 
 /**
- * Closes the Electron app during teardown without letting an already-closed app fail the test — a spec that asserts
+ * Closes the Electron app during teardown without letting an already-closed app fail the test: a spec that asserts
  * quit, or one whose app died on the way to the assertion, would otherwise report the teardown instead of the cause.
  */
 export async function closeAppQuietly(app: E2EApp): Promise<void> {
@@ -548,7 +548,7 @@ export async function closeAppQuietly(app: E2EApp): Promise<void> {
  * Session keep-alive leaves recently used Sessions' Workbench subtrees mounted behind a `hidden` wrapper so their xterm
  * buffers and Editor models survive a switch. Every pane, tab, and Terminal inside a retained Session therefore keeps
  * matching a bare `.workbench-pane` / `.work-tab` / `.xterm-helper-textarea`, which turns into a strict-mode violation
- * once a spec has visited more than one Session — or worse, into `.last()` quietly resolving to a Terminal nobody is
+ * once a spec has visited more than one Session, or worse, into `.last()` quietly resolving to a Terminal nobody is
  * looking at, because a hidden element can never take focus. Prefix any Workbench selector with this when the spec does
  * not already pin a Terminal id.
  */
@@ -707,7 +707,7 @@ export async function splitTerminalToRight(page: Page, terminalId: string): Prom
 
 /**
  * Presses `Cmd+,` and returns the Settings surface, scoped by `data-settings-page`. Settings is a Workbench document
- * tab (`caxri-settings://workbench`), not a modal, so there is no `role="dialog"` left to query within — this attribute
+ * tab (`caxri-settings://workbench`), not a modal, so there is no `role="dialog"` left to query within: this attribute
  * is the replacement scope every Settings-touching test should use in its place. Reissuing `Cmd+,` while the tab is
  * already open focuses it rather than duplicating it, so this is also the right call for "come back to Settings" after
  * navigating elsewhere in the Workbench.
@@ -746,7 +746,7 @@ export async function waitForSourceControlReady(page: Page): Promise<void> {
  * Those buttons are revealed on hover or focus, the way VS Code reveals `.resource-group > .actions`: leaving the
  * repository-wide destructive action permanently on screen while the narrower per-file one hid behind hover inverted
  * the risk gradient. Playwright's `click()` waits for visibility instead of creating it, so a test has to reveal the
- * toolbar the same way a user does — by putting the pointer on the caption row that owns it.
+ * toolbar the same way a user does: by putting the pointer on the caption row that owns it.
  *
  * The action is addressed by `aria-label` rather than by role: until the caption is hovered the button is `display:
  * none`, which takes it out of the accessibility tree, so `getByRole` cannot find the very element whose toolbar we are
@@ -770,7 +770,7 @@ export async function clickGitGroupAction(repo: Locator, name: string): Promise<
  *
  * Same reveal-on-hover contract as {@link clickGitGroupAction}, one level down: the action lives on the file row, so the
  * pointer has to be on that row. Selecting the row first happens to leave the pointer there, which is why a test that
- * opens the file's diff before discarding it can look like it needs no hover at all — until a step in between moves the
+ * opens the file's diff before discarding it can look like it needs no hover at all, until a step in between moves the
  * pointer somewhere else and the button is `display: none` again.
  */
 export async function clickGitFileAction(

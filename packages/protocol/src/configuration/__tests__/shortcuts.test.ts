@@ -48,7 +48,7 @@ describe('normalizeShortcut', () => {
     });
 
     /**
-     * Whitespace is the chord separator, so it must not also survive around a `+` — otherwise the long-standing `Cmd +
+     * Whitespace is the chord separator, so it must not also survive around a `+`: otherwise the long-standing `Cmd +
      * K` spelling would silently become three chords.
      */
     it('keeps whitespace around a plus inside one chord', () => {

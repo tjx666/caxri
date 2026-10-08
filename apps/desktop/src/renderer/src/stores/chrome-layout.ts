@@ -95,8 +95,8 @@ export function clampWidth(width: number, min: number, max: number): number {
 
 /**
  * Re-clamps both panels against the current viewport so neither can crowd the main pane below {@link MIN_MAIN_WIDTH}.
- * Shrinks the SecondarySidebar first, then the PrimarySidebar, never below either panel's own minimum — called on
- * window resize and whenever a persisted layout is restored.
+ * Shrinks the SecondarySidebar first, then the PrimarySidebar, never below either panel's own minimum: called on window
+ * resize and whenever a persisted layout is restored.
  */
 export function clampLayoutToViewport(layout: ChromeLayout, viewportWidth: number): ChromeLayout {
     let primarySidebarWidth = clampWidth(
@@ -236,8 +236,8 @@ interface ChromeLayoutState extends ChromeLayout {
      * The handoff is deliberately limited to the three toggles, which are always a user gesture. The programmatic
      * setters below and {@link ChromeLayoutState.activatePanelViewContainer} also reveal a surface, but an extension's
      * `view.reveal` reaches them too, and taking the keyboard away from a Terminal because a background provider asked
-     * for attention is the theft this rule exists to prevent — VS Code's own `TreeView.reveal` defaults `focus` to
-     * false for the same reason. Giving those paths an explicit opt-in is follow-up work, not a silent default.
+     * for attention is the theft this rule exists to prevent: VS Code's own `TreeView.reveal` defaults `focus` to false
+     * for the same reason. Giving those paths an explicit opt-in is follow-up work, not a silent default.
      */
     togglePanel(): void;
     setPrimarySidebarVisible(isVisible: boolean): void;

@@ -3,12 +3,12 @@ import type { AppSettings, ProjectRecord, SessionRecord } from '@caxri/protocol'
 /**
  * How a Project's disclosure reached its current state.
  *
- * - `automatic` — the idle auto-collapse policy closed it. Only this value may be revised by the machine.
- * - `user-collapsed` / `user-expanded` — the user said so by hand, with the pointer or the keyboard.
+ * - `automatic`: the idle auto-collapse policy closed it. Only this value may be revised by the machine.
+ * - `user-collapsed` / `user-expanded`: the user said so by hand, with the pointer or the keyboard.
  *
  * Both halves of the user's decision are recorded, not just the collapse. Storing an expansion as "no entry" makes a
  * Project the user deliberately opened indistinguishable from one they never had an opinion about, so the next
- * auto-collapse pass closes it again — and because the record is persisted while the in-memory override was not, the
+ * auto-collapse pass closes it again, and because the record is persisted while the in-memory override was not, the
  * machine's decision outlived the user's across a reload.
  */
 type ProjectDisclosure = 'automatic' | 'user-collapsed' | 'user-expanded';
@@ -104,10 +104,10 @@ export function projectCollapseAfterToggle(
 }
 
 /**
- * The state after a Project is opened for a reason other than the user clicking its row — revealing a Session a
- * keyboard command is about to act on, for instance. Recorded as `user-expanded` rather than simply dropped, because a
- * dropped entry reads as "no opinion" and the next idle auto-collapse pass would close the Project again while the user
- * is still working inside it. Returns the input untouched when the Project is already open, so a caller can hand the
+ * The state after a Project is opened for a reason other than the user clicking its row: revealing a Session a keyboard
+ * command is about to act on, for instance. Recorded as `user-expanded` rather than simply dropped, because a dropped
+ * entry reads as "no opinion" and the next idle auto-collapse pass would close the Project again while the user is
+ * still working inside it. Returns the input untouched when the Project is already open, so a caller can hand the
  * result straight to a state setter without forcing a render.
  */
 export function projectCollapseAfterReveal(
@@ -156,7 +156,7 @@ interface ProjectAutoCollapseInput extends ProjectCollapseReconciliation {
 
 /**
  * One idle auto-collapse pass on top of {@link reconcileProjectCollapse}. It closes only Projects that are stale,
- * unprotected, and carry no decision of the user's — an entry of either `user-` kind survives the reconciliation and
+ * unprotected, and carry no decision of the user's: an entry of either `user-` kind survives the reconciliation and
  * therefore excludes its Project here, in this Renderer and every later one.
  */
 export function projectCollapseAfterAutoPass(

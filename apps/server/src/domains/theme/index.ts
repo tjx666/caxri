@@ -111,7 +111,7 @@ function cloneFallback(source: ThemeTokens['source'], name: string): ParsedTheme
 /**
  * VS Code's registry defaults for the workbench colors Caxri maps, used exactly as VS Code uses them: when a theme
  * leaves a key unset, this is the color it actually paints. Seeding an unset role from Dracula instead (the previous
- * behavior for every role below) produced imports that mixed two palettes — a light VS Code theme kept Dracula's dark
+ * behavior for every role below) produced imports that mixed two palettes: a light VS Code theme kept Dracula's dark
  * `elevated`, `muted`, and `selection`. Decoration defaults come from the built-in Git extension's `contributes.colors`
  * rather than the core registry.
  */
@@ -179,8 +179,8 @@ function parseVsCode(value: Record<string, unknown>, name: string): ParsedThemeI
     }
     /**
      * `--background` is the editor/Terminal canvas and `--surface` is the chrome around it, which is exactly VS Code's
-     * `editor.background` / `sideBar.background` split. These two were previously swapped — `background` read
-     * `sideBar.background` and `surface` read `activityBar.background` — so an imported theme painted the editor in its
+     * `editor.background` / `sideBar.background` split. These two were previously swapped: `background` read
+     * `sideBar.background` and `surface` read `activityBar.background`, so an imported theme painted the editor in its
      * sidebar color and the sidebar in its activity-bar color.
      */
     theme.colors.background = firstHex(colors, ['editor.background'], theme.colors.background);
@@ -619,7 +619,7 @@ async function resolveVsCodeInclude(
     /**
      * The included parent is a second untrusted document, so it gets the same two guards as the file the user picked. A
      * parent that parsed to an array used to be reported as `INCLUDE_DIRECTORY_MESSAGE`, which pointed at the one thing
-     * that was not wrong — the parent is in the right directory, it just does not hold theme colors.
+     * that was not wrong: the parent is in the right directory, it just does not hold theme colors.
      */
     const parent = parseThemeDocument(() => parseJsonc(parentSource), JSON_THEME_PARSE_MESSAGE);
     const merged = JSON.stringify(

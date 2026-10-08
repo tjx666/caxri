@@ -163,10 +163,10 @@ export class AgentDelegationService {
     /**
      * Applies the Terminal Host's real answer for a follow-up whose prompt was admitted before it was delivered.
      *
-     * A background delegation writes to a Terminal with no Renderer attachment, so the Host can still refuse the input
-     * — the launch changed while it was waiting, or the request was rejected outright. Reported as success, the task
-     * sat in `submitting` until its 15s timeout turned it into `submission_unconfirmed`, which names the wrong cause.
-     * Only a task still waiting for that prompt is settled; anything else already has an outcome of its own.
+     * A background delegation writes to a Terminal with no Renderer attachment, so the Host can still refuse the input:
+     * the launch changed while it was waiting, or the request was rejected outright. Reported as success, the task sat
+     * in `submitting` until its 15s timeout turned it into `submission_unconfirmed`, which names the wrong cause. Only
+     * a task still waiting for that prompt is settled; anything else already has an outcome of its own.
      */
     private settleSubmission(id: string, wasDelivered: boolean): void {
         if (wasDelivered) return;

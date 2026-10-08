@@ -46,7 +46,7 @@ interface ActiveFileReference {
  * root here also keeps a submodule or linked worktree addressed by its own root instead of the Project root.
  *
  * Every single-file comparison qualifies, including a commit or pull-request tab. Those render a past revision, so the
- * caret line can address different code in the checkout — issue #1147 accepts that: a reader asking about the line in
+ * caret line can address different code in the checkout; issue #1147 accepts that: a reader asking about the line in
  * front of them is better served by a reference that may need adjusting than by a command that silently does nothing.
  * The multi-file `changes` tab still declines, because it names no single file.
  */

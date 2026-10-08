@@ -9,7 +9,7 @@ import { mergeExternalEditorTabs } from '../features/editor/external-editor-stat
  * newest attempt for its Session or has already been superseded locally.
  *
  * Deliberately not called a revision: {@link SessionState.revision} is the Server's stored-state token and answers a
- * different question — whether some _other_ writer has moved the row since this one read it.
+ * different question: whether some _other_ writer has moved the row since this one read it.
  */
 export const sessionPatchAttempt = { current: 0 };
 /**
@@ -36,12 +36,12 @@ export const persistedSessionPatches = new Map<
     { sendStamp: number; state: SessionState }
 >();
 /**
- * The write currently in flight for a Session, resolving with the revision the Server stored for it — or `undefined`
+ * The write currently in flight for a Session, resolving with the revision the Server stored for it, or `undefined`
  * when it failed and stored nothing.
  *
  * Two layout changes in the same frame (a Terminal attaching while the pane it lives in is still being arranged) both
  * read {@link SessionState.revision} from the same optimistic overlay, because the first write has not answered yet.
- * Sent as-is, the second one declares a revision the first has already advanced and the Server rejects it as stale — a
+ * Sent as-is, the second one declares a revision the first has already advanced and the Server rejects it as stale: a
  * lost race this Renderer had with nobody but itself, which would drop the user's newer change for no reason. Chaining
  * through this map makes the second write wait for the first and adopt the revision it stored, so `CONFLICT` keeps its
  * real meaning: some _other_ writer moved the row.

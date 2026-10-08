@@ -186,9 +186,9 @@ function SourceControlReadyContent({
         return () => observer.disconnect();
     }, []);
     /**
-     * Focusing the tree container itself — which is how a view hands focus over from the chrome that opened it, and
-     * what a click on the empty area below the last row does — lands on the row that owns the Tab stop instead of
-     * parking focus on a container the arrow keys cannot move.
+     * Focusing the tree container itself (which is how a view hands focus over from the chrome that opened it, and what
+     * a click on the empty area below the last row does) lands on the row that owns the Tab stop instead of parking
+     * focus on a container the arrow keys cannot move.
      */
     const forwardFocusToActiveRow = (event: FocusEvent<HTMLDivElement>): void => {
         if (event.target !== event.currentTarget) return;

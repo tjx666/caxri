@@ -11,7 +11,7 @@ import { readAgentTranscript } from './transcript';
  * hook alone cannot distinguish a login expiry or rate limit from an ordinary completed turn.
  *
  * A transcript read failure, a missing turn correlation, or a provider that does not implement
- * `resolvePrimaryTurnFailure` all leave the signal unchanged — this can only add a failed-turn classification the
+ * `resolvePrimaryTurnFailure` all leave the signal unchanged: this can only add a failed-turn classification the
  * transcript unambiguously proves, never invent one from an inconclusive read.
  */
 export async function reconcilePrimaryTurnFailure(

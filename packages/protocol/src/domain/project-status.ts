@@ -135,7 +135,7 @@ const projectStatusDeploymentSchema = z.object({
  * Carrying the query rather than a bare "the details are in the logs" flag is what makes the offer usable: the panel it
  * opened held every process's records at every level, so the one line that explained the failure was somewhere in
  * thousands, and the user had to guess both the search term and which levels to leave on. It is also a forcing function
- * on the producer — a provider cannot claim its details are in the logs without naming the event it wrote.
+ * on the producer, a provider cannot claim its details are in the logs without naming the event it wrote.
  */
 const projectStatusErrorLogsSchema = z.object({
     /**
@@ -239,7 +239,7 @@ const projectStatusRepoSchema = z.object({
              */
             mergeState: pullRequestMergeStateSchema.optional(),
             /**
-             * Absent when the threads were not read — the pull request is no longer open, or the read failed — so a
+             * Absent when the threads were not read (the pull request is no longer open, or the read failed) so a
              * consumer never mistakes "unknown" for "nothing left to address".
              */
             unresolvedReviewThreads: z.array(projectStatusReviewThreadSchema).optional(),
@@ -327,7 +327,7 @@ export type ProjectStatusState = z.infer<typeof projectStatusStateSchema>;
  *
  * The verdict wins over the lifecycle when both are present, because it is the newer fact: a report sitting in
  * `repairing` after a round returned `failed` is failing right now, whatever happens next. `uncertain` maps to
- * `pending` rather than `neutral` — a round that could not decide still wants a human, and `neutral` reads as settled.
+ * `pending` rather than `neutral`, a round that could not decide still wants a human, and `neutral` reads as settled.
  */
 export function acceptanceProjectStatusState(
     acceptance: Pick<ProjectStatusAcceptance, 'status' | 'verdict'>,

@@ -33,7 +33,7 @@ export const terminalFileLinkAmbiguousResolutionSchema =
 export type TerminalFileLinkCandidate = z.infer<typeof terminalFileLinkCandidateSchema>;
 
 /**
- * Why the open did not happen. The reason is absent exactly when the user is the one who stopped it — dismissing the
+ * Why the open did not happen. The reason is absent exactly when the user is the one who stopped it: dismissing the
  * Session chooser or declining to trust an external folder needs no explanation handed back to them. It is present when
  * Main refused on its own, which without it reads to the user as the link doing nothing at all.
  */

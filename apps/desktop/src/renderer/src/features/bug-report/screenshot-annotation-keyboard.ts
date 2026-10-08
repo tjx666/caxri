@@ -3,7 +3,7 @@
  *
  * Annotating used to be pointer-only: the overlay's accessible name was literally "Drag to mark an area", so a user who
  * cannot drag could file a report but could never point at the thing they were reporting. This module is the missing
- * half — it turns key presses into the same `AnnotationSegment` a drag produces, so both input paths commit through one
+ * half: it turns key presses into the same `AnnotationSegment` a drag produces, so both input paths commit through one
  * code path and the exported JPEG cannot tell them apart.
  *
  * ## Interaction model
@@ -12,14 +12,14 @@
  * the dialog). Inside it, one gesture is mirrored key for key from the pointer gesture it replaces: press at an anchor,
  * move to size, release to commit.
  *
- * | Key                    | No cursor yet                   | Cursor placed, no shape      | Shape in progress                    |
- * | ---------------------- | ------------------------------- | ---------------------------- | ------------------------------------ |
- * | Arrow                  | shows the cursor, centred       | moves the cursor             | moves the free corner (sizes it)     |
- * | `Shift` + Arrow        | shows the cursor, centred       | moves the cursor, fast       | sizes it, fast                       |
- * | `Option` + Arrow       | shows the cursor, centred       | moves the cursor             | moves the whole shape, size kept     |
- * | `Enter` / `Space`      | starts a shape, centred         | starts a shape at the cursor | commits it                           |
- * | `Escape`               | not handled — closes the dialog | hides the cursor             | discards the shape, keeps the cursor |
- * | `Delete` / `Backspace` | deletes the selected mark       | deletes the selected mark    | discards the shape                   |
+ * | Key                    | No cursor yet                  | Cursor placed, no shape      | Shape in progress                    |
+ * | ---------------------- | ------------------------------ | ---------------------------- | ------------------------------------ |
+ * | Arrow                  | shows the cursor, centred      | moves the cursor             | moves the free corner (sizes it)     |
+ * | `Shift` + Arrow        | shows the cursor, centred      | moves the cursor, fast       | sizes it, fast                       |
+ * | `Option` + Arrow       | shows the cursor, centred      | moves the cursor             | moves the whole shape, size kept     |
+ * | `Enter` / `Space`      | starts a shape, centred        | starts a shape at the cursor | commits it                           |
+ * | `Escape`               | not handled: closes the dialog | hides the cursor             | discards the shape, keeps the cursor |
+ * | `Delete` / `Backspace` | deletes the selected mark      | deletes the selected mark    | discards the shape                   |
  *
  * Three decisions are worth stating, because each one is a trade-off rather than an obvious default:
  *

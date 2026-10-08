@@ -36,7 +36,7 @@ export function isCurrentResourceLoadScope(
 /**
  * The failure to show for the scope being rendered. An outcome is claimed only by the exact scope object that requested
  * it, so a read that lands after the target changed, after Retry started a new attempt, or after the caller disabled
- * the surface paints nothing — the identity check is the whole stale-result defense.
+ * the surface paints nothing: the identity check is the whole stale-result defense.
  */
 export function currentResourceLoadFailure(
     outcome: ResourceLoadOutcome | undefined,

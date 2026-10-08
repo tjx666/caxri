@@ -5,7 +5,7 @@ import { cn } from '@/lib/utilities';
 /**
  * Progress bar. Base UI's `Progress.Root` owns the `role="progressbar"` semantics and forwards
  * `aria-value*`/`aria-label`, so callers only ever pass `value`. `value={null}` reports indeterminate to assistive tech
- * while the indicator keeps a bounded 20% fill — the visual convention the update download bar established for an
+ * while the indicator keeps a bounded 20% fill, the visual convention the update download bar established for an
  * unknown total.
  */
 export function Progress({ className, value, ...properties }: ProgressPrimitive.Root.Props) {

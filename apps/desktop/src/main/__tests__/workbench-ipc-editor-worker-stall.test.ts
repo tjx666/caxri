@@ -86,7 +86,7 @@ describe('editor Worker stall diagnostic', () => {
     /**
      * A Renderer cannot see the process that creates its Workers, loads their scripts out of `app.asar`, and brokers
      * their `BroadcastChannel`s, so Main's own loop state is stamped onto this record rather than left for a reader to
-     * join across two logs by timestamp — a join that fails outright once the other record is rotated away.
+     * join across two logs by timestamp, a join that fails outright once the other record is rotated away.
      */
     it('stamps a stalled diff with what the Main event loop was doing', () => {
         const report = install(summary);

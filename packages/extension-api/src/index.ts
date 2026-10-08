@@ -57,7 +57,7 @@ export class ThemeIcon {
          */
         readonly id: string,
         /**
-         * Optional `#RRGGBB` tint, for an icon standing in for content whose palette an external system owns — a Linear
+         * Optional `#RRGGBB` tint, for an icon standing in for content whose palette an external system owns, a Linear
          * workflow state's configured color. Leave it unset for anything Caxri itself defines: those icons must follow
          * the active theme, and the Extension Host rejects any other color literal at the boundary.
          */
@@ -184,12 +184,12 @@ export interface TreeDataProvider<T> {
 /**
  * Activity owned by a view; the Workbench formats and aggregates it on the container.
  *
- * Report meaning, not appearance — the Workbench picks the icon and the fill, so a container never shows two views'
+ * Report meaning, not appearance: the Workbench picks the icon and the fill, so a container never shows two views'
  * badges in two unrelated colors. `count` is a plain tally. `error` and `warning` are severities: the Workbench draws
  * its own fixed glyph for them, so they stay legible without relying on color.
  *
  * A severity deliberately has no `count` field. A glyph and a digit cannot share one chip, so a counted severity would
- * fall back to a digit and leave the fill as the only thing separating "5 changes" from "5 failures" — nothing to a
+ * fall back to a digit and leave the fill as the only thing separating "5 changes" from "5 failures": nothing to a
  * colorblind user or in a greyscale capture. Say how many in `description`; the Workbench publishes it in the container
  * tab's tooltip and accessible description whether or not the tally reaches the chip.
  */
@@ -223,7 +223,7 @@ export type ProjectStatusState =
      */
     | 'pending'
     /**
-     * Accepted but not started — waiting for a runner.
+     * Accepted but not started: waiting for a runner.
      */
     | 'queued'
     | 'neutral'
@@ -353,8 +353,8 @@ export interface ProjectStatusError {
     source: 'acceptance' | 'github' | 'linear' | 'vercel';
     kind: 'prerequisite' | 'failure';
     /**
-     * Present when the failure describes the whole Project rather than the repository reporting it — a lost connection,
-     * or a provider budget the account shares — so a view can state it once instead of per repository.
+     * Present when the failure describes the whole Project rather than the repository reporting it (a lost connection,
+     * or a provider budget the account shares), so a view can state it once instead of per repository.
      */
     reason?: 'network' | 'rate-limited' | 'tls';
     message: string;
@@ -375,7 +375,7 @@ export interface ProjectStatusError {
          */
         filter: string;
         /**
-         * The levels left on — the levels the named event is written at, and no others.
+         * The levels left on: the levels the named event is written at, and no others.
          */
         levels: Array<'debug' | 'info' | 'warn' | 'error'>;
     };
@@ -513,9 +513,9 @@ export interface CaxriApi {
     /**
      * Builds the error a provider throws when a request arrived against a model revision it has already replaced.
      *
-     * Throw this instead of your own `GENERATION_EXPIRED` whenever the staleness is your extension's own bookkeeping —
-     * a snapshot superseded by a newer `provideView`, an action carrying a revision you no longer serve. Caxri cannot
-     * see your revision, so an equivalent error you construct yourself is indistinguishable from a real failure and is
+     * Throw this instead of your own `GENERATION_EXPIRED` whenever the staleness is your extension's own bookkeeping, a
+     * snapshot superseded by a newer `provideView`, an action carrying a revision you no longer serve. Caxri cannot see
+     * your revision, so an equivalent error you construct yourself is indistinguishable from a real failure and is
      * logged as one, recommending an Extension Host restart.
      *
      * This is a trust contract, not an escape hatch: Caxri records the result at `debug` because you declared it
@@ -575,7 +575,7 @@ const caxri: CaxriApi = Object.freeze({
     /**
      * Unlike every other member here this does not call {@link unavailable}: it mints a value rather than reaching into
      * the Host, so a provider under unit test can still throw it and assert the code. The object simply is not
-     * registered as a declared non-fault — outside the Extension Host there is no classifier to declare it to, and an
+     * registered as a declared non-fault: outside the Extension Host there is no classifier to declare it to, and an
      * unregistered error is classified exactly as it was before this contract existed.
      */
     supersededError: (message: string) =>

@@ -81,8 +81,8 @@ describe('pnpm dependency contract', () => {
         expect(rootManifest.workspaces).toBeUndefined();
         expect(workspace.packages).toEqual(['apps/*', 'extensions/*', 'packages/*']);
         /*
-         * Membership and range shape, deliberately not the version numbers. What this case is named after — no
-         * manifest pinning — is a property of the range, and a catalog written out version by version instead
+         * Membership and range shape, deliberately not the version numbers. What this case is named after (no
+         * manifest pinning) is a property of the range, and a catalog written out version by version instead
          * asserted a snapshot of one afternoon: every routine `pnpm update` failed here with nothing wrong, which
          * teaches the next reader to edit the expectation rather than read it.
          */
@@ -131,7 +131,7 @@ describe('pnpm dependency contract', () => {
         });
         /*
          * Same reasoning as the catalog, inverted: the override policy is that a correction names an exact version,
-         * so that is what is checked. The versions themselves move on purpose — `dompurify` tracks the newest
+         * so that is what is checked. The versions themselves move on purpose: `dompurify` tracks the newest
          * release rather than holding a security floor.
          */
         expect(Object.keys(workspace.overrides ?? {})).toEqual([

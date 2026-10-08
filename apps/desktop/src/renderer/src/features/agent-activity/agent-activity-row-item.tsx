@@ -18,7 +18,7 @@ import type { AgentActivityRow } from './agent-activity-rows';
  * One Session in the Activity list: a state glyph, the Session title with its pull request, and below them the Agent,
  * Project, worktree, and time.
  *
- * The state is a shape rather than a phrase because every group heading already names it — a row under "Working" that
+ * The state is a shape rather than a phrase because every group heading already names it: a row under "Working" that
  * also prints "Working" repeats its own heading, and the phrase costs the width the Project name needs in a 230px
  * column. `agent-activity-glyph.ts` owns which shape, which words, and the tone rule behind them.
  *

@@ -6,7 +6,7 @@ import type { ExternalStatusRunner } from './command';
 
 /**
  * Longer than the pull-request store's TTL: an issue title changes far less often than a PR's check rollup, and a hover
- * is an involuntary gesture — the user brushing past a line of output must not turn into a refetch.
+ * is an involuntary gesture: the user brushing past a line of output must not turn into a refetch.
  */
 const RECORD_TTL_MS = 10 * 60_000;
 /**
@@ -61,7 +61,7 @@ interface StoredRecord {
 }
 
 /**
- * Recognizes the one failure that is cacheable as absence. Anything else — no network, no credentials, a quota pause —
+ * Recognizes the one failure that is cacheable as absence. Anything else (no network, no credentials, a quota pause)
  * must stay uncached, or a temporary outage would be remembered as "this issue does not exist" for the whole TTL.
  */
 function isMissingReference(error: unknown): boolean {
@@ -100,14 +100,14 @@ function toReference(output: string): GitHubReference | undefined {
  * references.
  *
  * One REST read answers both halves of `owner/repo#123`. `gh pr view` and `gh issue view` each refuse the other's
- * numbers, and nothing in `owner/repo#123` says which one the user is pointing at — so a CLI-shaped read would have to
+ * numbers, and nothing in `owner/repo#123` says which one the user is pointing at, so a CLI-shaped read would have to
  * guess, fail, and retry with the other subcommand, spending two processes on every issue. GitHub's REST issues
  * endpoint covers pull requests too and marks them with a `pull_request` key, so one call settles it. It also draws on
  * the REST budget rather than the GraphQL budget `gh pr view` and the sidebar sweep share, which keeps a hover from
  * competing with delivery status.
  *
- * Separate from the pull-request store (`./github.ts`) because it answers a different question — "what is
- * `owner/repo#123`", not "what pull request does this branch have" — on a different budget and a different cadence. The
+ * Separate from the pull-request store (`./github.ts`) because it answers a different question ("what is
+ * `owner/repo#123`", not "what pull request does this branch have") on a different budget and a different cadence. The
  * two do not share records: a preview needs a title, not a check rollup, and paying for a rollup on hover is the cost
  * this store exists to avoid.
  */

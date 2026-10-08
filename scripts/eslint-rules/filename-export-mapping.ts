@@ -81,7 +81,7 @@ function exportedFunctionNames(program: Program): Set<string> {
                 names.add(declaration.id.name);
                 // The estree `Declaration` union claims only Function/Class/Variable declarations, but the
                 // TypeScript parser also emits `TSInterfaceDeclaration`, `TSTypeAliasDeclaration`, etc. at
-                // runtime (e.g. `export interface ButtonProps`), so this check is NOT redundant — dropping
+                // runtime (e.g. `export interface ButtonProps`), so this check is NOT redundant: dropping
                 // it crashes on `declaration.declarations`.
                 // oxlint-disable-next-line typescript/no-unnecessary-condition -- see above: @types/estree under-represents the TS AST
             } else if (declaration.type === 'VariableDeclaration') {

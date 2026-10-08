@@ -73,8 +73,8 @@ interface SessionTranscriptScan {
  * visit, and both consumers join the same in-flight read. The first visit catches up in bounded, yielding passes rather
  * than making each pass wait for another status-bar poll.
  *
- * Nothing from the transcript is retained beyond the bounded clue lists — no prompts, no Agent output, no command
- * results — so diagnostics and crash dumps cannot leak conversation content through this service.
+ * Nothing from the transcript is retained beyond the bounded clue lists: no prompts, no Agent output, no command
+ * results, so diagnostics and crash dumps cannot leak conversation content through this service.
  */
 export class SessionContextService {
     private readonly environment: AgentEnvironment;
@@ -142,7 +142,7 @@ export class SessionContextService {
             // `context.offset` is the shared cursor scanTranscriptToEnd advanced; its net movement approximates bytes
             // scanned this pass (an undercount only when a per-record-oversized skip or the 4 MiB per-poll ceiling
             // also applied, both already bounded). A pass that reset restarted the cursor at byte zero, so its whole
-            // post-reset offset — not the delta against the pre-reset value — is what this pass actually read.
+            // post-reset offset (not the delta against the pre-reset value) is what this pass actually read.
             const bytesScanned = pass.didReset
                 ? context.offset
                 : Math.max(0, context.offset - offsetBefore);

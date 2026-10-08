@@ -4,7 +4,7 @@ _Researched 2026-08-06._
 
 - **Positioning**: Lightweight native macOS terminal multiplexer organized around projects/worktrees, pitched as "a terminal that becomes a platform" via an extension SDK.
 - **Company/traction**: ~1.9k stars, 50 contributors, weekly beta releases since 2026-03-31; iOS/Android companion apps; community-driven, no disclosed funding.
-- **Tech stack**: Swift 6 / SwiftUI on libghostty; JS/TS extension SDK — extensions run in an isolated out-of-process `MuxyExtensionHost`.
+- **Tech stack**: Swift 6 / SwiftUI on libghostty; JS/TS extension SDK: extensions run in an isolated out-of-process `MuxyExtensionHost`.
 - **License**: MIT.
 
 ## Architecture highlights
@@ -19,7 +19,7 @@ _Researched 2026-08-06._
 ## Standout features
 
 - Extension marketplace/SDK; the same extension runs on iOS/Android companions.
-- `muxy` CLI drives the whole workspace (open projects, split panes, send keys, read pane output) over a Unix socket — packaged as an installable "skill" for coding agents.
+- `muxy` CLI drives the whole workspace (open projects, split panes, send keys, read pane output) over a Unix socket, packaged as an installable "skill" for coding agents.
 - Rich input panel with image attachments and voice input; 490+ themes; quick-terminal "dynamic island" overlay.
 
 ## Mobile companion

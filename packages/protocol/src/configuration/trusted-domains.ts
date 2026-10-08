@@ -98,12 +98,12 @@ function isLoopback(hostname: string): boolean {
  * The hostname a "trust every subdomain" rule would cover, or `undefined` when the dialog must not offer one.
  *
  * The shape is deliberately narrow: only a hostname of exactly three labels qualifies, and the candidate is its last
- * two. That keeps the offer to the case it was asked for — `api.venice.ai` yields `venice.ai` — and away from both
- * ends, where a parent is either meaningless (`venice.ai` would yield the bare TLD) or far wider than the host the user
- * is actually looking at (`bucket.s3.amazonaws.com` would yield `s3.amazonaws.com`).
+ * two. That keeps the offer to the case it was asked for, `api.venice.ai` yields `venice.ai`, and away from both ends,
+ * where a parent is either meaningless (`venice.ai` would yield the bare TLD) or far wider than the host the user is
+ * actually looking at (`bucket.s3.amazonaws.com` would yield `s3.amazonaws.com`).
  *
- * This does not consult the Public Suffix List, so a host on a shared platform — `tjx666.github.io`, `myapp.vercel.app`
- * — does yield `github.io` / `vercel.app`, and trusting it would cover sites other people control. That is a decided
+ * This does not consult the Public Suffix List, so a host on a shared platform (`tjx666.github.io`, `myapp.vercel.app`)
+ * does yield `github.io` / `vercel.app`, and trusting it would cover sites other people control. That is a decided
  * trade-off rather than an oversight: the button is an explicit user action, the dialog states the scope it grants, and
  * the alternatives (a PSL dependency, a hardcoded hosting-domain list) were both rejected as more machinery than the
  * case is worth.

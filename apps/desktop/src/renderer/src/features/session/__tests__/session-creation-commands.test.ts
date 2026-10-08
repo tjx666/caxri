@@ -4,7 +4,7 @@ import type { ToastKind, ToastOptions } from '../../../stores/toasts';
 
 /**
  * Split out of `session-commands.test.ts` (issue #1336's #905 regression pushed that file past the 800-line `max-lines`
- * gate): the New Session creation trio — `beginSessionCreation`, `chooseSessionTerminalKind`, `confirmPendingSession` —
+ * gate): the New Session creation trio (`beginSessionCreation`, `chooseSessionTerminalKind`, `confirmPendingSession`)
  * is a cohesive cluster on its own, per `source-layout`'s "split a cohesive module before the gate" guidance. The mock
  * setup below is deliberately a verbatim copy of the sibling file's, not a trimmed one: reusing the already-proven
  * wiring is safer than re-deriving which fields this narrower slice actually needs.
@@ -162,10 +162,10 @@ describe('Session creation commands', () => {
      * A configured default Agent must short-circuit every activation of the trigger, not just the first: the trigger
      * used to route the "open" request through Base UI's controlled `Menu`, whose `open` prop this branch never flips
      * `true`. That desynced Base UI's internal interaction state from the prop after the first click and left the
-     * second (and every later) activation producing no `onOpenChange` and therefore no `session.create` at all —
-     * exactly the "Project empties out, New Session goes dead" report in github.com/tjx666/caxri/issues/905. The fix
-     * moved the trigger's `onClick` to call `beginSessionCreation` directly instead of going through `Menu`, so this
-     * asserts the function itself keeps producing one independent `session.create` per activation.
+     * second (and every later) activation producing no `onOpenChange` and therefore no `session.create` at all: exactly
+     * the "Project empties out, New Session goes dead" report in github.com/tjx666/caxri/issues/905. The fix moved the
+     * trigger's `onClick` to call `beginSessionCreation` directly instead of going through `Menu`, so this asserts the
+     * function itself keeps producing one independent `session.create` per activation.
      */
     it('creates a new Session on every activation when a default Agent is configured', async () => {
         mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': 'shell' } });

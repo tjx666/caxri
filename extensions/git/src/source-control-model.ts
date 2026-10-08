@@ -465,7 +465,7 @@ export function buildSourceControlViewModel({
             const count = mode === 'working' ? workingCount : files.length;
             /**
              * Commit and Pull Request mode replace the file list with that commit's or that pull request's files, so a
-             * repository holding uncommitted work looks exactly like a clean one — the user only finds out by switching
+             * repository holding uncommitted work looks exactly like a clean one: the user only finds out by switching
              * modes. State the count on the repository row and make it the way back to it.
              */
             const uncommittedCount = mode === 'working' ? 0 : workingCount;

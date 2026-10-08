@@ -6,8 +6,8 @@ import { useDialogStore } from '../../stores/dialogs';
 
 /**
  * Opens one status-bar picker when a command asks for it, following the shared "bump a revision to request something"
- * contract (see `hooks/use-focus-on-revision.ts`). The chip keeps owning its own popover state — the command only asks
- * — so asking twice in a row still re-opens the picker the second time.
+ * contract (see `hooks/use-focus-on-revision.ts`). The chip keeps owning its own popover state; the command only asks,
+ * so asking twice in a row still re-opens the picker the second time.
  *
  * The revision the chip has already seen is captured at mount rather than compared against zero, so remounting a chip
  * (switching Sessions, for instance) cannot replay a request the user already answered and closed.

@@ -4,7 +4,7 @@ import type { WorkbenchRootOption } from '@caxri/protocol';
  * The worktrees this Session's own conversation named, most recently named first.
  *
  * The Server sets `conversationRank` only while the Session is still bound to the repository's main worktree, and only
- * for worktrees Git independently reported, so this is a display order — never an authorization.
+ * for worktrees Git independently reported, so this is a display order, never an authorization.
  */
 export function conversationWorkbenchRoots(roots: readonly WorkbenchRootOption[]) {
     return roots

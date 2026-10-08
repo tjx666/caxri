@@ -21,8 +21,8 @@ import {
 } from '../session-changes-reader-store';
 
 /**
- * The `Changes` row of one Session card, read from `git.overview` — the `files[]`-free projection of the Server's
- * shared repository snapshot.
+ * The `Changes` row of one Session card, read from `git.overview`, the `files[]`-free projection of the Server's shared
+ * repository snapshot.
  *
  * Nothing is read while the card is closed: the scope selector short-circuits, so a resting row neither scans the
  * Session list nor holds an enabled query. An open card claims the one reader slot, and only the claimant's query is

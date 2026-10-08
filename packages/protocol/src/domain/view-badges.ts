@@ -9,8 +9,8 @@ const viewBadgeDescriptionSchema = z.string().min(1).max(2_048);
  *
  * Severity and tally are mutually exclusive, and the union enforces it rather than the Renderer: `count` is a plain
  * tally with no severity, and `error` and `warning` carry no `count` field at all. A badge that is both would have to
- * draw a digit where its glyph goes, leaving the fill as the only thing separating "5 changes" from "5 failures" —
- * which is nothing to a colorblind user or in a greyscale capture. This mirrors VS Code, whose `ErrorBadge` and
+ * draw a digit where its glyph goes, leaving the fill as the only thing separating "5 changes" from "5 failures", which
+ * is nothing to a colorblind user or in a greyscale capture. This mirrors VS Code, whose `ErrorBadge` and
  * `WarningBadge` extend `IconBadge` and likewise have no number
  * (`src/vs/workbench/services/activity/common/activity.ts`). A severity provider says how many in `description`, which
  * the Workbench publishes in the tab's tooltip and accessible description either way.

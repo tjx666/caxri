@@ -168,7 +168,7 @@ describe('FileService watcher and polling behavior', () => {
 
             // A push-based wait for the first event settles the instant the watcher (native callback or fallback
             // poll) actually observes the write, instead of resampling `gate.events.length` on a fixed interval
-            // that itself competes for the same event loop under CI load — see issue #1259.
+            // that itself competes for the same event loop under CI load: see issue #1259.
             await diagnose(gate.waitFor(() => true));
             /**
              * Wait beyond a complete polling interval so the native event cannot be replayed as a phantom change.

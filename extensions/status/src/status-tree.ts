@@ -55,7 +55,7 @@ type ProjectStatusFailure = ProjectStatusRepository['errors'][number];
 /**
  * Failures that state one condition for the whole Project rather than a property of the repository that happened to
  * report them: a lost connection, and a provider budget the whole account shares. The root states each of these once
- * and the repository subtrees drop them — a Project holding a repository plus its submodule otherwise printed the same
+ * and the repository subtrees drop them, a Project holding a repository plus its submodule otherwise printed the same
  * account-level sentence twice, each with its own Refresh button.
  */
 const sharedFailureReasons = new Set<ProjectStatusFailure['reason']>(['network', 'rate-limited']);
@@ -299,16 +299,15 @@ function buildRepoChildren(
         const { branchDeployments, production, preview, url: deploymentsUrl } = repo.deployments;
         const environments = [...new Set(branchDeployments.map(({ environment }) => environment))];
         /**
-         * Whether `deployment` — a `branchDeployments` row — is also the branch's current Production or Preview build,
-         * so that row can say "Latest" instead of the summary loop below repeating it as a second top-level row
-         * (#1291).
+         * Whether `deployment`, a `branchDeployments` row, is also the branch's current Production or Preview build, so
+         * that row can say "Latest" instead of the summary loop below repeating it as a second top-level row (#1291).
          */
         const isLatestDeployment = (deployment: ProjectStatusDeployment): boolean =>
             (deployment.environment === 'production' &&
                 production?.hostname === deployment.hostname) ||
             (deployment.environment === 'preview' && preview?.hostname === deployment.hostname);
         /**
-         * Whether `deployment` — the branch's current Production or Preview build — is already one of the rows
+         * Whether `deployment`, the branch's current Production or Preview build, is already one of the rows
          * `branchDeployments` renders above. Almost always true: `branchDeployments` usually already carries the newest
          * build in each environment for this same branch, which is exactly what made the same commit show up twice
          * before this fix (#1291).
@@ -322,7 +321,7 @@ function buildRepoChildren(
         /**
          * Detached HEAD has no branch of its own to report deployments for, and `detached` is Git's own internal name
          * for that state (`status.ts`'s `parseGitStatus`), not something to print as though it were one. A repo with
-         * genuinely nothing deployed yet on a named branch still gets the node — `0 on main` reads as "nothing shipped
+         * genuinely nothing deployed yet on a named branch still gets the node: `0 on main` reads as "nothing shipped
          * on this branch", the fact this panel exists to report.
          */
         const isDetachedWithNothingDeployed =
@@ -403,7 +402,7 @@ function buildRepoChildren(
     if (repo.pullRequest) {
         const pullRequest = repo.pullRequest;
         /**
-         * A pull request whose lifecycle the provider never sent is not a pull request in an unknown state — it is one
+         * A pull request whose lifecycle the provider never sent is not a pull request in an unknown state: it is one
          * we did not hear about. `Unknown` also already meant two other things in this tree, and reusing it a third
          * time made the badge unreadable.
          */
@@ -635,7 +634,7 @@ function rateLimitNodes(errors: readonly ProjectStatusFailure[], now: number): S
             /**
              * Caxri honours this pause itself and recovers without the user, so inside the window there is nothing to
              * offer: Refresh would spend a click on a request the limiter answers with this very error. Past the
-             * deadline — or with no deadline at all — the action comes back.
+             * deadline, or with no deadline at all, the action comes back.
              */
             const isPaused = error.retryAt !== undefined && error.retryAt > now;
             return item(`status:rate-limit:${source}`, error.message, {

@@ -8,7 +8,7 @@ interface LogPrefillState {
      *
      * It is a handoff rather than a setting: the viewer consumes it and clears it, so a prefill survives the panel
      * being closed at the moment it was requested, and reopening the panel later by hand still opens on whatever the
-     * user last left there. A second request simply replaces an untaken first — the newer one is the one the user just
+     * user last left there. A second request simply replaces an untaken first: the newer one is the one the user just
      * clicked.
      */
     pending: ProjectStatusErrorLogs | undefined;

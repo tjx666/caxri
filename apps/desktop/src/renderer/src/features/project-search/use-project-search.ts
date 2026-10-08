@@ -23,8 +23,8 @@ const NO_MATCHES: FileSearchMatch[] = [];
 /**
  * The query the user is composing, together with everything derived from the Server's answer to it.
  *
- * Kept apart from the overlay's markup because the two change for unrelated reasons: this half is the search itself —
- * options, debouncing, cancellation, and which row the keyboard is on — while the markup is a controls bar, a result
+ * Kept apart from the overlay's markup because the two change for unrelated reasons: this half is the search itself:
+ * options, debouncing, cancellation, and which row the keyboard is on; while the markup is a controls bar, a result
  * list, and a preview pane that only read it.
  */
 export interface ProjectSearchModel {
@@ -80,9 +80,9 @@ export function useProjectSearchDraft() {
     const [query, setQuery] = useState('');
     /**
      * Content, not name. `cmd+shift+f` means "search in files" in every editor this dialog is modelled on, and the
-     * Project-wide name lookup it used to open is the one thing `cmd+p`'s path browser already does — including the
-     * same bounded `files.search` in `name` mode. Opening on the mode the other shortcut owns spent the dialog's whole
-     * first impression on a duplicate.
+     * Project-wide name lookup it used to open is the one thing `cmd+p`'s path browser already does, including the same
+     * bounded `files.search` in `name` mode. Opening on the mode the other shortcut owns spent the dialog's whole first
+     * impression on a duplicate.
      */
     const [mode, setMode] = useState<FileSearchMode>('content');
     const [caseSensitive, setCaseSensitive] = useState(false);
@@ -164,7 +164,7 @@ export function useProjectSearch(draft: ProjectSearchDraft): ProjectSearchModel 
     /**
      * `useQuery` rather than `useCaxriQuery`, because only the raw hook hands `queryFn` the AbortSignal React Query
      * cancels when the key changes. A Project-wide content search is the one read in this app expensive enough that an
-     * abandoned one has to stop Server work rather than merely be ignored on arrival — each keystroke abandons one.
+     * abandoned one has to stop Server work rather than merely be ignored on arrival: each keystroke abandons one.
      */
     const result = useQuery({
         queryKey: projectSearchQueryKey(scopeId, searchOptions),

@@ -26,8 +26,8 @@ const FALLBACK_SUCCEEDED_COLOR = '#50fa7b';
 /**
  * VS Code registers a distinct `terminalCommandDecoration.errorBackground` / `successBackground` per theme (dark,
  * light, high-contrast) rather than one fixed hex; deriving these from the active theme's `--danger` / `--success`
- * tokens is the faithful token-driven equivalent — every imported theme gets matching gutter colors instead of one
- * color baked in for every theme.
+ * tokens is the faithful token-driven equivalent: every imported theme gets matching gutter colors instead of one color
+ * baked in for every theme.
  */
 export function terminalCommandDecorationFailedColor(danger: string | undefined): string {
     return danger && HEX_COLOR_PATTERN.test(danger) ? danger : FALLBACK_FAILED_COLOR;

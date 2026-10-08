@@ -31,7 +31,7 @@ interface ActiveSessionRowProperties {
     onCommitRename: () => void;
     onRenameValueChange: (value: string) => void;
     /**
-     * The owning Project's title, icon, id, and root — passed as fields rather than as its record. The record is
+     * The owning Project's title, icon, id, and root, passed as fields rather than as its record. The record is
      * replaced whenever the Project's `lastOpenedAt` moves, which every Session switch inside it does, and a record
      * prop would render every row of that Project again for a timestamp no row shows (issue #1356).
      */
@@ -69,14 +69,14 @@ interface ActiveSessionRowProperties {
 }
 
 /**
- * One active Session row, shared by the Project groups and the Pinned group. A pinned Session is rendered twice — once
- * in each — so everything that varies between the two copies (its tree row id, whether the owning Project is named) is
+ * One active Session row, shared by the Project groups and the Pinned group. A pinned Session is rendered twice (once
+ * in each), so everything that varies between the two copies (its tree row id, whether the owning Project is named) is
  * a prop rather than a second component: two row implementations would drift, and this row already carries the drag
  * source, the hover card, the context menu, and the tree semantics.
  *
  * Both lists render it through `memo`. Each list renders its rows from one `.map()`, which React Compiler caches as a
- * whole, so any change to the list's inputs — a Session switch moves the selection and replaces the opened Session's
- * record — recreates every row element. The memo boundary lets a row whose props kept their identity skip rendering,
+ * whole, so any change to the list's inputs (a Session switch moves the selection and replaces the opened Session's
+ * record) recreates every row element. The memo boundary lets a row whose props kept their identity skip rendering,
  * which on a switch is every row but the two whose selection moved, and its props are shaped for exactly that: shared
  * handlers, an id list keyed by content, and the Project as fields (issue #1356). A new prop derived per render from a
  * list or a record would quietly undo it.
@@ -168,7 +168,7 @@ export function ActiveSessionRow({
                                 ref={viewportReference}
                                 /*
                                  * `flex-none` with `max-w-full` is what makes the title win the row. Both items were
-                                 * shrinkable before, and flexbox shrinks in proportion to each item's own width — so a
+                                 * shrinkable before, and flexbox shrinks in proportion to each item's own width, so a
                                  * long Project name took the larger share of the row and clipped an eight-character
                                  * Session title down to two, which reads as the Project name covering the title rather
                                  * than as either one being truncated. The title now claims its natural width up to the

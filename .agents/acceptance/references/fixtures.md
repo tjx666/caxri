@@ -1,4 +1,4 @@
-# Fixtures — Caxri Acceptance
+# Fixtures: Caxri Acceptance
 
 Caxri-specific facts for deterministic Project and state setup. Probe and mock
 recipes live in [`../probe-mock-patterns.md`](../probe-mock-patterns.md).

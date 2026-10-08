@@ -149,7 +149,7 @@ export function canOpenImportLinkAtCursor(): boolean {
 }
 
 /**
- * Opens the file named by the import under the caret — the keyboard half of ⌘-clicking the same path, which until now
+ * Opens the file named by the import under the caret: the keyboard half of ⌘-clicking the same path, which until now
  * was the only way to follow one.
  *
  * Resolved here rather than by running Monaco's own `editor.action.openLink`: that action reads whatever the link

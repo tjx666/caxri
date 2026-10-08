@@ -1,7 +1,7 @@
 /**
  * Presentation vocabulary for the Status panel: the glyph, tone, and text each provider state resolves to, plus the
  * row-level formatting that vocabulary feeds. Kept beside the tree builder rather than inside it so one state's
- * appearance is decided in one place — `status-tree.ts` assembles rows and never re-decides what a state looks like.
+ * appearance is decided in one place: `status-tree.ts` assembles rows and never re-decides what a state looks like.
  */
 import type {
     ProjectStatusAcceptance,
@@ -16,7 +16,7 @@ import { deploymentStateLabel } from './status-labels';
 
 /**
  * A queued check gets the static dot GitHub draws for one, not the spinner. The spinner stays for work that is actually
- * executing — it is the only honest use of motion here, and a twenty-check run that has not started spun twenty of them
+ * executing: it is the only honest use of motion here, and a twenty-check run that has not started spun twenty of them
  * while nothing moved, which is what made the panel unreadable.
  */
 export const stateIcons: Record<ProjectStatusState, string> = {
@@ -39,8 +39,8 @@ const deploymentIcons: Record<ProjectStatusState, string> = {
 
 /**
  * A production deployment that succeeded is the one row on this panel that means the work is live, and a green check
- * shared with every passing CI check does not say that. It gets the rocket instead — the glyph Vercel's own dashboard
- * uses — so the answer to "did it ship?" is readable without comparing a row's label to its icon. Every other state,
+ * shared with every passing CI check does not say that. It gets the rocket instead (the glyph Vercel's own dashboard
+ * uses), so the answer to "did it ship?" is readable without comparing a row's label to its icon. Every other state,
  * and every preview deployment, keeps the shared state glyph: only success is news.
  */
 export function deploymentIcon(deployment: ProjectStatusDeployment): string {
@@ -50,8 +50,8 @@ export function deploymentIcon(deployment: ProjectStatusDeployment): string {
 }
 
 /**
- * The glyph family acceptance rows own. Every other row in this tree reports a machine's verdict with a circle — a CI
- * check, a deployment, a Linear state — so a report a _person_ still has to sign off on was indistinguishable from the
+ * The glyph family acceptance rows own. Every other row in this tree reports a machine's verdict with a circle (a CI
+ * check, a deployment, a Linear state), so a report a _person_ still has to sign off on was indistinguishable from the
  * run that produced it. The shield says "this is the sign-off" by shape alone, and the state only picks which shield,
  * so colour stays the secondary signal it is everywhere else here.
  *
@@ -113,8 +113,8 @@ export const stateTones: Record<ProjectStatusState, 'danger' | 'neutral' | 'succ
         failure: 'danger',
         cancelled: 'neutral',
         pending: 'warning',
-        // Queued shares the in-flight colour with `pending`: the run has not finished either way, and the glyph — not the
-        // tone — is what separates waiting for a runner from running.
+        // Queued shares the in-flight colour with `pending`: the run has not finished either way, and the glyph (not the
+        // tone) is what separates waiting for a runner from running.
         queued: 'warning',
         neutral: 'neutral',
         unknown: 'neutral',
@@ -122,9 +122,9 @@ export const stateTones: Record<ProjectStatusState, 'danger' | 'neutral' | 'succ
 
 /**
  * `label` is deliberately absent from either row's own description: the glyph already says the lifecycle in the same
- * colors GitHub uses — green open, grey draft, purple merged, red closed — so repeating "Open" beside it spent the
- * row's scarce width restating the icon. It stays on the hover card's badge and in the accessible name, which is where
- * a reader who cannot use the color needs it.
+ * colors GitHub uses (green open, grey draft, purple merged, red closed) so repeating "Open" beside it spent the row's
+ * scarce width restating the icon. It stays on the hover card's badge and in the accessible name, which is where a
+ * reader who cannot use the color needs it.
  */
 export const pullRequestPresentation = {
     open: { icon: 'git-pull-request-open', label: 'Open', tone: 'success' },
@@ -190,7 +190,7 @@ const LEADING_GITMOJI_PATTERN = /^(?:\p{Extended_Pictographic}[\u{FE0F}\u{200D}]
 /**
  * Drops a leading gitmoji from a commit subject for the one row that also carries its own state icon
  * (`deploymentIcon`): stacked together, an unrelated glyph baked into the label text read as a doubled icon rather than
- * two different facts (#1291). Falls back to the untouched message when stripping would leave nothing — a message that
+ * two different facts (#1291). Falls back to the untouched message when stripping would leave nothing, a message that
  * was only ever the emoji is not improved by deleting it.
  */
 function stripLeadingGitmoji(message: string): string {
@@ -233,7 +233,7 @@ export function branchDeploymentRowDescription(
 }
 
 /**
- * Screen readers keep every identifier the visible row had to give up — the commit subject and the alias — while a part
+ * Screen readers keep every identifier the visible row had to give up, the commit subject and the alias, while a part
  * the label already announced is dropped rather than repeated.
  */
 export function deploymentAccessibilityLabel(

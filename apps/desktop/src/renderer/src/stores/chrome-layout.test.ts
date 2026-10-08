@@ -118,7 +118,7 @@ describe('clampLayoutToViewport', () => {
         expect(next.primarySidebarWidth).toBeLessThanOrEqual(480);
     });
 
-    it('carries the Panel fields through untouched — the vertical axis is clamped separately', () => {
+    it('carries the Panel fields through untouched: the vertical axis is clamped separately', () => {
         const withPanel: ChromeLayout = {
             ...wideLayout,
             panelVisible: true,

@@ -136,8 +136,8 @@ export class ProjectStatusService {
         this.vercel =
             options.vercel ?? new VercelDeploymentStore(this.runner, { now: () => this.now() });
         /**
-         * One store for both Linear readers in this Service — the Status panel's issue rows and the status bar's
-         * leading issue — so a Session's Linear state costs one CLI spawn per issue rather than two.
+         * One store for both Linear readers in this Service: the Status panel's issue rows and the status bar's leading
+         * issue, so a Session's Linear state costs one CLI spawn per issue rather than two.
          */
         this.linear = new LinearIssueStore(
             (arguments_, cwd, subject) => this.runCommand('linear', arguments_, cwd, subject),
@@ -434,7 +434,7 @@ export class ProjectStatusService {
         if (hasFailures) return this.options.failureCacheTtlMs ?? SUMMARY_FAILURE_CACHE_TTL_MS;
         if (this.options.cacheTtlMs !== undefined) return this.options.cacheTtlMs;
         /*
-         * `queued` counts as in flight. A queued run is the state most likely to be stale a second later — it is
+         * `queued` counts as in flight. A queued run is the state most likely to be stale a second later: it is
          * waiting for a runner, and the transition to `pending` is the one thing the split between the two states
          * exists to show. Holding it for the settled window would report "not started" for up to two minutes after it
          * started, and for a repository reporting through commit statuses rather than check runs, for the whole run.

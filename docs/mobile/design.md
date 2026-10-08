@@ -196,10 +196,10 @@ added without moving screens. Query keys include the same host identity.
   opens the photo picker or camera, so system UI never covers a sheet still on screen
   (`MOB-COMPOSE-02`).
 - Delivery states:
-  - `Sending…` — input disabled, draft kept.
-  - Delivered to the Terminal — clear the draft.
-  - Failed before reaching the Server — keep the draft, show the reason, allow retry.
-  - Unknown (connection dropped after sending) — keep the draft and show `Couldn't confirm delivery.
+  - `Sending…`: input disabled, draft kept.
+  - Delivered to the Terminal: clear the draft.
+  - Failed before reaching the Server: keep the draft, show the reason, allow retry.
+  - Unknown (connection dropped after sending): keep the draft and show `Couldn't confirm delivery.
 Check the Terminal before sending again.` Never resend automatically.
 - When the connection is stale, the composer keeps the draft and names the disabled reason.
 
@@ -211,15 +211,15 @@ parses provider files.
 - User messages: right-aligned bubbles on the raised surface color, max 85% width.
 - Agent replies: full-width Markdown, rendered natively. Code blocks scroll horizontally and never
   wrap; inline code uses the monospace face.
-- Tool calls: one row each — icon, verb, and a one-line summary (`Ran npm test`, `Edited
+- Tool calls: one row each: icon, verb, and a one-line summary (`Ran npm test`, `Edited
 src/auth.ts`), plus duration when known. Consecutive tool calls collapse into one group row (`Ran 4
 commands · 12s`). Tapping expands the group; tapping a row opens its bounded detail.
 - Tool detail opens in a bottom sheet capped at 65% of the screen height. Its title and `Close` stay
   in place while long output scrolls inside the sheet (`MOB-MOTION-03`).
 - Thinking is hidden. A turn divider shows the turn's duration.
 - Content the Agent's harness injects as a user turn (background task notifications, slash-command
-  echoes, local command output) renders as a compact event row — status icon and a short title,
-  expandable detail — never as the user's own bubble. Reminder-only turns are hidden.
+  echoes, local command output) renders as a compact event row: status icon and a short title,
+  expandable detail, never as the user's own bubble. Reminder-only turns are hidden.
 - Auto-follow new content only while the reader is at the bottom. Otherwise show a round
   jump-to-latest button; never pull the reader down.
 - Truncated history starts with `Earlier messages are available on your computer.`

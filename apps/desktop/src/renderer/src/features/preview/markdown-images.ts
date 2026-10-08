@@ -33,8 +33,8 @@ async function releaseImages(
  * Points every `img` the document declared at something it is allowed to load.
  *
  * A project-relative image becomes an object URL read through the Session's authorized file channel; a remote one keeps
- * its own URL, which the Renderer's Content-Security-Policy narrows to HTTPS. An image that resolves to neither — a
- * path escaping the Project root, a scheme the app will not fetch — is marked instead of silently rendering as a broken
+ * its own URL, which the Renderer's Content-Security-Policy narrows to HTTPS. An image that resolves to neither (a path
+ * escaping the Project root, a scheme the app will not fetch) is marked instead of silently rendering as a broken
  * glyph, so the document reads as "this reference is unresolved" rather than "the preview is broken".
  *
  * Returns the release for the object URLs this pass acquired.

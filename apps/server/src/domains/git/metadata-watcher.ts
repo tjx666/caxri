@@ -84,7 +84,7 @@ export function classifyGitMetadataPath(relativePath: string): GitMetadataChange
  * The branch a moved ref can change the status of, or `undefined` when that cannot be narrowed.
  *
  * A `refs/heads/<branch>` write only matters to a worktree that has `<branch>` checked out. A
- * `refs/remotes/<remote>/<branch>` write — a `git fetch` — matters to a worktree whose upstream it is, and the branch
+ * `refs/remotes/<remote>/<branch>` write (a `git fetch`) matters to a worktree whose upstream it is, and the branch
  * name is the only part of that relationship visible from the file path, so same-named local branches are the match.
  * Anything else (tags, notes, stash, a bare `refs/foo`) keeps the whole group.
  */
@@ -159,7 +159,7 @@ export interface GitMetadataWatcherOptions {
  * Narrow-scope watcher over each active repository's shared common Git directory. It observes only Git metadata
  * (`HEAD`, `index`, refs, `worktrees/`, `config`) so external `git switch`, `git commit`, or `git worktree add` refresh
  * Caxri without a working-tree write; the general Project watcher keeps excluding `.git` entirely. Raw `.git` paths
- * never leave this module — the callbacks receive repository keys and worktree roots only.
+ * never leave this module: the callbacks receive repository keys and worktree roots only.
  */
 export class GitMetadataWatcher {
     private closed = false;
@@ -220,7 +220,7 @@ export class GitMetadataWatcher {
      *
      * Every `refs/**` write used to refresh every worktree in the group, so one agent committing in one of dozens of
      * worktrees sharing a commonDir re-ran `git status` in all of them. A ref write only reaches a worktree that has
-     * that branch checked out (or tracks it, for a remote ref), which is a `HEAD` read per worktree — no Git spawn.
+     * that branch checked out (or tracks it, for a remote ref), which is a `HEAD` read per worktree: no Git spawn.
      * Anything that cannot be attributed still falls back to the whole group, so the cost of being wrong is the old
      * behavior rather than a missed refresh.
      */
@@ -257,8 +257,8 @@ export class GitMetadataWatcher {
     }
 
     /**
-     * The fallback for a ref change that could not be narrowed. Unlike {@link knownRoots} — which the synchronous
-     * whole-group path uses and which only sees roots already registered or resolved — this enumerates every linked
+     * The fallback for a ref change that could not be narrowed. Unlike {@link knownRoots} (which the synchronous
+     * whole-group path uses and which only sees roots already registered or resolved), this enumerates every linked
      * worktree, so widening really does reach all of them.
      */
     private async allRoots(repoKey: string, entry: WatchedRepo): Promise<string[]> {
@@ -321,8 +321,8 @@ export class GitMetadataWatcher {
     }
 
     /**
-     * Maps `worktrees/<name>` gitDirs to worktree roots through the `gitdir` readback file — a plain filesystem read,
-     * deliberately not a Git spawn — and caches the result per group.
+     * Maps `worktrees/<name>` gitDirs to worktree roots through the `gitdir` readback file (a plain filesystem read,
+     * deliberately not a Git spawn) and caches the result per group.
      */
     private async resolveWorktreeRoots(
         repoKey: string,

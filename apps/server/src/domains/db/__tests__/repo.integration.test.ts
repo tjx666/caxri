@@ -354,7 +354,7 @@ describe('CaxriDatabase', () => {
         expect(database.listSessions()).toEqual([]);
 
         /**
-         * The negative control for that refusal. `owner` is top-level and, at this point, has no Session at all — the
+         * The negative control for that refusal. `owner` is top-level and, at this point, has no Session at all: the
          * exact shape a guard that keyed on "empty Project" instead of "owned Project" would reject, turning an added
          * Project into one the user can never start working in.
          */

@@ -7,7 +7,7 @@ import { errorCode } from './repo';
 
 /**
  * Durable record of one `switch-worktree dev` launch, keyed by the worktree's stable identity (see `worktreeIdentity`
- * in `repo.ts`). Split out of `worktree.ts` — which sits at the repository's `max-lines` cap — because `stopWorktree`,
+ * in `repo.ts`). Split out of `worktree.ts` (which sits at the repository's `max-lines` cap) because `stopWorktree`,
  * `inspectOne`, `removeWorktree`, and `developmentWorktree` all read and write it.
  */
 export interface DevelopmentProcessRecord {
@@ -25,8 +25,8 @@ export function developmentProcessPath(context: RepoContext, identity: string): 
 }
 
 /**
- * A record failing this shape check is never a compatible-but-older format to migrate — see AGENTS.md's pre-release
- * no-compatibility-layer policy — it is either corrupt or a stale record from before a required field such as `cdpPort`
+ * A record failing this shape check is never a compatible-but-older format to migrate (see AGENTS.md's pre-release
+ * no-compatibility-layer policy): it is either corrupt or a stale record from before a required field such as `cdpPort`
  * existed, and callers should fail clearly on it.
  */
 export async function readDevelopmentProcess(

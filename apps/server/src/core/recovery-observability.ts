@@ -42,7 +42,7 @@ function knownEventName(value: unknown): string {
  * Validates the internal event immediately inside the EventTarget listener. Node rethrows listener exceptions on a
  * later tick, where the emitting domain can no longer catch them, so this boundary must reject malformed events before
  * a structured control or durable journal path uses `parse`. Diagnostics retain only schema paths, codes, and array
- * counts — never payloads.
+ * counts, never payloads.
  */
 function validateServerEventForDelivery(
     logger: StructuredLogger,

@@ -64,7 +64,7 @@ export const viewIconSchema = z.discriminatedUnion('kind', [
         kind: z.literal('theme'),
         id: z.string().min(1).max(100),
         /**
-         * Tint for an icon standing in for content owned by an external system whose palette Caxri does not define — a
+         * Tint for an icon standing in for content owned by an external system whose palette Caxri does not define, a
          * Linear workflow state, whose color each workspace configures for itself. Caxri's own semantic tokens cannot
          * express an arbitrary workspace's palette, and quantizing it back to `success`/`warning` is what made a green
          * "In Review" render yellow. Deliberately the only color literal in the view protocol: it tints one glyph's
@@ -384,8 +384,8 @@ const sourceControlProviderModelSchema = z.object({
      */
     rootPath: z.string().min(1).max(4_096).optional(),
     /**
-     * What the repository has checked out — a branch, or a name for a detached commit — shown as the section's first
-     * row and allowed to ellipsize. Empty hides that row, for when it would only repeat `label`. Prose that a provider
+     * What the repository has checked out (a branch, or a name for a detached commit) shown as the section's first row
+     * and allowed to ellipsize. Empty hides that row, for when it would only repeat `label`. Prose that a provider
      * wants beside the row belongs in `descriptionTooltip`.
      */
     description: z.string().max(4_096),
@@ -404,7 +404,7 @@ const sourceControlProviderModelSchema = z.object({
      */
     countLabel: z.string().max(1_024),
     /**
-     * Web page describing the changes this provider is currently showing — the pull request in Pull Request mode.
+     * Web page describing the changes this provider is currently showing: the pull request in Pull Request mode.
      * Alt-clicking the provider row or its group caption opens it in the default browser, so the panel never has to
      * spend row width on a link affordance that is empty in most modes.
      */

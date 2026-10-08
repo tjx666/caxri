@@ -54,9 +54,9 @@ const UPGRADABLE_COLOR_ROLES = [
 ] as const satisfies ReadonlyArray<keyof ThemeTokens['colors']>;
 
 /**
- * Where a custom theme — which has no catalog entry to recover from — borrows each late role. Every source is a role
- * the file already carries, so the recovered value is readable on that theme's own surfaces by construction. Falling
- * back to `accent` for all of them was tried first and is wrong for the decorations: it paints added, deleted, and
+ * Where a custom theme, which has no catalog entry to recover from, borrows each late role. Every source is a role the
+ * file already carries, so the recovered value is readable on that theme's own surfaces by construction. Falling back
+ * to `accent` for all of them was tried first and is wrong for the decorations: it paints added, deleted, and
  * conflicting files the same color, which is exactly the distinction the roles exist to make.
  */
 const CUSTOM_THEME_ROLE_SOURCE = {
@@ -68,8 +68,8 @@ const CUSTOM_THEME_ROLE_SOURCE = {
     gitUntracked: 'success',
     gitConflicting: 'danger',
     /**
-     * The severity fills borrow the severity text colors a theme already carries. Not ideal — those are tuned for text
-     * on the canvas rather than as a fill — but it is the only value in the file that means the same thing, and the
+     * The severity fills borrow the severity text colors a theme already carries. Not ideal (those are tuned for text
+     * on the canvas rather than as a fill), but it is the only value in the file that means the same thing, and the
      * badge derives its own readable foreground on top of whatever it gets.
      */
     errorBadge: 'danger',
@@ -116,13 +116,13 @@ const CUSTOM_THEME_ROLE_LITERAL = {
  * A fixed default hex cannot do this job. `findMatchingBuiltinTheme` compares the whole parsed snapshot, so filling
  * `merged` with any value other than the preset's own would strip a saved preset's built-in identity;
  * `normalizeBuiltinTheme` would then rewrite it to `custom-*` and `ConfigService` would persist that downgrade. A
- * single default is also wrong on contrast grounds — no one violet clears 3:1 on both a dark and a light preset's
+ * single default is also wrong on contrast grounds: no one violet clears 3:1 on both a dark and a light preset's
  * chrome. Recovering the preset's own value keeps identity and contrast intact. A genuinely custom theme has no catalog
  * entry to recover from and borrows the nearest role it already carries (see {@link CUSTOM_THEME_ROLE_SOURCE}).
  *
  * A built-in snapshot missing any of these roles gets its whole `colors` block replaced by the catalog's, not just the
  * absent keys. Such a file was written by an older build, so a value that now differs is drift from that build rather
- * than a deliberate edit — and backfilling only the new keys would leave the preset failing `findMatchingBuiltinTheme`,
+ * than a deliberate edit, and backfilling only the new keys would leave the preset failing `findMatchingBuiltinTheme`,
  * silently downgrading the user to `custom-*` and pinning them to the old colors. The escape hatch closes on its own:
  * once rewritten, the snapshot carries every role and takes the branch below.
  *

@@ -91,7 +91,7 @@ export function extractCodexDelegationCompletion(
  * (`event.error`/`codex_error_info`) or an explicit `turn_aborted` are mapped: both are unambiguous evidence the turn
  * did not succeed. `result_missing` (Stop fired but the rollout has no matching completion text and no error) and
  * `correlation_missing` (more than one completion event for the same turn id) describe a read or correlation gap, not a
- * proven provider error, so they intentionally have no entry — {@link codexPrimaryTurnFailure} must leave the signal as
+ * proven provider error, so they intentionally have no entry: {@link codexPrimaryTurnFailure} must leave the signal as
  * the ordinary `turnFinished` it already is rather than report a failure it cannot prove.
  */
 const PRIMARY_TURN_FAILURE_BY_DELEGATION_FAILURE: Partial<

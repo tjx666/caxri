@@ -37,7 +37,7 @@ const NAVIGATION_TYPES = new Set<string>(['back-forward', 'navigate', 'prerender
 /**
  * The diagnostic contract's own ceilings, applied where the record is built so no source of a duration can push one out
  * of range. A window or a wait that outlives its ceiling is saturated rather than sent as-is, because an out-of-range
- * number costs the whole record — and a rejected record is exactly the silence this watcher exists to end.
+ * number costs the whole record, and a rejected record is exactly the silence this watcher exists to end.
  */
 const MAXIMUM_PAGE_AGE_MS = 2_592_000_000;
 const MAXIMUM_WAIT_MS = 600_000;
@@ -69,7 +69,7 @@ export interface GitDiffStallWatchDependencies {
     minimumReportIntervalMs?: number;
     /**
      * How much longer a stalled diff waits for its _original_ Worker before this watcher gives up on the passive path
-     * and calls `onRecoveryDue`. Undefined (the default) keeps the wait unbounded — every existing caller that has not
+     * and calls `onRecoveryDue`. Undefined (the default) keeps the wait unbounded: every existing caller that has not
      * opted in behaves exactly as before, which matters because a Worker whose startup was merely delayed, not dead, is
      * expected to still answer after this budget (see the module doc's "Debugger pauses" case in
      * `docs/editor-worker-stalls.md`). See issue #962.
@@ -93,7 +93,7 @@ export interface GitDiffStallObservation {
     onOutcome?: (outcome: GitDiffComputationOutcome) => void;
     /**
      * Fires once, no earlier than `recoveryGraceMs` after a stall was first reported, if the diff still has not
-     * answered by then — including on its own, which is what a merely slow Worker startup still gets to do first (see
+     * answered by then, including on its own, which is what a merely slow Worker startup still gets to do first (see
      * the module doc). The caller's job here is the mechanical part this watcher cannot do itself: destroy and recreate
      * the stalled Worker, then ask Monaco to recompute. Absent whenever `recoveryGraceMs` is not configured, which
      * keeps every window that has not opted in waiting exactly as it always has.
@@ -110,9 +110,9 @@ export interface GitDiffStallObservation {
  * diagnosed from `desktop.jsonl` instead of a live debugger session. See issue #962.
  *
  * With `recoveryGraceMs` configured, a stall that still has not resolved after that extra wait is offered one more
- * transition: `worker-recreated`, recorded here, then `onRecoveryDue` to let the caller do the part this watcher cannot
- * — destroy and recreate the stalled Worker and ask Monaco to recompute. `git-diff-worker-recovery.ts` owns how many
- * times one diff surface may accept that offer before it has to ask the user instead.
+ * transition: `worker-recreated`, recorded here, then `onRecoveryDue` to let the caller do the part this watcher
+ * cannot: destroy and recreate the stalled Worker and ask Monaco to recompute. `git-diff-worker-recovery.ts` owns how
+ * many times one diff surface may accept that offer before it has to ask the user instead.
  */
 export class GitDiffStallWatch {
     private diffOpenCount = 0;
@@ -238,10 +238,10 @@ export class GitDiffStallWatch {
             if (isCancelled()) return;
             /**
              * `graceElapsed` is unset by default, so a window that has not opted into `recoveryGraceMs` races only
-             * `settled` and `cancelled` in effect — a `Promise` that never resolves cannot win a race, so this stays
+             * `settled` and `cancelled` in effect: a `Promise` that never resolves cannot win a race, so this stays
              * behaviorally identical to before `recoveryGraceMs` existed. Configured, it gives the _original_ Worker
-             * one more window to answer on its own — a merely delayed startup still can, see the module doc's "Debugger
-             * pauses" case — before this watcher gives up on it and offers the caller a recovery.
+             * one more window to answer on its own (a merely delayed startup still can, see the module doc's "Debugger
+             * pauses" case) before this watcher gives up on it and offers the caller a recovery.
              *
              * Racing `cancelled` here matters for retention rather than correctness: a diff that never settles would
              * otherwise keep its Monaco models reachable through this continuation for as long as the window lives.
@@ -258,8 +258,8 @@ export class GitDiffStallWatch {
             if (second === 'grace-elapsed') {
                 // The active counterpart to `recovered` below: instead of the original stalled Worker answering late
                 // on its own, the caller is about to destroy and recreate it and ask Monaco to recompute. Recorded
-                // before `onRecoveryDue`, and under the same rate limit as the `timeout` it follows — opening a
-                // Changes view full of stalled diffs must not write one `worker-recreated` line per file — but every
+                // before `onRecoveryDue`, and under the same rate limit as the `timeout` it follows: opening a
+                // Changes view full of stalled diffs must not write one `worker-recreated` line per file; but every
                 // stalled surface still gets to recover, because that is a correctness fix, not a log write.
                 if (isReported)
                     this.report(observation, 'worker-recreated', Math.round(now() - startedAt), {

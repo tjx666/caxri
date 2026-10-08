@@ -23,7 +23,7 @@ function readPersistedState(): ProcessTableState {
 
 export interface ProcessTableStateController extends ProcessTableState {
     /**
-     * Drops the pinned width so the column returns to its definition width — and, for `name`, to auto-fitting the row.
+     * Drops the pinned width so the column returns to its definition width, and, for `name`, to auto-fitting the row.
      */
     resetColumnWidth: (key: ProcessColumnKey) => void;
     setColumnWidth: (key: ProcessColumnKey, width: number) => void;

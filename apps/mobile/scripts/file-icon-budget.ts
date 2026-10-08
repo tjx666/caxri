@@ -11,7 +11,7 @@ import { optimize } from 'svgo';
  * generic ids (`a`, `b`, …) per file, which is safe while every icon renders through its own isolated `SvgXml`
  * instance, but all ~170 compressed icons still land together in one generated module; namespacing removes the risk
  * entirely if a future consumer ever concatenates the raw markup (e.g. a web/WebView render path) instead of mounting
- * one `SvgXml` per icon. A 6-hex-char hash of the file name keeps that safety margin cheap — the plugin's own default
+ * one `SvgXml` per icon. A 6-hex-char hash of the file name keeps that safety margin cheap: the plugin's own default
  * prefix (the full file name) pushed at least one already-tight icon back over `MAX_ICON_BYTES`.
  */
 export const compressIconSvg = (svg: string, file: string): string =>

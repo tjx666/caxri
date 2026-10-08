@@ -8,7 +8,7 @@ const root = resolve(import.meta.dirname, '../..');
 /**
  * Mirrors `scripts/__tests__/workspace-contract.test.ts`'s CLI-scoped `looseTestFiles` walker for the Desktop source
  * trees that are not the Renderer: `.agents/skills/source-layout/SKILL.md` "Place tests" requires Desktop Main, Server,
- * and system package tests to live in a domain-local `__tests__/` directory. The Renderer is deliberately excluded —
+ * and system package tests to live in a domain-local `__tests__/` directory. The Renderer is deliberately excluded:
  * colocated `foo.test.ts` beside `foo.ts` is the documented, allowed placement there.
  */
 function looseTestFiles(directory: string): string[] {

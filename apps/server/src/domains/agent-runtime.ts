@@ -113,9 +113,9 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     );
     namingState.service = automaticNaming;
     /**
-     * Sole writer of the "Always allow in this Session" grant (issue caxri#1295); every caller — mobile's
-     * `answerInternal`, Desktop's `session.revokePermissionAutoAllow`, and the lifecycle hooks below — goes through
-     * this controller so the transition log and the live `agent.permissionAutoAllowChanged` event are always attached.
+     * Sole writer of the "Always allow in this Session" grant (issue caxri#1295); every caller (mobile's
+     * `answerInternal`, Desktop's `session.revokePermissionAutoAllow`, and the lifecycle hooks below) goes through this
+     * controller so the transition log and the live `agent.permissionAutoAllowChanged` event are always attached.
      */
     const attentionAutoAllow = createPermissionAutoAllowController({ logger, send });
     const agentHooks = new AgentHookManager({

@@ -48,8 +48,8 @@ export interface LogRecord {
      * Structured detail values. These surface verbatim (minus secret-key/secret-pattern redaction) through
      * `logs.query`, the SecondarySidebar Logs panel, and `caxri logs` under the `diagnostics.read` capability, so the
      * diagnostics content boundary is enforced HERE, at the call site: never log source or file contents, Terminal
-     * output, Agent prompts/transcripts, credentials, or environment values — log paths, counts, durations, error
-     * codes, and identifiers instead.
+     * output, Agent prompts/transcripts, credentials, or environment values: log paths, counts, durations, error codes,
+     * and identifiers instead.
      */
     fields?: Record<string, string | number | boolean | null>;
     /**
@@ -130,7 +130,7 @@ const installExitHook = once(() => {
 /**
  * Buffered asynchronous JSONL writer. `write()` only enqueues; a single in-flight drain appends batches with
  * `fs/promises`, so a stalled disk (swap storms, Spotlight, APFS snapshots) backs records up in memory instead of
- * freezing the event loop — measured on Server Core's session-switch path, sync `appendFileSync` degrades from
+ * freezing the event loop: measured on Server Core's session-switch path, sync `appendFileSync` degrades from
  * microseconds to 30–100ms per call under moderate disk pressure and is unbounded under real IO stalls (issue #237).
  * Durability escape hatches: `error` records and process exit flush synchronously, so post-mortem evidence still
  * reaches disk even when the process dies on the next tick.
@@ -257,7 +257,7 @@ export class StructuredLogger {
             /**
              * Logging is best-effort: the log directory can legitimately vanish while the process is still running
              * (profile teardown racing a late async callback, uninstall/reset tooling). Recreate it and retry once; if
-             * the retry still fails, drop the batch instead of throwing into an arbitrary call site — a lost log line
+             * the retry still fails, drop the batch instead of throwing into an arbitrary call site, a lost log line
              * must never crash a watcher or become an unhandled rejection. Non-transient failures also drop the batch
              * before propagating: retrying the same doomed batch would spin the drain loop forever.
              */
@@ -310,7 +310,7 @@ export class StructuredLogger {
 
     /**
      * Rotation must complete before the append that would overflow. Rotation failures other than a missing source
-     * propagate — silently appending past the cap would grow without bound.
+     * propagate: silently appending past the cap would grow without bound.
      */
     private rotateIfNeededSync(incomingBytes: number): void {
         if (this.bytesWritten + incomingBytes <= MAX_LOG_BYTES) return;
@@ -468,7 +468,7 @@ export class StructuredLogger {
 
     /**
      * Synchronous last-resort drain for `error` records and the process exit hook. Pending lines stay queued until an
-     * append succeeds, so this can flush everything — including a batch whose async append is still in flight. If that
+     * append succeeds, so this can flush everything: including a batch whose async append is still in flight. If that
      * append later completes too, the batch lands twice in the file; `logs.query` identifies records by content hash,
      * so duplicates collapse there and only raw `tail` output shows them. Losing an in-flight batch at exit would be
      * worse than the duplicate.

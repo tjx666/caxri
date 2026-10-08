@@ -136,15 +136,15 @@ describe('extractBacktickedSourceFilenames', () => {
 describe('frozenLedgerEntryLines', () => {
     it('freezes lines inside a RESOLVED or STALE ledger entry but not an OPEN one', () => {
         const source = [
-            '### AD-open-example — [OPEN · Architecture debt · M]',
+            '### AD-open-example: [OPEN · Architecture debt · M]',
             '',
             '- **Evidence:** `apps/live.ts:1`',
             '',
-            '### AD-resolved-example — [RESOLVED · Confirmed defect · M]',
+            '### AD-resolved-example: [RESOLVED · Confirmed defect · M]',
             '',
             '- **Evidence:** `apps/gone.ts:2`',
             '',
-            '### AD-stale-example — [STALE · Coverage gap · S]',
+            '### AD-stale-example: [STALE · Coverage gap · S]',
             '',
             '- **Evidence:** `apps/also-gone.ts:3`',
             '',

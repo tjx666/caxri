@@ -4,7 +4,7 @@
  * and ignores in a pull request body (or the reverse) is a bug the user experiences as randomness.
  *
  * `app.lobehub.com` is a public host and `@lobehub/cli` is a public npm package, so naming both is the same kind of
- * first-party integration as the `linear.app` reader — not an internal address.
+ * first-party integration as the `linear.app` reader, not an internal address.
  */
 
 /**
@@ -46,8 +46,8 @@ export function acceptanceUrl(id: string, round?: number): string {
 
 /**
  * Every acceptance link in `text`, in the order it appears, ids lower-cased. Duplicates are left in: the two callers
- * disagree on what a repeat means — a transcript treats it as "most recent wins", a pull request body as "already seen"
- * — so collapsing here would take that decision away from both.
+ * disagree on what a repeat means: a transcript treats it as "most recent wins", a pull request body as "already seen",
+ * so collapsing here would take that decision away from both.
  */
 export function findAcceptanceLinks(text: string): AcceptanceReference[] {
     const references: AcceptanceReference[] = [];

@@ -235,8 +235,8 @@ export const commanderMethods = {
     /**
      * Opens a file link detected in the Commander Terminal, handed to the Workbench because the Commander's own Project
      * is hidden system state with no editor of its own. Main picks a real, visible Session to open it in rather than
-     * trusting the Commander's own (system) Session — see `pickCommanderFileLinkSession` in
-     * `workbench-root-authority.ts` — so this never grants the Commander window authority over a Project it does not
+     * trusting the Commander's own (system) Session (see `pickCommanderFileLinkSession` in
+     * `workbench-root-authority.ts`), so this never grants the Commander window authority over a Project it does not
      * already have through the Workbench. `terminalId` must be the Commander's own Terminal; the Commander policy
      * validates that the same way it validates every other `TERMINAL_METHODS` request.
      */

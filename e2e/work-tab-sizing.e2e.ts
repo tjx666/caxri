@@ -190,11 +190,11 @@ test('Terminal tabs anchor at the leading edge, Document tabs size to content an
          * The document just opened is the active one, and it must already be readable without the user scrolling the
          * rail. Measured against the rail rather than the viewport because the rail is what clips it. Polled because a
          * tab enters from `maxWidth: 0` and the reveal keeps re-running while that animation widens it
-         * (`useActiveTabReveal` in `apps/desktop/src/renderer/src/features/workbench/pane-tab-reveal.ts`) — a one-shot
+         * (`useActiveTabReveal` in `apps/desktop/src/renderer/src/features/workbench/pane-tab-reveal.ts`), a one-shot
          * reveal measured at creation time computes a near-zero delta and leaves the tab off the end of the bar.
          *
          * "Readable" is the leading edge, not the whole box. At this window width one of these filenames is wider than
-         * the rail that holds it, and the reveal aligns such a tab to the rail's start rather than its end — the same
+         * the rail that holds it, and the reveal aligns such a tab to the rail's start rather than its end: the same
          * choice VS Code's `doLayoutTabsNonWrapping` makes, because scrolling to the tail of a name shows the reader
          * the extension and hides the part that tells the files apart.
          */
@@ -379,7 +379,7 @@ test('the tab bar reveals the Agent menu on hover with one tab and accents only 
         /**
          * Splitting leaves one tab in each pane. The "+" rule is Workbench-wide, not per-pane: a pane holding its only
          * tab still has a sibling pane to be distinguished from, so the button survives in both panes. The accent is
-         * stricter — it marks the focused pane's active tab only, so exactly one of the two active tabs carries it
+         * stricter: it marks the focused pane's active tab only, so exactly one of the two active tabs carries it
          * (`pane-tab-bar.tsx` gates `showActiveAccent` on `isActivePane`).
          */
         await splitTerminalToRight(running.page, secondTerminalId);
@@ -561,7 +561,7 @@ test('dragging a work tab over a sibling shows an insertion line and previews th
 
         // A cursor merely crossing a tab on its way to the drop position must not flip the content under it, so
         // short of the hover threshold the selection still belongs to the dragged tab. The wait deliberately sits
-        // past the 500ms this delay used to be — a timer can fire late on a loaded machine but never early, so
+        // past the 500ms this delay used to be, a timer can fire late on a loaded machine but never early, so
         // this pins the threshold as VS Code's unhurried one rather than any value below it.
         await running.page.waitForTimeout(1_200);
         await expect(target.getByRole('tab')).toHaveAttribute('aria-selected', 'false');
@@ -723,10 +723,10 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
         await expect(dragCorner).toHaveJSProperty('offsetWidth', 32);
 
         /**
-         * A side-by-side split ends the leading bar in the middle of the window, where its neighbour's first tab begins
-         * — not in the window corner. Reserving the strip there wedges dead space between "+" and that neighbour, which
-         * is the opposite of what the corner exists for. The traffic-light inset on the same bar still gives the window
-         * somewhere to be dragged from.
+         * A side-by-side split ends the leading bar in the middle of the window, where its neighbour's first tab
+         * begins, not in the window corner. Reserving the strip there wedges dead space between "+" and that neighbour,
+         * which is the opposite of what the corner exists for. The traffic-light inset on the same bar still gives the
+         * window somewhere to be dragged from.
          */
         await running.page.keyboard.press('Meta+Backslash');
         await expect(running.page.locator('[data-pane-tab-bar]')).toHaveCount(2);

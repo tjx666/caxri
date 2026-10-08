@@ -93,7 +93,7 @@ function FileTreeStickyRow({
  * The Files tree: a virtualized, flattened list of every expanded listing with a VS Code-style sticky ancestor overlay.
  *
  * Only rows near the viewport are mounted, so a directory with thousands of entries costs a screenful of DOM. Anything
- * that used to walk the DOM — arrow-key movement, Editor reveal, the pinned ancestors — now reads the flattened model
+ * that used to walk the DOM (arrow-key movement, Editor reveal, the pinned ancestors) now reads the flattened model
  * instead, because the row it needs may not be mounted. Rows still own their own interactions and store subscriptions.
  */
 export function FileTree({ controller }: { controller: ResourceExplorerController }) {
@@ -214,7 +214,7 @@ export function FileTree({ controller }: { controller: ResourceExplorerControlle
 
     /*
      * The inline create field focuses itself on mount, but it can open in a directory scrolled out of the virtualized
-     * window — the title bar's New File targets the root from any scroll position — where it would never mount.
+     * window: the title bar's New File targets the root from any scroll position, where it would never mount.
      */
     const composingIndex =
         composingDirectory === undefined

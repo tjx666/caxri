@@ -240,7 +240,7 @@ export class FileMutationService {
                     ]);
                     /**
                      * Node's rename matches VS Code's local provider. The reservation prevents conflicting Caxri
-                     * requests, and the final check normally avoids knowingly replacing a target that already exists —
+                     * requests, and the final check normally avoids knowingly replacing a target that already exists:
                      * except in `replace` mode, where the caller already showed the user an interactive Finder-style
                      * prompt and captured an explicit Replace confirmation, and `assertReplaceableMove` just verified
                      * neither side of the move is a folder. Server has no Trash API for a safer overwrite (that lives
@@ -278,7 +278,7 @@ export class FileMutationService {
      * showed the user a Finder-style prompt and captured an explicit Replace confirmation. The only remaining safety
      * rail is this directory check. Returns whether an existing file target was actually present (and is about to be
      * overwritten), so the caller can log it; a target that vanished between the user's choice and this retry (ENOENT)
-     * is treated the same as no target — the plain rename below just succeeds.
+     * is treated the same as no target: the plain rename below just succeeds.
      */
     private async assertReplaceableMove(
         source: FileIdentity,

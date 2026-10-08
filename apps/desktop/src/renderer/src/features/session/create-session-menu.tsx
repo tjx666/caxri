@@ -20,7 +20,7 @@ import { beginSessionCreation, chooseSessionTerminalKind } from './session-comma
  * The Terminal-choice menu for a new Session, hung from whichever control opened it.
  *
  * The menu replaces a centered modal so the choice lands where the pointer already is. Its open state lives in the
- * dialog store rather than locally so the `session.create` command reaches this same menu — a keyboard path that opened
+ * dialog store rather than locally so the `session.create` command reaches this same menu: a keyboard path that opened
  * a different picker would be the "two ways to do one thing" this repository forbids. That store entry names the
  * trigger as well as the Project, because one Project can render more than one of these at a time.
  */
@@ -40,7 +40,7 @@ function SessionCreationMenu({
     /**
      * Renders the trigger inside a `CommandTooltip`. It has to be resolved here rather than by the caller wrapping this
      * component, because Base UI's tooltip trigger reaches its child through `render` and a plain function component
-     * drops the props it injects — the tooltip then has nothing to attach to and never opens.
+     * drops the props it injects; the tooltip then has nothing to attach to and never opens.
      */
     tooltipCommandId?: CommandId;
 }) {
@@ -51,7 +51,7 @@ function SessionCreationMenu({
     );
     const defaultAgent = useSettings()?.['session.defaultAgent'];
     /**
-     * A Project can leave the bootstrap while its menu is open — removed from another window, or dropped by a Server
+     * A Project can leave the bootstrap while its menu is open: removed from another window, or dropped by a Server
      * state change. React then unmounts the only component that renders this claim, so Base UI never reports a close
      * and the store would keep a claim that silently re-opens the menu, stealing focus, the next time that row mounts.
      */

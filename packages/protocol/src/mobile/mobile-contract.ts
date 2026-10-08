@@ -359,7 +359,7 @@ export const mobileTreeChildrenParametersSchema = z.strictObject({
 
 /**
  * Projects `treeItemSchema` down to what a read-only mobile row renders: label, description, a bounded icon, and
- * collapsible state. `tooltip` and `command` are deliberately absent — mobile Conversation Tree is read-only and never
+ * collapsible state. `tooltip` and `command` are deliberately absent: mobile Conversation Tree is read-only and never
  * executes a command from a tree row.
  */
 const mobileTreeItemSchema = z.strictObject({

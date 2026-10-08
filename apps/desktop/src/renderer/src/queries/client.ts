@@ -68,7 +68,7 @@ type MethodParameters<M extends CaxriMethod> = ParametersArgument<M>[0];
 /**
  * Cache key for a Caxri read: the method name paired with its params, so distinct params (a different Session, a
  * different file path) never collide in the query cache. This is the "keyed by method name + params" factory the
- * server-state layer is built on — every read and every targeted invalidation goes through it instead of an ad hoc
+ * server-state layer is built on: every read and every targeted invalidation goes through it instead of an ad hoc
  * string.
  */
 export type CaxriQueryKey<M extends CaxriMethod> = readonly [M, MethodParameters<M>];
@@ -99,7 +99,7 @@ export function isQueryMethod(
 /**
  * Typed `useQuery` over a Caxri RPC method. Full inference flows from the method table in `@caxri/protocol`: `params`
  * must match the method's schema and the resolved data is `MethodResult<M>`, with no `any` at any point. Callers gate
- * an unavailable dependency (no Session selected, for instance) with `enabled: false` rather than skipping the hook —
+ * an unavailable dependency (no Session selected, for instance) with `enabled: false` rather than skipping the hook:
  * the params value itself may be a placeholder in that case, since a disabled query never runs `queryFn`.
  *
  * `TData` is inferred from `select` when one is passed, so a caller can subscribe to a projection of the result instead
@@ -140,8 +140,8 @@ export function fetchCaxriQuery<M extends CaxriMethod>(
 }
 
 /**
- * Subscribes to a Caxri read from outside a component — an imperative Monaco integration cannot call a hook — through
- * the same `QueryObserver` `useCaxriQuery` builds on, so the two never disagree about cache key shape, staleness, or
+ * Subscribes to a Caxri read from outside a component (an imperative Monaco integration cannot call a hook) through the
+ * same `QueryObserver` `useCaxriQuery` builds on, so the two never disagree about cache key shape, staleness, or
  * targeted invalidation. Calls `listener` once synchronously with whatever is already cached (frequently already
  * populated by a sibling `useCaxriQuery` reader) and again on every subsequent fetch or invalidation.
  */
@@ -161,7 +161,7 @@ export function subscribeCaxriQuery<M extends CaxriMethod>(
 /**
  * Renders one error toast per distinct query failure, replacing the `.catch(error => pushToast(...))` every read used
  * to write inline. Keyed off `error` identity, so a `refetch()` that resolves clears the effect's dependency and a new
- * failure — not a re-render of the same one — is what re-fires it.
+ * failure, not a re-render of the same one, is what re-fires it.
  */
 export function useToastOnQueryError(isError: boolean, error: Error | null, label: string): void {
     useEffect(() => {

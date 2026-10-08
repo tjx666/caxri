@@ -58,8 +58,8 @@ export interface AcceptanceStoreOptions {
 /**
  * The Server's single projection of an acceptance report.
  *
- * Two surfaces read the same reports — the Status panel resolves every report a pull request body names, and the status
- * bar resolves the one it leads with — so a shared record is what keeps a Session's acceptance state from costing two
+ * Two surfaces read the same reports: the Status panel resolves every report a pull request body names, and the status
+ * bar resolves the one it leads with, so a shared record is what keeps a Session's acceptance state from costing two
  * CLI spawns per refresh.
  *
  * Unlike the Linear store there is no allow-list step. An acceptance is addressed by an opaque id that only ever

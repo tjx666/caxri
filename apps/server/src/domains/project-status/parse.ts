@@ -12,8 +12,8 @@ import { parseExternalJson } from '../external-status';
 
 /**
  * Wire shapes and projections for the two external CLIs Project Status itself reads: `gh` and `vc`. Kept beside
- * `./index.ts` rather than inside it so the service file stays about orchestration — cache lifetime, refresh
- * generations, and the resident poll — and this file stays about turning `gh` and `vc` output into protocol types. The
+ * `./index.ts` rather than inside it so the service file stays about orchestration (cache lifetime, refresh
+ * generations, and the resident poll) and this file stays about turning `gh` and `vc` output into protocol types. The
  * equivalent Linear and Acceptance wire shapes live in `external-status/parse.ts`: those two CLIs are resolved on
  * demand by `LinearIssueStore` and `AcceptanceStore`, which this domain only calls through `external-status`'s barrel,
  * never past it.
@@ -161,7 +161,7 @@ function projectCheck(check: GitHubCheck): ProjectStatusCheck {
 /**
  * Reading order for one pull request's checks: what went wrong first, then what is still moving, then what is settled.
  * A state missing from this list sorts to `-1` and jumps ahead of the failures, so every member of
- * `projectStatusStateSchema` has to appear here — including `unknown`, which is what an unrecognized provider result
+ * `projectStatusStateSchema` has to appear here, including `unknown`, which is what an unrecognized provider result
  * becomes.
  */
 const CHECK_ORDER: ProjectStatusState[] = [
@@ -259,7 +259,7 @@ export function parseGitHubPullRequest(
             lifecycle: pullRequestLifecycle(raw.state, raw.isDraft),
             /**
              * An empty rollup means GitHub has not reported a check yet, which is genuinely pending. A rollup that is
-             * empty only _after_ filtering means the user ignored every check this pull request has — reporting that as
+             * empty only _after_ filtering means the user ignored every check this pull request has: reporting that as
              * a permanent spinner would be wrong, so it settles as neutral instead.
              */
             state: checks.length === 0 && rollup.length > 0 ? 'neutral' : aggregateChecks(checks),

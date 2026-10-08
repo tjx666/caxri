@@ -414,7 +414,7 @@ async function runE2E(
         },
     );
     /**
-     * The exclusive pool runs first on purpose. Both pools always run — {@link runReceiptedE2E} never aborts a sibling —
+     * The exclusive pool runs first on purpose. Both pools always run: {@link runReceiptedE2E} never aborts a sibling,
      * so their order only decides which one shares the runner with the platform-checks branch. That branch (ESLint plus
      * Vitest) is the CPU-heavy half and finishes well before E2E does, and the single-worker pool is the half that
      * barely competes for cores. Running it while the checks are still going, and the three-worker pool afterwards on a

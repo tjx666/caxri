@@ -559,7 +559,7 @@ describe('ManagedAgentLauncherServer', () => {
     /**
      * Regression for issue caxri#1345: Host resolves and validates the plan's executable before handing it to the
      * launcher, but the file can still disappear (moved, updated, uninstalled) in the gap before this spawn. Node
-     * reports that as an `'error'` event with `code: 'ENOENT'` and no `pid` — the launcher must explain that on stderr
+     * reports that as an `'error'` event with `code: 'ENOENT'` and no `pid`: the launcher must explain that on stderr
      * before it exits and this PTY silently becomes an ordinary shell.
      */
     it('explains an ENOENT spawn failure on stderr before falling back to a plain shell', async () => {

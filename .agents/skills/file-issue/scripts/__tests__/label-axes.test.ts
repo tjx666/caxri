@@ -39,20 +39,20 @@ function axisLabels(heading: string): string[] {
 
 describe('file-issue label axes', () => {
     it('declares exactly the labels each classification axis supports', () => {
-        expect(axisLabels('Type — exactly one')).toEqual([
+        expect(axisLabels('Type: exactly one')).toEqual([
             'bug',
             'documentation',
             'enhancement',
             'question',
         ]);
         // One per `apps/` deliverable. These four shipped in #812 and were absent from any contract until #820.
-        expect(axisLabels('Surface — which app, zero or one')).toEqual([
+        expect(axisLabels('Surface: which app, zero or one')).toEqual([
             'cli',
             'desktop',
             'mobile',
             'server',
         ]);
-        expect(axisLabels('Area — what it changes, one to three')).toEqual([
+        expect(axisLabels('Area: what it changes, one to three')).toEqual([
             'a11y',
             'acceptance',
             'agent',

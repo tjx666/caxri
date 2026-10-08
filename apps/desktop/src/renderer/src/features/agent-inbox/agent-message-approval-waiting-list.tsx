@@ -10,8 +10,8 @@ interface AgentMessageApprovalWaitingListProperties {
 }
 
 /**
- * Where a set-aside peer message waits. Escape on the approval modal only retires the presentation — the request is
- * still held and its sender is still waiting — so the deferred state has to keep standing somewhere the user can find
+ * Where a set-aside peer message waits. Escape on the approval modal only retires the presentation: the request is
+ * still held and its sender is still waiting, so the deferred state has to keep standing somewhere the user can find
  * it, without a backdrop, a focus trap, or a modal that re-opens itself.
  *
  * It sits bottom-left because notifications already own the bottom-right corner above the status bar.

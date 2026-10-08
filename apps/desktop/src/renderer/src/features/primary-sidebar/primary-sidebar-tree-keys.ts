@@ -35,7 +35,7 @@ interface PrimarySidebarTreeKeyOptions {
  * - Left/Right expand or collapse a Project, step into its first row once it is open, or move a Session row to its owning
  *   Project.
  * - Delete/Backspace on a focused Session row archives it (reversible via the Archived Sessions dialog, so no
- *   confirmation) — the keyboard equivalent of the Archive button. Focus moves to the next row (falling back to the
+ *   confirmation), the keyboard equivalent of the Archive button. Focus moves to the next row (falling back to the
  *   previous row when the archived row was last) before the row leaves the DOM, so the roving Tab stop never falls out
  *   of the tree.
  *

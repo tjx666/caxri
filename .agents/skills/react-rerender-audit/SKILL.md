@@ -1,7 +1,7 @@
 ---
 name: react-rerender-audit
 description: >
-  Use when a React page re-renders far more than it should — "everything
+  Use when a React page re-renders far more than it should: "everything
   re-renders on every tick", live-data dashboards, Electron/Vite apps that
   feel heavy under a 1s push stream. Measures render counts from outside the
   app over CDP (react-scan injected, no source changes), localizes the exact
@@ -17,7 +17,7 @@ metadata:
 A page under a live data stream re-renders wholesale: a per-second quote
 push repaints a chart, a sidebar, a chat dock, and thirty tooltips that
 consume none of it. The instinct is to scatter `memo()` and `useCallback`
-until the flashing stops. That treats the symptom — the real cause is
+until the flashing stops. That treats the symptom; the real cause is
 almost always a single `useState` sitting too high in the tree, prop-drilled
 through unmemoized intermediates.
 
@@ -27,9 +27,9 @@ This skill measures first, names the exact hook, then moves state down.
 
 - In scope: React 18/19 apps with a push stream (WebSocket, SSE, polling,
   `setInterval`), Vite dev server, Electron renderers, browser tabs.
-- Out of scope: slow _individual_ renders (one component taking 300ms) —
+- Out of scope: slow _individual_ renders (one component taking 300ms):
   that is a flamegraph problem, use the DevTools Profiler timeline.
-  Production builds — `react-scan` and `<Profiler>` both want dev.
+  Production builds: `react-scan` and `<Profiler>` both want dev.
 
 Prerequisites: `react-scan` importable from the app (a devDependency is
 enough under Vite), a CDP endpoint, and `agent-browser` (or any CDP client
@@ -52,9 +52,9 @@ that can `eval` a string and return it).
 Sample the settled page for 10s before anything else. Two different bugs
 hide behind "this page re-renders constantly":
 
-- **Steady-state storm** — the idle sample is non-zero. A live stream drives
+- **Steady-state storm**: the idle sample is non-zero. A live stream drives
   the tree. Inject over CDP after load; everything below applies as written.
-- **Boot storm** — the idle sample is **zero** and all the churn is in the
+- **Boot storm**: the idle sample is **zero** and all the churn is in the
   first seconds. Injecting after load measures nothing. You must arm the
   counter _before React mounts_, which the CDP-injection route cannot do.
 
@@ -63,7 +63,7 @@ For a boot storm, look for an arming point the app already has: a
 lobe-chat ships `REACT_SCAN` -> `__REACT_SCAN__` -> `scan()` in
 `src/initialize.ts`; restarting dev with that flag arms the instrumentation
 at boot with zero diff. Failing that, add the collector to the app's entry
-module temporarily and revert it when the audit is done — react-scan's
+module temporarily and revert it when the audit is done; react-scan's
 `getReport()` does not backfill what happened before it was armed.
 
 ### [1] Attach
@@ -81,10 +81,10 @@ DevTools window, not the renderer. Close all targets and reconnect.
 
 The whole method rests on this one script. `onRender(fiber, renders)` gives
 both the render count and react-scan's `unnecessary` flag (props identical
-to last render — the component was dragged along, it did not need to run).
+to last render: the component was dragged along, it did not need to run).
 
 ```js
-// count.js — pipe with: agent-browser --cdp 9222 eval --stdin < count.js
+// count.js, pipe with: agent-browser --cdp 9222 eval --stdin < count.js
 (async () => {
   const { scan } = await import('/@id/react-scan'); // Vite dev id; else 'react-scan'
   const counts = {};
@@ -117,7 +117,7 @@ to last render — the component was dragged along, it did not need to run).
 `<ConfigProvider>` in the tree under one row. That is fine for a steady-state
 stream and actively misleading for a boot storm: it inflates counts, it makes
 a child look like it renders more often than its parent (React cannot do
-that), and it hides the most important boot finding of all — the same
+that), and it hides the most important boot finding of all: the same
 component mounted twice. Assign each fiber a stable id and key on it:
 
 ```js
@@ -132,19 +132,19 @@ const idOf = (f) => {
 const key = `${nameOf(fiber)}#${idOf(fiber)}`;
 ```
 
-Record `first`/`last` timestamps per instance too — mount waves are visible
+Record `first`/`last` timestamps per instance too; mount waves are visible
 in the timestamps long before you understand the cause.
 
 **Reading the table.** Compare each count against `sample seconds × tick
 rate`. A 10s sample under a 1Hz push should show ~10 for the handful of
 components that display the value, and ~0 for everything else.
 
-| Shape                                                     | Meaning                                                                                   |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| A wide band of unrelated components all at the same count | One state owner above them, prop-drilled. Take their common ancestor.                     |
-| One component 10× the tick rate                           | Its own timer. Look for `setInterval` per instance.                                       |
-| High `total`, high `unnecessary`                          | Dragged along by a parent — a victim, not the cause.                                      |
-| High `total`, zero `unnecessary`                          | Its props really do change every tick — either legitimate, or an object rebuilt upstream. |
+| Shape                                                     | Meaning                                                                                  |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| A wide band of unrelated components all at the same count | One state owner above them, prop-drilled. Take their common ancestor.                    |
+| One component 10× the tick rate                           | Its own timer. Look for `setInterval` per instance.                                      |
+| High `total`, high `unnecessary`                          | Dragged along by a parent: a victim, not the cause.                                      |
+| High `total`, zero `unnecessary`                          | Its props really do change every tick: either legitimate, or an object rebuilt upstream. |
 
 Chase the ancestor, never the leaves with the biggest numbers.
 
@@ -160,7 +160,7 @@ inst=2 renders=11 | ElectronAppStateSync | firstMs=72/215
 ```
 
 Memo and state-lowering do nothing here. Walk _up_ from the highest
-duplicated instance to the first ancestor that is NOT duplicated — the
+duplicated instance to the first ancestor that is NOT duplicated; the
 remount boundary sits between them, and the cause is a **tree-shape change**:
 some component conditionally wraps its children, so a falsy-to-truthy flip
 inserts a node and React unmounts everything below.
@@ -174,7 +174,7 @@ every store init, and every fetch below the boundary runs twice.
 
 ### [3] Localize
 
-Re-run filtered to the suspects and dump react-scan's `changes` array —
+Re-run filtered to the suspects and dump react-scan's `changes` array,
 which prop or hook it believes changed, with before/after values:
 
 ```js
@@ -202,7 +202,7 @@ scan({
 ### [4] Name the hook
 
 When the suspect is a large page component (100+ hooks), `changes` is not
-enough — ask the fiber directly. Walking `memoizedState` against
+enough; ask the fiber directly. Walking `memoizedState` against
 `alternate.memoizedState` gives the **hook index** that differs, in
 declaration order, so it maps to a line number.
 
@@ -262,7 +262,7 @@ function countChangedContexts(fiber, counts) {
 A row like `hooks=0 ctxChg=EmotionThemeContext=18` says it plainly: nothing
 this component owns changed, a theme object above it was rebuilt 18 times.
 
-Skip effect hooks (`create`/`tag` shape) — their `memoizedState` churns on
+Skip effect hooks (`create`/`tag` shape): their `memoizedState` churns on
 every render by design and drowns the signal. `hooks=122, changed: 0:...`
 means: of 122 hooks, only the first one moved. Count 122 `use*` calls down
 from the top of the component and read that line.
@@ -282,19 +282,19 @@ React's own answer, not a memo barrier:
    leaves need to know whether the stream is on.
 4. Derived-value logic that several leaves shared moves into a hook they
    each call (`useLiveBuilt(built, tf, symbol, live)`), not into the parent.
-5. Children passed as elements (`dock={<Foo />}`) need nothing — once the
+5. Children passed as elements (`dock={<Foo />}`) need nothing: once the
    parent stops re-rendering, React skips them for free.
 
-| Root cause                                                                                                  | Fix                                                                                                                |
-| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Page holds `useState` for a stream, drills it down                                                          | Subscribe in each consuming leaf                                                                                   |
-| Context `value={{ a, b }}` rebuilt every render                                                             | Split context, or `useMemo` the value, or move to an external store                                                |
-| Per-instance `setInterval` in a widget used N times                                                         | One shared subscribable clock, `useSyncExternalStore`                                                              |
-| Object/array prop rebuilt inline every render                                                               | Hoist, or derive inside the child from scalars                                                                     |
-| Conditional wrapper (`if (x) child = <W>{child}</W>`) flips after an async load                             | Keep the shape stable — always render the wrapper, pass a fallback value                                           |
-| One giant component subscribing to N stores to run init hooks                                               | Split per concern; each init hook in its own leaf component                                                        |
-| Global event subscription in a shared hook (`bindI18nStore`, a store's `subscribe`) fires per batch         | Drop the broad binding; emit one refresh after the batch settles                                                   |
-| A hidden pane (`<Activity mode="hidden">`, a collapsed panel, a `display:none` tab) mounts its full subtree | Thread the existing `enabled` flag all the way to the leaves — including sibling components the flag never reached |
+| Root cause                                                                                                  | Fix                                                                                                               |
+| ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Page holds `useState` for a stream, drills it down                                                          | Subscribe in each consuming leaf                                                                                  |
+| Context `value={{ a, b }}` rebuilt every render                                                             | Split context, or `useMemo` the value, or move to an external store                                               |
+| Per-instance `setInterval` in a widget used N times                                                         | One shared subscribable clock, `useSyncExternalStore`                                                             |
+| Object/array prop rebuilt inline every render                                                               | Hoist, or derive inside the child from scalars                                                                    |
+| Conditional wrapper (`if (x) child = <W>{child}</W>`) flips after an async load                             | Keep the shape stable: always render the wrapper, pass a fallback value                                           |
+| One giant component subscribing to N stores to run init hooks                                               | Split per concern; each init hook in its own leaf component                                                       |
+| Global event subscription in a shared hook (`bindI18nStore`, a store's `subscribe`) fires per batch         | Drop the broad binding; emit one refresh after the batch settles                                                  |
+| A hidden pane (`<Activity mode="hidden">`, a collapsed panel, a `display:none` tab) mounts its full subtree | Thread the existing `enabled` flag all the way to the leaves, including sibling components the flag never reached |
 
 Reach for `memo()` only when a leaf genuinely receives changing props and
 is expensive. `memo` on a component whose parent should not have rendered
@@ -349,7 +349,7 @@ and report before → after per component. Numbers, not "feels faster".
 
 **Assert the page actually loaded before you trust a sample.** A boot sample
 taken from a run that stalled on a skeleton, an error boundary, or a failed
-request measures the shell and nothing else — and it looks like a clean,
+request measures the shell and nothing else, and it looks like a clean,
 small number. Return an `isLoaded` flag alongside the counts and refuse any
 sample where it is false:
 
@@ -377,14 +377,14 @@ const isHidden = r.width === 0 || r.height === 0 || element.offsetParent === nul
 Walk that node's DOM ancestors printing `display` / `visibility` / box size to
 find which wrapper hides it, then map that element back to a component
 (`element[Object.keys(element).find(k => k.startsWith('__reactFiber$'))]`) to name the
-owner. Burned once — a local database
+owner. Burned once: a local database
 version mismatch held the app on its skeleton, and a 454-render sample got
 reported as the fix's before/after when the real boot was 27,000.
 
 ## `<Profiler>` vs react-scan
 
 `onRender(id, phase, actualDuration, baseDuration, startTime, commitTime)`
-reports **commits of the wrapped subtree** — not per-component counts, not
+reports **commits of the wrapped subtree**, not per-component counts, not
 why. React 19 dropped the old `interactions` argument.
 
 - **Use react-scan** to explore: it enumerates every component and flags
@@ -403,7 +403,7 @@ Profiler is a no-op in production builds unless you alias
 - Auto-opened DevTools steals the CDP target. Verify with `get url` first.
 - The Vite dev import specifier is `/@id/react-scan`; a bare `'react-scan'`
   fails inside an `eval`'d dynamic import.
-- Restore the toolbar and clear `onRender` at the end of every script —
+- Restore the toolbar and clear `onRender` at the end of every script:
   a live `onRender` closure keeps accumulating and skews the next sample.
 - Sample the _same_ page state before and after. A page with the stream off
   (`live=false`) still re-renders on every tick when the bug is present;
@@ -416,18 +416,18 @@ Profiler is a no-op in production builds unless you alias
   is no way to recover a boot storm you did not instrument in advance.
 - Anonymous rows (`?`) are usually context providers, `memo`, or
   `forwardRef`. Stash a sample fiber on the row (`c.f = fiber`) and read
-  `fiber.type.toString().slice(0, 200)` afterwards — the first line of source
+  `fiber.type.toString().slice(0, 200)` afterwards: the first line of source
   identifies it, then grep the repo for that line.
 - HMR-triggered reloads inflate a sample. Take the before/after numbers from
   full reloads only, and state which page state you sampled.
 - `useTranslation` with react-i18next's `bindI18nStore: 'added'` subscribes
   every consuming component to every resource-bundle load. An app that lazy-
   loads namespaces then calls `reloadResources` re-renders **every translated
-  component** once per bundle — dozens of full-tree passes with no state of
+  component** once per bundle: dozens of full-tree passes with no state of
   your own changing. The tell: `propsSame` high, own `useState` slots
   unchanged, and the `useTranslation` state slot (`{t,ready,lng,keyPrefix}`)
   changing on nearly every render.
 - A `useMemo`/`useCallback` slot (`arr[2]`) changing every render is a
-  symptom, not a trigger — it means deps are unstable, but something else
+  symptom, not a trigger: it means deps are unstable, but something else
   scheduled the render. Look for the `useState`/store slot that moved, or
   for no moved slot at all (then it is context or an external subscription).

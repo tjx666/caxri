@@ -357,7 +357,7 @@ export type ProcessRowVerticalKey = 'ArrowDown' | 'ArrowUp' | 'End' | 'Home';
 
 /**
  * Returns the row index roving focus should move to for Up/Down/Home/End, or `undefined` when the key does not move
- * focus (no rows, or already at an edge — the list deliberately does not wrap).
+ * focus (no rows, or already at an edge; the list deliberately does not wrap).
  */
 export function nextProcessRowIndex(
     rows: readonly ProcessTreeRow[],

@@ -277,7 +277,7 @@ export function ProjectGroup({
                      * reserved slot for two invisible buttons cost every Project name ~60px at the side bar's usual
                      * width. The heading publishes the cluster's width (two `size-7` buttons plus `gap-1`) as
                      * `--project-hover-actions` and pads by it only while the actions show, so the name fades before
-                     * them instead of painting under them — the same rule `SessionRowActions` follows.
+                     * them instead of painting under them, the same rule `SessionRowActions` follows.
                      */}
                     <div className="project-heading-actions absolute top-1/2 right-0 z-10 flex -translate-y-1/2 items-center gap-1">
                         <CommandTooltip commandId="project.customizeIcon">

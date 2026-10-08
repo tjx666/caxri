@@ -97,7 +97,7 @@ function DynamicCommandRow({
 
 /**
  * The palette is mounted for the app's lifetime, so only its open flag is read here. Base UI's Portal renders nothing
- * while the dialog is closed, so the body's store reads and result derivations only run while it is open — the Session
+ * while the dialog is closed, so the body's store reads and result derivations only run while it is open: the Session
  * ordering and the live/detached-agent checks below scan every Terminal, which the Workbench updates several times a
  * second while an agent runs. The Server queries were already gated on `isOpen`; this puts the local work on the same
  * footing.
@@ -117,9 +117,9 @@ function CommandPaletteBody() {
     const onOpenChange = setPaletteOpen;
     const projects = useProjects() ?? NO_RECORDS;
     /**
-     * Only the Projects group filters. Selecting an auto-registered worktree Project does nothing — it can never own a
-     * Session — so offering it is a dead result. Session ordering and the Session subtitles below stay on the full
-     * list, or a Session working in a worktree would lose its Project name.
+     * Only the Projects group filters. Selecting an auto-registered worktree Project does nothing (it can never own a
+     * Session) so offering it is a dead result. Session ordering and the Session subtitles below stay on the full list,
+     * or a Session working in a worktree would lose its Project name.
      */
     const projectResults = topLevelProjects(projects);
     const catalog = useCaxriQuery('viewContainers.catalog', {}).data;

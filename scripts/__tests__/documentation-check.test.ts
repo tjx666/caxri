@@ -219,7 +219,7 @@ describe('checkLinksAndPaths', () => {
             'status: current',
             '---',
             '',
-            '### AD-example — [RESOLVED · Confirmed defect · M]',
+            '### AD-example: [RESOLVED · Confirmed defect · M]',
             '',
             '- **Evidence:** `apps/renamed-since.ts:5` implemented the fix.',
             '',

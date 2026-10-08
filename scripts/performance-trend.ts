@@ -74,8 +74,8 @@ export interface EvaluatePerformanceTrendOptions {
 
 /**
  * `recentValuesByMetric[metric]` is expected to hold at least `windowSize` samples, one per recently fetched receipt;
- * extra samples are fine (only the most recent `windowSize`, by array order, are used) but the caller — not this
- * function — is responsible for only ever fetching genuinely recent receipts, since a median is order-independent and
+ * extra samples are fine (only the most recent `windowSize`, by array order, are used) but the caller (not this
+ * function) is responsible for only ever fetching genuinely recent receipts, since a median is order-independent and
  * cannot itself detect a stale or out-of-order input.
  */
 export function evaluatePerformanceTrend(
@@ -177,23 +177,23 @@ export function formatPerformanceTrendTable(result: PerformanceTrendResult): str
 export function formatPerformanceTrendVerdict(result: PerformanceTrendResult): string {
     switch (result.state) {
         case 'no-baseline': {
-            return `NO-BASELINE — ${result.reason ?? 'scripts/performance-baseline.json has no armed metrics yet'}`;
+            return `NO-BASELINE: ${result.reason ?? 'scripts/performance-baseline.json has no armed metrics yet'}`;
         }
         case 'unarmed': {
-            return `UNARMED — ${result.reason ?? 'baseline is not armed'}`;
+            return `UNARMED: ${result.reason ?? 'baseline is not armed'}`;
         }
         case 'no-eligible-metrics': {
-            return `NO-ELIGIBLE-METRICS — ${result.reason ?? 'no trend-eligible metric is armed'}`;
+            return `NO-ELIGIBLE-METRICS: ${result.reason ?? 'no trend-eligible metric is armed'}`;
         }
         case 'insufficient-receipts': {
-            return `INSUFFICIENT-RECEIPTS — ${result.reason ?? 'not enough recent receipts yet'}`;
+            return `INSUFFICIENT-RECEIPTS: ${result.reason ?? 'not enough recent receipts yet'}`;
         }
         case 'ok': {
-            return `OK — ${result.rows.length}/${result.rows.length} trend-eligible metric(s) within the alarm ratio`;
+            return `OK: ${result.rows.length}/${result.rows.length} trend-eligible metric(s) within the alarm ratio`;
         }
         case 'alarm': {
             const alarmed = result.rows.filter((row) => row.status === 'alarm').length;
-            return `ALARM — ${alarmed}/${result.rows.length} trend-eligible metric(s) exceeded the alarm ratio`;
+            return `ALARM: ${alarmed}/${result.rows.length} trend-eligible metric(s) exceeded the alarm ratio`;
         }
     }
 }

@@ -18,7 +18,7 @@ boundary:
 - Native desktop capability with no faithful mock: window lifecycle, native menus, focus, keyboard
   shortcuts as wired, and a real PTY running real processes. Native dialogs are the exception
   below.
-- Persistence and recovery across a process restart — Session/layout/Terminal restore, Runtime
+- Persistence and recovery across a process restart: Session/layout/Terminal restore, Runtime
   crash and reconnect. The restart itself is the behavior under test.
 - A small set of critical-journey smokes (launch → Project → Session → Terminal/Agent) whose
   failure means the product does not work at all.
@@ -29,8 +29,8 @@ boundary:
   unit-tested, so E2E is their only verification surface. Assert what the user can accomplish, not
   pixels or styling.
 
-Everything else — pure computation, store state machines, invalidation predicates, protocol
-schemas — belongs to `unit-testing`. Before writing an E2E spec, ask whether the logic can be
+Everything else (pure computation, store state machines, invalidation predicates, protocol
+schemas) belongs to `unit-testing`. Before writing an E2E spec, ask whether the logic can be
 extracted below the boundary and tested there; if yes, extract it instead.
 
 ## Focused workflow
@@ -242,7 +242,7 @@ runner and the harness, not real user data:
   trace of a Terminal-focused failure can show the runner's real shell prompt (hostname/account
   name). This is inherent to testing Caxri's PTY integration against a real shell rather than a
   newly introduced leak, and sanitizing every E2E PTY environment (e.g. forcing a scripted prompt) is
-  a separate, larger hardening item — accepted here as a known residual, not a blocker for uploading
+  a separate, larger hardening item, accepted here as a known residual, not a blocker for uploading
   the evidence this issue's acceptance criteria call for. Issue #1461 tracks it; do not fold it into
   an unrelated change.
 
@@ -254,7 +254,7 @@ the cause out of the retained logs instead of guessing from the category:
 1. Download the run's artifacts and open the attached `caxri-desktop-*.jsonl` and
    `caxri-server-core-*.jsonl` beside the failing test's output.
 2. Line up the notification against `ipc.request_failed` entries by timestamp. A pairing gives the
-   request name and error code behind the notification — that is how a `terminal.activate`
+   request name and error code behind the notification: that is how a `terminal.activate`
    notification was traced to a `NOT_FOUND` on `session.updateState`.
 3. No pairing is evidence, not a capture gap. The gate says so in the failure text. Only two
    sources produce a notification with no logged error: a Renderer-local failure, and a request

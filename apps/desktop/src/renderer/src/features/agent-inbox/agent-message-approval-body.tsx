@@ -41,7 +41,7 @@ export function AgentMessageApprovalBody({
                 <div role="alert" data-testid="agent-message-body-error">
                     <p className="m-0 text-danger">The complete message could not be read.</p>
                     <p className="m-0 mt-1 text-muted">
-                        Approve and Deny stay available without it — approving only delivers this
+                        Approve and Deny stay available without it; approving only delivers this
                         message and grants nothing. Retry loads the full text if you want to read it
                         first.
                     </p>

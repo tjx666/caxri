@@ -82,7 +82,7 @@ export async function readAgentCommanderWorkbench(): Promise<BootstrapState> {
  *
  * A board that has not loaded yet has no rows to patch, and its first read may have been answered before the sweep and
  * still be on its way here, so it is asked to read again instead; that only happens before the first board lands. Once
- * the board is loaded there is no race with its poll — one that started before the sweep finished was answered long
+ * the board is loaded there is no race with its poll: one that started before the sweep finished was answered long
  * before this debounced patch runs, and one that starts after it reads the same new snapshot.
  */
 export async function refreshCommanderBoardPullRequests(

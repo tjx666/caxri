@@ -155,7 +155,7 @@ describe('findKeybindingConflicts', () => {
 
     /**
      * The collision that pushed Terminal Clear off `Cmd+K`: a binding standing on a sequence's opening chord can never
-     * fire, and nothing in the old same-key check could see it. Only the dead binding is reported — the sequence keeps
+     * fire, and nothing in the old same-key check could see it. Only the dead binding is reported: the sequence keeps
      * working, so a warning on its row would be noise.
      */
     it('reports a binding standing on a sequence opening chord, not the sequence', () => {

@@ -18,8 +18,8 @@ const MAX_IMAGE_HEADER_CHARACTERS = 64;
  */
 const MAX_KITTY_CONTROL_CHARACTERS = 256;
 /**
- * Kitty graphics actions that put pixels on screen. Everything else — the default transmit-only `t`, queries (`q`),
- * deletions (`d`), and animation controls (`f`, `a`, `c`) — leaves no visible cell content to recover. This matters
+ * Kitty graphics actions that put pixels on screen. Everything else, the default transmit-only `t`, queries (`q`),
+ * deletions (`d`), and animation controls (`f`, `a`, `c`), leaves no visible cell content to recover. This matters
  * because capability probes such as Claude Code's startup `a=q` query must not leave a placeholder, and continuation
  * chunks (`m=1`/`m=0` without `a=`) must not repeat the placeholder of the image they belong to.
  *
@@ -243,7 +243,7 @@ export const TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER =
 /**
  * Keeps live image controls atomic across PTY chunks and Renderer backpressure. An image sequence is delivered whole;
  * one Caxri sized it out, the returned byte count below reflects only genuine `destination` backpressure (queue
- * capacity), never the size of the image itself — that distinction is what lets the caller keep its own backpressure
+ * capacity), never the size of the image itself: that distinction is what lets the caller keep its own backpressure
  * counter honest.
  */
 export class TerminalImageOutputFilter {

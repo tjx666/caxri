@@ -25,14 +25,14 @@ Roughly half of the JavaScript above is source maps, which ship in every build i
 one. This is the single largest deliberate size decision in the project and it is not drift: Caxri is
 built and debugged by coding agents, whose only view of a past failure is the artifact that produced
 it. A minified packaged build cannot say which line threw, so every investigation of a production-only
-failure would start with a rebuild and an attempt to reproduce — the expensive part of the loop. The
+failure would start with a rebuild and an attempt to reproduce: the expensive part of the loop. The
 bytes buy that back, and the installer is dominated by the Electron runtime regardless. Turning maps
 off is a product decision to make at the first public release, not a way to pass the budget gate.
 
 Mermaid is ~23 MiB of the renderer with its source maps, added when the file preview shipped. It is
 loaded through a dynamic `import('mermaid')`, so a document without a diagram never executes any of
-it, but the chunks still occupy disk. Mermaid emits one lazy chunk per diagram type — almost all
-under 500 KiB — plus two large layout backends: ELK (~6.5 MiB) and Cytoscape (~2.5 MiB), each loaded
+it, but the chunks still occupy disk. Mermaid emits one lazy chunk per diagram type (almost all
+under 500 KiB) plus two large layout backends: ELK (~6.5 MiB) and Cytoscape (~2.5 MiB), each loaded
 only for the diagram kinds that need it. Aliasing those two to stubs would recover most of the
 growth by silently breaking `architecture` diagrams and ELK layouts in a user's README, which is not
 a trade this project wants to make invisibly; the renderer, asar, and app budgets were raised
@@ -83,7 +83,7 @@ duplicated across chunks. Sonda attributes bytes through the source maps every b
 `scripts/ci-bundle-budget.ts` (wired into the `checks` job of `.github/workflows/ci.yml`) runs a
 timed build, a timed `electron-builder --mac dir` packaging pass, the packaged module-resolution
 artifact integrity and entry-point probe, and asserts every artifact stays under its byte budget. Budgets are absolute ceilings with
-headroom over this baseline — when the gate fails, first try to optimize the regression away;
+headroom over this baseline: when the gate fails, first try to optimize the regression away;
 only consciously raise the budget in `scripts/ci-bundle-budget.ts` and update this document in
 the same PR.
 

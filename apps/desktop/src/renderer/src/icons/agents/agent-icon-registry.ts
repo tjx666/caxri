@@ -79,7 +79,7 @@ export function resolveAgentIcon(identity?: string | null): AgentIconDefinition 
  * branching that used to sit directly in the `.tsx` (untestable per `source-layout`) has a narrow, unit-testable seam.
  *
  * `shell` and `unknown` render their own lucide glyph directly (already `currentColor`, tone-agnostic) and never reach
- * here — the caller checks `icon.kind` for those first.
+ * here: the caller checks `icon.kind` for those first.
  */
 export function resolveAgentIconRenderSource(
     icon: AgentIconDefinition,

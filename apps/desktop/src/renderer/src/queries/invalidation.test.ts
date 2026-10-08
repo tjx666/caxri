@@ -49,7 +49,7 @@ describe('removeSessionQueries', () => {
 
     /**
      * Extension Tree branches deliberately outlive the default garbage-collection window, and this sweep is what bounds
-     * that for a deleted Session. They carry no `sessionId` parameter — the Session lives inside the context key.
+     * that for a deleted Session. They carry no `sessionId` parameter: the Session lives inside the context key.
      */
     it('removes branches a deleted Session identifies through its context key', () => {
         const queryClient = new QueryClient();
@@ -265,7 +265,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
             queryClient.getQueryState(caxriQueryKey('files.list', { sessionId: 'session-other' }))
                 ?.isInvalidated,
         ).toBe(false);
-        // `files.changed` no longer drives Git invalidation — that is `git.changed`'s job (see below).
+        // `files.changed` no longer drives Git invalidation: that is `git.changed`'s job (see below).
         expect(
             queryClient.getQueryState(['git.summary', { sessionId: 'session-a' }])?.isInvalidated,
         ).toBe(false);

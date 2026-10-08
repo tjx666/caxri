@@ -168,7 +168,7 @@ function PathBrowserQueryField({
             ) : (
                 /*
                  * Free mode used to have no chrome at all, so the absolute path had to live in the field to say where
-                 * the browser was — and then had to be deleted before anything could be typed. It reads as a prefix
+                 * the browser was, and then had to be deleted before anything could be typed. It reads as a prefix
                  * here instead, on the same line and in the same muted tone the Project anchor uses.
                  *
                  * An absolute path's meaning is in its tail, so `path-ellipsis-start` drops the head when it overflows
@@ -250,7 +250,7 @@ function PathBrowserResults({
                         </div>
                     );
                 // A notice is the answer to what the user typed, so it is announced when it appears rather than
-                // waiting to be arrowed onto — which, being no option, it never would be.
+                // waiting to be arrowed onto, which, being no option, it never would be.
                 if (row.kind === 'notice')
                     return (
                         <p
@@ -300,7 +300,7 @@ function PathBrowserResults({
  * exactly when the two are different rows, and painting both would make both look current.
  *
  * A row that cannot be opened keeps its muted label through the hover. The fill still follows the pointer, but
- * recolouring the text would take away the one thing saying this row is refused — and a `hover:` utility outweighs the
+ * recolouring the text would take away the one thing saying this row is refused, and a `hover:` utility outweighs the
  * plain `text-muted` the caller adds afterwards, so it has to be withheld here rather than overridden there.
  */
 function rowStateClassName(isSelected: boolean, isDisabled = false): string {

@@ -2,7 +2,7 @@
  * Derives (or refreshes) the committed `scripts/performance-baseline.json` from one or more sample inputs, using
  * `derivePerformanceMetricBaseline` (see scripts/performance-baseline.ts for the median + k·MAD / historical-max design
  * and docs/ci-performance.md for the full backtest). Refreshing the baseline is always this explicit, reviewable
- * command — nothing writes `scripts/performance-baseline.json` implicitly.
+ * command: nothing writes `scripts/performance-baseline.json` implicitly.
  *
  * Each `--input` is one of:
  *
@@ -18,7 +18,7 @@
  *
  * `--source local` always writes `armed: false`: a Mac sampled locally, shared with sibling agent sessions, is evidence
  * for the statistical method, never a stand-in for the self-hosted CI runner's own noise. `--source runner` requires
- * `--provenance` (a short free-text description of which artifacts this came from — run id range and dates, never a
+ * `--provenance` (a short free-text description of which artifacts this came from: run id range and dates, never a
  * local path, see docs/ci-performance.md's arming recipe for how to compute it).
  */
 

@@ -90,7 +90,7 @@ function LogRow({
 
 /**
  * VS Code Output-panel style structured log viewer over `logs.query`: server-side process filter, client-side level
- * toggles and text filter (comma OR, `!` exclude, quotes), cursor-follow polling, and smart scroll — the view follows
+ * toggles and text filter (comma OR, `!` exclude, quotes), cursor-follow polling, and smart scroll: the view follows
  * the tail until the user scrolls up, and re-locks when they return to the bottom.
  */
 export function LogViewerPanel() {

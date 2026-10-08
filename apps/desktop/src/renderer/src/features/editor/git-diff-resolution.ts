@@ -2,9 +2,9 @@ import type { GitDiffDocument } from '@caxri/protocol';
 
 /**
  * A working-tree diff whose document comes back `null` has nothing left to compare: the change was committed, staged,
- * or undone — routinely by an Agent working in the background while the user was still reading the diff. The tab used
- * to close itself at that moment, which removed a document from the screen without the user asking and without saying
- * why. It now stays and explains itself instead. See issue #993.
+ * or undone, routinely by an Agent working in the background while the user was still reading the diff. The tab used to
+ * close itself at that moment, which removed a document from the screen without the user asking and without saying why.
+ * It now stays and explains itself instead. See issue #993.
  */
 export const RESOLVED_GIT_DIFF_REASON =
     'This file no longer differs from what the diff compared. The change was committed or undone.';
@@ -19,7 +19,7 @@ export type NullGitDiffState = 'failed' | 'pending' | 'resolved';
  * can say anything true. `resolved` is the answer "this file no longer differs", and only a read that completed after
  * this surface mounted may claim it: a `null` left over from a previous mount is a cached verdict about a file the user
  * has since changed again, and announcing it would be the same wrong claim the auto-close made. `failed` is a read that
- * did not come back at all — the cached `null` is then not evidence of anything, and calling it `pending` would leave
+ * did not come back at all: the cached `null` is then not evidence of anything, and calling it `pending` would leave
  * the surface showing "Loading diff…" forever, because nothing is still loading.
  */
 export function resolveNullGitDiffState(input: {

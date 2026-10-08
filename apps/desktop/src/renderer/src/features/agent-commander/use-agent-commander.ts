@@ -26,8 +26,8 @@ const LOADING: AgentCommanderStatus = { kind: 'loading' };
 const READY: AgentCommanderStatus = { kind: 'ready' };
 
 /**
- * A snapshot read an event asked for before the first snapshot landed. It cannot run yet — this window has no Workbench
- * store to replace — and it cannot be dropped, because `commander.ensure` may have read its rows before the change.
+ * A snapshot read an event asked for before the first snapshot landed. It cannot run yet: this window has no Workbench
+ * store to replace, and it cannot be dropped, because `commander.ensure` may have read its rows before the change.
  */
 const deferredSnapshot = { isPending: false };
 

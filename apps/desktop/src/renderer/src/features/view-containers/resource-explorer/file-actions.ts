@@ -287,8 +287,8 @@ function attemptMove(
  * Every move call site (drag-and-drop in the file tree, drop on the panel root, cut-paste on a row, cut-paste on the
  * root) funnels through this single interactive orchestrator instead of each one choosing its own conflict policy.
  *
- * The first attempt always uses `reject`, and this function — not reconciliation — owns explaining whatever that
- * attempt fails with: `shouldPropagateFailure: true` makes the rejection reach this `catch` instead of
+ * The first attempt always uses `reject`, and this function (not reconciliation) owns explaining whatever that attempt
+ * fails with: `shouldPropagateFailure: true` makes the rejection reach this `catch` instead of
  * `runDurableFileMutation`'s own error-toast path, and keeps reconciliation from toasting the same failure again.
  *
  * A `CONFLICT` opens a Finder-style Replace/Keep Both/Cancel prompt (`file-conflict-dialog.ts`) instead of a toast.
@@ -302,8 +302,8 @@ function attemptMove(
  *
  * Any non-`CONFLICT` failure from the first attempt is not retried or dialoged: reconciliation stays silent for the
  * registered id (see `file-operation-reconciliation.ts`), and this function toasts it exactly once itself before
- * returning `undefined` — preserving the pre-existing single-toast behavior for every other error instead of doubling
- * it up.
+ * returning `undefined`, preserving the pre-existing single-toast behavior for every other error instead of doubling it
+ * up.
  *
  * In-place rename (`renameFile` below) deliberately keeps its non-interactive inline CONFLICT error instead of this
  * prompt: it edits a single row in place, and a modal dialog over one text field would be disproportionate chrome for a
@@ -409,8 +409,8 @@ export async function didTrashFile(
 ): Promise<boolean> {
     /**
      * Resolved once, before the confirmation, and reused for the cleanup afterwards. A Session can change its Workbench
-     * Root while the dialog is open — an Agent creating a worktree does it with no user action under
-     * `workbench.newWorktreeBehavior: continueAutomatically` — and re-deriving it after the await would clean a
+     * Root while the dialog is open: an Agent creating a worktree does it with no user action under
+     * `workbench.newWorktreeBehavior: continueAutomatically`, and re-deriving it after the await would clean a
      * different root than the one the user was asked about.
      */
     const workbenchProjectId = getSessionProjectId(sessionId);

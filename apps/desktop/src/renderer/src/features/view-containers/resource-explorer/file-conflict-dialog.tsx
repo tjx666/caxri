@@ -35,8 +35,8 @@ export function FileConflictDialog() {
                 <DialogContent
                     ref={contentReference}
                     className="file-conflict-dialog"
-                    // Cancel is the safe default action, so it — not Base UI's default first
-                    // tabbable element (Keep Both) — receives initial focus.
+                    // Cancel is the safe default action, so it (not Base UI's default first
+                    // tabbable element (Keep Both)) receives initial focus.
                     initialFocus={() =>
                         contentReference.current?.querySelector<HTMLButtonElement>(
                             '[data-conflict-cancel]',
@@ -47,7 +47,7 @@ export function FileConflictDialog() {
                         <DialogTitle>&ldquo;{request.name}&rdquo; already exists</DialogTitle>
                         <DialogDescription>
                             {request.folderGated
-                                ? `An item named "${request.name}" already exists in this folder. Folders cannot replace or be replaced — keep both to move it under a new name.`
+                                ? `An item named "${request.name}" already exists in this folder. Folders cannot replace or be replaced; keep both to move it under a new name.`
                                 : `An item named "${request.name}" already exists in this folder. Replacing it overwrites the existing file and cannot be undone.`}
                         </DialogDescription>
                     </DialogHeader>

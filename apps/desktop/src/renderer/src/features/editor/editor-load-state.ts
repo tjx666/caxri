@@ -15,8 +15,8 @@ interface EditorLoadAttempt {
  */
 /**
  * `interrupted` is kept apart from `failed` because a cancelled request is an expected outcome rather than something
- * the user can act on — the same rule `isCancelledRequest` applies to toasts — so it must not be announced or coloured
- * as an error, even though it still needs a way out of the spinner.
+ * the user can act on (the same rule `isCancelledRequest` applies to toasts) so it must not be announced or coloured as
+ * an error, even though it still needs a way out of the spinner.
  */
 export type EditorLoadTone = 'failed' | 'interrupted';
 
@@ -76,7 +76,7 @@ export function editorLoadReducer(
 }
 
 /**
- * A failed chunk load carries no cause a user can act on — the file it names is a build asset, not their document — so
+ * A failed chunk load carries no cause a user can act on (the file it names is a build asset, not their document) so
  * the recovery sentence replaces the technical one instead of quoting it.
  */
 export const EDITOR_LOAD_FAILURE_REASON =

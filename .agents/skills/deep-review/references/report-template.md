@@ -28,7 +28,7 @@ scan, but never hide a confirmed blocker or an unverified release dependency.
 
 ### P0/P1/P2
 
-1. `path/file.ts:42` — finding title
+1. `path/file.ts:42`: finding title
    - Severity/likelihood: P1, medium; blocks release: yes
    - Nature: introduced / legacy exposed by this change
    - User-visible scenario: ...
@@ -38,7 +38,7 @@ scan, but never hide a confirmed blocker or an unverified release dependency.
 
 ## Pre-release checks
 
-- [ ] Check — reason and whether it blocks release
+- [ ] Check: reason and whether it blocks release
 
 ## Process facts
 
@@ -46,7 +46,7 @@ scan, but never hide a confirmed blocker or an unverified release dependency.
 
 ## Needs more context
 
-- Candidate — exact missing evidence
+- Candidate: exact missing evidence
 
 ## Statistics
 

@@ -119,7 +119,7 @@ const mobileResultEvidencePath = (caseId: string): string =>
 
 /**
  * The device adapter writes this receipt the first time it reaches the selected target, so its absence is how a
- * `blocked` mobile case proves it never got there — the same rule the launch, preflight, and Agent fixture receipts
+ * `blocked` mobile case proves it never got there; the same rule the launch, preflight, and Agent fixture receipts
  * follow in `report.ts`. Once it exists the case did reach the device and owes the full check.
  */
 async function hasMobileDeviceReceipt(directory: string, caseId: string): Promise<boolean> {

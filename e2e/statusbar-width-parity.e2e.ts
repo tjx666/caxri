@@ -38,7 +38,7 @@ interface WidthCapture {
  *
  * Those thresholds are compared against the footer's _content-box_ width quantized down to a multiple of 8
  * (`useContainerWidth`), and the footer carries `px-2` (8px per side), so the number the Renderer resolves is
- * `floor((viewport - 16) / 8) * 8` — not the viewport width. Each width below therefore sits at least 16px clear of the
+ * `floor((viewport - 16) / 8) * 8`, not the viewport width. Each width below therefore sits at least 16px clear of the
  * nearest breakpoint _after_ that conversion, so a small padding or scrollbar change cannot silently flip a chip:
  *
  * - 852 -> 832: above 752, every chip renders.
@@ -178,19 +178,19 @@ exec /bin/zsh -l
         await expect(changes).toHaveText('+2 -1');
 
         /**
-         * `ActiveFileStatus` and `ActiveTerminalStatus` are mutually exclusive — `StatusBar` picks one from the active
-         * pane tab's kind — so the editor state is proven here, once, and the width sweep below then runs on the
+         * `ActiveFileStatus` and `ActiveTerminalStatus` are mutually exclusive: `StatusBar` picks one from the active
+         * pane tab's kind, so the editor state is proven here, once, and the width sweep below then runs on the
          * Terminal tab, the only state in which the width-sensitive chips exist at all.
          */
         const fileList = running.page.locator('.file-list').first();
         await fileList.getByRole('treeitem', { name: 'source.ts', exact: true }).click();
         await expect(running.page.getByLabel('File type: TypeScript')).toBeVisible();
         await expect(running.page.getByLabel(/^Editor position: Ln 1, Col 1/)).toBeVisible();
-        await expect(running.page.getByLabel(/^Open Process Explorer — Terminal/)).toHaveCount(0);
+        await expect(running.page.getByLabel(/^Open Process Explorer, Terminal/)).toHaveCount(0);
         /**
          * The status bar spans every column of the `app-shell` grid, so its width is the shell's, not the window's.
          * With both sidebars open `clampLayoutToViewport`'s minimums floor that shell at 180 + 6 + 320 + 6 + 240 =
-         * 752px (`stores/chrome-layout.ts`), which is above two of the three breakpoints — the bar simply overflows a
+         * 752px (`stores/chrome-layout.ts`), which is above two of the three breakpoints: the bar simply overflows a
          * narrower window instead of shrinking. Closing the SecondarySidebar is the ordinary ⌘] state that lets the
          * shell actually reach the widths under test.
          */
@@ -210,10 +210,10 @@ exec /bin/zsh -l
         await running.page.mouse.move(0, 0);
         await expect(running.page.locator('.tooltip-popup')).toHaveCount(0);
         const memory = running.page.getByLabel(
-            /^Open Process Explorer — Terminal memory: [\d.]+ MB$/,
+            /^Open Process Explorer, Terminal memory: [\d.]+ MB$/,
         );
         const childProcesses = running.page.getByLabel(
-            /^Open Process Explorer — Terminal: \d+ child processes?$/,
+            /^Open Process Explorer, Terminal: \d+ child processes?$/,
         );
         // Both readings arrive from a poll after the Terminal exists, so wait for the fully populated bar once.
         await expect(memory).toBeVisible();

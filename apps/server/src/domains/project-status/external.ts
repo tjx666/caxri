@@ -34,7 +34,7 @@ const REFERENCE_MARKERS = [
 /**
  * A Linear magic word owns only the identifiers attached to it (`Fixes TASK-1, TASK-2`), so the scan stops at the first
  * token that is neither an identifier nor a connector. Sweeping every `word-digits` token out of the rest of the line
- * instead — the previous behavior — pulled ordinary prose into the reference list: "This fixes local installs … The
+ * instead (the previous behavior) pulled ordinary prose into the reference list: "This fixes local installs … The
  * packageManager SHA-512 value matches the published npm artifact" yielded a `SHA-512` lookup that failed and marked
  * the whole Project Status panel with a Linear error.
  *
@@ -101,8 +101,8 @@ export function projectStatusNoDeploymentsError(): ProjectStatusError {
  * through to Linear's copy would tell the user to run `linear config` to fix an acceptance report.
  *
  * `providerName` is separate from `displayName` because a rate limit belongs to the service's account budget, not to
- * the executable that happened to discover it — that copy names the service, while the prerequisites name the binary
- * the user has to install.
+ * the executable that happened to discover it: that copy names the service, while the prerequisites name the binary the
+ * user has to install.
  */
 const CLI_PROVIDERS = {
     gh: {
@@ -206,7 +206,7 @@ export function projectStatusCliError(
             source,
             kind: 'prerequisite',
             message: `${displayName} not signed in`,
-            hint: `Run ${provider.loginCommand} in a Terminal, then recheck. A ${provider.credentialEnvironmentVariable} environment variable alone is not enough — Caxri does not forward personal shell credentials to CLI checks.`,
+            hint: `Run ${provider.loginCommand} in a Terminal, then recheck. A ${provider.credentialEnvironmentVariable} environment variable alone is not enough. Caxri does not forward personal shell credentials to CLI checks.`,
         };
     }
     if (kind === 'not-linked') {

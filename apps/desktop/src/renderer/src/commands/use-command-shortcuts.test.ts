@@ -23,7 +23,7 @@ vi.mock('../lib/focused-text-selection', () => ({ focusedTextSelection: () => ''
 
 /**
  * Issue #1093: a global shortcut typed during the gap between a picker deciding to close and its modal registration
- * actually clearing reads `isModalOpen()` as stale-true and is silently swallowed — even the shortcut that would reopen
+ * actually clearing reads `isModalOpen()` as stale-true and is silently swallowed: even the shortcut that would reopen
  * the very picker that just closed. `registerModal`/`unregisterModal` are driven by `useModalRegistration`'s effect in
  * real usage, which this suite's `node` environment cannot render (no `window`/`document`, see the module comment
  * above); these tests instead hold the registry in that exact intermediate state directly, which is the "hold the focus
@@ -64,7 +64,7 @@ describe('dispatchGlobalKeydown', () => {
 
     /**
      * `secondarySidebar.searchFiles` has no `when` gate and opts into `allowInEditable`, so nothing about the resolved
-     * binding itself would explain a no-op — only the modal gate can.
+     * binding itself would explain a no-op; only the modal gate can.
      */
     it('drops the resolved Cmd+Shift+F shortcut while a picker is still registered as an open modal', () => {
         useWorkbenchStore.setState({
@@ -77,7 +77,7 @@ describe('dispatchGlobalKeydown', () => {
         const { event, preventDefault } = projectSearchKeydownEvent();
         dispatchGlobalKeydown(createGlobalShortcutDispatchState(), event);
 
-        // The keystroke is still consumed — it must not leak into whatever the window falls back to — it just does
+        // The keystroke is still consumed (it must not leak into whatever the window falls back to); it just does
         // nothing, matching the reported symptom exactly: the overlay never reopens, and a retry works.
         expect(preventDefault).toHaveBeenCalledOnce();
         expect(useDialogStore.getState().projectSearchOpen).toBe(false);

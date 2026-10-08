@@ -21,7 +21,7 @@ const QUERY_FORMS: Array<{ sequence: string; slot: TerminalColorQuerySlot; termi
  * Answers xterm-style OSC 10/11 default-color queries at the PTY boundary instead of letting the Renderer's xterm.js do
  * it.
  *
- * Agent CLIs probe these colors immediately after spawn — Codex, for example, gives the terminal only ~100ms before it
+ * Agent CLIs probe these colors immediately after spawn: Codex, for example, gives the terminal only ~100ms before it
  * permanently assumes colors are unavailable and drops its shaded composer background (`terminal_probe.rs` in
  * codex-rs). Caxri PTYs start in the Server while the Renderer pane attaches later and replays the snapshot, so an
  * xterm.js-produced reply always arrives long after that deadline. This filter recognizes the query in the raw output

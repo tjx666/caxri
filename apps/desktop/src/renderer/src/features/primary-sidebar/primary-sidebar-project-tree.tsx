@@ -49,8 +49,8 @@ const onAddProject = (): void => executeCommand('project.create');
 export function PrimarySidebarProjectTree() {
     const allProjects = useProjects();
     /**
-     * The tree is the only consumer that hides auto-registered worktree Projects. Filtering once here — before order,
-     * collapse, activity order, and the Session windows read it — keeps every derived structure agreeing on which rows
+     * The tree is the only consumer that hides auto-registered worktree Projects. Filtering once here (before order,
+     * collapse, activity order, and the Session windows read it) keeps every derived structure agreeing on which rows
      * exist; `allProjects` stays available for resolving a Session's Workbench Root below.
      */
     const loadedProjects = useMemo(
@@ -104,7 +104,7 @@ export function PrimarySidebarProjectTree() {
 
     /**
      * Where `session.rename` has to put its editor. A pinned Session is withheld from its Project group, so the Project
-     * row this used to target does not exist for one — expanding that Project would reveal nothing and the rename would
+     * row this used to target does not exist for one; expanding that Project would reveal nothing and the rename would
      * silently no-op.
      */
     const revealSessionRow = useCallback(
@@ -186,7 +186,7 @@ export function PrimarySidebarProjectTree() {
     const revealMoreSessions = (sessionWindow: ProjectSessionWindow): void => {
         sessionWindows.revealMore(sessionWindow.project.id, sessionWindow.windowCount);
         // The final step unmounts the reveal row itself, which would drop the tree's roving Tab stop onto the document
-        // body. Hand focus to the Session row directly above it while that row still exists — the same pre-unmount
+        // body. Hand focus to the Session row directly above it while that row still exists: the same pre-unmount
         // handoff the Delete/Backspace archive path performs.
         const lastVisibleSessionId = sessionWindow.visibleSessions.at(-1)?.id;
         if (lastVisibleSessionId && sessionWindow.hiddenCount <= SESSION_REVEAL_STEP)
@@ -231,7 +231,7 @@ export function PrimarySidebarProjectTree() {
                     aria-label="Primary Side Bar"
                     role="tree"
                     /*
-                     * Not a Tab stop — rows own the only one — but `focusChromeSurface` falls back to the tree itself
+                     * Not a Tab stop (rows own the only one) but `focusChromeSurface` falls back to the tree itself
                      * while it holds no rows, and `.focus()` on an element without a `tabIndex` does nothing at all. A
                      * Project-less workbench would otherwise answer `Cmd+0` by revealing the side bar and leaving the
                      * keyboard in the Terminal, with the empty state's Add Project button still out of reach.

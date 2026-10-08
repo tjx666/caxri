@@ -67,10 +67,10 @@ describe('parseIntegerSettingInput', () => {
     });
 
     /**
-     * `<input type="number">` reports an empty string for text it cannot parse yet, so `2.` and `-` — real keystrokes
-     * on the way to `2.5` and `-1` — reach this function as `''` and `'-'`. Calling either invalid flashed a range
-     * error over an entry that was never out of range. `files.maxFileBytes` has `step: 0.5`, so decimals are the
-     * expected way to type it.
+     * `<input type="number">` reports an empty string for text it cannot parse yet, so `2.` and `-` (real keystrokes on
+     * the way to `2.5` and `-1`) reach this function as `''` and `'-'`. Calling either invalid flashed a range error
+     * over an entry that was never out of range. `files.maxFileBytes` has `step: 0.5`, so decimals are the expected way
+     * to type it.
      */
     it('does not accuse a half-typed decimal of being out of range', () => {
         expect(parseIntegerSettingInput('', maxFileBytes)).toEqual(INCOMPLETE);

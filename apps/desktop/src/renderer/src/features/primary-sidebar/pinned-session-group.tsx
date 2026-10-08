@@ -72,9 +72,9 @@ interface PinnedSessionGroupProperties {
  * is a second view of the same Sessions rather than a folder they move into, so unpinning never has to put anything
  * back and a user scanning their Projects still finds every Session where they left it.
  *
- * The heading is a `treeitem` at level 1 like a Project heading — it is a collapsible group the arrow keys walk — but
- * it carries no drag source and no Session count menu, because it owns nothing: its membership is a per-Session
- * property, not a list this group holds.
+ * The heading is a `treeitem` at level 1 like a Project heading (it is a collapsible group the arrow keys walk) but it
+ * carries no drag source and no Session count menu, because it owns nothing: its membership is a per-Session property,
+ * not a list this group holds.
  */
 export function PinnedSessionGroup({
     animate,
@@ -129,8 +129,8 @@ export function PinnedSessionGroup({
                     aria-expanded={expanded}
                     aria-level={1}
                     aria-selected={false}
-                    // The heading shows no digit — the group is short by construction and the rows themselves are the
-                    // answer — so the membership reaches assistive technology here instead, where a collapsed group
+                    // The heading shows no digit; the group is short by construction and the rows themselves are the
+                    // answer, so the membership reaches assistive technology here instead, where a collapsed group
                     // would otherwise announce nothing about what it holds.
                     aria-label={`Pinned, ${sessions.length} ${sessions.length === 1 ? 'Session' : 'Sessions'}`}
                     data-row-id={PINNED_GROUP_ROW_ID}

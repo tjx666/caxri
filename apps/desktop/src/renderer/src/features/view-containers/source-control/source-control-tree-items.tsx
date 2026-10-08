@@ -89,7 +89,7 @@ function sourceControlScroller(list: HTMLElement | null): HTMLElement | null {
  * Everything above the list can change height without re-rendering this component: File History and each repository's
  * `Commits` fetch their own pages, and every disclosure above animates its height. Each of those resizes a direct child
  * of the scroller, so observing those children (and re-observing when the set changes) catches them. A change that
- * keeps the enclosing section's height — one group shrinking while an earlier one grows — comes from a model refresh,
+ * keeps the enclosing section's height, one group shrinking while an earlier one grows, comes from a model refresh,
  * which re-renders this list, so every commit re-measures as well.
  */
 function useScrollerOffset(list: RefObject<HTMLElement | null>): number {

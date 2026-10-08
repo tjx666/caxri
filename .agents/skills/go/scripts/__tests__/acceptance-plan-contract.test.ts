@@ -52,15 +52,15 @@ describe('Go Acceptance planning contract', () => {
         expect(fileIssueSkill).toContain(
             'Labels are read as five independent axes: type, surface, area, priority, effort.',
         );
-        expect(fileIssueSkill).toContain('### Type — exactly one');
-        expect(fileIssueSkill).toContain('### Surface — which app, zero or one');
-        expect(fileIssueSkill).toContain('### Area — what it changes, one to three');
+        expect(fileIssueSkill).toContain('### Type: exactly one');
+        expect(fileIssueSkill).toContain('### Surface: which app, zero or one');
+        expect(fileIssueSkill).toContain('### Area: what it changes, one to three');
         expect(fileIssueSkill).toContain(
             'Do not apply `unit-testing` or `e2e-testing` merely because a product change requires regression',
         );
-        expect(fileIssueSkill).toContain('Apply exactly one priority label — `P0`, `P1`, or `P2`');
+        expect(fileIssueSkill).toContain('Apply exactly one priority label (`P0`, `P1`, or `P2`');
         expect(fileIssueSkill).toContain(
-            'Finally apply exactly one effort label — `XS`, `S`, `M`, `L`, or `XL`',
+            'Finally apply exactly one effort label (`XS`, `S`, `M`, `L`, or `XL`',
         );
         expect(fileIssueSkill).toContain('verify the complete label set after creation');
     });

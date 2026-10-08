@@ -4,7 +4,7 @@ import type { BuildFreshnessOptions } from '@caxri/system';
 import { createBuildFreshnessGuard } from '@caxri/system';
 
 const projectRoot = resolve(import.meta.dirname, '../..');
-const staleBuildMessage = 'Build output is stale — run "bun run build" before running e2e specs.';
+const staleBuildMessage = 'Build output is stale: run "bun run build" before running e2e specs.';
 const watchedBuildInputExtensions = new Set([
     '.css',
     '.html',

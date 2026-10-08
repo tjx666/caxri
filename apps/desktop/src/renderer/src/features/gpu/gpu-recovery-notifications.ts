@@ -15,7 +15,7 @@ import type { TerminalRendererStatus } from '../terminal/terminal-renderer';
  * `GPU_PROCESS_RECOVERY_MESSAGE` names the status bar's own recovery path instead of implying a restart is the only way
  * back: the "Software" renderer chip already retries GPU rendering for the affected Terminal without a restart
  * (DESIGN.md "Status bar"), and the previous wording never told the reader that chip existed. The toast's own action
- * stays "Turn off hardware acceleration…" — the other of the two recovery routes that DESIGN.md section documents.
+ * stays "Turn off hardware acceleration…", the other of the two recovery routes that DESIGN.md section documents.
  */
 const GPU_PROCESS_RECOVERY_MESSAGE =
     'A graphics failure interrupted drawing. Affected Terminals switched to software rendering. Retry GPU rendering from the status bar.';
@@ -101,8 +101,8 @@ export function createGpuRecoveryNotificationCoordinator(
 
     /**
      * The escape hatch offered while hardware acceleration is still on: stop using it, from the next launch onward. The
-     * trailing ellipsis is the standard promise that a question comes first — the click itself changes nothing, which
-     * is what separates this from the version that wrote the boot configuration on the first click.
+     * trailing ellipsis is the standard promise that a question comes first: the click itself changes nothing, which is
+     * what separates this from the version that wrote the boot configuration on the first click.
      */
     function turnOffHardwareAccelerationAction(): NonNullable<ToastOptions['action']> {
         return { id: 'settings.turnOffHardwareAcceleration' };
@@ -111,8 +111,8 @@ export function createGpuRecoveryNotificationCoordinator(
     /**
      * The route offered once this window has already stopped using the GPU. Repeating "turn it off" there would ask the
      * user to buy relief they already have for this session; what is left to decide is the durable preference for later
-     * launches, and a preference belongs in Settings. Hardware acceleration itself is still on — the pin is a
-     * Renderer-session state and never writes the boot configuration — so the copy must not claim otherwise. This is
+     * launches, and a preference belongs in Settings. Hardware acceleration itself is still on (the pin is a
+     * Renderer-session state and never writes the boot configuration) so the copy must not claim otherwise. This is
      * also the only place that answer stays reachable after the card is dismissed.
      */
     function openSettingsAction(): NonNullable<ToastOptions['action']> {

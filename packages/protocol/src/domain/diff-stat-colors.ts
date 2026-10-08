@@ -88,7 +88,7 @@ function oklchToHex(color: Oklch): string {
  * Derives the `+N -M` changed-line count colors from a theme's `success` and `danger` roles.
  *
  * Each keeps its own hue, but both move to the pair's mean OKLCH lightness with a shared chroma ceiling. Status colors
- * are rarely balanced — Dracula's green sits at L 0.87 and its red at L 0.68 — and in a sidebar read from peripheral
+ * are rarely balanced, Dracula's green sits at L 0.87 and its red at L 0.68, and in a sidebar read from peripheral
  * vision, where shape is judged mostly by lightness, that gap made the red count look taller than the green one even
  * though both render at identical pixel heights. Paseo balances its diff colors the same way (equal lightness, only the
  * hue changes).

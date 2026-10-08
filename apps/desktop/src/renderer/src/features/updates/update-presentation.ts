@@ -4,8 +4,8 @@ import { formatBytes } from '@caxri/utils';
 
 /**
  * Everything the update surfaces decide from `UpdateState` plus the user's persisted skip, kept pure so the rules that
- * matter — when Caxri may interrupt, what the status bar carries, and what a rate-limited check is allowed to claim —
- * are covered by tests instead of by reading a `.tsx`.
+ * matter (when Caxri may interrupt, what the status bar carries, and what a rate-limited check is allowed to claim) are
+ * covered by tests instead of by reading a `.tsx`.
  */
 
 /**
@@ -14,7 +14,7 @@ import { formatBytes } from '@caxri/utils';
  *
  * The locale is pinned rather than read from the host because every Caxri UI string is English; the time zone is left
  * to the host, which is the machine the user is reading the window on. This mirrors the Server's `retryTimeLabel`
- * (`apps/server/src/domains/retry-time.ts`) for the Project Status budget rows — the two cannot share a module today
+ * (`apps/server/src/domains/retry-time.ts`) for the Project Status budget rows: the two cannot share a module today
  * because one runs in the Server process and the other in the Renderer, and neither package owns a shared formatting
  * layer yet.
  */
@@ -36,7 +36,7 @@ export interface UpdateStatusCopy {
  *
  * The rate-limited `unavailable` case is the one that earns its own branch: a plain "unavailable" with a disabled
  * button tells the user neither how long the pause lasts nor that the button they cannot press is exactly the one that
- * would get past it. A manual check bypasses the recorded window, so the copy says so and the action stays live —
+ * would get past it. A manual check bypasses the recorded window, so the copy says so and the action stays live:
  * deliberately unlike the Project Status budget rows, where retrying is the very request the limiter is refusing.
  */
 export function describeUpdateStatus(
@@ -105,8 +105,8 @@ export function describeUpdateStatus(
 }
 
 /**
- * `true` while the dialog's primary action can still reach GitHub. Only the two causes a retry cannot fix — an
- * unpackaged build, and a release feed that is not published yet — disable it; a rate limit does not, because a manual
+ * `true` while the dialog's primary action can still reach GitHub. Only the two causes a retry cannot fix (an
+ * unpackaged build, and a release feed that is not published yet) disable it; a rate limit does not, because a manual
  * check bypasses the recorded window.
  */
 export function canRetryUpdateCheck(state: UpdateState | undefined): boolean {
@@ -136,7 +136,7 @@ export interface UpdateChip {
  * A failed download or install keeps a chip for the same reason. The dialog invites the user to close it and keep
  * working, so by the time the download breaks the chip is the only surface left; without one the progress text simply
  * disappears and the release becomes unreachable until the next automatic check. A failed background _check_ is
- * deliberately excluded — nobody asked for it, and an offline machine would otherwise wear a permanent chip.
+ * deliberately excluded: nobody asked for it, and an offline machine would otherwise wear a permanent chip.
  */
 export function describeUpdateChip(
     state: UpdateState | undefined,
@@ -194,7 +194,7 @@ export interface UpdateAnnouncement {
  * - The state is `available`. A download cancelled back to `available` is republished, which is why the check below is
  *   not "did the status change".
  * - This process has not offered the version yet (`announced`). That is what makes a window reload, and that same
- *   cancelled download, silent — and what keeps `Close` meaning "not now" rather than "never".
+ *   cancelled download, silent, and what keeps `Close` meaning "not now" rather than "never".
  * - The version is not covered by `updates.skippedVersion`, which outlives the process on purpose.
  */
 export function resolveUpdateAnnouncement(
@@ -212,8 +212,8 @@ export function resolveUpdateAnnouncement(
 
 /**
  * Whether the unsigned-install notice belongs on screen. It explains what the user has to do with a downloaded DMG, so
- * it appears exactly while a specific release is in play — including a failed download, where the file may still be on
- * disk — and never while Caxri is merely checking or already current.
+ * it appears exactly while a specific release is in play (including a failed download, where the file may still be on
+ * disk) and never while Caxri is merely checking or already current.
  */
 export function shouldExplainUnsignedInstall(state: UpdateState | undefined): boolean {
     if (!state) return false;

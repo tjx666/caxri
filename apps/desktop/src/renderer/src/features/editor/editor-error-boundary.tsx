@@ -23,7 +23,7 @@ interface EditorErrorBoundaryState {
  * Pane-local render guard for the editor area. The diff, transcript, preview, and Settings surfaces are `React.lazy`
  * chunks behind a bare `Suspense`, which covers only the pending state: a rejected import (a stale or missing build
  * asset) or an exception thrown while one rendered reached the window-level `ErrorBoundary` in `main.tsx` and replaced
- * the whole window — the side bar, every Terminal, every other pane — with the crash screen (issue #1012). Caught here,
+ * the whole window (the side bar, every Terminal, every other pane) with the crash screen (issue #1012). Caught here,
  * the failure stays inside the pane that showed the tab, in the same shape as the file editor's own load failure.
  *
  * Reloading the window is the only recovery offered. `React.lazy` keeps a rejected import for the lifetime of the page,

@@ -33,8 +33,8 @@ The branch row compares the local branch with the **same-named branch on origin*
 claim to describe a differently named upstream, another remote, or the configured push destination.
 Server reads the branch ref through a quota-governed GitHub GraphQL query and caches the remote
 commit per owner, repository, and branch for five minutes (`RemoteHeadCache` in
-`apps/server/src/domains/project-status/branch.ts`). Before the cache, this query ran on every summary refresh — every 20
-seconds while a pull request's checks run — and was ~900 of the ~1,100 `gh` calls Caxri made per
+`apps/server/src/domains/project-status/branch.ts`). Before the cache, this query ran on every summary refresh (every 20
+seconds while a pull request's checks run) and was ~900 of the ~1,100 `gh` calls Caxri made per
 hour. Local tracking refs are only cache invalidation inputs: a stale ref never proves that a remote
 branch exists, but a moved ref (a local push or fetch) misses the cache immediately. A manual
 refresh always queries again, and a failed lookup is never cached. Only a push from another clone or
@@ -72,7 +72,7 @@ A branch-shaped lookup resolves through a `refAliases` index onto the record it 
 Status Bar asking by branch and the sidebar sweep asking by number join one fetch rather than
 spending two queries on one pull request.
 
-Every read requests the same field union — the superset the four surfaces need, including
+Every read requests the same field union: the superset the four surfaces need, including
 `statusCheckRollup`, the most expensive field in GraphQL points. When several surfaces are looking at
 one pull request, fetching the union once and sharing it is cheaper than four narrower queries,
 because the rollup was already being paid for by two of the four. The trade-off is real in the
@@ -84,8 +84,8 @@ second cache.
 - Presence is cached for 90s; absence ("this branch has no pull request", the common case for
   `main`) for 5 minutes, because re-asking costs a full query to learn nothing.
 - The presence TTL is deliberately above the Renderer's 60s polls. At exactly 60s every poll landed
-  just past expiry — `usePolledQuery` schedules the next request only after the previous one settles
-  — so the shared record was refetched on every poll and shared nothing with itself.
+  just past expiry: `usePolledQuery` schedules the next request only after the previous one settles,
+  so the shared record was refetched on every poll and shared nothing with itself.
 - `maxAgeMs: 0` forces a refetch. Only an explicit user refresh passes it: the Status panel's refresh
   token and Source Control's `git.pullRequestChanges` refresh, which must see a force-pushed head.
 - Window focus counts as that explicit refresh for the selected Session only. The Renderer calls
@@ -95,13 +95,13 @@ second cache.
   settled TTLs above, because the Renderer's own focus refetch only reads these caches. The sidebar
   lookup accepts a shared record up to 5 seconds old, so it joins the Status panel's fresh fetch
   instead of querying the same pull request twice.
-- A confirmed "no pull request" is cacheable. A transport, auth, or quota failure is **not** — it
+- A confirmed "no pull request" is cacheable. A transport, auth, or quota failure is **not**; it
   would otherwise render as "no PR" until the TTL expired.
 - A failed refresh serves the last known record rather than propagating the error, and leaves
   `fetchedAt` untouched so the first read after recovery refetches. Without this, one rate-limited
   refresh replaces a good pull request with an error banner on every surface for the whole pause.
 - The single-flight key is the lookup shape, not the repository. Two concurrent _first_ lookups of
-  one pull request — one by branch, one by number — therefore still spend two queries; nothing can
+  one pull request (one by branch, one by number) therefore still spend two queries; nothing can
   prove they are the same pull request until one answers. Keying by `owner/repo` would coalesce that
   case at the price of serialising genuinely different pull requests, which is what the sidebar sweep
   produces across Sessions. The miss heals immediately through the branch alias.
@@ -140,17 +140,17 @@ different pull requests.
 `GitHubReferenceStore` (`github-reference.ts`) answers a different question from the store above:
 "what is `owner/repo#123`", not "what pull request does this branch have". It backs the Terminal
 hover card described in [Terminal reference hover previews](./terminal-reference-preview.md), and it
-deliberately shares no records with the pull-request store — a preview needs a title, not a check
+deliberately shares no records with the pull-request store: a preview needs a title, not a check
 rollup, and paying for a rollup on hover is the cost this store exists to avoid.
 
 - One REST read (`gh api repos/<owner>/<repo>/issues/<number>`) answers both halves of the
   reference. Nothing in `owner/repo#123` says whether it is an issue or a pull request, and
-  `gh pr view` and `gh issue view` each refuse the other's numbers — a CLI-shaped read would have to
+  `gh pr view` and `gh issue view` each refuse the other's numbers; a CLI-shaped read would have to
   guess, fail, and retry, spending two processes on every issue. GitHub's REST issues endpoint
   covers pull requests too and marks them with a `pull_request` key.
 - REST also draws on a **different budget** from the GraphQL points `gh pr view` and the sidebar
   sweep share, so a hover never competes with delivery status.
-- A hit is cached for 10 minutes — far longer than the pull-request store's 90s, because an issue
+- A hit is cached for 10 minutes, far longer than the pull-request store's 90s, because an issue
   title changes rarely and a hover is an involuntary gesture. A miss is cached for 30 minutes: a
   reference that does not resolve is almost always a number that never existed, so re-asking buys
   nothing. Neither is cached forever, so a genuinely new issue becomes visible without a restart.
@@ -173,7 +173,7 @@ bar, the sidebar sweep, and Source Control pay for a field only the Status panel
   on.
 - One query reads the first 50 threads and each thread's opening comment. Resolved and outdated
   threads are dropped on the Server.
-- Records are cached per pull request for 90s — the pull-request record's TTL — so an automatic
+- Records are cached per pull request for 90s (the pull-request record's TTL) so an automatic
   refresh that reuses the PR record also reuses its threads. A manual refresh always asks again.
 - A failed read is never cached and never becomes a GitHub error row: the pull request goes out
   without `unresolvedReviewThreads` (meaning "not read", distinct from an empty list), and the
@@ -184,23 +184,23 @@ bar, the sidebar sweep, and Source Control pay for a field only the Status panel
 `ExternalStatusLimiter` (`limiter.ts`) wraps every `gh`, `lh`, `linear`, and `vc` spawn. `git` is local and
 free, so it bypasses the circuit entirely.
 
-- **GitHub primary limit** — on a rate-limited failure, probe the GraphQL `rateLimit` self-query
+- **GitHub primary limit**: on a rate-limited failure, probe the GraphQL `rateLimit` self-query
   (`gh api graphql -f query='query { rateLimit { limit remaining used resetAt } }'`) and pause until
   the `resetAt` GitHub itself reports. GitHub does not bill a query whose only field is `rateLimit`,
   so the probe never spends the quota it is protecting. REST `/rate_limit` is deliberately not used:
   for the token class `gh` holds, its `resources.graphql` entry is a constant placeholder (`used` 0,
   `remaining` equal to `limit`, `reset` sliding with the clock), which is why the reserve never fired
   before #917. Fallback when the probe fails: 15 minutes.
-- **GitHub secondary (abuse) limit** — clears in seconds, not at the hourly reset, so it pauses for
+- **GitHub secondary (abuse) limit**: clears in seconds, not at the hourly reset, so it pauses for
   60s. See
   [GitHub's secondary rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits).
-- **Reserve** — before a `gh` call, at most once every five minutes, read the remaining GraphQL
+- **Reserve**: before a `gh` call, at most once every five minutes, read the remaining GraphQL
   points. Below 100, pause until reset. Caxri is not the only thing on this account.
 - For **Linear, Vercel, and LobeHub**, Caxri uses a conservative geometric backoff when no usable reset time is available
   (60s → 120s → 300s → 900s) and resets the ladder on the first success.
 - A paused source fails immediately with the same `rate-limited` error kind the CLI would have
   produced. Surfaces keep rendering their last good snapshot because the store serves the stale
-  record, not because the error is silent — a surface that has never loaded the pull request still
+  record, not because the error is silent: a surface that has never loaded the pull request still
   reports the failure, which is honest: it genuinely has nothing to show.
 - That error also carries the circuit's own `resumeAt` as `ExternalStatusCliError.retryAt`, both when
   the pause pre-empts the call and when the provider is the one that reported the limit. It travels
@@ -229,7 +229,7 @@ produce the same error, and the status bar said `PR unknown` for all eight unava
 - `ProjectStatusError` carries `reason: 'network' | 'rate-limited' | 'tls'` on a `failure`, plus an
   optional `retryAt`. The discriminator is what lets a consumer tell an account-wide condition from a
   repository-specific one; `retryAt` is the circuit's `resumeAt`, in epoch milliseconds.
-  `packages/extension-api/src/index.ts` mirrors this shape by hand — change both or extensions see a
+  `packages/extension-api/src/index.ts` mirrors this shape by hand: change both or extensions see a
   different contract than the Renderer.
 - The Server owns the sentence. `projectStatusCliError` and `pullRequestUnavailable` both compose the
   full recovery copy, including the clock time from `retryTimeLabel`, so the panel row, the status
@@ -242,7 +242,7 @@ produce the same error, and the status bar said `PR unknown` for all eight unava
 - A row whose `retryAt` is still in the future offers no action at all, and uses `hourglass` in the
   muted tone rather than a danger icon: Caxri recovers on its own, and the view's title bar still
   carries Refresh for a user who wants to try anyway. Once the deadline passes, the row's Retry
-  returns — that check runs against the current clock, not the clock the snapshot was written on.
+  returns: that check runs against the current clock, not the clock the snapshot was written on.
 - The status bar chip names the reason (`PR rate limited`, `PR needs login`, `PR TLS error`, …) in
   `pull-request-status-label.ts`. `other` is the only reason still called `unknown`.
 
@@ -287,7 +287,7 @@ answers, so watching three rounds of one report still costs one `lh acceptance v
 
 The status bar resolves only the leading report and renders the rest as bare links; the Status panel
 resolves every candidate, capped at four per branch. A report Caxri recognized but could not read
-stays visible as an inert row that still opens the link — `state: 'unknown'`, not an error block —
+stays visible as an inert row that still opens the link (`state: 'unknown'`, not an error block)
 because a missing or logged-out `lh` should not make the reference disappear.
 
 ### One state, computed once
@@ -295,7 +295,7 @@ because a missing or logged-out `lh` should not make the reference disappear.
 `ProjectStatusAcceptance.state` is reduced on the Server by `acceptanceProjectStatusState` and
 shipped on the wire, exactly as `ProjectStatusDeployment.state` already is. The status bar renders
 Lucide glyphs and the Status extension renders codicons, and the extension cannot call a protocol
-helper at runtime without bundling zod into a self-contained extension — so the only way both
+helper at runtime without bundling zod into a self-contained extension, so the only way both
 surfaces can be guaranteed to agree is for neither of them to decide.
 
 The reduction has one non-obvious rule: **the round's verdict outranks the report's lifecycle**,
@@ -325,8 +325,8 @@ login-shell PATH, never the constrained launchd PATH a packaged app inherits. A 
 never cached as absent; when the login PATH itself is older than a minute, a miss re-reads it once, so
 a CLI installed into a brand-new PATH directory is found without restarting Caxri.
 
-Failures that describe the machine rather than one request — `not-found`, `not-logged-in`,
-`not-linked`, and `permission-denied` — render as prerequisites with the command that fixes them.
+Failures that describe the machine rather than one request (`not-found`, `not-logged-in`,
+`not-linked`, and `permission-denied`) render as prerequisites with the command that fixes them.
 `permission-denied` covers a signed-in account the service still refuses: an organization enforcing
 SAML SSO, a token missing a scope, or a plain 403. It is matched after the rate limit, because GitHub
 also answers an exhausted budget with 403.
@@ -339,7 +339,7 @@ fails differently. The window aggregate still counts every failure.
 
 - No token handling, HTTP client, or API SDK in Caxri. Every read is the user's own authenticated
   CLI, launched with structured argv through the shared login-PATH boundary.
-- No runtime cache sharing with editor extensions on the same account — they are separate processes.
+- No runtime cache sharing with editor extensions on the same account: they are separate processes.
   Only the pause file crosses the process boundary.
 - No settings opt-in for GitHub polling. Caxri queries whenever a `github.com` remote exists; the
   circuit breaker, not a toggle, is what protects the account.

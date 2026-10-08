@@ -20,11 +20,10 @@ export type AcceptanceThemeImportAdmission =
  * Decides who answers **Import Theme** in this Main process. Outside Acceptance the real open panel stays in charge.
  * Inside Acceptance the launcher arms `CAXRI_ACCEPTANCE_THEME_IMPORT` only for a case whose frozen plan declares
  * `themeImportFixture: true`, so an unarmed Acceptance launch must fail visibly instead of degrading into a real macOS
- * open panel — a manual boundary an agent may not drive. The single exception is
- * `CAXRI_ACCEPTANCE_NATIVE_THEME_IMPORT`, which the launcher derives only when the frozen plan declares
- * `themeImportFixture: false` and the launch carries the explicit native-dialog authorization; the raw authorization
- * marker alone never opens the panel, so a stale marker in a shell cannot re-open this boundary for an undeclared
- * case.
+ * open panel, a manual boundary an agent may not drive. The single exception is `CAXRI_ACCEPTANCE_NATIVE_THEME_IMPORT`,
+ * which the launcher derives only when the frozen plan declares `themeImportFixture: false` and the launch carries the
+ * explicit native-dialog authorization; the raw authorization marker alone never opens the panel, so a stale marker in
+ * a shell cannot re-open this boundary for an undeclared case.
  */
 export function admitAcceptanceThemeImport(
     environment: NodeJS.ProcessEnv,

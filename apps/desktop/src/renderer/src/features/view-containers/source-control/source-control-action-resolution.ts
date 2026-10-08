@@ -20,8 +20,8 @@ function* sourceControlActions(model: SourceControlViewModel): Generator<SourceC
  * Finds the action in a newer model that runs the same command as `action`.
  *
  * Action ids are minted per model revision, so a click that lost the race against a background refresh cannot be
- * replayed by id. The command binding is the provider's own statement of what the action does — the bundled Git
- * extension binds repository ids and paths, which stay stable across revisions — so the same binding in the fresh model
+ * replayed by id. The command binding is the provider's own statement of what the action does: the bundled Git
+ * extension binds repository ids and paths, which stay stable across revisions, so the same binding in the fresh model
  * is the same user intent. A binding that disappeared or became disabled means the intent no longer applies.
  */
 export function findSourceControlActionByCommand(
@@ -50,7 +50,7 @@ const MAX_ACTION_ATTEMPTS = 3;
 /**
  * Runs a clicked action against the latest model instead of dropping it.
  *
- * A background refresh — routinely a file watcher — can be in flight when the click lands, or can replace the model
+ * A background refresh (routinely a file watcher) can be in flight when the click lands, or can replace the model
  * between the click and the provider's revision check. Either way the click's action id belongs to a model about to be
  * discarded, so this waits for the refresh (`refetch` joins an in-flight one), re-resolves the action by its command,
  * and runs that. Dropping the click with a warning used to lose a Discard the user plainly asked for.

@@ -11,9 +11,9 @@ Codex hook follow-up, 2026-09-13: [current injection implementation](https://git
 
 ## Architecture highlights
 
-- `docs/agent-session-tracking-spec.md`: deterministic agent-session binding — injects `CMUX_SURFACE_ID`/`CMUX_WORKSPACE_ID` env vars at terminal spawn so hooks/sessions bind to a durable surface identity; explicitly rejects title-string and mtime heuristics (push is best-effort, pull from persisted state is authoritative). Directly relevant to Caxri's capability-detected metadata indexes.
+- `docs/agent-session-tracking-spec.md`: deterministic agent-session binding: injects `CMUX_SURFACE_ID`/`CMUX_WORKSPACE_ID` env vars at terminal spawn so hooks/sessions bind to a durable surface identity; explicitly rejects title-string and mtime heuristics (push is best-effort, pull from persisted state is authoritative). Directly relevant to Caxri's capability-detected metadata indexes.
 - Full state restore: windows, workspaces, panes, cwd, scrollback persist across relaunch and computer restart; agent sessions (Claude Code, Codex, OpenCode) resume too.
-- `Sources/AgentHibernation` — explicit lifecycle module for suspending/resuming agent processes.
+- `Sources/AgentHibernation`: explicit lifecycle module for suspending/resuming agent processes.
 - Go `daemon/remote` handles SSH/remote-tmux attach; browser panes route through the remote network so `localhost` works remotely.
 - In-app scriptable browser (ported from Vercel `agent-browser`) plus CLI + Unix-socket API for external scripting.
 - "Superrepo" pattern (blog, 2026-07-23): an `AGENTS.md`-driven control repo lets the agent choose worktree vs. multi-checkout vs. remote sandbox per task instead of hardcoding worktrees.

@@ -22,8 +22,8 @@ interface PanelHeaderProperties {
  *
  * Each panel used to hand-roll its own: the Files caption was plain 11px muted text, Source Control inherited the
  * default size beside an icon, and Project Status was bold uppercase with tracking. Three treatments for one role read
- * as three unrelated surfaces. This settles on the Status panel's treatment, which is also VS Code's section caption —
- * small, bold, uppercase, letter-spaced — so a workspace name reads as a heading instead of a stray label.
+ * as three unrelated surfaces. This settles on the Status panel's treatment, which is also VS Code's section caption (
+ * small, bold, uppercase, letter-spaced), so a workspace name reads as a heading instead of a stray label.
  *
  * The caption is a real `<h3>`, not a styled `<span>`: the multi-view container in `view-container-surface.tsx` shipped
  * its own `<h3>` before it was migrated here, and a screen reader's heading list is how a keyboard user jumps between

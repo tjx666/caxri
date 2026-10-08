@@ -31,8 +31,8 @@ export interface SessionHistoryTimeline {
      */
     entries: string[];
     /**
-     * Position of the Session on screen — or, while {@link hasCurrent} is false, of the last one that was. `-1` only
-     * when nothing before the first entry survives.
+     * Position of the Session on screen, or, while {@link hasCurrent} is false, of the last one that was. `-1` only when
+     * nothing before the first entry survives.
      */
     index: number;
     /**
@@ -100,7 +100,7 @@ export function recordSessionVisit(
     if (sessionId === undefined)
         return hasCurrent ? { entries, hasCurrent: false, index } : timeline;
     if (entries[index] === sessionId) {
-        // Re-selecting the Session the timeline already ends on is a refresh, not a visit — and after the Workbench
+        // Re-selecting the Session the timeline already ends on is a refresh, not a visit, and after the Workbench
         // showed nothing at all, it restores the cursor rather than recording the same Session twice.
         return hasCurrent ? timeline : { entries, hasCurrent: true, index };
     }
@@ -147,7 +147,7 @@ export function pruneSessionHistory(
             entries,
             hasCurrent: timeline.hasCurrent && survived !== -1,
             // A current Session that was archived leaves the Workbench showing nothing of this timeline, so the cursor
-            // falls back to the newest surviving entry before it — which is exactly where `back` should resume.
+            // falls back to the newest surviving entry before it, which is exactly where `back` should resume.
             index:
                 survived === -1
                     ? Math.max(-1, ...positions.slice(0, Math.max(timeline.index, 0)))
@@ -167,7 +167,7 @@ export interface SessionNavigationRequest {
     id: number;
     /**
      * The absolute position this request lands on. Confirmations are applied by position rather than by step count, so
-     * one that arrives out of order — or that a folded Workbench snapshot skipped past — still lands correctly.
+     * one that arrives out of order (or that a folded Workbench snapshot skipped past) still lands correctly.
      */
     index: number;
     target: string;
@@ -188,7 +188,7 @@ interface SessionNavigationHistoryState extends SessionNavigationHistorySnapshot
     /**
      * Selections dispatched to the Server and not yet settled, from every source. While any is outstanding the
      * Workbench snapshot is an echo of a selection that reports its own outcome, so observing it would apply the same
-     * move twice — and, because `refreshWorkbench` folds a burst of refreshes into one snapshot, it would apply the
+     * move twice, and, because `refreshWorkbench` folds a burst of refreshes into one snapshot, it would apply the
      * wrong one of several.
      */
     inFlight: number;
@@ -199,7 +199,7 @@ interface SessionNavigationHistoryState extends SessionNavigationHistorySnapshot
     liveSessionIds?: ReadonlySet<string>;
     nextRequestId: number;
     /**
-     * Records a Session the Workbench shows that no dispatched selection accounts for — a Server-driven switch, or the
+     * Records a Session the Workbench shows that no dispatched selection accounts for: a Server-driven switch, or the
      * reconciliation after everything settles. Selections the Renderer issued report themselves instead.
      */
     recordWorkbenchSelection(sessionId?: string): void;
@@ -266,7 +266,7 @@ function recordLiveVisit(
  * Where the Workbench actually ended up, folded in once nothing is left in flight.
  *
  * Snapshots taken while a selection is settling are ignored as that selection's own echo, but the Server can switch
- * Sessions on its own in that window — the current Session gets archived, or a Terminal moves to a new Session. Nothing
+ * Sessions on its own in that window: the current Session gets archived, or a Terminal moves to a new Session. Nothing
  * else would ever record it: the Session id does not change again, so no later snapshot arrives to observe.
  */
 function reconcileWithWorkbench(timeline: SessionHistoryTimeline): SessionHistoryTimeline {

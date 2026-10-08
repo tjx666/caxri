@@ -171,7 +171,7 @@ function hasFileNameBefore(text: string, end: number): boolean {
  * whitespace so a configured word separator can stay inside a path, which also lets it swallow the enumeration comma
  * and report `src/a.ts:10、src/b.ts` as one target; `detachPathCandidateFromCjkProse` cannot see that comma because it
  * only inspects the text before the first slash. Cut after a boundary only when the text before it already ends in a
- * filename, so a directory legitimately containing CJK punctuation (`docs/目录。版本/file.ts`) keeps its protection — a
+ * filename, so a directory legitimately containing CJK punctuation (`docs/目录。版本/file.ts`) keeps its protection: a
  * directory whose name ends in a filename shape (`docs/v1.0。版本/`) is the accepted trade-off. Custom word separators
  * retain exact tokenization control.
  */

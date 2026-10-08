@@ -30,7 +30,7 @@ type FileHistoryScope = Pick<
 /**
  * A commit-history disclosure inside the Source Control `role="tree"`.
  *
- * Every row it renders is a real `treeitem` in the tree's single roving tabindex — the section header, each commit, the
+ * Every row it renders is a real `treeitem` in the tree's single roving tabindex: the section header, each commit, the
  * path filter, and `Load more`. They used to be plain buttons, which put a Tab stop on every commit and left the
  * section itself unreachable by arrow keys.
  *
@@ -183,7 +183,7 @@ export function SourceControlHistory({
                                                     // Refused here rather than disabled above: a page whose revision
                                                     // the refresh has moved on from comes back several times a minute,
                                                     // and `disabled` drops the row out of the tree's single roving Tab
-                                                    // stop each time — DESIGN.md's `Background refresh` rule.
+                                                    // stop each time; DESIGN.md's `Background refresh` rule.
                                                     if (!areActionsCurrent) {
                                                         pushToast(
                                                             'warning',
@@ -265,7 +265,7 @@ export function SourceControlHistory({
                                 className="load-more-commits flex h-7 w-full cursor-pointer items-center justify-center gap-1.5 border-0 bg-transparent text-[11px] text-muted hover:bg-elevated hover:text-foreground"
                                 onClick={() => {
                                     // Every reason this row cannot act right now is transient, and this row is where
-                                    // the keyboard usually is when a page lands — disabling it would hand the tree's
+                                    // the keyboard usually is when a page lands: disabling it would hand the tree's
                                     // one Tab stop back to the first commit mid-scroll. The spinner already says a page
                                     // is in flight, and a filter the debounce has not caught up with corrects itself
                                     // within the same second, so only the stale-revision case is worth a sentence.

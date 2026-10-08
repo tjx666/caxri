@@ -21,7 +21,7 @@ const LEDGER_ENTRY_HEADING = /^###\s+(?:\S.*)?\[(?:RESOLVED|STALE)\b/;
 const ANY_HEADING = /^#{1,6}\s+/;
 
 /**
- * Returns the 1-indexed line numbers inside a `### <id> — [RESOLVED ...]` or `[STALE ...]` entry — the
+ * Returns the 1-indexed line numbers inside a `### <id>: [RESOLVED ...]` or `[STALE ...]` entry, the
  * `audit-architecture-debt` skill's ledger format used by `docs/architecture-debt.md`. That skill's own reference doc
  * (`.agents/skills/audit-architecture-debt/references/debt-ledger.md`) only refreshes evidence for revalidated `OPEN`
  * entries; a `RESOLVED`/`STALE` entry's `Evidence:` citation is a point-in-time record of the commit that resolved or

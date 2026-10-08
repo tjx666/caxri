@@ -43,8 +43,8 @@ async function readOwner(lockPath: string): Promise<InstallLockOwner | undefined
 
 /**
  * When the current holder last proved it was alive. Falls back to the lock directory's own mtime so a lock whose marker
- * was never written — a crash between creating the directory and marking it — still ages out instead of deadlocking
- * every later install on this machine.
+ * was never written, a crash between creating the directory and marking it, still ages out instead of deadlocking every
+ * later install on this machine.
  */
 async function heldSince(
     lockPath: string,

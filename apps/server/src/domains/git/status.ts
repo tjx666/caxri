@@ -20,7 +20,7 @@ export function detachedHeadReference(refnames: string): string | undefined {
 }
 
 /**
- * A bare `(detached)` or a short SHA tells the reader nothing about which commit is checked out — submodules sit there
+ * A bare `(detached)` or a short SHA tells the reader nothing about which commit is checked out: submodules sit there
  * permanently. Two cheap reads, paid only by detached repositories, name it the way a person would: the tag or remote
  * branch at that commit, and its subject.
  */
@@ -165,7 +165,7 @@ interface SnapshotEntry<Status> {
  * `(rootPath, generation)`; concurrent consumers join it and later consumers of the same generation reuse the settled
  * snapshot without spawning Git. A generation bump (file write, Git metadata change, explicit refresh) makes the next
  * consumer produce a fresh snapshot, and a production that finishes after its generation was superseded can never
- * overwrite the newer snapshot — its consumers transparently re-produce at the newest generation (per-repository
+ * overwrite the newer snapshot: its consumers transparently re-produce at the newest generation (per-repository
  * trailing coalescing).
  */
 export class RepoStatusStore<Status> {

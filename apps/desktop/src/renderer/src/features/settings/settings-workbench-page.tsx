@@ -46,7 +46,7 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                 </p>
             </div>
             {/*
-             * The title and tab strip form one `bg-surface` header band over the `bg-background` content — a
+             * The title and tab strip form one `bg-surface` header band over the `bg-background` content: a
              * background step, not a hairline (see `renderer-design-contract.test.ts`). The shared tab fill used to
              * stop at the last tab and read as a stray block. `pl-1` plus each tab's `px-3` lines the first label up
              * with the `pl-4` title.
@@ -178,16 +178,16 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
 
 /**
  * The Settings surface as a Workbench document tab (`caxri-settings://workbench`) instead of a fixed-size modal, so a
- * wide window can show a whole section without scrolling the container itself — only a section's own content scrolls.
+ * wide window can show a whole section without scrolling the container itself: only a section's own content scrolls.
  * Mounted only while its tab is the active one in its pane, exactly like every other document tab, which is also why
  * every load below runs unconditionally rather than behind an `isOpen` gate: rendering this component at all already
  * means Settings is open.
  *
  * Deliberately NOT registered with `useModalRegistration` (issue caxri#1289): Settings opens into the selected
- * Session's own pane layout now, so it must behave exactly like any other document tab — including standing aside for a
+ * Session's own pane layout now, so it must behave exactly like any other document tab, including standing aside for a
  * Session-switch gesture the same way a Terminal or editor tab would. Registering it as a modal was tried and reverted:
  * `useDialogStore.isModalOpen()` also gates every keyboard shortcut in `use-command-shortcuts.ts` (checked before a
- * command ever reaches `runCommand`), so it would have blocked `Cmd+W` itself while this tab was active — an open
+ * command ever reaches `runCommand`), so it would have blocked `Cmd+W` itself while this tab was active: an open
  * Settings tab could never be closed from the keyboard again.
  */
 export function SettingsWorkbenchPage() {

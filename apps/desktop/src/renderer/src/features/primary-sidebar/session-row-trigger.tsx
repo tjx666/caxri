@@ -33,11 +33,11 @@ interface SessionRowTriggerProperties extends ComponentProps<'div'> {
  * selection.
  *
  * While the row is renaming it keeps the `treeitem` role but gives up its `tabIndex`: the rename input inside it owns
- * focus for as long as the edit lasts. That is the one composition DESIGN.md's tree rule allows — a `treeitem` may
+ * focus for as long as the edit lasts. That is the one composition DESIGN.md's tree rule allows: a `treeitem` may
  * contain a text field, but must never be one.
  *
  * A selected pinned Session reports `aria-selected` on both of its rows, which is one more than a single-select tree is
- * supposed to have. The alternative — leaving the Pinned copy unselected — makes the row a keyboard user is standing on
+ * supposed to have. The alternative (leaving the Pinned copy unselected) makes the row a keyboard user is standing on
  * announce itself as not selected, which is a worse lie than announcing one Session's selection twice.
  */
 export function SessionRowTrigger({

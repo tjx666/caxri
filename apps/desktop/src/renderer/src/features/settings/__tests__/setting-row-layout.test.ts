@@ -53,7 +53,7 @@ describe('isFullWidthRow', () => {
         { type: 'provider-toggle', provider: 'claude', field: 'hooks' },
         { type: 'provider-autonomy', provider: 'claude' },
     ] as const)(
-        'keeps the $type control beside its label — it is a toggle or a compact number, not a form',
+        'keeps the $type control beside its label: it is a toggle or a compact number, not a form',
         (binding) => {
             expect(isFullWidthRow(row(binding as SettingRowBinding))).toBe(false);
         },

@@ -6,7 +6,7 @@ import path from 'node:path';
  * hand to `inlineThemeCss`.
  *
  * The set is discovered from the file rather than listed by hand, so adding a Renderer stylesheet needs no change here.
- * The hand-written list this replaced lived in two places — the build script and its test — and a new `@import` failed
+ * The hand-written list this replaced lived in two places (the build script and its test) and a new `@import` failed
  * the test even after the script had been taught about it.
  *
  * Only relative specifiers are collected: a package import has no path to read, and `inlineThemeCss`'s leftover guard

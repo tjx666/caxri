@@ -15,7 +15,7 @@ import type { DesktopOperation } from '@caxri/protocol';
  * An async-context scope rather than a plain in-flight flag, because the two look identical in wall-clock time and are
  * not remotely the same thing: a Renderer request that merely overlaps a Desktop command is ordinary workbench traffic
  * and must keep working. Only work that descends from the handler's own call is refused. The dedicated
- * `desktop-target.consume` lane is unaffected — it never travels through the request queue this guards.
+ * `desktop-target.consume` lane is unaffected; it never travels through the request queue this guards.
  */
 const activeCommand = new AsyncLocalStorage<DesktopOperation['kind']>();
 

@@ -3,8 +3,8 @@ import { settingsSpecByKey } from '@caxri/protocol';
 import type { SettingRowDescriptor } from './settings-registry';
 
 /**
- * Shared right-aligned width for every short control — `EnumControl`'s select and `IntegerControl`'s number field — on
- * a horizontal row. `Field`'s `justify-between` already lines up each control's right edge regardless of its own width;
+ * Shared right-aligned width for every short control (`EnumControl`'s select and `IntegerControl`'s number field) on a
+ * horizontal row. `Field`'s `justify-between` already lines up each control's right edge regardless of its own width;
  * without a shared width the left edges still stagger wherever a select sits above or below a number field in the same
  * section, which is the "not the same width" half of the alignment bug this fixes.
  */

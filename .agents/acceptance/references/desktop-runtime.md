@@ -1,4 +1,4 @@
-# Desktop Runtime — Caxri Acceptance
+# Desktop Runtime: Caxri Acceptance
 
 Caxri-specific facts about desktop ownership, lifecycle, build freshness, and
 focus. The exact commands remain in [`../PROJECT.md`](../PROJECT.md).

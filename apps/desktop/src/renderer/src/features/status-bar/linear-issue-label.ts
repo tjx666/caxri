@@ -4,7 +4,7 @@ import type { StructuredTooltipData } from '../../components/structured-tooltip'
 
 /**
  * How the chip names each source. The wording is the sentence a reader needs in order to decide how much to trust the
- * chip — a pull request states the link on purpose, a branch name is a convention, and a conversation is an inference.
+ * chip; a pull request states the link on purpose, a branch name is a convention, and a conversation is an inference.
  */
 const SOURCE_LABELS: Record<LinearIssueSource, string> = {
     'pull-request': 'From the pull request description',
@@ -18,7 +18,7 @@ function linearIssueSourceLabel(source: LinearIssueSource): string {
 
 /**
  * The chip's accessible name. The identifier alone is what a sighted user sees, so everything the glyph and its tint
- * carry — the workflow state — plus the title and the provenance have to be spoken here instead.
+ * carry (the workflow state) plus the title and the provenance have to be spoken here instead.
  */
 export function linearIssueAriaLabel(
     issue: ProjectStatusOverviewLinearIssue,

@@ -320,12 +320,12 @@ export function useTerminalPaneRuntime({
         const longPaste = longPasteRuntime.controller;
         xterm.attachCustomKeyEventHandler((event) => {
             /**
-             * A modal owns the keyboard for as long as it is open — the same rule `workbench-root-prompt-keyboard.ts`
+             * A modal owns the keyboard for as long as it is open: the same rule `workbench-root-prompt-keyboard.ts`
              * and `sidebar-detail-card-dismissal.ts` already follow. Focus can still be sitting in this Terminal when
              * one opens: Sonner's toaster restores focus to whatever held it before the toast was focused, so clicking
              * a toast action that opens a confirmation hands focus straight back here. xterm's own `_keyDown` calls
              * `stopPropagation()` for keys it claims, including `Escape`, and the dialog's dismissal listener sits on
-             * `document` in the bubble phase — so a swallowed `Escape` never reaches the dialog and it cannot be closed
+             * `document` in the bubble phase, so a swallowed `Escape` never reaches the dialog and it cannot be closed
              * by keyboard at all. Returning `false` bails out before xterm touches the event, which keeps both halves
              * out of the Terminal: nothing reaches the PTY, and nothing is stopped on its way to the modal. It also
              * suppresses the `focus()` xterm performs on `keyup`, which would otherwise pull focus back again.
@@ -418,8 +418,8 @@ export function useTerminalPaneRuntime({
         const selectionDisposable = xterm.onSelectionChange(() => {
             /**
              * SearchAddon represents the active match as a selection; it must not overwrite the system clipboard when
-             * the user's copy-on-select preference is enabled. The guard covers the addon's own searches — explicit
-             * navigation and the re-search it runs after Terminal output or a resize — so a mouse selection made while
+             * the user's copy-on-select preference is enabled. The guard covers the addon's own searches: explicit
+             * navigation and the re-search it runs after Terminal output or a resize, so a mouse selection made while
              * the search bar is open still copies.
              */
             if (isSearchSelection()) return;

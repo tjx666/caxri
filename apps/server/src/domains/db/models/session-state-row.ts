@@ -31,7 +31,7 @@ export interface SessionStateRepair {
  * A write nobody can see is the hardest kind of defect to find: it costs a round trip and a SQLite write per
  * occurrence, and it turns an ordinary interaction into a failure surface, because the Session behind it may have been
  * deleted or the application may be quitting by the time the write lands. That is exactly how "Unable to activate
- * Terminal" reached unrelated E2E specs (#877) — a Terminal regaining focus rebuilt an identical pane layout and wrote
+ * Terminal" reached unrelated E2E specs (#877): a Terminal regaining focus rebuilt an identical pane layout and wrote
  * it back, and nothing anywhere recorded that the write changed nothing. Each report carries both the occurrence and
  * the totals so the real volume stays readable without one client having to sample it.
  */

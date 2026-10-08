@@ -47,7 +47,7 @@ export const oscuraMidnightTheme: ThemeTokens = {
         /**
          * Upstream Oscura Midnight gives `list.focusBackground` and `list.activeSelectionBackground` the same
          * `#232323`, so a keyboard user cannot tell the row they are on from the row that is selected. Same treatment
-         * as `dracula.ts`: one grey at three weights over this theme's near-black canvas — the existing white wash for
+         * as `dracula.ts`: one grey at three weights over this theme's near-black canvas: the existing white wash for
          * hover, `#23232399` for focus, the opaque `#232323` for selection. See issue #1006.
          */
         listHoverBackground: '#ffffff08',

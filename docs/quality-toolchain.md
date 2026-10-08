@@ -17,7 +17,7 @@ negative-fixture contract tests keep the wiring from silently rotting.
 | Code formatting (JS/TS/CSS/JSON/YAML/HTML)                                | Prettier (`@yutengjing/prettier-config`)                                                                                                                                                        | `bun run format` / `format:check`       |
 | Markdown formatting                                                       | Prettier (`prettier --write "**/*.md"`)                                                                                                                                                         | `bun run format:md` / `format:md:check` |
 | Markdown lint semantics (headings, links, lists)                          | markdownlint-cli2 (`.markdownlint-cli2.jsonc`)                                                                                                                                                  | `bun run lint:markdown`                 |
-| Syntactic JS/TS rules, import boundaries, local custom rules              | ESLint (`eslint.config.ts`) — deliberately runs without typed linting (`projectService`)                                                                                                        | `bun run lint`                          |
+| Syntactic JS/TS rules, import boundaries, local custom rules              | ESLint (`eslint.config.ts`), deliberately runs without typed linting (`projectService`)                                                                                                         | `bun run lint`                          |
 | Type-aware JS/TS rules (`typescript/*`, plus `node/no-sync`)              | oxlint + tsgolint (`.oxlintrc.json`)                                                                                                                                                            | `bun run lint:type-aware`               |
 | Directory/domain/naming contracts too structural for a single ESLint rule | Vitest repository-contract tests (`scripts/__tests__/*.test.ts`, `apps/server/src/domains/__tests__/structure.test.ts`, `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts`) | `bun run test`                          |
 | Type correctness                                                          | `tsc --noEmit` (`tsconfig.node.json` / `tsconfig.web.json`) plus workspace `typecheck`                                                                                                          | `bun run typecheck`                     |
@@ -27,7 +27,7 @@ type information runs through `oxlint --type-aware` instead (see
 `docs/type-aware-linting.md` for the split's rationale, the enabled rule set, and the
 `docs/oxlint-spike.md` evidence that preceded it). Vitest
 contract tests own anything that needs to walk the tree, compare multiple files, or assert on
-`package.json`/`pnpm-workspace.yaml` shape — the same split the pre-existing `workspace-contract`,
+`package.json`/`pnpm-workspace.yaml` shape, the same split the pre-existing `workspace-contract`,
 Server `structure`, and Renderer `design-contract` tests already used.
 
 ## Where each convention is enforced
@@ -94,20 +94,20 @@ each one is supposed to trip. A new fixture must also be listed in `package.json
 and will fail CI on an unused file. Every new rule in this stage has a paired positive fixture
 (silent) and negative fixture (fires):
 
-- `child-process-exec-fixture.ts` / `spawn-shell-true-fixture.ts` — trip the `exec`/`execSync`
+- `child-process-exec-fixture.ts` / `spawn-shell-true-fixture.ts`: trip the `exec`/`execSync`
   import ban and the `shell: true` syntax ban.
 - `good-mapped-component-fixture.tsx` / `bad-mapped-component-fixture.tsx` and
-  `use-good-mapped-hook-fixture.ts` / `use-bad-mapped-hook-fixture.ts` — stay silent or fire
+  `use-good-mapped-hook-fixture.ts` / `use-bad-mapped-hook-fixture.ts`: stay silent or fire
   `caxri/filename-export-mapping` depending on whether the file's primary export matches its
   filename mapping.
-- `class-members-packed-methods-fixture.ts` / `class-members-spaced-methods-fixture.ts` — fire or
+- `class-members-packed-methods-fixture.ts` / `class-members-spaced-methods-fixture.ts`: fire or
   stay silent for `@stylistic/lines-between-class-members` depending on whether adjacent methods
   have a blank line (packed consecutive fields and overload signatures stay allowed).
 - `view-container-reads/component-state-read-fixture.ts` (both `caxri.request` and the abortable
   `caxri.requestWithSignal`) and `view-container-reads/tree-branch-actions.ts` vs.
   `view-container-reads/query-function-read-fixture.ts`,
   `view-container-reads/tree-branch-client.ts`, and
-  `view-container-reads/tree-branch-commands.ts` — fire or stay silent for
+  `view-container-reads/tree-branch-commands.ts`: fire or stay silent for
   `caxri/server-reads-through-query`, asserted by
   `scripts/__tests__/server-reads-through-query.test.ts` rather than the shared contract test. The
   `-actions.ts` fixture pins the filename convention itself: only `*-client.ts` and `*-commands.ts`
@@ -116,7 +116,7 @@ and will fail CI on an unused file. Every new rule in this stage has a paired po
 The Renderer-only alias ban is asserted through `ESLint#calculateConfigForFile`
 (`effectiveConfigFor` in the same test file) instead of a fixture, mirroring how the pre-existing
 tests already assert `max-lines`/`no-restricted-imports` are wired onto a representative Renderer
-file — the rule applies to real production directories, so proving the _effective config_ carries
+file: the rule applies to real production directories, so proving the _effective config_ carries
 it is enough; no throwaway fixture is needed.
 
 `scripts/__tests__/oxlint-toolchain-contract.test.ts` guards the oxlint side of the split the same
@@ -127,6 +127,6 @@ syntactic territory ESLint owns.
 
 This pairing is what makes the stage-5 rules durable: if a future `eslint.config.ts` edit
 accidentally drops or misscopes one of these blocks (for example, by letting a later config object
-silently replace an earlier `no-restricted-imports`/`no-restricted-syntax` entry — see "Where each
+silently replace an earlier `no-restricted-imports`/`no-restricted-syntax` entry; see "Where each
 convention is enforced" above), the corresponding contract test fails immediately instead of the
 gap surfacing only when a real violation ships.

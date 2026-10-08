@@ -30,8 +30,8 @@ const MENU_LABEL = 'Select a different agent';
  * control uses a split button when a default Agent is configured.
  *
  * With no default Agent configured there is nothing for the labelled control's leading half to create, so it collapses
- * to a single button that opens the list — that state of the setting reads "Ask each time". Splitting it there would
- * put two buttons that both open the same menu next to each other: a screen reader would hear two controls claiming the
+ * to a single button that opens the list: that state of the setting reads "Ask each time". Splitting it there would put
+ * two buttons that both open the same menu next to each other: a screen reader would hear two controls claiming the
  * same popup, and Base UI returns focus to whichever one owns the menu rather than the one that was pressed.
  */
 export function NewTerminalButton({
@@ -60,7 +60,7 @@ export function NewTerminalButton({
     /**
      * Unlabelled on purpose: Base UI points the popup's `aria-labelledby` at whichever trigger opened it (`MenuRoot`),
      * and `aria-labelledby` outranks `aria-label`, so naming the popup here would be inert. Both triggers already say
-     * what the list is for — `New Terminal` when the control is collapsed, `MENU_LABEL` on the split button's chevron.
+     * what the list is for: `New Terminal` when the control is collapsed, `MENU_LABEL` on the split button's chevron.
      */
     const menu = (
         <MenuContent align="end">
@@ -106,7 +106,7 @@ export function NewTerminalButton({
                     open={iconMenuOpen}
                     onOpenChange={(open, details) => {
                         /**
-                         * `trigger-press` covers both a pointer click and a keyboard Enter/Space activation — Base UI
+                         * `trigger-press` covers both a pointer click and a keyboard Enter/Space activation: Base UI
                          * reports either the same way for a native `<button>`. Hovering still opens the list (the
                          * `openOnHover` trigger above), which this veto never sees because that request's reason is
                          * `trigger-hover`, not `trigger-press`. Canceling here keeps Base UI from opening the popup at

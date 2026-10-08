@@ -22,11 +22,11 @@ export function hookHealthLabel(
             case 'unsupported':
                 return 'Not available on this platform';
             case 'notInstalled':
-                // `AgentHookManager.reconcileNow()` appends `health.message` — "Install the {CLI} CLI, then restart
-                // Caxri." — whenever an install hint exists (the common case), so this base label states only the
+                // `AgentHookManager.reconcileNow()` appends `health.message`: "Install the {CLI} CLI, then restart
+                // Caxri.", whenever an install hint exists (the common case), so this base label states only the
                 // status and leaves the specific instruction to that message (DESIGN.md principle 6, "say each
                 // meaning once"; same fix already applied to the `drifted` case in `hookHealthFor`). Without a
-                // message — e.g. another profile owns install authority — this label alone still reads correctly.
+                // message (e.g. another profile owns install authority), this label alone still reads correctly.
                 return 'Not in effect';
             case 'installedPending':
                 return 'Not in effect until your next Agent session';
@@ -35,16 +35,16 @@ export function hookHealthLabel(
             case 'active':
                 return 'Active';
             case 'stale':
-                return 'Out of date — restart Agent Terminals to update it';
+                return 'Out of date: restart Agent Terminals to update it';
             case 'drifted':
-                return 'Changed outside Caxri — restart Agent Terminals to reapply it';
+                return 'Changed outside Caxri: restart Agent Terminals to reapply it';
             case 'conflict':
-                return 'Conflicts with another tool — restart Agent Terminals after resolving it';
+                return 'Conflicts with another tool: restart Agent Terminals after resolving it';
             case 'error':
-                return 'Setup failed — restart Agent Terminals to try again';
+                return 'Setup failed: restart Agent Terminals to try again';
         }
     })();
-    return health.message ? `${label} — ${health.message}` : label;
+    return health.message ? `${label}. ${health.message}` : label;
 }
 
 /**
@@ -74,8 +74,8 @@ export function hookHealthTone(
 /**
  * Whether flipping this toggle can achieve anything. A platform that cannot run the adapter at all is the only state
  * where the answer is no; a missing CLI is a prerequisite the user can still go and satisfy, so the preference stays
- * theirs to record. The switch renders its real availability rather than a stored `true` the platform will never honor
- * — a control that reads "on" beside a caption saying it cannot work is the contradiction this resolves.
+ * theirs to record. The switch renders its real availability rather than a stored `true` the platform will never honor:
+ * a control that reads "on" beside a caption saying it cannot work is the contradiction this resolves.
  */
 export function isHookAdapterAvailable(
     health: AgentHookHealthMap[AgentProvider] | undefined,

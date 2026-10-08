@@ -33,7 +33,7 @@ const CHUNK_BYTES = 64 * 1024;
 
 /**
  * Tool output dominates a transcript, so a byte window near either end holds very few conversation messages. Whole-file
- * scanning is affordable here — it is line-streamed, retains a bounded message set, and runs once per Session behind a
+ * scanning is affordable here: it is line-streamed, retains a bounded message set, and runs once per Session behind a
  * model call that costs seconds.
  */
 const SCAN_BUDGET_BYTES = 16 * 1024 * 1024;

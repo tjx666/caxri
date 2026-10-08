@@ -14,7 +14,7 @@ export interface BugReportScreenshot {
     annotations: ScreenshotAnnotation[];
     /**
      * True when the user pressed Retake rather than receiving the capture the dialog takes for them on open. A retake
-     * is a moment they chose — an error toast that is up right now, a menu they are holding open — and re-opening the
+     * is a moment they chose (an error toast that is up right now, a menu they are holding open) and re-opening the
      * dialog would photograph a workbench that has moved on, so it counts as authored work.
      */
     isRetaken: boolean;
@@ -23,7 +23,7 @@ export interface BugReportScreenshot {
 
 /**
  * Everything a closed dialog owes the next open: the three text fields, the capture, and the marks drawn on it. The
- * preview, the chosen Agent, and the diagnostics are deliberately absent — they are derived from live workbench state
+ * preview, the chosen Agent, and the diagnostics are deliberately absent: they are derived from live workbench state
  * and must be recomputed, not replayed.
  */
 export interface BugReportDraftContent {
@@ -90,9 +90,9 @@ export function bugReportDraftReducer(
 
 /**
  * A single retained draft with the three operations the dialog performs on it. The state lives in a closure rather than
- * in a `createStore` store because nothing renders from it — the dialog reads it once on mount and writes it once on
- * unmount — while it does hold the raw screenshot bytes, which must stay out of the `__caxriStores` snapshot a
- * debugging session can dump (AGENTS.md forbids diagnostics that carry screen contents).
+ * in a `createStore` store because nothing renders from it: the dialog reads it once on mount and writes it once on
+ * unmount, while it does hold the raw screenshot bytes, which must stay out of the `__caxriStores` snapshot a debugging
+ * session can dump (AGENTS.md forbids diagnostics that carry screen contents).
  */
 interface BugReportDraftSlot {
     /**

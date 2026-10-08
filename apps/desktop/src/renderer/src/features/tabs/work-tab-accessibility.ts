@@ -1,9 +1,9 @@
 export type WorkTabNavigationKey = 'ArrowLeft' | 'ArrowRight' | 'End' | 'Home';
 
 /**
- * Tab occurrence ids are already unique across the whole tree, so a DOM id needs no Session or pane prefix — and,
- * unlike the paths and Terminal ids the previous global strip hashed, an occurrence id is generated rather than user
- * data, so it is safe to put in the DOM as is.
+ * Tab occurrence ids are already unique across the whole tree, so a DOM id needs no Session or pane prefix, and, unlike
+ * the paths and Terminal ids the previous global strip hashed, an occurrence id is generated rather than user data, so
+ * it is safe to put in the DOM as is.
  */
 export function workTabId(tabId: string): string {
     return `work-tab-${tabId}`;

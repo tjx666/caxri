@@ -161,7 +161,7 @@ export class FileService {
             } catch (error) {
                 /**
                  * A missing candidate is the expected answer for every extension the target does not use, so the loop
-                 * moves on. Anything else — notably a path the Session is not allowed to reach — stops this specifier
+                 * moves on. Anything else (notably a path the Session is not allowed to reach) stops this specifier
                  * instead of falling through to the next guess, which would turn one refusal into a probe sequence.
                  */
                 if (error instanceof CaxriError && error.code === 'NOT_FOUND') continue;

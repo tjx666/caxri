@@ -18,7 +18,7 @@ export interface ReviewCommentAnchor {
 
 /**
  * Ordering for next/previous review comment navigation: by file path, then by start line, then by side. The
- * original/modified tie-break is a judgment call, not a derived property — the two sides render side by side, not
+ * original/modified tie-break is a judgment call, not a derived property: the two sides render side by side, not
  * stacked, so there is no natural vertical order between a comment on one side and a comment on the other at the same
  * line. `original` sorts first because that is reading order for a change (what it was, then what it became).
  */

@@ -30,9 +30,9 @@ export function contentSearchCoverage(result: SessionContentSearchResult): strin
         result.unavailable > 0 ? `; ${result.unavailable} without readable conversation data` : '';
     const limit =
         result.reason === 'budget'
-            ? '; search limit reached — retry to search again'
+            ? '; search limit reached: retry to search again'
             : result.reason === 'results'
-              ? '; result limit reached — narrow your query'
+              ? '; result limit reached: narrow your query'
               : result.unavailable === 0
                 ? '; some conversation content was skipped or exceeded scan limits'
                 : '';

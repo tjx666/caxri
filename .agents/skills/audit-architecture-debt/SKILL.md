@@ -89,7 +89,7 @@ and report still-present, resolved, and new findings as separate groups.
 When the user supplies an audit report produced outside this session (another agent, another CLI,
 or an older report), treat every item in it as an unverified lead, exactly like a historical
 claim: re-verify its cited paths and line numbers against the current tree before accepting it,
-and do not inherit its category or severity labels — an external "confirmed defect" that fails
+and do not inherit its category or severity labels: an external "confirmed defect" that fails
 re-verification is reclassified, not repeated. Spot-check its highest-severity claims first, then
 merge surviving items with this audit's own findings and deduplicate by root cause before
 reporting or fixing anything.

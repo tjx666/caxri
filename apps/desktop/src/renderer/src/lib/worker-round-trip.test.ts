@@ -4,8 +4,8 @@ import { probeWorkerRoundTrip } from './worker-round-trip';
 
 interface FakePaths {
     /**
-     * Whether the Worker's own port — delivered thread-to-thread inside the Renderer, without ever leaving the process
-     * — carries its answer back to the page.
+     * Whether the Worker's own port (delivered thread-to-thread inside the Renderer, without ever leaving the process)
+     * carries its answer back to the page.
      */
     direct: 'error' | 'message' | 'messageerror' | 'silence';
     /**

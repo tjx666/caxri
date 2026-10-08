@@ -21,7 +21,7 @@ afterEach(async () => {
 
 /**
  * A configuration file is materialized with every key at its default, so a later default change reaches nobody who
- * already has the file. These are the tests for the reviewed tables that carry such a change forward — and for the
+ * already has the file. These are the tests for the reviewed tables that carry such a change forward, and for the
  * larger half of the contract: a value the user chose stays theirs.
  */
 describe('Configuration default reconciliation', () => {

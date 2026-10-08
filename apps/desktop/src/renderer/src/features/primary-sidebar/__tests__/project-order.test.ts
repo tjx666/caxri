@@ -58,7 +58,7 @@ describe('Project ordering', () => {
         });
 
         const settled = queue.enqueue(['a', 'b', 'c']);
-        // Fire-and-forget: only the final queued permutation's returned promise is awaited below —
+        // Fire-and-forget: only the final queued permutation's returned promise is awaited below:
         // the queue's "latest wins" contract makes these intermediate results irrelevant.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void queue.enqueue(['b', 'a', 'c']);

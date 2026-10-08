@@ -5,7 +5,7 @@ import { isServerBuildStale } from '../server-staleness';
 describe('isServerBuildStale', () => {
     it('flags a Server from a different build even when version and commit are identical', () => {
         // The dev rebuild-with-dirty-checkout case: same package version, same HEAD commit,
-        // different code — only the per-build id can tell the builds apart.
+        // different code: only the per-build id can tell the builds apart.
         expect(
             isServerBuildStale(
                 { buildId: 'build-b', commit: 'abc1234', version: '0.0.13' },

@@ -67,7 +67,7 @@ test('Terminal links delay contextual hover hints and reserve the pointer cursor
         /**
          * `wrappedFileLink` itself spans the same soft wrap `wrappedFirstFragment`/`wrappedLastFragment` sit on either
          * side of. Searching for the whole, unsplit string exercises `terminalTextBounds` joining consecutive rows into
-         * one logical line instead of only ever matching a fragment confined to a single row — the gap that let a real,
+         * one logical line instead of only ever matching a fragment confined to a single row, the gap that let a real,
          * longer wrapped path (an absolute temp-directory file link, for example) go unfound in CI while the same case
          * always passed locally against a narrower path that happened to fit on one row
          * (github.com/tjx666/caxri/issues/1418).

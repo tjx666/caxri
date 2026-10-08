@@ -60,7 +60,7 @@ export interface TerminalSearchSelectionGuard {
 
 /**
  * Marks the selection changes the search addon itself produces, so copy-on-select can skip exactly those instead of
- * turning itself off for as long as the search bar stays open — a mouse selection made while searching must still reach
+ * turning itself off for as long as the search bar stays open: a mouse selection made while searching must still reach
  * the clipboard.
  *
  * The guard follows the addon's own `onBeforeSearch`/`onAfterSearch` pair rather than wrapping the navigation calls
@@ -70,8 +70,8 @@ export interface TerminalSearchSelectionGuard {
  *
  * `SearchAddon` selects through `Terminal.select()`, which fires `onSelectionChange` synchronously between the two
  * events, so the flag is only raised for one synchronous block. The microtask reset releases it even when a search
- * throws — an invalid regular expression never reaches `onAfterSearch` — and is far too short for a user gesture to
- * fall inside it.
+ * throws: an invalid regular expression never reaches `onAfterSearch`, and is far too short for a user gesture to fall
+ * inside it.
  */
 export function createTerminalSearchSelectionGuard(): TerminalSearchSelectionGuard {
     let isSearchSelection = false;

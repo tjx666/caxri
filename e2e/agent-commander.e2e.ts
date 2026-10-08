@@ -424,8 +424,8 @@ test('Agent Commander board moves a task stuck at Agent startup to Needs attenti
  * The Commander window has no Settings surface of its own, so the failed Terminal's Open Settings must bring the
  * Workbench forward with Settings open instead of updating a dialog store nothing in this window renders. It also
  * scrolls straight to the failing Agent's own executable row (`agentCommander.openSettings`'s `target`) instead of
- * landing on Settings' default view, so the Codex executable field must already be on screen with no further navigation
- * — Settings rows outside the viewport are not in the DOM at all (virtual rendering).
+ * landing on Settings' default view, so the Codex executable field must already be on screen with no further
+ * navigation; Settings rows outside the viewport are not in the DOM at all (virtual rendering).
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
 test('Agent Commander Terminal opens Settings in the Workbench scrolled to the missing Agent executable', async ({}, testInfo) => {
@@ -475,15 +475,15 @@ test('Agent Commander Terminal opens Settings in the Workbench scrolled to the m
  * A commit link opens the Workbench Git view, which the Commander window does not have, so its Terminal never offers
  * one. A URL still opens in the browser as before. A file link is different: the Commander now hands it to the
  * Workbench through `agentCommander.openFileLink` instead of the ordinary `terminal.openFileLink`, so the file must be
- * inside a Project some visible Session already has open — here the same `root` the Shell Session below uses — and it
+ * inside a Project some visible Session already has open (here the same `root` the Shell Session below uses) and it
  * opens there, never through the Commander's own hidden system Project.
  *
  * The link is printed as an absolute path rather than a bare `notes.md:3`. The Commander's own Terminal's Workbench
  * Root is its hidden system Project, and `terminal.fileLink.resolve`'s bare-relative fallback only searches that
- * Terminal's own Workbench Root by suffix (see `apps/server/src/domains/terminal/file-links.ts`) — a real bare relative
+ * Terminal's own Workbench Root by suffix (see `apps/server/src/domains/terminal/file-links.ts`); a real bare relative
  * link from the Commander would never match a file that lives in a different, visible Project. An absolute path (or a
  * `~/...` one) is matched by containment across every added Project instead, which is what a real Commander transcript
- * — quoting an absolute path from a delegated Session's own output — would actually contain.
+ * (quoting an absolute path from a delegated Session's own output) would actually contain.
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
 test('Agent Commander Terminal links URLs and files, opening a file through the Workbench', async ({}, testInfo) => {

@@ -398,8 +398,8 @@ export async function stopElectron(
     }
 
     /**
-     * The launcher is gone. Whatever it left behind — a window whose ownership it never released, a detached Server
-     * generation, an Extension Host orphan — is now signaled directly with the short force escalation.
+     * The launcher is gone. Whatever it left behind (a window whose ownership it never released, a detached Server
+     * generation, an Extension Host orphan) is now signaled directly with the short force escalation.
      */
     await captureCurrentProcesses();
     if (desktopOwner) await signalOnce(desktopOwner, 'SIGTERM');

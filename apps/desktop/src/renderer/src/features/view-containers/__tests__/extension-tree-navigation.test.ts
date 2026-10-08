@@ -36,8 +36,8 @@ function rowsFor(
 }
 
 /**
- * `a` is expanded over a branch that has not resolved into items yet, so its placeholder row sits between two real rows
- * — the shape that used to stall Up and Down.
+ * `a` is expanded over a branch that has not resolved into items yet, so its placeholder row sits between two real
+ * rows, the shape that used to stall Up and Down.
  */
 function rowsAroundPlaceholder(kind: 'loading' | 'error' | 'empty') {
     const children = new Map<string, readonly TreeItemDto[]>([

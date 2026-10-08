@@ -701,7 +701,7 @@ export class WatcherService {
     /**
      * Tracks the explicit Git rule files resolved by Git. In-root rule files are detected from the regular watcher
      * event stream (`queueFingerprintedEvent`); only external rule files (see {@link isExternalRulePath}) get a bounded
-     * poller, registered through the watch hub, because no watched event stream can cover them — polling them directly
+     * poller, registered through the watch hub, because no watched event stream can cover them: polling them directly
      * keeps the `.git` tree unwatched by the files domain.
      */
     async noteGitIgnoreRulePaths(sessionId: string, paths: readonly string[]): Promise<void> {

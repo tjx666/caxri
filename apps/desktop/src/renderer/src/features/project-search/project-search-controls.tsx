@@ -148,8 +148,8 @@ export function ProjectSearchControls({
                     <Tooltip
                         content={
                             isUsingIgnoreFiles
-                                ? 'Using .gitignore — click to search ignored files too'
-                                : 'Searching ignored files — click to apply .gitignore'
+                                ? 'Using .gitignore: click to search ignored files too'
+                                : 'Searching ignored files: click to apply .gitignore'
                         }
                     >
                         <button
@@ -181,8 +181,8 @@ export function ProjectSearchControls({
                 </div>
             </div>
             {/*
-             * Not gated on the mode. `include` and `exclude` have always been sent for a name search too — the hook
-             * withholds only the three matcher options above — so hiding the fields left Name mode quietly honouring
+             * Not gated on the mode. `include` and `exclude` have always been sent for a name search too: the hook
+             * withholds only the three matcher options above, so hiding the fields left Name mode quietly honouring
              * globs the user could no longer see or clear.
              */}
             <div className="grid grid-cols-2 gap-1.5">

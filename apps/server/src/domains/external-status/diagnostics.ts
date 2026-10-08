@@ -60,8 +60,8 @@ export interface ExternalStatusCommandOptions {
     /**
      * The one identifier a per-item query is about, when the caller fans out over several (Linear issue references).
      * Without it a failure is unattributable: the panel shows one error while the log records only that "a" query
-     * failed, so a bogus reference cannot be told apart from a real outage. Callers pass a validated identifier — never
-     * argv, a URL, or CLI output — so this stays inside the no-prose rule below.
+     * failed, so a bogus reference cannot be told apart from a real outage. Callers pass a validated identifier: never
+     * argv, a URL, or CLI output, so this stays inside the no-prose rule below.
      */
     subject?: string;
     /**

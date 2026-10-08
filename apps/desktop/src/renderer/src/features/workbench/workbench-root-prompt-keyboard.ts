@@ -1,16 +1,16 @@
 /**
  * What a keystroke means to the worktree adoption prompt while it is on screen.
  *
- * - `focus` — move keyboard focus into the prompt.
- * - `dismiss` — answer "Not Now".
- * - `ignore` — the keystroke belongs to whatever owns focus.
+ * - `focus`: move keyboard focus into the prompt.
+ * - `dismiss`: answer "Not Now".
+ * - `ignore`: the keystroke belongs to whatever owns focus.
  */
 export type WorkbenchRootPromptKeyAction = 'focus' | 'dismiss' | 'ignore';
 
 /**
  * The prompt is an offer Caxri makes about something the Agent did, not a question the user asked, so DESIGN.md's modal
  * rule applies in the negative: "a modal belongs to a user who asked", and taking the screen or the Escape key for news
- * that can wait is exactly the nag that rule exists to prevent. It therefore never seizes focus on appearance — with
+ * that can wait is exactly the nag that rule exists to prevent. It therefore never seizes focus on appearance: with
  * focus usually inside a Terminal, a stolen keystroke would land on a button, and a stray `Enter` would activate
  * `Continue Session in Worktree` without anyone reading it.
  *
@@ -22,11 +22,11 @@ export type WorkbenchRootPromptKeyAction = 'focus' | 'dismiss' | 'ignore';
  * - `Shift+Escape` moves focus into the prompt from anywhere, including a Terminal, Monaco, or a text field. Plain
  *   `Escape` cannot do this job: it is a real control character a shell, `vi`, or Monaco owns, and stealing it would
  *   break the surface the user is actually working in.
- * - `Escape` dismisses the prompt wherever an editable target is not holding it — the file tree, the status bar, the
+ * - `Escape` dismisses the prompt wherever an editable target is not holding it: the file tree, the status bar, the
  *   prompt itself once `Shift+Escape` has brought focus there, or a window with nothing focused at all.
  *
  * A chord carrying any other modifier belongs to somebody else and is left alone, and both chords stand down entirely
- * while a modal is open. The listener runs in capture phase on `window`, so nothing can outrank it — which means an
+ * while a modal is open. The listener runs in capture phase on `window`, so nothing can outrank it, which means an
  * unguarded `Escape` would close this background notice instead of the dialog the user is looking at, and the one
  * keystroke would produce neither result the user expected. `session-activity-card-dismissal.ts` yields to modals the
  * same way for the same reason.

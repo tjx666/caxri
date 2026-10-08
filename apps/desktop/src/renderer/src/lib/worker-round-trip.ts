@@ -26,8 +26,8 @@ export interface WorkerRoundTripOptions {
 const DEFAULT_ROUND_TRIP_TIMEOUT_MS = 2_000;
 
 /**
- * Smallest possible Worker: on receipt it answers twice over two independent return paths — the Worker's own port, and
- * a `BroadcastChannel`. It deliberately does no work of its own, so a missing answer can only mean the path is broken.
+ * Smallest possible Worker: on receipt it answers twice over two independent return paths: the Worker's own port, and a
+ * `BroadcastChannel`. It deliberately does no work of its own, so a missing answer can only mean the path is broken.
  */
 const ECHO_WORKER_SOURCE = `self.onmessage = (event) => {
     try { new BroadcastChannel(event.data.channel).postMessage(event.data.token); } catch {}
@@ -56,11 +56,11 @@ function createEchoWorker(): Worker {
  * renderer and comes back brokered by the browser process. Because the same Worker answers on both in response to the
  * same message, comparing them separates failures that otherwise look identical:
  *
- * - `ok` + `ok` — messaging is healthy; a stalled diff is then the diff computation's own problem.
- * - `no-reply` + `ok` — the Worker started, received the page's message, and answered; only the renderer-internal return
+ * - `ok` + `ok`: messaging is healthy; a stalled diff is then the diff computation's own problem.
+ * - `no-reply` + `ok`: the Worker started, received the page's message, and answered; only the renderer-internal return
  *   path dropped it. This is the exact shape observed in issue #962, where a live window kept losing every Worker reply
  *   while timers, fetch, and same-thread ports all kept working, and only an app restart recovered it.
- * - `no-reply` + `no-reply` — the Worker never ran, or both return paths are gone.
+ * - `no-reply` + `no-reply`: the Worker never ran, or both return paths are gone.
  *
  * Without the contrast, all three collapse into a bare `no-reply` and the next occurrence again needs a debugger
  * attached to a live window.

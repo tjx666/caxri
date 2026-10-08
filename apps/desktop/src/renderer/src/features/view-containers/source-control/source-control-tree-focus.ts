@@ -36,8 +36,8 @@ export function treeRowTabIndex(activeRowId: string | undefined, rowId: string):
 }
 
 /**
- * Whether the tree may claim `key` while focus sits in a text field hosted inside a row — the per-repository commit
- * path filter is the only one.
+ * Whether the tree may claim `key` while focus sits in a text field hosted inside a row: the per-repository commit path
+ * filter is the only one.
  *
  * `treeitem` is not a children-presentational role, so a textbox nested in a row is the one place a text field can
  * legally live inside `role="tree"`. The cost is that the row's navigation keys and the field's editing keys overlap:

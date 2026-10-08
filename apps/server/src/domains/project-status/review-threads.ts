@@ -21,7 +21,7 @@ const MAX_RECORDS = 128;
 const THREAD_PAGE_SIZE = 50;
 
 /**
- * `comments(first: 1)` is the thread's opening comment — the one that states what needs addressing.
+ * `comments(first: 1)` is the thread's opening comment: the one that states what needs addressing.
  *
  * @see https://docs.github.com/en/graphql/reference/objects#pullrequestreviewthread
  */
@@ -83,8 +83,8 @@ interface StoredRecord {
 /**
  * Unresolved review threads per pull request, for the Status panel.
  *
- * Separate from the shared pull-request store because `gh pr view --json` cannot return review threads — only GraphQL
- * exposes `isResolved` — and folding a hand-written GraphQL query into that store would change what the status bar, the
+ * Separate from the shared pull-request store because `gh pr view --json` cannot return review threads: only GraphQL
+ * exposes `isResolved`, and folding a hand-written GraphQL query into that store would change what the status bar, the
  * sidebar sweep, and Source Control pay for a field only the Status panel renders. A failed read is never cached: the
  * pull request goes out without threads for that round, and the next refresh asks again.
  */

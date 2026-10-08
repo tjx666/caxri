@@ -91,7 +91,7 @@ function bootstrapWith(terminal: TerminalRecord): BootstrapState {
 }
 
 /**
- * The follow-up a failed command offers. It is plain data now — a name plus the parameters to replay it with — so the
+ * The follow-up a failed command offers. It is plain data now: a name plus the parameters to replay it with, so the
  * notification center can still offer it long after the toast expired; the tests below assert the offer here and the
  * work it performs by calling the same exported entry point the handler table routes to.
  */

@@ -128,7 +128,7 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
             .count();
         // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes the
         // active tab exactly like it would for any other document, which here is the Settings tab
-        // itself, one fewer `.work-tab` than before — not the Terminal or editor tab underneath it,
+        // itself, one fewer `.work-tab` than before, not the Terminal or editor tab underneath it,
         // the way the old modal-swallowed shortcut used to prove by changing nothing at all.
         await running.page.keyboard.press('Meta+W');
         await expect(settingsTab).toHaveCount(0);

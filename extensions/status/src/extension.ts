@@ -102,9 +102,9 @@ export function activate(context: ExtensionContext): void {
         /**
          * Deliberately no `onDidChangeActiveContext` subscription. The Workbench already rebuilds this View per active
          * Session and re-reads its root on remount, so refreshing here only retired the Host handles the remount was
-         * about to request again — a second round trip whose sole visible effect was making a Session switch look like
-         * a Project Status refetch. Git and Project Status changes, plus the manual refresh command, remain the ways
-         * this tree is invalidated.
+         * about to request again, a second round trip whose sole visible effect was making a Session switch look like a
+         * Project Status refetch. Git and Project Status changes, plus the manual refresh command, remain the ways this
+         * tree is invalidated.
          */
         caxri.workspace.onDidChangeGit(({ scopeId }) => {
             if (scopeId === caxri.workspace.getCurrentContext()?.scopeId)

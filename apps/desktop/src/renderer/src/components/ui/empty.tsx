@@ -3,7 +3,7 @@ import type { ComponentProps } from 'react';
 import { cn } from '@/lib/utilities';
 
 /**
- * Centered placeholder for an secondarySidebar panel or workbench surface with nothing to show yet — an icon, a title,
+ * Centered placeholder for an secondarySidebar panel or workbench surface with nothing to show yet: an icon, a title,
  * and an optional description/action. Replaces the hand-rolled `empty-panel`/`empty-work`/etc. divs that each panel
  * used to compose on its own.
  */

@@ -82,8 +82,8 @@ export const defaultKeybindings: Keybinding[] = [
     /**
      * `Cmd+Option+Arrow` moves keyboard focus between panes, iTerm2 style. `Cmd+K` is the reserved chord prefix and
      * `Cmd+<number>` is taken by the Secondary Side Bar/Panel view-container shortcuts, so neither of VS Code's own
-     * pane-navigation families is free here. `allowInEditable` lets the chord reach through a focused xterm — split
-     * view is otherwise mouse-only while a Terminal owns focus.
+     * pane-navigation families is free here. `allowInEditable` lets the chord reach through a focused xterm: split view
+     * is otherwise mouse-only while a Terminal owns focus.
      */
     { key: 'cmd+alt+arrowleft', command: 'workbench.focusPaneLeft' },
     { key: 'cmd+alt+arrowright', command: 'workbench.focusPaneRight' },
@@ -123,12 +123,12 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+[', command: 'primarySidebar.toggle' },
     /**
      * `Cmd+0` matches VS Code's Focus into Primary Side Bar. Toggling the side bar visible has never moved focus into
-     * it, so before this chord the Session tree was reachable only by Tabbing out of whatever owned focus — and a
+     * it, so before this chord the Session tree was reachable only by Tabbing out of whatever owned focus, and a
      * focused Terminal swallows Tab.
      */
     { key: 'cmd+0', command: 'primarySidebar.focus' },
     /**
-     * `Cmd+Alt+U` matches the chord the Codex desktop app spends on the same idea — swapping its left side bar between
+     * `Cmd+Alt+U` matches the chord the Codex desktop app spends on the same idea: swapping its left side bar between
      * the project tree and the queue of work waiting on you. The `cmd+<number>` run is spoken for by the Secondary Side
      * Bar's containers, and Activity is no longer one of them.
      */

@@ -4,7 +4,7 @@ import { shouldHandOffSessionFocus } from '../session-focus-handoff';
 
 /**
  * Renderer unit tests run without a DOM, and every lookup this policy makes goes through the duck-typed `closest` that
- * `isEditableEventTarget` already relies on — so a focused element is faithfully modelled by the selectors it answers.
+ * `isEditableEventTarget` already relies on, so a focused element is faithfully modelled by the selectors it answers.
  */
 function focused(...matches: string[]): HTMLElement {
     return {

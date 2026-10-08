@@ -11,7 +11,7 @@ import { operatorContext } from '../control-server-support';
  * Stands in for the `ws` `WebSocket` instance during the lease-expiry timer, `ping`, `pong` sequence. `ws` answers a
  * real received ping with a pong automatically at the protocol level (see `probeDesktopLiveness` in
  * `control-server-desktop-lease.ts`), so this fixture only needs to record `ping()` calls and let the test decide when
- * — or whether — a pong "arrives" via `emitPong()`.
+ * (or whether) a pong "arrives" via `emitPong()`.
  */
 interface FakeDesktopSocket {
     readonly OPEN: 1;

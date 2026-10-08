@@ -10,7 +10,7 @@ import { treeRowTabIndex, useSourceControlTreeFocus } from './source-control-tre
 
 /**
  * One `treeitem` of the Source Control tree: a row that participates in the single roving tabindex, in arrow-key
- * navigation, and — when it has actions — in `Shift+F10`.
+ * navigation, and, when it has actions, in `Shift+F10`.
  *
  * Every focusable row in the panel goes through here. Commit rows, `Load more`, and the File History and `Commits`
  * headers used to be plain buttons, which put a Tab stop on each one and left those sections unreachable by the arrow
@@ -32,7 +32,7 @@ export function SourceControlTreeRow({
     /**
      * Rich hover text for a row whose own label is truncated, or whose modifier gestures need naming. Rows pass this
      * instead of `title`: the native tooltip is slow, unstyled, and cannot show the second line. A row that needs its
-     * path readable from the DOM writes `data-path` as well — setting `title` beside this would stack a second, native
+     * path readable from the DOM writes `data-path` as well: setting `title` beside this would stack a second, native
      * tooltip on the same hover.
      */
     tooltip?: ReactNode;
@@ -91,7 +91,7 @@ export function SourceControlTreeRow({
         </button>
     );
     /**
-     * `hoverOnly` because this row is one the app itself focuses — the tree moves focus between rows programmatically
+     * `hoverOnly` because this row is one the app itself focuses: the tree moves focus between rows programmatically
      * through its roving `tabIndex`, and a focus-opened tooltip would pop up on every arrow-key step. The tooltip's
      * text is the resource path, which is already this row's accessible name, so a screen reader still hears it.
      */
