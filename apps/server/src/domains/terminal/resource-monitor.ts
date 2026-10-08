@@ -1,3 +1,5 @@
+import process from 'node:process';
+
 import type {
     ServerEvent,
     SessionRecord,
@@ -10,6 +12,14 @@ import type { ProcessTable, ProcessTreeUsage, StructuredLogger } from '@caxri/sy
 import { logEventCatalog, sampleProcessTable } from '@caxri/system';
 
 import type { WatchHandle, WatchHub } from '../watch-hub';
+import type {
+    E2ETerminalResourceOverride,
+    TerminalResourceReadingOverride,
+} from './e2e-resource-override';
+import {
+    applyTerminalResourceOverride,
+    resolveE2ETerminalResourceOverride,
+} from './e2e-resource-override';
 import type { TerminalManager } from './manager';
 
 const TERMINAL_RESOURCE_SAMPLE_INTERVAL_MS = 10_000;
@@ -31,6 +41,11 @@ interface TerminalResourceMonitorOptions {
     sampleProcessTable?: () => Promise<ProcessTable>;
     send: (event: ServerEvent) => void;
     terminals: Pick<TerminalManager, 'processId'>;
+    /**
+     * E2E-only injected readings and sample cadence; see `e2e-resource-override.ts`. Defaults to the seam resolved from
+     * the process environment, which is absent outside an explicit E2E launch.
+     */
+    usageOverride?: E2ETerminalResourceOverride;
     watchHub: Pick<WatchHub, 'registerPoller'>;
 }
 
@@ -55,8 +70,20 @@ interface AlertState {
 export class TerminalResourceMonitor {
     private poller?: WatchHandle;
     private readonly states = new Map<string, AlertState>();
+    private readonly usageOverride: E2ETerminalResourceOverride | undefined;
 
-    constructor(private readonly options: TerminalResourceMonitorOptions) {}
+    constructor(private readonly options: TerminalResourceMonitorOptions) {
+        this.usageOverride =
+            options.usageOverride ?? resolveE2ETerminalResourceOverride(process.env);
+    }
+
+    /**
+     * The injected reading for one Terminal, so the `terminal.resources` status bar query and this monitor's alert are
+     * driven by the same value. Always `undefined` outside an explicit E2E launch.
+     */
+    readingOverride(terminalId: string): Promise<TerminalResourceReadingOverride | undefined> {
+        return this.usageOverride?.read(terminalId) ?? Promise.resolve(undefined);
+    }
 
     private raise(state: AlertState, usage: ProcessTreeUsage): void {
         state.alertedAt = this.now();
@@ -126,7 +153,10 @@ export class TerminalResourceMonitor {
 
     start(): void {
         this.poller = this.options.watchHub.registerPoller({
-            intervalMs: this.options.intervalMs ?? TERMINAL_RESOURCE_SAMPLE_INTERVAL_MS,
+            intervalMs:
+                this.options.intervalMs ??
+                this.usageOverride?.intervalMs ??
+                TERMINAL_RESOURCE_SAMPLE_INTERVAL_MS,
             label: 'terminal-resource-monitor',
             pollOnce: () => this.sample(),
         });
@@ -144,10 +174,17 @@ export class TerminalResourceMonitor {
             });
             return;
         }
+        const { usageOverride } = this;
+        const overrides = usageOverride
+            ? await Promise.all(running.map((entry) => usageOverride.read(entry.terminalId)))
+            : [];
         const seen = new Set<string>();
-        for (const entry of running) {
+        for (const [index, entry] of running.entries()) {
             seen.add(entry.terminalId);
-            const usage = table.usage(entry.processId);
+            const usage = applyTerminalResourceOverride(
+                table.usage(entry.processId),
+                overrides[index],
+            );
             const state = this.states.get(entry.terminalId) ?? { entry, highSamples: 0 };
             state.entry = entry;
             if (usage && isTerminalResourceUsageHigh(usage)) {
