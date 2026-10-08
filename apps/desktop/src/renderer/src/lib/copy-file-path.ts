@@ -10,8 +10,8 @@ import { projectRelativePath } from './file-path';
  * sitting in. A submodule or nested repository deliberately does not get its own base: the two menus used to disagree
  * for exactly those files, the tree reporting `packages/sub/src/a.ts` where the tab reported `src/a.ts`.
  *
- * `repoRootPath` is only a fallback for a resource with no Project-relative path at all — a Git tab opened from a
- * linked repository outside the Project — where measuring from the Project root would produce nothing to copy.
+ * `repoRootPath` is only a fallback for a resource with no Project-relative path at all (a Git tab opened from a linked
+ * repository outside the Project), where measuring from the Project root would produce nothing to copy.
  *
  * @param absolutePath Authorized filesystem path being copied.
  * @param projectRoot Selected Workbench Project root, when one is loaded.

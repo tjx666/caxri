@@ -4,7 +4,7 @@
  * caller.
  *
  * The console text itself is never logged. This is the one log field in the app that no call site controls: it forwards
- * whatever any Renderer code — Monaco, xterm, React internals, a third-party module — happened to print at error level,
+ * whatever any Renderer code (Monaco, xterm, React internals, a third-party module) happened to print at error level,
  * and `desktop.jsonl` is copied verbatim into the diagnostics export, returned by `logs.query`, and collected as an E2E
  * artifact. The structured logger's redaction is a credential-shape matcher (`sk-`, `Bearer`, `ghp_`, `key=value`, the
  * home directory); it cannot recognize source text, Terminal output, or an Agent transcript, so it is not a

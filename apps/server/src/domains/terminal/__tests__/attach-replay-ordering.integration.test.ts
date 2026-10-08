@@ -48,7 +48,7 @@ afterEach(async () => {
 /**
  * Companion to `terminal.integration.test.ts`'s "does not replay queued live output after returning it in an attachment
  * snapshot", which re-attaches while the batch is still queued. Here the 16 ms flush timer runs first, so the batch has
- * already left as live output before the re-attach starts — the other half of issue #740's ordering.
+ * already left as live output before the re-attach starts: the other half of issue #740's ordering.
  *
  * This characterizes the Terminal Host engine, which `createTestTerminalManager` reaches through the in-process
  * `LocalTerminalExecution` adapter. It is deliberately not the guard for #740's Server Core fix: that window only

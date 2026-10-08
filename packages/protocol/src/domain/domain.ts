@@ -594,8 +594,8 @@ export const previewAssetMediaTypes = [
 export const previewAssetMediaTypeSchema = z.enum(previewAssetMediaTypes);
 
 /**
- * One image read for a preview surface. Carried as base64 over the ordinary request channel so every client — Renderer
- * today, a mobile client later — reaches it the same way, without an Electron-only protocol handler.
+ * One image read for a preview surface. Carried as base64 over the ordinary request channel so every client (Renderer
+ * today, a mobile client later) reaches it the same way, without an Electron-only protocol handler.
  */
 export const fileAssetSchema = z.object({
     path: pathSchema,
@@ -690,7 +690,7 @@ export function isPinnedSession(session: Pick<SessionRecord, 'pinnedAt'>): boole
 
 /**
  * Order inside the Pinned group. `pinnedOrder` is only written by a drag, so a Session pinned and never moved falls
- * back to when it was pinned — newest last, which is where the group appended it.
+ * back to when it was pinned: newest last, which is where the group appended it.
  */
 export function compareSessionPinnedOrder(left: SessionRecord, right: SessionRecord): number {
     return (

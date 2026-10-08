@@ -103,7 +103,7 @@ export function cancelTreeChildrenRequest(requestId: string): void {
 
 /**
  * Restores the branches this scope last loaded. Mounting a tree with the previous result already in hand is what keeps
- * switching back to a Session from rebuilding the whole view from an empty state — the mount still revalidates the root
+ * switching back to a Session from rebuilding the whole view from an empty state; the mount still revalidates the root
  * immediately, so the restored tree is only ever shown while the fresh one is in flight.
  */
 export function readCachedTreeChildren(

@@ -4,10 +4,10 @@ import { isTopLevelProject } from '@caxri/protocol';
 /**
  * The Projects a Project list renders as top-level entries, in their incoming order.
  *
- * Used by the PrimarySidebar tree and by the Command Palette's Projects group — the two surfaces where picking an
+ * Used by the PrimarySidebar tree and by the Command Palette's Projects group: the two surfaces where picking an
  * auto-registered worktree Project is meaningless, because it can never own a Session. Every consumer that needs the
- * authorization list — Session creation, the MRU switcher, the archived-Sessions dialog, bug reports, the Command
- * Palette's Sessions group, and the Workbench Root picker — keeps reading the full list.
+ * authorization list (Session creation, the MRU switcher, the archived-Sessions dialog, bug reports, the Command
+ * Palette's Sessions group, and the Workbench Root picker) keeps reading the full list.
  */
 export function topLevelProjects(projects: readonly ProjectRecord[]): ProjectRecord[] {
     return projects.filter((project) => isTopLevelProject(project));

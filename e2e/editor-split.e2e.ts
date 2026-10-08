@@ -56,7 +56,7 @@ function paneFilePaths(node: BootstrapPaneNode): string[] {
 
 /**
  * Opens `name` from the file tree and pins it (double-clicking its Work tab), so it survives the next file open instead
- * of being replaced in the single preview slot — mirrors the open+pin sequence in `editor-tabs.e2e.ts`.
+ * of being replaced in the single preview slot, mirrors the open+pin sequence in `editor-tabs.e2e.ts`.
  */
 async function openAndPinFile(page: Page, name: string): Promise<Locator> {
     await page.getByRole('treeitem', { name, exact: true }).click();
@@ -71,7 +71,7 @@ async function openAndPinFile(page: Page, name: string): Promise<Locator> {
  * a tab onto one of `pane-view.tsx`'s four edge drop zones. Geometry itself (which edge a given point resolves to) is
  * covered by the `resolvePaneDropZone` unit tests in
  * `apps/desktop/src/renderer/src/features/workbench/__tests__/pane-drop-zone.test.ts`; this only proves the DOM wiring
- * — dragstart on the tab, dragover/drop on the target pane's surface — actually reaches `splitPaneTab`/`movePaneTab`.
+ * (dragstart on the tab, dragover/drop on the target pane's surface) actually reaches `splitPaneTab`/`movePaneTab`.
  */
 async function dragWorkTabToPaneZone(
     page: Page,

@@ -19,12 +19,12 @@ interface CachedFailure {
 /**
  * True when `projectRoot` has no `.git` entry, which is the structural half of a discovery failure. A Session's root
  * only passes discovery when the topology reports it as a repository root, and an ordinary repository root carries
- * `.git` directly — a directory for a normal clone, a file for a linked worktree or submodule. A subdirectory of a
+ * `.git` directly: a directory for a normal clone, a file for a linked worktree or submodule. A subdirectory of a
  * repository fails discovery for the same reason and is equally not recoverable by retrying.
  *
  * A bare repository is the one shape that has no `.git` and is still a valid worktree root to `git`. It also fails
  * Caxri discovery, because `git status` cannot run without a work tree, and suppressing its retries is the desired
- * outcome — so the probe reaches the right answer there for a reason this rule does not name.
+ * outcome, so the probe reaches the right answer there for a reason this rule does not name.
  */
 export async function isMissingRepoRoot(projectRoot: string): Promise<boolean> {
     try {
@@ -36,17 +36,17 @@ export async function isMissingRepoRoot(projectRoot: string): Promise<boolean> {
 }
 
 /**
- * Suppresses rediscovery for Project roots that have no `.git` entry at all. Both polling sources — the sidebar and the
- * per-Session refresh — otherwise spawn `git` twice per tick forever, because nothing in the failure path ever stops
+ * Suppresses rediscovery for Project roots that have no `.git` entry at all. Both polling sources (the sidebar and the
+ * per-Session refresh) otherwise spawn `git` twice per tick forever, because nothing in the failure path ever stops
  * being retried and no event announces that the directory came back.
  *
  * This is a narrow exception to the rule in `status.ts` that a failed production must not pin the store entry. That
- * rule protects transient failures — a Git index being written, a briefly locked file — where an immediate retry is the
+ * rule protects transient failures (a Git index being written, a briefly locked file) where an immediate retry is the
  * correct response, and it is preserved here unchanged: a root that still has `.git` is never remembered, including one
  * that currently fails only the approved-root check. A root with no `.git` cannot become a repository through a retry.
  *
  * Entries are keyed by canonical root path rather than Session, because a failing summary drops the Session's
- * generation and the next call allocates a new one — and therefore a new single-flight key. That churn is exactly why
+ * generation and the next call allocates a new one, and therefore a new single-flight key. That churn is exactly why
  * nothing deduplicated this before.
  *
  * The cached failure message is the one the failing summary actually produced, never a message this module composes.

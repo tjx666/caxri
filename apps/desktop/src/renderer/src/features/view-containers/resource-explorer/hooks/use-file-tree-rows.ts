@@ -51,8 +51,8 @@ function isSameList(left: readonly string[], right: readonly string[]): boolean 
  * the loaded tree. Hidden keep-alive panels keep that cache on screen and pause the listings until Files is selected
  * again.
  *
- * Which directories to request depends on the listings already loaded — a folder is only requested once its parent
- * listing contains it — so the requested set converges one level per render pass, all before commit.
+ * Which directories to request depends on the listings already loaded: a folder is only requested once its parent
+ * listing contains it, so the requested set converges one level per render pass, all before commit.
  */
 export function useFileTreeRows({
     composingDirectory,

@@ -245,7 +245,7 @@ test('SecondarySidebar and Settings share accessible moving chrome tabs', async 
         );
         /**
          * Settings now apply immediately (`f4dfe59`): a field commits straight to disk as it changes, with no
-         * draft/Apply step and no per-tab dirty badge for the chrome tab to grow around — `[data-dirty="true"]` no
+         * draft/Apply step and no per-tab dirty badge for the chrome tab to grow around; `[data-dirty="true"]` no
          * longer exists anywhere in the DOM. The regression this sub-case protects is the new contract instead: editing
          * a field must persist without an explicit Apply affordance, and the moving indicator must keep tracking the
          * (visually unchanged) tab through that write rather than drifting or losing alignment.

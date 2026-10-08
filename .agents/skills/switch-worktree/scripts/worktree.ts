@@ -99,7 +99,7 @@ export interface DevelopmentLaunchOptions {
     command?: string;
     /**
      * Invoked once the CDP port and profile are resolved and durably recorded, before the (long running) child process
-     * exits — the CLI's only chance to report the port used this run. See issue caxri#1016.
+     * exits: the CLI's only chance to report the port used this run. See issue caxri#1016.
      */
     onLaunch?: (info: DevelopmentLaunchInfo) => void;
     stdoutToStderr?: boolean;
@@ -337,8 +337,8 @@ async function upstreamCounts(
 }
 
 /**
- * Stops everything this worktree started — the recorded development launcher with its whole subtree, the detached
- * Server Core and Extension Host, and any Electron left behind by an interrupted E2E run — and nothing else.
+ * Stops everything this worktree started (the recorded development launcher with its whole subtree, the detached Server
+ * Core and Extension Host, and any Electron left behind by an interrupted E2E run) and nothing else.
  *
  * This command exists because the alternative agents reach for is a name match. `pkill -f "Caxri.app"` reads as "this
  * checkout's app" and is in fact "every Caxri on the machine": on 2026-09-11 it terminated the installed
@@ -736,8 +736,8 @@ export async function developmentWorktree(
         if (existing && (await isProcessIdentityAlive(existing.pid, existing.identity))) {
             throw new CommandError(`Development instance already running with PID ${existing.pid}`);
         }
-        // `context.stateDir` (and so this lock) is shared by every worktree of the repository — see
-        // `repoContext` — so resolving the port here, rather than before the lock, keeps two
+        // `context.stateDir` (and so this lock) is shared by every worktree of the repository (see
+        // `repoContext`), so resolving the port here, rather than before the lock, keeps two
         // simultaneous `dev` launches for different worktrees from racing the same OS-level probe.
         // An explicit `CAXRI_DEV_CDP_PORT` the caller already set (e.g. `audit-ux`'s render-layer
         // tooling pinning a fixed port) wins over the derived one instead of being silently replaced.

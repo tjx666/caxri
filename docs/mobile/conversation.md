@@ -24,8 +24,8 @@ writes a guessed key into the PTY. Other providers continue to require Terminal 
 Permission cards offer **Allow once**, **Deny**, and, for a `control` device only, **Always allow in
 this Session**. The third action tells the Server to auto-answer every later permission request in
 the current Session with `allow`, without waiting for a card or the native prompt; the card states
-this in text before the device taps it. The grant covers permission requests only — question
-requests are never auto-answered, no matter the Session's grant state — and it applies even while no
+this in text before the device taps it. The grant covers permission requests only; question
+requests are never auto-answered, no matter the Session's grant state, and it applies even while no
 phone is online, so a Session left unattended does not stall on the native Claude prompt. The grant
 is Server in-memory only and ends when the Session is deleted (not archived) or the Agent Terminal
 launch restarts; it is never persisted and never survives a Server restart. A granted Session shows
@@ -83,8 +83,8 @@ A provider CLI sometimes writes harness-injected content into what is otherwise 
 of text the reader typed: a background task notification, a `/command` echo (with its local stdout
 and any caveat), a `!`-prefixed bash-mode echo, or a standalone caveat. The Server recognizes these
 by their tags (`<task-notification>`, `<command-name>`/`<command-message>`, `<bash-input>`,
-`<local-command-caveat>`) and projects them as a `systemEvent` item — `kind` is one of
-`taskNotification`, `slashCommand`, `bashCommand`, or `caveat` — instead of a raw `userMessage`, so
+`<local-command-caveat>`) and projects them as a `systemEvent` item (`kind` is one of
+`taskNotification`, `slashCommand`, `bashCommand`, or `caveat`) instead of a raw `userMessage`, so
 the mobile reader sees "ran `/compact`" rather than the literal envelope. A turn made of only a
 `<system-reminder>` block is not classified into any kind; it is stripped to empty text upstream and
 the empty item is dropped, so it never reaches the timeline at all.

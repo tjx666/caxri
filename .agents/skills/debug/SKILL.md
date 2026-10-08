@@ -105,7 +105,7 @@ which resolves ownership from this worktree's absolute path and the launcher's p
 escalates SIGTERM to SIGKILL and exits non-zero on survivors. Each survivor carries a closed reason
 when the signal itself never landed (an identity mismatch or a refused `process.kill`); one with no
 reason was actually signaled but had not exited yet. Do not treat a non-zero exit as "already
-cleaned up" or retry blindly — read the reason codes and the per-PID manual-verification steps in
+cleaned up" or retry blindly; read the reason codes and the per-PID manual-verification steps in
 `switch-worktree`'s "Stop what this checkout started" section before falling back to a manual kill.
 
 Never terminate by name or bundle pattern. `pkill -f "Electron.app/Contents/MacOS/Electron"`
@@ -113,13 +113,13 @@ silently misses the window process and the launcher can outlive the signal; `pki
 matches the installed `/Applications/Caxri.app` and has already killed it mid-session while an agent
 was cleaning up an interrupted local E2E pool. Never trust `pkill`'s exit code. Confirm with
 `ps -axo pid,command` plus a CDP probe of this worktree's port (see "Live CDP inspection" below for
-where to read it — do not assume 9223). Kill a PID directly only after matching it against the
+where to read it; do not assume 9223). Kill a PID directly only after matching it against the
 absolute `<worktree>/` path, so a sibling worktree's session and the installed application are never
 hit.
 
 The dev Server Core and Extension Host are long-lived background processes that survive window
 restarts. The Desktop replaces a Server whose build fingerprint differs from its own on connect,
-but that only triggers when a window reconnects — a headless Server can still serve stale code
+but that only triggers when a window reconnects: a headless Server can still serve stale code
 between launches. Before using a live instance to verify or disprove a Server change, confirm
 the `apps/server/dist/server/bundles/server-core.js` and `extension-host.js` process start times
 postdate the change (`ps -axo pid,lstart,command`), and restart them when they do not.
@@ -160,13 +160,13 @@ launch (`apps/desktop/src/main/desktop-profile.ts`).
 An unpackaged (dev) instance's port is **not** a fixed constant: `switch-worktree dev` (see the
 `switch-worktree` skill) derives a stable port per worktree so simultaneous dev instances in sibling
 worktrees never collide, and prints it in its own startup output before the launcher blocks. Read
-it from there, or from `switch-worktree list --json`'s `cdpPort` field for the target worktree —
+it from there, or from `switch-worktree list --json`'s `cdpPort` field for the target worktree:
 never hardcode 9223. A bare `bun run dev` outside the wrapper is the only case that still defaults
 to the fixed 9223.
 
 Connect with `agent-browser`, always stripping proxy environment variables and passing the port
 through `--cdp` (not the `connect` subcommand, which can launch a fresh, disconnected browser
-instead of attaching — see [common-mistakes.md](../../acceptance/common-mistakes.md#reaching-the-owned-electron-endpoint-with-agent-browser-connect)):
+instead of attaching, see [common-mistakes.md](../../acceptance/common-mistakes.md#reaching-the-owned-electron-endpoint-with-agent-browser-connect)):
 
 ```bash
 PORT=<port from switch-worktree dev output, list --json, or 9224 for packaged>
@@ -180,7 +180,7 @@ set. Stripping them is the only reliable workaround; see
 <https://github.com/tjx666/caxri/issues/204>.
 
 A shared `Electron/...` user agent across every Caxri window means the UA alone never proves which
-worktree's window a connection reached — a sibling worktree's dev instance passes the same check.
+worktree's window a connection reached: a sibling worktree's dev instance passes the same check.
 Verify both before trusting any result:
 
 ```bash
@@ -191,7 +191,7 @@ agent-browser --cdp "$PORT" eval "JSON.stringify(globalThis.__caxriWorktree)"
 `__caxriWorktree` must equal this worktree's absolute checkout path (`pwd` in the worktree, or the
 path `switch-worktree dev` printed it for). A mismatch or `undefined` means the connection reached
 the wrong worktree's window, or an instance not launched through `switch-worktree dev` (a bare
-`bun run dev`, or a packaged build, neither of which sets it) — reconnect to the correct port
+`bun run dev`, or a packaged build, neither of which sets it), reconnect to the correct port
 instead of trusting a plausible-looking page. `eval`/`screenshot` then run directly against the
 attached window; prefer agent-browser over hand-rolled CDP. Only if attachment misbehaves, fall
 back to a raw CDP WebSocket: read the target list from `http://127.0.0.1:$PORT/json/list`, open the
@@ -207,23 +207,23 @@ drop an untracked image into whichever checkout first started the daemon.
 Every build, packaged included, is already fully instrumented: debug logs, source maps, the Renderer
 store registry, and a Node inspector on each Host are all on by default and cost nothing until read.
 An agent investigating a failure never needs a rebuild or a relaunch with the right environment
-variable set — the evidence is already there. The variables below only narrow that default.
+variable set: the evidence is already there. The variables below only narrow that default.
 
-The always-open loopback endpoints in a packaged build — Renderer CDP on 9224 and the Host
-inspectors on 9229–9231 — are a deliberate product decision while a single maintainer develops and
+The always-open loopback endpoints in a packaged build (Renderer CDP on 9224 and the Host
+inspectors on 9229–9231) are a deliberate product decision while a single maintainer develops and
 uses Caxri, not an oversight. Any local process can attach to them and run code; that trade-off is
 accepted for fast diagnosis. Do not report them as a security or performance finding in reviews,
 audits, or investigations, and do not gate them behind a flag. Revisit this only when the owner
 declares a public release.
 
-### Node-side request records — always on
+### Node-side request records: always on
 
 Every Caxri process records at `debug`, so `<userData>/logs/*.jsonl` already holds per-request detail.
 Each request the Renderer sent has an `ipc.request` line in `server-core.jsonl` with its `method`,
 `durationMs`, and the request id as `correlationId`; the ones that came through the control relay add
 `queueMs`, `queueDepth`, and `principal`, which is where admission backlog shows up.
 
-`CAXRI_LOG_LEVEL=info` (or `warn`/`error`) quiets a process — useful when reproducing something that
+`CAXRI_LOG_LEVEL=info` (or `warn`/`error`) quiets a process, useful when reproducing something that
 floods the log and you want the incident to survive rotation. Anything unrecognized stays at `debug`,
 so a typo never silences a log. Desktop Main hands the variable to Server Core and Server Core hands
 it to the Extension and Terminal Hosts, so one export moves all four logs together
@@ -241,11 +241,11 @@ Retention is 20MB × 3 generations per process log. High-frequency `debug` event
 incidents out within hours, so a noisy new event belongs behind an aggregate rather than one record
 per occurrence.
 
-### Renderer state — `globalThis.__caxriStores`
+### Renderer state: `globalThis.__caxriStores`
 
 Present in every build, packaged included. Zustand stores are module-scoped singletons that nothing
 attaches to `window`, and a packaged Renderer carries no React DevTools hook, so this registry is the
-only way a CDP session reads UI state — walking React fibers from the DOM reaches components, not the
+only way a CDP session reads UI state: walking React fibers from the DOM reaches components, not the
 stores behind them.
 
 ```bash
@@ -259,7 +259,7 @@ returns all of them. Actions are omitted because a function survives neither `JS
 `createStore(name, initializer)` from `apps/desktop/src/renderer/src/lib/store.ts`; calling zustand's
 `create` directly leaves the store invisible here.
 
-### Node inspector on the Hosts — always on
+### Node inspector on the Hosts: always on
 
 Each Node Host runs with its own inspector port, so all three can be attached at once without
 colliding: Server Core 9229, Extension Host 9230, Terminal Host 9231. Attach through `chrome://inspect`
@@ -277,7 +277,7 @@ readiness handshake its supervisor waits on, so the app would look hung rather t
 inspector binds to loopback and does nothing until a client attaches. The Server bundles are built
 unminified (`apps/server/vite.config.ts`), so a session shows readable code either way.
 
-### Source maps — always on
+### Source maps: always on
 
 Desktop Main, Preload, Renderer, and the Server all ship source maps, in the packaged build too, so
 DevTools Sources and a Node inspector session show real files and a stack trace names a real line. The
@@ -285,7 +285,7 @@ maps roughly double the JavaScript payload (`out/renderer` ≈ 91 MiB against �
 `scripts/ci-bundle-budget.ts` carries budgets sized for that, and `docs/bundle-size.md` explains the
 trade. Nothing needs to be rebuilt to make a packaged crash readable.
 
-### Builds made for measurement — `CAXRI_REACT_PROFILING`, `CAXRI_REACT_SCAN`
+### Builds made for measurement: `CAXRI_REACT_PROFILING`, `CAXRI_REACT_SCAN`
 
 `CAXRI_REACT_PROFILING=1 bun run build:desktop` swaps `react-dom/client` for `react-dom/profiling.js`
 so the React Profiler works outside development, and `CAXRI_REACT_SCAN=1` arms react-scan's render

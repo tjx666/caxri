@@ -416,8 +416,8 @@ describe('Session navigation requests', () => {
     });
 
     /**
-     * The Server switches Sessions on its own — an archived current Session, a Terminal moved to a new Session — and
-     * that snapshot arrives while a dispatched selection is still settling, where it is ignored as that selection's own
+     * The Server switches Sessions on its own (an archived current Session, a Terminal moved to a new Session) and that
+     * snapshot arrives while a dispatched selection is still settling, where it is ignored as that selection's own
      * echo. The Session id never changes again, so the settlement is the only chance left to record where the Workbench
      * really ended up.
      */

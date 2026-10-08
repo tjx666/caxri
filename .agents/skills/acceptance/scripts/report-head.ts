@@ -51,7 +51,7 @@ export function rebindReportDocument(raw: unknown, input: RebindReportHeadInput)
     const report = reportHeadSchema.parse(raw);
     /**
      * `summary` is the only marker of a finalized round, and finalization is a pure local recompute from the unchanged
-     * cases — publication to LobeHub is the irreversible boundary, not this. So a finalized but unpublished round may
+     * cases: publication to LobeHub is the irreversible boundary, not this. So a finalized but unpublished round may
      * still follow a non-product head, provided the delta is machine-checked. Its derived `summary` is dropped so the
      * round cannot be published until the caller re-finalizes against the new head.
      */

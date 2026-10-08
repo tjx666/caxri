@@ -28,7 +28,7 @@ export function SessionRenameInput({
         <>
             {/*
              * The input replaces the 20px title line inside a `flex-col`, so `flex-1` there would set a zero flex-basis
-             * along the column and crush `h-6` to the line height — shrinking the whole row mid-rename. Instead it
+             * along the column and crush `h-6` to the line height, shrinking the whole row mid-rename. Instead it
              * keeps its 24px box and bleeds 2px into the card's `py-1` on each side, and 5px (padding + border) to the
              * left so the edited text sits exactly where the title was: the row neither shrinks nor grows, and the
              * text does not jump. Size and weight match `.session-title` for the same reason.
@@ -47,8 +47,8 @@ export function SessionRenameInput({
                 onDoubleClick={(event) => event.stopPropagation()}
                 onKeyDown={(event) => {
                     /*
-                     * While an IME is composing, Enter and Escape belong to the candidate window — Enter accepts the
-                     * highlighted candidate, Escape abandons the composition — and the browser dispatches them here
+                     * While an IME is composing, Enter and Escape belong to the candidate window: Enter accepts the
+                     * highlighted candidate, Escape abandons the composition, and the browser dispatches them here
                      * anyway. Committing the rename on that Enter ended the rename on the keystroke the user meant to
                      * finish typing Chinese with, before the accepted text had even reached the input. `isComposing`
                      * is the spec's signal for this; `keyCode === 229` covers the same keystroke on the engines that

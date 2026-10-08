@@ -176,7 +176,7 @@ const editorWorkerCountSchema = z.number().int().nonnegative().max(1_000_000);
 
 /**
  * Monaco computes every diff in a Web Worker and the Renderer only paints the answer, so a Worker that stops replying
- * renders as a diff with no highlights, no alignment fillers, and two independently scrolling panes — with nothing
+ * renders as a diff with no highlights, no alignment fillers, and two independently scrolling panes, with nothing
  * logged anywhere. This diagnostic turns that silent wait into a record: how long the diff waited, whether a minimal
  * echo Worker could still round-trip at that moment (which separates "Monaco's Worker died" from "this renderer stopped
  * delivering Worker messages at all"), and whether the diff eventually arrived after the stall was reported.
@@ -190,7 +190,7 @@ export const editorWorkerStallDiagnosticSchema = z.strictObject({
     surface: z.literal('git-diff'),
     /**
      * `timeout` when the diff missed its budget, `recovered` when a previously reported stall produced its diff after
-     * all on the _original_ Worker. Recording the transition — not only the failing state — is what makes a transient
+     * all on the _original_ Worker. Recording the transition, not only the failing state, is what makes a transient
      * stall distinguishable from a Worker that never comes back.
      *
      * `worker-recreated` is the active counterpart to `recovered`: the surface gave up waiting on the stalled Worker,
@@ -206,7 +206,7 @@ export const editorWorkerStallDiagnosticSchema = z.strictObject({
      * The same probe Worker answers a second time over a `BroadcastChannel`, which leaves the renderer and returns
      * brokered by the browser process. Read against `workerRoundTrip`, it separates three failures that otherwise look
      * identical: a Worker that never ran (both silent), a renderer that lost only its internal return path (`no-reply`
-     * here but `ok` on the broadcast — the shape seen in issue #962), and healthy messaging with a slow diff (both
+     * here but `ok` on the broadcast: the shape seen in issue #962), and healthy messaging with a slow diff (both
      * `ok`).
      */
     workerBroadcast: z.enum(['no-reply', 'ok', 'skipped', 'unsupported']),

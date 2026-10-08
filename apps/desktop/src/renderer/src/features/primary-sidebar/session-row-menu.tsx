@@ -137,14 +137,14 @@ async function sessionRowMenu({
     );
     /**
      * Both copy entries read the Agent's durable identity, which only exists once the provider has created a
-     * conversation — a Session whose Agent has not been bound yet has nothing to put on the clipboard.
+     * conversation: a Session whose Agent has not been bound yet has nothing to put on the clipboard.
      */
     const boundAgentSessionId = primaryTerminal?.agentSessionId;
     const isAutoAllowGranted = await isPermissionAutoAllowGranted(session.id);
     return [
         /**
          * Rename's hint is read from the live keybinding table now that `session.rename` is a real command. Archive
-         * keeps a literal on purpose: `Delete` is a tree key, not a keybinding — it archives the row focus is on, which
+         * keeps a literal on purpose: `Delete` is a tree key, not a keybinding; it archives the row focus is on, which
          * is not necessarily the selected Session, so it cannot become a command binding without changing which Session
          * it would take.
          */
@@ -165,7 +165,7 @@ async function sessionRowMenu({
         },
         /**
          * Pin has no key hint: it is neither a tree key nor a catalog command, because it acts on the clicked row
-         * rather than the selected Session — the same reason Archive keeps a literal instead of a binding.
+         * rather than the selected Session; the same reason Archive keeps a literal instead of a binding.
          */
         {
             label: pinned ? 'Unpin Session' : 'Pin Session',

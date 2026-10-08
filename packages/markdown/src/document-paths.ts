@@ -62,7 +62,7 @@ export interface DocumentLocation {
  * Resolves one relative or root-relative link target to an absolute path inside the Project root.
  *
  * Returns `undefined` for external URLs, empty targets, and anything that escapes the root. The Server re-authorizes
- * every read, so this is defense in depth rather than the only gate — but resolving an escaping path here would put a
+ * every read, so this is defense in depth rather than the only gate, but resolving an escaping path here would put a
  * path the user cannot open into the rendered document.
  */
 export function resolveDocumentTarget(

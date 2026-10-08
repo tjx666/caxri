@@ -86,8 +86,8 @@ const filesCoreCommands = [
  *
  * Annotated rather than `as const satisfies` because consumers flatten it: once a literal tuple holds structurally
  * different entries, `flatMap(({ views }) => views)` infers a union of tuples that TypeScript will not widen back into
- * one array, so `apps/server/src/core/extensions/catalog.ts` fails to compile. Nothing needs the literal precision here
- * — every consumer reads these as plain descriptor arrays.
+ * one array, so `apps/server/src/core/extensions/catalog.ts` fails to compile. Nothing needs the literal precision
+ * here: every consumer reads these as plain descriptor arrays.
  */
 export const workbenchCoreContributions: readonly WorkbenchCoreContribution[] = [
     {

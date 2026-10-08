@@ -112,7 +112,7 @@ function replaceNode(
 }
 
 /**
- * Drops a tab and, when that empties a pane, the pane itself — its sibling takes the whole split. The last remaining
+ * Drops a tab and, when that empties a pane, the pane itself: its sibling takes the whole split. The last remaining
  * pane always survives as the empty Workbench so every command still has somewhere to open into.
  */
 function removeTabFromNode(node: PaneLayoutNode, tabId: string): PaneLayoutNode | undefined {
@@ -165,7 +165,7 @@ interface OpenResourceOptions {
     paneId?: string;
     /**
      * Force a new occurrence even though the resource is already open in the target pane. Only repeatable resources
-     * honor it — a Terminal has one PTY and therefore one tab.
+     * honor it, a Terminal has one PTY and therefore one tab.
      */
     duplicate?: boolean;
     preview?: boolean;
@@ -194,7 +194,7 @@ export function openResource(
     if (existing.length > 0 && !isRepeatablePaneResource(resource))
         return selectTab(layout, existing[0].tab.id);
     /**
-     * A preview tab is a slot, not a stack: the next preview takes over the existing one in place — same position, same
+     * A preview tab is a slot, not a stack: the next preview takes over the existing one in place: same position, same
      * tab id. Reusing the id is what keeps the slot's DOM node, focus, and enter/exit animation identity stable, so
      * previewing file after file swaps a label instead of destroying and recreating a tab each time.
      */
@@ -406,7 +406,7 @@ export type PaneTabCloseMode = 'all' | 'editors' | 'one' | 'others' | 'right';
 /**
  * Bulk closes stay inside the anchor's pane, and the family they span depends on what the anchor holds.
  *
- * A document anchor is scoped to documents, so an editor action can never terminate a Terminal — losing a running agent
+ * A document anchor is scoped to documents, so an editor action can never terminate a Terminal: losing a running agent
  * to a stray "Close All" is not recoverable. A Terminal anchor spans the whole rail instead: a pane typically holds a
  * single Terminal beside several documents, and scoping its family to Terminals left "Close Others" and "Close to the
  * Right" permanently disabled with nothing on screen explaining why. Closing a document from a Terminal's menu is cheap
@@ -443,7 +443,7 @@ export function closeTabs(layout: PaneLayout, tabIds: readonly string[]): PaneLa
 /**
  * Rewrites document paths after a Project root move. Terminal occurrences carry no path and are left untouched.
  *
- * A Replace can remap two occurrences in the same pane onto the same target path — the moved file and a file already
+ * A Replace can remap two occurrences in the same pane onto the same target path: the moved file and a file already
  * open at the destination. The schema forbids a pane from listing one resource twice, so occurrences are merged
  * deterministically: the earliest tab in tree order survives, later ones are dropped, and a dropped active tab hands
  * activation to its survivor.
@@ -499,8 +499,8 @@ export function resizeSplit(layout: PaneLayout, splitId: string, ratio: number):
 }
 
 /**
- * The four directions keyboard pane-focus movement travels. Shares its vocabulary with {@link PaneSplitSide} — both
- * describe one of the tree's two axes — but is kept as its own type since a focus move never creates a pane the way a
+ * The four directions keyboard pane-focus movement travels. Shares its vocabulary with {@link PaneSplitSide} (both
+ * describe one of the tree's two axes) but is kept as its own type since a focus move never creates a pane the way a
  * split does.
  */
 export type PaneFocusDirection = 'down' | 'left' | 'right' | 'up';
@@ -517,8 +517,8 @@ const FULL_RECT: PaneRect = { x0: 0, y0: 0, x1: 1, y1: 1 };
 /**
  * Assigns every pane a fractional rectangle in `[0, 1]` window space by walking the split tree once, applying each
  * split's own `ratio` the same way `PaneSplitView` resolves it into `flexBasis`. The layout tree carries no pixel
- * geometry of its own — panes are laid out by flexbox, not stored coordinates — so this is the only place that turns
- * the tree shape back into rectangles an adjacency search can compare.
+ * geometry of its own (panes are laid out by flexbox, not stored coordinates) so this is the only place that turns the
+ * tree shape back into rectangles an adjacency search can compare.
  */
 function computePaneRects(
     node: PaneLayoutNode,
@@ -590,13 +590,13 @@ function directionCandidate(
 }
 
 /**
- * The pane geometrically adjacent to `paneId` in `direction`, or `undefined` when there is none — a single pane, or
+ * The pane geometrically adjacent to `paneId` in `direction`, or `undefined` when there is none, a single pane, or
  * `paneId` already sits at that edge of the Workbench.
  *
  * Mirrors VS Code's grid navigation (`gridview.ts` `getNeighborViews`): a candidate must share the perpendicular axis
  * (its rectangle overlaps `paneId`'s along the axis the move does not travel) and sit on the correct side of the
  * travelling axis; among candidates, the nearest edge wins, and a tie prefers the pane with the larger perpendicular
- * overlap — the one a straight keyboard move is most likely to mean.
+ * overlap: the one a straight keyboard move is most likely to mean.
  */
 export function adjacentPaneId(
     layout: PaneLayout,

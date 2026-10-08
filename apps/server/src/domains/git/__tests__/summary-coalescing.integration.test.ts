@@ -223,10 +223,10 @@ describe('GitService summary coalescing', () => {
 
     /**
      * Regression for #1321: a manual "Refresh Git" (or Sync/Discard) forces `summary()` to re-read status, but that
-     * alone used to notify no one — an already open diff document, and the review-comment outdated check that
-     * piggybacks on it, stayed silently dependent on the passive file watcher's own delivery timing. A forced summary
-     * must schedule the same `git.changed` invalidation a watcher-observed write does, so a user-initiated refresh
-     * reliably re-evaluates every open diff regardless of watcher latency.
+     * alone used to notify no one: an already open diff document, and the review-comment outdated check that piggybacks
+     * on it, stayed silently dependent on the passive file watcher's own delivery timing. A forced summary must
+     * schedule the same `git.changed` invalidation a watcher-observed write does, so a user-initiated refresh reliably
+     * re-evaluates every open diff regardless of watcher latency.
      */
     it('emits git.changed for a forced summary refresh even without an observed working-tree change', async () => {
         const events: ServerEvent[] = [];

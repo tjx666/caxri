@@ -129,8 +129,8 @@ test('Session inline rename validates input and survives Renderer reload', async
 /**
  * Enter already has coverage; the context menu's `Rename` had none, which is how #950 could be reported against a
  * shipped build with nothing to contradict it. The menu closes as the row swaps itself for the input, so this asserts
- * the input still holds focus once the popup is gone — the exact handoff a focus restore aimed at the unmounted
- * trigger, or a trap still alive through the exit animation, would break.
+ * the input still holds focus once the popup is gone, the exact handoff a focus restore aimed at the unmounted trigger,
+ * or a trap still alive through the exit animation, would break.
  */
 test('The Session context menu renames a selected and an unselected row', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-rename-menu-e2e-'));

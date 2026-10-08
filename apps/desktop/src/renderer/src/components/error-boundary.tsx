@@ -64,9 +64,9 @@ function formatErrorDetails(error: unknown, componentStack?: string): string {
 
 /**
  * Top-level render-exception guard. React unmounts the whole tree on an uncaught error thrown during render, which
- * blanks the window with no in-app recovery path — Main's `render-process-gone` handler only covers process crashes,
- * not JS exceptions inside a live renderer. A full reload is safe to offer as the recovery action: durable workbench
- * state lives in the Server, while Process Explorer is a read-only diagnostic projection.
+ * blanks the window with no in-app recovery path; Main's `render-process-gone` handler only covers process crashes, not
+ * JS exceptions inside a live renderer. A full reload is safe to offer as the recovery action: durable workbench state
+ * lives in the Server, while Process Explorer is a read-only diagnostic projection.
  *
  * The fallback shows the error message and keeps its stack and component stack in a collapsed disclosure so a crash is
  * diagnosable without covering the recovery actions. The error value itself never leaves the Renderer: it may contain
@@ -108,7 +108,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
     componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
         // Desktop mirrors renderer `console.error` calls into `logs/desktop.jsonl` (see
         // `window.webContents.on('console-message', ...)` in `apps/desktop/src/main/index.ts`). The text is not
-        // recorded — `console-error-fields.ts` reduces it to error class, source, size, and a stable identity, which is
+        // recorded: `console-error-fields.ts` reduces it to error class, source, size, and a stable identity, which is
         // what makes a blank-window crash triageable without a dedicated IPC error channel. The full text stays here,
         // on screen and behind the Copy action, for the user to hand over deliberately.
         console.error(

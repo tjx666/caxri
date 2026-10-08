@@ -162,8 +162,8 @@ export interface SourceControlProviderModel {
      */
     rootPath?: string;
     /**
-     * What the repository has checked out — a branch, or a name for a detached commit — shown as the section's first
-     * row and allowed to ellipsize. Empty hides that row, for when it would only repeat `label`. Prose that a provider
+     * What the repository has checked out (a branch, or a name for a detached commit) shown as the section's first row
+     * and allowed to ellipsize. Empty hides that row, for when it would only repeat `label`. Prose that a provider
      * wants beside the row belongs in `descriptionTooltip`.
      */
     description: string;
@@ -182,7 +182,7 @@ export interface SourceControlProviderModel {
      */
     countLabel: string;
     /**
-     * Web page describing the changes this provider is currently showing — the pull request in Pull Request mode.
+     * Web page describing the changes this provider is currently showing: the pull request in Pull Request mode.
      * Alt-clicking the provider row or its group caption opens it in the default browser, so the panel never has to
      * spend row width on a link affordance that is empty in most modes.
      */

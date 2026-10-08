@@ -47,7 +47,7 @@ describe('describeScreencastKey', () => {
 
     /**
      * Screencast looks bindings up a second time, so without the chord dispatch armed it captions the continuation of
-     * `Cmd+K Cmd+S` with the unrelated single-chord `Cmd+S` command — announcing "Save" while the app opened Settings.
+     * `Cmd+K Cmd+S` with the unrelated single-chord `Cmd+S` command, announcing "Save" while the app opened Settings.
      */
     it('captions a chord continuation with the sequence that actually ran', () => {
         expect(

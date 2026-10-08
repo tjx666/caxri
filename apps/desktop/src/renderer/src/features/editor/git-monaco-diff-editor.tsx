@@ -79,7 +79,7 @@ function GitDiffEditorSurface(
         editor.current = instance;
         /**
          * Monaco opens a diff at line 1. In a thousand-line file whose change is near the bottom, that is a full screen
-         * of identical imports and no visible diff at all — the file reads as unchanged until the user scrolls or
+         * of identical imports and no visible diff at all: the file reads as unchanged until the user scrolls or
          * presses F7. `revealFirstDiff` waits for the diff computation and then centers the first change, which is what
          * every other diff viewer does on open. It runs on mount only: the in-place `setValue` path below is the same
          * file refreshing, and re-revealing there would yank the scroll position out from under the reader.
@@ -90,7 +90,7 @@ function GitDiffEditorSurface(
          * than an error. The watcher records that case (issue #962) and reports the outcome to this surface, which is
          * what lets a diff that never computed say so instead of passing for an unchanged file (issue #978). If the
          * stalled Worker still has not answered after a second, equal wait, `onRecoveryDue` offers this surface one
-         * automatic self-heal — see `GitMonacoDiffEditor` below and `git-diff-worker-recovery.ts`.
+         * automatic self-heal; see `GitMonacoDiffEditor` below and `git-diff-worker-recovery.ts`.
          */
         const cancelStallWatch = gitDiffStallWatch.observe({
             waitForDiff: () => viewModel.waitForDiff(),
@@ -153,7 +153,7 @@ export function GitMonacoDiffEditor(properties: GitDiffEditorProperties) {
     /**
      * Owned by this component, not the shared `gitDiffStallWatch` singleton: the watch is one per window, but the
      * automatic-recovery budget is per diff surface. A `ref` (not state) because spending it must never itself trigger
-     * a render — the retry it can cause already does that through `dispatchComputation`.
+     * a render: the retry it can cause already does that through `dispatchComputation`.
      */
     const recovery = useRef(initialDiffWorkerRecoveryState);
     const isStalled = computation.status === 'failed';
@@ -183,7 +183,7 @@ export function GitMonacoDiffEditor(properties: GitDiffEditorProperties) {
                         /**
                          * The stalled Worker already had two full comparison budgets to answer on its own
                          * (`git-diff-stall-watch.ts`'s `recoveryGraceMs`); this is the self-heal path for the one that
-                         * really stopped. Bounded to one automatic attempt per surface — a second stall goes back
+                         * really stopped. Bounded to one automatic attempt per surface: a second stall goes back
                          * through the manual "Retry" the failure state below already offers, so a Worker that keeps
                          * failing does not loop forever without telling the user. See issue #962.
                          */
@@ -210,7 +210,7 @@ export function GitMonacoDiffEditor(properties: GitDiffEditorProperties) {
                                  * model alone would queue behind the same dead Worker. See issue #962.
                                  *
                                  * A manual retry is a fresh user-initiated attempt, so it also gets a fresh automatic
-                                 * self-heal budget — the same way `git-diff-worker-recovery.ts` resets on a comparison
+                                 * self-heal budget: the same way `git-diff-worker-recovery.ts` resets on a comparison
                                  * change.
                                  */
                                 releaseStalledEditorWorkers();

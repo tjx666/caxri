@@ -13,9 +13,9 @@ const VIEW_STATE_LIMIT = 100;
 /**
  * Monaco view states by `${model URI}\0${pane}`. A Session switch remounts the whole pane tree and
  * `@monaco-editor/react` disposes the widget with it, so nothing inside Monaco survives to restore scroll and cursor
- * from — the position has to be held outside the component that dies. Keying on the model URI (which already carries
- * the Session and file identity, see `editorModelPath`) plus the pane keeps two split panes showing one file
- * independent, which is exactly what the wrapper's own path-keyed cache cannot express.
+ * from: the position has to be held outside the component that dies. Keying on the model URI (which already carries the
+ * Session and file identity, see `editorModelPath`) plus the pane keeps two split panes showing one file independent,
+ * which is exactly what the wrapper's own path-keyed cache cannot express.
  */
 const viewStates = new Map<string, MonacoEditorViewState>();
 
@@ -28,7 +28,7 @@ function currentModelUri(editor: MonacoEditor): string | undefined {
 }
 
 /**
- * Records where the editor is looking right now. Call this while Monaco is still alive — from a layout-effect cleanup,
+ * Records where the editor is looking right now. Call this while Monaco is still alive: from a layout-effect cleanup,
  * which React runs before the wrapper's passive cleanup disposes the widget, and before a `path` change swaps in
  * another model.
  */
@@ -81,7 +81,7 @@ export function restoreEditorViewState(
 }
 
 /**
- * Whether this pane already holds a remembered position for the editor's current model — in other words, whether this
+ * Whether this pane already holds a remembered position for the editor's current model, in other words, whether this
  * document has been shown here before during this window's lifetime. `restoreEditorViewState` re-inserts the entry
  * rather than consuming it, so the answer is the same before and after a restore, and a caller that runs after the
  * restore still learns that it is not looking at a first open.

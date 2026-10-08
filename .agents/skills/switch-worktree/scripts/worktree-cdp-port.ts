@@ -16,7 +16,7 @@ export const CDP_PORT_BASE = 9300;
 export const CDP_PORT_RANGE = 400;
 
 /**
- * Deterministically derives a worktree's preferred CDP port from its stable identity — the same UUID `ensureProfile`
+ * Deterministically derives a worktree's preferred CDP port from its stable identity: the same UUID `ensureProfile`
  * (see `repo.ts`) keys the isolated `userData` profile on. Two `switch-worktree dev` runs for the same worktree land on
  * the same preferred port across restarts, so an agent's `debug`-skill connection instructions stay valid between runs
  * instead of having to be re-read every time.
@@ -32,8 +32,8 @@ export interface CdpPortProbe {
 }
 
 /**
- * Binds and immediately releases a real TCP listener on `port` to detect a live occupant — including a sibling
- * worktree's Electron instance still holding its port, or any unrelated local process — rather than trusting a recorded
+ * Binds and immediately releases a real TCP listener on `port` to detect a live occupant (including a sibling
+ * worktree's Electron instance still holding its port, or any unrelated local process) rather than trusting a recorded
  * port that may be stale.
  */
 const defaultCdpPortProbe: CdpPortProbe = {
@@ -55,9 +55,9 @@ const defaultCdpPortProbe: CdpPortProbe = {
 };
 
 /**
- * Honors an explicit `CAXRI_DEV_CDP_PORT` the caller already set — e.g. a skill pinning a fixed, reproducible port for
- * an audit run — instead of silently overriding it with the derived port. Mirrors `desktop-profile.ts`'s treatment of
- * an exported-but-empty value as "not set".
+ * Honors an explicit `CAXRI_DEV_CDP_PORT` the caller already set (e.g. a skill pinning a fixed, reproducible port for
+ * an audit run) instead of silently overriding it with the derived port. Mirrors `desktop-profile.ts`'s treatment of an
+ * exported-but-empty value as "not set".
  */
 export function explicitCdpPort(environment: NodeJS.ProcessEnv): number | undefined {
     const raw = environment.CAXRI_DEV_CDP_PORT;
@@ -71,10 +71,10 @@ export function explicitCdpPort(environment: NodeJS.ProcessEnv): number | undefi
 
 /**
  * Resolves a worktree's CDP port: start from its deterministic preferred port and, when that port is occupied, advance
- * within the fixed range so a colliding preferred port — or a leftover process still holding it — still yields a
+ * within the fixed range so a colliding preferred port (or a leftover process still holding it) still yields a
  * distinct, live port instead of failing to start. The probe is injectable so a unit test can force specific ports
  * "busy" without binding real sockets. Callers that must honor an explicit `CAXRI_DEV_CDP_PORT` override should check
- * {@link explicitCdpPort} first — this function always derives and probes.
+ * {@link explicitCdpPort} first: this function always derives and probes.
  */
 export async function resolveWorktreeCdpPort(
     identity: string,

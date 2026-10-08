@@ -188,7 +188,7 @@ export function formatResumeCheckpoint(
     ];
     if (checkpoint.currentIssue) {
         lines.push(
-            `issue: #${checkpoint.currentIssue.number} ${checkpoint.currentIssue.status} — ${checkpoint.currentIssue.title}`,
+            `issue: #${checkpoint.currentIssue.number} ${checkpoint.currentIssue.status} - ${checkpoint.currentIssue.title}`,
         );
     }
     if (checkpoint.pullRequest.number) {

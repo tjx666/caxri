@@ -17,8 +17,8 @@ export type GitReviewSendResult = { ok: true } | { ok: false; message: string };
  * dialog open with Send re-enabled.
  *
  * Terminal selection, activation, and the attach wait stay in the Renderer because they depend on `PaneLayout`, a
- * Renderer-only concept the Server has no view of. Everything after that — reading the pending comments, building the
- * prompt, and writing it to the Terminal — runs on the Server (`gitReview.send`), so the prompt text built from the
+ * Renderer-only concept the Server has no view of. Everything after that (reading the pending comments, building the
+ * prompt, and writing it to the Terminal) runs on the Server (`gitReview.send`), so the prompt text built from the
  * Server-owned comment store never has to round-trip back through IPC first.
  */
 export async function sendGitReviewComments(

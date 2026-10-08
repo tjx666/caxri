@@ -89,7 +89,7 @@ export function Workbench() {
     const storedRetained = useSessionKeepAliveStore((state) => state.retained);
     /**
      * Derived for this render, committed to the store right after. Reading the store alone would render one frame in
-     * which the newly selected Session is not retained yet — every Workbench hidden, the user looking at nothing — and
+     * which the newly selected Session is not retained yet (every Workbench hidden, the user looking at nothing) and
      * writing to an external store during render is not safe, so the promotion happens in both places rather than one.
      */
     const retained = useMemo(
@@ -136,13 +136,13 @@ export function Workbench() {
                         className="workbench-session h-full min-h-0 w-full min-w-0"
                         /**
                          * Deliberately not `data-session-id`: that attribute already identifies a PrimarySidebar
-                         * Session row, and reusing it here made one id match two unrelated elements — a row to click
-                         * and a whole Workbench subtree — so any lookup by Session id became ambiguous.
+                         * Session row, and reusing it here made one id match two unrelated elements (a row to click and
+                         * a whole Workbench subtree), so any lookup by Session id became ambiguous.
                          */
                         data-workbench-session-id={sessionId}
                         // `hidden` rather than a class, matching `ChromeTabPanel`: it takes the subtree out of the
-                        // accessibility tree and out of `Tab` order while leaving the DOM — and therefore xterm's
-                        // buffer and the Editor's models — intact.
+                        // accessibility tree and out of `Tab` order while leaving the DOM (and therefore xterm's
+                        // buffer and the Editor's models) intact.
                         hidden={sessionId !== selectedSessionId}
                     >
                         <PaneView

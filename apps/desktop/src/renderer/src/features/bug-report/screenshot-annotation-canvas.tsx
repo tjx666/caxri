@@ -175,12 +175,12 @@ interface ScreenshotAnnotationCanvasProperties {
 
 /**
  * The screenshot with its editable overlay. The `<img>` sizes itself inside the dialog and the wrapper shrink-wraps it,
- * so the absolutely positioned `<svg>` and badge layer share exactly the image's box — that is what lets the overlay's
+ * so the absolutely positioned `<svg>` and badge layer share exactly the image's box: that is what lets the overlay's
  * `viewBox` stay in natural image pixels and every stored coordinate mean the same thing in the exported file and in
  * the report text.
  *
  * The surface accepts two input paths that converge on the same `AnnotationSegment`: a pointer drag, handled inline
- * below, and a keyboard gesture whose rules live in `screenshot-annotation-keyboard.ts` — see that module for the
+ * below, and a keyboard gesture whose rules live in `screenshot-annotation-keyboard.ts`; see that module for the
  * interaction model.
  */
 export function ScreenshotAnnotationCanvas({
@@ -266,7 +266,7 @@ export function ScreenshotAnnotationCanvas({
         if (!outcome.handled) return;
         event.preventDefault();
         // The dialog's Escape-to-close listener sits on `document`, above React's own, and does not check
-        // `defaultPrevented` — so only stopping propagation keeps a discarded shape from also closing the annotator.
+        // `defaultPrevented`, so only stopping propagation keeps a discarded shape from also closing the annotator.
         event.stopPropagation();
         // A shape being drawn owns the surface; leaving an old mark selected underneath it would only add a halo.
         if (outcome.state.anchor && !keyboard.anchor) onSelect(undefined);

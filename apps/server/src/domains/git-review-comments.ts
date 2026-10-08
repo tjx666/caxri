@@ -19,8 +19,8 @@ type GitReviewCommentMethod =
 
 /**
  * Groups pending counts by Session + repository without colliding on either id containing the other's value: both are
- * arbitrary bounded strings (`identifierSchema`), so a NUL separator — never valid inside either — is the only safe
- * join. Mirrors the same NUL-keying convention `git-diff-actions.ts`'s `registrationKey` already uses.
+ * arbitrary bounded strings (`identifierSchema`), so a NUL separator (never valid inside either) is the only safe join.
+ * Mirrors the same NUL-keying convention `git-diff-actions.ts`'s `registrationKey` already uses.
  */
 function scopeKey(sessionId: string, repoId: string): string {
     return `${sessionId}\u{0}${repoId}`;

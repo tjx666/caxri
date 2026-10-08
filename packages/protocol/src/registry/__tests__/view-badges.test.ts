@@ -39,7 +39,7 @@ describe('badge protocol', () => {
     });
 
     /**
-     * Severity is the extension's only say in appearance, so the wire has to reject anything outside the three kinds —
+     * Severity is the extension's only say in appearance, so the wire has to reject anything outside the three kinds:
      * including the pre-`kind` shape, whose `tone` let two views paint a container in two unrelated colors. A severity
      * has no tally at all: the Workbench draws a glyph for it, and a chip cannot hold a glyph and a digit at once, so a
      * `count` sent alongside one is stripped rather than carried to a renderer that would have to discard it anyway.

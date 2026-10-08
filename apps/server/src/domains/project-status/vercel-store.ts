@@ -171,7 +171,7 @@ export class VercelDeploymentStore {
     /**
      * The Status panel's deployment tree for one branch. Every refresh of every Session on a repository used to ask
      * `vc` for the same two or three lists again, which made Vercel the Server's most expensive subprocess by far. The
-     * key holds everything that selects the answer — repository, branch, HEAD, and merge commit — so a new commit or
+     * key holds everything that selects the answer (repository, branch, HEAD, and merge commit), so a new commit or
      * merge queries at once, concurrent readers share one in-flight query, and a forced refresh always asks again.
      */
     deployments(

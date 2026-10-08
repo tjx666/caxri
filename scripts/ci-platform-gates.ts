@@ -1,6 +1,7 @@
 type PlatformNeutralCIGateId =
     | 'bundle-budget'
     | 'docs-check'
+    | 'em-dash-check'
     | 'eslint'
     | 'format'
     | 'gitleaks'
@@ -127,6 +128,11 @@ export const PLATFORM_NEUTRAL_CI_GATES = [
         id: 'source-size-ratchet',
         label: 'source-size ratchet',
         script: 'source-size-ratchet',
+    }),
+    directGate({
+        id: 'em-dash-check',
+        label: 'em-dash check',
+        script: 'em-dash-check',
     }),
     directGate({
         id: 'knip',

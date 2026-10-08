@@ -63,7 +63,7 @@ function paneLayout(path: string) {
 
 /**
  * The `satisfies` clause is load-bearing. `mocks.request` answers `Promise<unknown>`, so the stub cannot be annotated
- * as a `ResourceExplorerClient` outright — but a bare `as` assertion reports nothing when a member is missing, and a
+ * as a `ResourceExplorerClient` outright; but a bare `as` assertion reports nothing when a member is missing, and a
  * client method added later would then be `undefined` here while every call site silently took its failure path and the
  * tests stayed green (issue #909). Requiring every key restores that check without constraining the return types.
  */

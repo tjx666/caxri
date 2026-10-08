@@ -84,7 +84,7 @@ export interface AgentLifecycleSignal {
     agentCwd?: string;
     /**
      * Provider-native session identifier from the hook payload, when the provider supplies one. Only this opaque id
-     * crosses the boundary — prompt and response content never do — so a manual in-terminal resume can rebind the
+     * crosses the boundary, prompt and response content never do, so a manual in-terminal resume can rebind the
      * Terminal to the session the Agent actually runs.
      */
     agentSessionId?: string;

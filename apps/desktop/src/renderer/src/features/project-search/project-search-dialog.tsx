@@ -19,7 +19,7 @@ import type { ProjectSearchDraft } from './use-project-search';
 import { useProjectSearch, useProjectSearchDraft } from './use-project-search';
 
 /**
- * DOM id of one result row. A match key carries a path, so it can hold anything a filename can — including the ASCII
+ * DOM id of one result row. A match key carries a path, so it can hold anything a filename can, including the ASCII
  * whitespace an id may not contain. Percent-encoded rather than filtered, because the mapping has to stay injective: a
  * filter that folds every non-ASCII character into one placeholder gives `笔记.md` and `文档.md` the same id, and
  * `aria-activedescendant` then names the wrong row. The lookup escapes the result with `CSS.escape`, so the remaining
@@ -77,7 +77,7 @@ export function ProjectSearchDialog() {
     const draft = useProjectSearchDraft();
     /**
      * Applied during render rather than in an effect so the opening frame already shows the seeded query and scope,
-     * instead of painting the previous draft — and firing a search for it — for one frame first.
+     * instead of painting the previous draft (and firing a search for it) for one frame first.
      */
     const [appliedSeedId, setAppliedSeedId] = useState(seedRequest.id);
     if (seedRequest.id !== appliedSeedId) {

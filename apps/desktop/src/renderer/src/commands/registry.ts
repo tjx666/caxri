@@ -70,8 +70,8 @@ export interface CommandContext {
         canFocusPaneInDirection(direction: 'down' | 'left' | 'right' | 'up'): boolean;
         focusPaneInDirection(direction: 'down' | 'left' | 'right' | 'up'): void;
         /**
-         * True only when the active tab is a Terminal that is not its Session's only Terminal — the same disabled
-         * reason the tab's context menu shows for "Move to New Session".
+         * True only when the active tab is a Terminal that is not its Session's only Terminal, the same disabled reason
+         * the tab's context menu shows for "Move to New Session".
          */
         canMoveActiveTerminalToNewSession(): boolean;
         moveActiveTerminalToNewSession(): void;
@@ -92,7 +92,7 @@ export interface CommandContext {
         canAddReviewComment(): boolean;
         addReviewComment(): void;
         /**
-         * True only when the active tab is a file a registered previewer can render — or the preview of one, so
+         * True only when the active tab is a file a registered previewer can render, or the preview of one, so
          * re-running the command from the preview re-focuses it instead of failing.
          */
         canOpenPreview(): boolean;

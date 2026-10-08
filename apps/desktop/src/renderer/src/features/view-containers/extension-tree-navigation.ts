@@ -13,7 +13,7 @@ export type ExtensionTreeNavigationKey = ExtensionTreeVerticalKey | 'ArrowLeft' 
 /**
  * Whether a row can hold the tree's single roving Tab stop. Only a provider item can: the loading, error, and empty
  * rows are status content the view renders in a branch's place, they own no `TreeItemDto`, and the focus state is keyed
- * by that item. Navigation therefore has to step over them rather than stop on them — a branch that is still fetching
+ * by that item. Navigation therefore has to step over them rather than stop on them: a branch that is still fetching
  * must not swallow the Down arrow.
  */
 export function isNavigableExtensionTreeRow(row: VisibleRow | undefined): row is VisibleItemRow {

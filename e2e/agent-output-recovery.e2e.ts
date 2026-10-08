@@ -135,7 +135,7 @@ test('matched parsed Agent output sends delayed Esc and continue when recovery i
                 continueDelayMs: 250,
             });
         // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
-        // outright — there is no "Close" button to click anymore.
+        // outright; there is no "Close" button to click anymore.
         await running.page.keyboard.press('Meta+w');
 
         await createProjectSession(running.page, 'claude');
@@ -215,7 +215,7 @@ test('Claude Code capacity stop uses the built-in recovery rule with no custom p
                 continueDelayMs: 250,
             });
         // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
-        // outright — there is no "Close" button to click anymore.
+        // outright; there is no "Close" button to click anymore.
         await running.page.keyboard.press('Meta+w');
 
         await createProjectSession(running.page, 'claude');

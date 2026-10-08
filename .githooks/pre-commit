@@ -20,3 +20,7 @@ fi
 if git diff --cached --name-only --diff-filter=ACMR -- '*.ts' '*.tsx' '*.mts' '*.cts' '*.js' | grep -q .; then
     bun run source-size-ratchet
 fi
+
+# Scans the whole tracked tree (the index included), so an em-dash in any staged text file fails here instead of in
+# CI's guards job; the pass is a single `git grep`.
+bun run em-dash-check

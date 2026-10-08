@@ -195,7 +195,7 @@ describe('CaxriDatabase Agent metadata', () => {
             'Run the development server',
         );
         // The Session title belongs to the primary Agent alone, but every Agent Terminal's own tab names its own
-        // conversation — a secondary Agent must not be left reading "Claude".
+        // conversation: a secondary Agent must not be left reading "Claude".
         expect(database.getTerminal(claude.id)?.title).toBe('Do not replace the first Agent title');
         expect(database.getTerminal(codex.id)?.title).toBe('Run the development server');
         database.close();
@@ -298,7 +298,7 @@ describe('CaxriDatabase Agent metadata', () => {
 
         /**
          * `Terminal.title` is replayed as `agentEndpoint.begin.name` on the next launch, where the Server schema caps
-         * it at 200 characters and rejects the whole request otherwise — an over-long conversation name would fail the
+         * it at 200 characters and rejects the whole request otherwise: an over-long conversation name would fail the
          * Agent's next start rather than just look wrong.
          */
         const title = database.getTerminal(terminal.id)?.title ?? '';
@@ -308,8 +308,8 @@ describe('CaxriDatabase Agent metadata', () => {
     });
 
     /**
-     * A rename that reaches no further than Caxri's own database — a provider without native rename, or an Agent that
-     * has not produced a session yet — used to leave the tab on the Agent's conversation name indefinitely, because no
+     * A rename that reaches no further than Caxri's own database: a provider without native rename, or an Agent that
+     * has not produced a session yet: used to leave the tab on the Agent's conversation name indefinitely, because no
      * later metadata probe would ever carry the typed name. The sidebar row and the tab then showed one Session under
      * two different names.
      */

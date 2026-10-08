@@ -255,10 +255,10 @@ function rowControl(properties: SettingRowProperties): {
             if (spec.kind === 'string') {
                 /**
                  * `updates.skippedVersion` is state the app wrote for you (from "Skip this version" in the update
-                 * notice), not a value worth typing by hand — a free-text field invited exactly that, mixing a fact
+                 * notice), not a value worth typing by hand: a free-text field invited exactly that, mixing a fact
                  * about app state into a list of controls you deliberately configure (issue caxri#1289). Read-only text
                  * says what is currently skipped; the row's existing hover-Reset action, armed by `isRowModified`
-                 * treating any non-null value as modified, is the one way back — the same undo every other row already
+                 * treating any non-null value as modified, is the one way back: the same undo every other row already
                  * offers, so this needs no dedicated binding or "Clear" button of its own.
                  */
                 if (binding.key === 'updates.skippedVersion') {
@@ -528,7 +528,7 @@ function rowControl(properties: SettingRowProperties): {
                         variant="secondary"
                         onClick={() => {
                             // The manager is its own dialog, floating over the Settings tab like any other modal
-                            // opened over a document — there is no modal layer to close first any more.
+                            // opened over a document; there is no modal layer to close first any more.
                             setArchivedSessionsOpen(true);
                         }}
                     >
@@ -580,7 +580,7 @@ function rowControl(properties: SettingRowProperties): {
                 /**
                  * The switch position alone says "off"; it does not say that the consequence is already in force on
                  * every launch. A degradation the user opted into is still a degradation (DESIGN.md principle 9), and
-                 * after the restart that applied it there is nowhere else in the product that names it — so the row
+                 * after the restart that applied it there is nowhere else in the product that names it, so the row
                  * states it in the warning tone, in the same words the notice used.
                  */
                 status:

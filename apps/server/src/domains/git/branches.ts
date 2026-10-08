@@ -2,7 +2,7 @@ const MAX_LOCAL_BRANCHES = 1_000;
 
 /**
  * Local branches, most recently committed first (GitLens-style recency). The earlier `--sort=refname` is the tiebreaker
- * — with multiple keys the last one is primary — and `%00` keeps the name/date split unambiguous because a branch name
+ * (with multiple keys the last one is primary) and `%00` keeps the name/date split unambiguous because a branch name
  * cannot contain NUL.
  */
 export async function listLocalBranches(

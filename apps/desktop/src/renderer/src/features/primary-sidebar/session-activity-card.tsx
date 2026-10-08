@@ -128,8 +128,8 @@ export function SessionActivityCard({
 }: {
     /**
      * True on the Pinned group's copy of a doubly listed Session. Both copies otherwise announce word for word the same
-     * thing — the row's accessible name is the title, and the visible Project name is `aria-hidden` — so a keyboard
-     * user walking the tree could not tell which one they had reached.
+     * thing (the row's accessible name is the title, and the visible Project name is `aria-hidden`) so a keyboard user
+     * walking the tree could not tell which one they had reached.
      */
     inPinnedGroup?: boolean;
     /**
@@ -147,7 +147,7 @@ export function SessionActivityCard({
     trigger: ReactElement;
     /**
      * Workbench Root Project when this Session works in a linked worktree. The row marker is decorative, so this card
-     * is where the fact becomes readable — both as a metadata row and in the row's accessible description.
+     * is where the fact becomes readable: both as a metadata row and in the row's accessible description.
      */
     worktreeProject?: ProjectRecord;
 }) {
@@ -166,7 +166,7 @@ export function SessionActivityCard({
     const changes = useSessionChanges(session, visible);
     const diffStat = useSessionDiffStat(session.id);
     const accessibleDescription = [
-        // The pin has no visible mark on the row itself — it is the group the row sits in — and a pinned Session is
+        // The pin has no visible mark on the row itself (it is the group the row sits in) and a pinned Session is
         // listed only there, so this sentence is the only thing that says the row is pinned at all.
         inPinnedGroup && 'In Pinned group.',
         `Project ${project.displayTitle}.`,

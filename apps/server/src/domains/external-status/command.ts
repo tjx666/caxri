@@ -21,8 +21,8 @@ export type ExternalStatusQuotaSource = Exclude<ExternalStatusSource, 'git'>;
 
 /**
  * The quota probe's GraphQL self-query. REST `/rate_limit` looks like the obvious source, but for the token class `gh`
- * uses its `resources.graphql` entry is a constant placeholder — `used` stays 0, `remaining` stays at `limit`, and
- * `reset` slides with the wall clock — so a reserve check built on it never fires (#917). Only the GraphQL `rateLimit`
+ * uses its `resources.graphql` entry is a constant placeholder: `used` stays 0, `remaining` stays at `limit`, and
+ * `reset` slides with the wall clock, so a reserve check built on it never fires (#917). Only the GraphQL `rateLimit`
  * object reports the budget the GraphQL calls actually draw on, and GitHub does not bill a query whose only field is
  * `rateLimit`.
  */
@@ -138,8 +138,8 @@ function classifyCliFailure(
         /*
          * `<name> login` rather than the literal `auth login`, because that is the one phrase every one of these CLIs
          * agrees on: it is how each tells the user to sign in, whether the verb is `gh auth login`, `lh login`, or
-         * `vc login`. Matching only `auth login` sent a plainly signed-out LobeHub CLI — "No authentication found.
-         * Run 'lh login' ... or set LOBEHUB_CLI_API_KEY." — down the `other` branch, where the panel could say nothing
+         * `vc login`. Matching only `auth login` sent a plainly signed-out LobeHub CLI ("No authentication found.
+         * Run 'lh login' ... or set LOBEHUB_CLI_API_KEY.") down the `other` branch, where the panel could say nothing
          * more useful than "Something went wrong", instead of naming the one command that fixes it.
          */
         /auth(?:entication)? required|no authentication|\b[\w-]+ login\b|not logged in|login required|no api key/i.test(

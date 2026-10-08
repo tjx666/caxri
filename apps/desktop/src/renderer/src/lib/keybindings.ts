@@ -7,7 +7,7 @@ import { useWorkbenchStore } from '../stores/workbench';
 
 /**
  * MacOS composes Option+<letter> into a symbol: `Option+P` reports `event.key === 'π'`, so a chord built from
- * `event.key` could never match a stored `alt+p` — every Option+letter binding was dead, both at dispatch and while
+ * `event.key` could never match a stored `alt+p`: every Option+letter binding was dead, both at dispatch and while
  * recording one in Settings. Alt chords therefore read the physical `event.code`, which stays stable for the letter and
  * digit rows. Non-Alt chords keep using `event.key` so a remapped or non-US layout still records what the user actually
  * typed.
@@ -63,7 +63,7 @@ export function buildShortcutMap(keybindings: readonly Keybinding[]): Map<string
 const MODIFIER_KEY_NAMES = new Set(['Alt', 'Control', 'Meta', 'Shift']);
 
 /**
- * A lone modifier press is never a shortcut: it only arms the recorder, and — more load-bearing — it must not count as
+ * A lone modifier press is never a shortcut: it only arms the recorder, and, more load-bearing, it must not count as
  * the second chord of a pending sequence. Typing `Cmd+K Cmd+S` by releasing and re-pressing Command emits a bare `Meta`
  * keydown in between, which would otherwise cancel the chord before the real second chord arrives.
  */

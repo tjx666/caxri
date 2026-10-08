@@ -20,7 +20,7 @@ export interface TerminalReferenceMatch {
     endIndex: number;
     hint: string;
     /**
-     * Marks the declarative references — commits, GitHub issues, configured rules — that carry a hover preview card. A
+     * Marks the declarative references (commits, GitHub issues, configured rules) that carry a hover preview card. A
      * plain URL or file path is a link, not a reference: there is nothing to look up and nothing to show.
      */
     isReference: true;

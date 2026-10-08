@@ -38,7 +38,7 @@ export function GitDiffSurface({
 }: {
     /**
      * Owned by the multi-diff item (not locally) so the remembered height survives the editor being virtualized out of
-     * the near-viewport window — a 360px reset there would yank the outer scroll position every time an item unmounts.
+     * the near-viewport window: a 360px reset there would yank the outer scroll position every time an item unmounts.
      */
     contentHeight?: number;
     document: GitDiffDocument;

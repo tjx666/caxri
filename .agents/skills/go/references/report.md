@@ -13,14 +13,14 @@ time, and all required section receipts.
 
 Required sections:
 
-1. **Delivery** — issue map, observable outcome, commits, focused validation,
+1. **Delivery**: issue map, observable outcome, commits, focused validation,
    expectation-drift assessment status, and published decision-comment URLs.
-2. **Review** — frozen policy, aggregate baseline, light repair lineage, and P0/P1 disposition.
-3. **Technical debt** — durable debt and any follow-up issue, or an explicit none.
-4. **Workflow** — project skill or `AGENTS.md` changes plus unapplied recommendations.
-5. **Cost** — exact available token/time/commit/file checkpoints and Actions use; write `unavailable` instead of estimates.
-6. **Automation** — repeated judgment-free sequences and the implemented or proposed script boundary.
-7. **Remaining boundaries** — exclusions, deferred work, release/deployment limits, and unclaimed evidence.
+2. **Review**: frozen policy, aggregate baseline, light repair lineage, and P0/P1 disposition.
+3. **Technical debt**: durable debt and any follow-up issue, or an explicit none.
+4. **Workflow**: project skill or `AGENTS.md` changes plus unapplied recommendations.
+5. **Cost**: exact available token/time/commit/file checkpoints and Actions use; write `unavailable` instead of estimates.
+6. **Automation**: repeated judgment-free sequences and the implemented or proposed script boundary.
+7. **Remaining boundaries**: exclusions, deferred work, release/deployment limits, and unclaimed evidence.
 
 For a normal Acceptance round, deliver the complete report summary together
 with the stable Acceptance URL and then record `deliveredAt`. A generated file,

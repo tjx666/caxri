@@ -41,7 +41,7 @@ export function parseCommitFiles(output: string): GitCommitFile[] {
  * A commit's message, its changed files, and its line totals, read together.
  *
  * Owned here rather than on the Git domain because it is three `git` invocations and two parsers that only ever run as
- * one unit — including for the Terminal reference hover card, which needs exactly this projection and nothing the
+ * one unit, including for the Terminal reference hover card, which needs exactly this projection and nothing the
  * domain's Session plumbing adds.
  */
 export async function readCommitDetails(

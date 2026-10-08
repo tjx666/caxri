@@ -42,7 +42,7 @@ const monaco = {
 registerImportLinks(monaco);
 
 /**
- * Stands in for the Monaco model of a Session-scoped document, whose URI carries the Session and the real path — the
+ * Stands in for the Monaco model of a Session-scoped document, whose URI carries the Session and the real path: the
  * shape `editorModelPath` produces and Monaco hands back already percent-decoded.
  */
 function model(lines: string[], uri: Partial<FakeUri> = {}) {

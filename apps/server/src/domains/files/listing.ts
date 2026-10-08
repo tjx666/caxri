@@ -75,7 +75,7 @@ const SYMLINK_TARGET_PROBE_BUDGET_MS = 1_000;
 
 /**
  * Why a listing stopped following symlink targets. `probe_timeout` is one target that never answered; `cumulative_wait`
- * is many that each answered slowly. They call for different responses — a hung mount versus a slow one — so they are
+ * is many that each answered slowly. They call for different responses (a hung mount versus a slow one), so they are
  * recorded apart rather than as one "budget spent".
  */
 type SymlinkProbeBudgetReason = 'cumulative_wait' | 'probe_timeout';
@@ -265,7 +265,7 @@ export class ListingService {
      * One symlink budget for one listing, wired to the record that makes spending it visible.
      *
      * The record is the point of the closed reason enum and the running count: an unprobed link is invisible in the
-     * result — it just keeps the neutral icon — so without this a slow mount degrades the path browser silently, and
+     * result (it just keeps the neutral icon), so without this a slow mount degrades the path browser silently, and
      * "how often" is the only thing that distinguishes a stale share from a one-off.
      *
      * @param sessionId Session whose listing owns this budget.

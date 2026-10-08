@@ -4,7 +4,7 @@
  * Every coordinate in this module is in natural image pixels, so the same values drive three surfaces without a second
  * conversion: the SVG overlay (whose `viewBox` is the natural image size), the offscreen canvas that rasterizes the
  * annotated JPEG, and the Markdown report the Agent reads. Keeping the math here rather than inside the annotator
- * components is what makes it testable — `.tsx` files are not unit-tested in this repository.
+ * components is what makes it testable: `.tsx` files are not unit-tested in this repository.
  */
 
 export type ScreenshotAnnotationKind = 'arrow' | 'box';

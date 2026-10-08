@@ -101,8 +101,8 @@ async function repoVersionLocations(): Promise<string[]> {
  *
  * A `package.json` dependency range is not a Node.js or pnpm version copy even when the two strings collide, which
  * really happens: an ordinary library can reach the same major.minor.patch as the pinned pnpm. Everything else in the
- * manifest — `engines`, `volta`, a script, `packageManager` — is exactly what this contract exists to catch, so only
- * the dependency maps are removed rather than the whole file.
+ * manifest (`engines`, `volta`, a script, `packageManager`) is exactly what this contract exists to catch, so only the
+ * dependency maps are removed rather than the whole file.
  */
 function versionSearchText(path: string, source: string): string {
     if (!path.endsWith('package.json')) return source;

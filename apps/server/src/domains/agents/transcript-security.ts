@@ -32,13 +32,13 @@ export interface SafeOpenedAgentTranscript {
  * a transcript, so a caller that reports it (`TranscriptScanOptions.onFailure`) can tell a routine capability miss from
  * a real security rejection instead of every outcome looking like the same silent `undefined`.
  *
- * - `missing`: the transcript does not exist yet (or no longer does) at an otherwise valid location — the ordinary state
+ * - `missing`: the transcript does not exist yet (or no longer does) at an otherwise valid location: the ordinary state
  *   before an Agent has written its first line, not a failure.
  * - `symlinkRejected`: a path component that must be a real file or directory was a symlink.
  * - `hardlinkRejected`: the transcript file has more than one link (`nlink > 1`), so a sibling name could rewrite the
  *   content this read trusts.
  * - `identityMismatch`: the file changed identity (dev/ino, link count, or resolved path) between authorization and the
- *   read that followed it — a TOCTOU swap, not a missing or symlinked file.
+ *   read that followed it: a TOCTOU swap, not a missing or symlinked file.
  * - `structureRejected`: a resolved path fell outside the base/root/anchor ancestry it must nest under.
  * - `openFailed`: an `lstat`/`open`/`stat` call failed for a reason other than the file being missing.
  * - `readFailed`: the transcript opened successfully but a later read of its bytes failed.

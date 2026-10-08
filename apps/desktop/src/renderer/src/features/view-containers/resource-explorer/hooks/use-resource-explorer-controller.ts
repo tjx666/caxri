@@ -74,8 +74,8 @@ interface ProjectRootFileActionDependencies {
  * What the Files title bar's Refresh does: re-read the disk, then put the tree back around the open file.
  *
  * The reveal is half the action rather than a side effect of it. Re-reading answers "what is there now?", and the
- * answer somebody is looking for is nearly always positioned relative to the file they are already in — so the tree
- * that comes back expands to it and selects it instead of making them walk the folders down again. VS Code's explorer
+ * answer somebody is looking for is nearly always positioned relative to the file they are already in, so the tree that
+ * comes back expands to it and selects it instead of making them walk the folders down again. VS Code's explorer
  * behaves the same way.
  *
  * Written as a function taking its inputs because the reveal cannot live in the controller's reveal effect: none of
@@ -174,7 +174,7 @@ export interface ResourceExplorerController {
     /**
      * Re-reads every listed directory from disk. Deliberately not paired with `collapseRevision`: expansion and
      * selection live in the scope store rather than in the query cache, so invalidating the listings leaves the tree
-     * open exactly where the user left it — including the path down to the file the editor has open.
+     * open exactly where the user left it, including the path down to the file the editor has open.
      */
     refreshFiles: () => void;
     requestFocus: (target: FocusTarget) => void;
@@ -214,7 +214,7 @@ export function useResourceExplorerController(): ResourceExplorerController | un
     const pendingOperation = projectOperations.at(0);
     const isCancelRevealed = useIsCancelRevealed(pendingOperation);
     // Matches the same queries `resource.refresh` invalidates below, so the glyph spins for exactly the work the
-    // button started — and equally for a listing React Query refetched on its own.
+    // button started, and equally for a listing React Query refetched on its own.
     const isRefreshing =
         useIsFetching({
             predicate: ({ queryKey }) =>
@@ -230,7 +230,7 @@ export function useResourceExplorerController(): ResourceExplorerController | un
     /**
      * Publishes the scope the mounted tree draws, before paint so the rows read the new Session's expansion and
      * selection in the same frame the switch lands. Rows subscribe to their own booleans rather than to this value, so
-     * republishing re-renders only the rows whose state actually differs between the two Sessions — the tree itself
+     * republishing re-renders only the rows whose state actually differs between the two Sessions: the tree itself
      * skips the controller's own re-render entirely, because it no longer takes the scope as a prop.
      */
     useLayoutEffect(() => {

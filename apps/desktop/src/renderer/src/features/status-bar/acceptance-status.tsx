@@ -35,8 +35,8 @@ const STATE_PRESENTATION: Record<ProjectStatusState, { Icon: typeof Shield; tone
  * The branch's acceptance report, as a tally rather than a name.
  *
  * The Linear chip leads with its identifier because `ABC-123` is what a person says out loud. An acceptance has no such
- * handle — only an opaque id — so the chip spends its width on the thing a reviewer actually wants at a glance: how
- * many checks passed, in the color of the current verdict. The subject, the round, and the provenance stay on the hover
+ * handle: only an opaque id, so the chip spends its width on the thing a reviewer actually wants at a glance: how many
+ * checks passed, in the color of the current verdict. The subject, the round, and the provenance stay on the hover
  * card.
  */
 export function AcceptanceStatus({
@@ -58,7 +58,7 @@ export function AcceptanceStatus({
             {extra.length > 0 && <span className="ml-1 text-muted">+{extra.length}</span>}
         </>
     );
-    // A link we recognized but could not read has no destination, so it must not look clickable — the same reading
+    // A link we recognized but could not read has no destination, so it must not look clickable: the same reading
     // `LinearIssueStatus` applies. `focusable` keeps it reachable by keyboard, the only way a non-mouse user reaches
     // the hover card's source line.
     return acceptance.url ? (

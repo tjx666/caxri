@@ -29,7 +29,7 @@ function collectScrollAnchors(container: HTMLElement): PreviewScrollAnchor[] {
  * Where the preview has to scroll so `line` sits at its top edge.
  *
  * Only whole blocks carry a position, so a line inside one is placed by interpolating between the block that starts at
- * or before it and the next one — the same approximation VS Code's Markdown preview uses, and the reason a long
+ * or before it and the next one, the same approximation VS Code's Markdown preview uses, and the reason a long
  * paragraph tracks smoothly instead of jumping at its boundaries.
  */
 export function previewScrollTop(anchors: readonly PreviewScrollAnchor[], line: number): number {

@@ -1,7 +1,7 @@
 # Caxri contributor guide
 
 This file is the always-on standing orders. Task procedures, architecture contracts, and toolchain
-recipes live in `.agents/skills/` — load the owning skill instead of restating it here.
+recipes live in `.agents/skills/`: load the owning skill instead of restating it here.
 
 ## Repository layout
 
@@ -86,7 +86,7 @@ directories.
   it.
 - Before the public release, the maintainer iterates through coding agents and wants proactive
   delivery: an implementation or bug-fix request that lands in a task worktree delegates the whole
-  loop — commit, push, PR, CI repair, merge, issue closeout, primary-checkout sync — as defined in
+  loop (commit, push, PR, CI repair, merge, issue closeout, primary-checkout sync) as defined in
   `switch-worktree`'s default delivery flow. Do not stop at a green local check to ask whether to
   open or merge the PR; only an explicit analysis-only, local-only, or no-merge instruction narrows
   that scope.
@@ -105,8 +105,8 @@ directories.
   diff) and merge it once `guards` passes, without waiting for the non-required `checks`/`e2e` job,
   as defined in `pull-request`'s fast-merge section. `main` and remote branches can move at any
   moment.
-- When you encounter commits you did not author — after a branch switch, fetch, rebase, or a PR
-  merge — treat the newest commits as authoritative by default. Rebase or merge onto them and
+- When you encounter commits you did not author (after a branch switch, fetch, rebase, or a PR
+  merge), treat the newest commits as authoritative by default. Rebase or merge onto them and
   resolve conflicts in favor of the latest state. Do not stop to ask, and do not discard the
   unfamiliar work. Escalate only when the conflict is a real design disagreement that cannot be
   resolved mechanically.
@@ -131,10 +131,13 @@ directories.
 - Caxri is private today and will most likely be published, so write every tracked file, commit
   message, issue, and CI artifact as if it were already public. Never commit a private
   organization, repository, ticket identifier, tracker URL, internal hostname, internal file path,
-  real person, home path carrying a real account name, or credential — not in a fixture, not in a
+  real person, home path carrying a real account name, or credential: not in a fixture, not in a
   comment, not in Chinese. Reference an upstream only after verifying it resolves without
   authentication. History cannot be cleaned retroactively once published, so prevention is the only
   lever: `open-source-readiness`.
+- Never write an em-dash (U+2014) in prose, comments, docs, skills, or UI copy. Use a colon,
+  semicolon, comma, period, or parentheses instead. `bun run em-dash-check` enforces this in the
+  `guards` job and the pre-commit hook; its JSDoc lists the narrow exceptions.
 - Prefer JSDoc for non-obvious lifecycle or security behavior, and document why a workaround
   exists.
 - Coding agents reproduce the dominant precedent they see in neighboring code, so exemplar hygiene
@@ -167,7 +170,7 @@ directories.
   and verify it actually died:
   `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts stop`. It signals only what
   this checkout owns, resolved from the worktree's absolute path and the launcher's process record.
-- Never terminate Caxri, Electron, or Playwright by name or bundle pattern — `pkill -f "Caxri.app"`,
+- Never terminate Caxri, Electron, or Playwright by name or bundle pattern: `pkill -f "Caxri.app"`,
   `pkill -f Electron`, `killall Caxri`, or any variant. Those patterns read as "this checkout" and
   mean "every match on the machine": they hit `/Applications/Caxri.app`, a sibling worktree, and
   unrelated Electron apps, while still missing the `Caxri Dev` window process and the launcher. Kill
@@ -200,7 +203,7 @@ directories.
 - Logs must do two jobs: explain a specific failure after it happened, and measure behavior well
   enough to reveal a problem nobody reported yet. An outcome recorded without its cause, or
   deduplicated until its real volume is unknowable, does neither. Give such an event a closed reason
-  enum, a per-lifetime aggregate, or a duration — and record a state transition when it happens, not
+  enum, a per-lifetime aggregate, or a duration, and record a state transition when it happens, not
   only the state itself.
 - Until Caxri has a public release, optimize for the current architecture instead of preserving
   compatibility with previous local builds. Do not add protocol adapters, legacy Host controls,

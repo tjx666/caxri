@@ -93,7 +93,7 @@ describe('withAgentHookInstallLock', () => {
 
     /**
      * The interleaving the fault lived in. A holds the lock, B judges it abandoned and takes it over, and A then
-     * finishes. Before ownership was recorded, A's release deleted whatever lock it found — B's — and a third caller
+     * finishes. Before ownership was recorded, A's release deleted whatever lock it found, B's, and a third caller
      * could walk straight into the critical section B was still inside.
      */
     it('never releases a lock another holder has taken over', async () => {

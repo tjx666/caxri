@@ -17,10 +17,10 @@ export const updateStateSchema = z.discriminatedUnion('status', [
         currentVersion: updateVersionFields.currentVersion,
         reason: z.string().min(1).max(1_024),
         /**
-         * Set when GitHub's rate limiter — rather than a missing release feed or an unpackaged build — is what makes
-         * the check unavailable. Unlike a Project Status budget, where the retry a row would offer is exactly the
-         * request the limiter is refusing, a manual update check deliberately bypasses this window
-         * (`UpdateService.check({ manual: true })`), so the UI keeps offering the action instead of disabling it.
+         * Set when GitHub's rate limiter, rather than a missing release feed or an unpackaged build, is what makes the
+         * check unavailable. Unlike a Project Status budget, where the retry a row would offer is exactly the request
+         * the limiter is refusing, a manual update check deliberately bypasses this window (`UpdateService.check({
+         * manual: true })`), so the UI keeps offering the action instead of disabling it.
          */
         rateLimited: z.boolean().optional(),
         /**
@@ -38,7 +38,7 @@ export const updateStateSchema = z.discriminatedUnion('status', [
         status: z.literal('available'),
         ...updateVersionFields,
         /**
-         * `true` once this app process has already offered this version to a window — the Renderer calls
+         * `true` once this app process has already offered this version to a window: the Renderer calls
          * `updates.acknowledge` as soon as it raises the notification or opens the update dialog. It exists so a window
          * reload, or a download the user cancelled back to `available`, re-reads the same state without producing a
          * second prompt, while the next launch starts over. Nothing here is persisted: that is what separates `Close`

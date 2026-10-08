@@ -54,7 +54,7 @@ test('the PrimarySidebar reveals older Sessions on demand and always renders the
         await expect(sessionCards).toHaveCount(5);
         /**
          * A `session.create` reply only proves Server stored it; the sidebar learns about it from a later refresh. The
-         * reveal row cannot stand in for that wait — its label is capped at the reveal step, so it reads "Show 10 more"
+         * reveal row cannot stand in for that wait; its label is capped at the reveal step, so it reads "Show 10 more"
          * whether 15 or 16 Sessions have arrived. Acting one Session early is what made this case intermittent: with 15
          * the very first reveal already drains the list, so the row hands focus to the Session above it before
          * unmounting and the reveal row is legitimately no longer focused. Sessions are ordered by activity recency, so
@@ -70,7 +70,7 @@ test('the PrimarySidebar reveals older Sessions on demand and always renders the
         await running.page.keyboard.press('End');
         await expect(reveal).toBeFocused();
 
-        // A step that leaves Sessions hidden keeps the row — and the keyboard focus that is standing on it.
+        // A step that leaves Sessions hidden keeps the row, and the keyboard focus that is standing on it.
         await running.page.keyboard.press('Enter');
         await expect(sessionCards).toHaveCount(15);
         await expect(reveal).toHaveAccessibleName(/^Show 1 more Session in /);
@@ -88,7 +88,7 @@ test('the PrimarySidebar reveals older Sessions on demand and always renders the
         /**
          * The oldest Session sits below the default window, which is exactly the case the selected-Session guarantee
          * protects: Session order is activity recency, so selecting it does not pull it to the top. The guarantee is
-         * about that one row, so it is pinned to the end of the window rather than opened up to — the list stays five
+         * about that one row, so it is pinned to the end of the window rather than opened up to; the list stays five
          * rows plus the selection, and `Show N more` survives (issue #993).
          */
         const oldestSessionId = await sessionCards.last().getAttribute('data-session-id');

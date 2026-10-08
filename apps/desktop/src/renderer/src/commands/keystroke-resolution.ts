@@ -47,12 +47,12 @@ export interface PendingChord {
 /**
  * What dispatch must do with one keystroke.
  *
- * - `ignore` — no binding matched; the keystroke belongs to whatever is focused.
- * - `armChord` — the keystroke opens a sequence. Consumed unless it was released to Monaco.
- * - `yieldChordContinuation` — the editor owns this sequence; the continuation is Monaco's, untouched.
- * - `cancelChord` — a Caxri-owned sequence matched nothing. The keystroke is swallowed so a half-typed chord never leaks
+ * - `ignore`: no binding matched; the keystroke belongs to whatever is focused.
+ * - `armChord`: the keystroke opens a sequence. Consumed unless it was released to Monaco.
+ * - `yieldChordContinuation`: the editor owns this sequence; the continuation is Monaco's, untouched.
+ * - `cancelChord`: a Caxri-owned sequence matched nothing. The keystroke is swallowed so a half-typed chord never leaks
  *   its second key into a Terminal or an input.
- * - `dispatch` — run `binding`.
+ * - `dispatch`: run `binding`.
  */
 export type KeystrokeOutcome =
     | { kind: 'armChord'; leadingChord: string; yieldToEditor: boolean }

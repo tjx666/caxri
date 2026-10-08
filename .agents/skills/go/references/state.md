@@ -279,7 +279,7 @@ bun run .agents/skills/go/scripts/state.ts phase --help
 - Acceptance requires every issue to be assessed at the exact delivered head, so
   a cross-issue repair that moves that head leaves each earlier assessment stale.
   `Issue #N expectation drift assessment does not match the required head` is what
-  that looks like. Re-attest with the non-material form — it refreshes the
+  that looks like. Re-attest with the non-material form; it refreshes the
   assessment head and leaves a published decision intact:
 
   ```bash

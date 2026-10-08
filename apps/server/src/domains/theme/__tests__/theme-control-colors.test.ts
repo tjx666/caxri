@@ -44,7 +44,7 @@ describe('VS Code control state colors', () => {
         const theme = await importTheme(path, draculaTheme);
 
         expect(theme.colors.surface).toBe('#252526');
-        // The fills still land — on their own roles, which is the point of adding them.
+        // The fills still land: on their own roles, which is the point of adding them.
         expect(theme.colors.tabActiveBackground).toBe('#2d2d30');
         expect(theme.colors.titleBarActiveBackground).toBe('#252530');
     });
@@ -369,7 +369,7 @@ describe('VS Code control state colors', () => {
 
 /**
  * Flattens a `#rrggbbaa` fill over what sits behind it, because a translucent list or tab fill has no contrast of its
- * own — what the reader actually sees is the blend. Opaque values pass straight through.
+ * own: what the reader actually sees is the blend. Opaque values pass straight through.
  */
 function flattenedOver(fill: string, backdrop: string): string {
     if (fill.length !== 9) return fill;
@@ -388,7 +388,7 @@ function flattenedOver(fill: string, backdrop: string): string {
  * Every label a user reads while working in the focused window, paired with the fill it sits on.
  *
  * `titleBarInactive*` is deliberately absent. It only paints when the whole window is unfocused, which is inactive UI
- * under WCAG 1.4.3 and the one case where the dimming is the message — macOS and VS Code both fade an unfocused title
+ * under WCAG 1.4.3 and the one case where the dimming is the message: macOS and VS Code both fade an unfocused title
  * the same way. Every other state here is something the user is looking at right now.
  */
 type ColorRole = keyof ThemeTokens['colors'];
@@ -406,9 +406,9 @@ const READABLE_STATE_PAIRS: ReadonlyArray<readonly [ColorRole, ColorRole]> = [
 
 /**
  * The presets are Caxri's own product, not a mirror of anyone's VS Code theme, so they answer to `DESIGN.md`'s contrast
- * floor before they answer to upstream fidelity — the same reason Dracula's `muted` is an adjusted blue-grey rather
- * than its palette's comment color. Without this, a preset filling these roles from its upstream theme quietly reverts
- * that correction: several upstream themes use their comment color for `tab.inactiveForeground`, which is exactly the
+ * floor before they answer to upstream fidelity: the same reason Dracula's `muted` is an adjusted blue-grey rather than
+ * its palette's comment color. Without this, a preset filling these roles from its upstream theme quietly reverts that
+ * correction: several upstream themes use their comment color for `tab.inactiveForeground`, which is exactly the
  * substitution `DESIGN.md` forbids. An imported theme is a different contract and keeps its author's values.
  *
  * `theme.test.ts` holds the sibling floor for `muted`, `foreground`, and `merged` on the three chrome surfaces. The two
@@ -431,7 +431,7 @@ describe('built-in control state contrast', () => {
 
     /**
      * Which tab is open has to be visible without the accent line, because Caxri draws that line only on the focused
-     * pane — in a split, the other pane's tab strip has nothing else. Either cue alone is enough, and the two are on
+     * pane: in a split, the other pane's tab strip has nothing else. Either cue alone is enough, and the two are on
      * different scales, so they are checked separately: Solarized Light carries it entirely on the fill and Oscura
      * Midnight entirely on the label. What this rules out is a theme with neither, which is what happens when a theme
      * paints both tab states the same color and the contrast floor then pulls the two labels together.

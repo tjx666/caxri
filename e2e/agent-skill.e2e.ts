@@ -223,7 +223,7 @@ process.stdin.resume();
             'caxri skills install caxri-cli --provider codex --global --yes',
         );
         // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
-        // outright — there is no "Close" button to click anymore.
+        // outright; there is no "Close" button to click anymore.
         await running.page.keyboard.press('Meta+w');
         await expect(settingsTab).toHaveCount(0);
         await pageRequest(running.page, 'terminal.create', { sessionId, kind: 'codex' });

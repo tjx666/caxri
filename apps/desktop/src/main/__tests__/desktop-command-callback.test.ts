@@ -93,7 +93,7 @@ describe('Desktop command callback guard', () => {
      * `focus` and `open` reach `openMainWindow`, which reads `app.windowState.get` to restore the window's saved
      * geometry. Server Core settles a read outside the ordered admission lane, so that request answers while the
      * command it was issued from is still open and never deadlocks. Refusing it made a window reopened from the
-     * background fall back to the hardcoded default size — and persist that default over the user's own on close.
+     * background fall back to the hardcoded default size, and persist that default over the user's own on close.
      */
     it('admits a read-only Server request issued from a Desktop command handler', async () => {
         const client = mockServerRound();

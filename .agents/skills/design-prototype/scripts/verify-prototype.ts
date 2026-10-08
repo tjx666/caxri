@@ -4,7 +4,7 @@
  * review.
  *
  * Usage: `bun run .agents/skills/design-prototype/scripts/verify-prototype.ts <prototype.html> [screenshot.png]` Exits
- * 1 when the page throws or logs a console error. Always Read the screenshot afterwards — a prototype is a visual
+ * 1 when the page throws or logs a console error. Always Read the screenshot afterwards: a prototype is a visual
  * deliverable.
  */
 import path from 'node:path';
@@ -56,4 +56,4 @@ if (errors.length > 0) {
     console.error(`page errors:\n${errors.join('\n')}`);
     process.exit(1);
 }
-console.log(`ok — screenshot: ${screenshotPath}`);
+console.log(`ok - screenshot: ${screenshotPath}`);

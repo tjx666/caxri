@@ -27,8 +27,8 @@ type GpuIncidentBudgetTransition = Omit<GpuIncidentBudgetDiagnostic, 'kind' | 'd
 interface GpuIncidentBudgetOptions {
     now?: () => number;
     /**
-     * Receives only the pinned transition. Pinning is the one moment in this feature the user has to act on — GPU
-     * acceleration is off for the rest of this window — so the notification layer subscribes to it directly instead of
+     * Receives only the pinned transition. Pinning is the one moment in this feature the user has to act on (GPU
+     * acceleration is off for the rest of this window) so the notification layer subscribes to it directly instead of
      * inferring it from a per-pane status, which cannot tell "this pane fell back" from "the session gave up".
      */
     onPinned?: (transition: GpuIncidentBudgetTransition) => void;

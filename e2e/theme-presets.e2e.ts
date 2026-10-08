@@ -66,7 +66,7 @@ test('Theme presets apply, persist, and detach after a color edit', async () => 
         await expect(restoredPreset).toContainText('Solarized Light');
 
         await settingsTab.getByLabel('colors accent color').fill('#268bd2');
-        await expect(restoredPreset).toContainText('Custom — Solarized Light');
+        await expect(restoredPreset).toContainText('Custom: Solarized Light');
         await expect
             .poll(async () => {
                 const result = await pageRequest<{ value: ThemeTokens }>(running.page, 'theme.get');

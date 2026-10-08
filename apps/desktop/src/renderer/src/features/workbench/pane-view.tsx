@@ -71,8 +71,8 @@ function leadingPaneId(node: PaneLayoutNode): string {
 
 /**
  * Whether the leading pane's tab bar reaches the window's right edge. It does until a side-by-side split puts another
- * pane beside it, after which the bar is only as wide as its own pane and anything it reserves at its trailing end —
- * the drag corner — lands in the middle of the window instead of in the corner, wedged between the "+" button and the
+ * pane beside it, after which the bar is only as wide as its own pane and anything it reserves at its trailing end (the
+ * drag corner) lands in the middle of the window instead of in the corner, wedged between the "+" button and the
  * neighbouring pane's first tab. An open SecondarySidebar ends the bar at that rail the same way, whatever the split.
  */
 function isLeadingBarWindowWide(node: PaneLayoutNode): boolean {
@@ -138,13 +138,13 @@ function PaneBox({
     const isActivePane = layout.activePaneId === pane.id;
     /**
      * Whether the focus about to arrive is the default action of a pointer press, which the tab's own `onClick` will
-     * finish. Focus reaching a tab any other way — `Tab` traversal, a cancelled drag, the focus recovery below — has no
+     * finish. Focus reaching a tab any other way (`Tab` traversal, a cancelled drag, the focus recovery below) has no
      * click behind it, so only the pointer case may leave the pane activation to the click.
      */
     const isPointerPressed = useRef(false);
     /**
      * The other half of that deferral: a press that never becomes a click leaves nobody to run `selectTab`. A drag
-     * cancelled with `Escape` is the everyday case — `pointerdown → focusin → dragstart → dragend`, no `click` — and it
+     * cancelled with `Escape` is the everyday case (`pointerdown → focusin → dragstart → dragend`, no `click`) and it
      * would otherwise strand focus in one pane while `activePaneId`, the focus ring, the Status Bar, and every
      * layout-resolved command stay on another.
      *
@@ -233,7 +233,7 @@ function PaneBox({
                 /**
                  * Clicking a tab in an inactive pane focuses the tab first and selects it after, and `selectTab`
                  * already moves `activePaneId` onto the tab's own pane. Activating the pane from here as well wrote the
-                 * entire SessionState twice for one click — two independent `session.updateState` round-trips — so a
+                 * entire SessionState twice for one click, two independent `session.updateState` round-trips, so a
                  * pointer-driven focus that lands on a tab is left for the tab's own selection to finish.
                  *
                  * Every other way into a tab is a real focus change with no click behind it: each pane's active tab is
@@ -336,7 +336,7 @@ function PaneSplitView({
     /**
      * Both children share the remaining space by `flex-grow` from a zero basis, so the splitter lands at exactly
      * `ratio` of the container. Setting `flexBasis: ratio%` on the first child while both kept `flex-1` left the
-     * leftover space split evenly, which put the splitter at `(1 + ratio) / 2` instead — a pointer-driven ratio (which
+     * leftover space split evenly, which put the splitter at `(1 + ratio) / 2` instead: a pointer-driven ratio (which
      * resolves the absolute pointer position) then overshot on every move, so the splitter jumped away from the pointer
      * at drag start and tracked it at half speed afterwards.
      */
@@ -402,10 +402,10 @@ function PaneNodeView({
  * One Session's split tree. Terminals and documents live in the same panes and obey the same layout rules; nothing
  * above this component branches on what a tab holds.
  *
- * Several of these are mounted at once — one per Session the Workbench keeps alive — so it takes its Session by id
- * rather than reading the selection. `isVisible` marks the one on screen; the others stay mounted with their xterm
- * buffers, Editor models, and scroll positions intact, which is what makes switching back a redraw instead of a rebuild
- * (issue #657).
+ * Several of these are mounted at once, one per Session the Workbench keeps alive, so it takes its Session by id rather
+ * than reading the selection. `isVisible` marks the one on screen; the others stay mounted with their xterm buffers,
+ * Editor models, and scroll positions intact, which is what makes switching back a redraw instead of a rebuild (issue
+ * #657).
  */
 export function PaneView({ isVisible, sessionId }: { isVisible: boolean; sessionId: string }) {
     const layout = useSessionState(sessionId)?.paneLayout;

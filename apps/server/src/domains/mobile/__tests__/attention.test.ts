@@ -117,7 +117,7 @@ describe('mobile.attention.answerInternal', () => {
         const { handlers, attentionRequests } = handlersWith({ grantAutoAllow });
         const offer = (): string => {
             // Deliberately discarded: each answer below resolves this Promise, but this test only checks whether
-            // the answer grants auto-allow, not the resolution itself — already covered by attention-requests.test.ts.
+            // the answer grants auto-allow, not the resolution itself: already covered by attention-requests.test.ts.
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void attentionRequests.offer({
                 sessionId: 'session-granted',
@@ -140,7 +140,7 @@ describe('mobile.attention.answerInternal', () => {
         });
         expect(grantAutoAllow).not.toHaveBeenCalled();
 
-        // "deny" with the field also never grants — only "allow" does.
+        // "deny" with the field also never grants: only "allow" does.
         await handlers['mobile.attention.answerInternal']({
             sessionId: 'session-granted',
             requestId: offer(),

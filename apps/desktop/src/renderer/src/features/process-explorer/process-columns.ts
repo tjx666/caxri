@@ -107,7 +107,7 @@ export function processColumnWidthVariable(key: ProcessColumnKey): string {
 }
 
 /**
- * Header and body rows share one template so a live drag only has to rewrite the custom properties below — no row ever
+ * Header and body rows share one template so a live drag only has to rewrite the custom properties below; no row ever
  * re-renders mid-gesture. The trailing `minmax(0,1fr)` swallows the space left when the pinned columns are narrower
  * than the window.
  */

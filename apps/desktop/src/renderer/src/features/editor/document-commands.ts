@@ -92,14 +92,14 @@ function isDocumentDirty(sessionId: string, path: string, workbenchProjectId?: s
 
 /**
  * `openResource`'s write can lose a race against a brand-new Session's own initial Terminal-attach write and come back
- * `CONFLICT` ("stale revision") even though nothing the caller did was wrong — both writes originate from opening this
+ * `CONFLICT` ("stale revision") even though nothing the caller did was wrong: both writes originate from opening this
  * same Session for the first time (see `pickCommanderFileLinkSession` in Main), and the Session's very first
  * `session.updateState` has nothing to rebase against locally. Retrying once against a refreshed snapshot is safe
  * because opening a resource is idempotent: recomputing `openResource` either reveals the tab this retry adds, or
  * discovers the resource is already open from whichever write actually won (issue #1409).
  *
- * Retries only on `onStaleWrite`, never by inferring it from the pane layout — a later command (e.g. a close) can
- * supersede this attempt before it settles, leaving a genuine failure looking just like a lost race — and bails if the
+ * Retries only on `onStaleWrite`, never by inferring it from the pane layout: a later command (e.g. a close) can
+ * supersede this attempt before it settles, leaving a genuine failure looking just like a lost race, and bails if the
  * Session's Workbench Root changed mid-flight. `paneId` is pinned once by the caller instead of re-resolved on every
  * retry, so a pane switch mid-flight cannot scatter the same file across two panes.
  */
@@ -135,7 +135,7 @@ async function persistOpenedEditorTab(
     await refreshWorkbench();
     const current = sessionStateOf(sessionId);
     if (!current || current.workbenchProjectId !== workbenchProjectId) return;
-    // The pinned pane already shows this file — the write that won the race added it, nothing left to persist.
+    // The pinned pane already shows this file; the write that won the race added it, nothing left to persist.
     const alreadyThere = findResourceTabs(current.paneLayout, { kind: 'file', path }).some(
         (occurrence) => occurrence.pane.id === paneId,
     );
@@ -472,8 +472,8 @@ type SaveRetryTarget = ToastActionParameters['editor.retrySave'];
 /**
  * Which editor a failed save would be retried in, or undefined once there is no longer one.
  *
- * The buffer itself is deliberately not part of a retry's identity — it is re-read at retry time so a retry cannot
- * overwrite edits made after the failure — so all that has to survive the notification is the tab. A preview tab is
+ * The buffer itself is deliberately not part of a retry's identity: it is re-read at retry time so a retry cannot
+ * overwrite edits made after the failure; so all that has to survive the notification is the tab. A preview tab is
  * refused outright: recovering through a reusable slot would save a replacement document.
  */
 function retrySaveTarget(target: SaveRetryTarget): FileTabTarget | undefined {
@@ -517,7 +517,7 @@ export async function saveActiveEditor(): Promise<void> {
 
 /**
  * Confirms discarding unsaved changes for each dirty tab about to close, one native "Do you want to save…" sheet at a
- * time (macOS only ever shows one modal sheet). Choosing Cancel on any of them aborts the whole close — a bulk Close
+ * time (macOS only ever shows one modal sheet). Choosing Cancel on any of them aborts the whole close: a bulk Close
  * Others/Close All must never end up half applied, silently dropping some dirty buffers while leaving others open.
  *
  * A document open in several panes is only confirmed once, and only when the close would remove its last occurrence:
@@ -561,7 +561,7 @@ async function didConfirmDirtyEditorCloses(
  * Closes explicitly selected tabs after the caller resolves the appropriate resource family. A dirty document is
  * confirmed (Save/Don't Save/Cancel) before anything is evicted, and the layout is re-read after that round trip in
  * case a concurrent operation (rename, Trash) changed it meanwhile. A Terminal among the closed tabs must give up its
- * PTY through the Server lifecycle in the same pass — merely dropping its tab from the layout would leave the process
+ * PTY through the Server lifecycle in the same pass: merely dropping its tab from the layout would leave the process
  * running with nothing left to show or close it.
  */
 export async function closeDocumentTabs(tabIds: readonly string[]): Promise<void> {
@@ -729,9 +729,9 @@ function closeOpenEditorsUnderPathInSession(
  * path's Workbench Root, after Main confirms Trash.
  *
  * `workbenchProjectId` is the root the caller resolved _before_ it awaited the Trash confirmation. Re-deriving it here
- * would reintroduce the same defect from the other side: a Session can change roots while the dialog is open — an Agent
+ * would reintroduce the same defect from the other side: a Session can change roots while the dialog is open (an Agent
  * creating a worktree does it without the user touching anything when `workbench.newWorktreeBehavior` is
- * `continueAutomatically` — and the cleanup would then miss the root the confirmation was actually about.
+ * `continueAutomatically`) and the cleanup would then miss the root the confirmation was actually about.
  */
 export function closeOpenEditorsUnderPath(workbenchProjectId: string, path: string): void {
     for (const rootSessionId of workbenchRootSessionIds())
@@ -745,7 +745,7 @@ export function closeOpenEditorsUnderPath(workbenchProjectId: string, path: stri
  *
  * The evidence is the scoped document cache rather than the pane layout, deliberately: a Session parked on another root
  * has no layout for this one in memory, and the cache is what recreates the trashed file once the user switches back
- * and saves. Reading the same state {@link closeOpenEditorsUnderPath} evicts is the point — the confirmation promising
+ * and saves. Reading the same state {@link closeOpenEditorsUnderPath} evicts is the point: the confirmation promising
  * one thing while the cleanup discards another is the defect shape issue #738 reported. A dirty document always has a
  * cache entry, so this still covers every open dirty tab.
  */

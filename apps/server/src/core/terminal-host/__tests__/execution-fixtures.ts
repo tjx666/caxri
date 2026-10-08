@@ -242,7 +242,7 @@ export function createExecution(): {
 }
 
 /**
- * Brings up a Terminal running a managed Agent with no Renderer attachment — the shape a background delegation writes
+ * Brings up a Terminal running a managed Agent with no Renderer attachment: the shape a background delegation writes
  * to, and the only one whose Agent input is admitted before the Terminal Host has answered.
  */
 export async function startBackgroundAgent(

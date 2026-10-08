@@ -7,7 +7,7 @@ status: current
 
 Caxri can render a Project file instead of editing it: Markdown as formatted text, `.svg` as an
 image. A preview is a virtual editor tab, so it opens, splits, persists, and restores exactly like
-a source tab — and the same file can sit open as source in one pane and as a preview in another.
+a source tab, and the same file can sit open as source in one pane and as a preview in another.
 
 This document covers the shipped behavior, the contracts a new format has to satisfy, and the
 reasons behind the two decisions that are easy to get wrong later: where HTML is produced, and
@@ -22,8 +22,8 @@ where images come from.
 | Open it from a tab or the explorer   | Right-click the editor tab or the file in Files → **Open Preview**                 |
 | Copy a fenced code block             | Hover the block, click the copy button                                             |
 | Jump to a heading                    | Click an in-page link                                                              |
-| Follow a link to another document    | Click it — Caxri opens that file as a new editor tab                               |
-| Follow an external link              | Click it — opens in the system browser                                             |
+| Follow a link to another document    | Click it: Caxri opens that file as a new editor tab                                |
+| Follow an external link              | Click it: opens in the system browser                                              |
 
 Double-clicking a Markdown or SVG file in the explorer still opens the source. Both formats are
 readable as text, so the preview stays an explicit command; VS Code makes the same call with
@@ -42,7 +42,7 @@ Smart typography is deliberately off, so what you typed is what you see.
 
 ## How a preview tab is addressed
 
-`caxri-file-preview://<url-encoded absolute path>` — see
+`caxri-file-preview://<url-encoded absolute path>`, see
 [`packages/protocol/src/domain/file-preview.ts`](../packages/protocol/src/domain/file-preview.ts).
 The scheme carries only the source path. Which renderer that path gets is decided by the Renderer's
 previewer registry, so adding a format never changes the tab contract or the persisted workspace
@@ -62,7 +62,7 @@ source text
 
 The engine is [markdown-it](https://github.com/markdown-it/markdown-it) behind
 [`renderMarkdown`](../packages/markdown/src/render-markdown.ts). It returns an HTML string plus
-four side tables — the assets, code blocks, diagrams, and links the document referenced — each
+four side tables: the assets, code blocks, diagrams, and links the document referenced, each
 keyed by an id that also appears as a `data-` attribute in the HTML.
 
 Two properties of that package are load-bearing and enforced, not conventions:
@@ -81,7 +81,7 @@ Two properties of that package are load-bearing and enforced, not conventions:
   `style` is on that list for a reason VS Code does not have: its preview owns a separate webview
   document, while this one renders inside the Workbench, so a document-supplied stylesheet would
   restyle the whole application. The other half of that containment is `contain: layout paint` on
-  `.caxri-markdown`, which makes the preview the containing block for positioned descendants — a
+  `.caxri-markdown`, which makes the preview the containing block for positioned descendants: a
   document can still ask for `position: fixed` through a `class` or an inline `style`, and the
   worst it can then cover is its own pane.
 
@@ -115,8 +115,8 @@ individual Mermaid layout still runs on the main thread.
 ### Images never carry a filesystem path
 
 The rendered HTML emits `<img data-caxri-asset="…">` with **no `src`**. The Renderer reads the
-bytes through `files.readAsset` — a normal typed request, authorized against the Session's Project
-root like every other file read — and assigns a `blob:` object URL after mount. Object URLs are
+bytes through `files.readAsset` (a normal typed request, authorized against the Session's Project
+root like every other file read) and assigns a `blob:` object URL after mount. Object URLs are
 reference-counted in
 [`preview-asset-client.ts`](../apps/desktop/src/renderer/src/features/preview/preview-asset-client.ts)
 so the same image in two open previews is read once and revoked when the last one closes.
@@ -132,7 +132,7 @@ reason: a mobile client gets images through the identical request, with no Elect
 reimplement.
 
 The Renderer CSP allows `img-src 'self' data: blob: https:`. `blob:` is the mechanism above.
-`https:` lets README badges render, matching VS Code's default Markdown preview security — the
+`https:` lets README badges render, matching VS Code's default Markdown preview security: the
 tradeoff is that opening such a document tells the badge host. Plain `http:` stays blocked.
 
 ## Adding a format
@@ -152,7 +152,7 @@ like `ImagePreview`, and extends `previewAssetMediaTypes` if its type is not on 
 allowlist yet.
 
 If a future format needs its own rendering engine, put the engine in a `packages/*` package under
-the same two rules as `@caxri/markdown` — no DOM, untrusted output — so the mobile client can reuse
+the same two rules as `@caxri/markdown` (no DOM, untrusted output) so the mobile client can reuse
 it.
 
 ## Known limits

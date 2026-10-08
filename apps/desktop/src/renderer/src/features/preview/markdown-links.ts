@@ -20,7 +20,7 @@ export type PreviewLinkAction =
  * an in-page jump, an external open through the trusted `external.open` path, or a tab. A link whose target left the
  * Project root resolved to no path in the engine and is ignored rather than guessed at.
  *
- * A link to another previewable document opens as a preview, matching VS Code — following a README into `docs/` should
+ * A link to another previewable document opens as a preview, matching VS Code: following a README into `docs/` should
  * stay in the reading view rather than dropping into Markdown source.
  */
 export function previewLinkAction(link: MarkdownLink | undefined, href: string): PreviewLinkAction {

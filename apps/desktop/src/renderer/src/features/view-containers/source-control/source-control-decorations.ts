@@ -8,8 +8,8 @@ type SourceControlResourceDecoration = NonNullable<SourceControlResource['decora
  * The `--git-*` role one Source Control decoration paints, as a Tailwind text color.
  *
  * A changed file has to read the same wherever its name appears (DESIGN.md, "Git decorations"), so this resolves the
- * decoration's `identifier` — the Git change kind, for Caxri's Git extension — through the same table the Files tree,
- * the tab strip, and the diff headers use. Reading the generic `tone` instead is what used to break that promise: three
+ * decoration's `identifier` (the Git change kind, for Caxri's Git extension) through the same table the Files tree, the
+ * tab strip, and the diff headers use. Reading the generic `tone` instead is what used to break that promise: three
  * tones cannot hold five roles, so `added` and `untracked` both came out green and a `modified` file wore the same
  * amber as a warning chip.
  *

@@ -107,7 +107,7 @@ export function dirtyLayerReportForFiles(
     /**
      * React Doctor is not limited to the Renderer. CI runs it over every changed TypeScript file, and rules such as
      * `js-combine-iterations` are plain JavaScript performance rules that a Server-only change trips just as easily.
-     * Routing this gate by layer let a Domains change pass the focused check and then stop full platform checks — the
+     * Routing this gate by layer let a Domains change pass the focused check and then stop full platform checks, the
      * one outcome this check exists to prevent.
      */
     if (files.some((file) => TYPE_AWARE_EXTENSIONS.has(extname(file))))

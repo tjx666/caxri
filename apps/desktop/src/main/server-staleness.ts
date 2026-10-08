@@ -15,7 +15,7 @@ function knownValue(value: string | undefined): string | undefined {
 /**
  * Decides whether a discovered Server process was built from different code than the connecting Desktop and must be
  * replaced before serving requests. A detached Server survives Desktop restarts, so after a rebuild (dev) or an app
- * upgrade (packaged) the adopted Server can silently keep running an older build — exactly the failure this check
+ * upgrade (packaged) the adopted Server can silently keep running an older build, exactly the failure this check
  * closes.
  *
  * The per-build `buildId` is authoritative when both sides carry one: it is the only identity that distinguishes two

@@ -219,7 +219,7 @@ export function createPtyThroughputTally(startedAt: number): PtyThroughputTally 
  *
  * The first drop in a lifetime is written at once; later drops fold into at most one record per
  * {@link PTY_DROP_LOG_INTERVAL_MS}, carrying the bytes and windows dropped since the previous one. Production evidence
- * (#1182): one record per dropping window made `pty.throughput` 94% of `terminal-host.jsonl` — ~98,700 records for
+ * (#1182): one record per dropping window made `pty.throughput` 94% of `terminal-host.jsonl`: ~98,700 records for
  * ~348KB actually dropped. Nothing is lost: the retirement summary still totals every dropped byte and window.
  *
  * History: 24c4eb18 first silenced the per-second `info` record and 614cccee reverted it because

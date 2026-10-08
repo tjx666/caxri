@@ -420,7 +420,7 @@ describe('Git source-control view model', () => {
     /**
      * The parent records a submodule as one gitlink change, so the panel used to print it twice in a row: once inside
      * the parent's change list, once as the submodule's own section right below. The gitlink row loses, and every count
-     * the caption prints loses with it — otherwise the caption promises a row the list no longer renders.
+     * the caption prints loses with it: otherwise the caption promises a row the list no longer renders.
      */
     it('drops a gitlink row the snapshot already shows as its own repository section', () => {
         const gitlink = {

@@ -167,7 +167,7 @@ test('Agent Commander window reopens where it was closed', async ({}) => {
 });
 
 /**
- * A Commander window still open when the app quits reopens itself, at the same bounds, the next time the app launches —
+ * A Commander window still open when the app quits reopens itself, at the same bounds, the next time the app launches:
  * cold-start reopen plus cross-restart bounds persistence together; see `reopenAuxiliaryWindowsAtStartup` and
  * `AgentCommanderWindowController.persistWindowState`.
  */

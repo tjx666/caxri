@@ -5,7 +5,7 @@ import { settingsRows, titleNamedBindings } from '../settings-registry';
 
 describe('settingsRows', () => {
     /**
-     * Declaring a setting in the spec makes it readable, writable, and validated — and completely invisible. The
+     * Declaring a setting in the spec makes it readable, writable, and validated, and completely invisible. The
      * Settings page builds from this hand-written row list, so a key added to the spec without a row here is a setting
      * only someone editing `settings.jsonc` by hand can discover. `complex` keys are the exception: they have no
      * generic control and are rendered by a dedicated editor row keyed on its own id.

@@ -58,8 +58,8 @@ export async function readExternalFileSnapshot(path: string): Promise<ExternalEd
     /**
      * The containing directory is canonicalized before it is identified, because a perfectly ordinary external path can
      * reach it through a symlinked ancestor: on macOS `/tmp` is a link to `/private/tmp`, so every `/tmp/...` Terminal
-     * link used to be refused as "not a directory" even though the file was there. Only the ancestors are resolved —
-     * the final segment stays lexical, so `authorizeCandidate` still sees a symlinked _file_ as one and refuses it.
+     * link used to be refused as "not a directory" even though the file was there. Only the ancestors are resolved; the
+     * final segment stays lexical, so `authorizeCandidate` still sees a symlinked _file_ as one and refuses it.
      */
     const parentPath = await realpathExisting(dirname(path));
     const name = basename(path);

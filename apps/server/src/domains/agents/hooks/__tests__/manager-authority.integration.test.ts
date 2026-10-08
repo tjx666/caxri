@@ -88,7 +88,7 @@ describe('Agent hook profile write authority', () => {
          * A config-file watcher re-runs reconciliation with the same requested settings, which still say "enabled" for
          * a provider whose CLI Caxri could not resolve. Discovery that re-decides it is asynchronous, so the window
          * between re-publishing that intent and gating it again must never accept a signal for the disabled provider
-         * (issue #720). The token is real and the launch is live — only the effective authority says no.
+         * (issue #720). The token is real and the launch is live; only the effective authority says no.
          */
         const directory = await mkdtemp(join(tmpdir(), 'caxri-hook-recheck-'));
         const userDataPath = join(directory, 'profile');

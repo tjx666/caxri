@@ -147,7 +147,7 @@ function bugReportDialogReducer(
 
 /**
  * Owns the Bug Report dialog's reducer state, diagnostics fetch, screenshot lifecycle, and preview/send flow so the
- * rendering components stay focused on layout. The screenshot is captured once when the dialog opens — the owner's
+ * rendering components stay focused on layout. The screenshot is captured once when the dialog opens: the owner's
  * dominant flow is "capture, mark the broken area, describe it", and an opt-in checkbox made the user reproduce the
  * problem a second time after they had already navigated away from it.
  */
@@ -233,8 +233,8 @@ export function useBugReportDialog() {
     /**
      * React StrictMode double-invokes mount effects in development; a ref (which survives that remount, unlike reducer
      * state, which has not re-rendered yet when the effect runs again) keeps the window from being captured twice. It
-     * starts already-requested for a restored draft, whose screenshot — including the marks drawn on it — is the one
-     * the user wants back, not a fresh photograph of the workbench they have since navigated away from.
+     * starts already-requested for a restored draft, whose screenshot (including the marks drawn on it) is the one the
+     * user wants back, not a fresh photograph of the workbench they have since navigated away from.
      */
     const hasRequestedCapture = useRef(isRestoredDraft);
     useEffect(() => {
@@ -256,7 +256,7 @@ export function useBugReportDialog() {
 
     /**
      * Whether closing should keep the draft. False only after a successful send, which is the one exit that already
-     * delivered the work — everything else (Escape, the close button, an outside click) means "not now", not "delete
+     * delivered the work; everything else (Escape, the close button, an outside click) means "not now", not "delete
      * what I wrote". A ref rather than reducer state for the same commit-timing reason as {@link latestContent}.
      */
     const shouldRetainOnClose = useRef(true);
@@ -307,9 +307,9 @@ export function useBugReportDialog() {
     };
 
     /**
-     * The one path that actually throws the draft away. It is irreversible — the text, the capture, and every mark on
-     * it go at once — so it asks first through the shared confirmation modal (DESIGN.md "Confirmations") instead of
-     * letting a stray click do what closing the dialog deliberately no longer does.
+     * The one path that actually throws the draft away. It is irreversible: the text, the capture, and every mark on it
+     * go at once, so it asks first through the shared confirmation modal (DESIGN.md "Confirmations") instead of letting
+     * a stray click do what closing the dialog deliberately no longer does.
      */
     const discardDraft = async (): Promise<void> => {
         const isConfirmed = await caxri.window.showConfirm({

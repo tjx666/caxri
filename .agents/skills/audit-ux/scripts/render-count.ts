@@ -182,7 +182,7 @@ export function parseRenderCountOptions(argv: string[]): RenderCountOptions | 'h
  *
  * Repeated component names are reported separately with the first-render window of their instances, because that window
  * is what separates the two meanings: 49 `FileTreeItem` instances that all start together are one list, while two
- * instances of a provider starting seconds apart mean the tree below some ancestor was torn down and rebuilt — which no
+ * instances of a provider starting seconds apart mean the tree below some ancestor was torn down and rebuilt, which no
  * amount of render-count tuning fixes. Widest window first.
  */
 export function summarizeRenderSample(rows: RenderInstanceRow[]): RenderSummary {
@@ -275,14 +275,14 @@ export function formatRenderTable(
 
 /**
  * The in-page collector. It keys rows by fiber instance rather than by component name: aggregating by name inflates
- * counts, can make a child look busier than its parent, and hides the most important boot finding of all — the same
+ * counts, can make a child look busier than its parent, and hides the most important boot finding of all: the same
  * component mounted twice.
  *
  * Installing is idempotent and arming resets the counters, because react-scan keeps one instrumentation per document
  * (`isInstrumentationInitialized`). A second measurement in the same window must therefore reuse the already registered
  * `onRender` closure; replacing the state object instead would leave every later render counted into an orphan and
- * report zero. For the same reason a collector left over from an older build of this script cannot be swapped in place
- * — it is marked stale so `sample` fails loudly instead of reporting one window's counts under another window's
+ * report zero. For the same reason a collector left over from an older build of this script cannot be swapped in place;
+ * it is marked stale so `sample` fails loudly instead of reporting one window's counts under another window's
  * semantics.
  *
  * Only component names, counts, and timestamps leave the page. Never add DOM text, prop values, or paths here: this
@@ -509,7 +509,7 @@ async function evaluate<T>(client: CdpConnection, expression: string): Promise<T
 /**
  * Waits for the render storm to finish instead of cutting the window at a fixed length. A Session switch reaches the
  * Renderer only after a Server round trip, so a fixed short window reported zero renders for a switch whose work simply
- * had not arrived yet — a false "this interaction is free". Returns whether the sample actually went quiet.
+ * had not arrived yet, a false "this interaction is free". Returns whether the sample actually went quiet.
  *
  * A boot sample additionally may not settle before the Workbench exists: startup has quiet gaps while it waits on the
  * Server, and settling inside one of them would describe the loading shell.
@@ -640,7 +640,7 @@ async function main(): Promise<void> {
     // A scoped surface that stayed still is a result, not a missed click, so only the whole window proves the click.
     if ((window ?? summary).commits === 0) {
         throw new Error(
-            'No render was recorded, which means the interaction never reached React — check the --click target instead of reporting the scenario as free',
+            'No render was recorded, which means the interaction never reached React: check the --click target instead of reporting the scenario as free',
         );
     }
 }

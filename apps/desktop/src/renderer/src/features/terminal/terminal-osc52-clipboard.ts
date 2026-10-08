@@ -47,7 +47,7 @@ export class ControlledOsc52Clipboard implements IBase64, IClipboardProvider {
     /**
      * Throttled per reason, not globally: a burst of one kind still collapses to a single notice, which is the actual
      * anti-spam goal, but four genuinely different explanations are not merged into whichever happened to fire first.
-     * That matters most for `disabled`, the only reason with a concrete next step ("turn the setting on") — a global
+     * That matters most for `disabled`, the only reason with a concrete next step ("turn the setting on"): a global
      * throttle could let a chatty program's oversized writes suppress it until the program stopped, at which point it
      * never appeared.
      */

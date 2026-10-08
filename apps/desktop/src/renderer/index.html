@@ -9,7 +9,7 @@
              `img-src blob:` carries file previews: a project image is read through the Session's
              authorized file channel and mounted as an object URL, so no filesystem path ever
              becomes a document's `src`. `https:` lets a previewed Markdown file show the remote
-             images real READMEs are written around (build badges, hosted diagrams) — the same
+             images real READMEs are written around (build badges, hosted diagrams), the same
              default VS Code's Markdown preview ships with, and the same trade-off: opening a
              document tells whatever host it points at that it was opened. Plain `http:` stays
              blocked. -->
@@ -23,7 +23,7 @@
              floats over the blurred desktop until the workbench attaches and `App` removes `#startup-loader`. The mark is
              one CSS mask so a single element carries both its base color and the sweeping highlight. -->
         <style>
-            /* Stacks every React surface — the transparent wait screen, a crash screen — above the loader. */
+            /* Stacks every React surface (the transparent wait screen, a crash screen) above the loader. */
             #root {
                 position: relative;
             }

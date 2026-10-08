@@ -418,7 +418,7 @@ export class AgentHookManager {
      * Applies an adapter's edit plan and audits each write. The audit exists because these edits rewrite user-global
      * provider config (`~/.claude/settings.json` and Codex's equivalent) that other tools also write: without it, a
      * hook that vanished has no local timeline. `action` and `fromStatus` separate a first install from a repair of
-     * drifted entries and from an uninstall. Only the symbolic target id is recorded — never the path or the source.
+     * drifted entries and from an uninstall. Only the symbolic target id is recorded, never the path or the source.
      */
     private async writeEdits(
         edits: ReturnType<AgentHookAdapter['render']>,

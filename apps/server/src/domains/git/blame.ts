@@ -47,7 +47,7 @@ export class GitBlameService {
 
     /**
      * Maps a Session-scoped editor path to the innermost repository tracking it, or `null` when the file is gone or
-     * outside every known repository — both are stale-metadata outcomes for these optional annotations, not failures.
+     * outside every known repository: both are stale-metadata outcomes for these optional annotations, not failures.
      */
     private async resolveTrackedPath(
         sessionId: string,
@@ -115,7 +115,7 @@ export class GitBlameService {
     }
 
     /**
-     * Latest commit touching one file — the file-level "who changed this last" annotation shown above the editor.
+     * Latest commit touching one file: the file-level "who changed this last" annotation shown above the editor.
      */
     fileHead(parameters: ServerOperationParameters<'git.fileHead'>): Promise<GitFileHead | null> {
         return this.fileHeads.run(JSON.stringify(parameters), async () => {

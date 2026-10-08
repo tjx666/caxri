@@ -12,7 +12,7 @@ import { acceptanceUrl } from '../acceptance-link';
 /**
  * Wire shapes and projections for the two on-demand CLIs this domain resolves: `linear` and `lh acceptance`. Kept
  * beside `./linear.ts` and `./acceptance.ts` rather than inside them so those files stay about the store's own concern
- * — cache lifetime and single-flight coalescing — and this file stays about turning raw CLI output into protocol types.
+ * (cache lifetime and single-flight coalescing) and this file stays about turning raw CLI output into protocol types.
  * `project-status/parse.ts` holds the equivalent modules for `gh` and `vc`, which stay outside this domain because
  * reading and displaying a pull request or a deployment is a Project Status concern, not an external-status one.
  */

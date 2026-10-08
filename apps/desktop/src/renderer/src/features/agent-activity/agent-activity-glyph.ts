@@ -15,7 +15,7 @@ export interface AgentActivityGlyph {
     id: AgentActivityGlyphId;
     /**
      * The words the glyph stands for. The row prints no state text, so this is both its accessible name and its hover
-     * title — the only place a user can still read "Waiting for you".
+     * title, the only place a user can still read "Waiting for you".
      */
     label: string;
     toneClassName: string;
@@ -46,12 +46,12 @@ const TONE_TEXT_CLASSNAME: Record<SessionActivityPresentation['tone'], string> =
  * The glyph that replaces a row's state phrase, and the one place this list spends color.
  *
  * Every group heading already names its own state, so printing it again on each row said "Working" under "Working" and
- * "Idle" under "Idle" — three of the six groups repeated themselves verbatim, and the phrase cost the width the Project
+ * "Idle" under "Idle": three of the six groups repeated themselves verbatim, and the phrase cost the width the Project
  * name needed. The shape carries it instead, and {@link AgentActivityGlyph.label} carries the words.
  *
  * Tone follows the list's two-tier rule ({@link isAgentActivityActionable}): apart from a live turn's green spinner,
  * only a row that asks the user for something is tinted, so warning and danger weight always means "this one wants
- * you". An unread row is tinted by _why_ it is unread rather than by what its Agent is doing now — `statusPresentation`
+ * you". An unread row is tinted by _why_ it is unread rather than by what its Agent is doing now; `statusPresentation`
  * answers the second question, and its answer is `neutral` for a completed turn, the commonest attention reason of
  * all.
  */

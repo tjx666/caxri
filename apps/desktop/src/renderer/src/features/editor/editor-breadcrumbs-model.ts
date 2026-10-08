@@ -44,7 +44,7 @@ export interface ReadOnlyBreadcrumbSegment {
 }
 
 /**
- * Segments for a document the Project cannot browse — a file opened from outside every Project root, or one side of a
+ * Segments for a document the Project cannot browse: a file opened from outside every Project root, or one side of a
  * Git diff. The trail is display-only for exactly that reason: there is no authorized directory listing behind a
  * segment, so offering a picker would promise navigation the Renderer cannot perform.
  *

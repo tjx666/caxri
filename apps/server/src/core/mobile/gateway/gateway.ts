@@ -168,7 +168,7 @@ export class MobileGateway {
 
     /**
      * Total authenticated ("ready") Mobile connections across every paired device. Handshakes still in progress do not
-     * count — matching `onConnectionCountChanged`, which only fires once a session actually reaches this set.
+     * count, matching `onConnectionCountChanged`, which only fires once a session actually reaches this set.
      */
     connectionCount(): number {
         let total = 0;

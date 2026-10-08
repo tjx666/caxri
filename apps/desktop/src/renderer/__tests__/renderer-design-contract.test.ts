@@ -134,7 +134,7 @@ function collectUnlayeredSelectors(css: string): string[] {
 }
 
 /**
- * Chrome regions separate by `bg-surface`/`bg-background` steps, VS Code style — never by border hairlines. These files
+ * Chrome regions separate by `bg-surface`/`bg-background` steps, VS Code style, never by border hairlines. These files
  * own those seams; a `border-border` here reintroduces the removed lines. Standalone divider lines inside a single
  * surface use `components/ui/separator.tsx` instead.
  */
@@ -205,7 +205,7 @@ describe('Renderer design contract', () => {
 
     it('keeps form-control element resets inside @layer in global stylesheets', async () => {
         // Unlayered CSS beats every `@layer` rule, so a bare `button { font: inherit }` outside
-        // `@layer` silently kills font utilities (`text-[10px]`, `font-bold`, …) app-wide — the
+        // `@layer` silently kills font utilities (`text-[10px]`, `font-bold`, …) app-wide: the
         // regression behind the Git panel's mismatched CHANGES/COMMITS headers. Tailwind's
         // preflight already resets form controls inside `@layer base`.
         const offendersByFile = await Promise.all(
@@ -324,7 +324,7 @@ describe('Renderer design contract', () => {
         // the second half of the same contract: a busy control that must keep keyboard focus cannot set the native
         // attribute, and `:enabled` still matches it, so only `not-aria-disabled:` suppresses its hover there.
         // The Button recipe is the shared obligation; the history arrows are listed because they add their own hover
-        // utility on top of it. Other consumers that pass `disabled` are not scanned yet — widening this to every
+        // utility on top of it. Other consumers that pass `disabled` are not scanned yet; widening this to every
         // `.tsx` needs a way to tell a disabled-capable control from an always-interactive one first.
         const paths = [
             join(rendererRoot, 'components/ui/button.tsx'),

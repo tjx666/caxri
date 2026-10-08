@@ -36,7 +36,7 @@ import { fileTreeRowDescription, fileTreeRowTooltip } from './resource-explorer-
  * boolean in `resource-explorer-scope-store` / `useFileOperationStore`, so toggling one folder or selecting one file
  * re-renders only the rows whose state actually changed.
  *
- * The Session identity behind those booleans is not a prop either, for the same reason one level up — it lives in the
+ * The Session identity behind those booleans is not a prop either, for the same reason one level up: it lives in the
  * scope store, so switching Session re-renders only the rows whose own state differs in the new scope.
  */
 export interface FileTreeItemProperties {
@@ -73,8 +73,8 @@ function discard(promise: Promise<unknown>): void {
  *
  * `active` and `inactive` selection follow VS Code's meaning: a list is active when it holds keyboard focus. A focused
  * row is that condition at row granularity, so the selected row takes the active fill exactly while it is focused and
- * the inactive one once focus moves elsewhere — no separate "the tree has focus" state to track. The focus ring stays
- * on top of the focus fill; a theme may set the two focus colors flat, and the ring is what still says "you are here".
+ * the inactive one once focus moves elsewhere: no separate "the tree has focus" state to track. The focus ring stays on
+ * top of the focus fill; a theme may set the two focus colors flat, and the ring is what still says "you are here".
  */
 const treeRowClassName =
     'tree-row relative flex w-full h-7 items-center gap-2 pr-2 border-0 bg-surface text-foreground text-left cursor-pointer outline-none hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:bg-list-focus-background focus-visible:text-list-focus-foreground focus-visible:shadow-[inset_0_0_0_2px_var(--accent)] aria-disabled:text-muted aria-disabled:cursor-not-allowed data-[git-ignored=true]:text-muted data-[git-ignored=true]:italic data-[selected=true]:bg-list-inactive-selection-background data-[selected=true]:text-list-inactive-selection-foreground data-[selected=true]:focus-visible:bg-list-active-selection-background data-[selected=true]:focus-visible:text-list-active-selection-foreground data-[cut=true]:opacity-50 data-[drop-target=true]:bg-[color-mix(in_srgb,var(--accent)_18%,var(--elevated))]';
@@ -270,7 +270,7 @@ export function FileTreeRowContent({
              * VS Code's Git decoration: the name takes the change's color, and only a file adds the status letter at
              * the row's trailing edge. A folder is colored by the strongest change anywhere beneath it but stays
              * letterless, because the letter would claim the folder itself changed. The file type icon keeps its own
-             * color on purpose — it identifies the language, not the change.
+             * color on purpose; it identifies the language, not the change.
              */}
             <span className={cn('truncate', decoration && gitDecorationClassName(decoration.kind))}>
                 {entry.name}
@@ -394,7 +394,7 @@ export function FileTreeItem({
             role="treeitem"
             /*
              * Named explicitly rather than from content, the way a Source Control row is. The row also holds the
-             * `sr-only` description below, and name-from-content would otherwise swallow it — a modified file would
+             * `sr-only` description below, and name-from-content would otherwise swallow it: a modified file would
              * announce, and match `getByRole`, as "tracked.ts Git: modified." instead of "tracked.ts".
              */
             aria-label={entry.name}

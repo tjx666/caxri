@@ -218,7 +218,7 @@ describe('shortcut recording transitions', () => {
         expect(commitOnBlur(startRecording('row-1'))).toEqual({ next: undefined });
     });
 
-    it('blur after a chord is captured commits it — losing focus must never discard input', () => {
+    it('blur after a chord is captured commits it: losing focus must never discard input', () => {
         const captured = captureRecordingKey(startRecording('row-1'), 'cmd+alt+t');
 
         expect(commitOnBlur(captured)).toEqual({ next: undefined, commit: 'cmd+alt+t' });

@@ -23,7 +23,7 @@ afterEach(async () => {
 describe('readExternalFileSnapshot', () => {
     /**
      * `/tmp` is a symbolic link to `/private/tmp` on macOS, so an Agent that prints a perfectly ordinary `/tmp/...`
-     * path produced a Terminal link Caxri refused as "Browse location is not a directory" — a file that plainly existed
+     * path produced a Terminal link Caxri refused as "Browse location is not a directory", a file that plainly existed
      * reported as missing. Only the ancestors may be resolved; the file itself stays lexical.
      */
     it('opens a file whose containing directory is reached through a symlinked ancestor', async () => {

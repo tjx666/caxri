@@ -7,7 +7,7 @@ import type { VisiblePlaceholderRow } from './extension-tree-rows';
 /**
  * A lazy branch's loading, error, and empty states, rendered where that branch's children would be.
  *
- * `role="status"` is the announcement these states want — the same notice role the multi-file diff's exclusion banner
+ * `role="status"` is the announcement these states want: the same notice role the multi-file diff's exclusion banner
  * uses. It is not the row's own role: the caller wraps this in a disabled `treeitem`, because `role="tree"` admits only
  * `treeitem` and `group` as children, and `isNavigableExtensionTreeRow` keeps arrow keys stepping straight over it so
  * focus never parks on text it cannot act on.

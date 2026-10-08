@@ -200,7 +200,7 @@ describe('surface matrix Markdown rendering', () => {
         });
         expect(markdown).toContain('## Surface / Proof Matrix');
         expect(markdown).toContain('| CLI |');
-        expect(markdown).toContain('PENDING — mark `done` or `waived: <reason>`');
+        expect(markdown).toContain('PENDING: mark `done` or `waived: <reason>`');
         expect(markdown).toContain('### Reverse-state check');
     });
 

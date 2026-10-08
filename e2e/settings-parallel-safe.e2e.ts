@@ -223,8 +223,8 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
             .toBe('cmd+shift+f');
 
         // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
-        // outright, the tab-appropriate replacement for the old "Escape to dismiss the dialog" step
-        // — needed so the rest of this check exercises the custom binding against the plain
+        // outright, the tab-appropriate replacement for the old "Escape to dismiss the dialog" step,
+        // needed so the rest of this check exercises the custom binding against the plain
         // Workbench, with no Settings surface still mounted alongside it.
         await running.page.keyboard.press('Meta+w');
         await expect(running.page.locator('.secondary-sidebar')).toBeVisible();

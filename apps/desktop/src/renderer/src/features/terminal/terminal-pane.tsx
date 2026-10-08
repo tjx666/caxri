@@ -64,7 +64,7 @@ interface TerminalPaneProperties {
 /**
  * No horizontal padding on purpose. `.xterm` already reserves a 20px left gutter for shell-integration command
  * decorations (see `styles.css`), and a pane padding stacked on top of it pushed the first glyph 28px from the pane
- * edge — visibly further in than the right side, at every window width. The gutter is the terminal's left inset; the
+ * edge: visibly further in than the right side, at every window width. The gutter is the terminal's left inset; the
  * pane adds none of its own. The right inset stays where it is: `terminalSizeWithScrollbarGutter` reserves the final
  * text column so the last glyph keeps clear of the overlaid scrollbar, which `e2e/terminal-layout.e2e.ts` asserts.
  */
@@ -372,8 +372,8 @@ export function TerminalPane({
             style={{ backgroundColor: terminalTheme?.background ?? 'var(--background)' }}
         >
             {mobileSizeOwnership && (
-                // Absolutely positioned over `.terminal-surface` instead of a flex row above it: the alternative —
-                // reserving this row whenever a mobile observer is attached — pushes the xterm viewport down and back
+                // Absolutely positioned over `.terminal-surface` instead of a flex row above it: the alternative
+                // (reserving this row whenever a mobile observer is attached) pushes the xterm viewport down and back
                 // up every time mobile takeover starts and ends. `TerminalPaneResizeController.fit()` already displays
                 // `mobileSize` in place of the local container proposal while mobile owns the grid, so xterm's cols and
                 // rows never come from this pane's content-box height; nothing here depends on the reserved space, so

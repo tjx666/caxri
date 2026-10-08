@@ -5,8 +5,8 @@
  * dialog opened, and finally a module-global stack of previously focused elements shared by every dialog in the app.
  * Pickers open from keyboard commands, so they have no trigger; and when the workbench had let focus fall to
  * `document.body` (a click on the Terminal pane's padding, a freshly restored window) the "element focused when the
- * dialog opened" is ignored too. Escape then focuses whatever opened the _previous_ dialog — the sidebar's "Create a
- * Session" button, for instance — with a keyboard focus ring. The workbench registers its own fallback here so the
+ * dialog opened" is ignored too. Escape then focuses whatever opened the _previous_ dialog (the sidebar's "Create a
+ * Session" button, for instance) with a keyboard focus ring. The workbench registers its own fallback here so the
  * shared stack is never consulted.
  */
 const NO_FALLBACK = (): HTMLElement | null => null;

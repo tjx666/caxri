@@ -51,8 +51,8 @@ export function pendingSummaryEntry(
  * watch), so an Agent committing or pushing in a background Session moves its HEAD without touching the cache.
  * Returning to that Session changed the fingerprint, which used to discard the whole cached value: the Status panel
  * reverted to "Checking origin…" with no pull request or deployments until the background refresh landed seconds later.
- * A repository keeps its old delivery fields only while it is still the same GitHub branch — a different branch,
- * remote, or a detached HEAD owns different delivery status, so it starts local.
+ * A repository keeps its old delivery fields only while it is still the same GitHub branch: a different branch, remote,
+ * or a detached HEAD owns different delivery status, so it starts local.
  */
 function carryOverDelivery(
     prepared: ReadonlyArray<{

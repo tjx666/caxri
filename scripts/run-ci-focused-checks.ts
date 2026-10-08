@@ -23,7 +23,7 @@ const RELATED_SOURCE_EXTENSIONS = /\.(?:cjs|cts|js|jsx|mjs|mts|ts|tsx)$/u;
 
 /**
  * `vitest related` follows the whole import graph, so a change deep in a shared package still reaches every suite that
- * transitively imports it — the direct-import heuristic `check --test` uses would miss those.
+ * transitively imports it: the direct-import heuristic `check --test` uses would miss those.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-focused-checks.test.ts
 export function affectedTestArguments(paths: readonly string[]): string[] | undefined {

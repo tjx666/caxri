@@ -89,7 +89,7 @@ export function flattenSourceControlTree(
  * crosses the tree's edge (or is a disclosure change) and belongs to the surrounding Source Control tree instead.
  *
  * Only the within-tree moves are answered here because only they can target an unmounted row: the rows on either side
- * of the group — the caption above and the next section below — are never virtualized, and the first and last resource
+ * of the group, the caption above and the next section below, are never virtualized, and the first and last resource
  * rows stay mounted (`sourceControlRenderedIndexes`), so the DOM walk the surrounding tree uses remains correct at the
  * edges.
  */

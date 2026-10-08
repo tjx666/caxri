@@ -50,7 +50,7 @@ describe('Project Status labels', () => {
         expect(projectStatusStateLabel('success')).toBe('passed');
         expect(projectStatusStateLabel('failure')).toBe('failed');
         expect(projectStatusStateLabel('cancelled')).toBe('canceled');
-        // `pending` is the state of a check that is executing, so it says so — the word "pending" would read as the
+        // `pending` is the state of a check that is executing, so it says so: the word "pending" would read as the
         // queue it is specifically not in.
         expect(projectStatusStateLabel('pending')).toBe('running');
         expect(projectStatusStateLabel('queued')).toBe('queued');

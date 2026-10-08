@@ -1,4 +1,4 @@
-// eslint-disable-next-line unicorn/name-replacements -- `application.ts` is the CLI composition root's documented name (see project-architecture: the package root remains the composition root — application, environment, output, selectors); renaming it would contradict that architecture contract.
+// eslint-disable-next-line unicorn/name-replacements -- `application.ts` is the CLI composition root's documented name (see project-architecture: the package root remains the composition root of application, environment, output, and selectors); renaming it would contradict that architecture contract.
 import { homedir } from 'node:os';
 import process from 'node:process';
 

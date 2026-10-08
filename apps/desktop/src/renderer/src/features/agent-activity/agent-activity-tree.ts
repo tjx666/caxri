@@ -54,7 +54,7 @@ export function nextAgentActivityRowId(
 /**
  * Which row owns the tree's single roving Tab stop. Prefers the row the user last focused, but that id goes stale as
  * Sessions change state and move between groups, so it falls back to the selected Session's row and then to the first
- * row — exactly like a freshly mounted list with no focus history.
+ * row, exactly like a freshly mounted list with no focus history.
  */
 export function rovingAgentActivityRowId(
     rows: readonly AgentActivityTreeRow[],

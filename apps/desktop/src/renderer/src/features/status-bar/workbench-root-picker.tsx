@@ -223,8 +223,8 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
                 <Command
                     key={picker.all ? 'all' : 'recent'}
                     // `cmdk` points the input's `aria-labelledby` at this label, and
-                    // `aria-labelledby` outranks `aria-label`, so this string — not a prop on
-                    // `CommandInput` — is the search field's accessible name. The popup keeps
+                    // `aria-labelledby` outranks `aria-label`, so this string (not a prop on
+                    // `CommandInput`) is the search field's accessible name. The popup keeps
                     // `Workbench Roots` as its own dialog name above.
                     label="Search worktrees"
                     defaultValue={current?.worktreeId}

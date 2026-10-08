@@ -15,29 +15,29 @@ reference this file; deviations require updating this spec first.
    drag insertion line, drop-target tint) may also use `--accent` because they exist only for the
    duration of an interaction. Persistent chrome state expresses itself through foreground shades
    and background elevation, never through additional accent borders.
-3. **No implementation vocabulary in the UI.** Users see "Settings", "Session", "Restart" — never
+3. **No implementation vocabulary in the UI.** Users see "Settings", "Session", "Restart", never
    "Runtime", "hot reload", "last-known-good", "bytes".
 4. **Every color comes from a token.** Zero hardcoded hex in component CSS. Themes are
    user-importable, so any literal color is a future light-theme bug. The one exception is a color an
-   external system owns for its own content — a Linear workflow state, whose palette each workspace
+   external system owns for its own content: a Linear workflow state, whose palette each workspace
    configures. Caxri's semantic roles cannot express someone else's palette, and quantizing it back
    to `success`/`warning` renders a state Linear shows green as yellow. Such a color arrives as data
    through a schema-validated `#RRGGBB` field, never as a literal in source, tints exactly one glyph's
    foreground, and is absent for every Caxri-owned icon, which inherits its row's theme color.
-5. **Tailwind v4 utilities over the semantic runtime tokens — and only those tokens.** The color
+5. **Tailwind v4 utilities over the semantic runtime tokens, and only those tokens.** The color
    roles below are bridged to Tailwind via `@theme inline`, so utilities like `bg-surface` resolve
-   to the runtime theme variables and imported themes restyle the whole app live — the standard
+   to the runtime theme variables and imported themes restyle the whole app live, the standard
    shadcn pattern. The default Tailwind palette is unregistered (`--color-*: initial`), so
    `bg-blue-500` resolves to nothing. Unregistering does not reject it: Tailwind emits no rule and
    says nothing, and the class name ships on the element styling nothing, which is how the pairing
    QR code lost its white quiet zone. `caxri/registered-color-utilities` is what turns rule 4 into a
-   check — a color utility whose token is absent from the `@theme inline` bridge is a lint error,
+   check: a color utility whose token is absent from the `@theme inline` bridge is a lint error,
    including one that names a raw theme color such as `--selection`, which is referenced as
    `bg-[var(--selection)]` instead. Non-color scales (spacing, type, radius) use stock Tailwind
    defaults.
 6. **Say each meaning once.** An icon, a reserved slot, or a control that already names a state
    does not also get an adjacent visual label repeating that state. Accessible names and tooltips
-   stay complete — they are not the duplication this rule forbids. The Panel caption that omits the
+   stay complete; they are not the duplication this rule forbids. The Panel caption that omits the
    owning tab's icon is the same contract applied to a heading.
 7. **Finish the likely action where it starts.** If the control or anchored picker already on
    screen can complete the next step, reuse it. Do not open a second list or a centered modal for a
@@ -86,19 +86,19 @@ roles below.
 | `--indicator`                                             | neutral (non-accent) selected-tab underline for secondarySidebar/settings tabs  |
 
 Derive `--accent-foreground`, `--danger-foreground`, `--badge-foreground`, and `--overlay` in one
-place from theme colors. The status bar uses `--surface` plus a top hairline — never an accent fill.
+place from theme colors. The status bar uses `--surface` plus a top hairline, never an accent fill.
 
 Tabs, list rows, and the title bar own their states rather than borrowing a surface: eighteen
 `--tab-*`, `--list-*`, and `--title-bar-*` tokens, plus `--shadow`, which became a theme value
-instead of a derived one. Each reads one VS Code key on import — `tab.activeBackground`,
-`list.hoverBackground`, `titleBar.activeBackground`, `widget.shadow`, and so on — and falls back to
+instead of a derived one. Each reads one VS Code key on import (`tab.activeBackground`,
+`list.hoverBackground`, `titleBar.activeBackground`, `widget.shadow`, and so on) and falls back to
 the role that surface borrowed before, so a theme naming none of them looks exactly as it did. The
 inactive list and title-bar states inherit from their active counterparts, which is VS Code's own
 rule: a theme that styles only the focused state means the unfocused one to match. Alpha survives
 the import, because `list.hoverBackground` is a translucent wash in most themes and flattening it
 would paint an opaque band over the row instead of tinting it. An explicitly given color is never
 rewritten just because it equals another role, and none of these states writes back into
-`--background`, `--surface`, or `--elevated` — those three stay the canvas, the chrome, and the
+`--background`, `--surface`, or `--elevated`; those three stay the canvas, the chrome, and the
 popup fill. Read the decision on
 [issue caxri#852](https://github.com/tjx666/caxri/issues/852#issuecomment-5656606135) for why each
 key was chosen.
@@ -106,7 +106,7 @@ key was chosen.
 The pickers are list rows too: the command palette, the two status-bar pickers, the terminal link
 picker, the Agent actions dialog, and the `Cmd+P` path browser read `--list-*` exactly as the Files
 tree does, so one imported theme reaches all of them at once. They need fewer of the four states
-than a tree, because a picker's pointer selects whatever it passes over — the row under the cursor
+than a tree, because a picker's pointer selects whatever it passes over: the row under the cursor
 and the row the arrow keys are on are the same row, right up until the pointer stops and the keys
 carry on without it. The pickers built on `cmdk` answer that by painting only `--list-focus-*`; the
 path browser, which owns its own rows, by offering `--list-hover-*` to the rows that are not the
@@ -119,14 +119,14 @@ equivalent. `lib/window-active.ts` publishes the condition as `data-window-activ
 variant over it, so every surface that paints a title bar switches together.
 
 A built-in preset fills these roles from its upstream theme only where that clears the contrast
-floor. Every label the focused window shows — the three tab states, the four list states, and
-`titleBarActiveForeground` — must reach WCAG AA on its own fill, asserted per theme and per role in
+floor. Every label the focused window shows (the three tab states, the four list states, and
+`titleBarActiveForeground`) must reach WCAG AA on its own fill, asserted per theme and per role in
 `domains/__tests__/theme-control-colors.test.ts`. This is the same rule `--muted` already answers
 to, and for the same reason: several upstream themes set `tab.inactiveForeground` to their comment
 color, which is exactly the substitution that rule forbids. A preset is Caxri's own product, so it
 takes the correction; an imported theme is its author's and keeps the original values.
 `titleBarInactiveForeground` is the one exemption. It paints only while the whole window is
-unfocused — inactive UI under WCAG 1.4.3, and the one case where the dimming is the message, which
+unfocused: inactive UI under WCAG 1.4.3, and the one case where the dimming is the message, which
 is how macOS and VS Code both fade an unfocused title.
 
 A preset must also leave the active tab distinguishable from its neighbours by fill or by label,
@@ -135,8 +135,8 @@ a split has nothing else to go on. A theme that paints both tab states one color
 difference back somewhere, since the contrast floor above is what pulls the two labels together.
 
 `--badge` and the five `--git-*` roles exist so the theme, not the component, decides these colors.
-Both mirror a VS Code key a theme author already writes — `activityBarBadge.background` and the Git
-extension's `gitDecoration.*ResourceForeground` — so a built-in preset carries the exact value VS
+Both mirror a VS Code key a theme author already writes (`activityBarBadge.background` and the Git
+extension's `gitDecoration.*ResourceForeground`), so a built-in preset carries the exact value VS
 Code would paint, and a VS Code theme import reads them straight across. Before them the count badge
 was hardcoded `--foreground` on `--background` (white in every dark theme, where VS Code shows the
 theme's own badge color) and the status letters borrowed `--success`/`--warning`/`--danger`, which
@@ -175,7 +175,7 @@ app and editor tokens.
 | `base`  | 13px | default UI text, standard inputs, list rows                |
 | `dense` | 12px | compact workbench fields, menus, tooltips, and path chrome |
 | `meta`  | 11px | secondary lines, captions, tab labels, status bar          |
-| `badge` | 10px | tiny badges/kbd hints only — never sentences               |
+| `badge` | 10px | tiny badges/kbd hints only, never sentences                |
 
 Sizes outside the tier table are banned. 8px, 9px, and 10.5px are called out explicitly because
 they each shipped once as regressions. Monospace previews and diffs use `meta` size. Dense prose
@@ -186,10 +186,10 @@ may use unitless `1.45` or `1.5` line height; compact uppercase headings may use
 
 - 4px grid: primary gaps and paddings are 4, 8, 12, 16, 24. Optical half-steps (2, 6, 10px) are
   allowed inside compact control chrome when a glyph or label does not center on the primary grid.
-  Two grandfathered measurements predate the grid and are kept only to avoid chrome churn — the
+  Two grandfathered measurements predate the grid and are kept only to avoid chrome churn: the
   Status Bar's 5px item inset/gap and the shared panel caption's 3px top/bottom inset (preserving
   its 34px rail). Do not imitate them in new work. The panel divider's revealed hairline is 3px on
-  whichever axis the seam runs — `w-[3px]` between columns, `h-[3px]` between rows — so the two
+  whichever axis the seam runs (`w-[3px]` between columns, `h-[3px]` between rows), so the two
   orientations are the same seam, not two thicknesses. The macOS traffic-light clearance is the
   only platform spacing exception: 84px expanded-header and 78px collapsed-header/tab-strip left
   padding while windowed. Both are horizontal clearance for the window controls; fullscreen hides
@@ -198,7 +198,7 @@ may use unitless `1.45` or `1.5` line height; compact uppercase headings may use
 - Control heights: 24px compact inline rename/history, 28px dense workbench search, 36px standard
   Settings fields/buttons, and 44px palette/path input.
 - Radius: 4px controls, 6px cards/list selection, 8px dialogs and palette. `rounded-full` is
-  reserved for intrinsically circular shapes — activity dots, the drag insertion line's leading
+  reserved for intrinsically circular shapes: activity dots, the drag insertion line's leading
   cap, and the Switch track/thumb (the one sanctioned fully-round control). No other radii.
 
 `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts` enforces the numeric
@@ -209,19 +209,19 @@ pre-submit opt-ins render Checkbox, and label/description/control rows compose F
 equivalent). Numeric arbitrary width/height constraints are also closed by default; the test's
 small allowlist covers existing structural viewport, empty-state, and platform-diagnostic geometry,
 not additional control-density tiers. Every allowlist entry is a grandfathered measurement, not a
-precedent — a new arbitrary value requires updating this spec first with a stated reason.
+precedent; a new arbitrary value requires updating this spec first with a stated reason.
 
 The Status Bar's two glyph boxes are the one entry admitted under that rule rather than inherited:
 `size-[13px]` on an interactive item and `size-[12px]` on a read-only reading size the icon to the
 text tier it sits beside (`base` and `dense`), which is why they repeat the sanctioned type sizes
 instead of introducing a third measurement. They are declared once on the two shared status-bar
-recipes so a caller can hand over any rendered glyph — a Lucide component, a Linear workflow icon —
+recipes so a caller can hand over any rendered glyph (a Lucide component, a Linear workflow icon)
 without knowing which of the two bar heights it lands in. Sizing a glyph at its call site is the
 drift this replaces; do not reintroduce it.
 
 ## Component redlines
 
-**Window chrome** — `titleBarStyle: 'hiddenInset'`. The 44px PrimarySidebar, workbench, and
+**Window chrome**: `titleBarStyle: 'hiddenInset'`. The 44px PrimarySidebar, workbench, and
 SecondarySidebar top rails share one bottom edge. Workbench tabs fill the full 44px rail, VS Code
 style, so the active tab's `--background` fill reaches the rail's top edge. PrimarySidebar and
 SecondarySidebar rail tabs remain 36px, vertically centered. SecondarySidebar tabs divide the whole
@@ -235,16 +235,16 @@ action that a shortcut, a menu, and the palette all reach does not also earn a h
 in a 44px rail. The collapsed PrimarySidebar preserves the same 44px-tall drag region beneath the
 traffic lights.
 
-**Files caption actions** — `New File`, `New Folder`, `Collapse Folders`, in that order. Search left
+**Files caption actions**: `New File`, `New Folder`, `Collapse Folders`, in that order. Search left
 this row when the centered overlay took the job: a caption 34px tall has to share its width with a
 Project name, and a shortcut, a menu and the palette all reach the overlay already, so a glyph there
 bought nothing.
 
-**Welcome** — heading "Project-first development." Body copy uses "folder" to match VS Code's
+**Welcome**: heading "Project-first development." Body copy uses "folder" to match VS Code's
 Open Folder / Add Folder to Workspace, not "directory" or "local folder". The primary action is
 Add Project.
 
-**Path browser** — `Cmd+P` opens one 44px palette input with the current Project rendered as a
+**Path browser**: `Cmd+P` opens one 44px palette input with the current Project rendered as a
 removable leading anchor. With an empty field and the caret at its start, Backspace or Delete removes
 that anchor and turns the same control into a normal path field. Free-path mode accepts `~/`, `../`,
 relative paths from the last browsed folder, and `/`-rooted absolute paths. Matching folders and files
@@ -255,12 +255,12 @@ file inside the current Project still uses its normal editable Editor path, whil
 a read-only virtual Editor tab in the current Session, survives only for the Renderer lifetime, and never
 creates a Project or Session or enters durable Session state.
 
-**Status bar** — `--surface` background, top hairline, `meta` text in `--muted`. The left side
+**Status bar**: `--surface` background, top hairline, `meta` text in `--muted`. The left side
 shows Project and Git context, plus the delivery chips the current branch resolves to: its pull
 request, its Linear issue, and its acceptance report. Each one is a chip only when the branch
 actually has that thing; none of them holds a slot to say "none". A delivery chip leads with
 whatever a person would say out loud about it, so the Linear chip leads with `ABC-123` while an
-acceptance — which has only an opaque id — spends its width on the passed-check tally in the colour
+acceptance (which has only an opaque id) spends its width on the passed-check tally in the colour
 of the current verdict, and keeps the subject, round, and provenance on the hover card. A link Caxri
 recognized but could not read is `unknown`: `--muted` and not clickable, because it has no
 destination and must not look like it does. When the window is too narrow for all of them they drop
@@ -277,7 +277,7 @@ word-for-word the same; the status bar's is the finer answer, it follows the cur
 take width from the breadcrumbs. Transient Agent operations stay with the owning work tab
 instead of being duplicated here. Diff tabs show neither file nor Terminal details.
 Caxri status appears ONLY when degraded (`Reconnecting…` / `Caxri stopped`) as a
-`--warning`/`--danger` chip; healthy state shows nothing. The chip is informational — recovery
+`--warning`/`--danger` chip; healthy state shows nothing. The chip is informational; recovery
 lives in the native Relaunch dialog, so the chip never fakes an action it cannot perform. The same
 rule decides when a degraded chip becomes clickable: the Terminal's `Software` renderer chip is a
 button when GPU acceleration is disabled or a failure has settled. Confirmation either enables
@@ -292,7 +292,7 @@ state `software rendering`; implementation vocabulary (`DOM renderer`, `WebGL2`,
 A downloaded or downloading update is the one non-degraded chip on that rail, and it is `--muted`
 like Screencast Mode for exactly that reason: a release being available is not a degradation, and
 colouring it would spend the vocabulary reserved for a Caxri that is not working. It earns a
-permanent slot because the two states it carries — a download in flight, an install waiting — outlive
+permanent slot because the two states it carries (a download in flight, an install waiting) outlive
 any dialog the user closed, and automatic discovery raises a notification that expires rather than a
 modal that holds the screen. Clicking it opens the same dialog `Check for Updates` does.
 The `Always Allow` chip is the same kind of standing mode: it appears only while the selected
@@ -334,19 +334,19 @@ The Workbench Root and branch pickers both open on a focused search field, becau
 dozens of worktrees or hundreds of branches cannot be scrolled faster than it can be typed. Typing
 searches the entire set: the compact worktree list and the `Show all worktrees…` row exist to keep
 the resting menu short, not to withhold a root from a query the user already entered, so that row
-disappears while a query is active. Both fields match contiguous text — a branch, a directory name,
-a path segment — never a fuzzy subsequence, since shared branch prefixes and one common worktree
+disappears while a query is active. Both fields match contiguous text: a branch, a directory name,
+a path segment, never a fuzzy subsequence, since shared branch prefixes and one common worktree
 parent directory make every row a fuzzy hit and rank the real answer below noise. An empty query
 shows the list unfiltered.
 
-**PrimarySidebar** — flatten the double-box nesting: project groups are a disclosure row
+**PrimarySidebar**: flatten the double-box nesting: project groups are a disclosure row
 (chevron + Folder/FolderOpen icon + name, no border, no card); sessions are flat rows indented 16px.
 The Project row keeps low-frequency metadata out of the resting list: hover or intentional keyboard
 focus opens a compact Portal card to the PrimarySidebar's right with the full name, active Session
 count, and complete root path. The treeitem's accessible name still includes the Session count, so
 moving the visible digit into the detail card does not make a collapsed Project opaque to assistive
 technology.
-Selection is an `--elevated` fill (radius 6), no border and no accent — the primarySidebar stays
+Selection is an `--elevated` fill (radius 6), no border and no accent; the primarySidebar stays
 entirely neutral so the focused pane keeps the screen's one accent. A Session row splits its two
 status questions across its two edges, and each edge has one fixed meaning. The leading Agent icon
 answers "does this Agent need me, or is it working?": running work (including compaction) wraps the
@@ -355,8 +355,8 @@ the healthy state and the track stays neutral so a paused glance does not read i
 pinging warning ring and tints the icon warning; a detached Agent dims the icon under a small
 unplugged badge. A decorated icon shrinks by 3px so its ring stays inside a 3px halo of the 14px
 box, and the title never moves between states. These rows render every Agent icon as a mono mask
-tinted by the row; every other surface — workbench tabs, the Session hover card, the MRU switcher,
-Activity rows, Archived Sessions, Settings, and menus — keeps Claude Code and Codex in brand color.
+tinted by the row; every other surface (workbench tabs, the Session hover card, the MRU switcher,
+Activity rows, Archived Sessions, Settings, and menus) keeps Claude Code and Codex in brand color.
 Attention wins over running; there is deliberately
 no second, static amber state, so reading a Session is the only thing that clears it and nothing can
 bring it back unread. Settled, idle, unknown, failed, and exited Sessions show the plain icon. The
@@ -397,7 +397,7 @@ opening control without reopening its detail card; a command's explicit focus ha
 If the opening control disappeared, restore the current workbench Terminal when available.
 All non-archived Project and
 Session names and navigation icons use `--foreground`, including inactive rows. Overflowing Session
-and Project names clip with a right-edge fade instead of an ellipsis — the ellipsis glyph spends
+and Project names clip with a right-edge fade instead of an ellipsis: the ellipsis glyph spends
 row width on punctuation. The fade is about one character at the 13px UI size, matching Codex.
 A Project heading's Customize Icon and New Session buttons follow the same hover-cluster rule: at
 rest they reserve no width, so the name runs to the row's edge; on hover, keyboard focus, or while
@@ -416,14 +416,14 @@ position. New Sessions and meaningful activity promote the affected Session to t
 resorting its neighbors. Visits and streamed output never promote a Session. `Option+Up` / `Option+Down`
 on a focused Session row moves it within its Project and announces the move. The same keys on a focused Project name provide the
 keyboard-equivalent reorder and announces the resulting position. The PrimarySidebar header
-carries the Session history pair — Back then Forward, ghost icon buttons in `--muted` that lift to
+carries the Session history pair: Back then Forward, ghost icon buttons in `--muted` that lift to
 `--foreground` on hover, placed immediately after the traffic-light clearance because that is
 where every browser puts them. They are `no-drag` islands in the header's drag region. A direction
 with an empty stack renders disabled rather than hidden, so the pair never reflows and its
 position stays learnable; the shortcut and command name reach the user through the shared command
 tooltip instead of a bespoke label. Archived Sessions use one stable PrimarySidebar footer entry
 with a global count: the footer row holds nothing else, so the whole row is one compact ghost
-button — archive glyph and a short `Archived` label on the left, the count on the right. A
+button: archive glyph and a short `Archived` label on the left, the count on the right. A
 glyph-only chip left most of the row dead to clicks. Search, filters, Project-grouped results, restore, and delete live in a
 full-width management dialog. Project disclosures contain active Sessions only, so low-frequency
 history never fragments navigation. A disclosure renders its first five Sessions in sidebar order
@@ -442,7 +442,7 @@ own Project group. It is one Session, so the sidebar shows it once: two rows for
 list longer without making anything easier to find, and left every Project count and window
 describing rows the group no longer owned. The Pinned row's accessible description opens with
 `In Pinned group.` so its owner is still audible, and the row trails the owning Project's name for
-the same reason. The group heading mirrors a Project heading — a disclosure and its name — but takes
+the same reason. The group heading mirrors a Project heading (a disclosure and its name) but takes
 the `Pin` glyph instead of a folder, and carries no trailing count: the group is short by
 construction, and its membership reaches assistive technology through the heading's accessible name
 instead. Its rows trail the owning Project's name in `--muted`, allowed to shrink to nothing so a
@@ -451,9 +451,9 @@ with nothing to tell them apart. Pinned is its own list with its own order and i
 pin lands after everything already there, and unpinning returns the Session to its Project group in
 that group's own order. It reuses the Project disclosure's five-row window and `Show N more` row, so
 a long Pinned list cannot push every Project off screen. A Project whose every Session is pinned
-keeps its heading and shows the same empty-group menu as a Project with no Sessions at all — the
+keeps its heading and shows the same empty-group menu as a Project with no Sessions at all; the
 Project is still there, and hiding it would make pinning look like it deleted something. Pinning is
-reachable from the row's hover action — the `Pin` glyph, tinted `--accent` while pinned — and from
+reachable from the row's hover action (the `Pin` glyph, tinted `--accent` while pinned) and from
 the row's context menu, which is where the keyboard reaches it, since the hover buttons stay outside
 the tree's single Tab stop. Archiving clears the pin, because an archived Session would otherwise
 keep sitting at the top of the sidebar; unarchiving does not restore it, since the pin was a separate
@@ -468,7 +468,7 @@ the number of working-tree changes across that Session's own Workbench Root repo
 different question from the row's `+N −M`, which also counts the branch's commits and is measured in
 lines, so the card keeps both rather than repeating one. The copy names
 the working tree, never the Session's Agent, because several Sessions can share one root and any of
-them — or the user — may have made the edits. The row is absent when the tree is clean, when the root
+them (or the user) may have made the edits. The row is absent when the tree is clean, when the root
 is not a repository, and when the read fails, the same way zero hides the Git tab badge. It is
 absent for the selected Session too: the Git tab badge already carries that Session's exact count on
 the same screen. This file count never reaches the row, the Files tree, or any Workbench
@@ -482,7 +482,7 @@ Adopting a worktree as a Workbench Root auto-registers a Project for it, and tha
 occupies a top-level slot in the PrimarySidebar. The list shows the Projects the user added; a
 worktree is a property of the Session working in it, which the Session's hover card already
 names. A second top-level row per worktree would double the list without naming
-anything new, and no PrimarySidebar affordance — reorder, delete, disclosure — applies to a row the
+anything new, and no PrimarySidebar affordance (reorder, delete, disclosure) applies to a row the
 user never created. The consequence is that such a Project is reachable only through its owner:
 deleting the owner deletes it, and the confirmation names the ones about to go.
 
@@ -506,8 +506,8 @@ failures; switching Sessions changes the badge scope.
 Badges are an extension view capability, and an extension reports only meaning: a plain-text
 description plus one of `count`, `error`, or `warning`. Appearance is the Workbench's, so two views
 can never paint one container in two unrelated colors. A `count` badge is a digit on
-`--badge`/`--badge-foreground`. An `error` or `warning` badge is a fixed Workbench glyph — never a
-digit — on `--error-badge` or `--warning-badge` with their derived foregrounds, so severity survives
+`--badge`/`--badge-foreground`. An `error` or `warning` badge is a fixed Workbench glyph, never a
+digit, on `--error-badge` or `--warning-badge` with their derived foregrounds, so severity survives
 greyscale and color blindness; the two glyphs differ in shape, not only in fill. Those two roles are
 separate from `--danger` and `--warning`, which are text colors imported from the editor's error and
 warning squiggles and are not fills.
@@ -515,7 +515,7 @@ warning squiggles and are not fills.
 Within a container, severity takes the badge outright: `error` beats `warning`, and either beats
 every tally, which then does not appear on the chip at all. Only `count` badges are totalled, capped
 at `99+`; severities are never summed, because a severity carries no count. A glyph and a digit never
-share one chip — the digit would displace the glyph and leave the fill as the only difference between
+share one chip: the digit would displace the glyph and leave the fill as the only difference between
 `5` changes and `5` failures, which is nothing to a colorblind user or in a greyscale capture. This
 is VS Code's rule: its composite-bar badges are a strict `progress` > `icon` > `number` ladder, and
 its `ErrorBadge`/`WarningBadge` have no number field. Git counts all working-tree changes across the
@@ -527,10 +527,10 @@ counts never carry across Workbench scopes. A Session hover card's `Changes` row
 line: the card is explicitly about the Session it names, and the count it shows is that Session's
 own Workbench Root, never the selected one's.
 
-**Trees** — a tree is `role="tree"` with `role="treeitem"` rows, and the role sits on the element
+**Trees**: a tree is `role="tree"` with `role="treeitem"` rows, and the role sits on the element
 that takes focus, never on a layout wrapper around it: `aria-level`, `aria-selected`, and the roving
-`tabIndex` have to describe the thing the user is actually on. One tree is one Tab stop — exactly one
-row carries `tabIndex={0}`, the row focus would return to, and every other row carries `-1` — so Tab
+`tabIndex` have to describe the thing the user is actually on. One tree is one Tab stop: exactly one
+row carries `tabIndex={0}`, the row focus would return to, and every other row carries `-1`, so Tab
 enters the tree once and arrows move inside it instead of walking every row in the document. In a
 virtualized tree that row stays mounted wherever the list is scrolled (`virtualTreeRenderedIndexes`):
 a wheel scroll moves the window, not the Tab stop. A disclosure chevron beside a row is a pointer
@@ -540,33 +540,33 @@ its `treeitem` role and hands its `tabIndex` to the input inside it for as long 
 A tree driven from a field the user is still typing in is the other: there the rows are all
 `tabIndex={-1}`, the field keeps focus and carries `role="combobox"` with `aria-controls` and
 `aria-activedescendant`, and that attribute is what names the current row. This is the standard
-combobox pairing, not a second focus model — a tree may adopt it only when a field owns the tree's
+combobox pairing, not a second focus model; a tree may adopt it only when a field owns the tree's
 whole navigation, never as a way to avoid giving rows a roving Tab stop. Anything that is not a row
-lives outside the tree element — an empty-state action, a live region — because inside
+lives outside the tree element (an empty-state action, a live region) because inside
 `role="tree"` a focusable element has to be a real row holding that single Tab stop, and a static
 notice is not a row. The corollary runs both ways: a "show more" control renders _inside_ the tree
 as a real row, because it is focusable and
 therefore cannot be anything else. The one notice that cannot be lifted out is a lazy branch's
 in-place placeholder (loading, error, empty). It renders where that branch's children would, so it
-stays a `treeitem` — `aria-disabled`, never focusable, wrapping a `role="status"` region so its
-arrival is still announced — and arrow keys step over it to the next real row rather than parking
+stays a `treeitem` (`aria-disabled`, never focusable, wrapping a `role="status"` region so its
+arrival is still announced), and arrow keys step over it to the next real row rather than parking
 focus on text. Right on an already-open branch whose first row is a placeholder does not step into
 it for the same reason: there is no row there to land on yet. Focus and hover are different states and never share a fill: hover is the
 pointer's guess, focus is where the keyboard is, and a tree that paints them identically leaves a
-keyboard user unable to see where they are. Which fill each tree draws still follows its surface —
+keyboard user unable to see where they are. Which fill each tree draws still follows its surface:
 the PrimarySidebar's neutral rule means its focus ring is `--foreground`, not the accent the
 workbench's own trees use.
 
-**Treegrids** — a table whose rows nest is a `treegrid`, not a `tree`: sortable `columnheader`s and
+**Treegrids**: a table whose rows nest is a `treegrid`, not a `tree`: sortable `columnheader`s and
 several data columns per row are only legal under a grid, and a `tree` would flatten them into one
-label. It follows the tree rules above with the row itself as the focus target — one roving Tab stop
-across all rows, arrows to move, Left/Right to collapse and expand — and a leaf renders no control
+label. It follows the tree rules above with the row itself as the focus target: one roving Tab stop
+across all rows, arrows to move, Left/Right to collapse and expand, and a leaf renders no control
 of its own, because a row that is already focusable does not need a button inside it to be reached.
 
-**Tab strip** — active tab: `--background` fill joining it visually to the pane below,
+**Tab strip**: active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, and a 2px `--accent` top border, VS Code style. Inactive: `--surface` +
 `--muted`. The active tab always shows its close button; an inactive tab reveals a `--muted` one
-only under the pointer or keyboard focus, VS Code style — hunting for a control that is always
+only under the pointer or keyboard focus, VS Code style; hunting for a control that is always
 there on the tab you are working in is the friction this removes, and keeping the inactive ones
 muted is what stops a crowded rail from reading as a row of X's. A dirty tab shows its dot in that
 slot instead and swaps to the close button on hover/focus, active or not.
@@ -578,13 +578,13 @@ pane, that tab drops the accent top border: an "active" marker distinguishes not
 nothing to distinguish it from, and the pane ring still carries focus. The New Terminal + reserves
 no slot then: it floats over that tab's trailing end, revealed on bar hover or keyboard focus, so the
 tab's fill reaches the bar's edge instead of leaving a block of bar color beside it. Hovering + still
-opens the Agent list. Pressing it — pointer click or keyboard activation — instead creates a Terminal
+opens the Agent list. Pressing it (pointer click or keyboard activation) instead creates a Terminal
 running whichever Agent the Session's own primary Terminal is currently running, so the press clones
 the conversation already in front of the user instead of asking again; a `CommandTooltip` on that icon
 state names the Agent it will create and shows ⌘T, `terminal.new`'s own shortcut, since both create
 another Terminal in this same Session from this same slot. It falls back to `session.defaultAgent`
-when that primary Terminal is a plain shell or has exited, and to opening the Agent list — with no
-tooltip, since there is nothing yet to name — when neither resolves. Either way the chosen Agent
+when that primary Terminal is a plain shell or has exited, and to opening the Agent list (with no
+tooltip, since there is nothing yet to name) when neither resolves. Either way the chosen Agent
 starts as another Terminal in the same Session. With two or more tabs, + stays visible and keeps the
 same behavior. An empty pane uses its own labelled New Terminal action.
 A clean preview Editor owns one transient, Session-scoped motion identity: replacing its path
@@ -603,9 +603,9 @@ ellipsis popover holding `Inline View`, `Collapse Unchanged Regions`, and
 `Show Leading/Trailing Whitespace Differences`. These are window-lifetime view preferences, not
 persisted settings, and they are deliberately not mirrored into Settings: they are read-and-adjust
 controls that belong beside the diff being read. `Collapse Unchanged Regions` starts at each
-surface's own default — collapsed for a multi-file diff, expanded for a single file — and only
+surface's own default (collapsed for a multi-file diff, expanded for a single file) and only
 becomes one shared value once the user sets it. Ordinary file and single-file diff tab menus offer `Copy Path` and `Copy Relative Path`;
-relative paths measure from the Workbench Project root, so one file yields one path wherever it is copied from — the
+relative paths measure from the Workbench Project root, so one file yields one path wherever it is copied from: the
 tab menu and the Files tree row agree, and a submodule or nested repository does not get a base of its own. The
 containing repository is only a fallback for a resource with no Project-relative path at all, such as a diff opened
 from a linked repository outside the Project.
@@ -618,9 +618,9 @@ remains noticeable without animating the Agent icon or Session title. Work tabs 
 process-state dot; process liveness remains available through diagnostics rather than duplicate
 chrome. This does not govern the Session list's running arc around the Agent icon.
 
-**Git decorations** — a file with working-tree changes reads the same wherever its name appears.
+**Git decorations**: a file with working-tree changes reads the same wherever its name appears.
 The name takes the `--git-*` color of its change, and a single status letter (`M`, `A`, `D`, `U`…)
-sits at the trailing edge of the row or tab in the same color — the Files tree, the tab strip, and
+sits at the trailing edge of the row or tab in the same color: the Files tree, the tab strip, and
 the diff headers all render that letter from one component. Source Control resolves the same roles
 from the same table by reading its decoration's `identifier` back as a change kind; the Extension
 API's generic `tone` survives only as the fallback for a provider that is not Git, because three
@@ -630,17 +630,17 @@ type icon keeps its own color: it identifies the language, not the change. A dir
 tree takes the color of the most severe change anywhere beneath it (conflicted, then deleted,
 modified, renamed, added, untracked) but no letter, which would claim the folder itself changed.
 Changes inside a submodule or a nested repository decorate that child repository's root and keep
-climbing through its ancestors, stopping below the selected Workbench Root's own repository root —
+climbing through its ancestors, stopping below the selected Workbench Root's own repository root:
 its main checkout or a linked worktree, whichever the Workbench Root is. Only that one root is
 excluded; a child root is a decoration the user can act on, not a boundary. A child root a parent repository reports as a moved gitlink is still a folder row, so it
 takes the louder of that change and whatever is inside it, and still no letter. A directory's color
 says there are changes under it, not that the enclosing repository tracks them. Inactive tabs keep
-their decoration color — the point is to be readable across the whole rail without selecting each
+their decoration color; the point is to be readable across the whole rail without selecting each
 tab. Ignored entries stay muted and italic and take no decoration. The decoration is visual only: a
 row or tab is still named by its bare filename, and the status reaches assistive technology as an
 accessible description (`Git: modified.`) rather than being folded into that name.
 
-**Child repositories** — a directory that is a repository of its own takes the glyph Source Control
+**Child repositories**: a directory that is a repository of its own takes the glyph Source Control
 and Project Status give that repository in place of a folder icon: the `archive` codicon for a
 submodule, `repo` for a directory someone cloned in independently. A neutral folder wearing a small
 Git badge still read as one more folder among `docs` and `e2e` and did not say which kind of
@@ -648,10 +648,10 @@ repository it was; the shared glyph names the kind and ties the row to the same 
 the other two panels. The row's tooltip and its accessible description also name the kind, since only
 the submodule shows up as a change in the parent when its recorded commit moves. A linked worktree
 takes no mark: it is a peer checkout, not something nested in this tree. The mark is independent of
-the change decoration above — a submodule or nested-repository root can carry the glyph and a change
+the change decoration above: a submodule or nested-repository root can carry the glyph and a change
 color at the same time, and still no letter.
 
-**Editor breadcrumbs** — an ordinary Project file gets one 24px metadata row below the tab strip.
+**Editor breadcrumbs**: an ordinary Project file gets one 24px metadata row below the tab strip.
 Its Project-relative path sits on the left and the current file's last-change annotation sits on
 the right; both use dense, muted chrome on `--surface`, separated from the editor by one hairline.
 Only the file segment carries its file-type icon. Clicking any segment opens a flat sibling picker:
@@ -668,36 +668,36 @@ file in view; the last-change annotation truncates before the path becomes unusa
 A document the Project cannot browse keeps the rail and loses the interaction: a file authorized
 from outside every Project root shows its full absolute trail, and a diff shows its
 repository-relative one. Neither takes a tab stop and neither opens a picker, because there is no
-authorized directory listing behind a segment — a clickable segment there would promise navigation
+authorized directory listing behind a segment: a clickable segment there would promise navigation
 the Renderer cannot perform. The metrics, icon placement, and horizontal scrolling match the
 interactive rail exactly, so switching between a file and its diff never moves the first line of
 content. An external file gets no last-change annotation: blame needs a Project-scoped repository.
 
-**Motion** — motion explains structure; it never decorates state. Motion is a layered stack. Pick
+**Motion**: motion explains structure; it never decorates state. Motion is a layered stack. Pick
 the least-powerful layer that covers the scenario, and one element is only ever driven by one
 layer:
 
-1. **shadcn overlay layer** (`tw-animate-css` + animation classes in `components/ui/*`) — every
+1. **shadcn overlay layer** (`tw-animate-css` + animation classes in `components/ui/*`): every
    overlay: dialogs, selects, dropdown menus, tooltips, preview cards, and future shadcn
    components. Fade plus ~95% zoom on enter/exit, gated by Base UI popup state attributes. We
    deliberately do not import `shadcn/tailwind.css`: its custom `data-open`/`data-closed` variants
    exist to bridge Radix and Base UI, and this repo is Base UI–only, so native Tailwind attribute
    variants are equivalent (see upstream debate in shadcn-ui/ui#10267).
-2. **Native CSS** (`interpolate-size: allow-keywords`, height `0 ↔ auto` transitions) — every
+2. **Native CSS** (`interpolate-size: allow-keywords`, height `0 ↔ auto` transitions): every
    user-triggered section disclosure: PrimarySidebar Project, Files search groups, Git
    repository/history, Project Status sections. The measured SecondarySidebar/Settings
    chrome tab indicator also uses a native transform/width transition.
    `components/disclosure-motion.tsx` is the thin presence wrapper: it mounts content in the
    commit that flips `data-expanded` and releases collapsed DOM once the height transition
    settles, so collapse never retains hidden queries, watchers, or large subtrees.
-3. **auto-animate** (zero-config list add/remove/reorder) — deferred, not installed: its React
+3. **auto-animate** (zero-config list add/remove/reorder): deferred, not installed: its React
    StrictMode add-animation bug (formkit/auto-animate#232) is unfixed as of 0.10.0 and both
    renderer entries enable StrictMode. Until it lands, simple lists stay instant.
 4. **Motion** (`motion/react` via `LazyMotion strict` + `motion/react-m`, `domAnimation` features
-   only) — fine presence/timing control and future layout math: the work tab strip's enter/exit
+   only): fine presence/timing control and future layout math: the work tab strip's enter/exit
    (opacity plus width), future drag reorder and shared-element transitions.
 
-Timing lives in the `--motion-*` tokens in `styles.css` (`:root`) — the single source for CSS
+Timing lives in the `--motion-*` tokens in `styles.css` (`:root`): the single source for CSS
 transitions, tw-animate durations, Motion transitions, JS presence-cleanup fallbacks, and tests:
 disclosures expand `--motion-expand` (180ms, `--motion-ease-emphasized`
 `cubic-bezier(0.25, 1, 0.5, 1)`) and collapse `--motion-collapse` (130ms, ease-in); work tabs
@@ -715,8 +715,8 @@ disclosures in Files, Source Control, and extension-contributed trees. Do not st
 The Process Explorer window is out of scope (separate style layer, diagnostics; see `docs/process-explorer.md`).
 
 The Session status icon is the narrow state-motion exception: unread attention pings so a newly
-actionable event is noticeable, and running spins an arc around the Agent icon. Amber always pings —
-an unread event is the only thing that colors the Agent icon — so a still amber dot never competes
+actionable event is noticeable, and running spins an arc around the Agent icon. Amber always pings:
+an unread event is the only thing that colors the Agent icon, so a still amber dot never competes
 with it; the collapsed Project heading's static warning dot summarizes rows that already ping. The
 motion belongs to the ring, never the Agent mark itself; swapping among the three list projections
 remains instant.
@@ -725,19 +725,19 @@ The work-tab `Compacting` accessory is the other state-motion exception: only th
 while the Agent icon, Session title, focus accent, and neighboring tabs remain still. Hovered or
 keyboard-focused clipped sidebar titles may scroll solely to reveal their text, as described above.
 
-`prefers-reduced-motion: reduce` completes every layer instantly — overlay keyframes are gated
+`prefers-reduced-motion: reduce` completes every layer instantly: overlay keyframes are gated
 behind `motion-safe:` variants (the library ships no media query of its own, and a
 `motion-reduce:animate-none` override would lose the specificity fight against the `data-open:`
 attribute variant), disclosure CSS zeroes its durations, Session status icons keep their base shape
 but stop moving, the `Compacting` word stays high-contrast and static, and Motion durations come
 from the shared `useShouldReduceMotion` hook
-(`hooks/use-should-reduce-motion.ts`, the only sanctioned way to read the preference in JS) —
+(`hooks/use-should-reduce-motion.ts`, the only sanctioned way to read the preference in JS),
 without changing focus, selection, command, query, or lifecycle behavior.
 
-**Panel captions** — every SecondarySidebar panel wears the same caption row: 34px tall, bottom
+**Panel captions**: every SecondarySidebar panel wears the same caption row: 34px tall, bottom
 hairline, and a small bold uppercase title with `tracking-[0.04em]` in `--foreground` (VS Code's
 section caption). One shared `PanelHeader` owns it, so a Project name, `Source Control`, and
-`Project Status` read as one system rather than three. The caption title carries no icon — the
+`Project Status` read as one system rather than three. The caption title carries no icon; the
 owning tab already shows one two pixels above, and repeating it there is the duplication this rule
 exists to prevent. Trailing toolbar actions may be hover-revealed, but only where the caption row
 has free space; an action that would sit on top of live text takes its own slot instead. A
@@ -746,20 +746,20 @@ destructive action is never easier to reach than the narrower action it dwarfs: 
 same rule, the way VS Code reveals both from one selector (`scm.css`, `.resource-group > .actions`
 beside `.resource … > .actions`).
 
-**Background refresh** — a panel that re-reads its own data never stops taking input while it does.
+**Background refresh**: a panel that re-reads its own data never stops taking input while it does.
 The widget being refreshed carries `aria-busy`; `inert` is not a refresh state, because it drops
 focus to `<body>`, loses the roving position, and makes arrow navigation skip the whole widget for
 as long as the read lasts. An action bound to a revision the refresh may invalidate is refused at
-execution time with a readable reason, not disabled in advance — a control that vanishes and
+execution time with a readable reason, not disabled in advance: a control that vanishes and
 returns several times a minute is harder to use than one that explains itself once. Inside a
 `role="tree"`, every focusable element is either a real `treeitem` holding that tree's single
 roving Tab stop or lives outside the tree; the one exception is a text field, which a `treeitem`
 may contain but cannot be.
 
-**Content placement** — the SecondarySidebar holds hierarchical, navigable surfaces that read well
+**Content placement**: the SecondarySidebar holds hierarchical, navigable surfaces that read well
 in a narrow vertical rail (Files, Source Control, Project Status). Stream- and record-shaped
 surfaces that want horizontal room live in the Panel instead (Logs, Info), which docks under the
-work surface inside the centre column so the PrimarySidebar and SecondarySidebar keep full height —
+work surface inside the centre column so the PrimarySidebar and SecondarySidebar keep full height,
 VS Code's PrimarySidebar-vs-Panel split. The Panel is closed at rest, its tabs sit left at their
 natural width, and a trailing close button dismisses it. `Command+J` toggles it. A new surface
 picks its region by content shape, not by which region has room left.
@@ -769,7 +769,7 @@ matches origin says nothing (`Synced` stays on the hover badge); a deployment ro
 environment and whether it is the latest, not its short SHA; an acceptance row reads `2/2 · r3`, with
 the round spelled out on the hover and in the accessible name.
 
-**Project Status hover** — every row in the tree wears the same card, so one panel never mixes a
+**Project Status hover**: every row in the tree wears the same card, so one panel never mixes a
 structured card with a multi-line grey string. The card follows the VS Code reference hierarchy:
 the row's subject plus its semantic status in the heading, then prose that explains that heading,
 then compact `label: value` rows. A repository names its branch and remote, a branch carries a
@@ -795,12 +795,12 @@ into a single data row. Missing prerequisites use a neutral icon and an action t
 state; actual failures use the matching status tone. The complete guidance stays visible without a
 tooltip, and the item remains reachable through the tree's existing keyboard focus path.
 
-**Project-wide provider failures** — a failure that belongs to the account rather than to one
+**Project-wide provider failures**: a failure that belongs to the account rather than to one
 repository is stated once at the Status root and dropped from the repository subtrees: a lost
 connection, and an API budget every repository draws on. A Project holding a repository and its
 submodule otherwise printed the same account-level sentence twice, each with its own button. A rate
 limit is a wait rather than a fault, so it takes the hourglass instead of the danger tone, names the
-clock time Caxri resumes, and shows no action while that pause is still running — the retry it would
+clock time Caxri resumes, and shows no action while that pause is still running; the retry it would
 offer is exactly the request the limiter is refusing. It keeps one row per provider, because each
 budget resets on its own schedule. The update check is the deliberate counter-example: its
 pause is local bookkeeping and a manual check is defined to bypass it, so that surface names the
@@ -809,15 +809,15 @@ the reason it has no pull request to show (`PR rate limited`, `PR needs login`, 
 than the single `PR unknown` that was true of all eight reasons and useful for none, and its hover
 card carries the full recovery sentence.
 
-**Chrome tabs** — the moving underline is derived from the tab slot, never from the label inside
+**Chrome tabs**: the moving underline is derived from the tab slot, never from the label inside
 it: inset 8px on each side, capped, and centred in the slot. In the SecondarySidebar's evenly
 divided rail every mark is therefore the same size, so it reads as "this region is selected"
 instead of tracking a word whose length is incidental, and a responsive tab that drops its label
 keeps its underline unchanged. The inset and the cap are what keep an even division from reading
-as a segmented control — a mark that runs slot edge to slot edge on a 600px rail is a filled bar,
+as a segmented control: a mark that runs slot edge to slot edge on a 600px rail is a filled bar,
 not an underline.
 
-**Iconography** — an icon names what a thing _is_, never which mode a surrounding control is in. A
+**Iconography**: an icon names what a thing _is_, never which mode a surrounding control is in. A
 glyph reused for two meanings on one screen is a bug: the Git tab keeps the branch mark, so the
 Source Control caption drops it, repository rows take a repository mark (`FolderGit2`, or the
 vendored `archive` codicon for a submodule) regardless of panel mode, and the mode switch's
@@ -825,7 +825,7 @@ working-tree segment takes a diff mark. Where lucide has no equivalent glyph, ve
 codicon inline (`apps/desktop/src/renderer/src/icons/codicons`) rather than bending a lucide icon
 to fit.
 
-**Git secondarySidebar** — every discovered repository is an independent disclosure node, with its
+**Git secondarySidebar**: every discovered repository is an independent disclosure node, with its
 changed files grouped by directory. Selecting a file opens a read-only Monaco diff in the center
 pane; the SecondarySidebar never embeds a patch preview. The panel's mode switch offers Working
 Tree, Last Commit, and Pull Request views; Last Commit renders the HEAD commit's file list and
@@ -840,25 +840,25 @@ and keeps its optional path input and commit-details disclosure.
 
 File and folder rows do not open a hover tooltip: the path is already the row's accessible name, and
 a cursor-anchored card over the adjacent diff is worse than a truncated label. Repository rows and
-group captions still carry the hover text their own width cannot — branch, and in Pull Request mode
+group captions still carry the hover text their own width cannot: branch, and in Pull Request mode
 the pull request Command-click opens in the default browser. A repository whose only content is one
 group (Pull Request and Last Commit modes) folds that group into its own row: the caption repeated
 what the row and the mode switch already said, and its actions join the repository row. Working-tree
 mode keeps the `Changes` caption, which separates the changes from the history below. Option-click is
 the panel's modifier gesture for recursive disclosure there: on a repository row, a group caption, or a
 folder row it expands or collapses everything below instead of just that row. A file row keeps
-Option-click's other meaning instead — it skips the row's default and goes to the thing itself,
+Option-click's other meaning instead: it skips the row's default and goes to the thing itself,
 opening the working file rather than its diff. A file or folder row that offers a modifier gesture
 advertises it through `aria-keyshortcuts` without spending a tooltip on it. Trailing Discard actions
 and the panel header keep their tooltips. A deleted file has no working copy left, so it keeps the
 diff activation only.
 
 A submodule the panel already lists as its own repository section does not also appear as a gitlink
-row in its parent's change list — the section carries the same submodule with its branch and its
+row in its parent's change list; the section carries the same submodule with its branch and its
 real file changes, so the row is pure duplication, and every count the parent's caption prints drops
 it too. A submodule the snapshot is not showing separately keeps its ordinary gitlink row.
 
-**Uncommitted work in a non-working mode** — Last Commit and Pull Request replace a repository's
+**Uncommitted work in a non-working mode**: Last Commit and Pull Request replace a repository's
 file list with that commit's or that pull request's files, so a repository holding uncommitted work
 renders identically to a clean one. A mode that answers one question must not silently answer a
 different one, so the repository row states the count it is not showing (`· 3 uncommitted`) and
@@ -875,12 +875,12 @@ its glyph in the group captions' chevron column, so a long worktree name and a l
 a full row instead of ellipsizing each other. Counts are `shrink-0` after the name, which ellipsizes
 first rather than pushing them out of the row.
 
-**Git diff exclusions** — `git.diffExclude` hides matching repository-relative paths from Git
+**Git diff exclusions**: `git.diffExclude` hides matching repository-relative paths from Git
 change lists and from `Open Changes`; it ships filtering test files out by default, because a
 review of "what changed" almost never opens with them. A default that hides work is only honest if
 the surface says so and offers a way back, so hiding is never silent. The Source Control header's
 eye button, which reveals the excluded files in place, appears only when exclusions are actually
-hiding something — a control that toggles nothing but is always on screen teaches the user it is
+hiding something: a control that toggles nothing but is always on screen teaches the user it is
 decoration. In a multi-file diff tab the hidden count is stated in a `role="status"` notice
 carrying two ghost buttons: `Show them` reopens the same aggregate diff with exclusions revealed
 and retires the occurrence it replaces, so the user is never left with two identically labelled
@@ -889,7 +889,7 @@ row rather than to the top of the list. Both buttons name themselves to a screen
 notice they sit beside. Showing excluded files lives in the tab's resource path, not in component
 state, so the revealed view is an ordinary diff tab that survives restore.
 
-**Terminal panes** — the focused pane keeps the accent inset ring (with the active tab's top
+**Terminal panes**: the focused pane keeps the accent inset ring (with the active tab's top
 border it forms the screen's one accent focus). The xterm viewport and scrollbar are full-bleed at
 the right edge; top/left text padding belongs to xterm's content box so it never creates an outer
 scrollbar gutter. Exited Terminals keep their final output and reserve a compact recovery row
@@ -898,17 +898,17 @@ beneath the xterm viewport, never over it. A zero exit without a signal is `--mu
 and the matching human failure label. Surface actions, the command palette, and
 `Command+Shift+R` restart the same durable Terminal record.
 
-**Dialogs** — backdrop `--overlay` + `backdrop-filter: blur(2px)`; content radius 8, border
+**Dialogs**: backdrop `--overlay` + `backdrop-filter: blur(2px)`; content radius 8, border
 `--border`, shadow from `--shadow`. Never a close X inside the command palette. Pickers are the one
 exception and use a second, named scrim: fully transparent, no blur, still capturing pointer events
 so an outside click dismisses the picker instead of reaching the control underneath. A picker is
 something the user reads the workbench through while choosing a destination in it, so dimming the
 thing they are aiming at defeats the surface.
 
-**Command palette** — rows show command title left, `kbd` shortcut hint right (render from live
+**Command palette**: rows show command title left, `kbd` shortcut hint right (render from live
 keybindings, `badge` size, `--elevated` chips). Group headings stay. Width 560px.
 
-**Project search** — `Command+Shift+F` opens a centered overlay 70% of the window in each direction,
+**Project search**: `Command+Shift+F` opens a centered overlay 70% of the window in each direction,
 not a panel inside Files. Search is a workspace-wide question and its answer wants two columns; a
 310px sidebar could show a file list or a line of context, never both, and it paid for the panel by
 hiding the file tree the results are about. The overlay leaves the tree on screen behind it. It is
@@ -918,19 +918,19 @@ it, while this surface carries its own preview and is itself what the user is re
 the workbench is honest about the workbench being inert. It reads as controls / results / preview:
 one row of query field, the three content-mode toggles, and the Name–Content segments; then results
 on the left at 42% and a snippet of the selected file on the right, four lines of context each side
-of the match, read through `files.read` rather than by widening what a search result carries — every
+of the match, read through `files.read` rather than by widening what a search result carries; every
 scan would otherwise pay for context the user reads one file at a time. A name result has no line to
 center on and shows the head of the file, which is what tells a reader which of nine `index.ts` they
 found. Focus never leaves the field: `↑`/`↓` move the selection and hold at both ends rather than
 wrapping, `Enter` opens, `Command+Enter` opens to the side, and a pointer selects with one click and
-opens with two. A single click selects without opening a preview tab — the pane beside the results already is that preview, and a tab opening behind a modal is a
+opens with two. A single click selects without opening a preview tab: the pane beside the results already is that preview, and a tab opening behind a modal is a
 change the user cannot see. Opening a result dismisses the overlay, and a fresh open starts empty.
 
-**Session switcher** — the hold-to-cycle MRU overlay (`Recently used Sessions`) is a modal moment
+**Session switcher**: the hold-to-cycle MRU overlay (`Recently used Sessions`) is a modal moment
 that ends on key release, so it wears the picker scrim above rather than the Dialog one, and the
 palette's 560px width, centred. Like VS Code's editor switcher, the workbench stays fully readable
 underneath while the chord is held; the scrim still swallows pointer events, and clicking it cancels
-exactly as Escape does — without that, clicking a Session in the PrimarySidebar mid-chord switches
+exactly as Escape does: without that, clicking a Session in the PrimarySidebar mid-chord switches
 once and then the switcher commits a second, stale jump on release. It reads top to bottom as caption / list / hint: a panel-caption
 title with the live position on the right, Session rows (Agent identity icon, title over Project,
 relative `Last opened`, then the same right-edge status indicator the PrimarySidebar renders), and
@@ -941,7 +941,7 @@ whole purpose is to show where the pending jump lands, which is the transient ac
 carve-out in principle 2. Cycling scrolls the highlight into view; a pointer may highlight a row
 by moving over it and commit it by clicking.
 
-**Agent Actions picker** — `Command+Shift+A` opens an independent 560px picker only for a running
+**Agent Actions picker**: `Command+Shift+A` opens an independent 560px picker only for a running
 Agent Terminal. Its fixed target line names the provider, Session, and Terminal captured at open;
 results are grouped as Commands and Skills and searchable without typing the `/` or `$` prefix.
 `Enter` submits an argument-free action directly; `Command+Enter` appends the exact invocation plus
@@ -950,13 +950,13 @@ be inserted and completed in the Terminal. The footer exposes both key meanings 
 `Manage in Settings…` route. Selection or `Escape` returns focus to the captured Terminal. The
 picker never reads, clears, or replaces the current Terminal draft.
 
-**Inputs** — shared `Input` density is always explicit outside standard forms: `standard` (36px,
+**Inputs**: shared `Input` density is always explicit outside standard forms: `standard` (36px,
 base), `dense` (28px, dense), `compact` (24px, dense), or `palette` (44px, base). `appearance`
 selects the standard themed fill, workbench canvas, inline surface, or an embedded field owned by
 `InputGroup`; all variants share one border, focus ring, invalid, and disabled contract. Adorned
 search/path fields use `InputGroup`, never feature-local field chrome.
 
-**Settings** — a Workbench tab, not a modal: `Cmd+,`, the menu, and the palette all open or focus
+**Settings**: a Workbench tab, not a modal: `Cmd+,`, the menu, and the palette all open or focus
 this one tab instead of raising a dialog, so it composes with every other document (the Archived
 Sessions manager still floats its own confirmation dialog over it, exactly as it would over any
 other tab). Its description reads: "Changes apply immediately and are stored as editable files."
@@ -964,12 +964,12 @@ Field labels in plain language; byte values rendered as human units (`2 MB`) wit
 input. There is no Apply button and no per-section dirty marker: a structured control writes as
 soon as it changes, and the raw source editor commits when it loses focus, reporting a parse
 failure in place instead of persisting it. A keybinding that collides with an existing chord is
-still written and flagged inline on both rows — the editor reports conflicts, it never blocks the
+still written and flagged inline on both rows: the editor reports conflicts, it never blocks the
 user out of one. Compact scalar controls (select, number) share one width and keep labels left with
 their unit inside the field; a plain-text or explanatory row spans the full row width under its
 label instead. Settings and form rows compose the shared Field primitive (label left, description
 under the label, control right); instant boolean preferences render Switch at the row's trailing
-end — including each entry's toggle inside the Claude Code command list — and clicking either the
+end (including each entry's toggle inside the Claude Code command list) and clicking either the
 label or the control toggles it. Keybindings group under their catalog category instead of one flat
 list, keep each row's command id out of sight behind a hover tooltip, and drop the shared `Kbd`
 chip's own border where the row's own control already supplies the chrome. Theme colors tile in a
@@ -980,27 +980,27 @@ single-line input.
 
 A consequential choice may not live only inside a free-text field. Every bundled Agent launches
 without per-action approval by default, and until that was only a CLI token inside
-`Initial arguments`, the setting was unreadable to anyone who did not already know the flag —
+`Initial arguments`, the setting was unreadable to anyone who did not already know the flag,
 principle 3 applied to the one row where it matters most. Each provider now carries a named Switch
 directly above `Initial arguments`, stating in plain words what the two answers mean and that the
 change reaches Terminals started from now on. The Switch is derived over the same argument list the
 user can hand-edit rather than a second stored preference, so a raw edit and the Switch can never
-disagree, and it moves only the approval tokens — a confinement argument such as Grok Build's
+disagree, and it moves only the approval tokens; a confinement argument such as Grok Build's
 `--sandbox workspace` decides where the Agent may work, not whether it asks first, and survives
 untouched in both directions. Initial arguments are command-line argv: a flag and its value may
 share a line. Where a plain-language control and a raw field describe the same
 state, the raw field stays authoritative and the control reads from it.
 
-**Toasts** — four variants (`info`/`success`/`warning`/`error`) with a 3px left bar in the status
+**Toasts**: four variants (`info`/`success`/`warning`/`error`) with a 3px left bar in the status
 color and matching icon; `info` uses `--muted` for its bar (an accent bar would be a second accent),
 `warning` uses `--warning`, `error` uses `--danger`. The last two are not degrees of the same thing
 and are not interchangeable: `warning` says the feature still works but on reduced terms and needs
 no immediate answer; `error` says the thing the user asked for did not happen. A degradation the
-user can keep working through is never an `error` — that would be a lie while the feature still
-runs — and never an `info` either, because neutral phrasing hides that the reduced terms are still
+user can keep working through is never an `error` (that would be a lie while the feature still
+runs) and never an `info` either, because neutral phrasing hides that the reduced terms are still
 in force. Do not add a fifth variant. Sonner owns the queue, timers, keyboard access, and swipe
 dismissal. Every variant auto-dismisses after 4s of visible, non-interacting time; only explicit
-`persist` notices stay until dismissed — including when their own action button is pressed, because
+`persist` notices stay until dismissed, including when their own action button is pressed, because
 such an action routinely opens a confirmation the user can still cancel and deleting the card first
 would take the only way back to the offer. Stack
 bottom-right above the status bar, with three visible cards. Hover or keyboard focus pauses expiry.
@@ -1008,21 +1008,21 @@ Use the close or action button to dismiss; clicking the message body does not di
 internal transition/removal timing is a third-party exception to the motion token layers above;
 its built-in reduced-motion media rule disables animation. Theme overrides live in `styles/styles.css`.
 Notifications are the one floating surface that deliberately outranks a modal: the toaster stacks
-above a dialog popup instead of under its backdrop, because a failure raised inside a modal — the
-Archived Sessions manager, a confirmation, an import prompt — is reported through this channel and
+above a dialog popup instead of under its backdrop, because a failure raised inside a modal (the
+Archived Sessions manager, a confirmation, an import prompt) is reported through this channel and
 nowhere else, so sinking it there would turn each of those failures into silence. The dialog still
-owns Escape, the backdrop, and the pointer. What the exception does not buy is operability — the
-dialog's focus trap keeps the toast's own buttons out of Tab order — so a failure the dialog can
+owns Escape, the backdrop, and the pointer. What the exception does not buy is operability: the
+dialog's focus trap keeps the toast's own buttons out of Tab order, so a failure the dialog can
 report in place belongs in the dialog, not in a toast. Settings is not one of these: as a Workbench
-tab it owns no backdrop and traps no focus, so a failure raised there — a rejected settings write, an
-argv restart notice — already reaches the user through this same toast channel with nothing to
+tab it owns no backdrop and traps no focus, so a failure raised there (a rejected settings write, an
+argv restart notice) already reaches the user through this same toast channel with nothing to
 compete with.
 
-**Notifications** — the status bar bell opens a 384px-wide, viewport-constrained popover with
+**Notifications**: the status bar bell opens a 384px-wide, viewport-constrained popover with
 recent messages, Project context, occurrence counts, removal, clear-all, and a Settings shortcut.
 History holds at most 100 entries in this window's memory and never stores action callbacks;
-reloading the window clears it. An entry whose popup offered a recovery — `Retry`, `Undo`,
-`Open Settings` — keeps offering it here, because four seconds is not how long a failure stays worth
+reloading the window clears it. An entry whose popup offered a recovery (`Retry`, `Undo`,
+`Open Settings`) keeps offering it here, because four seconds is not how long a failure stays worth
 answering. The button is rebuilt from a recorded name plus plain data, so acting on it is the same
 command the popup would have run. Whether it still applies is asked at the click, never at render:
 a follow-up that no longer has a target replaces itself with one plain sentence saying so, which is
@@ -1034,7 +1034,7 @@ Settings → Notifications restores those preferences and groups the existing na
 controls. Failures and persistent data-loss notices cannot be muted. Worktree fallback is an
 ordinary four-second reminder now that its record remains available in the center.
 
-**Software update** — a release Caxri finds on its own raises a notification and nothing more. A
+**Software update**: a release Caxri finds on its own raises a notification and nothing more. A
 modal belongs to a user who asked; Caxri is opened while someone is already doing something else,
 and taking the screen and the Escape key for news that can wait is the nag this rule exists to
 prevent. The notification carries a `Show Update` action, which outlives it in the history, and the
@@ -1043,13 +1043,13 @@ status-bar chip is what keeps the release reachable without opening either.
 The dialog offers two dismissals, side by side, because they are different answers rather than two
 strengths of one. `Close` means "not now": this app process stops offering the release, and the next
 launch offers it again. `Skip this version` is recorded in `updates.skippedVersion` and outlives the
-process, silencing the offer only until something newer appears — and it has a row in Settings, so
+process, silencing the offer only until something newer appears, and it has a row in Settings, so
 the one durable consequence of the decision is visible where it can be taken back. A reflexive
 Escape must never be read as the second one.
 
 A workbench change the user did not perform announces itself. An Agent that moves a Session into a
 linked worktree re-roots Files, Source Control, Project Status, and the Editor, so it raises the
-same ordinary four-second reminder as fallback — naming the destination and carrying an inline
+same ordinary four-second reminder as fallback, naming the destination and carrying an inline
 `Undo` back to the previous root, because the only other cue is a folder name changing in the
 status bar. A switch the user performed themselves stays silent; the wire reason (`followed`)
 carries that distinction, since the picker and an Agent otherwise reach the same commit path.
@@ -1059,13 +1059,13 @@ repeated failures pin the whole window to software rendering are both `warning` 
 dismissed: each reports a condition that is still true after four seconds, and one the user should
 decide about now rather than find later in the history. The
 two carry different routes because they leave the user with different decisions. While hardware
-acceleration is still on, the crash notice offers `Turn off hardware acceleration…` — the ellipsis
+acceleration is still on, the crash notice offers `Turn off hardware acceleration…`: the ellipsis
 is the standard promise that a question comes first, and the click itself changes nothing. Once the
 window is already pinned, repeating that offer would sell relief the user already has, so the
 escalated notice offers `Open Settings` instead: what is left to decide there is the durable
 preference. Turning hardware acceleration off is the one click in the product that changes how
 every future launch draws, so it passes the shared confirmation modal first, and that modal has to
-say all three consequences — it restarts now, it lasts past this session, Settings takes it back.
+say all three consequences: it restarts now, it lasts past this session, Settings takes it back.
 
 A boot-flag write that only the next launch picks up is held for the same reason: closing or
 switching away from the Settings tab must not make the notice disappear before the user acts on it,
@@ -1073,10 +1073,10 @@ and it carries the only statement of what the restart is owed for. That one is a
 an event, so it names every flag still differing from the running instance's launch values, and it
 is retracted once none remain.
 
-**Confirmations** — destructive commands (Delete Session, Delete Project) require a native confirm
+**Confirmations**: destructive commands (Delete Session, Delete Project) require a native confirm
 dialog naming the target ("Delete session 'api-fix'? Files on disk are not touched."). Every other
 "are you sure" moment uses the one in-app confirmation modal behind
-`caxri.window.showConfirm({ title, message, confirmLabel, cancelLabel })` — a feature never mounts
+`caxri.window.showConfirm({ title, message, confirmLabel, cancelLabel })`; a feature never mounts
 its own. The title asks the question, the message names the consequence, the buttons name the
 outcome ("Turn On", not "Yes"), the confirming button takes initial focus, and Escape, the close
 button, and an outside click all mean Cancel. It carries no danger styling on purpose: anything
@@ -1086,7 +1086,7 @@ A modal owns the screen for as long as it is up, so anything else standing on to
 hides while one is open. A floating surface left rendered under the backdrop is not merely
 unreachable: its buttons still look pressable, and the click lands on the backdrop instead, which
 reads as an outside press and answers the dialog the user was not looking at. Focus has the
-matching rule — never name a disabled element as a dialog's initial focus. Base UI focuses exactly
+matching rule: never name a disabled element as a dialog's initial focus. Base UI focuses exactly
 what the resolver returns and does not fall back, so focus stays outside the dialog entirely and
 keystrokes reach whatever is behind it. Name the element only once it can accept focus, and let the
 popup itself hold focus until then.
@@ -1119,8 +1119,8 @@ popup itself hold focus until then.
   revealed surface unreachable (xterm swallows Tab) and, on the way back, drop the focused element so
   the next Tab restarts from the top of the document. Hiding a surface while focus sits somewhere
   else entirely is the one case that must not move focus: the user asked for screen space, not to
-  leave the Terminal they are typing in. Each surface names exactly one keyboard entry point — a
-  chrome tab bar's selected tab, a tree's roving row — and every command that focuses that surface
+  leave the Terminal they are typing in. Each surface names exactly one keyboard entry point (a
+  chrome tab bar's selected tab, a tree's roving row), and every command that focuses that surface
   uses that same one.
 - `Command+0` moves focus into the PrimarySidebar tree, revealing the side bar first when it is
   hidden. Double-clicking a Session row opens its inline rename editor; `Enter` does the same while
@@ -1153,21 +1153,21 @@ popup itself hold focus until then.
 Acknowledged debt in the current spec. Entries here describe shipped reality, not an endorsement;
 resolving one requires updating the sections above in the same change.
 
-- **State tokens** — there is no `--hover` / `--selected` / `--active` layer, so components
+- **State tokens**: there is no `--hover` / `--selected` / `--active` layer, so components
   hand-roll `color-mix` recipes (status bar, project rows, process explorer, panel divider). Until
   dedicated state tokens land, reuse the closest existing recipe instead of inventing another
   formula.
-- **Panel toggle shortcuts** — `Command+[` / `Command+]` collide with editor indent/navigate muscle
+- **Panel toggle shortcuts**: `Command+[` / `Command+]` collide with editor indent/navigate muscle
   memory. They do fire from Monaco and xterm (all three chrome toggles take the editable-target
   opt-in, which is what makes the focus handoff above necessary), so what remains open is the
   collision itself: rebinding, e.g. `Command+B` for the PrimarySidebar, is a product decision nobody
   has made.
-- **Tree rows that are not treeitems** — three known violations of the Trees rule above survive
+- **Tree rows that are not treeitems**: three known violations of the Trees rule above survive
   because removing them would cost a user-visible affordance: the extension tree's error row keeps a
   focusable `Retry` button inside `role="tree"` (dropping it would make recovery unreachable), the
   process `treegrid`'s column-header sort buttons and column resize separators are extra Tab stops
   beside its single row stop, and the PrimarySidebar still has two generic wrappers standing between
   `role="tree"` and its rows. Fixing any of them needs a real interaction design, not a role swap.
-- **Bug Report annotation ink** — `screenshot-annotations.ts` hard-codes `#f43f5e` and `#ffffff`
+- **Bug Report annotation ink**: `screenshot-annotations.ts` hard-codes `#f43f5e` and `#ffffff`
   instead of theme tokens. The same color has to appear in the live SVG overlay and in the
   rasterized JPEG the Agent opens, and no token can repaint bytes already written to a file.

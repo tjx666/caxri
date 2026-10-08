@@ -48,7 +48,7 @@ export function logSearchFallback(
 }
 
 /**
- * Records why the Project-wide name search could not run at all. The directory listing stays authoritative on its own —
+ * Records why the Project-wide name search could not run at all. The directory listing stays authoritative on its own;
  * this event exists so that outcome is diagnosable rather than silent.
  */
 export function logSearchFailed(

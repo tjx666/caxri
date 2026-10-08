@@ -25,7 +25,7 @@ const scenarios = [
     {
         id: 'not-logged-in',
         label: 'PR needs login',
-        hint: 'GitHub CLI is not signed in. Run gh auth login, then refresh. A GH_TOKEN environment variable alone is not enough — Caxri does not forward personal shell credentials to CLI checks.',
+        hint: 'GitHub CLI is not signed in. Run gh auth login, then refresh. A GH_TOKEN environment variable alone is not enough. Caxri does not forward personal shell credentials to CLI checks.',
     },
     {
         id: 'rate-limited',
@@ -98,7 +98,7 @@ ${response}
                  * The `not-logged-in` recovery below waits for the status bar's own poll to re-ask a now-working `gh`.
                  * That cadence is a minute in production, which is a minute of the single-worker CI pool spent on a
                  * timer; `renderer/src/lib/poll-scheduler.ts` owns this bounded cap and `poll-scheduler.test.ts` pins
-                 * it. What the workflow proves — the indicator clears itself rather than latching — is unchanged.
+                 * it. What the workflow proves (the indicator clears itself rather than latching) is unchanged.
                  */
                 CAXRI_E2E_MAX_POLL_INTERVAL_MS: String(POLL_INTERVAL_MS),
                 PATH: `${bin}:/usr/bin:/bin`,

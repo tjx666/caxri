@@ -24,8 +24,8 @@ export function assertAgentRenameVersion(
  * honoring test, portable, and custom Agent homes supplied through the Agent integration seam.
  *
  * The login-shell PATH is part of that boundary, not an extra. A GUI-launched Server Core inherits macOS's launchd PATH
- * (`/usr/bin:/bin:/usr/sbin:/sbin`), and several Agent CLIs — `codex` among them — are installed as `/bin/sh` shims
- * that `exec node`. Handing such a shim the launchd PATH makes it exit 127 within milliseconds, which surfaced as an
+ * (`/usr/bin:/bin:/usr/sbin:/sbin`), and several Agent CLIs (`codex` among them) are installed as `/bin/sh` shims that
+ * `exec node`. Handing such a shim the launchd PATH makes it exit 127 within milliseconds, which surfaced as an
  * unexplained "could not rename the Agent session".
  */
 export async function agentCommandEnvironment(

@@ -17,7 +17,7 @@ const COMMIT_SUBJECT = 'Add the hover preview fixture';
 
 /**
  * Commits until the abbreviated sha carries a letter, because a purely numeric abbreviation is deliberately not
- * detected as a commit reference — it is indistinguishable from an ordinary number in Terminal output.
+ * detected as a commit reference: it is indistinguishable from an ordinary number in Terminal output.
  */
 async function commitWithHexadecimalSha(root: string): Promise<string> {
     for (let attempt = 0; attempt < 8; attempt += 1) {

@@ -285,8 +285,8 @@ export class UpdateService {
      */
     private announcedVersion: string | undefined;
     /**
-     * The release the Acceptance fixture served in this launch. The fixture serves once, so every later check —
-     * including one after the disabled download left an error — republishes this instead of consuming it again.
+     * The release the Acceptance fixture served in this launch. The fixture serves once, so every later check (
+     * including one after the disabled download left an error) republishes this instead of consuming it again.
      */
     private acceptanceRelease: { fileName: string; version: string } | undefined;
     private isAutomaticCheckStarted = false;
@@ -604,7 +604,7 @@ export class UpdateService {
     }
 
     /**
-     * Records that a window has offered the currently available version to the user — through the notification or by
+     * Records that a window has offered the currently available version to the user, through the notification or by
      * opening the update dialog. Every later read of this state reports `announced: true`, so a window reload, a
      * cancelled download returning to `available`, or a second window never produce a second prompt for the same
      * release. Nothing is written to disk: the next launch offers it again unless the user skipped it.

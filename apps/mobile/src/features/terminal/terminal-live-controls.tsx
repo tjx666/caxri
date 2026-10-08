@@ -15,7 +15,7 @@ type LiveTerminal = ReturnType<typeof useLiveTerminal>;
 
 /**
  * An invisible field that turns the system keyboard into Terminal keystrokes. Android's `visible-password` keyboard
- * type disables IME composition, prediction, and autocorrect, so every key commits immediately — the same approach
+ * type disables IME composition, prediction, and autocorrect, so every key commits immediately: the same approach
  * dedicated Android terminals use. Composed Chinese text belongs in the Agent composer instead, where it is submitted
  * as one message.
  */

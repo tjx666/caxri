@@ -18,7 +18,7 @@ export interface ContextMenuOptions {
  * Returns an `onContextMenu` handler that opens a native menu at the gesture. `build` runs when the menu opens, not on
  * render, so it reads the latest state and may await data the menu needs (a lazily fetched status, for example).
  *
- * The handler claims the event — `preventDefault` so Chromium shows nothing of its own and `stopPropagation` so an
+ * The handler claims the event: `preventDefault` so Chromium shows nothing of its own and `stopPropagation` so an
  * enclosing surface's menu (the Files tree background behind a row) does not open as well. A second gesture while a
  * menu is still being built or shown is ignored; the native menu is modal anyway.
  */

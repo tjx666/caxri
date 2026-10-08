@@ -287,7 +287,7 @@ export const settingsSpec = [
         key: 'terminal.gpuAcceleration',
         title: 'GPU acceleration',
         /**
-         * Scoped to only the Terminal's own WebGL renderer, unlike Hardware acceleration below — and it depends on that
+         * Scoped to only the Terminal's own WebGL renderer, unlike Hardware acceleration below, and it depends on that
          * broader setting: with Hardware acceleration off, the GPU is unavailable to the whole app, so this setting has
          * nothing to accelerate regardless of its own value (verified in `terminal-renderer-status.ts`'s
          * `isBootDisabled` case).

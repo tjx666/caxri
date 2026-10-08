@@ -80,8 +80,8 @@ export async function acquireAsset(sessionId: string, path: string): Promise<str
         if (existing) {
             /**
              * Callers that shared one in-flight read all resolve to the _same_ URL, so revoking unconditionally here
-             * would kill the very entry every one of them is about to render. Only a genuinely separate read — one that
-             * started after the cached entry was dropped — produces a duplicate worth revoking.
+             * would kill the very entry every one of them is about to render. Only a genuinely separate read (one that
+             * started after the cached entry was dropped) produces a duplicate worth revoking.
              */
             if (existing.objectUrl !== objectUrl) URL.revokeObjectURL(objectUrl);
             existing.users += 1;

@@ -51,7 +51,7 @@ export interface TerminalScreenSnapshotOptions {
  * Receives the OSC 0/2 window titles xterm parses out of the PTY stream, and hands its delivery lifetime to the screen.
  *
  * `cancel` runs from `dispose()`. A title observer is normally throttled, and `restart()` finalizes the outgoing screen
- * before spawning the replacement under the same durable Terminal ID — without an explicit cancel the retired PTY's
+ * before spawning the replacement under the same durable Terminal ID: without an explicit cancel the retired PTY's
  * still-pending trailing delivery would land after the replacement wrote its own title and silently overwrite it.
  */
 export interface TerminalTitleObserver {

@@ -17,7 +17,7 @@ const EXPLICIT_PATH_MARKER_PATTERN = /^(?:\/|~\/|\.\.?\/|file:\/\/)/iu;
 /**
  * Accepts a spaced quoted span only when every part after the first space still reads as path text. A shell error
  * quotes a whole command as readily as a producer quotes a path, and neither `failed to run "/usr/bin/env node
- * --version"` nor `failed to run "/usr/bin/env node index.js"` must become one link — that would also suppress the
+ * --version"` nor `failed to run "/usr/bin/env node index.js"` must become one link: that would also suppress the
  * correct `/usr/bin/env` link the word pass already reports. Command arguments are indistinguishable from a bare
  * relative segment on shape alone (`index.js` and a spaced filename both end in an extension), so every continuation
  * except the last must itself carry a `/` to prove it is a path segment rather than a word; only the final continuation
@@ -48,7 +48,7 @@ export interface QuotedPathLinkResult {
     /**
      * Ranges the word/token pass must never independently re-link. Covers every accepted `links` entry (so its interior
      * words are not re-reported) and, per issue #1022, every argument of a quoted span that opened like a path but
-     * whose shape resolved to a command line instead (see {@link hasQuotedPathContinuations}) — a trailing bare argument
+     * whose shape resolved to a command line instead (see {@link hasQuotedPathContinuations}): a trailing bare argument
      * such as `index.js` in `"/usr/bin/env node index.js"` would otherwise still qualify as its own bare-filename link
      * once the merged candidate is rejected. The leading segment (`/usr/bin/env`) is deliberately left out so the word
      * pass can still report it on its own.
@@ -59,9 +59,9 @@ export interface QuotedPathLinkResult {
 /**
  * Recovers a quoted path that contains spaces, which word tokenization can never produce: `tokenizeByWordSeparators`
  * splits at every whitespace character, so the long-paste receipt `Original file: "~/Library/Application Support/…"`
- * would otherwise surface as the misleading fragment `Support/…`. The pass stays deliberately narrow — the producer
- * must have quoted the candidate, the candidate must open with an explicit path marker, and every part after a space
- * must still look like path text — because a space inside an unquoted or unmarked candidate is indistinguishable from
+ * would otherwise surface as the misleading fragment `Support/…`. The pass stays deliberately narrow: the producer must
+ * have quoted the candidate, the candidate must open with an explicit path marker, and every part after a space must
+ * still look like path text, because a space inside an unquoted or unmarked candidate is indistinguishable from
  * ordinary prose.
  *
  * `urlLinks` follows source order, so each already accepted URL range is retired once instead of rescanning from the

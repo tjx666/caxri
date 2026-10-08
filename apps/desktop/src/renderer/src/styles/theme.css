@@ -2,7 +2,7 @@
 
 /*
  * DESIGN.md principle 5: unregister Tailwind's default palette so a literal color utility
- * (e.g. `bg-blue-500`) resolves to nothing — every color must come from a runtime theme token
+ * (e.g. `bg-blue-500`) resolves to nothing: every color must come from a runtime theme token
  * in both Renderer entries.
  *
  * This is not a build-time failure, and it used to be described as one. Tailwind emits no rule
@@ -16,7 +16,7 @@
 
 /*
  * "This window is not the focused one", for the title-bar roles. Chromium has no `:window-inactive`
- * pseudo-class — that one is WebKit's — so `lib/window-active.ts` publishes the condition as an
+ * pseudo-class, that one is WebKit's, so `lib/window-active.ts` publishes the condition as an
  * attribute on the same `<html>` element `applyCssTheme` writes the color variables to.
  */
 @custom-variant window-inactive (&:where([data-window-active='false'] *));

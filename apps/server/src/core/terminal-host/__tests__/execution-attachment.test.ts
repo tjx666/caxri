@@ -352,7 +352,7 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution view attachmen
 
         /**
          * A held input parks the re-attach inside `settleHotPaths`, which is the widest await between accepting the
-         * re-attach and publishing its `attachmentId` — the window issue #740 is about. The Renderer has already
+         * re-attach and publishing its `attachmentId`: the window issue #740 is about. The Renderer has already
          * installed its replacement replay buffer by then, so anything forwarded here is replayed _after_ the snapshot
          * this same re-attach returns.
          */

@@ -45,8 +45,8 @@ export async function terminalTextBounds(page: Page, text: string) {
         /**
          * The renderer keeps a fixed pool of absolutely positioned row elements and rewrites them in place, so
          * `rows.children`'s DOM order does not reliably track each row's current vertical position. Sorting by the
-         * rendered `y` recovers visual, top-to-bottom order — the same order the product's own link provider reads the
-         * buffer in (`readSoftWrappedLogicalLine` in `terminal-links.ts`) — so consecutive visual rows can be joined
+         * rendered `y` recovers visual, top-to-bottom order: the same order the product's own link provider reads the
+         * buffer in (`readSoftWrappedLogicalLine` in `terminal-links.ts`), so consecutive visual rows can be joined
          * into one logical line here too, and a target that xterm soft-wraps across rows (a long file path in a narrow
          * pane, for example) is still found instead of silently matching nothing because no single row contains it.
          */
@@ -135,7 +135,7 @@ export async function terminalTextBounds(page: Page, text: string) {
  * single synthetic pointer move is not reliably enough for xterm to resolve one. A person drags the pointer across many
  * intermediate positions, so xterm gets many chances to ask its providers and to recompute the cell under the pointer
  * from a settled layout; `mouse.move` delivers exactly one event, and when that one event is the one xterm misreads,
- * nothing ever asks again — the pointer never moves, so the row stays cached as having no link.
+ * nothing ever asks again: the pointer never moves, so the row stays cached as having no link.
  */
 export async function hoverTerminalLink(
     page: Page,

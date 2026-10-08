@@ -5,7 +5,7 @@ import { hasEditorViewState } from './editor-view-state';
 type MonacoEditor = Parameters<OnMount>[0];
 
 /**
- * Monaco's own Fold All command — the one bound to `Cmd+K Cmd+0`. Running the registered action rather than reaching
+ * Monaco's own Fold All command, the one bound to `Cmd+K Cmd+0`. Running the registered action rather than reaching
  * into the folding controller is what makes this safe to invoke straight after mount: the action resolves the folding
  * model first, and that promise is the debounced range computation the controller schedules when a model is attached,
  * so there is no race with the language's folding range provider to time around.
@@ -30,11 +30,11 @@ interface FoldOnOpenInput {
 /**
  * Whether a freshly opened document should be collapsed to its structure.
  *
- * Two guards keep this from fighting the user. A document this pane has shown before is restored, not refolded —
+ * Two guards keep this from fighting the user. A document this pane has shown before is restored, not refolded:
  * expanding a few regions and switching tabs would otherwise undo itself on every return. And a caret that is not at
  * the very start means something navigated here by line: a search hit, a Terminal `path:line` link, a breadcrumb jump.
- * Folding then would not merely hide the surrounding file, it would move the caret — Monaco pulls a selection that
- * lands inside a collapsed region back to that region's first line — so the jump the user asked for would silently land
+ * Folding then would not merely hide the surrounding file, it would move the caret (Monaco pulls a selection that lands
+ * inside a collapsed region back to that region's first line) so the jump the user asked for would silently land
  * somewhere else.
  */
 function shouldFoldOnOpen({
@@ -53,7 +53,7 @@ function shouldFoldOnOpen({
 /**
  * Folding the whole document is a convenience, never a correctness step. Monaco hands out no Fold All action for a
  * model it cannot fold, and the action's own promise can reject when the editor is disposed while the folding ranges
- * are still being computed — a tab closed the moment it opened. Either way the file simply opens unfolded.
+ * are still being computed: a tab closed the moment it opened. Either way the file simply opens unfolded.
  */
 async function foldAllIgnoringFailure(editor: MonacoEditor): Promise<void> {
     try {
@@ -65,7 +65,7 @@ async function foldAllIgnoringFailure(editor: MonacoEditor): Promise<void> {
 
 /**
  * Collapses every foldable region the first time a long document opens in this pane, so a file that is too long to read
- * top to bottom opens as an outline of itself instead — the `Cmd+K Cmd+0` a user would otherwise press by hand.
+ * top to bottom opens as an outline of itself instead: the `Cmd+K Cmd+0` a user would otherwise press by hand.
  */
 export function foldEditorOnOpen(
     editor: MonacoEditor,

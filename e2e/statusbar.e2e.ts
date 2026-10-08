@@ -76,17 +76,17 @@ exec /bin/zsh -l
         await expect(running.page.locator('.statusbar-count')).toHaveCount(0);
         await expect(running.page.locator('.statusbar-toggle')).toHaveCount(0);
         await expect(
-            running.page.getByLabel(/^Open Process Explorer — Terminal memory: [\d.]+ MB$/),
+            running.page.getByLabel(/^Open Process Explorer, Terminal memory: [\d.]+ MB$/),
         ).toBeVisible();
         const childProcesses = running.page.getByLabel(
-            /^Open Process Explorer — Terminal: \d+ child processes?$/,
+            /^Open Process Explorer, Terminal: \d+ child processes?$/,
         );
         await expect(childProcesses).toBeVisible();
         await expect(childProcesses).toHaveText(/^\d+$/);
         // The status bar renders a bare count, so the explanation has to reach sighted mouse users
         // too, not just the accessible name. It moved off the native `title` attribute onto the
         // shared `Tooltip` primitive, so assert the popup actually renders rather than that an
-        // attribute exists — a `title` can be present and still never be shown.
+        // attribute exists: a `title` can be present and still never be shown.
         await childProcesses.hover();
         await expect(running.page.locator('.tooltip-popup')).toContainText(/\d+ child processes?/);
         await expect(running.page.locator('.tooltip-popup')).toContainText(
@@ -98,7 +98,7 @@ exec /bin/zsh -l
         await running.page.mouse.move(0, 0);
         await expect(running.page.locator('.tooltip-popup')).toHaveCount(0);
         // With a Session selected, the standalone "Open project files" chip no longer renders:
-        // the Workbench Root picker owns the project identity (title only — the branch next door
+        // the Workbench Root picker owns the project identity (title only, the branch next door
         // already names the branch, so the trigger must not repeat it).
         const project = running.page.getByRole('combobox', {
             name: /^Switch Workbench Root from status-project/,
@@ -199,7 +199,7 @@ exec /bin/zsh -l
         await running.page.getByRole('tab', { name: 'Files', exact: true }).click();
         await running.page.getByRole('treeitem', { name: 'source.ts', exact: true }).click();
         await expect(
-            running.page.getByRole('button', { name: /^Open Process Explorer — Terminal/ }),
+            running.page.getByRole('button', { name: /^Open Process Explorer, Terminal/ }),
         ).toHaveCount(0);
         await expect(running.page.getByLabel('File type: TypeScript')).toBeVisible();
         await expect(running.page.getByLabel(/^Editor position: Ln 1, Col 1/)).toBeVisible();

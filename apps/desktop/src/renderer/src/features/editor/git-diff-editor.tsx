@@ -70,8 +70,8 @@ function FileDiffResult({
     if (!sessionId || document === null) return null;
     /**
      * A pull request or commit diff that fails to read used to leave the reason on screen with no way out, while the
-     * working-tree path beside it offered `Check again`. The same read can succeed a moment later — the branch was
-     * mid-fetch, the delivery CLI was not authenticated yet — so every diff tab now offers the retry. See issue #1004.
+     * working-tree path beside it offered `Check again`. The same read can succeed a moment later: the branch was
+     * mid-fetch, the delivery CLI was not authenticated yet, so every diff tab now offers the retry. See issue #1004.
      */
     if (isError)
         return (
@@ -307,7 +307,7 @@ function GitChangesDiffResult({
 }) {
     useToastOnQueryError(isError, error, 'Unable to open Git diff');
     /**
-     * A working-tree diff resolves to `null` when the change is committed, staged, or undone — routinely by an Agent
+     * A working-tree diff resolves to `null` when the change is committed, staged, or undone, routinely by an Agent
      * working in the background while the user is still reading this list. The row used to go blank under its own
      * heading, which reads as a rendering failure rather than as news about the file. Said in one line and without a
      * retry, because the list header above already refreshes every file at once. See issue #1004.
@@ -421,8 +421,8 @@ function GitChangesDiffItem({
     const [expanded, setExpanded] = useState(true);
     /**
      * Remembered across virtualization: when the item scrolls out of the near-viewport window the editor unmounts, and
-     * the placeholder must keep the measured height — collapsing back to the initial height would shift the outer
-     * scroll position under the user.
+     * the placeholder must keep the measured height: collapsing back to the initial height would shift the outer scroll
+     * position under the user.
      */
     const [contentHeight, setContentHeight] = useState<number | undefined>(undefined);
     const label = file.originalPath ? `${file.originalPath} → ${file.path}` : file.path;

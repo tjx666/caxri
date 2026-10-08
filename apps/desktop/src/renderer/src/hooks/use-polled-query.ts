@@ -65,7 +65,7 @@ export function usePolledQuery<M extends CaxriMethod>(
     });
 
     // Fires only on the actual `focus`/`visibilitychange` event, never on mount, so this never duplicates the query's
-    // own initial fetch — see `useOnVisible`'s contract.
+    // own initial fetch: see `useOnVisible`'s contract.
     useOnVisible(() => {
         // Fire-and-forget: `useCaxriQuery`/`useToastOnQueryError` already own reporting a failed refetch (see call
         // sites), so this resume-triggered refresh has nothing further to await.

@@ -19,11 +19,11 @@ const SOURCE_LABELS: Record<AcceptanceSource, string> = {
 
 /**
  * Lifecycle wording, spelled out rather than title-cased from the enum. `delivered` and `accepted` differ by who acted
- * — the Agent finished, a person agreed — and that distinction is the whole reason a reviewer looks at this chip.
+ * (the Agent finished, a person agreed) and that distinction is the whole reason a reviewer looks at this chip.
  *
  * Kept byte-identical to `acceptanceStatusLabels` in `extensions/status/src/status-labels.ts`, together with
- * {@link VERDICT_LABELS} and its counterpart there. The two cannot share a module — the architecture boundary forbids
- * Desktop importing `extension-api`, and `extension-api` imports nothing — so the copies are the contract: change one
+ * {@link VERDICT_LABELS} and its counterpart there. The two cannot share a module: the architecture boundary forbids
+ * Desktop importing `extension-api`, and `extension-api` imports nothing, so the copies are the contract: change one
  * and the Status panel row and this chip name the same report two different things, with nothing failing.
  */
 const STATUS_LABELS: Record<AcceptanceStatus, string> = {
@@ -49,11 +49,11 @@ const VERDICT_LABELS: Record<AcceptanceVerdict, string> = {
  * the reason there is neither.
  *
  * `Unknown` comes first because it is the only case where the chip has to admit something. `state: 'unknown'` means the
- * report's lookup failed, so no number and no lifecycle word exist — and the old fallback, the bare noun `Acceptance`,
+ * report's lookup failed, so no number and no lifecycle word exist, and the old fallback, the bare noun `Acceptance`,
  * said nothing the shield beside it had not already said while looking like a report that was simply quiet.
  *
  * The id is deliberately never shown. It is an opaque UUID that tells a reader nothing, and it names a private
- * acceptance record — the identifier that earns the Linear chip its place has no counterpart here.
+ * acceptance record: the identifier that earns the Linear chip its place has no counterpart here.
  */
 export function acceptanceChipLabel(acceptance: ProjectStatusAcceptance): string {
     if (acceptance.state === 'unknown') return 'Unknown';
@@ -64,8 +64,8 @@ export function acceptanceChipLabel(acceptance: ProjectStatusAcceptance): string
 }
 
 /**
- * The chip's accessible name. The label alone is a bare tally, so everything the glyph and its tint carry — lifecycle
- * and verdict — plus the subject and the provenance have to be spoken here instead.
+ * The chip's accessible name. The label alone is a bare tally, so everything the glyph and its tint carry (lifecycle
+ * and verdict) plus the subject and the provenance have to be spoken here instead.
  */
 export function acceptanceAriaLabel(
     acceptance: ProjectStatusOverviewAcceptance,
@@ -99,7 +99,7 @@ export function acceptanceTooltip(
 ): StructuredTooltipData {
     const round =
         acceptance.round === undefined
-            ? // No pinned round means the link addressed the report as a whole, so the latest one answered it — worth
+            ? // No pinned round means the link addressed the report as a whole, so the latest one answered it: worth
               // saying, because the same chip would otherwise look identical to a link that pinned that round.
               acceptance.roundCount === undefined || acceptance.roundCount <= 1
                 ? undefined

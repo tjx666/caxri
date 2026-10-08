@@ -2,7 +2,7 @@
  * Pure inliner for the prototype theme stylesheet: merge the Renderer's `theme.css`, the `tw-animate-css` distribution,
  * and `styles.css` (with its file imports replaced by those contents) into one `text/tailwindcss` payload.
  *
- * `@tailwindcss/browser` resolves the virtual `@import 'tailwindcss'` internally, but any other `@import` is fetched —
+ * `@tailwindcss/browser` resolves the virtual `@import 'tailwindcss'` internally, but any other `@import` is fetched,
  * and `fetch()` cannot resolve relative or package specifiers over `file://`. Guard against a future `styles.css`
  * restructure (quote style, `layer(...)`, a new import) silently shipping a broken theme by rejecting every leftover
  * import.
@@ -34,7 +34,7 @@ export function inlineThemeCss(input: {
         .toArray();
     if (leftovers.length > 0) {
         throw new Error(
-            `cannot inline @import for file:// prototypes — teach inline-theme-css.ts about: ${leftovers.join(' ')}`,
+            `cannot inline @import for file:// prototypes: teach inline-theme-css.ts about: ${leftovers.join(' ')}`,
         );
     }
     return css;

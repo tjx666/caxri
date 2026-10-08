@@ -25,13 +25,13 @@ export const TERMINAL_TITLE_THROTTLE_MS = 250;
 
 /**
  * Persists a Shell PTY-reported title and republishes the Terminal record, which is how its tab label learns what the
- * Shell is actually doing — the same OSC 0/2 signal every terminal emulator has used since xterm. Once the durable
+ * Shell is actually doing: the same OSC 0/2 signal every terminal emulator has used since xterm. Once the durable
  * record binds an Agent provider, conversation metadata owns the semantic title and the OSC signal has no consumer.
  *
  * `setTerminalPtyTitle` reports whether anything changed, so the prompt-by-prompt repeat of an unchanged title costs
  * one comparison and no broadcast. Leading-edge delivery keeps a Terminal's first title instant; the trailing edge
  * guarantees the last title of a burst is the one that sticks. The screen that owns this observer cancels the pending
- * trailing delivery when it is disposed — see `TerminalTitleObserver`.
+ * trailing delivery when it is disposed: see `TerminalTitleObserver`.
  */
 export function createTerminalTitleListener(
     terminalId: string,

@@ -30,7 +30,7 @@ export interface ResourceExplorerActiveScope {
  *
  * `activeScope` lives here for the same reason, one level up. While a row received its `scopeId` and `sessionId` as
  * props, a Session switch changed both on all 49 visible rows and re-rendered every one of them plus its context-menu
- * wrappers — roughly 550 of the 699 component updates one switch cost — even though the booleans a row actually draws
+ * wrappers (roughly 550 of the 699 component updates one switch cost) even though the booleans a row actually draws
  * from were usually identical in the new scope. Reading the scope from the store instead lets the same subscriptions
  * decide: a row re-renders on a Session switch only when its own expanded/selected/focus state really differs. Rows
  * never render the scope itself; they need it only inside event handlers and effects, which read it on demand.
@@ -75,7 +75,7 @@ export function setResourceExplorerActiveScope(
 }
 
 /**
- * Reads the current scope outside render — from an event handler or an effect. Deliberately not a hook: subscribing a
+ * Reads the current scope outside render: from an event handler or an effect. Deliberately not a hook: subscribing a
  * row to the scope identity would reintroduce exactly the Session-switch re-render this store exists to avoid.
  */
 export function activeResourceExplorerScope(): ResourceExplorerActiveScope | undefined {
@@ -87,8 +87,8 @@ export function activeResourceExplorerScope(): ResourceExplorerActiveScope | und
  *
  * Exported so a test can assert what a Session switch does to an entire visible tree through the same code the rows
  * subscribe by. A test that re-implemented these selectors would keep passing after the real ones drifted, and the
- * property being protected here — that switching Session leaves an unchanged row's inputs untouched — is exactly the
- * kind that dies silently.
+ * property being protected here (that switching Session leaves an unchanged row's inputs untouched) is exactly the kind
+ * that dies silently.
  */
 export const rowSelectors = {
     isPathExpanded(state: ResourceExplorerScopeState, path: string): boolean {

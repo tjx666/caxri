@@ -12,7 +12,7 @@ import { treeRowTabIndex, useSourceControlTreeFocus } from './source-control-tre
  *
  * A text field is the one control in this panel that cannot be a `treeitem` itself: overriding an `<input>`'s implicit
  * `textbox` role would take away the semantics that make it typeable. `treeitem` is not a children-presentational role,
- * though, so a row _containing_ a field is legal and is the only legal place for one inside `role="tree"` — VS Code
+ * though, so a row _containing_ a field is legal and is the only legal place for one inside `role="tree"`: VS Code
  * reaches the same conclusion, carrying its SCM commit box as a tree element (`InputRenderer` in `scmViewPane.ts`)
  * rather than as a stray focusable beside the list.
  *

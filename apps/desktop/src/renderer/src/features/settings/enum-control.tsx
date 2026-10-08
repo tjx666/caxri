@@ -12,7 +12,7 @@ import {
 import { SHORT_CONTROL_WIDTH_CLASS_NAME } from './setting-row-layout';
 
 /**
- * Sentinel `SelectItem` value standing in for `null` on nullable enum settings — Base UI Select items need a non-null
+ * Sentinel `SelectItem` value standing in for `null` on nullable enum settings: Base UI Select items need a non-null
  * value, and `settings.jsonc` stores the absence as `null`.
  */
 const NULL_OPTION = '__null__';

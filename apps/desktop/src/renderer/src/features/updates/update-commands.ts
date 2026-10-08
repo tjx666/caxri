@@ -40,8 +40,8 @@ async function recordAcknowledgement(): Promise<void> {
 }
 
 /**
- * Tells Main this process has already offered the available version to the user, so a window reload — or a download
- * cancelled back to `available` — re-reads the same release without prompting again.
+ * Tells Main this process has already offered the available version to the user, so a window reload (or a download
+ * cancelled back to `available`) re-reads the same release without prompting again.
  */
 function acknowledgeAvailableUpdate(): void {
     if (useUpdateStore.getState().state?.status !== 'available') return;
@@ -50,9 +50,9 @@ function acknowledgeAvailableUpdate(): void {
 }
 
 /**
- * Opens the update dialog. Every route here is an explicit user act — the `Check for Updates` command, the status-bar
- * chip, or the notification's `Show Update` — which is the distinction this feature turns on: automatic discovery gets
- * a notification, never a modal that takes the screen and the Escape key away from whatever the user was doing.
+ * Opens the update dialog. Every route here is an explicit user act: the `Check for Updates` command, the status-bar
+ * chip, or the notification's `Show Update`, which is the distinction this feature turns on: automatic discovery gets a
+ * notification, never a modal that takes the screen and the Escape key away from whatever the user was doing.
  */
 export function showUpdateDialog(): void {
     useUpdateStore.getState().setOpen(true);
@@ -101,7 +101,7 @@ export function openDownloadedUpdate(): void {
 }
 
 /**
- * Persists `Skip this version` — the half of the two dismissals that outlives the process. Caxri stops offering the
+ * Persists `Skip this version`: the half of the two dismissals that outlives the process. Caxri stops offering the
  * release until a newer one appears, and the `Skipped update version` row in Settings is where it can be taken back.
  * The dialog closes only once the write succeeded, so a failed write never looks like a recorded decision.
  */
@@ -145,7 +145,7 @@ function announceAvailableUpdate(state: UpdateState | undefined): void {
  *
  * The announcement waits for the Server snapshot that carries `updates.skippedVersion`. Main answers `updates.getState`
  * from memory while the snapshot is still in flight, so announcing immediately would treat "the skip is not loaded yet"
- * as "nothing is skipped" and prompt for exactly the release the user told Caxri to stop offering — most visibly right
+ * as "nothing is skipped" and prompt for exactly the release the user told Caxri to stop offering, most visibly right
  * after a window reload, which is when both reads race.
  */
 export function subscribeUpdateState(): () => void {

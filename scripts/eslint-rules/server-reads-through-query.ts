@@ -60,8 +60,8 @@ function isCacheManagedRequest(ancestors: readonly Node[]): boolean {
  *
  * A read that resolves into component state dies with the component. The Extension Tree learned this the expensive way:
  * its view is keyed by Session, so switching Sessions discarded every loaded branch and the panel rebuilt itself from
- * an empty state (#791). The convention already existed in `.agents/skills/react/SKILL.md` section 4 — "components
- * never call `caxri.request` for reads" — but nothing enforced it, so the one view that skipped the cache was
+ * an empty state (#791). The convention already existed in `.agents/skills/react/SKILL.md` section 4 ("components never
+ * call `caxri.request` for reads"), but nothing enforced it, so the one view that skipped the cache was
  * indistinguishable from the views that did not.
  *
  * The rule deliberately matches every `caxri.request` rather than only read-effect methods: the protocol registry that
@@ -79,7 +79,7 @@ const serverReadsThroughQuery: Rule.RuleModule = {
         schema: [],
         messages: {
             requestOutsideDataLayer:
-                "Call '{{method}}' from a queryFn, a mutationFn, a *-client.ts module, or a *-commands.ts module. Server state resolved into component state is lost whenever the view remounts — see .agents/skills/react/SKILL.md section 4.",
+                "Call '{{method}}' from a queryFn, a mutationFn, a *-client.ts module, or a *-commands.ts module. Server state resolved into component state is lost whenever the view remounts; see .agents/skills/react/SKILL.md section 4.",
         },
     },
     create(context) {

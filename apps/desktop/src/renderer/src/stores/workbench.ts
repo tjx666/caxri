@@ -58,8 +58,8 @@ interface WorkbenchState {
     bootstrap?: BootstrapState;
     /**
      * Bumped every time Server Core reports ready again and after a Desktop↔Server reconnect. Mounted Terminal panes
-     * watch this to re-issue `terminal.attach`, because a Server restart drops attachment state — and a Server
-     * connection outage drops live `terminal.output` bytes — that the pane cannot observe on its own.
+     * watch this to re-issue `terminal.attach`, because a Server restart drops attachment state (and a Server
+     * connection outage drops live `terminal.output` bytes) that the pane cannot observe on its own.
      */
     attachEpoch: number;
     /**
@@ -78,7 +78,7 @@ interface WorkbenchState {
      * Optimistically applies a Session layout/tab/secondarySidebar change and reports persistence.
      *
      * `onStaleWrite` fires only for the specific `CONFLICT` ("stale revision") outcome, and only when this write is
-     * still the latest attempt — the one case a caller can safely retry against a refreshed snapshot, because nothing
+     * still the latest attempt: the one case a caller can safely retry against a refreshed snapshot, because nothing
      * about the write itself was wrong. It is a distinct signal from `onLatestFailure`, which never fires for this
      * outcome: a caller must not infer a stale-revision race from the optimistic layout alone, since a later command
      * that supersedes this attempt can leave the layout looking exactly like an unrelated genuine failure would.
@@ -115,8 +115,8 @@ export function configureWorkbenchSnapshotSource(read: () => Promise<BootstrapSt
 const recordRefresh = { inFlight: undefined as Promise<void> | undefined };
 /**
  * The `state.changed` reasons a Renderer command may wait for before it reports itself done. Only commands whose result
- * the user watches land — selection and the two reorder gestures — register here; everything else settles on the
- * ordinary refresh.
+ * the user watches land, selection and the two reorder gestures, register here; everything else settles on the ordinary
+ * refresh.
  */
 const SESSION_COMMAND_CONVERGENCE_REASONS = [
     'session.select',
@@ -219,8 +219,8 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
                 ? rebasedSessionState(durableNext, await previousWrite)
                 : durableNext;
             /**
-             * Stamped now, at send time, so a bootstrap read issued after this line — even one that resolves before
-             * this request does — is correctly recognized as observing (or postdating) this write once it lands.
+             * Stamped now, at send time, so a bootstrap read issued after this line (even one that resolves before this
+             * request does) is correctly recognized as observing (or postdating) this write once it lands.
              */
             sessionStateWrites.sent += 1;
             sendStamp = sessionStateWrites.sent;
@@ -516,8 +516,8 @@ function loadBootstrap(): Promise<void> {
 }
 
 /**
- * Single-flight snapshot read. A caller that arrives while a read is already in flight cannot reuse it — its own
- * mutation may not be reflected there — so every such caller shares one follow-up read instead of issuing a burst of
+ * Single-flight snapshot read. A caller that arrives while a read is already in flight cannot reuse it: its own
+ * mutation may not be reflected there, so every such caller shares one follow-up read instead of issuing a burst of
  * `app.bootstrap` requests. React StrictMode's double mount therefore never doubles the Server work, and neither does a
  * burst of `state.changed` events.
  */
@@ -542,11 +542,11 @@ export function refreshWorkbench(): Promise<void> {
  *
  * UI-driven patches are frequently re-entered with no change at all: restoring focus to a Terminal that is already the
  * active tab re-runs `selectTab`, which rebuilds the layout object and therefore never compares equal by reference.
- * Sending that write costs a `session.updateState` round trip and a SQLite write per focus change, and — worse — it
- * turns an ordinary focus restoration into a failure surface. The Terminal regains focus exactly when a dialog or
- * command palette closes, which is also when the Session behind it may have just been deleted or the application may
- * have started quitting, so the no-op write came back `NOT_FOUND` or `CANCELLED` and raised an "Unable to activate
- * Terminal" notification over a Session the user deliberately removed.
+ * Sending that write costs a `session.updateState` round trip and a SQLite write per focus change, and, worse, it turns
+ * an ordinary focus restoration into a failure surface. The Terminal regains focus exactly when a dialog or command
+ * palette closes, which is also when the Session behind it may have just been deleted or the application may have
+ * started quitting, so the no-op write came back `NOT_FOUND` or `CANCELLED` and raised an "Unable to activate Terminal"
+ * notification over a Session the user deliberately removed.
  *
  * `persistSessionState` deliberately keeps the opposite rule: a durable workflow re-persists an already-applied
  * optimistic state on purpose (see `remapOpenEditorsInSession`), so it must still issue the write.
@@ -661,7 +661,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 /**
                  * PTY output sent while the Desktop↔Server socket was down (observed on macOS sleep/wake) was dropped
                  * without replay: without a forced re-attach every backgrounded Terminal pane would stay frozen at the
-                 * last byte received before the outage. Refresh converged state too — durable recovery may have been
+                 * last byte received before the outage. Refresh converged state too: durable recovery may have been
                  * reset when a replacement Server took over.
                  */
                 useWorkbenchStore.setState((current) => ({

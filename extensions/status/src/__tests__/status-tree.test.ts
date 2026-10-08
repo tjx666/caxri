@@ -153,7 +153,7 @@ describe('Status extension tree', () => {
         const pr = node.children?.find((child) => child.item.id === 'status:repo:repo:pr');
         /**
          * The PR row's leading icon carries the aggregate check state while the branch row's icon and this row's badge
-         * carry the lifecycle, so a cancellation surfaces on the leading icon and the `checks` row. Both stay neutral —
+         * carry the lifecycle, so a cancellation surfaces on the leading icon and the `checks` row. Both stay neutral,
          * a check cancelled by concurrency is not a closed PR and not a failure.
          */
         expect(pr?.item.iconPath?.id).toBe('circle-slash');
@@ -204,7 +204,7 @@ describe('Status extension tree', () => {
             expect(pr.item.trailingIcon).toBeUndefined();
             expect(iconId(branch)).toBe(icon);
             /**
-             * Neither status is spelled out in either row — the two icons carry them in GitHub's own colors — so both
+             * Neither status is spelled out in either row, the two icons carry them in GitHub's own colors, so both
              * have to remain reachable through the accessible names for a reader who cannot use color.
              */
             expect(pr.item.description).toBeUndefined();

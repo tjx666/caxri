@@ -41,7 +41,7 @@ export interface PrimarySidebarTreeModel {
     focusRow: (rowId: string) => void;
     handleTreeFocus: (event: FocusEvent<HTMLDivElement>) => void;
     /**
-     * Expanded state for any group heading the tree walks, Pinned included — the Project collapse record knows nothing
+     * Expanded state for any group heading the tree walks, Pinned included: the Project collapse record knows nothing
      * about the Pinned heading's row id.
      */
     isGroupExpanded: (projectId: string) => boolean;

@@ -3,7 +3,7 @@
 /**
  * CI bundle budget gate: performs a timed production build and a timed macOS dir packaging pass, then fails when any
  * tracked artifact grows past its byte budget or either phase exceeds its wall-time budget. Budgets are absolute
- * ceilings with headroom above the optimized baseline recorded in docs/bundle-size.md — regressions that eat the
+ * ceilings with headroom above the optimized baseline recorded in docs/bundle-size.md: regressions that eat the
  * headroom must either be optimized away or consciously re-budgeted in the same PR that introduces them.
  */
 
@@ -39,14 +39,14 @@ interface TimeBudget {
  * 116.8 MiB, Caxri.app ≈ 497.5 MiB. The Server deliberately includes its pinned Node runtime and bundled ripgrep binary
  * so Desktop and platform deployments consume one identical, self-contained artifact.
  *
- * Source maps are roughly half of the JavaScript in these numbers and are a deliberate, permanent cost — a packaged
+ * Source maps are roughly half of the JavaScript in these numbers and are a deliberate, permanent cost, a packaged
  * build has to be debuggable without a rebuild (docs/bundle-size.md, `.agents/skills/debug`). A drop in these figures
  * is therefore as suspicious as a rise: it usually means maps stopped being emitted or stopped being packaged.
  *
  * The Renderer, asar, and app ceilings were raised together for Mermaid (≈ 23 MiB of the Renderer with its maps), which
- * the file preview loads on demand. Mermaid ships one lazy chunk per diagram type plus two large layout backends — ELK
- * ≈ 6.5 MiB and Cytoscape ≈ 2.5 MiB — that only load for the diagram kinds that need them. Stubbing those out would
- * save bytes by silently breaking `architecture` diagrams and ELK layouts, so the size is accepted instead.
+ * the file preview loads on demand. Mermaid ships one lazy chunk per diagram type plus two large layout backends (ELK ≈
+ * 6.5 MiB and Cytoscape ≈ 2.5 MiB) that only load for the diagram kinds that need them. Stubbing those out would save
+ * bytes by silently breaking `architecture` diagrams and ELK layouts, so the size is accepted instead.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export const SIZE_BUDGETS: SizeBudget[] = [
@@ -223,7 +223,7 @@ interface SummaryInput {
 export function buildSummaryMarkdown(input: SummaryInput): string {
     const formatMiB = (bytes: number): string => `${(bytes / MiB).toFixed(2)} MiB`;
     const lines = [
-        `### Bundle budget — \`${input.commit.slice(0, 7)}\``,
+        `### Bundle budget: \`${input.commit.slice(0, 7)}\``,
         '',
         '| Phase | Time | Budget | Δ vs main |',
         '| --- | ---: | ---: | ---: |',

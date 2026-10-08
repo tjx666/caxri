@@ -36,7 +36,7 @@ import { useAgentActivityClock } from './use-agent-activity-clock';
 
 const NO_RECORDS: never[] = [];
 /**
- * A glyph before each group heading, so the eye finds a group by shape before it reads the label — Paseo's status list
+ * A glyph before each group heading, so the eye finds a group by shape before it reads the label; Paseo's status list
  * does the same. Every shape is deliberately different from the circle-family glyphs the rows use: a heading icon names
  * the section, and repeating the row glyph above its own rows would say the same thing twice. They stay in the
  * heading's muted tone, because color in this list is reserved for rows that want the user.
@@ -71,7 +71,7 @@ type RenderRow =
  * Every Project's Agent Sessions in one flat, attention-first list.
  *
  * The Project tree answers "which Sessions exist", grouped by Project and ordered by the user's own arrangement, so a
- * Session that needs attention is never promoted there. This list answers the other question — "which ones are waiting
+ * Session that needs attention is never promoted there. This list answers the other question: "which ones are waiting
  * on me". One list cannot hold both orders without the user losing the arrangement they chose, so the two take turns in
  * the Primary Side Bar's body rather than sharing it; see `primary-sidebar.tsx`.
  */
@@ -162,7 +162,7 @@ export function AgentActivityView() {
     /**
      * Headings and Session rows are rendered as one keyed sequence under a single parent rather than one fragment per
      * group. A Session that changes state moves between groups constantly, and a per-group fragment makes that a change
-     * of parent — React unmounts the row and rebuilds it, so a focused row loses focus to `<body>` every time the Agent
+     * of parent; React unmounts the row and rebuilds it, so a focused row loses focus to `<body>` every time the Agent
      * it describes does anything. Keyed siblings are moved instead.
      */
     const renderRows = useMemo(

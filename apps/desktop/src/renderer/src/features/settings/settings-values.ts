@@ -19,7 +19,7 @@ export interface SettingsValueContext {
 }
 
 /**
- * Whether a row currently diverges from its shipped default — drives the modified indicator and the reset affordance,
+ * Whether a row currently diverges from its shipped default: drives the modified indicator and the reset affordance,
  * mirroring VS Code's modified-setting gutter.
  */
 export function isRowModified(binding: SettingRowBinding, context: SettingsValueContext): boolean {
@@ -101,7 +101,7 @@ export type RowResetAction =
           value: AppSettings[keyof AppSettings];
           /**
            * Set when the row owns one field of a complex setting, so the reset writes that field's own JSONC path and
-           * leaves the rest of the key — comments included — untouched.
+           * leaves the rest of the key (comments included) untouched.
            */
           member?: string;
       }

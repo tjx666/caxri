@@ -26,8 +26,8 @@ interface DisclosureMotionProperties {
  * Presence wrapper for user-triggered disclosures, driving the native height 0 ↔ auto transition in styles.css
  * (`.disclosure-motion`, `interpolate-size: allow-keywords`). Expanding mounts content in the same commit that flips
  * `data-expanded`, so the browser sees an ordinary style change and interpolates to the content's intrinsic height.
- * Collapsing keeps content mounted only until the height transition settles — `transitionend` normally, with a
- * token-derived timeout as the deterministic fallback for hidden or throttled windows — then releases the hidden DOM so
+ * Collapsing keeps content mounted only until the height transition settles: `transitionend` normally, with a
+ * token-derived timeout as the deterministic fallback for hidden or throttled windows, then releases the hidden DOM so
  * queries, watchers, and large subtrees never linger. `inert` removes collapsing content from focus and navigation
  * immediately.
  */
@@ -45,9 +45,9 @@ export function DisclosureMotion({
     const isInteractive = expanded && !hidden;
     const [exitPresent, setExitPresent] = useState(false);
     /**
-     * Collapse presence must begin in the same render that drops `expanded` — an effect runs after the commit that
-     * would already have unmounted the content. Track the previous value and flip presence during render (React's
-     * sanctioned derived-state pattern).
+     * Collapse presence must begin in the same render that drops `expanded`: an effect runs after the commit that would
+     * already have unmounted the content. Track the previous value and flip presence during render (React's sanctioned
+     * derived-state pattern).
      */
     const [previousExpanded, setPreviousExpanded] = useState(expanded);
     if (previousExpanded !== expanded) {

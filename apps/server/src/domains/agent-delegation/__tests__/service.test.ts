@@ -395,8 +395,8 @@ describe('AgentDelegationService', () => {
         ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
         /**
-         * Archiving while a launch is on its way — after admission, before the Terminal exists — must still stop it:
-         * the launch re-checks run with create access, not the read access that lets the task above stay readable.
+         * Archiving while a launch is on its way (after admission, before the Terminal exists) must still stop it: the
+         * launch re-checks run with create access, not the read access that lets the task above stay readable.
          */
         const racing = randomUUID();
         const other = f.database.createSession(f.input.projectId, null).session;

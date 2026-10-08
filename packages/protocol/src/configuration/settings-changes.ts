@@ -3,7 +3,7 @@
  * choice.
  *
  * A `settings.jsonc` is written with every key materialized at its default, so improving a default reaches nobody who
- * already has the file — the value they load is the one frozen on the day they first launched. This is the settings
+ * already has the file: the value they load is the one frozen on the day they first launched. This is the settings
  * counterpart of `defaultKeybindingChanges`, and it closes the same gap: a change applies only when the stored value is
  * still exactly the superseded default, and any other value is the user's and is left alone.
  */

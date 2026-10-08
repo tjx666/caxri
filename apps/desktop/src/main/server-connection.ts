@@ -114,7 +114,7 @@ const RECOVERY_WINDOW_MS = 120_000;
 
 /**
  * Waits for a stopped Server process to disappear so `ensureServer` re-discovery cannot race the old manifest. Signal 0
- * only probes liveness; an `ESRCH` throw means the process is gone. On timeout the caller simply proceeds — the final
+ * only probes liveness; an `ESRCH` throw means the process is gone. On timeout the caller simply proceeds; the final
  * attempt downgrades a still-stale Server to a warning.
  */
 async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
@@ -156,8 +156,7 @@ export class DesktopServerConnection extends EventTarget {
     /**
      * Once this connection has replaced one stale Server, further mismatches only warn. Without this instance-level
      * guard, every background reconnect (`reconnectUntilAttached` → `connect`) restarts the replacement from scratch,
-     * and a persistent mismatch — e.g. two Desktops of different builds sharing one Server — becomes a kill/spawn
-     * storm.
+     * and a persistent mismatch (e.g. two Desktops of different builds sharing one Server) becomes a kill/spawn storm.
      */
     private hasReplacedStaleServer = false;
     private isCoreRecoveryPending = false;
@@ -294,7 +293,7 @@ export class DesktopServerConnection extends EventTarget {
      * Ensures a Server is running and vets its build before serving it. A stale Server (older build than this Desktop)
      * is stopped and `undefined` is returned so the caller can ensure a fresh one. Replacement happens at most once per
      * connection instance (`hasReplacedStaleServer`) and never on the final attempt of a connect, so a persistent
-     * mismatch — including two ping-ponging Desktops of different builds — degrades to a logged warning instead of an
+     * mismatch (including two ping-ponging Desktops of different builds) degrades to a logged warning instead of an
      * endless kill/spawn loop.
      */
     private async attachToCurrentServer(isFinalAttempt = false): Promise<string | undefined> {
@@ -515,7 +514,7 @@ export class DesktopServerConnection extends EventTarget {
      * A read is exempt because the deadlock is an ordering fact, not a re-entrancy one: Server Core settles a read
      * outside the connection's ordered admission lane (`isConcurrentRead`), so it never queues behind the command being
      * serviced and answers while that command is still open. Refusing reads too would break a path Main already depends
-     * on — the `focus` and `open` commands reach `openMainWindow`, which reads `app.windowState.get` to restore the
+     * on: the `focus` and `open` commands reach `openMainWindow`, which reads `app.windowState.get` to restore the
      * window's saved geometry, and a refusal there silently substitutes the hardcoded default size and then persists it
      * over the user's own on the next close.
      */
@@ -555,7 +554,7 @@ export class DesktopServerConnection extends EventTarget {
      * True while a request may fail with `UNAVAILABLE` purely because the connection is between attachments and the
      * reconnect loop still owns recovery. `idle` is excluded because nothing retries after a failed initial attachment,
      * and a failed supervisor is excluded because the loop has stopped re-arming (see `ensureReconnectLoop`); both are
-     * real outages a caller must be told about. `replaced` and `disposed` never reach here — they answer `CANCELLED`.
+     * real outages a caller must be told about. `replaced` and `disposed` never reach here; they answer `CANCELLED`.
      * The first attachment is excluded through {@link reconnectContext}: it shares the `attaching` status but owns no
      * outage, so a failure there is not a reconnect.
      *
@@ -643,7 +642,7 @@ export class DesktopServerConnection extends EventTarget {
     /**
      * Forces an immediate Desktop lease renewal. Intended to be called from Main's `powerMonitor` `resume` (and
      * `unlock-screen`) handlers so a woken Desktop reasserts its lease before Server Core's own post-sleep expiry timer
-     * can win the race; see `ServerClient.renewLeaseNow`. A no-op while disconnected — the reconnect path establishes a
+     * can win the race; see `ServerClient.renewLeaseNow`. A no-op while disconnected; the reconnect path establishes a
      * fresh lease on its own.
      */
     renewLeaseNow(): void {

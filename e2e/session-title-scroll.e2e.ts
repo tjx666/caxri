@@ -175,7 +175,7 @@ test('long Session titles scroll at a readable speed and reset across pointer an
          * The title must come to rest at its end and stay there. The target cannot be a transform sampled earlier: the
          * poll above accepts the last pixel of travel (`<= -distance + 1`), so its sample can be a frame short of where
          * the animation rests, and waiting for that value again never succeeds. Wait for the transform to stop changing
-         * instead, then assert where it stopped — the same guarantee, without assuming which frame was seen.
+         * instead, then assert where it stopped, the same guarantee, without assuming which frame was seen.
          */
         let stableSince: number | undefined;
         let stableAt: number | undefined;

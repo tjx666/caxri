@@ -63,8 +63,8 @@ export interface ToastOptions {
     history?: boolean;
     /**
      * Keeps a notification on screen until the user dismisses it. Reserved for events that already cost the user
-     * something irreversible — an external write replacing an unsaved buffer — where a 4-second auto-dismiss can
-     * silently take the only record of it away.
+     * something irreversible, an external write replacing an unsaved buffer, where a 4-second auto-dismiss can silently
+     * take the only record of it away.
      */
     persist?: boolean;
     /**
@@ -95,8 +95,8 @@ function toastButtonLabel(action: ToastAction): ReactNode {
 }
 
 /**
- * Runs a follow-up from a live toast. Even a four-second-old offer can already be stale — the Session it targets may
- * have been closed between the failure and the click — so the live button revalidates exactly like the history one.
+ * Runs a follow-up from a live toast. Even a four-second-old offer can already be stale: the Session it targets may
+ * have been closed between the failure and the click, so the live button revalidates exactly like the history one.
  */
 function runLiveToastAction(action: ToastAction): void {
     const reason = runToastAction(action);
@@ -116,8 +116,8 @@ export function getToasts(): ToastT[] {
  * Retracts live notifications whose statement has stopped being true.
  *
  * A `persist` notice holds the screen until the user dismisses it, which is only honest while what it says still
- * describes reality. A notice that reports a condition the user can themselves undo — "restart to apply this setting",
- * where returning the setting to its launch value cancels the restart — would otherwise keep asserting a stale
+ * describes reality. A notice that reports a condition the user can themselves undo ("restart to apply this setting",
+ * where returning the setting to its launch value cancels the restart) would otherwise keep asserting a stale
  * instruction with no way for the surface that raised it to take it back. The history record deliberately stays: the
  * event did happen, and the center is a log rather than a live status.
  *
@@ -288,8 +288,8 @@ export function describeFailure(error: unknown, label: string): string {
  * A cancelled request is an expected outcome rather than a failure the user can act on, and often arrives when there is
  * no longer anywhere to show it: Main refuses queued Renderer work as soon as quit starts, and the Host client cancels
  * everything in flight when a lease is replaced or a connection is disposed. `shouldToastQueryError` applies the same
- * rule to reads; this keeps writes consistent with it. Exported so the Session-state write path — which reports its own
- * failures instead of going through `tryCommand` — applies the identical rule.
+ * rule to reads; this keeps writes consistent with it. Exported so the Session-state write path (which reports its own
+ * failures instead of going through `tryCommand`) applies the identical rule.
  */
 export function isCancelledRequest(error: unknown): boolean {
     return isCaxriError(error) && error.code === 'CANCELLED';

@@ -5,7 +5,7 @@ import { activePane } from '@caxri/protocol';
  * Where keyboard focus last sat inside the panes before it fell back to `document.body`.
  *
  * - `tab-bar`: on a work tab, i.e. the user was navigating tabs.
- * - `content`: anywhere else inside a pane — xterm's helper textarea, Monaco, the bar's "+" button.
+ * - `content`: anywhere else inside a pane: xterm's helper textarea, Monaco, the bar's "+" button.
  * - `none`: outside the panes entirely (sidebar, Settings), which no recovery should touch.
  */
 export type PaneFocusOrigin = 'content' | 'none' | 'tab-bar';
@@ -25,7 +25,7 @@ export interface TabFocusRecoveryTarget {
  *
  * A Terminal that becomes active while focus was in pane content claims focus itself once its PTY is running
  * (`reconcileTerminalProcessFocus`). Handing focus to its tab button in the meantime would carry the
- * `preserveTerminalFocus` marker for that very Terminal and veto its own auto-focus — which is how `Cmd+T` and the "+"
+ * `preserveTerminalFocus` marker for that very Terminal and veto its own auto-focus, which is how `Cmd+T` and the "+"
  * button ended up leaving a freshly created Terminal unfocused, with a keyboard focus ring painted on the tab that no
  * keyboard action produced. The tab bar stays the recovery target only when the lost focus started there.
  */

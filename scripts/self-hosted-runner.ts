@@ -67,7 +67,7 @@ export function validateRunnerOwner(owner: string): string {
 
 /**
  * MacOS rejects AF_UNIX socket paths longer than 104 bytes (sun_path), and RUNNER_TEMP sits deep inside the runner
- * install, so pointing TMPDIR at the owned run root breaks every Unix-socket consumer under it — the Runtime agent-hook
+ * install, so pointing TMPDIR at the owned run root breaks every Unix-socket consumer under it: the Runtime agent-hook
  * bridge socket and Chromium's singleton socket both live in TMPDIR. Jobs therefore reach the run-owned temp directory
  * through this short /private/tmp symlink; the budget keeps roughly 40 bytes free for socket file names.
  */

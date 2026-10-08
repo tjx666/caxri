@@ -34,7 +34,7 @@ const SHELL_TOOL_PHASES = new Set<AgentLifecyclePhase>([
 /**
  * Bounds the sweep by profile-owned candidates rather than by position in the directory. The previous bound counted
  * every entry in the temp directory and stopped at 4096, which made reclamation depend on where the socket happened to
- * land among unrelated files — a routine macOS `$TMPDIR` already holds several thousand entries, so a crashed Server's
+ * land among unrelated files: a routine macOS `$TMPDIR` already holds several thousand entries, so a crashed Server's
  * socket could survive indefinitely while the sweep reported success. Matching the profile prefix is a cheap string
  * compare, and only the profile itself can grow the matching set, so capping that set keeps the expensive `lstat`/`rm`
  * work bounded without letting foreign churn starve the sweep.

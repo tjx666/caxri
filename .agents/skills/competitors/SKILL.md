@@ -37,11 +37,11 @@ editor-adjacent surfaces. Both are shallow-cloned into `competitors/` by `script
   diff and blame UX, the extension/plugin system, keybindings, theming, settings, and the command
   palette. Study its interaction patterns, data shapes, and edge-case handling before inventing a
   new pattern for one of these surfaces.
-- **GitLens** (`competitors/gitlens`): the reference for Git UX beyond core VS Code — commit hover
+- **GitLens** (`competitors/gitlens`): the reference for Git UX beyond core VS Code: commit hover
   cards, author avatars, file/line blame annotations, and rich history views. MIT-licensed except
   every directory named `plus` (proprietary `LICENSE.plus`); treat `plus` code as reference-only.
 - **vscode-fe-helper** (`competitors/vscode-fe-helper`, MIT, the repository owner's own VS Code
-  extension): its `src/sidebar/` tree is the reference for Caxri's Status panel — the aggregated
+  extension): its `src/sidebar/` tree is the reference for Caxri's Status panel: the aggregated
   project-status sidebar covering Git context, GitHub PR checks, issue-tracker state, deployment
   links, and its polling scheduler.
 

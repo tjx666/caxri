@@ -20,8 +20,8 @@ function escapeRegex(character: string): string {
 
 /**
  * Compiles a rule into an anchored, case-insensitive matcher supporting `*` (any run of characters) and `?` (exactly
- * one). Check names are flat labels rather than paths, so — unlike `files.exclude` — no separator is significant and
- * `**` carries no extra meaning.
+ * one). Check names are flat labels rather than paths, so, unlike `files.exclude`, no separator is significant and `**`
+ * carries no extra meaning.
  */
 function compilePattern(pattern: string): RegExp {
     const cached = compiledPatterns.get(pattern);

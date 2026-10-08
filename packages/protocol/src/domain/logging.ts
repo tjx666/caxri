@@ -43,8 +43,8 @@ export const logEventCatalog = {
          */
         permissionAutoAllowChanged: 'agent.permission_auto_allow_changed',
         /**
-         * One entry per auto-allowed permission request. Never logs request content — only the Session/Terminal id,
-         * tool name, and the running per-Session grant lifetime count.
+         * One entry per auto-allowed permission request. Never logs request content, only the Session/Terminal id, tool
+         * name, and the running per-Session grant lifetime count.
          */
         permissionAutoAllowed: 'agent.permission_auto_allowed',
         probe: 'agent.probe',
@@ -208,7 +208,7 @@ export const logEventCatalog = {
         /**
          * One record per `pathBrowser.browse` call that ran the Project-wide name search (memo hit or a fresh
          * `files.search`), success or not. `file.search` already covers Server Core's own view of the scan; this event
-         * covers what Main did with the result — the memo/root-containment/budget steps a slow or missing search engine
+         * covers what Main did with the result: the memo/root-containment/budget steps a slow or missing search engine
          * would otherwise hide behind an unremarkable empty result. See issue caxri#924.
          */
         searchFallback: 'path_browser.search_fallback',
@@ -491,8 +491,8 @@ export const logEventNames = Object.values(logEventCatalog).flatMap((group) =>
 export const logEventNameSchema = z.enum(logEventNames);
 
 /**
- * Closed reason set for `session_rename.provider_sync_skipped`. Skipping the provider write is ordinary behavior — a
- * Session title belongs to Caxri, so the rename always commits locally — which is exactly why the two causes have to
+ * Closed reason set for `session_rename.provider_sync_skipped`. Skipping the provider write is ordinary behavior: a
+ * Session title belongs to Caxri, so the rename always commits locally, which is exactly why the two causes have to
  * stay apart in logs: an Agent that has not reported a session id yet will start synchronizing once it does, while a
  * provider with no rename integration never will. Collapsing them into one string would hide a provider gap inside
  * normal new-Session noise.
@@ -502,11 +502,11 @@ export type SessionRenameProviderSyncSkipReason =
 
 /**
  * Closed reason set for `path_browser.search_failed`. `files.search` and the Desktop-Server connection share the same
- * `UNAVAILABLE` wire code for two different situations — a packaged install missing the ripgrep binary or worker
- * script, or Main not currently attached to Server Core — so both fold into `'unavailable'` rather than inferring a
- * split from an error message string. `'disconnected'` is reserved for the connection's own terminal `CANCELLED`
- * outcome (replaced/disposed): an ordinary superseded search never throws, it resolves with `canceled: true`, so a
- * `CANCELLED` reaching this classifier is unambiguous.
+ * `UNAVAILABLE` wire code for two different situations (a packaged install missing the ripgrep binary or worker script,
+ * or Main not currently attached to Server Core) so both fold into `'unavailable'` rather than inferring a split from
+ * an error message string. `'disconnected'` is reserved for the connection's own terminal `CANCELLED` outcome
+ * (replaced/disposed): an ordinary superseded search never throws, it resolves with `canceled: true`, so a `CANCELLED`
+ * reaching this classifier is unambiguous.
  */
 export type PathBrowserSearchFailureReason = 'disconnected' | 'io' | 'other' | 'unavailable';
 
@@ -521,8 +521,8 @@ export type MobilePairingOutcomeReason = 'expired' | 'not-found' | 'started' | '
 
 /**
  * Closed reason set for `server_core.idle_exit_triggered`. A single member today, kept as a named union (rather than a
- * literal `'idle-timeout'` inlined at the one call site) so a later idle-exit trigger — e.g. an explicit operator
- * request — extends this type instead of widening an untyped string.
+ * literal `'idle-timeout'` inlined at the one call site) so a later idle-exit trigger (e.g. an explicit operator
+ * request) extends this type instead of widening an untyped string.
  */
 export type ServerIdleExitReason = 'idle-timeout';
 

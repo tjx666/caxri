@@ -5,7 +5,7 @@ import { cva } from 'class-variance-authority';
 import { cn } from '@/lib/utilities';
 
 /**
- * Pressed state reads `bg-elevated` + `text-foreground`, never `bg-accent` — DESIGN.md's one-accent rule reserves
+ * Pressed state reads `bg-elevated` + `text-foreground`, never `bg-accent`; DESIGN.md's one-accent rule reserves
  * `--accent` for the single focus indicator/primary buttons, not toggle chrome.
  */
 const toggleVariants = cva(

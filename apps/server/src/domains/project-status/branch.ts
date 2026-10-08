@@ -57,7 +57,7 @@ const REMOTE_HEAD_CACHE_LIMIT = 256;
  * Every Project Status refresh used to query the remote branch again, and a Session whose pull request has running
  * checks refreshes every 20 seconds. That query was the largest single consumer of the account-wide GitHub GraphQL
  * budget Caxri shares with the user's shell and Agents: ~900 of the ~1,100 `gh` calls Caxri made per hour. The remote
- * branch moves far less often than that, and when this machine moves it — a push or a fetch — the local tracking ref
+ * branch moves far less often than that, and when this machine moves it (a push or a fetch) the local tracking ref
  * moves too, which misses the cache immediately. Only a push from another clone or a branch deleted on GitHub waits out
  * the TTL; a forced refresh always asks GitHub again.
  */

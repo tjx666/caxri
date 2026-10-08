@@ -20,6 +20,7 @@
         "lint:staged": "lint-staged",
         "gitleaks": "bun run scripts/gitleaks-scan.ts",
         "docs-check": "bun run scripts/documentation-check.ts",
+        "em-dash-check": "bun run scripts/em-dash-check.ts",
         "source-size-ratchet": "bun run scripts/source-size-ratchet.ts",
         "knip": "knip",
         "doctor": "react-doctor --no-score --blocking warning",

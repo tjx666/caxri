@@ -172,7 +172,7 @@ const estimateItemSize = (item: SettingsListItem): number => {
 
 /**
  * VS Code-style Settings surface: search on top, category table of contents left, and one virtualized flat list of
- * headings and rows right. Rendering stays schema-driven — rows come from `settingsRows`, so the list scales to any
+ * headings and rows right. Rendering stays schema-driven: rows come from `settingsRows`, so the list scales to any
  * number of settings without DOM cost.
  */
 export function SettingsPage(properties: SettingsPageProperties) {
@@ -291,7 +291,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
         if (index === -1) return;
         /**
          * Same wait for measured items as the two requests below: a request that opens the dialog mounts an unmeasured
-         * list, and scrolling it before the virtualizer has a range silently does nothing — which is exactly how this
+         * list, and scrolling it before the virtualizer has a range silently does nothing, which is exactly how this
          * arrives from the status bar's debugging chip and the GPU crash card.
          */
         handledArgvRowFocusRequest.current = request.id;

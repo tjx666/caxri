@@ -2,8 +2,8 @@ import { createMarkdownEngine, createRenderEnvironment } from './markdown-engine
 import type { MarkdownRenderOptions, MarkdownRenderResult } from './types.js';
 
 /**
- * One engine per process. markdown-it instances are stateless between renders — all per-document state lives in the
- * environment object passed to `render` — so rebuilding one per keystroke would only cost rule-table setup.
+ * One engine per process. markdown-it instances are stateless between renders (all per-document state lives in the
+ * environment object passed to `render`) so rebuilding one per keystroke would only cost rule-table setup.
  */
 const state = { engine: undefined as ReturnType<typeof createMarkdownEngine> | undefined };
 

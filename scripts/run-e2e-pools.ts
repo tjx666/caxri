@@ -45,13 +45,13 @@ const poolAbortState: { reason: E2EPoolAbortReason | undefined } = { reason: und
 /**
  * Node's default disposition for `SIGINT`/`SIGTERM` is to terminate the process immediately.
  * `ci-concurrent-validation.ts` relies on exactly that to kill a sibling component's process group when a checks
- * failure (or the shared execution deadline) aborts the run — see `ConcurrentValidationProcesses.abort`. Left
- * unhandled, this process dies mid-invocation without writing anything, so whatever E2E failure already happened has no
+ * failure (or the shared execution deadline) aborts the run: see `ConcurrentValidationProcesses.abort`. Left unhandled,
+ * this process dies mid-invocation without writing anything, so whatever E2E failure already happened has no
  * CI-downloadable evidence (issue #1446). Registering a handler here suppresses that default: the in-flight
  * `runInvocation` await still resolves once the signalled Playwright child exits, and the invocation loop in `runPool`
  * checks {@link poolAbortState} before starting another one instead of continuing the pool. A ~2s `SIGKILL` follows the
- * `SIGTERM` (`ConcurrentValidationProcesses`'s force timer), so everything after the signal — reading whatever receipt
- * the current invocation wrote, synthesizing the partial pool receipt, and writing it to disk — has to fit in that
+ * `SIGTERM` (`ConcurrentValidationProcesses`'s force timer), so everything after the signal (reading whatever receipt
+ * the current invocation wrote, synthesizing the partial pool receipt, and writing it to disk) has to fit in that
  * window.
  */
 function installAbortHandlers(): void {
@@ -279,7 +279,7 @@ export function resolvePoolOutcome(
  * `executedInvocations`/`exitCodes` cover only invocations the loop actually started, so {@link resolvePoolOutcome}
  * still tells a signal-killed invocation's specs (`abortedInvocations`, since its process exited non-zero) apart from
  * ones the reporter already settled. `neverRunSpecs` covers invocations the loop chose not to start at all once the
- * signal arrived; those are folded into `missingSpecs` too — the receipt has no test entries for them either way — but
+ * signal arrived; those are folded into `missingSpecs` too, the receipt has no test entries for them either way, but
  * deliberately kept out of `abortedInvocations`, which means "this invocation's process exited non-zero" and never-
  * started work did not do that. The result is always non-zero and the status always `failed`: an aborted pool never
  * finished proving its own completeness, even on the rare signal that lands after everything already passed.

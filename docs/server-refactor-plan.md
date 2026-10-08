@@ -54,7 +54,7 @@ six-batch migration family, making fourteen independently gated architecture bat
 sub-batch landed as its own exact-head review and parity boundary; the source tree was never copied into
 parallel old and new implementations for a later bulk cutover.
 
-## A0 — Freeze behavior and install parity gates
+## A0: Freeze behavior and install parity gates
 
 ### A0 outcome
 
@@ -89,7 +89,7 @@ architecture source moves.
 - startup, reconnect, Terminal latency, memory, file descriptor, watcher, database, and queue budgets are
   frozen before implementation.
 
-## A1 — Control WebSocket migration
+## A1: Control WebSocket migration
 
 ### A1 outcome
 
@@ -121,7 +121,7 @@ remain later batches. A1 does not spend reusable infrastructure on the temporary
 - the new exact head contains no production UDS listener, socket endpoint, or decoder;
 - no visible intentional difference is accepted.
 
-## A2 — Repository topology migration
+## A2: Repository topology migration
 
 A2 makes the target `apps/*` and `packages/*` ownership graph real without changing process ownership or
 product behavior. It is split by reviewable ownership boundary rather than delivered as one mechanical
@@ -141,7 +141,7 @@ the next move starts.
 | reusable process, filesystem, build, and observability primitives | `packages/system`                                                   | A2e         |
 | root product entrypoints and transitional path machinery          | none; root becomes a private workspace orchestrator                 | A2f         |
 
-### A2a — Workspace contract and import guardrails
+### A2a: Workspace contract and import guardrails
 
 #### A2a outcome
 
@@ -168,7 +168,7 @@ Make the target dependency direction executable before any target path becomes a
 - the unchanged production sources, build, package, CLI, and Desktop pass their existing gates;
 - A0 parity receipts remain equal because this batch changes enforcement only.
 
-### A2b — Shared package boundaries
+### A2b: Shared package boundaries
 
 #### A2b outcome
 
@@ -198,7 +198,7 @@ Establish the reusable package seams that applications consume before applicatio
 - no application imports another application's source or a package-private deep path;
 - control connection, recovery, CLI, Agent, and Desktop parity receipts remain equal.
 
-### A2c — Move CLI to `apps/cli`
+### A2c: Move CLI to `apps/cli`
 
 #### A2c outcome
 
@@ -223,7 +223,7 @@ standalone distribution.
   the A0 baseline;
 - no `packages/cli` source, build entry, documentation precedent, or transitional import remains.
 
-### A2d — Move Desktop to `apps/desktop`
+### A2d: Move Desktop to `apps/desktop`
 
 #### A2d outcome
 
@@ -251,7 +251,7 @@ changing their runtime or security behavior.
   package boundary;
 - startup, editor, Terminal, memory, watcher, and file-descriptor budgets do not regress.
 
-### A2e — Move Server sources to `apps/server`
+### A2e: Move Server sources to `apps/server`
 
 #### A2e outcome
 
@@ -281,7 +281,7 @@ process and failure topology until A3.
 - no production Server source or deep Server import remains under the root `src/` tree;
 - every path-only evidence difference is normalized explicitly, with no product-facing difference.
 
-### A2f — Standalone Server artifact and root cutover
+### A2f: Standalone Server artifact and root cutover
 
 #### A2f outcome
 
@@ -311,7 +311,7 @@ artifact for Desktop, self-managed, and future platform supervision.
 - the complete A0 scenario catalog remains semantically and visually equal across the topology cutover;
 - production build, package-consumer smoke, startup budget, CLI, Agent, and real Desktop attach pass.
 
-## A3a — Merge the generic Host and Runtime into Server Core
+## A3a: Merge the generic Host and Runtime into Server Core
 
 ### A3a outcome
 
@@ -342,7 +342,7 @@ PTY ownership and current recovery results unchanged.
   frozen public compatibility identifiers are the only terminology exception;
 - queue, startup, memory, database, watcher, and Terminal budgets do not regress.
 
-## A3b — Extract the Terminal Host boundary
+## A3b: Extract the Terminal Host boundary
 
 ### A3b outcome
 
@@ -373,7 +373,7 @@ exception.
 - Terminal Host and Extension Host failures cannot corrupt Server state or another process boundary;
 - Terminal throughput, echo, resize, memory, and buffered bytes stay within A0 budgets.
 
-## A4 — Durable identity, receipts, and changefeed
+## A4: Durable identity, receipts, and changefeed
 
 ### A4 outcome
 
@@ -408,7 +408,7 @@ product and event behavior.
 - changefeed, receipts, parity evidence, and logs contain no prohibited content;
 - retention, database contention, idle connection, queue memory, and recovery budgets pass.
 
-## A5 — Binary Terminal and file streams
+## A5: Binary Terminal and file streams
 
 ### A5 outcome
 
@@ -431,7 +431,7 @@ or control behavior.
 - slow and disconnected consumers remain memory bounded and retain current user-visible failure results;
 - raw Terminal bytes and file contents do not enter evidence, logs, changefeed, or diagnostics.
 
-## A6 — Internal observability and fault diagnostics
+## A6: Internal observability and fault diagnostics
 
 ### A6 outcome
 
@@ -460,7 +460,7 @@ operator capabilities so this batch has no new CLI or HTTP behavior.
 - privacy contract tests reject source, Draft, Terminal, prompt, transcript, credential, and environment
   content.
 
-## A7 — Full differential Acceptance and architecture cutover
+## A7: Full differential Acceptance and architecture cutover
 
 ### A7 outcome
 
@@ -502,32 +502,32 @@ A7 parity cutover
   └── P5 Live Terminal handoff across Terminal Host upgrades
 ```
 
-### P1 — Resilience and operator diagnostics
+### P1: Resilience and operator diagnostics
 
 Enable independent Terminal Host discovery and adoption so a Server Core restart preserves Terminals;
 add readiness, `doctor --json`, `capabilities --json`, and redacted changefeed inspection. These are
 explicitly new recovery and operator behaviors with their own requirements and Acceptance.
 
-### P2 — Concurrent Clients and state ownership
+### P2: Concurrent Clients and state ownership
 
 Persist Session Views per `(Client ID, Session)`, remove the global Desktop lease, add Terminal Control
 Leases and explicit native-capable Client targeting, make Attention acknowledgement global, and migrate
 Renderer-local dirty buffers to revisioned Server-owned Drafts with base-disk conflict detection. This
 batch updates the intentional dirty-buffer trade-off rather than disguising it as refactor parity.
 
-### P3 — Direct remote access
+### P3: Direct remote access
 
 Add TLS pairing and pinning, revocable Client Grants, short-lived one-use stream tickets, per-method
 scopes, remote endpoint selection, and bounded Server-side Project browsing and authorization. Validate
 the same protocol across a real network boundary without Client filesystem assumptions.
 
-### P4 — Platform operability and optional Relay
+### P4: Platform operability and optional Relay
 
 Add platform images, readiness, drain, migration, rollback, operator-configured bounded export, and fleet
 compatibility around the same single-tenant Server artifact. Relay remains a separately authorized blind,
 end-to-end encrypted access product and never becomes a Server dependency.
 
-### P5 — Live Terminal handoff
+### P5: Live Terminal handoff
 
 Only after Terminal continuity proves valuable, add descriptor transfer between Terminal Host versions
 so a planned Server artifact upgrade can preserve live Terminals. Until then, upgrades explicitly

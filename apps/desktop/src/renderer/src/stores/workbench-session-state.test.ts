@@ -468,7 +468,7 @@ describe('workbench Session state', () => {
         } as unknown as BootstrapState;
         useWorkbenchStore.setState({ bootstrap });
 
-        // An earlier, still in-flight write — e.g. selecting a newly created Terminal tab —
+        // An earlier, still in-flight write, e.g. selecting a newly created Terminal tab,
         // never resolves during this test.
         const updateRequest = Promise.withResolvers<SessionState>();
         mocks.request.mockImplementation((method: unknown) => {
@@ -483,7 +483,7 @@ describe('workbench Session state', () => {
 
         // A later, unrelated server-side mutation (e.g. closing a Terminal) pushes a full
         // refresh. The read it issues starts after the write above was sent, so once it
-        // resolves it must reflect the write's effect *and* the later mutation — it must not
+        // resolves it must reflect the write's effect *and* the later mutation: it must not
         // be clobbered by the still-unresolved write's own stale optimistic snapshot.
         const convergedState: SessionState = {
             ...filesState,

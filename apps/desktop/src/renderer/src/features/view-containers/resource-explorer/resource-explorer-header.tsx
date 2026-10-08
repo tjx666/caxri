@@ -53,7 +53,7 @@ export function ResourceExplorerHeader({ controller }: { controller: ResourceExp
                     </Tooltip>
                     {/*
                      * Between creation and collapse, the order VS Code's explorer uses. A tree can go stale without
-                     * any gesture in Caxri — an Agent writing files in a Terminal, a branch switch, a script — so this
+                     * any gesture in Caxri (an Agent writing files in a Terminal, a branch switch, a script) so this
                      * is the action that says "read the disk again" without also throwing away where the user is.
                      */}
                     <Tooltip content="Refresh Files">

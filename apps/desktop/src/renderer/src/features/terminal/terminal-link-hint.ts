@@ -77,7 +77,7 @@ function terminalLinkHintAnchor(terminal: Terminal, event: MouseEvent): Terminal
 
 /**
  * Turns a hover into a preview card. The basic card is drawn immediately from what the Renderer already knows, and
- * `load` — when the reference has metadata only the Server can see — replaces it once the read comes back.
+ * `load` (when the reference has metadata only the Server can see) replaces it once the read comes back.
  */
 export interface TerminalLinkHintPreview {
     card: TerminalReferencePreviewCard;
@@ -124,8 +124,8 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
     let activeLinkKey: string | undefined;
     let anchorEvent: MouseEvent | undefined;
     /**
-     * The link whose card `Esc` dismissed, held until the pointer moves. xterm reprovides a link on every redraw — a
-     * blinking cursor is enough — so without this the popup would reopen half a second later under a pointer the user
+     * The link whose card `Esc` dismissed, held until the pointer moves. xterm reprovides a link on every redraw: a
+     * blinking cursor is enough, so without this the popup would reopen half a second later under a pointer the user
      * never moved, and `Esc` would look broken.
      */
     let dismissedLinkKey: string | undefined;
@@ -157,7 +157,7 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
     };
     /**
      * A mouse event reports the modifier state as of the last pointer move. When the pointer is still and the user only
-     * presses Cmd, xterm reprovides the link with that older event, whose `metaKey` is `false` — accepting it would
+     * presses Cmd, xterm reprovides the link with that older event, whose `metaKey` is `false`: accepting it would
      * clear a modifier the user is currently holding, and nothing would correct it until the next key press. So an
      * observation only changes the state when it is at least as recent as the one already recorded. Events without a
      * timestamp cannot be proven stale and are always accepted.
@@ -249,7 +249,7 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
      *
      * Registered in the capture phase because xterm's own `_keyDown` calls `stopPropagation()` for the keys it claims,
      * `Escape` among them (`use-terminal-pane-runtime.ts` documents the same obstacle for modal dismissal). A
-     * bubble-phase listener on `document` would never run while the Terminal holds focus — which is exactly when a
+     * bubble-phase listener on `document` would never run while the Terminal holds focus, which is exactly when a
      * Terminal hover card is on screen.
      */
     const onEscape = (event: KeyboardEvent) => {

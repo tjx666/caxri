@@ -13,7 +13,7 @@ export const AGENT_ACTIVITY_FINISHED_RETENTION_MS = 15 * 60 * 1_000;
 /**
  * Whether a finished Session is still recent enough to list.
  *
- * Measured from `lastSessionActivityAt` — the Session's own work clock — rather than from when the user read it, so the
+ * Measured from `lastSessionActivityAt`, the Session's own work clock, rather than from when the user read it, so the
  * window describes how long ago the work finished and does not restart because the row was looked at.
  */
 export function isWithinFinishedRetention(

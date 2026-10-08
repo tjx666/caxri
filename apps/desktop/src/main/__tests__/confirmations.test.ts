@@ -83,7 +83,7 @@ describe('external link prompt', () => {
         expect(externalLinkChoice(2, true)).toBe('cancel');
         expect(externalLinkChoice(0, false)).toBe('open_once');
         /**
-         * Without trust, index 1 is Cancel — it must never be read as an implicit trust.
+         * Without trust, index 1 is Cancel; it must never be read as an implicit trust.
          */
         expect(externalLinkChoice(1, false)).toBe('cancel');
     });
@@ -181,7 +181,7 @@ describe('delete prompts', () => {
 
     /**
      * An auto-registered worktree Project can never hold a Session of its own, so the only Sessions this cascade
-     * touches are the ones adopting the worktree as a Workbench Root — and those are kept, not deleted. Copy that said
+     * touches are the ones adopting the worktree as a Workbench Root, and those are kept, not deleted. Copy that said
      * "and their Sessions" would name an always-empty set while implying the one set that survives.
      */
     it('says the Sessions working in those worktrees survive rather than implying they go too', () => {

@@ -51,7 +51,7 @@ describe('HookLaunchTracker', () => {
     /**
      * `e2e/hook-turn-recovery.e2e.ts` used to spend two real minutes proving this window on the single-worker CI pool.
      * It now injects a shortened window, so the production constant and the probe schedule derived from it are pinned
-     * here — the test above proves the default expiry, and this one proves an override moves both the probes and the
+     * here: the test above proves the default expiry, and this one proves an override moves both the probes and the
      * deadline together rather than only the deadline.
      */
     it('keeps the production recovery window at two minutes and scales its probes with an override', async () => {

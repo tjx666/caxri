@@ -55,7 +55,7 @@ export function ThemeForm({
                  * Every answer about an import renders here, directly under the button that asked for it. They used to
                  * sit after three fieldsets and some thirty swatch rows, which put them below the fold on arrival: a
                  * warning nobody scrolled to is the same as no warning at all. A failure keeps `Alert`'s assertive
-                 * `role="alert"` — a theme that was rejected is exactly the case worth interrupting for — while a
+                 * `role="alert"`: a theme that was rejected is exactly the case worth interrupting for, while a
                  * success downgrades to `status` so a screen reader finishes the sentence it was on.
                  */}
                 {importResult && (
@@ -84,7 +84,7 @@ export function ThemeForm({
                 )}
                 <ThemeImportWarnings key={theme.id} themeId={theme.id} warnings={warnings} />
                 {/* Import Theme lives on the preset row rather than its own toolbar above it (issue caxri#1289):
-                    both pick "which theme" — a preset by selecting, an import by supplying one — so they read as one
+                    both pick "which theme": a preset by selecting, an import by supplying one, so they read as one
                     decision instead of two unrelated controls competing for the same space above the swatch grid. */}
                 <Field orientation="horizontal" className="mb-3">
                     <span className="flex min-w-0 items-center gap-3">
@@ -103,7 +103,7 @@ export function ThemeForm({
                                 <SelectValue>
                                     {selectedTheme?.name ??
                                         (theme.source === 'custom'
-                                            ? `Custom — ${theme.name}`
+                                            ? `Custom: ${theme.name}`
                                             : theme.name)}
                                 </SelectValue>
                             </SelectTrigger>

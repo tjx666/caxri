@@ -100,3 +100,6 @@ jobs:
 
       - name: Run source-size-ratchet
         run: bun run source-size-ratchet
+
+      - name: Run em-dash-check
+        run: bun run em-dash-check

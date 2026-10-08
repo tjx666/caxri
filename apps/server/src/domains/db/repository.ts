@@ -493,7 +493,7 @@ export class CaxriDatabase {
      * Moves a live Terminal (its PTY untouched) into a brand-new Session under the same Project, analogous to a browser
      * "move tab to new window". Mirrors `createSession`'s new-Session bootstrap and `closeTerminal`'s source-Session
      * cleanup, but in one transaction so the Terminal is never observably ownerless. The composition root must call
-     * `TerminalManager.reassignSession` afterward to keep the live PTY cache's `sessionId` in sync — this DB call alone
+     * `TerminalManager.reassignSession` afterward to keep the live PTY cache's `sessionId` in sync: this DB call alone
      * does not touch the in-memory cache.
      */
     moveTerminalToNewSession(terminalId: string): {

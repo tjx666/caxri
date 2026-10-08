@@ -51,7 +51,7 @@ export function resolveAuxiliaryWindowBounds(
  * remember-and-restore rule exists once.
  *
  * The remembered rectangle is kept exactly as the window last reported it, and clamped to the displays attached at the
- * moment the window opens — on every open, not once when the previous quit's state is loaded. The app keeps running
+ * moment the window opens, on every open, not once when the previous quit's state is loaded. The app keeps running
  * while a monitor is unplugged, so a window closed on an external display must still reopen fully on a display that is
  * attached now (https://github.com/tjx666/caxri/issues/1415). Keeping the raw rectangle, rather than overwriting it
  * with the clamped one, lets the window return to that monitor once it is plugged back in.

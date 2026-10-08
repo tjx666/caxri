@@ -39,7 +39,7 @@ export function isTerminalResourceUsageHigh(usage: {
 
 /**
  * One running Terminal as a process inspector needs it: which PTY root PID belongs to which Session, and what to call
- * it. Deliberately metadata only — no cwd, no output, no transcript.
+ * it. Deliberately metadata only: no cwd, no output, no transcript.
  */
 export const terminalProcessEntrySchema = z.object({
     terminalId: identifierSchema,

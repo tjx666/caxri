@@ -96,7 +96,7 @@ function ProcessPidCell({
     return (
         <span role="gridcell" className={cn(processRowCellClassName, 'text-muted')}>
             {terminalId ? (
-                <Tooltip content="Stop — suspends this Terminal; reopen its Session to resume">
+                <Tooltip content="Stop: suspends this Terminal; reopen its Session to resume">
                     <button
                         type="button"
                         tabIndex={-1}

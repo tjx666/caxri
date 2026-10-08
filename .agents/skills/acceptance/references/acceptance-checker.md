@@ -85,8 +85,8 @@ Checker output:
   If none, say so; do not rewrite the whole plan.
 
 The primary resolves material findings before execution and saves the agreed
-plan with the resolutions. A "ready" decision — or "changes needed" with every
-material finding resolved — is the plan gate; execution starts without asking
+plan with the resolutions. A "ready" decision, or "changes needed" with every
+material finding resolved, is the plan gate; execution starts without asking
 the user. For frozen plans, record uncovered requirements in review notes and
 the final narrative tail; do not add items or switch report modes within that
 round. If a required outcome cannot be verified under the supplied plan, report

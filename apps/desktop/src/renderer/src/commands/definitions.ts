@@ -63,7 +63,7 @@ export const commandDefinitions: CommandDefinition[] = [
         when: (context) => context.agentActions.canOpen(),
     }),
     /**
-     * `Cmd+O` must work from anywhere, including a focused Terminal or editor — it opens a native folder dialog and
+     * `Cmd+O` must work from anywhere, including a focused Terminal or editor: it opens a native folder dialog and
      * types nothing into the editable surface.
      */
     fromCatalog('project.create', (context) => context.project.create(), {
@@ -106,8 +106,8 @@ export const commandDefinitions: CommandDefinition[] = [
         { allowInEditable: true },
     ),
     /**
-     * Both directions reach through a focused Terminal — history navigation is worthless if it stands down exactly
-     * where the cursor usually is — and stay unavailable while their stack is empty, so the chord falls through to the
+     * Both directions reach through a focused Terminal (history navigation is worthless if it stands down exactly where
+     * the cursor usually is) and stay unavailable while their stack is empty, so the chord falls through to the
      * Terminal instead of being swallowed by a command that would do nothing.
      */
     fromCatalog('session.navigateBack', (context) => context.session.navigateHistory('back'), {
@@ -214,7 +214,7 @@ export const commandDefinitions: CommandDefinition[] = [
         when: (context) => context.editor.canAddReviewComment(),
     }),
     /**
-     * `allowInEditable` so the chord fires while Monaco owns focus — opening the preview of the file you are editing is
+     * `allowInEditable` so the chord fires while Monaco owns focus: opening the preview of the file you are editing is
      * the entire point, and the source editor is where the caret almost always is.
      */
     fromCatalog('editor.openPreview', (context) => context.editor.openPreview(), {
@@ -336,7 +336,7 @@ export const commandDefinitions: CommandDefinition[] = [
     /*
      * Declared in the shared catalog as a Files view-container command, but handled here: `executeCommand` prefers a
      * Renderer registration and only falls through to the view catalog when none exists. That fallthrough is exactly
-     * what has to be avoided — `didExecuteViewCatalogCommand` reveals a command's owning view container before
+     * what has to be avoided: `didExecuteViewCatalogCommand` reveals a command's owning view container before
      * dispatching it, so leaving this to the catalog would pop the Files sidebar open every time the overlay opened.
      * Registering it here keeps the catalog entry, the `cmd+shift+f` default, and the recorded keybinding migration
      * history untouched while the command itself now opens a surface that belongs to no view container.
