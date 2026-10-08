@@ -7,6 +7,7 @@ export const agentLifecyclePhases = [
     'turnStarted',
     'subagentStarted',
     'attentionRequested',
+    'attentionResolved',
     'turnFinished',
     'turnFailed',
     'shellToolStarted',
@@ -132,8 +133,8 @@ export interface AgentLifecycleSignal {
      */
     agentId?: string;
     /**
-     * Provider-native tool invocation identifier used only to pair one Bash PreToolUse signal with its outcome. It is
-     * opaque, bounded, and never joined to Terminal output or transcripts.
+     * Provider-native tool invocation identifier used to pair Bash worktree creation or an attention request with its
+     * outcome. It is opaque, bounded, and never joined to Terminal output or transcripts.
      */
     agentToolUseId?: string;
     launchId: string;

@@ -20,6 +20,14 @@ const bindings = [
     { event: 'Stop', phase: 'turnFinished', reply: 'emptyJson' },
     { event: 'PreToolUse', matcher: '^Bash$', phase: 'shellToolStarted' },
     { event: 'PostToolUse', matcher: '^Bash$', phase: 'shellToolFinished' },
+    /**
+     * Questions are local function tools, not permission requests. Pair their hooks by tool-use ID so answering one
+     * question cannot clear another pending question or approval. Append groups to preserve existing hook trust keys.
+     *
+     * @see https://learn.chatgpt.com/docs/hooks#tool-coverage
+     */
+    { event: 'PreToolUse', matcher: '^request_user_input$', phase: 'attentionRequested' },
+    { event: 'PostToolUse', matcher: '^request_user_input$', phase: 'attentionResolved' },
     { event: 'PreCompact', phase: 'compactionStarted' },
     { event: 'PostCompact', phase: 'compactionFinished' },
 ] as const;
@@ -69,8 +77,8 @@ function hooksSource(documents: AgentHookDocuments): string | undefined {
 
 export const codexHookAdapter: AgentHookAdapter = {
     bindings,
-    // Digest capture is launch-environment opt-in; unchanged hook commands must retain their existing trust identity.
-    schemaVersion: 8,
+    // New question bindings must win convergence against older builds sharing the same hooks file.
+    schemaVersion: 9,
     configTargets: (environment) => {
         const home = codexHome(environment.homeDirectory, environment.variables.CODEX_HOME);
         return [

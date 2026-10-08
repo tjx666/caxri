@@ -309,7 +309,7 @@ export function decideAgentLifecycleUpdate(
     ) {
         return undefined;
     }
-    if (phase === 'toolBatchFinished')
+    if (phase === 'toolBatchFinished' || phase === 'attentionResolved')
         return session.lastActivityState === 'waiting'
             ? { lastActivityState: 'running' }
             : undefined;

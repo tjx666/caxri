@@ -17,6 +17,7 @@ import type {
     AgentSignalIgnoredReason,
 } from './contract';
 import { agentLifecyclePhases } from './contract';
+import { validateToolSignal } from './tool-signal';
 
 const MAX_SIGNAL_BYTES = 4_096;
 const MAX_ATTENTION_BYTES = 64 * 1_024;
@@ -24,13 +25,7 @@ const MAX_PHASE_LENGTH = 64;
 const MAX_AGENT_CWD_LENGTH = 1_024;
 const MAX_AGENT_ID_LENGTH = 256;
 const MAX_AGENT_SESSION_ID_LENGTH = 256;
-const MAX_AGENT_TOOL_USE_ID_LENGTH = 256;
 const MAX_AGENT_TURN_ID_LENGTH = 256;
-const SHELL_TOOL_PHASES = new Set<AgentLifecyclePhase>([
-    'shellToolStarted',
-    'shellToolFinished',
-    'shellToolFailed',
-]);
 /**
  * Bounds the sweep by profile-owned candidates rather than by position in the directory. The previous bound counted
  * every entry in the temp directory and stopped at 4096, which made reclamation depend on where the socket happened to
@@ -358,15 +353,6 @@ function parsePacket(
     ) {
         return { reason: 'invalidAgentTurnId' };
     }
-    if (
-        signal.agentToolUseId !== undefined &&
-        (typeof signal.agentToolUseId !== 'string' ||
-            signal.agentToolUseId.length > MAX_AGENT_TOOL_USE_ID_LENGTH ||
-            !isOpaqueAgentSessionId(signal.agentToolUseId) ||
-            !SHELL_TOOL_PHASES.has(signal.phase))
-    ) {
-        return { reason: 'invalidAgentToolUseId' };
-    }
     for (const [field, phase] of [
         ['agentPromptDigest', 'turnStarted'],
         ['agentResponseDigest', 'turnFinished'],
@@ -440,13 +426,8 @@ function parsePacket(
     ) {
         return { reason: 'invalidAgentCwd' };
     }
-    if (
-        signal.worktreeCreateIntent !== undefined &&
-        (signal.worktreeCreateIntent !== true || !SHELL_TOOL_PHASES.has(signal.phase))
-    )
-        return { reason: 'invalidSignal' };
-    if ((signal.worktreeCreateIntent === true) !== (signal.agentToolUseId !== undefined))
-        return { reason: 'invalidSignal' };
+    const toolReason = validateToolSignal(signal, signal.phase);
+    if (toolReason) return { reason: toolReason };
     return { packet: signal as unknown as HookWireSignal };
 }
 
