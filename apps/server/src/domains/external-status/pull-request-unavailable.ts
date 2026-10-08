@@ -33,7 +33,7 @@ export function pullRequestUnavailable(error: unknown): PullRequestUnavailable {
         // external commands run on an allowlisted environment that excludes every application credential (issue
         // caxri#1345). Naming that gap keeps this from reading as "you were never signed in" to a user who is.
         'not-logged-in':
-            'GitHub CLI is not signed in. Run gh auth login, then refresh. A GH_TOKEN environment variable alone is not enough. Caxri does not forward personal shell credentials to CLI checks.',
+            'GitHub CLI is not signed in. Run gh auth login, then refresh. A GH_TOKEN environment variable alone is not enough — Caxri does not forward personal shell credentials to CLI checks.',
         'not-linked':
             'GitHub CLI is not configured for this repository. Check gh auth status, then refresh.',
         'permission-denied':

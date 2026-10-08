@@ -210,7 +210,7 @@ function treeItemPresentation(row: VisibleItemRow, isRefreshing: boolean) {
         style: isMessage ? undefined : { paddingLeft: `${8 + row.depth * 14}px` },
         tooltip:
             row.item.tooltip ??
-            (row.item.description ? `${row.item.label}: ${row.item.description}` : row.item.label),
+            (row.item.description ? `${row.item.label} — ${row.item.description}` : row.item.label),
     };
 }
 

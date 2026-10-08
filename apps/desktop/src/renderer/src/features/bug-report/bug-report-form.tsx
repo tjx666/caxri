@@ -102,7 +102,7 @@ export function BugReportForm({
             )}
             {!contextError && !hasTargets && (
                 <Alert variant="info" className="text-[12px]">
-                    No running Agent in this Session. You can still copy the report to paste
+                    No running Agent in this Session — you can still copy the report to paste
                     manually.
                 </Alert>
             )}

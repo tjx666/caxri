@@ -213,7 +213,7 @@ export class AgentCommanderWindowController {
                 ...this.boundsMemory.boundsForOpen(),
                 minWidth: 760,
                 minHeight: 480,
-                title: 'Agent Commander - Caxri',
+                title: 'Agent Commander — Caxri',
                 backgroundColor: '#282a36',
                 titleBarStyle: 'hiddenInset',
                 /**

@@ -206,7 +206,7 @@ export function projectStatusCliError(
             source,
             kind: 'prerequisite',
             message: `${displayName} not signed in`,
-            hint: `Run ${provider.loginCommand} in a Terminal, then recheck. A ${provider.credentialEnvironmentVariable} environment variable alone is not enough. Caxri does not forward personal shell credentials to CLI checks.`,
+            hint: `Run ${provider.loginCommand} in a Terminal, then recheck. A ${provider.credentialEnvironmentVariable} environment variable alone is not enough — Caxri does not forward personal shell credentials to CLI checks.`,
         };
     }
     if (kind === 'not-linked') {

@@ -7,7 +7,7 @@ import type { GitDiffComputationOutcome } from './git-diff-stall-watch';
  * Worker, no timeout, no IPC: the user never asked for a diff to be computed anywhere in particular.
  */
 export const DIFF_STALL_REASON =
-    "Couldn't compare these two versions. This isn't a result: the comparison never finished, so the file may well have changed.";
+    "Couldn't compare these two versions. This isn't a result — the comparison never finished, so the file may well have changed.";
 
 /**
  * The first reply is missing. Shares the sibling reason's vocabulary on purpose: the user asked to see a comparison,

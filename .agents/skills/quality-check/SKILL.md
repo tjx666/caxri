@@ -133,10 +133,10 @@ a standalone or repository-wide run.
   it is cheap (well under a second) and because a scoped run would miss an index gap the changed
   Markdown itself did not touch. `check --lint` and the pre-commit hook run it whenever the changed
   or staged set includes a `.md` file.
-- **`bun run em-dash-check`** (`scripts/em-dash-check.ts`) fails on any em-dash (U+2014) in a
-  tracked text file outside the vendored `licenses/` and `tools/` trees. Rewrite the sentence with
-  a colon, semicolon, comma, period, or parentheses. Only the exact `'—'` string literal (the UI
-  empty-value placeholder) is allowed; code that needs the character itself writes `\u2014`. It
+- **`bun run em-dash-check`** (`scripts/em-dash-check.ts`) fails on any em-dash (U+2014) in
+  contributor prose: docs, skills, other non-code text files, and comments in code, outside the
+  vendored `licenses/` and `tools/` trees. Rewrite the sentence with a colon, semicolon, comma,
+  period, or parentheses. Product copy (string literals and JSX text in code) is out of scope. It
   scans the whole tree in one `git grep`, so `check --lint`, the pre-commit hook, and the `guards`
   job run it unscoped.
 

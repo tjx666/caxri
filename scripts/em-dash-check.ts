@@ -1,17 +1,17 @@
 #!/usr/bin/env bun
 
 /**
- * Keeps the em-dash (U+2014) out of every tracked text file. Prose here, in docs, skills, comments, and UI copy alike,
- * uses a colon, semicolon, comma, period, or parentheses instead: an em-dash joins two clauses without saying how they
- * relate, and agents reproduce whatever punctuation dominates neighboring text, so one exemplar spreads.
+ * Keeps the em-dash (U+2014) out of contributor prose: docs, skills, and other non-code text files, plus comments in
+ * code. That prose uses a colon, semicolon, comma, period, or parentheses instead: an em-dash joins two clauses without
+ * saying how they relate, and agents reproduce whatever punctuation dominates neighboring text, so one exemplar
+ * spreads.
  *
- * Exceptions, deliberately narrow:
+ * Product copy is out of scope. In code files (see `CODE_EXTENSIONS`) only comment text is checked, so UI strings, JSX
+ * text, Agent prompts, and the tests asserting them keep whatever punctuation the product wording calls for. The
+ * comment detection is a line heuristic: the em-dash counts when it follows a `//`, `/*`, `{/*`, or `<!--` opener on
+ * the same line, or when the line itself starts with one of those or with a JSDoc `*` continuation.
  *
- * - The exact string literal `'—'` (or its double-quoted or template form) stays allowed in code. It is the empty-value
- *   placeholder glyph in tabular UI, a typographic symbol rather than punctuation.
- * - Code that genuinely needs the character (a Unicode-width fixture, a parser input) writes the `\u2014` escape, which
- *   this check does not match.
- * - Vendored third-party content under `licenses/` and `tools/` is not ours to rewrite.
+ * Vendored third-party content under `licenses/` and `tools/` is not ours to rewrite.
  *
  * Scans the whole tracked tree with `git grep` rather than a diff, so it needs no merge base and runs in well under a
  * second on CI's shallow checkout.
@@ -27,7 +27,48 @@ const EM_DASH = '\u{2014}';
 
 const EXCLUDED_PATHSPECS = [':(exclude)licenses/**', ':(exclude)tools/**'];
 
-const PLACEHOLDER_LITERAL = new RegExp(String.raw`(['"\x60])${EM_DASH}\1`, 'g');
+/**
+ * Source files where only comment text counts as contributor prose.
+ */
+const CODE_EXTENSIONS = new Set([
+    'cjs',
+    'css',
+    'cts',
+    'html',
+    'js',
+    'jsx',
+    'mjs',
+    'mts',
+    'ts',
+    'tsx',
+]);
+
+/**
+ * A line that is itself a comment body: `// …`, `/* …`, `{/* …`, `<!-- …`, or a JSDoc `* …` continuation.
+ */
+const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\{\/\*|<!--|\*(?:\s|$))/;
+
+/**
+ * A trailing comment opener preceded by whitespace, so `https://` inside a string does not count.
+ */
+const TRAILING_COMMENT_OPENER = /(?:^|\s)(?:\/\/|\/\*|\{\/\*|<!--)/g;
+
+function isCodePath(path: string): boolean {
+    const extension = /\.([^./]+)$/.exec(path)?.[1];
+    return extension !== undefined && CODE_EXTENSIONS.has(extension);
+}
+
+/**
+ * Returns the 0-based index of the first em-dash that sits in comment text, or -1.
+ */
+function commentEmDashIndex(text: string): number {
+    if (COMMENT_LINE.test(text)) return text.indexOf(EM_DASH);
+    for (const opener of text.matchAll(TRAILING_COMMENT_OPENER)) {
+        const index = text.indexOf(EM_DASH, opener.index);
+        if (index !== -1) return index;
+    }
+    return -1;
+}
 
 interface EmDashFinding {
     column: number;
@@ -37,16 +78,15 @@ interface EmDashFinding {
 }
 
 /**
- * Returns the findings in one `git grep -n` output line, ignoring the allowed placeholder literal. Exported for tests.
+ * Returns the finding in one `git grep -n` output line, ignoring em-dashes outside comments in code files. Exported for
+ * tests.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/em-dash-check.test.ts
 export function findEmDashes(grepLine: string): EmDashFinding | undefined {
     const match = /^(.+?):(\d+):(.*)$/s.exec(grepLine);
     if (!match) return undefined;
     const [, path, lineNumber, text] = match;
-    const column = text
-        .replaceAll(PLACEHOLDER_LITERAL, (literal) => ' '.repeat(literal.length))
-        .indexOf(EM_DASH);
+    const column = isCodePath(path) ? commentEmDashIndex(text) : text.indexOf(EM_DASH);
     if (column === -1) return undefined;
     return { column: column + 1, line: Number(lineNumber), path, text: text.trim() };
 }
@@ -86,7 +126,7 @@ async function main(): Promise<void> {
     }
     console.error(
         `\nem-dash-check: ${findings.length} line(s) contain an em-dash (U+2014). Rewrite each sentence with a colon, ` +
-            'semicolon, comma, period, or parentheses; see scripts/em-dash-check.ts for the allowed exceptions.',
+            'semicolon, comma, period, or parentheses; see scripts/em-dash-check.ts for what the check covers.',
     );
     process.exitCode = 1;
 }

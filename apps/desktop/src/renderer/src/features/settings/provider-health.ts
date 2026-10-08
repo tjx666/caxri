@@ -35,16 +35,16 @@ export function hookHealthLabel(
             case 'active':
                 return 'Active';
             case 'stale':
-                return 'Out of date: restart Agent Terminals to update it';
+                return 'Out of date — restart Agent Terminals to update it';
             case 'drifted':
-                return 'Changed outside Caxri: restart Agent Terminals to reapply it';
+                return 'Changed outside Caxri — restart Agent Terminals to reapply it';
             case 'conflict':
-                return 'Conflicts with another tool: restart Agent Terminals after resolving it';
+                return 'Conflicts with another tool — restart Agent Terminals after resolving it';
             case 'error':
-                return 'Setup failed: restart Agent Terminals to try again';
+                return 'Setup failed — restart Agent Terminals to try again';
         }
     })();
-    return health.message ? `${label}. ${health.message}` : label;
+    return health.message ? `${label} — ${health.message}` : label;
 }
 
 /**
