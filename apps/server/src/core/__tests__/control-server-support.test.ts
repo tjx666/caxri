@@ -188,6 +188,95 @@ describe('Host request log sink', () => {
     });
 });
 
+describe('delegation request correlation', () => {
+    it('names the delegation a Commander CLI call concerns in ipc.request fields', () => {
+        const writes: ControlRequestLogWrite[] = [];
+        const options = {
+            logger: { write: (...arguments_: ControlRequestLogWrite) => writes.push(arguments_) },
+        };
+        const context = operatorContext('profile-1');
+        const receipt = {
+            delegationId: 'delegation-created',
+            projectId: 'project-1',
+            sessionId: 'session-1',
+            provider: 'claude',
+            status: 'requested',
+            revision: 1,
+            createdAt: 1,
+            updatedAt: 1,
+        };
+
+        logControlRequestOutcome(
+            options,
+            {
+                id: 'create-request',
+                method: 'agent.delegation.create',
+                params: {
+                    projectId: 'project-1',
+                    sessionId: 'session-1',
+                    provider: 'claude',
+                    prompt: 'synthetic-private-prompt',
+                },
+            },
+            {
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id: 'create-request',
+                ok: true,
+                result: receipt,
+            },
+            context,
+            performance.now(),
+            undefined,
+        );
+        logControlRequestOutcome(
+            options,
+            {
+                id: 'wait-request',
+                method: 'agent.delegation.wait',
+                params: { delegationId: 'delegation-waited', timeoutMs: 1_000 },
+            },
+            {
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id: 'wait-request',
+                ok: true,
+                result: {
+                    outcome: 'settled',
+                    receipt: { ...receipt, delegationId: 'delegation-other' },
+                    answer: { text: 'synthetic-private-answer' },
+                },
+            },
+            context,
+            performance.now(),
+            undefined,
+        );
+        logControlRequestOutcome(
+            options,
+            {
+                id: 'stop-request',
+                method: 'agent.delegation.stop',
+                params: { delegationId: 'delegation-missing' },
+            },
+            {
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id: 'stop-request',
+                ok: false,
+                error: { code: 'NOT_FOUND', message: 'Agent delegation is unavailable' },
+            },
+            context,
+            performance.now(),
+            undefined,
+        );
+
+        expect(writes.map(([, event, entry]) => [event, entry?.fields?.delegationId])).toEqual([
+            [logEventCatalog.ipc.request, 'delegation-created'],
+            [logEventCatalog.ipc.request, 'delegation-waited'],
+            [logEventCatalog.ipc.requestFailed, 'delegation-missing'],
+        ]);
+        expect(JSON.stringify(writes)).not.toContain('synthetic-private-prompt');
+        expect(JSON.stringify(writes)).not.toContain('synthetic-private-answer');
+    });
+});
+
 describe('terminateSocket', () => {
     it('terminates the socket and logs the given reason', () => {
         const writes: ControlRequestLogWrite[] = [];

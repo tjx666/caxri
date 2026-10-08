@@ -41,7 +41,7 @@ import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
 import type { BinaryStreamControlOptions } from './binary-stream-control';
-import { shouldLogSuccessfulRequest } from './request-observability';
+import { delegationRequestLogFields, shouldLogSuccessfulRequest } from './request-observability';
 
 const MAX_IN_FLIGHT_REQUESTS = 64;
 export const HANDSHAKE_TIMEOUT_MS = 2_000;
@@ -260,7 +260,7 @@ export function observeControlRequest<T>(
  */
 export function logControlRequestOutcome(
     options: Pick<ControlServerOptions, 'logger' | 'requestQueueWarnMs' | 'requestTotalWarnMs'>,
-    request: { id: string; method: string },
+    request: { id: string; method: string; params?: unknown },
     reply: CommandReplyEnvelope,
     context: CommandExecutionContext,
     startedAt: number,
@@ -278,6 +278,11 @@ export function logControlRequestOutcome(
         principal: context.principal.kind,
         queueMs,
         ...(timing && { queueDepth: timing.queueDepth }),
+        ...delegationRequestLogFields(
+            request.method,
+            request.params,
+            reply.ok ? reply.result : undefined,
+        ),
     };
     const observationContext = observationContextForRequest(request, context);
     if (request.method === 'logs.query')
