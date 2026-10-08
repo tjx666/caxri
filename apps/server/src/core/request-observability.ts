@@ -57,3 +57,30 @@ export function requestFailureLogLevel(method: string, code: string): 'error' | 
     if (isCallerHandledFailure(code)) return 'warn';
     return CALLER_HANDLED_METHOD_FAILURES[method as ServerOperation]?.has(code) ? 'warn' : 'error';
 }
+
+const DELEGATION_METHOD_PREFIX = 'agent.delegation.';
+const DELEGATION_ID = /^[A-Za-z0-9][\w.:-]{0,199}$/u;
+
+function delegationIdOf(value: unknown): string | undefined {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+    const record = value as { delegationId?: unknown; receipt?: unknown };
+    if (typeof record.delegationId === 'string' && DELEGATION_ID.test(record.delegationId))
+        return record.delegationId;
+    return record.receipt === undefined ? undefined : delegationIdOf(record.receipt);
+}
+
+/**
+ * The `delegationId` an `agent.delegation.*` request concerns, as an `ipc.request` log field, so one Commander CLI call
+ * links to the task it created or read (`caxri logs query` projects `fields`, not the observation context). The request
+ * names it for every task-scoped method; `agent.delegation.create` learns it only from its receipt, so a successful
+ * result is the fallback. Opaque IDs only: the prompt, answer, and launch input never leave the request.
+ */
+export function delegationRequestLogFields(
+    method: string,
+    parameters: unknown,
+    result?: unknown,
+): { delegationId?: string } {
+    if (!method.startsWith(DELEGATION_METHOD_PREFIX)) return {};
+    const delegationId = delegationIdOf(parameters) ?? delegationIdOf(result);
+    return delegationId ? { delegationId } : {};
+}

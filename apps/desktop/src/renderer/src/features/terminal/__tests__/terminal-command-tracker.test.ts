@@ -16,15 +16,14 @@ function createTerminalHost() {
     const markers: IMarker[] = [];
     const scrollToLine = vi.fn();
     let nextLine = 10;
-    const terminal = {
-        parser: {
-            registerOscHandler: vi.fn(
-                (protocol: number, canHandleOscData: (data: string) => boolean) => {
-                    handlers.set(protocol, canHandleOscData);
-                    return { dispose: () => handlers.delete(protocol) };
-                },
-            ),
+    const registerOscHandler = vi.fn(
+        (protocol: number, canHandleOscData: (data: string) => boolean): IDisposable => {
+            handlers.set(protocol, canHandleOscData);
+            return { dispose: () => handlers.delete(protocol) };
         },
+    );
+    const terminal = {
+        parser: { registerOscHandler },
         registerDecoration: vi.fn(({ marker }: { marker: IMarker }) => {
             const classNames = new Set<string>();
             const element = {
@@ -64,7 +63,15 @@ function createTerminalHost() {
         }),
         scrollToLine,
     } as unknown as Terminal;
-    return { decorations, handlers, markerDisposers, markers, scrollToLine, terminal };
+    return {
+        decorations,
+        handlers,
+        markerDisposers,
+        markers,
+        registerOscHandler,
+        scrollToLine,
+        terminal,
+    };
 }
 
 const colors = {
@@ -103,6 +110,28 @@ describe('TerminalCommandTracker', () => {
 
         tracker.dispose();
         expect(host.handlers.size).toBe(0);
+    });
+
+    it('still releases later OSC handlers and markers when an earlier dispose throws', async () => {
+        const host = createTerminalHost();
+        const failure = new Error('Attempted to dispose unknown listener');
+        const realRegister = host.registerOscHandler.getMockImplementation()!;
+        host.registerOscHandler.mockImplementationOnce((protocol, callback) => {
+            const registration = realRegister(protocol, callback);
+            return {
+                dispose: () => {
+                    registration.dispose();
+                    throw failure;
+                },
+            };
+        });
+        const tracker = new TerminalCommandTracker(host.terminal, colors, vi.fn());
+        await host.handlers.get(133)?.('A');
+        await host.handlers.get(133)?.('C');
+
+        expect(() => tracker.dispose()).toThrow(failure);
+        expect(host.handlers.size).toBe(0);
+        for (const dispose of host.markerDisposers) expect(dispose).toHaveBeenCalledTimes(1);
     });
 
     it('renders VS Code-style gutter decorations: no prompt glyph, subtle running placeholder', async () => {

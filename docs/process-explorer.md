@@ -53,6 +53,13 @@ The monitor writes three log events:
   `reason` (`recovered` or `stopped`).
 - `terminal.resource_sample_failed`, when a `ps` sample fails.
 
+Electron coverage (`e2e/statusbar.e2e.ts`) drives one Terminal above and back below the thresholds
+without real load. Under `CAXRI_E2E=1`, `CAXRI_E2E_TERMINAL_RESOURCE_OVERRIDE_FILE` names a JSON
+file mapping Terminal IDs to an injected `cpuPercent` or `memoryMb`. Server Core re-reads it on
+every sample and applies it to both `terminal.resources` (the status bar chip) and the monitor, which
+then samples every second instead of every 10 seconds. Production launches ignore the variable
+(`apps/server/src/domains/terminal/e2e-resource-override.ts`).
+
 ## Process Explorer
 
 Open it from **View > Open Process Explorer**, the Command Palette, the status bar memory chip, or

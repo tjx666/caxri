@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { commanderRunStateSchema } from '../agent/agent-commander-contract.js';
+import { agentDelegationReceiptSchema } from '../agent/agent-delegation-contract.js';
 import { agentDelegationSettingsSchema } from '../agent/agent-delegation-settings.js';
 import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { projectListForPrincipal, projectListResultSchema } from '../registry/projections.js';
@@ -258,6 +260,63 @@ const watchHubSnapshotSchema = z.object({
     gateTrips: z.number().int().nonnegative(),
     entries: z.array(watchHubSnapshotEntrySchema).max(64),
 });
+/**
+ * Upper bound on the recent Commander tasks a diagnostics snapshot lists.
+ */
+export const MAX_DIAGNOSTIC_COMMANDER_DELEGATIONS = 20;
+const receiptShape = agentDelegationReceiptSchema.shape;
+/**
+ * One recent Commander task as receipt identity and state only: never its prompt, answer, or launch input.
+ */
+const commanderDelegationDiagnosticSchema = z.object({
+    delegationId: receiptShape.delegationId,
+    sessionId: receiptShape.sessionId,
+    provider: receiptShape.provider,
+    status: receiptShape.status,
+    failure: receiptShape.failure,
+    correlationFailure: receiptShape.correlationFailure,
+    /**
+     * Whether the current Commander Terminal sent the task, rather than another caller targeting a Commander Session.
+     */
+    isCommanderCaller: z.boolean(),
+    createdAt: receiptShape.createdAt,
+    updatedAt: receiptShape.updatedAt,
+    /**
+     * Time from admission to the receipt's latest transition; still growing while the task is active.
+     */
+    durationMs: z.number().int().nonnegative(),
+});
+/**
+ * Completion notice delivery measured from the retained `agent_commander.completion_notice_*` log lines, so it covers
+ * only what log rotation still keeps. `waitMs` is how long a batch's oldest notice waited for an idle Commander turn.
+ */
+const commanderCompletionNoticeDiagnosticSchema = z.object({
+    deliveredBatches: z.number().int().nonnegative(),
+    deliveredNotices: z.number().int().nonnegative(),
+    averageWaitMs: z.number().nonnegative().optional(),
+    maximumWaitMs: z.number().nonnegative().optional(),
+    deliveryFailures: z.object({
+        rejected: z.number().int().nonnegative(),
+        unconfirmed: z.number().int().nonnegative(),
+    }),
+});
+/**
+ * Content-free Agent Commander census: run state, its Terminal's process states, owned Session count, recent task
+ * receipts, and completion notice latency. IDs, enums, counters, and durations only.
+ */
+export const agentCommanderDiagnosticsSchema = z.object({
+    state: commanderRunStateSchema,
+    terminalId: identifierSchema.optional(),
+    terminalProcessState: terminalRecordSchema.shape.lastProcessState.optional(),
+    agentProcessState: terminalRecordSchema.shape.lastAgentProcessState,
+    sessionCount: z.number().int().nonnegative(),
+    recentDelegations: z
+        .array(commanderDelegationDiagnosticSchema)
+        .max(MAX_DIAGNOSTIC_COMMANDER_DELEGATIONS),
+    completionNotices: commanderCompletionNoticeDiagnosticSchema,
+});
+export type AgentCommanderDiagnostics = z.infer<typeof agentCommanderDiagnosticsSchema>;
+
 export const diagnosticsSnapshotSchema = z.object({
     appVersion: z.string().min(1).max(100),
     protocolVersion: protocolVersionSchema,
@@ -270,6 +329,7 @@ export const diagnosticsSnapshotSchema = z.object({
     recentErrorIds: z.array(z.string().min(1).max(200)).max(5),
     performance: z.array(performanceSummarySchema).max(256),
     watchers: watchHubSnapshotSchema.optional(),
+    agentCommander: agentCommanderDiagnosticsSchema,
 });
 
 export const businessMethods = {

@@ -3,6 +3,7 @@ import { useEffect, useId, useLayoutEffect, useRef } from 'react';
 
 import type { GitDiffDocument, GitDiffTab } from '@caxri/protocol';
 import { gitDiffModelPath } from '@caxri/protocol';
+import { disposeAllThenRethrow } from '@caxri/utils';
 import type { DiffOnMount, OnMount } from '@monaco-editor/react';
 import Editor from '@monaco-editor/react';
 
@@ -91,11 +92,15 @@ export function GitDiffSurface({
              * Dispose the content-size listeners first so `setModel(null)` below cannot re-enter the height callback (a
              * parent setState) while this component is unmounting.
              */
-            for (const listener of contentSizeListeners.current) listener.dispose();
+            const listeners = contentSizeListeners.current;
             contentSizeListeners.current = [];
-            diffEditorRegistrationReference.current?.();
-            diffEditorRegistrationReference.current = undefined;
-            editorReference.current = null;
+            try {
+                disposeAllThenRethrow(listeners);
+            } finally {
+                diffEditorRegistrationReference.current?.();
+                diffEditorRegistrationReference.current = undefined;
+                editorReference.current = null;
+            }
         },
         [],
     );
@@ -233,11 +238,8 @@ export function GitDiffSurface({
                           onContentHeightChange,
                       )
                     : [];
-                return () => {
-                    unbindOriginal();
-                    unbindModified();
-                    for (const listener of heightListeners) listener.dispose();
-                };
+                return () =>
+                    disposeAllThenRethrow([unbindOriginal, unbindModified, ...heightListeners]);
             }}
             options={{
                 ...editorOptions,

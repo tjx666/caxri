@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { notifyListeners, notifyListenersThenRethrow } from '../notify-listeners';
+import {
+    disposeAll,
+    disposeAllThenRethrow,
+    notifyListeners,
+    notifyListenersThenRethrow,
+} from '../notify-listeners';
 
 describe('notifyListeners', () => {
     it('delivers the value to every listener exactly once even when an earlier listener throws', () => {
@@ -88,5 +93,62 @@ describe('notifyListenersThenRethrow', () => {
 
         expect(() => notifyListenersThenRethrow([listener], 1)).not.toThrow();
         expect(listener).toHaveBeenCalledExactlyOnceWith(1);
+    });
+});
+
+describe('disposeAll', () => {
+    it('releases every disposable and teardown callback even when an earlier one throws', () => {
+        const errors: unknown[] = [];
+        const throwing = {
+            dispose: vi.fn(() => {
+                throw new Error('Attempted to dispose unknown listener');
+            }),
+        };
+        const later = { dispose: vi.fn() };
+        const teardown = vi.fn();
+
+        disposeAll([throwing, later, teardown], (error) => errors.push(error));
+
+        expect(throwing.dispose).toHaveBeenCalledTimes(1);
+        expect(later.dispose).toHaveBeenCalledTimes(1);
+        expect(teardown).toHaveBeenCalledTimes(1);
+        expect(errors.map((error) => (error as Error).message)).toEqual([
+            'Attempted to dispose unknown listener',
+        ]);
+    });
+
+    it('swallows failures only when no error reporter is supplied', () => {
+        const throwing = () => {
+            throw new Error('unreported');
+        };
+        const later = vi.fn();
+
+        expect(() => disposeAll([throwing, later])).not.toThrow();
+        expect(later).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('disposeAllThenRethrow', () => {
+    it('releases every entry before rethrowing the first failure', () => {
+        const firstError = new Error('first');
+        const first = () => {
+            throw firstError;
+        };
+        const second = {
+            dispose: () => {
+                throw new Error('second');
+            },
+        };
+        const later = { dispose: vi.fn() };
+
+        expect(() => disposeAllThenRethrow(new Set([first, second, later]))).toThrow(firstError);
+        expect(later.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns normally when every entry disposes cleanly', () => {
+        const entry = { dispose: vi.fn() };
+
+        expect(() => disposeAllThenRethrow([entry])).not.toThrow();
+        expect(entry.dispose).toHaveBeenCalledTimes(1);
     });
 });

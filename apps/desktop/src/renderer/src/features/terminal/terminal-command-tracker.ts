@@ -1,3 +1,4 @@
+import { disposeAllThenRethrow } from '@caxri/utils';
 import type { IDecoration, IDisposable, IMarker, Terminal } from '@xterm/xterm';
 
 export type TerminalCommandNavigationDirection = 'next' | 'previous';
@@ -227,17 +228,23 @@ export class TerminalCommandTracker {
         });
     }
 
+    /**
+     * Releases the OSC handlers, prompt marker, and every command's markers and decoration through one isolated
+     * `disposeAllThenRethrow`, so a throwing xterm `dispose()` cannot leave a later OSC handler registered. State is
+     * reset before the rethrow so a failed teardown still leaves the tracker empty.
+     */
     dispose(): void {
-        for (const disposable of this.protocolDisposables) disposable.dispose();
-        this.promptMarker?.dispose();
-        for (const command of this.commands) {
-            command.decoration?.dispose();
-            command.finishMarker?.dispose();
-            command.startMarker.dispose();
+        const disposables: IDisposable[] = [...this.protocolDisposables];
+        if (this.promptMarker) disposables.push(this.promptMarker);
+        for (const { decoration, finishMarker, startMarker } of this.commands) {
+            if (decoration) disposables.push(decoration);
+            if (finishMarker) disposables.push(finishMarker);
+            disposables.push(startMarker);
         }
         this.commands.length = 0;
         this.promptMarker = undefined;
         this.running = undefined;
+        disposeAllThenRethrow(disposables);
     }
 
     navigate(direction: TerminalCommandNavigationDirection): boolean {

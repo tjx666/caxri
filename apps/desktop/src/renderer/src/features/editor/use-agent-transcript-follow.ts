@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { disposeAllThenRethrow } from '@caxri/utils';
 import type { OnMount } from '@monaco-editor/react';
 
 import { isTranscriptAtLatest } from './transcript-follow';
@@ -44,7 +45,11 @@ export function useAgentTranscriptFollow(scopeKey: string) {
     const onMount = useCallback<OnMount>(
         (editor) => {
             editorReference.current = editor;
-            for (const subscription of subscriptionsReference.current) subscription.dispose();
+            /**
+             * Subscribe the new editor before releasing the previous subscriptions, so a throwing Monaco `dispose()`
+             * (it throws on a repeated dispose) still surfaces without leaving this editor unfollowed.
+             */
+            const previousSubscriptions = subscriptionsReference.current;
             subscriptionsReference.current = [
                 editor.onDidChangeModelContent(() => scheduleLatest(false)),
                 editor.onDidScrollChange((event) => {
@@ -59,6 +64,7 @@ export function useAgentTranscriptFollow(scopeKey: string) {
                 }),
             ];
             scheduleLatest(true);
+            disposeAllThenRethrow(previousSubscriptions);
         },
         [scheduleLatest, updateFollowing],
     );
@@ -71,9 +77,10 @@ export function useAgentTranscriptFollow(scopeKey: string) {
     useEffect(
         () => () => {
             if (frameReference.current !== null) cancelAnimationFrame(frameReference.current);
-            for (const subscription of subscriptionsReference.current) subscription.dispose();
+            const subscriptions = subscriptionsReference.current;
             subscriptionsReference.current = [];
             editorReference.current = null;
+            disposeAllThenRethrow(subscriptions);
         },
         [],
     );

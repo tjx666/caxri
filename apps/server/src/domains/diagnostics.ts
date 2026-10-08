@@ -10,6 +10,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, redactLogValue, redactSecrets } from '@caxri/system';
 import { ZipArchive } from 'archiver';
 
+import { commanderDiagnostics } from './commander/diagnostics';
 import type { CaxriDatabase } from './db';
 import type { WatchHubSnapshot } from './watch-hub';
 
@@ -229,6 +230,7 @@ export class DiagnosticsService {
             recentErrorIds: summarizeRecentErrorIds(logs.join('\n')),
             performance: summarizePerformanceLogs(logs).slice(0, 256),
             ...(this.watchSnapshot && { watchers: this.watchSnapshot() }),
+            agentCommander: commanderDiagnostics(this.database, logs),
         };
     }
 
