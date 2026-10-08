@@ -54,6 +54,20 @@ describe('buildServerLaunchEnvironment', () => {
         expect(outsideE2E).not.toHaveProperty('CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME');
     });
 
+    it('forwards the Terminal resource override file to Server Core, which gates it on CAXRI_E2E', () => {
+        expect(buildServerLaunchEnvironment(baseOptions, {})).not.toHaveProperty(
+            'CAXRI_E2E_TERMINAL_RESOURCE_OVERRIDE_FILE',
+        );
+        expect(
+            buildServerLaunchEnvironment(baseOptions, {
+                CAXRI_E2E: '1',
+                CAXRI_E2E_TERMINAL_RESOURCE_OVERRIDE_FILE: '/tmp/resource-override.json',
+            }),
+        ).toMatchObject({
+            CAXRI_E2E_TERMINAL_RESOURCE_OVERRIDE_FILE: '/tmp/resource-override.json',
+        });
+    });
+
     it('forwards a local mobile update directory unconditionally', () => {
         const environment = buildServerLaunchEnvironment(baseOptions, {
             CAXRI_MOBILE_UPDATE_DIRECTORY: '/tmp/mobile-update',

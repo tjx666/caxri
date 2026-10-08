@@ -14,6 +14,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 
+import { diagnosticsSnapshotFixture } from '../../__tests__/support/diagnostics-snapshot';
 import { AgentEndpointRegistry } from '../agent-endpoints';
 import { AgentInboxRegistry } from '../agent-inbox';
 import { ControlServer } from '../control-server';
@@ -277,18 +278,11 @@ describe('local Host transport', () => {
                     invoke: (request, context) => {
                         if (request.method === 'agent.context') return endpoints.context(context);
                         if (request.method === 'diagnostics.snapshot')
-                            return {
-                                appVersion: '1.0.0',
-                                protocolVersion: 2,
-                                runtimeStatus: 'ready',
-                                startedAt: 1,
-                                activePtyCount: 0,
+                            return diagnosticsSnapshotFixture({
                                 projectCount: 1,
                                 sessionCount: 1,
                                 terminalCount: 1,
-                                recentErrorIds: [],
-                                performance: [],
-                            };
+                            });
                         return null;
                     },
                 },

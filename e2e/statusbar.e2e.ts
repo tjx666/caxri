@@ -1,11 +1,11 @@
-import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { execFileAsync } from '@caxri/system';
 
 import { expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri } from './support/helpers.ts';
+import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 test('Status Bar switches the primary branch and shows changed line counts', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-statusbar-e2e-'));
@@ -302,5 +302,81 @@ test('Status Bar hides the branch chip in a linked worktree and keeps the branch
     } finally {
         await running.app.close();
         await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test('Status Bar memory chip turns red with the resource alert and recovers when it clears', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-statusbar-resource-'));
+    const root = join(testDirectory, 'resource-project');
+    const overrideFile = join(testDirectory, 'terminal-resource-override.json');
+    await execFileAsync('mkdir', ['-p', root]);
+    /**
+     * Replaces the file atomically: Server Core re-reads it on every sample, and a half-written file would fail the
+     * sample instead of injecting the reading.
+     */
+    const injectReadings = async (readings: Record<string, { cpuPercent: number }>) => {
+        const staging = `${overrideFile}.tmp`;
+        await writeFile(staging, JSON.stringify(readings), 'utf8');
+        await rename(staging, overrideFile);
+    };
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: root,
+        env: { CAXRI_E2E_TERMINAL_RESOURCE_OVERRIDE_FILE: overrideFile },
+    });
+    try {
+        const { page } = running;
+        const sessionId = await createProjectSession(page);
+        const { terminals } = await pageRequest<{
+            terminals: Array<{ id: string; sessionId: string }>;
+        }>(page, 'app.bootstrap');
+        const terminalId = terminals.find((terminal) => terminal.sessionId === sessionId)?.id;
+        expect(terminalId).toBeDefined();
+
+        const memory = page.getByLabel(/^Open Process Explorer — Terminal memory: /);
+        const tooltip = page.locator('.tooltip-popup');
+        const alert = page.locator('.toast', { hasText: 'High resource use: ' });
+        await expect(memory).toHaveAttribute('aria-label', /: [\d.]+ MB$/);
+        await expect(memory).not.toHaveClass(/\btext-danger\b/);
+
+        // 350% CPU crosses only the CPU threshold (300%), so the tooltip has to explain a reading whose memory alone
+        // looks harmless.
+        await injectReadings({ [terminalId!]: { cpuPercent: 350 } });
+        await expect(memory).toHaveAttribute(
+            'aria-label',
+            /^Open Process Explorer — Terminal memory: [\d.]+ MB, high resource use$/,
+        );
+        await expect(memory).toHaveClass(/\btext-danger\b/);
+        // The alert waits for consecutive high samples of the same reading, so once it fires the chip is still red.
+        await expect(alert).toHaveCount(1);
+        await expect(alert).toContainText(/ is using [\d.]+ MB of memory and 350% CPU\./);
+        await expect(memory).toHaveClass(/\btext-danger\b/);
+        await memory.hover();
+        await expect(tooltip).toContainText(/High resource use: [\d.]+ MB, 350% CPU/);
+        await expect(tooltip).toContainText(
+            "Resident memory of this Terminal's whole process tree; CPU 350%",
+        );
+        await expect(tooltip).toContainText('Above 4.0 GB memory or 300% CPU');
+        await page.screenshot({ path: test.info().outputPath('memory-chip-high.png') });
+        await page.mouse.move(0, 0);
+        await expect(tooltip).toHaveCount(0);
+
+        await injectReadings({});
+        // Server Core reports the episode over and the toast is withdrawn; the chip falls back to neutral with it.
+        await expect(alert).toHaveCount(0);
+        await expect(memory).toHaveAttribute('aria-label', /: [\d.]+ MB$/);
+        await expect(memory).not.toHaveClass(/\btext-danger\b/);
+        await memory.hover();
+        await expect(tooltip).toContainText(/^Terminal memory: [\d.]+ MB/);
+        await expect(tooltip).not.toContainText('High resource use');
+        await expect(tooltip).not.toContainText('Above 4.0 GB memory');
+        await page.screenshot({ path: test.info().outputPath('memory-chip-recovered.png') });
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
     }
 });

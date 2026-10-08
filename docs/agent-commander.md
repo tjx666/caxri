@@ -325,8 +325,20 @@ they reconstruct a bug report without Terminal output or transcripts:
 | `agent_commander.completion_notice_deferred`   | Which gate holds the batch back (`commander_busy`, `draft_input`, `awaiting_permission`, ...), once per change (debug).           |
 | `agent_commander.completion_notice_delivered`  | The coalesced line was written, with its task count and how long the oldest entry waited.                                         |
 
-The delegation ID links them: the Commander's `agent delegate create` returns it, and every
-transition and notice names it.
+The delegation ID links them: the Commander's `agent delegate create` returns it, every transition
+and notice names it, and the `ipc.request` line of each `agent.delegation.*` call carries it as
+`fields.delegationId`.
+
+`caxri diagnostics snapshot` summarizes the same state in its `agentCommander` section, so one
+command attaches it to a bug report: the Commander run `state`, its Terminal ID with the Shell and
+Agent process states, the number of Commander Sessions, the 20 most recently updated tasks in those
+Sessions (`delegationId`, `status`, `failure`, `correlationFailure`, provider, whether the
+Commander sent it, and the time from admission to the latest transition), and completion notice
+delivery (batch and notice counts, average and maximum `waitMs`, and `rejected`/`unconfirmed`
+failures). Task fields are IDs, enums, and timestamps only, never the prompt, answer, or launch
+input. Notice latency is aggregated from the retained `agent_commander.completion_notice_*` log
+lines, so it covers only what log rotation still keeps; the snapshot does not measure how long a
+notice waits before it is queued.
 
 ## How the Commander works
 

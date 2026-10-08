@@ -10,6 +10,7 @@ import {
     MAX_VIEW_TREE_ITEMS,
     MAX_VIEW_TREE_PAYLOAD_BYTES,
 } from '@caxri/protocol';
+import { disposeAll } from '@caxri/utils';
 import type {
     CancellationToken,
     CaxriApi,
@@ -398,13 +399,9 @@ export function notifyGitChanged(context: ExtensionViewEventScope): { notified: 
 
 function disposeExtension(runtime: ExtensionInstance): void {
     runtime.retired = true;
-    for (const disposable of runtime.context.subscriptions.toReversed()) {
-        try {
-            disposable.dispose();
-        } catch {
-            // One extension disposable must not prevent the rest of its generation from retiring.
-        }
-    }
+    // One extension disposable must not prevent the rest of its generation from retiring, and a retiring extension's
+    // teardown failure has no caller left to act on it.
+    disposeAll(runtime.context.subscriptions.toReversed());
     for (const [viewId, provider] of providers)
         if (provider.extensionId === runtime.registration.extensionId) {
             cancelPendingRefresh(viewId);

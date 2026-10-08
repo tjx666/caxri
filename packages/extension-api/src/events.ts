@@ -3,9 +3,23 @@ export interface DisposableLike {
 }
 
 export class Disposable implements DisposableLike {
+    /**
+     * Combines `disposables` into one whose `dispose()` releases every entry even when an earlier one throws, then
+     * rethrows the first failure. Each entry may be a third-party extension's own teardown, so one throwing entry must
+     * not leak the rest. This mirrors `@caxri/utils`'s `disposeAllThenRethrow`, inlined because this package ships to
+     * extension authors and must stay dependency-free (caxri#1462).
+     */
     static from(...disposables: readonly DisposableLike[]): Disposable {
         return new Disposable(() => {
-            for (const disposable of disposables) disposable.dispose();
+            let failure: { error: unknown } | undefined;
+            for (const disposable of disposables) {
+                try {
+                    disposable.dispose();
+                } catch (error) {
+                    failure ??= { error };
+                }
+            }
+            if (failure) throw failure.error;
         });
     }
 

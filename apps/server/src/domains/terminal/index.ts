@@ -1,3 +1,4 @@
+export { applyTerminalResourceOverride } from './e2e-resource-override';
 export type {
     TerminalExecutionEvent,
     TerminalExecutionExit,
