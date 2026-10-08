@@ -56,7 +56,11 @@ function summarizeCommanderCompletionNotices(logs: readonly string[]): Completio
         maximumWaitMs: undefined,
         totalWaitMs: 0,
     };
-    const lines = logs.flatMap((log) => log.split('\n'));
+    /**
+     * Dedupe exact lines: `flushSync` can append a batch whose async append is still in flight, so a record may appear
+     * twice in the raw file. Every record carries its own timestamp, so identical lines are the same record.
+     */
+    const lines = new Set(logs.flatMap((log) => log.split('\n')));
     for (const line of lines) tallyCompletionNoticeLine(line, tally);
     return {
         deliveredBatches: tally.deliveredBatches,
