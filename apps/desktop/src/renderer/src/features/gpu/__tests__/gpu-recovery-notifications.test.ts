@@ -35,6 +35,7 @@ const CORRELATION_ID = '3fcf11c1-19de-4fdd-8d6c-17ce43c70aae';
 
 const ACTIVE_WEBGL_STATUS: TerminalRendererStatus = {
     contextLossCount: 0,
+    liveWebglContextCount: 1,
     mode: 'webgl',
     reason: 'active',
     recoveryResult: 'not-requested',
@@ -48,6 +49,7 @@ const ACTIVE_WEBGL_STATUS: TerminalRendererStatus = {
 
 const LOCAL_FALLBACK_STATUS: TerminalRendererStatus = {
     contextLossCount: 1,
+    liveWebglContextCount: 1,
     mode: 'dom',
     reason: 'context-loss',
     recoveryResult: 'not-requested',
@@ -62,6 +64,7 @@ const LOCAL_FALLBACK_STATUS: TerminalRendererStatus = {
 
 const GLOBAL_RECOVERY_STATUS: TerminalRendererStatus = {
     contextLossCount: 1,
+    liveWebglContextCount: 1,
     mode: 'dom',
     reason: 'context-loss',
     recoveryResult: 'dom-restored',
@@ -80,6 +83,7 @@ const GLOBAL_RECOVERY_STATUS: TerminalRendererStatus = {
  */
 const PINNED_LIMIT_STATUS: TerminalRendererStatus = {
     contextLossCount: 1,
+    liveWebglContextCount: 1,
     mode: 'dom',
     reason: 'context-loss-limit',
     recoveryResult: 'dom-restored',
@@ -93,6 +97,7 @@ const PINNED_LIMIT_STATUS: TerminalRendererStatus = {
 
 const CORRELATED_ALREADY_DOM_STATUS: TerminalRendererStatus = {
     contextLossCount: 0,
+    liveWebglContextCount: 1,
     mode: 'dom',
     reason: 'disabled',
     recoveryResult: 'already-dom',

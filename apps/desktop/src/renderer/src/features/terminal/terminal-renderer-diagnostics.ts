@@ -39,6 +39,7 @@ export function createTerminalRendererDiagnostic(
         contextLossCount: input.status.contextLossCount,
         redrawCount: input.status.redrawCount,
         visibilityRestoreCoalescedCount: input.visibilityRestoreCoalescedCount,
+        liveWebglContextCount: input.status.liveWebglContextCount,
         recoveryResult: input.status.recoveryResult,
         retryAttemptCount: input.status.retryAttemptCount,
         retryDelayMs: input.status.retryDelayMs,

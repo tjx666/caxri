@@ -14,6 +14,7 @@ const validDiagnostic = {
     contextLossCount: 1,
     redrawCount: 1,
     visibilityRestoreCoalescedCount: 2,
+    liveWebglContextCount: 17,
     recoveryResult: 'dom-restored',
     retryAttemptCount: 1,
     retryDelayMs: 1_000,
