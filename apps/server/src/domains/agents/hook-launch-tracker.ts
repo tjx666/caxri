@@ -245,10 +245,19 @@ export class HookLaunchTracker {
      * re-establishes `running`. Unlike the other mutators this one is not launch-scoped: the coordinator forgets the
      * Terminal on every launch boundary, so only the current launch's turn can be present here.
      */
-    markTurnInterrupted(terminalId: string, reason: 'escape' | 'signal' = 'escape'): boolean {
-        const turn = this.turns.get(terminalId);
+    markTurnInterrupted(
+        terminalId: string,
+        reason: 'escape' | 'signal' = 'escape',
+        hasPendingAttention = false,
+    ): boolean {
+        /**
+         * Waiting replaces the running turn with authority, so cancellation must release that authority too.
+         */
+        const turn =
+            this.turns.get(terminalId) ??
+            (hasPendingAttention ? this.authorities.get(terminalId) : undefined);
         if (!turn) return false;
-        this.clearTurn(terminalId);
+        this.forget(terminalId);
         this.onInterrupted?.(terminalId, turn.launchId, reason);
         return true;
     }

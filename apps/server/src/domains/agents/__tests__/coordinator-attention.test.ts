@@ -26,9 +26,10 @@ async function flushLoggers(): Promise<void> {
 }
 const temporaryDirectories: string[] = [];
 
-function createAgents(): AgentService {
+function createAgents(
+    snapshot: AgentAdapter['snapshot'] = () => Promise.reject(new Error('not used')),
+): AgentService {
     const renameSession: AgentAdapter['renameSession'] = () => new Promise<never>(() => {});
-    const snapshot: AgentAdapter['snapshot'] = () => Promise.reject(new Error('not used'));
     const adapters: Record<AgentProvider, AgentAdapter> = {
         claude: { provider: 'claude', renameSession, snapshot },
         codex: { provider: 'codex', renameSession, snapshot },
@@ -45,6 +46,133 @@ afterEach(async () => {
 });
 
 describe('AgentCoordinator permission attention', () => {
+    it.each(['escape', 'signal'] as const)(
+        'releases a pending question after %s and ignores its late answer',
+        async (entry) => {
+            const directory = await mkdtemp(join(tmpdir(), 'caxri-question-interrupt-'));
+            temporaryDirectories.push(directory);
+            const database = new CaxriDatabase(join(directory, 'state.db'));
+            const created = database.createSession(database.createProject(directory).id, 'codex');
+            const coordinator = new AgentCoordinator(
+                database,
+                createAgents(() =>
+                    Promise.resolve({
+                        available: true,
+                        provider: 'codex',
+                        observedAt: Date.now(),
+                        status: 'unknown',
+                    }),
+                ),
+                () => {},
+                createLogger(join(directory, 'logs')),
+            );
+            const base = {
+                launchId: 'launch-1',
+                provider: 'codex' as const,
+                terminalId: created.terminal!.id,
+            };
+            const state = () => database.getSession(created.session.id)?.lastActivityState;
+            try {
+                coordinator.beginTerminalLaunch(base.terminalId, base.launchId);
+                await coordinator.probeTerminalNow(base.terminalId);
+                coordinator.observeLifecycleSignal({ ...base, phase: 'turnStarted' });
+                coordinator.observeLifecycleSignal({
+                    ...base,
+                    phase: 'attentionRequested',
+                    agentToolUseId: 'question-1',
+                });
+                expect(state()).toBe('waiting');
+                coordinator.observeInterrupt(base.terminalId, 'stale-launch');
+                await coordinator.probeTerminalNow(base.terminalId);
+                expect(state()).toBe('waiting');
+                if (entry === 'escape') coordinator.observeInput(base.terminalId, '\u{1B}');
+                else coordinator.observeInterrupt(base.terminalId, base.launchId);
+                await coordinator.probeTerminalNow(base.terminalId);
+                expect(state()).toBe('unknown');
+                coordinator.observeLifecycleSignal({
+                    ...base,
+                    phase: 'attentionResolved',
+                    agentToolUseId: 'question-1',
+                });
+                expect(state()).toBe('unknown');
+            } finally {
+                coordinator.close();
+                database.close();
+            }
+        },
+    );
+
+    it('keeps Codex waiting until every exact question resolves without clearing an approval', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-question-resolution-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(),
+            () => {},
+            createLogger(join(directory, 'logs')),
+        );
+        const base = {
+            launchId: 'launch-1',
+            provider: 'codex' as const,
+            terminalId: created.terminal!.id,
+        };
+        const state = () => database.getSession(created.session.id)?.lastActivityState;
+        try {
+            coordinator.beginTerminalLaunch(base.terminalId, base.launchId);
+            coordinator.observeLifecycleSignal({ ...base, phase: 'turnStarted' });
+            for (const agentToolUseId of ['question-1', 'question-2'])
+                coordinator.observeLifecycleSignal({
+                    ...base,
+                    agentToolUseId,
+                    phase: 'attentionRequested',
+                });
+            expect(state()).toBe('waiting');
+            for (const agentToolUseId of ['unrelated', 'question-1', 'question-1']) {
+                coordinator.observeLifecycleSignal({
+                    ...base,
+                    agentToolUseId,
+                    phase: 'attentionResolved',
+                });
+                expect(state()).toBe('waiting');
+            }
+            coordinator.observeLifecycleSignal({ ...base, phase: 'shellToolFinished' });
+            expect(state()).toBe('waiting');
+            coordinator.observeLifecycleSignal({
+                ...base,
+                agentToolUseId: 'question-2',
+                phase: 'attentionResolved',
+            });
+            expect(state()).toBe('running');
+            coordinator.observeLifecycleSignal({ ...base, phase: 'attentionRequested' });
+            coordinator.observeLifecycleSignal({
+                ...base,
+                agentToolUseId: 'question-3',
+                phase: 'attentionRequested',
+            });
+            coordinator.observeLifecycleSignal({
+                ...base,
+                agentToolUseId: 'question-3',
+                phase: 'attentionResolved',
+            });
+            expect(state()).toBe('waiting');
+            coordinator.observeLifecycleSignal({ ...base, phase: 'turnFinished' });
+            expect(state()).toBe('completed');
+            coordinator.observeLifecycleSignal({
+                ...base,
+                agentToolUseId: 'question-3',
+                phase: 'attentionResolved',
+            });
+            expect(state()).toBe('completed');
+            coordinator.observeLifecycleSignal({ ...base, phase: 'turnStarted' });
+            expect(state()).toBe('running');
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('resumes Claude only after every permission-requesting Agent scope finishes its batch', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-permission-resolution-'));
         temporaryDirectories.push(directory);

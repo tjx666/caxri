@@ -493,6 +493,7 @@ export class AgentCoordinator {
         const released = this.hookLaunches.markTurnInterrupted(
             terminalId,
             launchId === undefined ? 'escape' : 'signal',
+            this.attention.forget(terminalId),
         );
         if (released || wasCompacting || launchId !== undefined) this.probeTerminal(terminalId);
     }
@@ -638,9 +639,7 @@ export class AgentCoordinator {
                 signal.launchId,
                 signal.agentTurnId,
             );
-        const isToolBatchFinished = signal.phase === 'toolBatchFinished';
-        const didResolveAttention =
-            isToolBatchFinished && this.attention.resolvesFinalRequest(signal);
+        const canApplyLifecycle = this.attention.allowsLifecycle(signal);
         if (signal.phase === 'compactionStarted')
             this.lifecycleWatchdogs.startCompaction(signal.terminalId);
         /**
@@ -692,7 +691,7 @@ export class AgentCoordinator {
             shouldRefreshMetadata = true;
         }
         if (shouldRefreshMetadata) this.refreshes.schedule(signal.terminalId);
-        if (!work.deferCompletion && (!isToolBatchFinished || didResolveAttention))
+        if (canApplyLifecycle && !work.deferCompletion)
             this.applyLifecycle({ ...signal, agentContinuedTurnId: work.continuedTurnId });
         return 'accepted';
     }
