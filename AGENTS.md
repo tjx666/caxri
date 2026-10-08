@@ -135,9 +135,10 @@ directories.
   comment, not in Chinese. Reference an upstream only after verifying it resolves without
   authentication. History cannot be cleaned retroactively once published, so prevention is the only
   lever: `open-source-readiness`.
-- Never write an em-dash (U+2014) in prose, comments, docs, skills, or UI copy. Use a colon,
-  semicolon, comma, period, or parentheses instead. `bun run em-dash-check` enforces this in the
-  `guards` job and the pre-commit hook; its JSDoc lists the narrow exceptions.
+- Never write an em-dash (U+2014) in contributor prose: docs, skills, and code comments. Use a
+  colon, semicolon, comma, period, or parentheses instead. Product copy (UI strings, Agent prompts)
+  is out of scope; do not rewrite its punctuation as a side effect of a style rule. `bun run
+em-dash-check` enforces this in the `guards` job and the pre-commit hook.
 - Prefer JSDoc for non-obvious lifecycle or security behavior, and document why a workaround
   exists.
 - Coding agents reproduce the dominant precedent they see in neighboring code, so exemplar hygiene

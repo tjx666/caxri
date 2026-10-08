@@ -110,7 +110,7 @@ function withDisabledReason(
     if (enabled || !item.disabledReason || isDisabledFor(previous, item.disabledReason))
         return { label, enabled };
     if (canShowSublabel) return { label, enabled, sublabel: item.disabledReason };
-    return { label: `${label ?? ''}: ${item.disabledReason}`, enabled };
+    return { label: `${label ?? ''} — ${item.disabledReason}`, enabled };
 }
 
 /**

@@ -9,7 +9,7 @@ describe('pull request lookup failures', () => {
         ['not-found', 'GitHub CLI is not installed. Install gh, then refresh.'],
         [
             'not-logged-in',
-            'GitHub CLI is not signed in. Run gh auth login, then refresh. A GH_TOKEN environment variable alone is not enough. Caxri does not forward personal shell credentials to CLI checks.',
+            'GitHub CLI is not signed in. Run gh auth login, then refresh. A GH_TOKEN environment variable alone is not enough — Caxri does not forward personal shell credentials to CLI checks.',
         ],
         ['rate-limited', 'GitHub API rate limit reached. Refresh after the limit resets.'],
         ['other', 'Could not check pull requests. Open Logs for details, then refresh.'],

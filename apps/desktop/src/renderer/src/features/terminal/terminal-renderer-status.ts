@@ -97,8 +97,8 @@ export function terminalRendererIndicator(
             : undefined;
     // An actionable chip leads with what clicking does, matching the `Open Process Explorer, …` chips beside it, so
     // the accessible name and the tooltip promise exactly the same thing. A confirming action's title is already a
-    // question, so it reads as the promise directly and is followed by a space; any other title is joined with a colon.
-    const lead = action ? `${action.title}${/[!.?]$/.test(action.title) ? ' ' : ': '}` : '';
+    // question, so it reads as the promise directly.
+    const lead = action ? `${action.title} — ` : '';
     return {
         ...(action && { action }),
         ariaLabel: `${lead}Terminal is using software rendering. ${detail}`,

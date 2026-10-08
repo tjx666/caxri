@@ -119,7 +119,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         ).toBeChecked();
         await expect(
             settingsTab.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
-        ).toContainText('Not in effect. Lifecycle hook installation is unavailable in this mode.');
+        ).toContainText('Not in effect — Lifecycle hook installation is unavailable in this mode.');
         await expect(settingsTab.getByLabel('Claude Code initial arguments')).toBeVisible();
         await expect(
             settingsTab.locator('[data-agent-provider="claude"] [data-agent-icon="claude"]'),
@@ -172,7 +172,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         // `hookHealthLabel` appends the adapter's own advisory message.
         await expect(
             settingsTab.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
-        ).toContainText('Not in effect. Lifecycle hook installation is unavailable in this mode.');
+        ).toContainText('Not in effect — Lifecycle hook installation is unavailable in this mode.');
         await expect
             .poll(async () => {
                 const settings = await pageRequest<{
