@@ -379,7 +379,8 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
   if (agentId) signal.agentId = agentId;
   if (cwd) signal.agentCwd = cwd;
   if (sessionId) signal.agentSessionId = sessionId;
-  if (toolUseId && worktreeCreateIntent) signal.agentToolUseId = toolUseId;
+  // The shared bridge also serves older live Servers, whose attention packets do not accept tool IDs.
+  if (toolUseId && (worktreeCreateIntent || (provider === 'codex' && schemaVersion >= 9 && ['attentionRequested', 'attentionResolved'].includes(signal.phase)))) signal.agentToolUseId = toolUseId;
   if (turnId) signal.agentTurnId = turnId;
   if (promptDigest) signal.agentPromptDigest = promptDigest;
   if (responseDigest) signal.agentResponseDigest = responseDigest;
@@ -426,7 +427,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
 }
 `;
 
-const BRIDGE_VERSION = 21;
+const BRIDGE_VERSION = 22;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
