@@ -77,14 +77,6 @@ export class TerminalResourceMonitor {
             options.usageOverride ?? resolveE2ETerminalResourceOverride(process.env);
     }
 
-    /**
-     * The injected reading for one Terminal, so the `terminal.resources` status bar query and this monitor's alert are
-     * driven by the same value. Always `undefined` outside an explicit E2E launch.
-     */
-    readingOverride(terminalId: string): Promise<TerminalResourceReadingOverride | undefined> {
-        return this.usageOverride?.read(terminalId) ?? Promise.resolve(undefined);
-    }
-
     private raise(state: AlertState, usage: ProcessTreeUsage): void {
         state.alertedAt = this.now();
         this.options.logger.write('warn', logEventCatalog.terminal.resourceAlertRaised, {
@@ -127,6 +119,14 @@ export class TerminalResourceMonitor {
 
     private now(): number {
         return (this.options.now ?? Date.now)();
+    }
+
+    /**
+     * The injected reading for one Terminal, so the `terminal.resources` status bar query and this monitor's alert are
+     * driven by the same value. Always `undefined` outside an explicit E2E launch.
+     */
+    readingOverride(terminalId: string): Promise<TerminalResourceReadingOverride | undefined> {
+        return this.usageOverride?.read(terminalId) ?? Promise.resolve(undefined);
     }
 
     /**
