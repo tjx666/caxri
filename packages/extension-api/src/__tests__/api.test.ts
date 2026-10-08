@@ -79,6 +79,21 @@ describe('caxri public API runtime', () => {
         expect(surviving).toHaveBeenCalledExactlyOnceWith(1);
     });
 
+    it('disposes every combined entry before rethrowing the first teardown failure', () => {
+        const firstFailure = new Error('extension teardown failure');
+        const first = new Disposable(() => {
+            throw firstFailure;
+        });
+        const second = new Disposable(() => {
+            throw new Error('second teardown failure');
+        });
+        const survivingTeardown = vi.fn();
+        const combined = Disposable.from(first, second, new Disposable(survivingTeardown));
+
+        expect(() => combined.dispose()).toThrow(firstFailure);
+        expect(survivingTeardown).toHaveBeenCalledTimes(1);
+    });
+
     it('fails clearly when the runtime stub is used outside the Extension Host', () => {
         expect(() => isGlobMatch('example.test.ts', { '**/*.test.*': true })).toThrow(
             expect.objectContaining({ code: 'CAXRI_API_OUTSIDE_EXTENSION_HOST' }),

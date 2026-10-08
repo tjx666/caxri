@@ -10,6 +10,7 @@ import type {
 import { CaxriError, errorMessage, toWireError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
+import { disposeAllThenRethrow } from '@caxri/utils';
 
 import type { ShutdownReason } from '../session-policy';
 import { shutdownOutcome } from '../session-policy';
@@ -22,6 +23,7 @@ import type {
 import { isTerminalProtocolResponse } from './input-origin';
 import { TerminalLaunchPlanner } from './launch-plan';
 import type {
+    AgentStartWaiter,
     TerminalLifecycleCause,
     TerminalManagerOptions,
     TerminalStartOptions,
@@ -33,11 +35,6 @@ import { createTerminalTitleListener } from './terminal-title';
 
 const ptyLogEvents = logEventCatalog.pty;
 type TerminalTitleListener = ReturnType<typeof createTerminalTitleListener>;
-interface AgentStartWaiter {
-    launchId: string;
-    promise: Promise<boolean>;
-    resolve(isStarted: boolean): void;
-}
 
 /**
  * Core-owned Terminal coordinator. It authorizes launch plans, persists durable state and projects execution events;
@@ -771,6 +768,6 @@ export class TerminalManager {
         this.database.markShutdown(reason);
         for (const { terminalId } of finalizations)
             this.onStateChanged?.(terminalId, terminalProcessState);
-        for (const dispose of this.executionListeners) dispose();
+        disposeAllThenRethrow(this.executionListeners);
     }
 }
