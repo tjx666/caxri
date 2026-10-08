@@ -173,8 +173,8 @@ function SessionMruHint({
 /**
  * The switcher is mounted for the whole app lifetime but open only while its chord is held, so the closed case must not
  * subscribe to anything the Workbench churns. Reading the Project, Session, and Terminal stores below that gate would
- * rerender this overlay on every Terminal title and agent-metadata update — several times a second while an agent runs
- * — to decide it renders nothing.
+ * rerender this overlay on every Terminal title and agent-metadata update (several times a second while an agent runs)
+ * to decide it renders nothing.
  */
 export function SessionMruSwitcher() {
     const isOpen = useSessionMruSwitcherStore((state) => state.isOpen);
@@ -206,7 +206,7 @@ function SessionMruSwitcherPanel() {
             {/*
              * Transparent scrim, matching `PickerDialogContent`: like VS Code's editor switcher, the workbench stays
              * readable underneath. The scrim still takes pointer events so a click outside the panel cannot reach the
-             * workbench — without that, clicking a PrimarySidebar Session while the chord is held switches the Session
+             * workbench: without that, clicking a PrimarySidebar Session while the chord is held switches the Session
              * and the switcher then commits a second, stale one on release. Clicking the scrim cancels, matching Escape.
              */}
             <div

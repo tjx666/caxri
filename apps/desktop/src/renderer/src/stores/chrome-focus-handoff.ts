@@ -13,10 +13,10 @@ export type ChromeFocusLocation = 'inside-surface' | 'outside-surface' | 'nowher
 /**
  * Which element the toggle hands focus to once the layout change has been committed.
  *
- * - `surface` — the revealed surface's own entry point.
- * - `origin` — the element that owned focus when the surface was revealed.
- * - `fallback` — the workbench's registered fallback, when the origin is gone or was never recorded.
- * - `unchanged` — focus belongs to whoever has it; the toggle must not move it.
+ * - `surface`: the revealed surface's own entry point.
+ * - `origin`: the element that owned focus when the surface was revealed.
+ * - `fallback`: the workbench's registered fallback, when the origin is gone or was never recorded.
+ * - `unchanged`: focus belongs to whoever has it; the toggle must not move it.
  */
 type ChromeFocusTarget = 'surface' | 'origin' | 'fallback' | 'unchanged';
 
@@ -123,19 +123,19 @@ export function focusChromeSurface(surfaceId: ChromeSurfaceId): void {
 }
 
 /**
- * Keeps the keyboard inside a surface whose body is being swapped rather than hidden — the Primary Side Bar trading its
+ * Keeps the keyboard inside a surface whose body is being swapped rather than hidden: the Primary Side Bar trading its
  * Project tree for the Activity queue, and back.
  *
  * Neither function above answers this case. {@link handOffChromeFocus} decides between revealing and hiding one surface,
  * and the surface here does neither: it stays put while everything inside it unmounts. {@link focusChromeSurface}
  * returns early when focus is already inside, which is the one situation that needs acting on, because the element
  * holding focus is the element about to leave. Without this the browser drops focus onto `document.body` and the next
- * Tab restarts from the top of the document — the same failure the two functions above exist to prevent.
+ * Tab restarts from the top of the document: the same failure the two functions above exist to prevent.
  *
  * Focus outside the surface is deliberately left alone: someone typing in a Terminal who reveals the queue with
  * `Cmd+Shift+N` asked to see what is waiting, not to hand over their keyboard.
  *
- * Call it _before_ the store commits the swap, for the reason {@link handOffChromeFocus} documents — the live
+ * Call it _before_ the store commits the swap, for the reason {@link handOffChromeFocus} documents: the live
  * `document.activeElement` is what the decision reads, and the move itself waits a frame for React's commit.
  */
 export function refocusChromeSurfaceBody(surfaceId: ChromeSurfaceId): void {
@@ -151,7 +151,7 @@ export function refocusChromeSurfaceBody(surfaceId: ChromeSurfaceId): void {
  * Records or restores the focus origin across one reveal/hide toggle (`Cmd+J` for the Panel, `Cmd+]` for the Secondary
  * Side Bar).
  *
- * Both chords carry `allowInEditable`, so they fire while a Terminal owns the keyboard — which is where focus normally
+ * Both chords carry `allowInEditable`, so they fire while a Terminal owns the keyboard, which is where focus normally
  * rests. Toggling visibility without touching focus therefore produced a surface the keyboard could not reach and, on
  * the way back, a lost caret: revealing the Panel left focus inside the xterm that swallows Tab, and hiding it
  * unmounted the focused element so the browser dropped focus onto `document.body`, restarting the next Tab from the top

@@ -43,7 +43,7 @@ export function editorModelPath(sessionId: string, path: string): string {
  * beside the builder so the Session-scoped URI layout has exactly one definition.
  *
  * Answers nothing for a URI this module did not build and for an external document, whose first segment is an opaque
- * identity rather than a filesystem path — a caller that needs a real Project file must not treat it as one.
+ * identity rather than a filesystem path: a caller that needs a real Project file must not treat it as one.
  */
 export function parseEditorModelPath(uri: {
     authority: string;

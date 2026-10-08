@@ -176,7 +176,7 @@ process.stdin.resume();
         await expect(approval).toContainText('does not grant permissions');
         /**
          * The confirming button takes focus once the body lands. Until then it is disabled, and naming a disabled
-         * element as the dialog's initial focus would leave focus outside it entirely — on the Agent's Terminal.
+         * element as the dialog's initial focus would leave focus outside it entirely, on the Agent's Terminal.
          *
          * Read off `document.activeElement` rather than asserted with `toBeFocused`, which also requires
          * `document.hasFocus()`: CI runs several Electron pools at once, so another pool's window can hold macOS focus
@@ -198,7 +198,7 @@ process.stdin.resume();
          *
          * Asserted as "the popup holds focus" rather than "the button does not": that proves the hand-over listener ran
          * and chose to stand down. Merely checking the button would also pass if the click never reached the popup at
-         * all — which is what would happen if the body ever became focusable in its own right.
+         * all, which is what would happen if the body ever became focusable in its own right.
          */
         await approval.getByTestId('agent-message-body').click();
         await expect(
@@ -222,7 +222,7 @@ process.stdin.resume();
          * The second message has to earn its focus through a different path than the first. Approving the first one
          * disables the button while the request is in flight, so focus falls to `document.body` rather than parking on
          * the popup, and Base UI's own initial-focus pass does not run again for a dialog that never closed. Only this
-         * hand-over puts the reviewer back on a control — without it, every message after the first opens dead to the
+         * hand-over puts the reviewer back on a control; without it, every message after the first opens dead to the
          * keyboard.
          */
         await expect

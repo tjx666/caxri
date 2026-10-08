@@ -100,7 +100,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                 ).toBeVisible(),
             ),
         );
-        // Dismisses the "Default agent" dropdown popup, not Settings itself — Settings is a
+        // Dismisses the "Default agent" dropdown popup, not Settings itself; Settings is a
         // persistent Workbench tab now and Escape has nothing of its own to close here.
         await running.page.keyboard.press('Escape');
 
@@ -119,7 +119,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         ).toBeChecked();
         await expect(
             settingsTab.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
-        ).toContainText('Not in effect — Lifecycle hook installation is unavailable in this mode.');
+        ).toContainText('Not in effect. Lifecycle hook installation is unavailable in this mode.');
         await expect(settingsTab.getByLabel('Claude Code initial arguments')).toBeVisible();
         await expect(
             settingsTab.locator('[data-agent-provider="claude"] [data-agent-icon="claude"]'),
@@ -164,7 +164,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
             'Restart Agent Terminals opened before lifecycle hooks were enabled.',
         );
         // Structured controls write immediately (debounced) now that the Apply button is gone, so
-        // the health caption leaves 'Disabled' on its own — no Apply click in between. It settles
+        // the health caption leaves 'Disabled' on its own, no Apply click in between. It settles
         // on the discovery-dependent state rather than 'Installed': E2E launches with Agent
         // discovery `blocked`, so the CLI is deliberately absent and the hook cannot install. The
         // durable proof that the write landed is the persisted `hooks.enabled` assertion below;
@@ -172,7 +172,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         // `hookHealthLabel` appends the adapter's own advisory message.
         await expect(
             settingsTab.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
-        ).toContainText('Not in effect — Lifecycle hook installation is unavailable in this mode.');
+        ).toContainText('Not in effect. Lifecycle hook installation is unavailable in this mode.');
         await expect
             .poll(async () => {
                 const settings = await pageRequest<{
@@ -306,7 +306,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
             settingsTab.getByRole('spinbutton', { name: 'Terminal Font size' }),
         ).toHaveValue('17');
         // The source editor commits on blur/leaving the view instead of behind Apply, and there is
-        // no per-section dirty marker anymore — the persisted value already reflects the edit.
+        // no per-section dirty marker anymore; the persisted value already reflects the edit.
         await expect
             .poll(async () => {
                 const settings = await pageRequest<{
@@ -386,7 +386,7 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
 
         // Settings is a Workbench tab now, not a modal, so there is nothing for Escape to dismiss
         // (issue caxri#1289): the "close and reopen" round trip that used to force a remount
-        // — and, with it, reset the UI/Source view toggle to its default — becomes an explicit
+        // (and, with it, reset the UI/Source view toggle to its default) becomes an explicit
         // switch back to the UI view instead. `openSettingsTab` still works afterward: re-pressing
         // `Cmd+,` while the tab is already open and active is a harmless no-op refocus, which this
         // also exercises.

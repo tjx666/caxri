@@ -27,7 +27,7 @@ interface TerminalClipboardHandlerOptions {
  * copying while sharing `Cmd+C` with Monaco and ordinary inputs.
  *
  * An empty xterm selection must still `preventDefault`. The focused helper textarea is empty, and Chromium's default
- * copy would write that empty string over the system clipboard — including a copy an Agent TUI just made through OSC 52
+ * copy would write that empty string over the system clipboard, including a copy an Agent TUI just made through OSC 52
  * or the native pasteboard, whose highlight is not an xterm selection.
  */
 export function writeTerminalSelectionToCopyEvent(
@@ -112,8 +112,8 @@ export function registerTerminalClipboardHandlers(
 
 /**
  * Maps macOS editing gestures onto the control bytes supported by shells and Agent CLIs. Claude Code and Codex both
- * accept Meta+Enter (ESC+CR) as "insert newline" by default, so Shift+Enter — the chord VS Code and most chat inputs
- * train users on — is translated to ESC+CR without depending on a terminal's optional enhanced-keyboard protocol. A
+ * accept Meta+Enter (ESC+CR) as "insert newline" by default, so Shift+Enter (the chord VS Code and most chat inputs
+ * train users on) is translated to ESC+CR without depending on a terminal's optional enhanced-keyboard protocol. A
  * durable Agent association is insufficient: after its Agent child exits, the surrounding shell must receive ordinary
  * shell input because line editors treat a stray ESC as a mode/meta prefix, not a newline.
  */

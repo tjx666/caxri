@@ -15,8 +15,8 @@ export interface ImportSpecifierMatch {
  * A syntax tree would be the accurate way to find these, but Monaco's TypeScript worker has no project graph here (see
  * `editor-diagnostics.ts`), and every other language in this family would need its own parser. The cost of the
  * approximation is bounded: only module-shaped specifiers are matched, and a match that does not resolve to a real file
- * never becomes a link, so the worst case of a false positive — a path-like string inside a comment — is an underline
- * on text that would have opened the same file anyway.
+ * never becomes a link, so the worst case of a false positive (a path-like string inside a comment) is an underline on
+ * text that would have opened the same file anyway.
  */
 const IMPORT_PATTERN =
     /(?<prefix>\b(?:from|import|require)\s*(?:\(\s*)?)(?<quote>['"])(?<specifier>(?![/\\]|[A-Za-z][A-Za-z\d+.-]*:)[^'"\r\n\0]+)\k<quote>/gu;

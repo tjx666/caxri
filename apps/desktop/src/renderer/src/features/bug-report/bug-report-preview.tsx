@@ -85,14 +85,14 @@ export function BugReportPreview({
                     >
                         <SelectValue>
                             {target
-                                ? `${agentProviderCatalog[target.provider!].displayName} — ${target.title}`
+                                ? `${agentProviderCatalog[target.provider!].displayName}: ${target.title}`
                                 : 'No running Agent in this Session'}
                         </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                         {targets.map((item) => (
                             <SelectItem key={item.id} value={item.id}>
-                                {agentProviderCatalog[item.provider!].displayName} — {item.title}
+                                {agentProviderCatalog[item.provider!].displayName}: {item.title}
                             </SelectItem>
                         ))}
                     </SelectContent>

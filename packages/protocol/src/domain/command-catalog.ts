@@ -32,7 +32,7 @@ export interface CommandDefinition {
     /**
      * When set, the command palette hides this command unless the predicate is true for the current selection. The
      * command stays reachable through keybindings and native menus, where invocation from an unrelated state is a
-     * silent no-op — matching the row-menu's existing disabled affordance.
+     * silent no-op: matching the row-menu's existing disabled affordance.
      */
     when?: CommandWhen;
     nativeMenu?: {
@@ -428,7 +428,7 @@ export const commandDefinitions: CommandDefinition[] = [
     /*
      * Declared here rather than in the Files contribution, and deliberately without `execution: 'viewCatalog'`: Search
      * Files opens a centered overlay that belongs to no view container. Leaving it catalog-owned would route it through
-     * `didExecuteViewCatalogCommand`, which reveals a command's owning container before dispatching it — so every
+     * `didExecuteViewCatalogCommand`, which reveals a command's owning container before dispatching it, so every
      * `Cmd+Shift+F` would also pop the Files sidebar open behind the overlay. The id and its `cmd+shift+f` default are
      * unchanged, so the recorded keybinding migration from `inspector.searchFiles` still applies.
      */

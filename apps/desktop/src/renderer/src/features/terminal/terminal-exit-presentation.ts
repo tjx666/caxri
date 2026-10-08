@@ -45,19 +45,19 @@ export function getTerminalExitPresentation(
         case 'interrupted':
             return {
                 icon: 'pending',
-                label: 'Interrupted by app shutdown — restoring',
+                label: 'Interrupted by app shutdown: restoring',
                 tone: 'neutral',
             };
         case 'suspended':
             return {
                 icon: 'pending',
-                label: 'Suspended while inactive — resuming',
+                label: 'Suspended while inactive: resuming',
                 tone: 'neutral',
             };
         case 'detached':
             return {
                 icon: 'detached',
-                label: 'Detached — resume when you are done elsewhere',
+                label: 'Detached: resume when you are done elsewhere',
                 tone: 'neutral',
             };
         case 'starting':

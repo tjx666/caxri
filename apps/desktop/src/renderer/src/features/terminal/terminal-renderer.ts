@@ -459,8 +459,8 @@ export class TerminalRendererController {
 
     /**
      * Releases the GPU context of a pane that is staying mounted but leaving the screen, which is what lets a Session
-     * keep its Terminals alive in the background (issue #657). Everything that carries user state — xterm, its buffer
-     * and scroll position, the PTY subscription, the Agent lifecycle — is untouched; only the context goes, because
+     * keep its Terminals alive in the background (issue #657). Everything that carries user state (xterm, its buffer
+     * and scroll position, the PTY subscription, the Agent lifecycle) is untouched; only the context goes, because
      * Chromium caps a page at roughly 16 live WebGL contexts and force-loses the oldest past that, which
      * `gpu-incident-budget.ts` would then bank as a real incident and eventually pin every Terminal to DOM.
      *

@@ -4,18 +4,18 @@ _Researched 2026-08-06._
 
 Codex hook follow-up, 2026-09-13: [current hook script](https://github.com/stablyai/orca/blob/403b62a8d8fa6e896a93acc4c15405be0f0b7dc7/src/main/codex/codex-hook-script.ts) refreshes port/token from the file named by `ORCA_AGENT_HOOK_ENDPOINT` before HTTP delivery. This supports surviving PTYs after Server restart, but still requires that environment variable and `ORCA_PANE_KEY`; its spool also requires both. Therefore this path alone does not solve completely missing shared-daemon environment. Source inspected only, not a live Orca reproduction.
 
-- **Positioning**: "Agent Development Environment" (ADE) — desktop app for running many parallel coding-agent CLIs (Claude Code, Codex, OpenCode, …), each in its own git worktree, with terminal, browser, and file editing built in.
+- **Positioning**: "Agent Development Environment" (ADE): desktop app for running many parallel coding-agent CLIs (Claude Code, Codex, OpenCode, …), each in its own git worktree, with terminal, browser, and file editing built in.
 - **Company/traction**: Stably, Inc. (YC W22, pivoted from AI QA testing). Daily releases; iOS/Android companion apps; Discord + X `@orca_build`. Aimed at engineers running 10–100 agents at once.
 - **Tech stack**: TypeScript/Electron (electron-vite), pnpm monorepo, React renderer, node-pty, SQLite persistence, oxlint/oxfmt, native helpers under `native/`.
 - **License**: MIT.
 
 ## Architecture highlights
 
-- `src/main/daemon` — detached background daemon owns PTYs, separate from the Electron app lifecycle; app quit does not kill terminals, next launch reattaches via socket + pid file (`listProcesses` + `reattachKnownPtys`). This is why terminals "survive" restarts.
+- `src/main/daemon`: detached background daemon owns PTYs, separate from the Electron app lifecycle; app quit does not kill terminals, next launch reattaches via socket + pid file (`listProcesses` + `reattachKnownPtys`). This is why terminals "survive" restarts.
 - Fallback when processes truly died: session-scanner maps terminal → agent session id and relaunches per provider (`claude --resume <id>`, `codex resume <id>`, `copilot --resume=<id>`, see `buildAgentResumeInvocation`).
-- `src/main/ghostty` + `src/main/pty` — Ghostty-class WebGL terminal rendering with scrollback persisted across restarts.
+- `src/main/ghostty` + `src/main/pty`: Ghostty-class WebGL terminal rendering with scrollback persisted across restarts.
 - Per-provider agent modules (`src/main/claude`, `codex`, `gemini`, `grok`, `pi`, …) plus `agent-hooks`, `usage`, and `rate-limits` for cross-vendor account/usage tracking.
-- `src/main/ssh` — remote worktrees over SSH with auto-reconnect and port forwarding.
+- `src/main/ssh`: remote worktrees over SSH with auto-reconnect and port forwarding.
 - Public `orca` CLI (`src/cli`) lets agents script the app itself (worktree create/snapshot/click/fill).
 
 ## Standout features

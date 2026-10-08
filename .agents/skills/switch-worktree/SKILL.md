@@ -16,8 +16,8 @@ Pass `--json` when another tool or agent will consume the result.
 ## Default delivery flow
 
 An isolated worktree is a self-contained development environment: its branch, dependencies, and
-profile cannot disturb the primary checkout or sibling agent sessions. That isolation is the point
-— when the user asks to switch to a worktree to get work done (e.g. "切 worktree 处理 issue #123"
+profile cannot disturb the primary checkout or sibling agent sessions. That isolation is the point:
+when the user asks to switch to a worktree to get work done (e.g. "切 worktree 处理 issue #123"
 or "切 worktree 做一下"), they are delegating the entire development loop, including commit,
 push, PR creation, CI, merge, issue closeout, and primary-checkout synchronization. This applies
 equally when the request arrives midway through an existing conversation. A run under the `go`
@@ -43,7 +43,7 @@ local-only, or no-merge restriction narrows that scope.
    replacement, repair failures, and re-push until checks are green. Do not enqueue sibling pull
    requests against the shared runner for fixes that belong to the same delivery.
 6. Merge the PR, close the linked issues, and synchronize the primary checkout.
-7. Call the Skill tool with "file-issue" for any debt or follow-up the delivery leaves behind — deferred findings, known flakes, consciously skipped scope — so nothing survives only
+7. Call the Skill tool with "file-issue" for any debt or follow-up the delivery leaves behind (deferred findings, known flakes, consciously skipped scope) so nothing survives only
    in the session transcript.
 
 Narrow this flow only when the user explicitly limits delivery (e.g. "只实现，不提交" or
@@ -130,7 +130,7 @@ reports Git status, ahead/behind counts, dependency state, isolated profile, dev
 orphaned processes, and the repository-wide desktop lease.
 
 `orphanProcesses` lists processes running out of a checkout whose parent chain ends at launchd
-(PPID 1) without a live `dev` launcher, `Playwright`, shell, or agent above them — typically a
+(PPID 1) without a live `dev` launcher, `Playwright`, shell, or agent above them, typically a
 Server Core left behind after its window and launcher exited. Server Core is spawned detached so a
 restarted Desktop can adopt it, so a checkout that still has any supervised run reports none. Such an
 orphan is not permanent: Server Core self-exits once idle past a fixed threshold with no client
@@ -165,7 +165,7 @@ and build outputs remain local. Vite owns Renderer port selection.
 `dev` also derives a stable, per-worktree CDP port from this worktree's identity (the same identity
 `userData` is keyed on) and passes it as `CAXRI_DEV_CDP_PORT`, advancing to the next free port on a
 conflict. It prints the resolved port before the launcher blocks, and `list --json` reports the
-active or most recently recorded `cdpPort` for every worktree — read the port from one of these
+active or most recently recorded `cdpPort` for every worktree; read the port from one of these
 sources instead of assuming the fixed 9223 dev default, which only ever applies to a bare
 `bun run dev` outside this wrapper. The running window also exposes `globalThis.__caxriWorktree` set
 to this worktree's absolute path, so a CDP connection can verify it reached this checkout rather
@@ -182,23 +182,23 @@ worktree after an interrupted run. An orphaned `Caxri Dev` main process is selec
 worktree-owned child and its exact cwd confirm ownership. SIGTERM comes first, SIGKILL only for
 survivors; a final process scan fails if a child was restarted or ownership could not be confirmed.
 Ownership is re-checked across bounded rounds, so a process that was not yet visible in the first
-scan — a descendant still mid-fork, or a detached process reparented to launchd only once its
-supervisor exited — still gets its own stop attempt instead of only being reported afterward.
+scan (a descendant still mid-fork, or a detached process reparented to launchd only once its
+supervisor exited) still gets its own stop attempt instead of only being reported afterward.
 
 Never substitute a name or bundle match. `pkill -f "Caxri.app"` matches `/Applications/Caxri.app`
 and has already terminated the installed app mid-session; `pkill -f Electron` matches every Electron
 app on the machine. Ownership is a path and a process record, never a name.
 
 A non-empty `survivors` result never means "run `stop` again and hope" or "assume the process is
-gone" — always verify each surviving PID by hand: `ps -o pid=,ppid=,command= -p <pid>`, confirm the
+gone"; always verify each surviving PID by hand: `ps -o pid=,ppid=,command= -p <pid>`, confirm the
 command path is still this worktree's absolute path, then `kill -9 <pid>` only that PID once
 confirmed. Each survivor carries a closed reason when its most recent signal never actually landed:
 `identity-unavailable` and `identity-changed` mean the PID's start-time identity did not match the
-captured snapshot (a reused or restarted PID — re-run `stop` to re-resolve it); `permission-denied`
+captured snapshot (a reused or restarted PID; re-run `stop` to re-resolve it); `permission-denied`
 means `process.kill` itself was refused (EPERM) and needs a manual, elevated per-PID kill after
 verification; `signal-error` is any other unclassified errno. A survivor with **no** reason was
 actually signaled (both SIGTERM and SIGKILL) but had not exited by the time the bounded wait gave
-up — an exit delay, not a signal failure — and is the case most worth a second `stop` run before
+up (an exit delay, not a signal failure) and is the case most worth a second `stop` run before
 falling back to a manual kill; see <https://github.com/tjx666/caxri/issues/1179>.
 
 ## Serialize desktop work

@@ -46,7 +46,7 @@ describe('held message approval queue', () => {
     it('keeps a deferred request queued and unanswered instead of answering it', () => {
         const queue = deferHeldMessage(queueOf(first), 'held-1');
 
-        // The message is still held, so the sender still reads "pending" — deferring is not a decision.
+        // The message is still held, so the sender still reads "pending"; deferring is not a decision.
         expect(queue.messages).toEqual([first]);
         expect(activeHeldMessage(queue)).toBeUndefined();
         expect(deferredHeldMessages(queue)).toEqual([first]);

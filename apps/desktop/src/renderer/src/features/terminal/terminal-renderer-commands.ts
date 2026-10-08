@@ -9,7 +9,7 @@ import { getTerminalRendererRetry } from './terminal-renderer-status';
  * budget, so both actions need confirmation before they run.
  *
  * `settings.patch` is the structured single-key write path (the same one the CLI uses), so the change keeps any
- * comments the user hand-wrote in `settings.jsonc` and reaches Terminals through the normal `settings.changed` event —
+ * comments the user hand-wrote in `settings.jsonc` and reaches Terminals through the normal `settings.changed` event:
  * no restart, no separate renderer command.
  */
 export async function confirmTerminalRendererSwitch(

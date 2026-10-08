@@ -6,8 +6,8 @@ import type { BigIntStats } from 'node:fs';
  *
  * Two callers need this and had grown their own near-identical joins: the Claude metadata cache decides whether a
  * `sessions/*.json` entry has to be re-read, and the Git discard boundary binds destructive consent to the untracked
- * files the user saw named in the prompt. Their requirement is the same one — detect any replacement or rewrite — so
- * they share the definition rather than each having a field list that drifts.
+ * files the user saw named in the prompt. Their requirement is the same one, detect any replacement or rewrite, so they
+ * share the definition rather than each having a field list that drifts.
  *
  * `mtimeNs` and `ctimeNs` are the nanosecond fields, not the millisecond ones: Claude Code rewrites a metadata file's
  * `status` inside a single millisecond, and that field drives the sidebar attention cue, so a millisecond-resolution

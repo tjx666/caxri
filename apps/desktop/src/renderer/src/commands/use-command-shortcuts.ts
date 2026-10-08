@@ -55,7 +55,7 @@ export function leadingChordAtLastKeystroke(): string | undefined {
 /**
  * The mutable, per-mount state one keydown handler needs between keystrokes: the cached binding lookup tables and
  * whatever chord is mid-sequence. Kept as a plain object rather than closured `let`s so {@link dispatchGlobalKeydown} is
- * callable directly from a test without going through `useEffect` and a real `window` — see
+ * callable directly from a test without going through `useEffect` and a real `window`; see
  * `use-command-shortcuts.test.ts` for the regression this exists to make possible (issue #1093).
  */
 export interface GlobalShortcutDispatchState {

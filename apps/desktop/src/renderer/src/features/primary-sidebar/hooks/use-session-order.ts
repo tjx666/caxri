@@ -53,8 +53,8 @@ interface SessionOrderOptions {
 
 /**
  * Drag-and-keyboard reordering for one list of Session rows. The Pinned group and each Project group are separate lists
- * over the same Session records, so this takes the three rules that differ — which drops are legal, which rows count as
- * siblings, and which Server method records the move — and keeps everything else (the frozen order during a drag, the
+ * over the same Session records, so this takes the three rules that differ: which drops are legal, which rows count as
+ * siblings, and which Server method records the move, and keeps everything else (the frozen order during a drag, the
  * dragend cleanup, the announcement) in one place.
  *
  * Returns the controller every row receives apart from the list it orders. The handlers read the records through a

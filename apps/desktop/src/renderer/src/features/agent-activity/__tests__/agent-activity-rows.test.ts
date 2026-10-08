@@ -353,7 +353,7 @@ describe('agentAttentionCount', () => {
 
     /**
      * The badge is drawn while the queue is unmounted, so it has to apply the same two exclusions the queue applies on
-     * render — otherwise it advertises rows the user cannot reach by acting on it.
+     * render; otherwise it advertises rows the user cannot reach by acting on it.
      */
     it('excludes archived Sessions and Sessions outside the listed Projects', () => {
         const sessions = [

@@ -52,7 +52,7 @@ export function beginHang(previous: HangState, nowMs: number): HangStartResult {
 
 /**
  * Closes the hang in progress, whether the window recovered or its Renderer process died under it. Both are the same
- * bookkeeping — the block is over and its duration is known — so the caller distinguishes them in the record it writes
+ * bookkeeping (the block is over and its duration is known), so the caller distinguishes them in the record it writes
  * rather than here. The lifetime count is deliberately kept across a crash: it belongs to the window, not to the
  * process that was serving it.
  *

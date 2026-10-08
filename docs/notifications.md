@@ -54,7 +54,7 @@ A native Agent banner names the Agent first: the title is `<Provider> · <Sessio
 provider alone for an unnamed Session) and the subtitle is the Session's Project. A waiting banner
 reads **Waiting for your input**. A completed-turn banner shows the Agent's closing reply of that
 turn as one plain line of at most 200 characters; when the reply cannot be read within 1.5 seconds
-— Grok has no transcript parser, a turn that ended without text, or a missing transcript — it falls
+(Grok has no transcript parser, a turn that ended without text, or a missing transcript) it falls
 back to **Finished in 3m 12s**.
 
 Desktop Main asks for the summary through the internal `agent.replySummary` method only after every
@@ -65,8 +65,8 @@ Session is checked again before showing, and a banner the user has meanwhile see
 the `superseded` outcome.
 
 Unsigned and ad-hoc builds deliver through `alerter`, which withdraws a banner after 30 seconds and
-draws its icon unmasked, so packaged builds ship `build/notification-icon.png` — the production
-icon with the rounded macOS plate baked in — as an extra resource.
+draws its icon unmasked, so packaged builds ship `build/notification-icon.png` (the production
+icon with the rounded macOS plate baked in) as an extra resource.
 
 ## Ownership and event flow
 
@@ -91,8 +91,8 @@ expiration; closing the menu restores a four-second timeout. History still conta
 popup's action is recorded as the name of a follow-up plus the plain data needed to replay it
 (`stores/toast-actions.ts` owns the closed set and its labels; `commands/toast-actions.ts` owns what
 each one does). The center rebuilds the same button from that record, and asks the handler at click
-time whether the follow-up still applies — a Session that was deleted, a Terminal somebody already
-restarted — replacing the button with that reason instead of running it.
+time whether the follow-up still applies (a Session that was deleted, a Terminal somebody already
+restarted) replacing the button with that reason instead of running it.
 
 ## Persistence and retention
 

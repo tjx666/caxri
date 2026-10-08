@@ -11,7 +11,7 @@ interface ThemeImportFormatDefinition {
 
 /**
  * Declarative registry of theme import formats shared by the Runtime (which parses the file content) and Main (which
- * builds the file-picker dialog filters). Ids are the import-format subset of `themeTokenSourceIds` — adding a format
+ * builds the file-picker dialog filters). Ids are the import-format subset of `themeTokenSourceIds`: adding a format
  * fails typecheck until protocol persistence and this record both name it.
  */
 const themeImportFormatsById = {

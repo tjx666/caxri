@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react';
 
 /**
- * VS Code's `sync` codicon — the glyph its Source Control panel uses for "Sync Changes" (pull then push). Vendored
+ * VS Code's `sync` codicon: the glyph its Source Control panel uses for "Sync Changes" (pull then push). Vendored
  * inline (rather than via an icon font or static asset URL) because toolbar icons must inherit `currentColor`, and the
  * lucide refresh glyph is already taken by the panel-level Refresh action.
  *

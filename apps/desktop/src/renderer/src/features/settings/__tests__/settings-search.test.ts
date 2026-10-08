@@ -60,7 +60,7 @@ describe('filterSettingsRows', () => {
 
     /**
      * `agents.delegation` is a complex value with no scalar spec, so for a long time it declared search keywords while
-     * rendering no row at all — searching the word that names the feature returned nothing. A row now owns the depth,
+     * rendering no row at all: searching the word that names the feature returned nothing. A row now owns the depth,
      * and the words a user would actually type for it have to keep reaching that row.
      */
     it('finds the Agent delegation row by the words that name the feature', () => {

@@ -35,7 +35,7 @@ describe('agentCommandEnvironment', () => {
 describe('throwAgentRenameError', () => {
     /**
      * Issue #1345: the fallback branch used to discard `execFileAsync`'s rejected-error `stderr` entirely, so a
-     * signed-out or rate-limited CLI always surfaced the same generic "could not rename the Agent session" — no more
+     * signed-out or rate-limited CLI always surfaced the same generic "could not rename the Agent session", no more
      * actionable than a crash. `promisify(execFile)` attaches `stderr` to the rejected `Error` per Node's documented
      * special case; this regression proves that text now reaches the thrown `CaxriError`.
      */

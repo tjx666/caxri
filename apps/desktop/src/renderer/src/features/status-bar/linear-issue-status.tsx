@@ -8,7 +8,7 @@ import { StatusItem } from './status-item';
 
 /**
  * The chip prints the identifier and nothing else. A Linear title is a sentence, and the status bar's left group
- * already competes with the root, the branch, and the pull request for one line — so the workflow state arrives as the
+ * already competes with the root, the branch, and the pull request for one line, so the workflow state arrives as the
  * glyph (`stateType`) in the workspace's own color (`stateColor`), the same pairing the Status panel uses, and the
  * title stays on the hover card.
  */
@@ -36,7 +36,7 @@ export function LinearIssueStatus({
         </>
     );
     // An identifier we recognized but could not resolve has no destination, so it must not look clickable. `StatusInfo`
-    // is exactly that reading, and `focusable` keeps it reachable by keyboard — the only way a non-mouse user can read
+    // is exactly that reading, and `focusable` keeps it reachable by keyboard: the only way a non-mouse user can read
     // the source line in the hover card.
     return issue.url ? (
         <StatusItem {...shared} className="statusbar-linear-issue" href={issue.url}>

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 /**
  * Separate from the Project collapse record on purpose. That one is reconciled against the live Project catalog and
- * drops any key it cannot match to a Project, so the Pinned group — which no Project owns — would have its state
+ * drops any key it cannot match to a Project, so the Pinned group (which no Project owns) would have its state
  * discarded on every pass.
  */
 const STORAGE_KEY = 'caxri.primary-sidebar-pinned-collapsed';

@@ -35,7 +35,7 @@ const alphabetical = (a: string, b: string): number => a.localeCompare(b);
 
 /**
  * `scripts/renderer-color-tokens.ts` exists because `caxri/registered-color-utilities` runs synchronously and may not
- * read a file. That makes it a copy of `theme.css`, and a copy is only safe while something fails when it drifts — a
+ * read a file. That makes it a copy of `theme.css`, and a copy is only safe while something fails when it drifts, a
  * role added to the bridge but not to the list would be reported as an unregistered color, and one removed from the
  * bridge would stop being reported at all.
  */

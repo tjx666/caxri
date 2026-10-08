@@ -9,7 +9,7 @@
  *
  * The Renderer scenario needs a profiling build first (`CAXRI_REACT_PROFILING=1 bun run build`); the startup scenario
  * needs `CAXRI_BENCHMARK_PROJECT_ROOT` pointed at a representative repository and an ordinary `bun run build`. This
- * script does not build for you, so a stale bundle measures the wrong code — build immediately before collecting.
+ * script does not build for you, so a stale bundle measures the wrong code: build immediately before collecting.
  */
 
 import type { Buffer } from 'node:buffer';

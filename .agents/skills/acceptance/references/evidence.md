@@ -1,6 +1,6 @@
 # Caxri evidence contract
 
-Every Caxri Acceptance case names exactly one surface — `desktop`, `cli`, or `mobile` — and stores its artifacts
+Every Caxri Acceptance case names exactly one surface (`desktop`, `cli`, or `mobile`) and stores its artifacts
 inside the current immutable round's `assets/` directory. A cross-device delivery may include both,
 but each case belongs to the surface whose user outcome it asks the reviewer to decide.
 
@@ -45,8 +45,8 @@ report artifact; serialize the smallest relevant Renderer subtree by following
 
 - Every pass, fail, or blocked observation needs the evidence that supports that
   status.
-- Structured data — render counts, startup timings, benchmark or before/after
-  metrics, distributions, tables — uses the native visualizations in
+- Structured data (render counts, startup timings, benchmark or before/after
+  metrics, distributions, tables) uses the native visualizations in
   [report.md](report.md#structured-visualizations), not a generated PNG. Keep the
   raw CSV/JSON, trace, or profile as `evidence` beside it.
 - Inspect every image, clip, and generated document before citing it.

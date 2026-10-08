@@ -56,7 +56,7 @@ const pathBrowserSnapshot = z.object({
      * independently and the dialog shows both groups at once: a search that could not run has to say so in its own
      * group rather than disappear into an apparently complete list.
      *
-     * `skipped` means no search was asked for — free mode, an empty filter, or an input carrying a path separator.
+     * `skipped` means no search was asked for: free mode, an empty filter, or an input carrying a path separator.
      */
     projectSearch: z.enum(['skipped', 'complete', 'incomplete', 'unavailable']),
     rootLabel: z.string().min(1).max(1_024).optional(),

@@ -28,7 +28,7 @@ export function unavailableWorkbenchRoot(
 
 /**
  * The whole menu when Git topology is unreadable: the owning Project, plus the Session's current binding when it is a
- * different Project. Neither entry is newly authorized — both already exist in the database.
+ * different Project. Neither entry is newly authorized: both already exist in the database.
  */
 export function unavailableWorkbenchRoots(
     owner: ProjectRecord,
@@ -98,7 +98,7 @@ const MAX_CONVERSATION_RECOMMENDATIONS = 3;
 /**
  * Ranks the discovered worktrees this Session's conversation actually named, most recently named first.
  *
- * The conversation is treated purely as a _filter over what Git already reported_ — a directory or branch it mentioned
+ * The conversation is treated purely as a _filter over what Git already reported_: a directory or branch it mentioned
  * matters only when it resolves to a worktree that discovery independently found and stat'd. A path the Agent printed
  * therefore cannot introduce a root, cannot change a root's authorization, and cannot survive the worktree being
  * removed; at worst it reorders a menu.
@@ -128,7 +128,7 @@ function rankConversationWorktrees(
 }
 
 /**
- * Annotates the discovered options with `conversationRank` — but only while the Session is still bound to the
+ * Annotates the discovered options with `conversationRank`, but only while the Session is still bound to the
  * repository's main worktree.
  *
  * Once the user has moved to a task worktree, the binding _is_ the answer to "which worktree is this about", and

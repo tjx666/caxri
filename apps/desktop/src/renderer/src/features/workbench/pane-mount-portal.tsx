@@ -22,8 +22,8 @@ export function PaneMountPortal({ children, paneId }: { children: ReactNode; pan
          * (issue #657): pane ids are UUIDs (`pane-layout-reducer.ts:21`) and therefore unique across Sessions, not just
          * within one.
          *
-         * `layoutSignal` re-runs this after a split or merge recreates this pane's slot marker under a new DOM node —
-         * which can happen without `paneId` itself changing — instead of after every unrelated `PaneView` render (issue
+         * `layoutSignal` re-runs this after a split or merge recreates this pane's slot marker under a new DOM node
+         * (which can happen without `paneId` itself changing) instead of after every unrelated `PaneView` render (issue
          * #815; see `pane-view-layout-signal.ts` for why the signal has to come from a context value rather than a ref
          * a parent effect would populate too late).
          */

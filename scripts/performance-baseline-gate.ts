@@ -13,7 +13,7 @@
  * `CI_CHANGED_FILES` (a JSON array of repository-relative paths, matching the shape `scripts/ci-retry-policy.ts`
  * already writes for `needs.retry-policy.outputs.changed_files`) gates the comparison to performance-relevant paths in
  * CI only; a non-empty list with no relevant path present exits 0 with a `skipped` verdict instead of comparing. Local
- * invocations without that env var always compare — an operator running this by hand wants a real answer, not a skip.
+ * invocations without that env var always compare, an operator running this by hand wants a real answer, not a skip.
  */
 
 import { appendFile, readFile } from 'node:fs/promises';
@@ -85,7 +85,7 @@ export function parseArguments(argv: string[]): CliOptions {
 
 /**
  * Decides whether the current CI job's changed files touch a performance-relevant path. Returns `false` (meaning
- * "always compare") outside CI, or in CI when there is no changed-files signal to reason about at all — an empty or
+ * "always compare") outside CI, or in CI when there is no changed-files signal to reason about at all, an empty or
  * missing list is not positive evidence that nothing relevant changed, so the gate defaults to running rather than
  * defaults to skipping.
  */

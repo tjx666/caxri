@@ -10,11 +10,11 @@ import { PANEL_RESIZE_STEP } from '../../stores/chrome-layout';
 const DRAG_CLASS = 'panel-resize-active';
 
 /**
- * The seam is invisible at rest — like VS Code's unset `sideBar.border`, the adjacent `bg-surface`/`bg-background` step
- * alone marks the boundary — while a 6px hit band stays comfortable to grab. The band paints `bg-surface` (not
+ * The seam is invisible at rest (like VS Code's unset `sideBar.border`), the adjacent `bg-surface`/`bg-background` step
+ * alone marks the boundary, while a 6px hit band stays comfortable to grab. The band paints `bg-surface` (not
  * transparent): the grid behind it is `bg-background`, which would otherwise show through as a light stripe where both
  * neighbors are surface-colored chrome (PrimarySidebar title beside the tab strip). Hover/focus/drag reveal a centered
- * hairline using a foreground tint, never `--accent` — the divider is chrome, not the one focus indicator (DESIGN.md
+ * hairline using a foreground tint, never `--accent`: the divider is chrome, not the one focus indicator (DESIGN.md
  * "One accent focus per screen").
  */
 const dividerClassName =
@@ -48,7 +48,7 @@ interface PanelDividerProperties {
     ariaLabel: string;
     /**
      * The last committed width (vertical seam) or height (horizontal seam); only updated on pointer up, arrow key, or
-     * reset — never mid-drag.
+     * reset, never mid-drag.
      */
     size: number;
     min: number;
@@ -75,7 +75,7 @@ interface PanelDividerProperties {
 /**
  * A min/max-constrained drag divider shared by the PrimarySidebar↔main, main↔SecondarySidebar, and work-surface↔Panel
  * seams. Dragging writes the live size straight to a root CSS custom property (and to `aria-valuenow`) instead of React
- * state, so a pointermove never triggers a render; the size only reaches the chrome-layout store — and `localStorage` —
+ * state, so a pointermove never triggers a render; the size only reaches the chrome-layout store, and `localStorage`,
  * once the gesture ends.
  */
 export function PanelDivider(properties: PanelDividerProperties) {

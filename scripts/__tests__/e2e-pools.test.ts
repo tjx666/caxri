@@ -175,7 +175,7 @@ describe('E2E pools', () => {
 
     /**
      * The allowlist above only protects a spec it actually names, so a spec that requests the capability without being
-     * listed is unguarded — exactly how `editor-git-actions`, `file-preview`, and `project-path-actions` went three
+     * listed is unguarded, exactly how `editor-git-actions`, `file-preview`, and `project-path-actions` went three
      * entries stale. Derive the truth from the specs and require the list to match it.
      */
     it('lists every spec that requests the clipboard capability', async () => {
@@ -372,7 +372,7 @@ describe('E2E pools', () => {
             const settled = receipt('desktop-exclusive', [testReceipt('safe')]);
             // Second invocation was mid-flight when SIGTERM landed; its child died before the reporter's `onEnd`
             // ever ran, so `readInvocationReceipt` already falls back to an empty receipt for it (see the
-            // "records an invocation crash" case above) — reproduced directly here as the input the abort path sees.
+            // "records an invocation crash" case above): reproduced directly here as the input the abort path sees.
             const killedInvocation = { specs: ['e2e/killed.e2e.ts'] };
             const neverRunInvocationSpecs = ['e2e/never-run.e2e.ts'];
 

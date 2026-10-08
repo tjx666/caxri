@@ -49,7 +49,7 @@ interface GitPullRequestServiceDependencies {
      * Reads the repository's pull request through the Server-wide GitHub projection, so opening a PR diff reuses the
      * record the sidebar badge and the Status panel already hold instead of spending a query of its own. Resolves to
      * `undefined` when the branch has no pull request. `isForced` marks an explicit user refresh, which must reach
-     * GitHub rather than reuse the shared record — a force-push changes the head OID this diff is computed from.
+     * GitHub rather than reuse the shared record: a force-push changes the head OID this diff is computed from.
      */
     pullRequestView(repo: GitRepoSummary, isForced: boolean): Promise<string | undefined>;
     resolveRepository(sessionId: string, repoId: string): Promise<GitRepoSummary>;

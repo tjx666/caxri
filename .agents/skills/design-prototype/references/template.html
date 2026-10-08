@@ -36,7 +36,7 @@
                     throw new Error(
                         'prototype runtime is missing module: ' +
                             name +
-                            ' — add it to entry.mjs and rebuild',
+                            ' - add it to entry.mjs and rebuild',
                     );
                 return m;
             };
@@ -45,7 +45,7 @@
         <script src="./babel.min.js"></script>
         <script>
             // babel-standalone's stock typescript preset only activates on a .ts/.tsx
-            // filename, which inline scripts lack — register a TSX-enabled variant so the
+            // filename, which inline scripts lack: register a TSX-enabled variant so the
             // prototype can keep production-style TypeScript syntax.
             Babel.registerPreset('tsx', {
                 presets: [
@@ -68,8 +68,8 @@
             data-plugins="transform-modules-commonjs"
         >
             // Production-style React from here on. Real tokens, real primitives, real
-            // Tailwind semantic utilities (bg-surface, text-muted, …) — DESIGN.md applies.
-            // babel-standalone's react preset uses the classic JSX runtime — keep the
+            // Tailwind semantic utilities (bg-surface, text-muted, …): DESIGN.md applies.
+            // babel-standalone's react preset uses the classic JSX runtime: keep the
             // default `React` import in scope even when no API is used directly.
             import React, { useState } from 'react';
             import { createRoot } from 'react-dom/client';
@@ -80,7 +80,7 @@
             import { TooltipProvider } from '@/components/ui/tooltip';
 
             function App() {
-                // Prototypes must demo at least one non-happy-path state (DESIGN.md bar) —
+                // Prototypes must demo at least one non-happy-path state (DESIGN.md bar):
                 // wire a state toggle like this instead of hardcoding the happy path.
                 type DemoState = 'data' | 'empty' | 'loading' | 'error';
                 const [state, setState] = useState<DemoState>('data');
@@ -126,7 +126,7 @@
             }
 
             document.querySelector('#boot').remove();
-            // Production wraps the tree in TooltipProvider (app.tsx) — keep it so Tooltip
+            // Production wraps the tree in TooltipProvider (app.tsx): keep it so Tooltip
             // consumers get the same delay behavior in prototypes.
             createRoot(document.querySelector('#root')).render(
                 <TooltipProvider>

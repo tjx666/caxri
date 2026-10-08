@@ -21,7 +21,7 @@ table there.
 
 `proposal.md` is this round's own note to the reviewer: what the round delivers
 and where you want their eyes, the way a person writes a pull request
-description — a few sentences, in Simplified Chinese. `ingest` posts it into the
+description: a few sentences, in Simplified Chinese. `ingest` posts it into the
 acceptance's discussion as a message on this round, so it is the first thing a
 reviewer reads and they can answer it in place. It is NOT the verification
 write-up: do not restate the checks or the verdict, those are `result.json` and
@@ -209,7 +209,7 @@ Replace each generated `cases[]` placeholder with the observed result:
 ```
 
 Every evidence entry is an object with `path` and a non-empty, reviewer-facing
-`description`. Describe the file's contents and why it matters for this check —
+`description`. Describe the file's contents and why it matters for this check:
 a filename, path, id, or a generic word like “证据” is not sufficient, and the
 bare-path form is rejected rather than falling back to the filename. Describe
 each artifact separately instead of repeating the check title for every file.
@@ -231,7 +231,7 @@ the full check; `pass` and `fail` are unchanged and still owe every planned medi
 Without this, one honest blocked case would make the whole round impossible to finalize and
 publish.
 
-A blocked case still owes at least one real evidence file that supports its observation — the
+A blocked case still owes at least one real evidence file that supports its observation: the
 covering focused test's result, a log excerpt, the extracted copy. The launch, fixture preflight,
 and Agent fixture receipts do not count: they record that the adapter's own machinery ran, not what
 the product did. The mobile device receipt does count, because it carries the target's `outcome`.
@@ -299,14 +299,14 @@ The pipeline acts on these values; they are not labels.
 | `requiredEvidence`              | `screenshot` / `gif` / `video` / `text` / `markdown` / `dom_snapshot` | The artifact this check **must** produce. Finalization fails a `pass`/`fail` case whose required medium is missing.  |
 | `surfaces` / per-case `surface` | `desktop` / `cli` / `mobile`                                          | The product surface a check ran **on**. A test kind (`unit`, `e2e`) or runtime mode is not a surface.                |
 
-`category` names the user-facing requirement area (e.g. `终端布局`, `配对恢复`) —
+`category` names the user-facing requirement area (e.g. `终端布局`, `配对恢复`):
 never a technical surface. `method` / `expected` stay free Chinese prose; they
 render under the check next to the outcome.
 
 ### What is not an acceptance check
 
-The repo's own gates — Vitest, Playwright E2E, coverage, `type-check`, lint,
-format, a clean build, "CI passes" — are never `plan[]` / `cases[]` items, under
+The repo's own gates (Vitest, Playwright E2E, coverage, `type-check`, lint,
+format, a clean build, "CI passes") are never `plan[]` / `cases[]` items, under
 any phrasing; they are one line in `report.md`. Ingest drops matching items
 (matched on title, category, AND `method`), warns, and recounts `summary`; a
 gates-only round fails to publish. Full rule: [SKILL.md](../SKILL.md).

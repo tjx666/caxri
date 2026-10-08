@@ -23,7 +23,7 @@ everything:
 The evidence spike (`docs/oxlint-spike.md`, issue #177 stage 6) measured ESLint's cold full-repo
 run at ~49 s, dominated by `projectService` type checking; `oxlint --type-aware` covers the same
 type-aware rule families in under 2 s cold. The spike's "defer" recommendation applied to a
-wholesale ESLint replacement — this split instead moves only the layer oxlint covers completely,
+wholesale ESLint replacement; this split instead moves only the layer oxlint covers completely,
 keeping ESLint for the local-plugin and AST-selector capabilities oxlint lacks.
 
 ## Vendored anti-slop policy
@@ -81,7 +81,7 @@ territory) and enables, as errors:
   `typeCheckedConfig`/`recommendedTypeChecked` (`no-floating-promises`,
   `no-misused-promises` with `checksVoidReturn: false`, the `no-unsafe-*` family, `await-thenable`,
   `require-await`, `restrict-plus-operands`, `restrict-template-expressions`, `unbound-method`,
-  etc. — see the config for the full list).
+  etc.; see the config for the full list).
 - High-consensus community additions researched from typescript-eslint maintainers and published
   configs: `no-deprecated`, `no-unnecessary-condition` (`allowConstantLoopConditions: true`),
   `prefer-nullish-coalescing`, `prefer-optional-chain`, `return-await` (`in-try-catch`), and
@@ -91,12 +91,12 @@ territory) and enables, as errors:
 
 ## Where it runs
 
-- `bun run lint:type-aware` — repository-wide gate; CI runs it in the full-checks job right after
+- `bun run lint:type-aware`: repository-wide gate; CI runs it in the full-checks job right after
   ESLint.
-- `bun run check --lint` — the focused changed-file pipeline runs
+- `bun run check --lint`: the focused changed-file pipeline runs
   `oxlint --type-aware --fix` on changed TS files between `eslint --fix` and Prettier (also the CI
   focused-scope path).
-- lint-staged — the `*.{ts,tsx,mts,cts}` chain runs the same autofix on staged files.
+- lint-staged: the `*.{ts,tsx,mts,cts}` chain runs the same autofix on staged files.
 
 ## Suppressions
 
@@ -122,7 +122,7 @@ the type-aware fixture and configures no type-aware rules.
 - tsgolint panics on wrong-case explicit file paths on macOS's case-insensitive filesystem
   (spike §2); paths from git/lint-staged are always correct-case, so this only affects hand-typed
   invocations.
-- oxlint resolves `overrides[].files` globs relative to the config file's directory —
+- oxlint resolves `overrides[].files` globs relative to the config file's directory:
   `.oxlintrc.json` must stay at the repository root.
 - oxlint has no Markdown processor, so fenced code blocks in `*.md` get syntactic ESLint coverage
   only.

@@ -308,7 +308,7 @@ export class TerminalsModel {
     }
 
     /**
-     * Provider-agnostic persistence primitive for the stable semantic title — what the Terminal _is_, not what its
+     * Provider-agnostic persistence primitive for the stable semantic title: what the Terminal _is_, not what its
      * process last announced. Production Agent metadata supplies the conversation name; production OSC 0/2 handling
      * never calls this setter and follows the Shell-only policy documented by {@link setPtyTitle}.
      */
@@ -326,7 +326,7 @@ export class TerminalsModel {
      * Provider-agnostic persistence primitive for a live PTY display title. The production OSC 0/2 listener calls it
      * only for Shell Terminals and discards the signal at the listener boundary after a Terminal binds an Agent. The
      * stable `title` remains the semantic identity used outside the tab strip. Returns `false` when the row is gone or
-     * already carries this PTY title, which is the caller's signal to skip the Renderer broadcast — Shells re-report an
+     * already carries this PTY title, which is the caller's signal to skip the Renderer broadcast: Shells re-report an
      * unchanged title on every prompt.
      */
     setPtyTitle(id: string, ptyTitle: string, now = Date.now()): boolean {

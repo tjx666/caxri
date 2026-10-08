@@ -49,7 +49,7 @@ export function badgeViews(
  * Picks the one badge a container tab shows.
  *
  * This is VS Code's composite-bar ladder with its top rung removed (Caxri has no progress badge): severity outranks
- * tally, exactly one rung wins, and the winner renders alone — `getVisibleBadges()` in
+ * tally, exactly one rung wins, and the winner renders alone: `getVisibleBadges()` in
  * `src/vs/workbench/browser/parts/compositeBarActions.ts` returns the progress badges, else the icon badges, else the
  * number badges, never a blend.
  *

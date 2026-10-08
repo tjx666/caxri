@@ -12,7 +12,7 @@ describe('getTerminalExitPresentation', () => {
             'interrupted',
             {
                 icon: 'pending',
-                label: 'Interrupted by app shutdown — restoring',
+                label: 'Interrupted by app shutdown: restoring',
                 tone: 'neutral',
             },
         ],
@@ -20,7 +20,7 @@ describe('getTerminalExitPresentation', () => {
             'suspended',
             {
                 icon: 'pending',
-                label: 'Suspended while inactive — resuming',
+                label: 'Suspended while inactive: resuming',
                 tone: 'neutral',
             },
         ],
@@ -28,7 +28,7 @@ describe('getTerminalExitPresentation', () => {
             'detached',
             {
                 icon: 'detached',
-                label: 'Detached — resume when you are done elsewhere',
+                label: 'Detached: resume when you are done elsewhere',
                 tone: 'neutral',
             },
         ],

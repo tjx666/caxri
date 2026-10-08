@@ -52,8 +52,8 @@ export function usePaneTabDrag(
     const hoverTabIdReference = useRef<string | undefined>(undefined);
     const hoverTimeoutReference = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     /**
-     * `dataTransfer.getData` cannot be read during `dragover` (only `types` is exposed before `drop`), so — mirroring
-     * `draggedProjectId` in `use-project-order.ts` — the id is captured off the bubbled `dragstart` DOM event instead,
+     * `dataTransfer.getData` cannot be read during `dragover` (only `types` is exposed before `drop`), so, mirroring
+     * `draggedProjectId` in `use-project-order.ts`, the id is captured off the bubbled `dragstart` DOM event instead,
      * which lets `dragover` exclude the dragged tab's own (unmoved) rect from both the insertion-line geometry and the
      * hover-preview target, the same way `onDrop` below already excludes it from its own rects.
      */
@@ -83,7 +83,7 @@ export function usePaneTabDrag(
     /**
      * Activating a tab under a live drag must not hand it the keyboard: VS Code previews the dragged-over editor with
      * `openEditor(..., { preserveFocus: true })` (`multiEditorTabsControl.ts`). A previewed Terminal would otherwise
-     * pull focus into xterm mid-drag, so it reuses `navigate`'s marker — Document tabs never move focus on activation
+     * pull focus into xterm mid-drag, so it reuses `navigate`'s marker: Document tabs never move focus on activation
      * and are left alone.
      */
     const previewTab = (tabId: string): void => {

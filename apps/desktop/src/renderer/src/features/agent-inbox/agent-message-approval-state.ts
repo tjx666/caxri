@@ -50,8 +50,8 @@ export interface HeldMessageQueue<T extends HeldMessageEntry> {
      */
     readonly reviewing?: string;
     /**
-     * The request the modal was asking about when its approval window closed. The Server no longer holds it — it can be
-     * neither approved nor denied, and it was not delivered — yet the modal keeps it on screen, marked expired, until
+     * The request the modal was asking about when its approval window closed. The Server no longer holds it: it can be
+     * neither approved nor denied, and it was not delivered; yet the modal keeps it on screen, marked expired, until
      * the user acknowledges that. Dropping it silently made the dialog vanish, or swap to the next queued request,
      * under a reader who was still deciding; the swap could even land a reflexive Approve on a message they never read.
      * While it is set, {@link activeHeldMessage} prompts for nothing else.
@@ -138,8 +138,8 @@ export function receiveHeldMessage<T extends HeldMessageEntry>(
 
 /**
  * Drops a message that left the held state elsewhere (a receipt, another window, the sender withdrawing it). A receipt
- * that settles the request shown as expired means the Server answered it before the window closed after all — the local
- * tick only ran ahead of it — so the expired notice would now be wrong and goes too.
+ * that settles the request shown as expired means the Server answered it before the window closed after all, the local
+ * tick only ran ahead of it, so the expired notice would now be wrong and goes too.
  */
 export function removeHeldMessage<T extends HeldMessageEntry>(
     queue: HeldMessageQueue<T>,

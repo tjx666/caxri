@@ -48,10 +48,10 @@ export const NO_SESSION_PULL_REQUEST: SessionPullRequestSlice = {};
  * Projects the whole-sidebar snapshot onto one Session.
  *
  * This exists to narrow a subscription, not to save a property lookup. The snapshot carries a `refreshedAt` timestamp,
- * so every poll returns a value that is never deeply equal to the previous one — structural sharing cannot reuse the
- * old reference, and anything subscribed to the snapshot itself re-renders on every tick even when no pull request
- * moved. A per-Session slice leaves the timestamp behind, so a row's value stays deeply equal, and therefore
- * referentially stable, until that Session's own pull request changes.
+ * so every poll returns a value that is never deeply equal to the previous one, structural sharing cannot reuse the old
+ * reference, and anything subscribed to the snapshot itself re-renders on every tick even when no pull request moved. A
+ * per-Session slice leaves the timestamp behind, so a row's value stays deeply equal, and therefore referentially
+ * stable, until that Session's own pull request changes.
  */
 export function selectSessionPullRequest(
     snapshot: SessionPullRequests | undefined,
@@ -76,7 +76,7 @@ const STATE_LABELS: Record<SessionPullRequest['state'], string> = {
  * "Merged" is the last thing GitHub can say, but it is not the thing a maintainer is waiting for: the delivery is only
  * done when production is serving it. The Server attaches this field solely when the live production deployment was
  * built from this pull request's own merge commit, so a row showing the rocket is showing its own delivery. A build
- * that is still running, or that failed, keeps the same glyph and changes only the color — the shape answers "did this
+ * that is still running, or that failed, keeps the same glyph and changes only the color: the shape answers "did this
  * ship?" and the color answers "how did it go?".
  *
  * A deployment with nothing to report (canceled, or a state Vercel does not name) falls back to the merged glyph.
@@ -177,7 +177,7 @@ export function sessionPullRequestPresentation(
              * A row this narrow has space for one word about CI, and "waiting for a runner" and "running" are the same
              * answer to the only question it is asked: is CI still deciding? The Status panel is where the two are
              * drawn apart. Without this branch the fallback below drops the CI state entirely, which is how a
-             * repository reporting through commit statuses — always `queued` until it concludes — lost its badge for
+             * repository reporting through commit statuses (always `queued` until it concludes) lost its badge for
              * the whole run.
              */
             if (pullRequest.checks === 'queued')

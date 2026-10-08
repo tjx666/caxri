@@ -149,7 +149,7 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
 
         /*
          * Focus a tree row first, so the toggle below has something to lose. The body that leaves is unmounted, taking
-         * the focused element with it, and the browser then drops focus onto `document.body` — which restarts the next
+         * the focused element with it, and the browser then drops focus onto `document.body`, which restarts the next
          * Tab from the top of the document. `chrome-focus-handoff.ts` exists for exactly this failure; the assertion
          * after the chord is what proves the new body swap is wired into it.
          */
@@ -213,7 +213,7 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         await expect(betaRow).not.toContainText('Waiting for you');
         /*
          * Rendered, not merely present in the DOM. `toHaveText` above reads the DOM, so it passes on a cell CSS has
-         * truncated to zero width — which is exactly what the Primary Side Bar's 230px default did to this row while
+         * truncated to zero width, which is exactly what the Primary Side Bar's 230px default did to this row while
          * the state was still a phrase: every unread row printed "· Waiting for you · " with no Project at all. A flat
          * cross-Project queue that cannot name the Project is the one thing this list must never do.
          */
@@ -258,7 +258,7 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         ).toBe(true);
         await expect(tree.locator('[tabindex="0"]')).toHaveCount(1);
         /*
-         * The row wears the Project tree's Session hover card, which names the full Project — the only place a
+         * The row wears the Project tree's Session hover card, which names the full Project, the only place a
          * truncated one can still be read in full, now that the row has no tooltip competing with the card.
          */
         await betaRow.locator('.agent-activity-project').hover();

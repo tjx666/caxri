@@ -108,7 +108,7 @@ export async function scanTranscriptLines(
         /**
          * `openSafeAgentTranscript` already reported its own rejection reason (or found nothing to report, a routine
          * capability miss); reaching this catch instead means the file opened but a later read of its bytes failed.
-         * Either way, keep any previously scanned state — a missing or unreadable transcript is not fatal to the
+         * Either way, keep any previously scanned state: a missing or unreadable transcript is not fatal to the
          * caller.
          */
         options.onFailure?.('readFailed');

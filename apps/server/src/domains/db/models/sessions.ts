@@ -162,7 +162,7 @@ export class SessionsModel {
 
     /**
      * Applies a Terminal placement change to every Root the Session has already arranged. Terminal ownership is
-     * Session-global, not Root-scoped — see {@link defaultPaneLayout} — so a create or close must stay visible no matter
+     * Session-global, not Root-scoped (see {@link defaultPaneLayout}), so a create or close must stay visible no matter
      * which Root the Session displays next, not just the one selected right now. A Root with no stored snapshot yet is
      * left alone: its first visit builds a layout straight from `terminals`, so it can never drift out of sync in the
      * first place.
@@ -195,7 +195,7 @@ export class SessionsModel {
     /**
      * The one way to rewrite a Session's stored Root arrangements outside {@link updateState}.
      *
-     * Server-owned edits — a Terminal appearing in every Root, a deleted Project pruned out of them — change what a
+     * Server-owned edits (a Terminal appearing in every Root, a deleted Project pruned out of them) change what a
      * client last read just as much as a client write does. Leaving `revision` untouched would let a Renderer holding
      * the pre-edit token write successfully and erase the edit, which is the exact race the token exists to stop. The
      * increment is a SQL expression so it is computed from the row being written, not from a value read earlier.
@@ -376,8 +376,8 @@ export class SessionsModel {
 
     /**
      * Lifts these Sessions above every other row in their Projects while keeping the batch's own order. Each statement
-     * re-reads the table's lower bound, so walking the batch backwards leaves its first entry with the lowest position
-     * — the same expression one activity promotion uses, rather than a second way of computing "top".
+     * re-reads the table's lower bound, so walking the batch backwards leaves its first entry with the lowest position:
+     * the same expression one activity promotion uses, rather than a second way of computing "top".
      */
     moveToSidebarTop(ids: readonly string[]): void {
         for (const id of ids.toReversed())
@@ -422,7 +422,7 @@ export class SessionsModel {
      *
      * Archiving also clears the pin: the Pinned group lists active Sessions, and a row that is archived and pinned at
      * once would be hidden from its Project group while still sitting at the top of the sidebar. Unarchiving therefore
-     * does not restore the pin — the user pins it again if they still want it there.
+     * does not restore the pin: the user pins it again if they still want it there.
      */
     setArchived(id: string, archivedAt: number | null): boolean {
         return (

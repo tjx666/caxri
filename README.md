@@ -1,8 +1,8 @@
 # Caxri
 
 Caxri is a project-first, terminal-native development workbench for macOS, built for running and
-supervising coding agents. It groups durable Agent and Shell Sessions beneath local Projects — real
-PTYs, a focused editor, Files and Source Control views, and reliable agent attention signals — in
+supervising coding agents. It groups durable Agent and Shell Sessions beneath local Projects: real
+PTYs, a focused editor, Files and Source Control views, and reliable agent attention signals, in
 one Electron app.
 
 ## Highlights
@@ -17,7 +17,7 @@ one Electron app.
 - **A focused workbench.** A narrow editor, file tree, search, and an inspection-first Source
   Control view cover the "glance at what the agent did" loop without becoming an IDE.
 - **A scriptable CLI.** The standalone `caxri` CLI drives the same authenticated, profile-scoped
-  Server that the desktop app uses — see [docs/cli.md](docs/cli.md).
+  Server that the desktop app uses; see [docs/cli.md](docs/cli.md).
 - **An agent-native repository.** Caxri is developed exclusively by coding agents.
   [AGENTS.md](AGENTS.md) is the contributor standing orders; task-routed skills under
   `.agents/skills/` own the workflows.
@@ -41,13 +41,13 @@ bun run dev
 ```
 
 `bun run dev` is the first-clone path in this checkout. Coding-agent sessions and parallel
-worktrees start through `$switch-worktree` so each checkout gets its own profile — see
+worktrees start through `$switch-worktree` so each checkout gets its own profile; see
 [AGENTS.md](AGENTS.md).
 
 Desktop, Server Core, Terminal Host, and Extension Host logs are written beneath the active
 profile's `<userData>/logs/` directory. Unsigned development packages are written beneath
 `release.noindex/`. Tagged releases publish an unsigned Apple Silicon DMG. Install or upgrade the
-released app with `bun run install:caxri` — terminal downloads skip the Gatekeeper quarantine that
+released app with `bun run install:caxri`: terminal downloads skip the Gatekeeper quarantine that
 makes browser-downloaded unsigned apps report as "damaged" (see [RELEASING.md](RELEASING.md)).
 
 Caxri's Server Core-owned native ESM extension model and ViewContainer contribution contract are
@@ -62,7 +62,7 @@ bun run build:cli
 node apps/cli/dist/caxri.cjs --help
 ```
 
-The `caxri` CLI is a standalone Node.js 24+ bundle that talks only to the authenticated Server —
+The `caxri` CLI is a standalone Node.js 24+ bundle that talks only to the authenticated Server:
 never directly to Caxri's database, settings, or logs. It covers Projects, Sessions, Terminals,
 settings, logs, diagnostics, events, desktop window control, and Agent automation, and embeds the
 version-matched `caxri-cli` Agent skill. The full manual, including output modes, mutation safety,

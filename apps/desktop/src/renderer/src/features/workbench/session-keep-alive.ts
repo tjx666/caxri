@@ -5,8 +5,8 @@ import { createStore } from '../../lib/store';
  *
  * The ceiling is a GPU budget, not a memory guess. Chromium allows a page roughly 16 live WebGL contexts and
  * force-loses the oldest beyond that, which `../gpu/gpu-incident-budget.ts` banks as a real incident and eventually
- * uses to pin every Terminal to the DOM renderer. A retained Session only holds a context while it is on screen —
- * `TerminalRendererController.suspend` releases the rest — so three is a deliberately conservative bound that leaves
+ * uses to pin every Terminal to the DOM renderer. A retained Session only holds a context while it is on screen
+ * (`TerminalRendererController.suspend` releases the rest), so three is a deliberately conservative bound that leaves
  * the visible Session's splits room to grow without the retained ones competing for contexts at all.
  */
 export const SESSION_KEEP_ALIVE_LIMIT = 3;
@@ -47,8 +47,8 @@ export function retainKeepAliveSession(sessionId: string | undefined): void {
 }
 
 /**
- * Drops Sessions that no longer exist. Archiving or deleting a Session must release its kept-alive Workbench — and with
- * it every xterm, PTY subscription, and Editor model that pane still holds — rather than leaving it mounted against a
+ * Drops Sessions that no longer exist. Archiving or deleting a Session must release its kept-alive Workbench, and with
+ * it every xterm, PTY subscription, and Editor model that pane still holds, rather than leaving it mounted against a
  * Session the Server has forgotten.
  */
 export function pruneKeepAliveSessions(liveSessionIds: ReadonlySet<string>): void {

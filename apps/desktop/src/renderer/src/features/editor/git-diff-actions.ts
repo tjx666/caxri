@@ -27,9 +27,8 @@ export type DiffEditorActions = Pick<
 > & {
     /**
      * Reads the caret from the side whose line numbers match the file on disk, so a caller can carry the reader's
-     * position into the file itself. A diff surface publishes nothing to the editor status store — its models are
-     * per-instance comparison snapshots, not the Session's document — so this registry is the only place that knows
-     * it.
+     * position into the file itself. A diff surface publishes nothing to the editor status store: its models are
+     * per-instance comparison snapshots, not the Session's document, so this registry is the only place that knows it.
      */
     getFileSelection(): DiffEditorFileSelection | undefined;
 };

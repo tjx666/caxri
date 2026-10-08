@@ -392,7 +392,7 @@ export async function createDomainServices(
     };
     /**
      * Announces that the whole workbench view has to be re-read. Twelve handlers send the identical envelope, and the
-     * `reason` is the only part that carries information — it is what the Renderer's command convergence matches on.
+     * `reason` is the only part that carries information: it is what the Renderer's command convergence matches on.
      */
     const sendFullStateChange = (reason: FullStateChangeReason): void => {
         send({ event: 'state.changed', payload: { kind: 'full', reason } });

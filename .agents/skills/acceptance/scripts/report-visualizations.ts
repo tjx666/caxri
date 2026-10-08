@@ -173,7 +173,7 @@ function validateDataset(dataset: Dataset, context: string): Set<string> {
 
 /**
  * Validates one case's structured visualizations against its inline datasets. Called from `finalize`, so a case without
- * `datasets`/`visualizations` — the common Caxri screenshot round — costs nothing.
+ * `datasets`/`visualizations`, the common Caxri screenshot round, costs nothing.
  */
 export function validateCaseVisualizations(input: VisualizationCase): void {
     const { datasets = [], id, visualizations = [] } = input;

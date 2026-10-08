@@ -6,7 +6,7 @@ import { Label } from './label';
 
 /**
  * Structured form row: label + optional description + control. Horizontal orientation keeps the label block left and
- * the control right — the Settings instant-preference layout from DESIGN.md.
+ * the control right: the Settings instant-preference layout from DESIGN.md.
  */
 export function Field({
     className,

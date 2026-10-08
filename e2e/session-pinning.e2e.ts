@@ -51,7 +51,7 @@ test('pinning lifts Sessions from several Projects into one group that survives 
         await pageRequest(page(), 'session.rename', { sessionId: alpha.id, displayTitle: 'Alpha' });
         await pageRequest(page(), 'session.rename', { sessionId: beta.id, displayTitle: 'Beta' });
 
-        // No pinned Session yet, so the group renders nothing at all — not an empty heading.
+        // No pinned Session yet, so the group renders nothing at all, not an empty heading.
         await expect(page().locator('.pinned-session-group')).toHaveCount(0);
 
         const projectRow = (projectId: string, sessionId: string) =>
@@ -80,9 +80,9 @@ test('pinning lifts Sessions from several Projects into one group that survives 
         );
         /**
          * The title and the Project name used to shrink in proportion to their own widths, so a long Project name
-         * claimed the larger share of a crowded row and clipped the Session title down to a couple of characters —
-         * which reads as the Project name covering the title rather than as either one being truncated. The Project
-         * name has to give up all of its space before the title loses any, whatever the sidebar's current width is.
+         * claimed the larger share of a crowded row and clipped the Session title down to a couple of characters, which
+         * reads as the Project name covering the title rather than as either one being truncated. The Project name has
+         * to give up all of its space before the title loses any, whatever the sidebar's current width is.
          */
         await pageRequest(page(), 'session.rename', {
             sessionId: alpha.id,

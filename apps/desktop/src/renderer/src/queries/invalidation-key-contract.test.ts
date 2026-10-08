@@ -25,7 +25,7 @@ import { caxriQueryKey } from './client';
 import { removeSessionQueries, subscribeRuntimeQueryInvalidation } from './invalidation';
 
 /**
- * Every key here is produced by the same factory production code uses — `caxriQueryKey`, `controlledViewQueryKey`, or
+ * Every key here is produced by the same factory production code uses: `caxriQueryKey`, `controlledViewQueryKey`, or
  * `cacheTreeChildren`'s private key builder. That is the whole point of the file: the invalidation predicates match
  * query keys by hand, so a key-shape change that the construction side absorbs silently would otherwise leave a
  * predicate matching nothing. A hand-written literal fixture cannot catch that, because it drifts in exactly the same

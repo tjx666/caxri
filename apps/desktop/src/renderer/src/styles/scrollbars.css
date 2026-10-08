@@ -1,5 +1,5 @@
 /*
- * Native macOS overlay scrollbars expand on hover into a wide light track that covers whatever is under them — Session
+ * Native macOS overlay scrollbars expand on hover into a wide light track that covers whatever is under them: Session
  * titles, file names, log lines. Every overflow container in the Renderer gets the same quiet 8px rail instead (the
  * Terminal slider's geometry), whose thumb deepens on hover rather than growing.
  *
@@ -7,7 +7,7 @@
  * per-container copy only ever fixed the containers someone remembered, and the Files tree and the log viewer were
  * both still showing the native rail (issue #1100). Defining `::-webkit-scrollbar` width is what turns the expansion
  * off in Chromium; `scrollbar-width`/`scrollbar-color` cover the Firefox-shaped fallback. The rails that need another
- * geometry — the 3px tab strip in `styles.css`, the hidden breadcrumb rail beside it — still win on specificity,
+ * geometry (the 3px tab strip in `styles.css`, the hidden breadcrumb rail beside it) still win on specificity,
  * and xterm paints its own slider inside `.xterm-scrollbar` rather than a native scrollbar.
  */
 * {

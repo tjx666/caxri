@@ -21,15 +21,15 @@ export interface ProjectSearchMatch {
 }
 
 /**
- * Enough distinct roots for a realistic dialog session — the covering rule below means typing one word forward stores a
- * single entry — while keeping a long-lived browser from accumulating unbounded result lists.
+ * Enough distinct roots for a realistic dialog session (the covering rule below means typing one word forward stores a
+ * single entry) while keeping a long-lived browser from accumulating unbounded result lists.
  */
 const MAX_SEARCH_MEMO_ENTRIES = 8;
 
 /**
  * Answers a filter from an earlier complete scan when one exists. `files.search` in `name` mode tests a
  * case-insensitive literal against each Project-relative path, so a filter containing an already-scanned one can only
- * match a subset of that scan's hits — including the empty subset, which is why a word that found nothing also answers
+ * match a subset of that scan's hits, including the empty subset, which is why a word that found nothing also answers
  * every longer word built from it without another scan.
  */
 export function memoizedProjectSearch(

@@ -144,7 +144,7 @@ describes older code: send one follow-up to re-verify on the new head. If the he
 stop chasing it and tell the user the pull request is not ready because its head keeps changing. For each pull request
 that is ready, give:
 
-- [PR repo#123](link) — ready to merge
+- [PR repo#123](link): ready to merge
 - Bug: the symptom in the user's words.
 - Cause: one sentence, with the key file.
 - Fix: one sentence.

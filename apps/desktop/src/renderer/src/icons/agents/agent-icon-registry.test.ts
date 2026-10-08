@@ -86,7 +86,7 @@ describe('resolveAgentIconRenderSource', () => {
     );
 
     it.each(['shell', 'unknown'] as const)(
-        'has no image/mask source for %s — the caller renders its own lucide glyph',
+        'has no image/mask source for %s: the caller renders its own lucide glyph',
         (identity) => {
             const icon = agentIconRegistry[identity];
             expect(resolveAgentIconRenderSource(icon, 'brand')).toBeUndefined();

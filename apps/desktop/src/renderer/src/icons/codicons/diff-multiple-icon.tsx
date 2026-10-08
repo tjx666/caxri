@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react';
 
 /**
- * VS Code's `diff-multiple` codicon — the glyph its Source Control panel uses for "Open All Changes". Vendored inline
+ * VS Code's `diff-multiple` codicon: the glyph its Source Control panel uses for "Open All Changes". Vendored inline
  * (rather than via an icon font or static asset URL) because toolbar icons must inherit `currentColor`, and lucide has
  * no equivalent glyph.
  *

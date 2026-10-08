@@ -33,8 +33,8 @@ export interface PrimarySidebarTreeRow {
 }
 
 /**
- * Heading row of the Pinned group. A constant rather than a Project id because the group is global — it collects
- * Sessions from every Project — so no Project owns it.
+ * Heading row of the Pinned group. A constant rather than a Project id because the group is global (it collects
+ * Sessions from every Project), so no Project owns it.
  */
 export const PINNED_GROUP_ROW_ID = 'pinned-sessions';
 
@@ -43,7 +43,7 @@ const PINNED_SESSION_ROW_PREFIX = 'pinned-session:';
 /**
  * Row id of a Session's row inside the Pinned group. Namespaced for the same reason the reveal and "New Session" rows
  * are: the tree addresses rows by id, and the Pinned group is a second place a Session row can live. Pinning moves the
- * Session rather than copying it, so the two ids cannot collide today — but keeping the namespace means a row id still
+ * Session rather than copying it, so the two ids cannot collide today, but keeping the namespace means a row id still
  * says which group it belongs to, which is what `focusRow`'s `[data-row-id]` lookup and the roving Tab stop address.
  */
 export function primarySidebarPinnedRowId(sessionId: string): string {
@@ -84,9 +84,9 @@ export interface PrimarySidebarPinnedNode {
  * expanded. Matches `DisclosureMotion`'s collapsed state and the Session window exactly so focus never lands on a
  * hidden row.
  *
- * The Pinned heading is emitted as a `'project'` row because it behaves as one for every key the tree handles — Left
- * collapses it, Right opens it and steps inside — and `PINNED_GROUP_ROW_ID` stands in for the Project id it has no
- * owner for.
+ * The Pinned heading is emitted as a `'project'` row because it behaves as one for every key the tree handles: Left
+ * collapses it, Right opens it and steps inside, and `PINNED_GROUP_ROW_ID` stands in for the Project id it has no owner
+ * for.
  *
  * An expanded Project with no visible Sessions renders the "New Session" row in place of that list, so it takes the
  * Session rows' place here too. The condition is read straight off `sessionIds` rather than a separate emptiness flag:
@@ -193,7 +193,7 @@ function firstPrimarySidebarChildRowId(
 /**
  * Resolves Left/Right on a tree row per the standard ARIA tree authoring pattern: Right opens a collapsed Project and
  * steps into the first row of an already open one, Left closes an open Project. A Session, reveal, or "New Session" row
- * has no children of its own, so Left instead moves focus to its owning Project heading — only a Project is a
+ * has no children of its own, so Left instead moves focus to its owning Project heading: only a Project is a
  * collapse/expand target, and Right on one of those rows does nothing.
  *
  * Right on an already expanded Project used to be a dead key, which is the half of the pattern that leaves a user who
@@ -215,7 +215,7 @@ export function primarySidebarHorizontalIntent(
 /**
  * Resolves which row owns the PrimarySidebar tree's single roving Tab stop (standard ARIA tree authoring pattern: one
  * Tab stop, arrow keys move focus inside it). Prefers the last row the user actually focused, but that id can go stale
- * — a Session gets archived, or a Project collapses over the Session that was focused — so it falls back through the
+ * (a Session gets archived, or a Project collapses over the Session that was focused) so it falls back through the
  * selected Session's row, then the selected Project's heading row, then the first row, exactly like a fresh tree with
  * no focus history yet.
  */

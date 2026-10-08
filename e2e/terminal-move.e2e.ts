@@ -26,7 +26,7 @@ import {
 
 /**
  * `:not([inert])` because Move to New Session leaves the source Session's tab behind as an exit-animation ghost with
- * the same Terminal id, and Session keep-alive now holds that Session mounted instead of unmounting it on the switch —
+ * the same Terminal id, and Session keep-alive now holds that Session mounted instead of unmounting it on the switch,
  * so for the length of the animation one Terminal really does have two tabs in the DOM. Only one of them is real.
  */
 function terminalTab(page: Page, terminalId: string) {

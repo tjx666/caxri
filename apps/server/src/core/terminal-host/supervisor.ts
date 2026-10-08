@@ -79,7 +79,7 @@ const SHUTDOWN_TIMEOUT_PER_TERMINAL_MS = 1_000;
 
 /**
  * `host.shutdown` must let the Terminal Host cross the parser barrier for every live Terminal before Server Core gives
- * up and force-terminates the child. A fixed timeout starves a Host holding many live Terminals — the budget instead
+ * up and force-terminates the child. A fixed timeout starves a Host holding many live Terminals: the budget instead
  * scales with how many final snapshots it actually has to capture, capped so a runaway Terminal count cannot delay
  * application shutdown indefinitely.
  */
@@ -120,7 +120,7 @@ export class TerminalHostSupervisor extends EventTarget {
     /**
      * Set by `markCoreStopping()` when Server Core's own `stop()` begins, before the graceful `host.shutdown` request
      * necessarily reaches this Host. Distinguishes an unexpected crash from an OS-initiated signal (e.g. the whole
-     * process tree receiving SIGKILL during an app update) that reaches the Host outside the normal `shutdown()` path —
+     * process tree receiving SIGKILL during an app update) that reaches the Host outside the normal `shutdown()` path:
      * see `handleExit`.
      */
     private coreStopping = false;
@@ -233,7 +233,7 @@ export class TerminalHostSupervisor extends EventTarget {
         this.rejectPending(`Terminal Host exited with code ${code}`);
         /**
          * A signal-driven exit while Server Core is itself mid-`stop()` is most likely the OS tearing down the whole
-         * process tree (e.g. during an app update) rather than a genuine Terminal Host crash — `intentionalStop` only
+         * process tree (e.g. during an app update) rather than a genuine Terminal Host crash: `intentionalStop` only
          * covers the case where this supervisor's own `shutdown()` reached the child first. Demote to 'warn' instead of
          * 'error' so routine app-quit teardown does not read as a production incident.
          */

@@ -7,7 +7,7 @@ status: current
 
 The Activity view is one of the Primary Side Bar's two bodies. It answers one question across every
 Project: **which Sessions are waiting on me right now.** The other body, the Project tree, answers a
-different question — which Sessions exist — in the order the user arranged them, so a Session that
+different question (which Sessions exist) in the order the user arranged them, so a Session that
 needs attention is deliberately never promoted there. Keeping the two orders apart is the point: one
 is the user's filing, the other is a queue.
 
@@ -21,7 +21,7 @@ Switch with the to-do list button in the side bar header, `Cmd+Alt+U`, or the Co
 entry **View: Toggle Activity**. The icon pictures a queue of work rather than a notification: the
 Status Bar already ends in a bell holding app notifications, and an inbox is the Agent Inbox view's
 icon. The button carries the number of Sessions with Unread Attention, so the tally is legible
-while the tree is showing — which is exactly when the queue is unmounted.
+while the tree is showing, which is exactly when the queue is unmounted.
 `Cmd+Shift+N` jumps to the next Session that needs you, revealing the queue on the way so the user
 can see what else is in line.
 
@@ -42,8 +42,8 @@ Rows are grouped, and the groups are ordered:
 | Recently finished | It completed within the retention window below                  |
 | Idle              | Everything else, including a detached Agent that did not fail   |
 
-Each heading leads with its own muted glyph — a raised hand, a bolt, an hourglass, a warning
-triangle, a double check, and a moon — so a group is found by shape before its label is read, as in
+Each heading leads with its own muted glyph: a raised hand, a bolt, an hourglass, a warning
+triangle, a double check, and a moon, so a group is found by shape before its label is read, as in
 Paseo's status list. None of them reuses a row glyph's circle family: the heading names the section,
 and repeating the row glyph above its own rows would say the same thing twice. **Needs attention**
 is a raised hand rather than a bell because the Status Bar's notification center owns the bell.
@@ -63,13 +63,13 @@ frozen in an old group.
 
 Detaching an Agent hands it to another client and stops its Terminal; it does not update the
 Session's last Agent Activity, which stays frozen at whatever the final probe recorded. A detached
-Session is therefore read as quiet rather than by that frozen value — otherwise one detached
+Session is therefore read as quiet rather than by that frozen value: otherwise one detached
 mid-turn would sit under **Waiting** while its own row read "Detached". The one exception is
 **Failed**: detaching resolves nothing, and nothing else will clear a failure.
 
 **Attention outranks Working on purpose.** Caxri's unread flag means "something happened that you
 have not opened yet", which is a property of the user's queue rather than of the Agent, so it
-belongs above any turn still in progress — including that same Session's turn, since a Session can
+belongs above any turn still in progress, including that same Session's turn, since a Session can
 be both unread and running. herdr and Kero rank their rollups the same way; Orca and T3 Code put
 running work first because their lists describe live work rather than a to-do queue.
 
@@ -100,8 +100,8 @@ all:
 ```
 
 The second line says where the Session runs, in the order a user narrows it down: which Agent CLI
-(its identity icon), which repository, and — only when the Session works in a linked worktree rather
-than its Project root — which worktree, marked by the same `worktree` codicon the Project tree uses.
+(its identity icon), which repository, and (only when the Session works in a linked worktree rather
+than its Project root) which worktree, marked by the same `worktree` codicon the Project tree uses.
 The pull request glyph is the Project tree's own, colored by lifecycle, in the same right-edge slot.
 It is centered on the whole row rather than on the title line, so it belongs to the Session instead
 of floating in the row's top-right corner. The title clips with the Project tree's right-edge fade
@@ -109,8 +109,8 @@ rather than an ellipsis.
 
 **The state is a shape because every group heading already names it.** A row under **Working** that
 also printed "Working" repeated its own heading, and three of the six groups did exactly that, word
-for word. The words are not gone — `agent-activity-glyph.ts` keeps them as the glyph's `aria-label`
-and its shared tooltip — they are just no longer spent on a line that has 230px to work with. Orca and
+for word. The words are not gone: `agent-activity-glyph.ts` keeps them as the glyph's `aria-label`
+and its shared tooltip: they are just no longer spent on a line that has 230px to work with. Orca and
 T3 Code reached the same place from a different direction: neither groups by state, and both still
 chose a glyph over a colored word because a shape is what a scanning eye resolves first.
 
@@ -124,7 +124,7 @@ Color is the one thing the shape does not carry, and it follows the two-tier rul
 **Working** spinner, which is `--success` green: it is the only motion in the list, and in muted grey
 it read as a loading placeholder rather than an Agent making progress. It cannot be confused with a
 request, because an unread running Session sits under **Needs attention** with its attention glyph. An unread row's tint comes from _why_ it needs
-the user (`sessionUnreadTone`), not from what its Agent is doing right now — a completed turn is a
+the user (`sessionUnreadTone`), not from what its Agent is doing right now: a completed turn is a
 neutral state, which would print the commonest unread row of all in the same grey as an Idle one,
 and an unread Session still running is a success state, which would put green under "Needs
 attention".
@@ -184,7 +184,7 @@ in the Primary Side Bar. The two lists answer different questions, and removing 
 is what Delete means in a queue.
 
 Switching bodies hands the keyboard over. The body that leaves is unmounted, taking any focused row
-with it, and the browser then drops focus onto `document.body` — which silently restarts the next
+with it, and the browser then drops focus onto `document.body`, which silently restarts the next
 Tab from the top of the document. `refocusChromeSurfaceBody` in
 `apps/desktop/src/renderer/src/stores/chrome-focus-handoff.ts` moves focus to the arriving body's
 own entry point instead, but only when focus was inside the side bar to begin with: someone typing
@@ -196,13 +196,13 @@ keyboard.
 Which body the side bar shows lives in the Renderer's chrome layout
 (`primarySidebarActivityMode`), beside the panel widths and visibility flags, and persists to
 `localStorage`. It is deliberately not Session-owned: this queue spans every Project, so tying the
-mode to the selected Session would flip the side bar's contents underneath a user walking the queue
-— the list would vanish on its own first click.
+mode to the selected Session would flip the side bar's contents underneath a user walking the queue:
+the list would vanish on its own first click.
 
 Switching modes unmounts the body that leaves, rather than hiding it. Keeping both alive would mean
 a hidden Project tree still polling pull requests, or a hidden queue still re-projecting every
 Session on the retention clock, purely to preserve a scroll position behind a surface nobody can
-see. The Project tree's own expansion state survives regardless — it lives in its own store, not in
+see. The Project tree's own expansion state survives regardless: it lives in its own store, not in
 the mounted component.
 
 ### `Cmd+Shift+N`, and why not `Cmd+Shift+` backtick

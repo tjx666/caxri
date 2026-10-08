@@ -32,13 +32,13 @@ export interface AcceptanceCandidateInput {
 /**
  * Collects the acceptance reports a branch is plausibly delivering against, most authoritative first.
  *
- * Both sources carry a full URL, so unlike the Linear collector there is no precision gate to apply — the only question
+ * Both sources carry a full URL, so unlike the Linear collector there is no precision gate to apply: the only question
  * is order. A pull request body states the link on purpose and wins its position; the conversation fills in what the
  * pull request did not say, or answers for a branch that has no pull request yet.
  *
  * The first mention of a report wins: a conversation that repeats what the pull request already linked does not produce
  * a second entry, and does not demote the statement the pull request made. A round pinned by the winning mention is the
- * round that is reported — pasting a link with `?turn=2` is how somebody says which round they mean.
+ * round that is reported: pasting a link with `?turn=2` is how somebody says which round they mean.
  */
 export function collectAcceptanceCandidates(
     input: AcceptanceCandidateInput,
@@ -104,7 +104,7 @@ export async function loadPullRequestAcceptances(
  * resolved.
  *
  * The chip renders one report and counts the remainder, so resolving the tail would spend a CLI query per refresh on a
- * verdict nothing draws. A failed lookup degrades to the bare link rather than surfacing a provider error — the status
+ * verdict nothing draws. A failed lookup degrades to the bare link rather than surfacing a provider error: the status
  * bar has no room to explain one, and the Status panel already reports provider outages properly.
  */
 export async function loadOverviewAcceptances(

@@ -13,7 +13,7 @@ import { useSessionOrder } from './use-session-order';
 
 /**
  * `useSessionOrder`'s `groupOf` option. A named function rather than an inline arrow at the call site below, so its
- * identity stays stable across renders — `useSessionOrder` now memoizes its returned controller, and an inline arrow
+ * identity stays stable across renders: `useSessionOrder` now memoizes its returned controller, and an inline arrow
  * passed in fresh on every render would silently re-invalidate that memoization for every Pinned-group re-render (issue
  * #1108).
  */
@@ -29,7 +29,7 @@ interface PinnedSessionGroupInput {
     selectedSessionId: string | undefined;
     /**
      * Every Session, unfiltered. Deliberately not the Project groups' list, which is already frozen and ordered for
-     * their own drag — the Pinned group is a separate list with its own order.
+     * their own drag; the Pinned group is a separate list with its own order.
      */
     sessions: readonly SessionRecord[];
 }
@@ -49,13 +49,13 @@ export interface PinnedSessionGroupModel extends SessionListWindow<SessionRecord
      */
     revealMore: () => void;
     /**
-     * Every pinned Session in Pinned order, frozen while a drag is in flight — including the ones the window hides, so
+     * Every pinned Session in Pinned order, frozen while a drag is in flight, including the ones the window hides, so
      * the heading's count stays the real membership.
      */
     sessions: SessionRecord[];
     /**
      * Workbench Root Projects keyed by Session id. Resolved separately from the Project groups' equivalent, which only
-     * covers the Sessions those groups render — a pinned Session in a collapsed Project is not in that set.
+     * covers the Sessions those groups render: a pinned Session in a collapsed Project is not in that set.
      */
     worktreeProjects: Record<string, ProjectRecord>;
 }

@@ -97,9 +97,10 @@ function isViewedSelection(
  * Attention first, then live work, then everything that is merely history.
  *
  * `attention` deliberately outranks `working`: Caxri's unread flag means "something happened that you have not looked
- * at", which is a property of the user's queue rather than of the Agent, so it belongs above any turn still in progress
- * — including the Session's own, since a Session can be both unread and running. herdr and Kero rank their rollups the
- * same way; Orca and T3 Code put running work first because their lists describe live work rather than a to-do queue.
+ * at", which is a property of the user's queue rather than of the Agent, so it belongs above any turn still in
+ * progress, including the Session's own, since a Session can be both unread and running. herdr and Kero rank their
+ * rollups the same way; Orca and T3 Code put running work first because their lists describe live work rather than a
+ * to-do queue.
  */
 const GROUP_ORDER: readonly AgentActivityGroupId[] = [
     'attention',
@@ -175,7 +176,7 @@ function groupForSession(
     if (status.kind === 'running') return 'working';
     /**
      * Everything below reads `lastActivityState`, which a detached Agent keeps frozen at whatever the last probe
-     * recorded — `suspendTerminal` only rewrites the Terminal's process state. Without this guard a Session detached
+     * recorded: `suspendTerminal` only rewrites the Terminal's process state. Without this guard a Session detached
      * mid-turn would keep sitting under "Waiting" (or age out of "Recently finished" and vanish) while its own row
      * reads "Detached". It is not waiting on anybody: it was handed to another client on purpose.
      */
@@ -265,8 +266,8 @@ export function agentActivityGroups({
  * How many Sessions the queue would put under "Needs attention", for the Primary Side Bar toggle's badge.
  *
  * Counted straight from `hasUnread` rather than by projecting the whole queue: `sessionStatus` derives `attention` from
- * exactly that flag, so this agrees with the rendered group by construction while the badge — which is on screen
- * whether or not the queue is — stays independent of Terminal records and the retention clock.
+ * exactly that flag, so this agrees with the rendered group by construction while the badge, which is on screen whether
+ * or not the queue is, stays independent of Terminal records and the retention clock.
  *
  * "Failed" is deliberately left out even though it is the other actionable group. A failure you have already read stays
  * failed until you act on it, and a badge that cannot be cleared by looking stops being a signal.

@@ -31,7 +31,7 @@ function clipLine(text: string): string {
 /**
  * The window of a file the preview pane shows for one result.
  *
- * A file-name result has no line to center on, so it shows the head of the file — which is what tells a reader whether
+ * A file-name result has no line to center on, so it shows the head of the file, which is what tells a reader whether
  * they found the right `index.ts` out of nine. Near either end the window stays the same height by borrowing from the
  * other side, so the pane does not change size as the selection moves through a file.
  */

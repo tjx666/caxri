@@ -28,8 +28,8 @@ interface NotificationAppIconPathOptions {
 /**
  * Icon shown by the alerter notification fallback. macOS masks a full-bleed app icon into its rounded plate only for
  * the Dock and Finder; an image handed to `alerter --app-icon` is drawn as-is, so the square `icon.icns` rendered as a
- * hard-edged square in the banner. Packaged builds therefore ship `build/notification-icon.png` — the production icon
- * with the rounded plate and grid margin baked in — as an extra resource; development launches reuse the Dock icon,
+ * hard-edged square in the banner. Packaged builds therefore ship `build/notification-icon.png` (the production icon
+ * with the rounded plate and grid margin baked in) as an extra resource; development launches reuse the Dock icon,
  * which already carries its plate. Without an explicit icon alerter shows its own Terminal glyph.
  */
 export function resolveNotificationAppIconPath({

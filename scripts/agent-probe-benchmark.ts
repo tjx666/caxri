@@ -7,7 +7,7 @@
  * wall-clock threshold moves with machine load, so a cache failing completely and falling back to reading all 512 files
  * still finishes under 50ms on an idle machine, while a loaded one fails a run that changed nothing (issue #630). What
  * does discriminate is the syscall accounting, which is independent of machine speed and is asserted in
- * `metadata-cache.test.ts` — and, for a real run, printed here as the cache counters beside the timings.
+ * `metadata-cache.test.ts`, and, for a real run, printed here as the cache counters beside the timings.
  *
  * Usage: `bun run benchmark:agent-probe` (override with `CAXRI_BENCHMARK_AGENT_PROBE_FILES` and
  * `CAXRI_BENCHMARK_AGENT_PROBE_ITERATIONS`).

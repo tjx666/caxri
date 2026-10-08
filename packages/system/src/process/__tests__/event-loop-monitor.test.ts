@@ -154,7 +154,7 @@ describe('event-loop stall monitor', () => {
     });
 
     /**
-     * The aggregate exists so another diagnostic — a stalled editor Worker, a timed-out request — can carry what this
+     * The aggregate exists so another diagnostic (a stalled editor Worker, a timed-out request) can carry what this
      * process's loop was doing, instead of leaving a reader to join two logs by timestamp.
      */
     it('accumulates blocks and suspensions separately, with the time since the last block', () => {

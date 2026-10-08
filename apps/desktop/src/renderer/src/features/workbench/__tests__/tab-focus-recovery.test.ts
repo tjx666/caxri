@@ -36,7 +36,7 @@ describe('planTabFocusRecovery', () => {
 
     it('lets an activated Terminal claim focus itself when focus came from pane content', () => {
         // Regression: `Cmd+T` / "+" from inside xterm disposed the old xterm, focus fell to `body`, and the recovery
-        // handed the new tab button `preserveTerminalFocus` for the very Terminal it was vetoing — so the new
+        // handed the new tab button `preserveTerminalFocus` for the very Terminal it was vetoing, so the new
         // Terminal never focused and the tab wore a keyboard focus ring.
         expect(planTabFocusRecovery(terminalActiveLayout(), 'content')).toBeUndefined();
     });

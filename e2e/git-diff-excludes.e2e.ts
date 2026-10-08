@@ -120,7 +120,7 @@ test('Git diff exclusions hide changes, reveal on demand, and refresh from Setti
         }
         await expect(patterns.locator('li')).toHaveCount(0);
         // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
-        // outright, forcing the fresh mount this test needs below — otherwise reopening would just
+        // outright, forcing the fresh mount this test needs below; otherwise reopening would just
         // re-show the same still-mounted, already-empty list, proving nothing about whether the
         // removals actually persisted rather than only updating local UI state.
         await running.page.keyboard.press('Meta+w');

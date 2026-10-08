@@ -184,7 +184,7 @@ describe('Sonner notification adapter', () => {
 
     /**
      * Sonner deletes a notification after its action unless the handler calls `preventDefault`. A `persist` card is
-     * held until the user dismisses it, and its action routinely opens a confirmation the user can still cancel — so
+     * held until the user dismisses it, and its action routinely opens a confirmation the user can still cancel, so
      * deleting the card on click would take the only way back to the offer.
      */
     it('survives its own action when the notification is persistent', () => {

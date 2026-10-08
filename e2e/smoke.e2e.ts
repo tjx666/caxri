@@ -12,7 +12,7 @@ const packagedExecutable = process.env.CAXRI_PACKAGED_EXECUTABLE;
 
 /**
  * Smallest end-to-end health check: launch, create a Project+Session with a shell Terminal, run a command, and see its
- * output. This is the fast gate behind `bun run test:smoke` — it is not a substitute for the full `bun run test:e2e`
+ * output. This is the fast gate behind `bun run test:smoke`; it is not a substitute for the full `bun run test:e2e`
  * suite.
  */
 test('smoke: launches, creates a shell Session, and runs a Terminal command', async () => {

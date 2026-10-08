@@ -162,7 +162,7 @@ test('Review comments become outdated after a changed line and survive a missing
 });
 
 test('Review comments survive closing then reopening their diff tab and a Renderer reload', async () => {
-    // Review comments are Server-owned (issue caxri#1294), not Renderer state, so neither of these must lose them —
+    // Review comments are Server-owned (issue caxri#1294), not Renderer state, so neither of these must lose them:
     // only an app or Server restart does (see docs/git-diff-review.md).
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-review-persistence-e2e-'));
     const root = join(testDirectory, 'project');

@@ -7,7 +7,7 @@ import { sortedCopy } from '@caxri/utils';
 export const MAX_SHORTCUT_CHORDS = 2;
 
 /**
- * Canonical normalization for one chord — a single key combination such as `cmd+shift+k`.
+ * Canonical normalization for one chord, a single key combination such as `cmd+shift+k`.
  */
 function normalizeChord(value: string): string {
     const parts = value

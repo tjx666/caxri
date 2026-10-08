@@ -36,7 +36,7 @@ export function pullRequestOrigin(url: string): PullRequestOrigin | undefined {
 
 /**
  * Two commit identifiers name the same commit. Vercel records the full hash while GitHub may abbreviate it, so the
- * shorter one is compared as a prefix of the longer — which is what an abbreviated hash means.
+ * shorter one is compared as a prefix of the longer, which is what an abbreviated hash means.
  */
 export function isSameCommit(left: string, right: string): boolean {
     const [shorter, longer] =
@@ -55,7 +55,7 @@ export interface SessionDeploymentResolverDependencies {
  * Decides whether a Session's merged pull request is what production is currently serving.
  *
  * The sidebar row would otherwise stop at "merged", which is the moment the work left the Agent's hands rather than the
- * moment it reached users — the state the maintainer actually waits for. Only an exact match counts: the hosting
+ * moment it reached users: the state the maintainer actually waits for. Only an exact match counts: the hosting
  * provider's live production deployment must have been built from this pull request's own merge commit. The next merge
  * moves production to another commit and this row silently goes back to reporting a merge, which is correct, because
  * the delivery it describes is no longer the one being served.

@@ -31,7 +31,7 @@ export const terminalLongPasteParametersSchema = z.object({
  *
  * Caxri used to spend a low-cost model call on every long paste before the text reached the Agent, which held Terminal
  * input for as long as that call took and produced nothing when it timed out. The Agent is better placed to decide
- * whether a summary is worth paying for — it can read the file, grep it, or delegate to a small-model subagent — so the
+ * whether a summary is worth paying for (it can read the file, grep it, or delegate to a small-model subagent) so the
  * Server's job ends at putting the original somewhere readable and saying where it is.
  */
 export const terminalLongPasteResultSchema = z.discriminatedUnion('status', [

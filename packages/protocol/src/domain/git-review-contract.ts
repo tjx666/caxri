@@ -126,7 +126,7 @@ function reviewFileReference(
 /**
  * The one prompt sent to the Agent for a batch of review comments. Shared by the Desktop Renderer, which renders it as
  * the send dialog's preview, and the Server, which sends the identical text it independently reconstructs from its own
- * comment store — so the two never have to agree over IPC about what the prompt looks like.
+ * comment store, so the two never have to agree over IPC about what the prompt looks like.
  */
 export function formatGitReviewComments(
     comments: readonly GitReviewComment[],

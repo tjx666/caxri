@@ -71,7 +71,7 @@ test('the empty-Project New Session row anchors the Terminal menu to itself', as
         /**
          * The pencil keeps its `session.create` tooltip. Base UI's tooltip trigger reaches its child through `render`,
          * so wrapping a plain function component instead of the trigger element silently drops the props it injects and
-         * the tooltip never opens — which is exactly what splitting this file into two anchors first did.
+         * the tooltip never opens, which is exactly what splitting this file into two anchors first did.
          */
         await pencil.hover();
         await expect(running.page.locator('.tooltip-popup[data-open]')).toContainText(
@@ -90,8 +90,8 @@ test('the empty-Project New Session row anchors the Terminal menu to itself', as
 });
 
 /**
- * The same row as a tree row. It used to be mouse-only — hard-wired `tabIndex={-1}` and missing from the
- * PrimarySidebar's flattened row order — so arrow keys walked straight past it to the next Project
+ * The same row as a tree row. It used to be mouse-only: hard-wired `tabIndex={-1}` and missing from the
+ * PrimarySidebar's flattened row order, so arrow keys walked straight past it to the next Project
  * (github.com/tjx666/caxri/issues/608).
  */
 test('arrow keys reach the empty-Project New Session row and follow the Session it creates', async () => {

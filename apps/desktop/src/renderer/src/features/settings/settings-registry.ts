@@ -276,11 +276,11 @@ const rows: SettingRowSource[] = [
         /**
          * Kept as its own setting rather than merged into GPU acceleration below (issue caxri#1289): it gates the GPU
          * for the whole app, GPU acceleration gates only the Terminal's WebGL renderer, and the two can legitimately
-         * disagree — GPU acceleration can still be "on" while this is off, it just has nothing to accelerate. Placed
+         * disagree: GPU acceleration can still be "on" while this is off, it just has nothing to accelerate. Placed
          * directly above it so the dependency reads in cause-then-effect order. Also says what turning it off actually
          * costs and what takes it back: the previous wording promised "Caxri never changes this automatically", which
-         * stopped being true the moment a crash card could write it, so the promise is now the accurate one — Caxri
-         * only changes it behind a confirmation the user answered.
+         * stopped being true the moment a crash card could write it, so the promise is now the accurate one: Caxri only
+         * changes it behind a confirmation the user answered.
          */
         description:
             "Controls whether the whole app draws with your graphics hardware, including every Terminal's GPU " +
@@ -391,8 +391,8 @@ const rows: SettingRowSource[] = [
             'delegation presets, in the Source view.',
         binding: { type: 'delegation-depth' },
         /**
-         * Derived from the one spec that already describes this key, so the words it lists — `model`, `effort`,
-         * `caller` — keep finding the row instead of dying with the complex editor this row replaced.
+         * Derived from the one spec that already describes this key, so the words it lists (`model`, `effort`,
+         * `caller`) keep finding the row instead of dying with the complex editor this row replaced.
          */
         haystack: specHaystack(settingsSpecByKey['agents.delegation'], [
             'delegate',

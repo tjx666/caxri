@@ -86,8 +86,8 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
     /**
      * Auto-restores a Session's Terminals that an orderly shutdown left `interrupted` (GitHub issue #18) or that the
      * background suspension sweep parked as `suspended`. A Terminal with a bound Agent conversation
-     * (`terminal.provider` set) resumes it via its Server provider descriptor, so `coordinator.prepareTerminalStart` —
-     * which clears the Agent session binding through `resetAgentMetadataForStart` — must be skipped for that Terminal;
+     * (`terminal.provider` set) resumes it via its Server provider descriptor, so `coordinator.prepareTerminalStart`,
+     * which clears the Agent session binding through `resetAgentMetadataForStart`, must be skipped for that Terminal;
      * that clearing is exactly what a normal (non-resuming) start wants. A Terminal without a bound conversation (a
      * shell, or an Agent Terminal that never reached a capability-detected session id) gets a fresh start instead. A
      * spawn failure is left as `failed`; the user can restart it manually. Restore work shares a global concurrency

@@ -83,7 +83,7 @@ export interface UseFileTreeItemInteractionsResult {
 /**
  * Owns every non-render concern for a single file-tree row: clipboard/drag-and-drop handlers, rename/create entry
  * points, roving-tabindex bookkeeping, and the keyboard shortcut map. Split out of `FileTreeItem` purely to keep that
- * component's JSX readable — every return here is consumed directly by the row's DOM attributes/handlers.
+ * component's JSX readable: every return here is consumed directly by the row's DOM attributes/handlers.
  *
  * The active scope (`scopeId`, `sessionId`) is read from the store at call time rather than taken as an option: it is
  * needed only by the handlers and effects below, never by rendered output, and passing it in would re-render every row

@@ -72,13 +72,13 @@ const DEGRADED_STATES: Partial<
 /**
  * `projectStatus.overview` may shell out to a delivery CLI (e.g. `gh`), so it is never invalidated by `files.changed`
  * (see `invalidateFileDependentQueries` in `queries/invalidation.ts`). It instead follows the Server's own delivery
- * push — `projectStatus.changed` and `sessionPullRequests.changed` both invalidate this query for the affected Session
- * — which is what lets the status bar converge with the Status panel and the sidebar row within the same Server refresh
+ * push: `projectStatus.changed` and `sessionPullRequests.changed` both invalidate this query for the affected Session,
+ * which is what lets the status bar converge with the Status panel and the sidebar row within the same Server refresh
  * instead of waiting out a fixed poll (issue caxri#1310); `PROJECT_OVERVIEW_FALLBACK_REFETCH_INTERVAL_MS` only recovers
- * from a missed or dropped push. Branch and changed-file count instead come from the `git.overview` query — a
- * Files-free projection of the same repository snapshot `SourceControlView` and `GitDiffEditor` read through
- * `git.summary`, invalidated by the Server-driven `git.changed` event — so the status bar reflects a Git-affecting
- * change immediately without pulling the full working-tree `files[]` payload across IPC.
+ * from a missed or dropped push. Branch and changed-file count instead come from the `git.overview` query: a Files-free
+ * projection of the same repository snapshot `SourceControlView` and `GitDiffEditor` read through `git.summary`,
+ * invalidated by the Server-driven `git.changed` event, so the status bar reflects a Git-affecting change immediately
+ * without pulling the full working-tree `files[]` payload across IPC.
  */
 function useProjectOverview(sessionId: string | undefined) {
     const overviewQuery = usePolledQuery(
@@ -235,7 +235,7 @@ export function StatusBar() {
             />
             {/*
              * `min-w-0` lets this side actually shrink instead of pushing width past the window
-             * edge — `<body>` has `overflow-x: hidden`, so a `flex-none` sibling here used to be
+             * edge: `<body>` has `overflow-x: hidden`, so a `flex-none` sibling here used to be
              * silently clipped below ~752px viewport width with no way to reach it. The chip-
              * priority resolution above (`chip-priority.ts`) now hides the lowest-value chips first
              * as the footer narrows, so information stays reachable without a scrollbar for every
@@ -266,7 +266,7 @@ export function StatusBar() {
              * Outside `statusbar-actions`, pinned to the far corner the way VS Code's bell is. Every chip beside it
              * follows the active tab and comes and goes as the user moves around, so an anchor placed among them
              * would slide sideways; and inside that scrolling rail the last child is exactly what an overflow would
-             * push out of sight. `flex-none` is safe for one 20px control — the clipping this footer guards against
+             * push out of sight. `flex-none` is safe for one 20px control: the clipping this footer guards against
              * came from the whole actions block refusing to shrink.
              */}
             <div className="statusbar-notifications flex flex-none items-center">

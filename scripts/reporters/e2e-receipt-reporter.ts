@@ -23,7 +23,7 @@ export interface E2ETestReceipt {
 
 export interface E2ESpecReceipt {
     /**
-     * Sum of this spec's test durations. Playwright charges fixture setup — including the Electron launch — to the test
+     * Sum of this spec's test durations. Playwright charges fixture setup, including the Electron launch, to the test
      * that triggered it, so this is the spec's true cost in its pool and is what pool-balancing decisions should read.
      */
     durationMs: number;
@@ -62,8 +62,8 @@ export interface E2EPoolReceipt {
     abortedInvocations?: E2EAbortedInvocation[];
     /**
      * Present only when an external signal stopped the pool before every invocation finished. `status` is always
-     * `failed` when this is set, even if every invocation that did run happened to pass — an aborted pool never
-     * finished planning its own completeness.
+     * `failed` when this is set, even if every invocation that did run happened to pass, an aborted pool never finished
+     * planning its own completeness.
      */
     abortReason?: E2EPoolAbortReason;
     failed: number;

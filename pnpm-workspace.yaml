@@ -61,8 +61,8 @@ minimumReleaseAgeExclude:
   - electron@45.0.0-alpha.10
 
 overrides:
-  # Security floor for DOMPurify, not a compatibility pin. It is both monaco-editor's transitive dependency and — since
-  # the Markdown preview landed — the Renderer's direct XSS boundary, so this line must keep up with the newest release
+  # Security floor for DOMPurify, not a compatibility pin. It is both monaco-editor's transitive dependency and, since
+  # the Markdown preview landed, the Renderer's direct XSS boundary, so this line must keep up with the newest release
   # rather than hold a floor: an override always wins over `apps/desktop`'s declared range.
   # Exact (not ^) per stack-baseline override policy; 3.4.8–3.4.14 closed
   # GHSA-vxr8-fq34-vvx9, GHSA-cmwh-pvxp-8882, GHSA-c2j3-45gr-mqc4, and GHSA-55q2-fjhq-7xh7.

@@ -35,8 +35,8 @@ export function sessionChangesScope(
 /**
  * Whether a Session card should show a `Changes` row at all.
  *
- * The selected Session is excluded because the Workbench already shows its count exactly — the Git tab badge subtracts
- * the gitlink rows a submodule section hides, which the `files[]`-free overview cannot — so a second, occasionally
+ * The selected Session is excluded because the Workbench already shows its count exactly: the Git tab badge subtracts
+ * the gitlink rows a submodule section hides, which the `files[]`-free overview cannot, so a second, occasionally
  * different number for the same scope would sit on the same screen.
  */
 export function shouldShowSessionChanges(scope: SessionChangesScope | undefined): boolean {
@@ -72,7 +72,7 @@ export interface SessionChangesPresentation {
 
 /**
  * The card's `Changes` row. The copy names the working tree rather than the Session's Agent, because several Sessions
- * can share one Workbench Root and any of them — or the user — may have made the edits. Zero hides the row the same way
+ * can share one Workbench Root and any of them, or the user, may have made the edits. Zero hides the row the same way
  * zero hides the Git tab badge: a clean tree is the resting state, not news.
  */
 export function sessionChangesPresentation(

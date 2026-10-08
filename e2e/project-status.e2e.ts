@@ -459,7 +459,7 @@ esac
             exact: true,
         });
         // Only the commit subject: no message body, no short SHA, and no alias the reader cannot parse. The
-        // description also names the environment as text now (#1291) — a Preview and a Production row for the
+        // description also names the environment as text now (#1291): a Preview and a Production row for the
         // same commit used to be told apart only by an unlabelled trailing glyph.
         await expect(successfulDeployment).toContainText('feat: add the status rollup');
         await expect(successfulDeployment).not.toContainText('a1b2c3d');
@@ -527,7 +527,7 @@ esac
             richTooltipBounds.x >= deploymentPointer.x + 8 ||
                 richTooltipBounds.x + richTooltipBounds.width <= deploymentPointer.x - 8,
         ).toBe(true);
-        // A deployment without Git provenance — a direct CLI upload — still falls back to its alias.
+        // A deployment without Git provenance (a direct CLI upload) still falls back to its alias.
         const buildingDeployment = tree.getByRole('treeitem', {
             name: /^project-building-tjx666\.vercel\.app, preview · /,
         });

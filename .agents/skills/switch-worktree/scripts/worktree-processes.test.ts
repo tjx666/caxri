@@ -103,7 +103,7 @@ describe('worktree process ownership', () => {
     it('reaches the launcher and the window process, neither of which any path can match', () => {
         /**
          * `dev` spawns `bun run dev` with the worktree as its working directory, and the window process reports the app
-         * name — neither carries the worktree path, which is the gap that makes a name match tempting. Both are reached
+         * name; neither carries the worktree path, which is the gap that makes a name match tempting. Both are reached
          * as the recorded launcher and its subtree instead.
          */
         expect(isWorktreeOwnedCommand('Caxri Dev', WORKTREE)).toBe(false);
@@ -355,8 +355,8 @@ describe('stopping owned processes', () => {
 
         const result = await stopWorktreeProcesses({ selfPid: 701, worktreePath: WORKTREE }, stop);
 
-        // 900 exits cleanly after SIGTERM. 901 only becomes visible afterward — standing in for a descendant that
-        // had not finished forking, or one reparented to independent path-ownership once its supervisor exited —
+        // 900 exits cleanly after SIGTERM. 901 only becomes visible afterward, standing in for a descendant that
+        // had not finished forking, or one reparented to independent path-ownership once its supervisor exited,
         // and must still receive its own SIGTERM/SIGKILL round, not merely be reported unexplained.
         expect(stop.signals).toEqual([
             [900, 'SIGTERM'],
@@ -368,10 +368,10 @@ describe('stopping owned processes', () => {
     });
 
     /**
-     * The bug behind #1179: a process invisible to the very first ownership snapshot — a descendant still mid-fork, or
-     * one that only becomes independently path-owned once its parent exits — used to be detected by the trailing
-     * re-scan and reported as a survivor without `stop` ever having sent it a signal. It must instead get its own stop
-     * round once discovered.
+     * The bug behind #1179: a process invisible to the very first ownership snapshot (a descendant still mid-fork, or
+     * one that only becomes independently path-owned once its parent exits) used to be detected by the trailing re-scan
+     * and reported as a survivor without `stop` ever having sent it a signal. It must instead get its own stop round
+     * once discovered.
      */
     it('stops a process that only becomes visible after an earlier one exits, instead of leaving it unexplained', async () => {
         const early: ProcessEntry = {
@@ -516,7 +516,7 @@ describe('stopping a real macOS process tree', () => {
     /**
      * A three-level tree shaped like a detached Server Core (Server Core -> Extension Host -> a PTY shell), rooted
      * entirely under `root` so `isWorktreeOwnedCommand` claims it exactly as it would a real worktree, and matched only
-     * through that path — nothing else on the machine can ever collide with it.
+     * through that path; nothing else on the machine can ever collide with it.
      */
     function spawnServerTree(root: string, shouldIgnoreTerm: boolean): number {
         const distribution = join(root, 'apps', 'server', 'dist');

@@ -62,7 +62,7 @@ const PROJECT_GROUP_LABEL = 'Elsewhere in this Project';
 
 /**
  * Says the search could not run, rather than letting its group disappear. A missing group and an empty group read the
- * same way — "this name is nowhere else" — and only one of them is true.
+ * same way: "this name is nowhere else", and only one of them is true.
  */
 const SEARCH_UNAVAILABLE_NOTICE = 'Project search is unavailable right now.';
 const SEARCH_INCOMPLETE_NOTICE = 'Only part of this Project was searched. Refine the name.';
@@ -75,7 +75,7 @@ const NO_MATCH_NOTICE = 'No matching file or folder.';
  *
  * Every source that was asked for gets a heading and stays visible, including one that found nothing: hiding a source
  * behind another source's emptiness is what made the Project-wide search unreachable in practice (issue #986). The
- * create row is independent of all of it — it is an action the user can see and point at, never a stand-in for a search
+ * create row is independent of all of it: it is an action the user can see and point at, never a stand-in for a search
  * that failed.
  */
 export function pathBrowserRows(input: {

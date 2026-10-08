@@ -742,8 +742,8 @@ describe('built-in theme contrast', () => {
     /**
      * `merged` paints a 13px glyph rather than text, so WCAG's 3:1 non-text floor applies. Its whole reason for
      * existing is that a merged pull request must not read as `success` (an open PR whose checks passed), and hue is
-     * what carries that at glyph size — a violet that drifted green in one theme would silently restore the original
-     * bug while still passing a contrast check.
+     * what carries that at glyph size: a violet that drifted green in one theme would silently restore the original bug
+     * while still passing a contrast check.
      */
     it('keeps the merged glyph readable and hue-separated from success on every theme', () => {
         for (const theme of builtinThemes) {

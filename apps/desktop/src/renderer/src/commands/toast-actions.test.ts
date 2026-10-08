@@ -147,7 +147,7 @@ describe('toast action handlers', () => {
         expect(mocks.undoFollowedWorkbenchRoot).toHaveBeenCalledWith('session-1', 'project-owner');
 
         // The snapshot only catches up to the followed root after this notice is raised, so the root the undo returns
-        // to still counts as "that switch" — refusing here would kill the button for the seconds it is on screen.
+        // to still counts as "that switch"; refusing here would kill the button for the seconds it is on screen.
         mocks.getBootstrap.mockReturnValue({
             sessions: [{ ...SESSION, workbenchProjectId: 'project-owner' }],
             terminals: [],

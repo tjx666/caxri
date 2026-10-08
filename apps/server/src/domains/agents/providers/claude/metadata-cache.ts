@@ -63,7 +63,7 @@ type ClaudeMetadataCacheMissReason =
      */
     | 'cold'
     /**
-     * The file's identity moved, which is the cache working as designed — Claude rewrote the session's `status`.
+     * The file's identity moved, which is the cache working as designed: Claude rewrote the session's `status`.
      */
     | 'file_changed'
     /**
@@ -78,7 +78,7 @@ type ClaudeMetadataCacheMissReason =
      */
     | 'write_raced'
     /**
-     * The file could not be read at all — it was rotated away between the listing and the `stat`, or its permissions
+     * The file could not be read at all: it was rotated away between the listing and the `stat`, or its permissions
      * deny this process. Counted as a miss rather than passed over, because a probe that reached no file at all and a
      * probe that served everything from cache both report zero reads; without this the log cannot tell them apart.
      */
@@ -116,7 +116,7 @@ const counters = emptyCounters();
 const evictedDirectories = new Set<string>();
 
 /**
- * A snapshot of the process-lifetime cache accounting. Diagnostics only — nothing here feeds a probe result.
+ * A snapshot of the process-lifetime cache accounting. Diagnostics only: nothing here feeds a probe result.
  */
 export function claudeMetadataCacheCounters(): ClaudeMetadataCacheCounters {
     return { ...counters };

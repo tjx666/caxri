@@ -51,7 +51,7 @@ function repoKey(repo: ProjectStatusRepo): string {
 /**
  * Enumerates the items a repository currently exposes as alert-worthy, keyed stably across refreshes.
  *
- * Only the current `production` and `preview` deployments are watched — `branchDeployments` is a rolling history whose
+ * Only the current `production` and `preview` deployments are watched: `branchDeployments` is a rolling history whose
  * older entries are already-known outcomes, and replaying those as alerts would notify about builds the user has long
  * since moved past.
  */

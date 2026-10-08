@@ -7,11 +7,11 @@ import { StatusItem } from './status-item';
 
 /**
  * The durable half of the update lifecycle. Downloading and ready-to-install outlive any dialog the user closed, and an
- * available release the user merely set aside still has to be reachable without waiting for the next launch — none of
+ * available release the user merely set aside still has to be reachable without waiting for the next launch: none of
  * which a modal can carry. Clicking opens the same dialog the `Check for Updates` command does.
  *
  * Muted tokens, like the Screencast chip: DESIGN.md reserves a coloured status-bar chip for a degraded Caxri, and
- * neither an available update nor a failed download is one — the app is working, the release is not. The failure is
+ * neither an available update nor a failed download is one: the app is working, the release is not. The failure is
  * carried by the icon and the label instead of by colour.
  */
 const updateChipClassName = 'text-muted';

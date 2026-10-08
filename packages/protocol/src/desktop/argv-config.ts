@@ -60,7 +60,7 @@ export const argvDesktopMethods = {
         params: noParameters,
         /**
          * `value` is the stored preference; `remoteDebugging` is what this instance is actually doing about it right
-         * now. A live disclosure must read the second one — see `remoteDebuggingStateSchema`.
+         * now. A live disclosure must read the second one: see `remoteDebuggingStateSchema`.
          */
         result: z.object({ remoteDebugging: remoteDebuggingStateSchema, value: argvConfigSchema }),
     },

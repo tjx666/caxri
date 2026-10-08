@@ -31,10 +31,10 @@ const greenReceipt = {
  *
  * Regression guard for issue #1446: a full-checks failure `SIGTERM`s the sibling E2E pool component (`abortOnFailure:
  * false` only protects the pool from aborting _others_, not from being aborted itself), and the workflow's `verify
- * desktop-exclusive` step — and therefore its failure-artifact upload — depends on that component reading non-zero in
- * the concurrent-validation receipt no matter how the killed child actually exits. `scripts/run-e2e-pools.ts` now
- * survives the signal long enough to write a partial receipt and exit through its own `process.exitCode = 1` instead of
- * dying to the raw signal; this pins that either shape still fails closed here.
+ * desktop-exclusive` step, and therefore its failure-artifact upload, depends on that component reading non-zero in the
+ * concurrent-validation receipt no matter how the killed child actually exits. `scripts/run-e2e-pools.ts` now survives
+ * the signal long enough to write a partial receipt and exit through its own `process.exitCode = 1` instead of dying to
+ * the raw signal; this pins that either shape still fails closed here.
  */
 describe('concurrent CI validation abort signal', () => {
     it('keeps desktop-exclusive verification closed when a checks failure SIGTERMs the sibling pool', async () => {
@@ -73,7 +73,7 @@ describe('concurrent CI validation abort signal', () => {
 
             await expect(checks).resolves.toBe(1);
             // `run-e2e-pools.ts`'s own SIGTERM handler lets it finish its partial receipt and exit with code 1 on its
-            // own terms, well inside the 2s force-kill window — simulated here without ever firing that timer.
+            // own terms, well inside the 2s force-kill window: simulated here without ever firing that timer.
             poolChild.emit('exit', 1, null);
 
             const receipt = {

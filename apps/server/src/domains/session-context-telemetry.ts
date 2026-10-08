@@ -46,7 +46,7 @@ function increment(
 
 /**
  * Owns what `SessionContextService`'s incremental transcript scan records about itself (issue #1032). One immediate
- * record per failure and per cursor reset — the same shapes `GitSummaryTelemetry` uses for `git.summary` — keeps a
+ * record per failure and per cursor reset (the same shapes `GitSummaryTelemetry` uses for `git.summary`) keeps a
  * symlink rejection or a truncated transcript visible the moment it happens, while the per-Session, per-window
  * aggregate answers "how long did this path spend in the last minute" without a record on every poll.
  *

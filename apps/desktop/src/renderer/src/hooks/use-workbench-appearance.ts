@@ -30,8 +30,8 @@ export function useWorkbenchAppearance(): void {
     }, [workbenchFontFamily]);
     /**
      * Monaco receives `editor.fontFamily` as an option, which reaches nothing outside an editor widget. Publishing it
-     * as a custom property too is what lets CSS-rendered code — the Markdown preview's fenced blocks — use the same
-     * font as the editor those lines came from.
+     * as a custom property too is what lets CSS-rendered code, the Markdown preview's fenced blocks, use the same font
+     * as the editor those lines came from.
      */
     useEffect(() => {
         const entry = cssFontFamilyEntry(editorFontFamily);

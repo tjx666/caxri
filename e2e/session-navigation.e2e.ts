@@ -69,7 +69,7 @@ test('Session history navigates back and forward from the PrimarySidebar header 
 
         /**
          * The two extra mouse buttons drive the same history. Playwright's `mouse` API only models left/right/middle,
-         * so they are dispatched over raw CDP — which is also the closest thing to a real device event available here.
+         * so they are dispatched over raw CDP, which is also the closest thing to a real device event available here.
          */
         const cdp = await running.page.context().newCDPSession(running.page);
         const pressSideButton = async (button: 'back' | 'forward'): Promise<void> => {
@@ -109,7 +109,7 @@ test('Session history navigates back and forward from the PrimarySidebar header 
         /**
          * `session.select` is serialized by the Runtime while `app.bootstrap` is not, so reading the selection straight
          * after the gesture could still observe the state from before a leaked navigation. Selecting a Session through
-         * that same queue is the barrier — it cannot resolve until a leaked selection has been applied — and it also
+         * that same queue is the barrier (it cannot resolve until a leaked selection has been applied) and it also
          * makes the two worlds diverge durably, because a leaked Back would have dropped the forward entries first.
          */
         await pageRequest(running.page, 'session.select', { sessionId: sessionC });

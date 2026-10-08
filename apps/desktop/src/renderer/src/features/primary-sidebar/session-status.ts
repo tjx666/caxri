@@ -22,7 +22,7 @@ type SessionStatusSource = Pick<
  * Projects the detailed Agent lifecycle into the single status slot shared by Session lists.
  *
  * The amber attention slot means exactly one thing: an event the user has not opened yet. It is therefore always the
- * animated unread state and always clears once the Session is read — there is deliberately no quieter "still waiting"
+ * animated unread state and always clears once the Session is read; there is deliberately no quieter "still waiting"
  * variant. A second, static amber state keyed off `lastActivityState` alone used to survive acknowledgement, which left
  * read Sessions marked with a cue no amount of reading could clear and made the animated one impossible to trust.
  */

@@ -134,7 +134,7 @@ describe('status bar Linear issues', () => {
                 source: 'branch',
             },
         ]);
-        // One allow-list query plus one issue query — and no second `gh` call, because the pull request record the
+        // One allow-list query plus one issue query, and no second `gh` call, because the pull request record the
         // overview already fetched carries the body.
         expect(run.mock.calls.filter(([command]) => command === 'linear')).toHaveLength(2);
         expect(run.mock.calls.filter(([command]) => command === 'gh')).toHaveLength(1);

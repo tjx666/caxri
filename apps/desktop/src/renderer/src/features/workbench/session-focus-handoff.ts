@@ -10,7 +10,7 @@ import { getActivePaneTab } from './pane-actions';
  *
  * Before Session keep-alive (issue #657) nothing asked this question: switching Sessions rebuilt the whole Workbench,
  * and the Terminal's own attach completion claimed focus on the way up, gated by `shouldAutoFocusTerminal`. A retained
- * Session never attaches again, so the handoff has to be made explicitly — and with the same restraint, or the switch
+ * Session never attaches again, so the handoff has to be made explicitly, and with the same restraint, or the switch
  * would yank focus out of whatever the user is actually typing in.
  */
 export function shouldHandOffSessionFocus(
@@ -20,7 +20,7 @@ export function shouldHandOffSessionFocus(
     if (isModalOpen) return false;
     /**
      * Focus left behind inside the Session that just went off screen is focus nobody can see or use, so it is exactly
-     * what this hands over — even though a Terminal's helper textarea reads as editable. Browsers usually blur it to
+     * what this hands over, even though a Terminal's helper textarea reads as editable. Browsers usually blur it to
      * `document.body` when the wrapper turns `hidden`, but that is a side effect, not a guarantee worth depending on.
      */
     if (focusedElement?.closest('.workbench-session[hidden]')) return true;

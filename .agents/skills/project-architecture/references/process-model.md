@@ -59,16 +59,16 @@ persisted Terminals become `dead`, never silently restored processes. Server Cor
 The explicit-quit stop above only covers a clean Desktop exit. A force-killed, crashed, or mid-restart Desktop skips
 it entirely, so Server Core also runs an independent idle-exit sweep (`apps/server/src/core/idle-exit.ts`): once the
 aggregate authenticated connection count across every transport (Desktop, Mobile, Agent, or CLI) has stayed at zero
-continuously for `DEFAULT_IDLE_EXIT_MS` (30 minutes), it exits through the same normal shutdown path — snapshot every
+continuously for `DEFAULT_IDLE_EXIT_MS` (30 minutes), it exits through the same normal shutdown path: snapshot every
 live Terminal, then stop Terminal Host and Extension Host. The sweep never reads the Desktop lease itself; a connected
 Desktop's socket is one of the counted transports, so the lease expiring (or the socket dropping for any other
 reason) already zeroes that count the same instant. The sweep defers, logging `server_core.idle_exit_deferred` with
 the closed reason `active-pty`, whenever `app.health.activePtyCount > 0` or its own health check fails, and rechecks
-after another full threshold window — the same live-PTY signal the interactive `host.stop` command requires explicit
+after another full threshold window, the same live-PTY signal the interactive `host.stop` command requires explicit
 confirmation to override, so a Server whose Sessions still own live PTYs never idle-exits on its own;
 `switch-worktree`'s `orphans`/`doctor` commands remain the discovery path for that case. A successful exit logs
 `server_core.idle_exit_triggered` with the idle duration and how many prior checks deferred. This applies to packaged
-builds too — see [ADR 0010](../../../../docs/adr/0010-server-core-idle-exit.md). The threshold is never a
+builds too; see [ADR 0010](../../../../docs/adr/0010-server-core-idle-exit.md). The threshold is never a
 user-facing setting; the only override is the internal `CAXRI_SERVER_IDLE_EXIT_MS` environment seam, forwarded from
 Desktop to Server Core in `apps/desktop/src/main/server-connection.ts` the same way as the other `CAXRI_*_MS` dev/test
 seams, which `switch-worktree dev` live verification uses to shorten the wait.

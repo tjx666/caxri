@@ -9,7 +9,7 @@ import { canonicalPath, isOpaqueAgentSessionId } from '../../contract';
 import { grokProjectRoot } from './paths';
 
 /**
- * `summary.json` is a compact per-conversation record — about 1 KB in practice. A larger file is provider schema drift
+ * `summary.json` is a compact per-conversation record: about 1 KB in practice. A larger file is provider schema drift
  * rather than a title, so the probe stays bounded instead of parsing whatever grew there.
  */
 const MAX_GROK_SUMMARY_BYTES = 64 * 1024;

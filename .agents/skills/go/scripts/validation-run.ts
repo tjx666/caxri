@@ -33,7 +33,7 @@ const VALIDATION_ENVIRONMENT_KEYS = [
      * The canonical platform-neutral gate list includes `bun run test`, which `full` deep review requires a passed
      * receipt for at the exact head. That command refuses to run outside CI unless the user grants this flag
      * (`.agents/skills/quality-check/scripts/full-suite-authorization.ts`), so stripping it here made the gate
-     * unsatisfiable locally — the review demanded a receipt its own sandbox prevented. The flag carries authorization,
+     * unsatisfiable locally: the review demanded a receipt its own sandbox prevented. The flag carries authorization,
      * not a credential, so forwarding it leaks nothing into the durable validation log.
      */
     'CAXRI_FULL_SUITE_AUTHORIZED',

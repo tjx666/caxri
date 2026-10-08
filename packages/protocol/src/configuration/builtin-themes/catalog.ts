@@ -1,7 +1,7 @@
 /**
  * The catalog itself: picker order, the id union every other module keys off, and each palette's upstream source. The
- * palettes live one file each beside this one — eight independent data blobs that widen together every time a color
- * role is added, which is what had put the single-module version over the repository's per-file line limit.
+ * palettes live one file each beside this one: eight independent data blobs that widen together every time a color role
+ * is added, which is what had put the single-module version over the repository's per-file line limit.
  */
 import type { ThemeTokens } from '../../domain/domain.js';
 import { draculaTheme } from './dracula.js';

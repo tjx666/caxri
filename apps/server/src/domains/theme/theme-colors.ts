@@ -1,7 +1,7 @@
 /**
  * Hex normalization shared by every theme importer, plus the readers that turn a VS Code color theme's `colors` and
- * `tokenColors` into Caxri roles. Split out of `index.ts` so that file stays the import pipeline — format detection,
- * the iTerm/Warp/Caxri parsers, include resolution, and contrast enforcement — rather than also holding the largest
+ * `tokenColors` into Caxri roles. Split out of `index.ts` so that file stays the import pipeline (format detection, the
+ * iTerm/Warp/Caxri parsers, include resolution, and contrast enforcement) rather than also holding the largest
  * per-format mapping table.
  */
 import type { ThemeTokens } from '@caxri/protocol';
@@ -160,9 +160,9 @@ function assignMatchingSyntaxRoles(
 }
 
 /**
- * Maps VS Code `tokenColors` onto Caxri's four editor syntax roles. Only exact selectors count — `keyword.operator`
- * must not overwrite `keyword`. Later exact rules still win. Report both missing roles and valid rules whose scopes
- * Caxri cannot represent so the import warns without counting them as effective mappings. See
+ * Maps VS Code `tokenColors` onto Caxri's four editor syntax roles. Only exact selectors count: `keyword.operator` must
+ * not overwrite `keyword`. Later exact rules still win. Report both missing roles and valid rules whose scopes Caxri
+ * cannot represent so the import warns without counting them as effective mappings. See
  * https://code.visualstudio.com/api/extension-guides/color-theme#syntax-colors.
  */
 export function applyVsCodeTokenColors(
@@ -221,8 +221,8 @@ export function isLightVsCodeTheme(
  *
  * Focus is the one deviation from the registry. VS Code draws it as an outline (`list.focusOutline`) over no background
  * at all, and Caxri has no outline token for a list row, so focus takes the selection hue at a third of its weight
- * instead. That keeps the three states on one ramp — a neutral wash for the pointer, the selection hue for the
- * keyboard, that hue opaque for the current item — the same shape `dracula.ts` already uses.
+ * instead. That keeps the three states on one ramp: a neutral wash for the pointer, the selection hue for the keyboard,
+ * that hue opaque for the current item, the same shape `dracula.ts` already uses.
  */
 const LIST_STATE_FOCUS_ALPHA = '59';
 const VSCODE_LIST_STATE_DEFAULTS = {
@@ -272,8 +272,8 @@ export function hasMappedVsCodeColor(colors: Record<string, unknown>): boolean {
  *
  * Split out of `parseVsCode` because these nineteen roles share one rule the roles above them do not: each is a state
  * of a specific control, and the fallback is another role already resolved in this same import rather than a
- * per-brightness default. The two-source rows are VS Code's own inheritance — a theme that styles only the focused
- * state means the unfocused one to match, not to fall back to a generic surface.
+ * per-brightness default. The two-source rows are VS Code's own inheritance: a theme that styles only the focused state
+ * means the unfocused one to match, not to fall back to a generic surface.
  *
  * Every value keeps its alpha. `list.hoverBackground` is a translucent wash in most themes, and flattening it would
  * paint an opaque band over the row instead of tinting it.

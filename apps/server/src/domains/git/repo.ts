@@ -647,7 +647,7 @@ export class GitRepoService {
     /**
      * `refresh` is a monotonic user nonce forcing the newest generation instead of a cached snapshot; coalescing keys
      * on Session lifetime only, not the nonce (keying on it used to run a forced refresh and a plain read as two
-     * parallel producers — #584/#556). A mid-flight force queues one trailing run so its snapshot postdates it.
+     * parallel producers, #584/#556). A mid-flight force queues one trailing run so its snapshot postdates it.
      */
     summary(
         sessionId: string,

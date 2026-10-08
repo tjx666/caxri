@@ -79,7 +79,7 @@ test('previews Markdown and SVG in a virtual editor tab', async () => {
         /**
          * `editor.openPreview` reads the active pane tab, and a keystroke sent before that tab is the active one is
          * dropped by the `when` gate with no feedback. Monaco mounts before the layout settles, so waiting for the
-         * editor element alone is not enough — wait for the tab and for the document to be painted in it.
+         * editor element alone is not enough; wait for the tab and for the document to be painted in it.
          */
         await expect(running.page.getByRole('tab', { name: 'README.md' })).toBeVisible();
         await expect(running.page.locator('.monaco-editor').first()).toContainText(

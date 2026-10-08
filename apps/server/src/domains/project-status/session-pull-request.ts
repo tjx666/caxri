@@ -24,9 +24,9 @@ export type SessionPullRequestResolver = (
 /**
  * Which pull request a Project Status reader loads.
  *
- * - `number` — the Session's own pull request, which may live in a repository other than the primary one.
- * - `branch` — no resolver answered, so the reader keeps its per-branch `gh pr view`.
- * - `none` — the Session has no pull request, or its last lookup failed; GitHub is not asked a second time.
+ * - `number`: the Session's own pull request, which may live in a repository other than the primary one.
+ * - `branch`: no resolver answered, so the reader keeps its per-branch `gh pr view`.
+ * - `none`: the Session has no pull request, or its last lookup failed; GitHub is not asked a second time.
  */
 export type PullRequestTarget =
     | { kind: 'branch' }

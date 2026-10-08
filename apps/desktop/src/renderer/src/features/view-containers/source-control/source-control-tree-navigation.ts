@@ -22,7 +22,7 @@ export function adjacentTreeItemIndex(
 }
 
 /**
- * Index of the nearest earlier treeitem at a shallower `aria-level` than `index` — i.e. this item's tree parent.
+ * Index of the nearest earlier treeitem at a shallower `aria-level` than `index`, i.e. this item's tree parent.
  * Depth-first document order guarantees a directory's own row is always the closest preceding row with a smaller
  * level.
  */
@@ -42,8 +42,8 @@ export function parentTreeItemIndex(
 
 /**
  * A disabled row cannot take focus, so leaving it in the walk turns an arrow key into a silent dead end: the browser
- * refuses the `focus()` call and the caret stays where it was. Source Control renders disabled rows routinely — a
- * commit whose page no longer matches the current revision, `Load more` while a page is in flight.
+ * refuses the `focus()` call and the caret stays where it was. Source Control renders disabled rows routinely: a commit
+ * whose page no longer matches the current revision, `Load more` while a page is in flight.
  */
 export const NAVIGABLE_TREE_ITEM_SELECTOR =
     '[role="treeitem"]:not([disabled]):not([aria-disabled="true"])';

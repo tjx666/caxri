@@ -2,10 +2,10 @@
  * Build the design-prototype runtime so prototypes are single HTML files that run offline over `file://` with the REAL
  * Caxri design system. Outputs:
  *
- * - `caxri-prototype-runtime.js` — react + `@/components/ui/*` + lucide-react + … (IIFE)
- * - `caxri-prototype-theme.js` — theme.css + styles.css + tw-animate-css inlined as `window.__CAXRI_THEME_CSS__`
- * - `tailwind-browser.js` — vendored `@tailwindcss/browser` (pinned to the repo's tailwindcss version)
- * - `babel.min.js` — vendored babel-standalone for in-browser JSX/TSX
+ * - `caxri-prototype-runtime.js`: react + `@/components/ui/*` + lucide-react + … (IIFE)
+ * - `caxri-prototype-theme.js`: theme.css + styles.css + tw-animate-css inlined as `window.__CAXRI_THEME_CSS__`
+ * - `tailwind-browser.js`: vendored `@tailwindcss/browser` (pinned to the repo's tailwindcss version)
+ * - `babel.min.js`: vendored babel-standalone for in-browser JSX/TSX
  *
  * Usage: `bun run .agents/skills/design-prototype/scripts/build-runtime.ts [out-dir]`. Default out-dir:
  * `<skill>/assets` (built artifacts are gitignored). Rebuilds are always safe (~2s); the two vendored files cache under
@@ -43,13 +43,13 @@ async function resolveEsbuild(): Promise<string> {
     try {
         entries = await readdir(store);
     } catch {
-        throw new Error(`pnpm store not found at ${store} — run \`ni\` first`);
+        throw new Error(`pnpm store not found at ${store}: run \`ni\` first`);
     }
     const copies = entries
         .filter((name) => /^esbuild@\d/.test(name))
         .toSorted((a, b) => a.localeCompare(b, 'en', { numeric: true }));
     const newest = copies.at(-1);
-    if (!newest) throw new Error('esbuild not found in the pnpm store — run `ni` first');
+    if (!newest) throw new Error('esbuild not found in the pnpm store: run `ni` first');
     return path.join(store, newest, 'node_modules/esbuild/bin/esbuild');
 }
 
@@ -109,7 +109,7 @@ async function vendor(url: string, cacheFileName: string, outFileName: string): 
             response = await fetch(url);
         } catch (error) {
             throw new Error(
-                `download failed: ${url} — the first build per machine needs network access`,
+                `download failed: ${url}: the first build per machine needs network access`,
                 { cause: error },
             );
         }

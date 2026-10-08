@@ -91,8 +91,8 @@ const SHUTDOWN_OUTCOMES: Record<ShutdownReason, ShutdownOutcome> = {
      * Caxri died; the Agents did not. Writing a Session state here used to stamp `failed` on every live Session at
      * once, which is a fact about Caxri's process wearing a field that means "what is this conversation doing". Nothing
      * ever cleared it, so each unclean exit permanently converted every live Session into a top-of-list Activity row
-     * the user could not act on or dismiss. The Session keeps whatever it was — a Session waiting on the user still is
-     * — and `interrupted` on the Terminal carries the process truth on its own. See
+     * the user could not act on or dismiss. The Session keeps whatever it was: a Session waiting on the user still is,
+     * and `interrupted` on the Terminal carries the process truth on its own. See
      * https://github.com/tjx666/caxri/issues/1124.
      */
     unclean: {
@@ -364,23 +364,23 @@ export function decideAgentMetadataUpdate(
     // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string must also preserve the current id
     const agentSessionId = snapshot.sessionId?.trim() || terminal.agentSessionId;
     /**
-     * An Agent CLI names its own conversation but — unlike a Shell — does not report that name through OSC 0/2, so
+     * An Agent CLI names its own conversation but (unlike a Shell) does not report that name through OSC 0/2, so
      * without this the Terminal row keeps the `defaultTerminalTitle` provider name it was created with and every Agent
      * tab reads "Claude"/"Codex" forever. Falling back to the row's current title (rather than to the provider name)
      * means a probe carrying no title leaves an existing OSC- or provider-supplied title alone instead of resetting
      * it.
      *
-     * Agent metadata is as untrusted as PTY output — it is whatever text a model wrote into a conversation store — and
+     * Agent metadata is as untrusted as PTY output (it is whatever text a model wrote into a conversation store) and
      * `Terminal.title` is re-sent as `agentEndpoint.begin.name` on the next launch, where the Server schema rejects
      * anything past 200 characters and would fail the start. `normalizeTerminalTitle` is the same flatten/sanitize/cap
      * pass OSC 0/2 titles already go through, so both title sources land in the tab under one bound.
      *
      * The primary Agent's tab is the Session's own face, so a Session the user named by hand wins over the Agent's
-     * conversation name there. Without this the two halves of one Session disagreed on screen — the sidebar row kept
-     * the typed name while the tab drifted to whatever the Agent CLI last called its thread. That is not an edge case:
+     * conversation name there. Without this the two halves of one Session disagreed on screen: the sidebar row kept the
+     * typed name while the tab drifted to whatever the Agent CLI last called its thread. That is not an edge case:
      * `SessionRenameService` commits the local title but skips provider synchronization for a provider without native
      * rename and for an Agent that has not produced a session yet, and an Agent may rename its own thread afterwards in
-     * any event. A secondary Agent Terminal is unaffected — its tab is the only thing naming that conversation.
+     * any event. A secondary Agent Terminal is unaffected: its tab is the only thing naming that conversation.
      */
     const preferredTitle =
         isPrimaryAgent && isManuallyTitled

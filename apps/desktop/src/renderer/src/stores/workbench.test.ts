@@ -558,7 +558,7 @@ describe('workbench Runtime events', () => {
         expect(getToasts()).toEqual([
             expect.objectContaining({
                 type: 'info',
-                title: 'Switched to worktree "feature-entered" — an Agent moved there.',
+                title: 'Switched to worktree "feature-entered": an Agent moved there.',
                 duration: 4_000,
             }),
         ]);

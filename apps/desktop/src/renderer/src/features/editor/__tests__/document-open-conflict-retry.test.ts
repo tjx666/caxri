@@ -68,7 +68,7 @@ afterEach(() => {
 /**
  * Regression coverage for issue #1409: a brand-new Session's very first `session.updateState` can lose a race against
  * that same Session's own initial Terminal-attach write and come back `CONFLICT` ("stale revision") even though nothing
- * the caller did was wrong. Opening a file must survive that benign race instead of silently dropping the tab — see
+ * the caller did was wrong. Opening a file must survive that benign race instead of silently dropping the tab; see
  * `persistOpenedEditorTab` in `document-commands.ts`.
  */
 describe('opening a tab after a stale-revision conflict', () => {
@@ -85,8 +85,8 @@ describe('opening a tab after a stale-revision conflict', () => {
                 return updateStateCalls === 1 ? Promise.reject(conflict) : Promise.resolve(null);
             }
             if (method === 'app.bootstrap')
-                // The refresh a lost revision race triggers reflects the write that actually won — the Session's own
-                // initial Terminal attachment, in the real race this reproduces — with a bumped revision and, unlike
+                // The refresh a lost revision race triggers reflects the write that actually won (the Session's own
+                // initial Terminal attachment, in the real race this reproduces) with a bumped revision and, unlike
                 // the caller's optimistic layout, no file tab yet.
                 return Promise.resolve({
                     selectedSessionId: 'session-1',
@@ -148,7 +148,7 @@ describe('opening a tab after a stale-revision conflict', () => {
     /**
      * A later command can supersede this attempt before the original write settles. `patchSessionState` never rolls
      * back a write that is no longer the latest attempt (`stores/workbench.ts`'s `isLatestAttempt` guard), so a genuine
-     * failure on the original open leaves the pane layout looking exactly like a lost revision race would — the reason
+     * failure on the original open leaves the pane layout looking exactly like a lost revision race would: the reason
      * the retry decision must come from `onStaleWrite`, not from comparing pane layouts.
      */
     it('does not reopen a tab a later close already superseded, even when the original open write fails', async () => {
@@ -244,7 +244,7 @@ describe('opening a tab after a stale-revision conflict', () => {
     });
 
     /**
-     * The Session can switch its Workbench Root while the original write is in flight — the Server's own "stale
+     * The Session can switch its Workbench Root while the original write is in flight; the Server's own "stale
      * Workbench Root" rejection also surfaces as `CONFLICT`. Retrying against a refreshed snapshot from a different
      * root would carry this file into a root it was never opened against, so the retry must bail instead.
      */

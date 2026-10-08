@@ -72,7 +72,7 @@ only when a causal path requires them:
 These filenames are relative to `project-architecture/references/`. Root synthesis reads the
 contracts needed to adjudicate findings; it does not repeat every reviewer's baseline read.
 
-Do not include suspected findings, historical conclusions, another agent's output, expected category/severity, or preferred remediation. Tell reviewers the worktree may keep changing while they work: judge code as it exists on disk, record their own start and end `git status`, and report drift only when it affects cited evidence — not as an anomaly in itself. If the worktree changes during the audit, the root agent identifies affected paths and revalidates their evidence instead of silently mixing baselines.
+Do not include suspected findings, historical conclusions, another agent's output, expected category/severity, or preferred remediation. Tell reviewers the worktree may keep changing while they work: judge code as it exists on disk, record their own start and end `git status`, and report drift only when it affects cited evidence, not as an anomaly in itself. If the worktree changes during the audit, the root agent identifies affected paths and revalidates their evidence instead of silently mixing baselines.
 
 ## Broad audit groups
 
@@ -161,7 +161,7 @@ The verifier may override category, impact, leverage, remediation target, and ac
 
 ## Coverage challenge and synthesis
 
-For a broad audit, send a fresh coverage challenger the baseline, the coverage records, and the aggregated `unverified_boundary` and `missing_sources` entries from every discovery group — never the findings themselves. Those stated boundaries are where discovery already admitted it did not look; they are the challenger's highest-yield targets. Also hand it a concrete probe list of recurring blind spots that sit between the group assignments: preload event routing, Renderer error boundaries and render-failure recovery, terminal snapshot/replay ordering, theme and settings import parsing, Process Explorer channels, `scripts/` tooling, git hooks, and the knip/doctor configs. Require it to actually open each probed file and return either a `path:line` lead with a one-sentence hypothesis or an explicit "probed, clean" — a lead list without probes is not a coverage challenge.
+For a broad audit, send a fresh coverage challenger the baseline, the coverage records, and the aggregated `unverified_boundary` and `missing_sources` entries from every discovery group, never the findings themselves. Those stated boundaries are where discovery already admitted it did not look; they are the challenger's highest-yield targets. Also hand it a concrete probe list of recurring blind spots that sit between the group assignments: preload event routing, Renderer error boundaries and render-failure recovery, terminal snapshot/replay ordering, theme and settings import parsing, Process Explorer channels, `scripts/` tooling, git hooks, and the knip/doctor configs. Require it to actually open each probed file and return either a `path:line` lead with a one-sentence hypothesis or an explicit "probed, clean"; a lead list without probes is not a coverage challenge.
 
 Verify any new lead through the normal independent flow with a fresh verifier per lead.
 

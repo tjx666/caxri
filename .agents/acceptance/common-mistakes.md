@@ -1,4 +1,4 @@
-# Common Acceptance Mistakes — Caxri
+# Common Acceptance Mistakes: Caxri
 
 This is the living log of Caxri-specific mistakes that consumed, invalidated, or
 needlessly prolonged an Acceptance run. Read it before planning a desktop or mobile round.
@@ -203,7 +203,7 @@ not word-split and fails with `command not found`. See the canonical
 **Does not work:** Picking an Agent or `Shell` when the case does not need a Terminal. Acceptance
 blocks Agent shims, so the Agent buttons render an executable-not-found panel, and `Shell` renders a
 live prompt. Both put the machine's shell prompt, user name, and Project path into every later
-screenshot of that launch — private values the round must never capture, so the artifact has to be
+screenshot of that launch: private values the round must never capture, so the artifact has to be
 deleted and the case relaunched.
 
 **Works:** Choose `Start without a Terminal` unless the case's own claim is about the Terminal.
@@ -240,8 +240,8 @@ replace the scenario result.
 carried by a unit test, a lint gate, or a type-check.
 
 **Does not work:** Leaving that sentence in the plan. LobeHub's ingest screens every plan item's
-title, category, and method for programmatic-test vocabulary — including the Chinese 单测 /
-单元测试 / 类型检查 — and silently drops the entire matching check from the round. The published
+title, category, and method for programmatic-test vocabulary (including the Chinese 单测 /
+单元测试 / 类型检查) and silently drops the entire matching check from the round. The published
 round then carries one fewer check and its verdict is recomputed upward, so a locally blocked case
 can surface remotely as a clean pass. Go's publication readback fails closed on the mismatch, and the
 already-ingested round is immutable.
@@ -268,8 +268,8 @@ elapsed regardless of progress, and completes the receipt itself when the launch
 launch closed this way carries `forcedCompletion` naming the source and reason. When the launcher
 completed its receipt while a detached Server generation still held the profile, the adapter's later
 profile removal is recorded as `deferredCleanup` on the same launch. If the receipt is still pending
-afterwards — for example the launcher was killed by
-something other than the adapter — run
+afterwards, for example the launcher was killed by
+something other than the adapter, run
 `bun run .agents/skills/acceptance/scripts/report.ts repair-lifecycle --dir <round> --case-id <id> --reason "<why>"`.
 It closes the pending launch with the reason on record and, for an isolated case, only after
 verifying the profile directory is gone. See [#611](https://github.com/tjx666/caxri/issues/611).

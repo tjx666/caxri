@@ -53,7 +53,7 @@ export function Tooltip({
      * Required when the trigger element needs an `id` of its own (a WAI-ARIA `role="tab"`, for example).
      *
      * Base UI writes its generated trigger id onto the rendered element, but merges the element's own props last, so a
-     * plain `id` on the child silently wins — and the tooltip store is then keyed to an id no element carries, leaving
+     * plain `id` on the child silently wins, and the tooltip store is then keyed to an id no element carries, leaving
      * the tooltip permanently closed. Passing the id here makes the store and the DOM agree; the child must not also
      * set one.
      */
@@ -90,7 +90,7 @@ export function Tooltip({
                     ? (open, details) => {
                           /**
                            * Base UI calls this before it commits the open, and honors `cancel()` by dropping the change
-                           * entirely — so the popup never mounts rather than mounting and being closed again.
+                           * entirely, so the popup never mounts rather than mounting and being closed again.
                            */
                           if (hoverOnly && open && details.reason === 'trigger-focus') {
                               details.cancel();

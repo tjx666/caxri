@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react';
 
 /**
- * VS Code's `archive` codicon — the glyph its Source Control view uses for a Git submodule row. Vendored inline (rather
+ * VS Code's `archive` codicon: the glyph its Source Control view uses for a Git submodule row. Vendored inline (rather
  * than via an icon font or static asset URL) because tree-row icons must inherit `currentColor`, and lucide has no
  * equivalent glyph.
  *

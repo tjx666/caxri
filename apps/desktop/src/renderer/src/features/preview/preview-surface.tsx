@@ -67,7 +67,7 @@ function MarkdownPreviewSurface({
  * Routes a `caxri-file-preview://` tab to the view registered for its format.
  *
  * Every renderer is reached through {@link previewerForPath}, so adding HTML, CSV, or a spreadsheet later is a registry
- * entry plus its view — no branch in the editor surface, the tab bar, or the commands.
+ * entry plus its view: no branch in the editor surface, the tab bar, or the commands.
  */
 export function PreviewSurface({ tab }: { tab: FilePreviewTab }) {
     const session = usePaneViewSession();

@@ -44,8 +44,8 @@ records the window's bounds after each move and resize and on close, and reopens
 rest of the app run. That bounds/open state also survives an app restart: `app.auxiliaryWindowState`
 (`auxiliaryWindowStateSchema`, one combined `app_state` row shared with the Process Explorer) persists
 it at quit, `AuxiliaryWindowBoundsMemory` (`auxiliary-window-bounds.ts`) clamps the remembered
-rectangle to whichever display it currently matches every time the window opens — not only at
-launch — so a monitor unplugged while the app keeps running never reopens the window off-screen,
+rectangle to whichever display it currently matches every time the window opens: not only at
+launch, so a monitor unplugged while the app keeps running never reopens the window off-screen,
 while the unclamped rectangle is kept so the window returns once that monitor is back, and
 `reopenAuxiliaryWindowsAtStartup` (`auxiliary-window-lifecycle.ts`) reopens the
 Commander automatically, after the Workbench window's Renderer has actually finished booting (not
@@ -104,7 +104,7 @@ path, a `~/...` path, and an explicit `.../` cross-Project search all match by c
 every added Project; a bare relative link instead falls back to a suffix search scoped to the source
 Terminal's own Workbench Root (`apps/server/src/domains/terminal/file-links.ts`). The Commander's own
 Workbench Root is its hidden system Project, so a bare relative path in its own Terminal output will
-not match a file that lives in a different, visible Project — only an absolute, `~/...`, or
+not match a file that lives in a different, visible Project: only an absolute, `~/...`, or
 explicitly cross-Project link does. This is an existing property of the shared resolver, not
 something this hand-off changes. The Commander's own cwd is its hidden system Project, so this
 hand-off must never grant it authority over another Project: Main always substitutes a real, visible

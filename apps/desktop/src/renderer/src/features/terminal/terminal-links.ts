@@ -262,7 +262,7 @@ function mergeTerminalLinks(
 /**
  * Splits rendered text into file-path candidates at whitespace and every configured separator, the way VS Code's
  * word-link detection consumes `terminal.integrated.wordSeparators`. Splitting (not trimming) is what detaches a path
- * from glued prose such as `串联 (src/api/x.ts)` — the CJK prefix is not a wrapper character, so wrapper trimming alone
+ * from glued prose such as `串联 (src/api/x.ts)`: the CJK prefix is not a wrapper character, so wrapper trimming alone
  * can never remove it.
  */
 function tokenizeByWordSeparators(text: string, wordSeparators: string): RawToken[] {

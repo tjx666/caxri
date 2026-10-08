@@ -46,7 +46,7 @@ const FOCUS_FLAGS = new Map<FullSuiteRunner, readonly string[]>([
  * Flags whose value is a separate argument when it is not written with `=`.
  *
  * Without this the guard reads `vitest run --reporter json` as "there is a positional filter, so the run is narrowed"
- * and waves the full suite through — the exact bypass it exists to prevent. Only flags this repository or its runners
+ * and waves the full suite through, the exact bypass it exists to prevent. Only flags this repository or its runners
  * realistically pass are listed; an unrecognized flag is assumed boolean, which at worst costs one extra refusal that
  * the `=` form resolves.
  */
@@ -141,7 +141,7 @@ export function isFullSuiteInvocation(runner: FullSuiteRunner, argv: readonly st
 export function fullSuiteRefusalMessage(runner: FullSuiteRunner): string {
     const gate = runner === 'unit' ? 'full unit suite' : 'full Electron E2E suite';
     return [
-        `Refusing to run the ${gate} locally — this is a wrong operation, not a slow one.`,
+        `Refusing to run the ${gate} locally: this is a wrong operation, not a slow one.`,
         '',
         `CI runs this exact gate on every pushed head, so a local run duplicates it and blocks this checkout for the`,
         `whole duration.`,

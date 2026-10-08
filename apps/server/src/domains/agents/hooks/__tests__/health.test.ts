@@ -4,7 +4,7 @@ import { hookHealthFor } from '../health';
 
 describe('hookHealthFor', () => {
     it('reports drifted with no message, so the row states the cause and the fix exactly once', () => {
-        // `hookHealthLabel` (apps/desktop) already renders "Changed outside Caxri — restart Agent Terminals to
+        // `hookHealthLabel` (apps/desktop) already renders "Changed outside Caxri: restart Agent Terminals to
         // reapply it" for this kind; a message here used to repeat "outside Caxri" a second time in the same row.
         expect(hookHealthFor({ kind: 'drifted' }, true, 2)).toEqual({ kind: 'drifted' });
     });

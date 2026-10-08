@@ -17,7 +17,7 @@ const clock: { timer?: ReturnType<typeof setInterval> } = {};
  * own a `setInterval`, so five Session cards meant five timers firing at five unrelated phases.
  *
  * Exported so anything else on the same half-minute cadence shares this timer instead of starting a second one at its
- * own phase — `useAgentActivityClock` does, which is what keeps a row's "12 minutes ago" and the retention window it
+ * own phase: `useAgentActivityClock` does, which is what keeps a row's "12 minutes ago" and the retention window it
  * describes turning over together rather than up to 30 seconds apart.
  */
 export function subscribeToRelativeTimeClock(listener: () => void): () => void {
@@ -43,7 +43,7 @@ export function subscribeToRelativeTimeClock(listener: () => void): () => void {
  * same thing, and the new one otherwise.
  *
  * This is the whole point of the module. A hook that handed out `Date.now()` re-rendered its caller on every tick,
- * forever, because the number always changes — while the thing on screen, "3 hours ago", changed a few times a day.
+ * forever, because the number always changes, while the thing on screen, "3 hours ago", changed a few times a day.
  * Comparing the rendered value instead means a tick reaches React only when the label it produces is actually
  * different. Returning the _previous_ reference rather than an equal copy is load-bearing: `useSyncExternalStore`
  * compares snapshots by identity, so an equal-but-new array would re-render anyway.
@@ -106,7 +106,7 @@ export function useRelativeTime(
 
 /**
  * The same thing for a list, index-aligned with the timestamps given. One subscription per list rather than per row,
- * and the caller re-renders when any one of its labels changes — which is the right granularity for a list that is
+ * and the caller re-renders when any one of its labels changes, which is the right granularity for a list that is
  * rendered by a single component anyway.
  *
  * `style` picks how much width the labels may spend; a dense side-bar row passes `narrow` for "8m ago".

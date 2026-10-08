@@ -143,7 +143,7 @@ export class TerminalResizeBurstTracker {
             lastSampleAt === undefined ||
             (localAppliedCount === 0 && requestCount === 0) ||
             /**
-             * One fit that left the grid where it was — every pane mount and Session switch — is not a burst, and was
+             * One fit that left the grid where it was (every pane mount and Session switch) is not a burst, and was
              * nearly all of this report's volume. Terminal Host already records the grid it applies.
              */
             (aggregate.sampleCount <= 1 && aggregate.changeCount === 0)
@@ -263,7 +263,7 @@ export class TerminalPaneResizeController {
     /**
      * The proposal is used exactly as the fit addon computed it. The addon already subtracts `scrollbar.width`, which
      * `use-terminal-pane-runtime` sets to the 8px the stylesheet actually paints, so the grid ends where the slider
-     * begins. Reserving anything beyond that — Caxri previously dropped one whole text column here — widens the right
+     * begins. Reserving anything beyond that (Caxri previously dropped one whole text column here) widens the right
      * inset to two gutters and, because the reservation has to stay constant while the PTY runs, buys nothing: the
      * column count cannot follow the slider appearing or disappearing without re-wrapping every line mid-session. VS
      * Code reserves the same single scrollbar width (`TerminalScrollbarWidth` in `xtermTerminal.ts`), and a reservation

@@ -66,7 +66,7 @@ export function AgentActivityRowTrigger({
     sessionRename: SessionRenameController;
     /**
      * Owned by the caller: this is a plain function returning the HoverCard trigger element, not a component, so it
-     * must not call hooks — React Compiler may skip re-running it and React would see a changed hook count.
+     * must not call hooks; React Compiler may skip re-running it and React would see a changed hook count.
      */
     titleScroll: SessionTitleScroll;
     visiblePullRequest: SessionPullRequest | undefined;
@@ -124,8 +124,8 @@ export function AgentActivityRowTrigger({
                 }
                 /*
                  * Delete clears the reminder here rather than archiving the Session, which is what the same key does in
-                 * the PrimarySidebar. The two lists answer different questions — that one is "which Sessions exist",
-                 * this one is "what is still on my plate" — and removing an item from a queue is what Delete means in a
+                 * the PrimarySidebar. The two lists answer different questions: that one is "which Sessions exist",
+                 * this one is "what is still on my plate", and removing an item from a queue is what Delete means in a
                  * queue. `aria-keyshortcuts` above announces it, and the row's own button offers the same action.
                  */
                 if (canMarkRead && (event.key === 'Delete' || event.key === 'Backspace')) {
@@ -177,7 +177,7 @@ export function AgentActivityRowTrigger({
                          * to content, not a flex-1 "wider than content" box like the Project tree's), so without the
                          * padding a short, un-clipped Project name had its own last pixels faded for no reason
                          * (github.com/tjx666/caxri/issues/1173). The padding is inside `max-w`, so a Project long enough
-                         * to hit the cap still clips at that same edge — this only changes the short-name case.
+                         * to hit the cap still clips at that same edge; this only changes the short-name case.
                          */}
                         <span className="agent-activity-project overflow-fade max-w-[calc(100%-1rem)] min-w-0 shrink-0 pr-2">
                             {project.displayTitle}

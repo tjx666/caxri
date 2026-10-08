@@ -12,7 +12,7 @@ DMG and creates the matching Git tag and GitHub Release. Runner labels, availabi
 
 `main` requires the `guards` status check to pass before anything merges
 ([ADR 0011](docs/adr/0011-required-merge-guards.md)), with no bypass for any actor, so the release
-commit can no longer be pushed to `main` directly — it goes through a pull request like any other
+commit can no longer be pushed to `main` directly; it goes through a pull request like any other
 change.
 
 ## Create a release
@@ -20,7 +20,7 @@ change.
 Update the root application version before committing. The public API, Agent skill package, CLI
 workspace, bundled extension versions, bundled extension `engines.caxri` ranges, and version
 sources must move in lockstep. The preparation command validates that contract before writing, and
-still requires a clean `main` synchronized with its upstream — create the release branch after it
+still requires a clean `main` synchronized with its upstream; create the release branch after it
 runs, not before:
 
 ```bash
@@ -60,7 +60,7 @@ uses a short-lived `contents: write` token and does not persist checkout credent
 ## Install a release
 
 Browser downloads of the unsigned DMG receive a `com.apple.quarantine` flag, so Gatekeeper reports
-the app as "damaged". Install from the terminal instead — `gh` downloads carry no quarantine flag:
+the app as "damaged". Install from the terminal instead: `gh` downloads carry no quarantine flag:
 
 ```bash
 bun run install:caxri              # latest release; add `-- --tag vX.Y.Z` for a specific one

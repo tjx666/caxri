@@ -254,7 +254,7 @@ test('inline images render real pixels, enforce budgets, and restore as content-
 
         /**
          * Terminal > Close Terminal now archives a Session on its true last tab, same as `Cmd+W`, instead of destroying
-         * the Terminal — so give this Session a sibling Terminal and re-select `terminalId`'s own tab first, keeping
+         * the Terminal, so give this Session a sibling Terminal and re-select `terminalId`'s own tab first, keeping
          * this an ordinary close that actually removes the Terminal the assertion below tracks.
          */
         await pressNewTerminal(running.page);

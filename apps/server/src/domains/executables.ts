@@ -187,8 +187,8 @@ export function serverProcessEnvironment(
 
 /**
  * Fires the login-shell PATH probe without waiting for it (issue caxri#1345). `ExecutableResolver.loginPath()` memoizes
- * the in-flight request on the shared resolver, so the first real external command — often Git, from the Project Status
- * refresh moments after startup — reuses this request instead of paying its own login-shell spawn (~0.1s typically, up
+ * the in-flight request on the shared resolver, so the first real external command (often Git, from the Project Status
+ * refresh moments after startup) reuses this request instead of paying its own login-shell spawn (~0.1s typically, up
  * to `LOGIN_SHELL_TIMEOUT_MS` on a slow shell profile) synchronously on the user's first action. `readLoginPath`
  * already catches its own failures and resolves `undefined`, so this can never produce an unhandled rejection.
  */
@@ -217,7 +217,7 @@ export interface ExternalCommandDependencies {
 /**
  * Runs an external CLI (`gh`, `linear`, `vc`, Agent binaries, …) through the login-shell PATH boundary. A GUI-launched
  * packaged app inherits the constrained macOS launchd PATH without Homebrew-style directories, so Server code must
- * never spawn a bare command name directly — this wrapper owns resolution, the sanitized environment, and the ENOENT
+ * never spawn a bare command name directly: this wrapper owns resolution, the sanitized environment, and the ENOENT
  * contract (`<name> was not found`) that callers map into their own error domains.
  */
 export async function runExternalCommand(

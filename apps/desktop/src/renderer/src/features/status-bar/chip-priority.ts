@@ -2,7 +2,7 @@
  * Priority-based responsive hiding for the status bar's right-hand ("actions") group.
  *
  * Below the window width where every chip fits, the bar used to fall back to a raw horizontal scrollbar (see the
- * `statusbar-actions` comment in `status-bar.tsx`) — a real but easy-to-miss affordance. Instead, chips are dropped one
+ * `statusbar-actions` comment in `status-bar.tsx`): a real but easy-to-miss affordance. Instead, chips are dropped one
  * at a time as the container narrows, in an order that protects the information a user cannot get anywhere else in the
  * status bar:
  *
@@ -11,12 +11,12 @@
  * - The Linear issue chip goes next: it is a pointer to a tracker outside Caxri, and the same issue is reachable from the
  *   Status panel's own Linear rows.
  * - The acceptance chip survives one step longer than Linear. Both point outside Caxri and both repeat a Status panel
- *   row, but this one is the only place in the bar that says whether the work the Session just did actually passed —
- *   the reading a user checks most often while a verification round is running.
+ *   row, but this one is the only place in the bar that says whether the work the Session just did actually passed: the
+ *   reading a user checks most often while a verification round is running.
  * - The pull request chip duplicates the Git panel, so it goes after that.
  * - The notification bell, degraded-backend/runtime chips, active Terminal progress, the update chip, the open debugging
  *   channel chip, the count of peer messages awaiting approval, and the Project root + branch pickers are never
- *   included here — they have no other on-screen home and must never disappear silently. The update chip is the only
+ *   included here: they have no other on-screen home and must never disappear silently. The update chip is the only
  *   persistent trace of a download in flight or an install waiting, because automatic discovery now raises a
  *   notification that expires rather than a dialog that holds the screen. The debugging chip is a security disclosure:
  *   a window narrow enough to hide it is not a reason to stop telling the user that anything on this Mac can attach to
@@ -33,8 +33,8 @@ export interface ChipVisibility {
 }
 
 /**
- * Width thresholds (px) below which a chip is dropped, ordered lowest-priority-first. Spaced ~60-90px apart — roughly
- * one chip's rendered width — so a single resize step only ever changes one chip's visibility. 752px is the original
+ * Width thresholds (px) below which a chip is dropped, ordered lowest-priority-first. Spaced ~60-90px apart, roughly
+ * one chip's rendered width, so a single resize step only ever changes one chip's visibility. 752px is the original
  * raw-scrollbar-fallback threshold this replaces.
  */
 export const CHIP_PRIORITY_BREAKPOINTS = {

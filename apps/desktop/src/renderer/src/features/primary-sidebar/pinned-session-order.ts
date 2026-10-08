@@ -16,7 +16,7 @@ export function pinnedSessions(sessions: readonly SessionRecord[]): SessionRecor
 
 /**
  * The complement of `pinnedSessions`: what the Project groups render. Pinning moves a Session rather than copying it,
- * so a Session listed under `Pinned` is withheld from its own Project — one Session is one row, and every per-Project
+ * so a Session listed under `Pinned` is withheld from its own Project: one Session is one row, and every per-Project
  * count, five-row window, and drag order then describes rows that group actually owns.
  *
  * Deliberately not folded into `activeSessionsInSidebarOrder`, which the command palette and prev/next Session also
@@ -28,8 +28,8 @@ export function unpinnedSessions(sessions: readonly SessionRecord[]): SessionRec
 
 /**
  * Where a drag inside the Pinned group would land, or `undefined` when the drop is a no-op. Unlike the Project groups'
- * `sessionDropTarget` this deliberately allows the two rows to belong to different Projects — collecting Sessions from
- * across Projects is the whole point of the group — but both still have to be pinned, so a drag that started in a
+ * `sessionDropTarget` this deliberately allows the two rows to belong to different Projects (collecting Sessions from
+ * across Projects is the whole point of the group) but both still have to be pinned, so a drag that started in a
  * Project group cannot renumber the Pinned order.
  */
 export function pinnedSessionDropTarget(

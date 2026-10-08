@@ -69,7 +69,7 @@ describe('listener fan-out isolation', () => {
                 );
 
             const visit = (node: ts.Node): void => {
-                // `for (const listener of listeners) listener(value);` — flags only when the loop variable itself
+                // `for (const listener of listeners) listener(value);`: flags only when the loop variable itself
                 // (not the collection it came from) reads as a fan-out target, since that is the name a caller
                 // actually invokes.
                 if (ts.isForOfStatement(node) && ts.isVariableDeclarationList(node.initializer)) {
@@ -88,7 +88,7 @@ describe('listener fan-out isolation', () => {
                     }
                 }
 
-                // `listeners.forEach((listener) => listener(value))` — the same bug shaped as a callback instead of
+                // `listeners.forEach((listener) => listener(value))`: the same bug shaped as a callback instead of
                 // a loop. Matched on the collection's name since a `forEach` callback parameter is often left
                 // anonymous or abbreviated.
                 if (

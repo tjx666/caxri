@@ -754,7 +754,7 @@ export class TerminalHostRuntime {
     /**
      * Resolves once a shutdown capture has actually begun (through either `host.shutdown` or this same method), or
      * after `timeoutMs` elapses, whichever is first. Terminal Host owns no filesystem or database persistence of its
-     * own — SQLite lives only in Server Core (see `.agents/skills/project-architecture`) — so a bare SIGTERM must not
+     * own: SQLite lives only in Server Core (see `.agents/skills/project-architecture`), so a bare SIGTERM must not
      * immediately discard captured snapshots. The entrypoint (`process.ts`) uses this to give Server Core's own
      * `host.shutdown` request, which walks this exact capture and can persist the result, a bounded chance to arrive
      * over the still-connected parent IPC channel before falling back to `stopAfterParentDisconnect`.
@@ -779,7 +779,7 @@ export class TerminalHostRuntime {
     /**
      * SIGTERM/parent-disconnect fallback: captures every live Terminal's final snapshot the same way `host.shutdown`
      * does, but the result cannot be persisted here (see `waitForShutdownRequest`) and is discarded after capture. Safe
-     * to call after `host.shutdown` already ran — `captureShutdown` reuses its memoized result instead of tearing down
+     * to call after `host.shutdown` already ran: `captureShutdown` reuses its memoized result instead of tearing down
      * already-cleared identities again.
      */
     async stopAfterParentDisconnect(): Promise<void> {

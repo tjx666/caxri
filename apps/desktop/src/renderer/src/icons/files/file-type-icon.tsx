@@ -7,8 +7,8 @@ import { resolveFileIcon } from './file-icon-resolver';
 const SYMLINK_ARROW_PATH = 'M2.6 7.4 7.4 2.6M7.4 2.6H4.7M7.4 2.6V5.3';
 
 /**
- * Marks a symlink on top of whichever icon its target resolved to. The arrow is stroked twice — a thick `--surface`
- * outline beneath a `--foreground` stroke — so it stays legible over both the light and dark artwork in the
+ * Marks a symlink on top of whichever icon its target resolved to. The arrow is stroked twice (a thick `--surface`
+ * outline beneath a `--foreground` stroke), so it stays legible over both the light and dark artwork in the
  * vscode-icons set without covering the icon with an opaque chip.
  */
 function SymlinkBadge() {

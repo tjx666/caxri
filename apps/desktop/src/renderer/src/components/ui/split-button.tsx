@@ -13,7 +13,7 @@ import { Button } from './button';
  * (`DropdownWithPrimaryActionViewItem` in `src/vs/workbench/contrib/terminal/browser/terminalEditor.ts`).
  *
  * The two halves are two real buttons rather than one button with a hot zone, so each is its own Tab stop and the
- * dropdown half keeps everything the shared `Menu` already provides — arrow-key navigation, Escape, focus return.
+ * dropdown half keeps everything the shared `Menu` already provides: arrow-key navigation, Escape, focus return.
  * Compose it as `SplitButtonAction` + a `Menu` whose `MenuTrigger` renders `SplitButtonTrigger`.
  */
 export function SplitButton({ children, className }: { children: ReactNode; className?: string }) {

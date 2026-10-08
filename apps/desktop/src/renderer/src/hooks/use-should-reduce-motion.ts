@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 /**
- * Reactive `prefers-reduced-motion: reduce` subscription — the single Renderer-wide way to read the preference. CSS
+ * Reactive `prefers-reduced-motion: reduce` subscription: the single Renderer-wide way to read the preference. CSS
  * layers honor it through media queries; JS layers (Motion transitions, presence cleanup) must use this hook so a live
  * OS toggle takes effect without a reload. Never read `matchMedia` inline for this query: a non-reactive read freezes
  * the first value for the component's lifetime.

@@ -71,7 +71,7 @@ interface GpuRecoveryCoordinatorOptions {
  *
  * A GPU incident never changes the user's next-launch configuration by itself: the only write lives behind
  * `restartInGpuSafeMode`, which the Renderer calls only after the user answered the shared confirmation modal (see
- * `features/gpu/gpu-commands.ts`). VS Code does not offer this action at all — a GPU crash there is telemetry only, and
+ * `features/gpu/gpu-commands.ts`). VS Code does not offer this action at all: a GPU crash there is telemetry only, and
  * `disable-hardware-acceleration` has no write site in the whole product. Caxri keeps the one-click escape because a
  * Terminal workbench that cannot draw is unusable, so the confirmation is what stops one click on a crash card from
  * silently costing every future launch its GPU.

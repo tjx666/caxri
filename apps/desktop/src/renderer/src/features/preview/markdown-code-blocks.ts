@@ -9,7 +9,7 @@ import { monaco } from '../../lib/monaco';
 import { PreviewMemoCache } from './preview-memo-cache';
 
 /**
- * Lucide's `copy` and `check` glyphs, inlined because these buttons are built with plain DOM calls rather than React —
+ * Lucide's `copy` and `check` glyphs, inlined because these buttons are built with plain DOM calls rather than React,
  * the preview body is one sanitized HTML string, so there is no element tree for `lucide-react` to render into. Kept at
  * the same 24-unit viewBox and 2-unit stroke as every icon the component layer draws.
  */
@@ -111,7 +111,7 @@ function attachCopyButton(element: HTMLElement, code: string, signal: AbortSigna
  * Gives every fenced block the editor's own colors and a copy affordance.
  *
  * Highlighting runs through `monaco.editor.colorize` against the live `caxri-active` theme, so a code block in the
- * preview and the same lines in the editor are painted from one set of token colors — and the preview needs no second
+ * preview and the same lines in the editor are painted from one set of token colors, and the preview needs no second
  * highlighting library to stay in sync when the theme changes.
  */
 export function decorateCodeBlocks(
@@ -124,7 +124,7 @@ export function decorateCodeBlocks(
         if (!(element instanceof HTMLElement)) continue;
         /**
          * React only replaces the body when the sanitized HTML string itself changed, so this pass can run against a
-         * block that already carries a button — a theme switch, or an edit that sanitizes to the same bytes. Without
+         * block that already carries a button: a theme switch, or an edit that sanitizes to the same bytes. Without
          * this the buttons stack invisibly, one per re-render, since they all sit at the same offset.
          */
         element.querySelector('.caxri-markdown-copy')?.remove();

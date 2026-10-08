@@ -38,7 +38,7 @@ export interface NewTerminalAgentChoice {
  *
  * `null` is not "shell". The setting presents that value as "Ask each time" (`settings-spec.ts`, `nullLabel`), so the
  * entry points answer it by asking wherever they can: the split button opens its menu, and only the `terminal.new`
- * command — which has no menu to open from a shortcut — falls back to a shell (see `newTerminalCommandKind`).
+ * command (which has no menu to open from a shortcut) falls back to a shell (see `newTerminalCommandKind`).
  */
 export function resolveNewTerminalAgent(defaultAgent: ConfiguredDefaultAgent): TerminalKind | null {
     return defaultAgent ?? null;
@@ -62,11 +62,11 @@ function isLiveAgentTerminal(terminal: TerminalRecord): boolean {
  * stale configured default (Fix #1292).
  *
  * Falls through to the configured default Agent when the primary Terminal is a shell or has exited, and to `null` when
- * neither resolves — the button opens the Agent list rather than guessing.
+ * neither resolves: the button opens the Agent list rather than guessing.
  *
  * Deliberately not shared with {@link newTerminalCommandKind}: `⌘T`/`terminal.new` is a global shortcut with no
  * Session-scoped button to read a Primary Agent Terminal from at the call site, and dozens of E2E specs already rely on
- * it answering the configured default (or a shell) regardless of what a Session's other Terminals are doing — see
+ * it answering the configured default (or a shell) regardless of what a Session's other Terminals are doing; see
  * `pressNewTerminal` in `e2e/support/helpers.ts`. The `CommandTooltip` on this button still names `⌘T` as its shortcut
  * because both create _a_ Terminal in the current Session from the same tab-strip slot; the two can name a different
  * Agent only when a live primary Agent Terminal differs from the configured default, which is the uncommon case this

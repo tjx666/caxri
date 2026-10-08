@@ -9,8 +9,8 @@ import { openEditorTab } from '../editor/document-commands';
  * Answers every `dialogs.openSettings(...)` call by opening or refocusing the Settings Workbench tab.
  *
  * This lives outside `stores/dialogs.ts` on purpose: the low-level dialog store stays free of a dependency on the
- * Editor's document-command module, and every existing `openSettings` call site — the menu, the command palette,
- * `Cmd+,`, the GPU crash card, the notification center — keeps bumping the same `settingsRequest` revision without
+ * Editor's document-command module, and every existing `openSettings` call site (the menu, the command palette,
+ * `Cmd+,`, the GPU crash card, the notification center) keeps bumping the same `settingsRequest` revision without
  * knowing a tab exists on the other end. `openEditorTab` selects the tab if it is already open in the active pane, so
  * repeat requests (the same shortcut pressed twice) are idempotent rather than opening a second occurrence.
  *

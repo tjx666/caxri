@@ -11,8 +11,8 @@ const GITHUB_NOREPLY_PATTERN = /^(?:(\d+)\+)?([\w-]+(?:\[bot\])?)@users\.noreply
  *
  * Revised owner decision (2026-08): sending ordinary author emails to GitHub's lookup endpoint matches GitLens's
  * default behavior, but it is a real network disclosure of the author's email. Callers must gate this behind
- * {@link shouldFetchGitHubAvatar} — the `git.fetchGitHubAvatars` setting and a confirmed `github.com` remote — instead
- * of calling it unconditionally.
+ * {@link shouldFetchGitHubAvatar} (the `git.fetchGitHubAvatars` setting and a confirmed `github.com` remote) instead of
+ * calling it unconditionally.
  */
 export function gitHubAvatarUrl(email: string, size: number): string | undefined {
     const trimmed = email.trim();
@@ -29,7 +29,7 @@ export function gitHubAvatarUrl(email: string, size: number): string | undefined
 /**
  * Gate for {@link gitHubAvatarUrl}: an author email only ever reaches github.com when the user opted in via
  * `git.fetchGitHubAvatars` AND the repository's remote host is exactly `github.com`. Unknown hosts, missing remotes,
- * and GitHub Enterprise custom domains are conservatively treated as "do not fetch" — this function never assumes an
+ * and GitHub Enterprise custom domains are conservatively treated as "do not fetch": this function never assumes an
  * unfamiliar host behaves like github.com's public avatar/email-lookup endpoints.
  */
 export function shouldFetchGitHubAvatar(

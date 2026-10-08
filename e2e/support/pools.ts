@@ -14,7 +14,7 @@ export interface E2EPoolPlan {
  * rejects the capability at runtime if a parallel-safe worker ever reaches one through a future classification edit.
  *
  * `scripts/__tests__/e2e-pools.test.ts` derives the same set from the specs themselves and fails when the two disagree.
- * That guard exists because this list silently fell three specs behind the source — a stale entry here does not fail
+ * That guard exists because this list silently fell three specs behind the source: a stale entry here does not fail
  * anything on its own, it just stops protecting the spec it forgot.
  */
 export const clipboardCapabilitySpecs = [
@@ -55,7 +55,7 @@ export const clipboardCapabilitySpecs = [
  * Three specs pass a mechanical screen of those conditions and are still deliberately excluded, recorded here so the
  * audit is not repeated: `logs-panel.e2e.ts` asserts the panel's own query cadence in real milliseconds,
  * `menu-keybinding-recovery.e2e.ts` reads the installed native application menu, and `editor-find.e2e.ts` drives a
- * `cmd+k cmd+s` chord — a sibling worker's window taking real OS focus between the two keystrokes fires a genuine
+ * `cmd+k cmd+s` chord: a sibling worker's window taking real OS focus between the two keystrokes fires a genuine
  * `window` `blur` on this one, and `use-command-shortcuts.ts` deliberately cancels a pending chord on any blur (the
  * same class of contention `clickTerminalLink`'s JSDoc documents for Terminal link modifiers, issue caxri#697).
  * Confirmed by injecting a synthetic `blur` between the chord's two keystrokes locally: it reproduces the exact CI
@@ -65,7 +65,7 @@ export const clipboardCapabilitySpecs = [
  *
  * `agent-delegation.e2e.ts` was previously rejected for the third condition and is now admitted, because the margin it
  * lacked was a defect rather than a property: its synthetic CLI allowed a `spawnSync` only 5 seconds beyond the
- * 20-second wait it was invoking. The rule excludes a timeout with little headroom — the right response is to give the
+ * 20-second wait it was invoking. The rule excludes a timeout with little headroom: the right response is to give the
  * subprocess enough, not to keep the spec on one worker forever.
  */
 export const parallelSafeSpecs = [

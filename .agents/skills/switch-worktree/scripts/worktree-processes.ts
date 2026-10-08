@@ -28,7 +28,7 @@ export interface StopOperations {
  * caught before the signal call itself; the rest come from classifying `process.kill`'s thrown error. `already-exited`
  * is the expected, benign outcome (the process died between listing and signaling) and is never itself a reason a
  * survivor stays alive. A survivor with no recorded reason was signaled successfully but had not exited by the time the
- * bounded wait gave up — an exit delay, not a signal failure — and needs a manual per-PID check instead of a blind
+ * bounded wait gave up (an exit delay, not a signal failure) and needs a manual per-PID check instead of a blind
  * retry.
  */
 export type SignalFailureReason =
@@ -107,7 +107,7 @@ export function isWorktreeOwnedCommand(command: string, worktreePath: string): b
 
 /**
  * Walks the parent chain so the stop command can never signal the shell, the agent session, or the `bun` process that
- * invoked it — all of which run inside the worktree and would otherwise look owned.
+ * invoked it, all of which run inside the worktree and would otherwise look owned.
  */
 function ancestorProcessIds(entries: readonly ProcessEntry[], pid: number): Set<number> {
     const parents = new Map(entries.map((entry) => [entry.pid, entry.parentPid]));
@@ -195,8 +195,8 @@ function owningWorktree(command: string, worktreePaths: readonly string[]): stri
  *
  * A process counts only when the top of its parent chain (the ancestor launchd adopted, PPID 1) is itself
  * worktree-owned or is an orphaned `Caxri Dev` window. A live `switch-worktree dev` launcher, a Playwright run, or an
- * agent shell sits at that position for every supervised run, so those subtrees never qualify — including a
- * backgrounded launcher that launchd has already adopted.
+ * agent shell sits at that position for every supervised run, so those subtrees never qualify, including a backgrounded
+ * launcher that launchd has already adopted.
  *
  * Server Core is spawned detached (`packages/client/src/supervise/launch.ts`) so a restarted Desktop can adopt it;
  * after a dev main-process restart it legitimately runs under PPID 1 beside a live window. A worktree that still has
@@ -454,7 +454,7 @@ const MAX_STOP_ROUNDS = 4;
  * path-owned once its supervisor exits (a detached Server Core's PTY shell, reparented to launchd), is invisible to
  * that first snapshot; without another round, `stop` would confirm it is worktree-owned and then simply report it as an
  * unexplained survivor without ever having signaled it. A round stops early once it produces a genuine survivor (a
- * signal that failed or a process that would not exit) — retrying further rounds cannot help a target that already
+ * signal that failed or a process that would not exit); retrying further rounds cannot help a target that already
  * resisted both signals in this one.
  *
  * A trailing read-only re-enumeration re-confirms the settled state afterward so a process that restarted mid-stop, or

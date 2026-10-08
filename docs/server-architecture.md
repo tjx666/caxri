@@ -144,10 +144,10 @@ An explicit Desktop quit already stops an idle Server Core directly (see
 [Process ownership](../.agents/skills/project-architecture/references/process-model.md)), but a force-killed, crashed,
 or mid-restart Desktop never runs that path. Server Core additionally self-terminates through its normal shutdown path
 once the aggregate authenticated connection count across every transport has stayed at zero for a fixed idle
-threshold, deferring while any Terminal PTY is active — the same signal the interactive `host.stop` command requires
+threshold, deferring while any Terminal PTY is active, the same signal the interactive `host.stop` command requires
 explicit confirmation to override, so a Server whose Sessions still own live PTYs never idle-exits on its own.
-[ADR 0010](./adr/0010-server-core-idle-exit.md) records the policy — including why counting connections directly
-already covers a Desktop lease expiring, with no separate lease check — and why the threshold is an internal seam,
+[ADR 0010](./adr/0010-server-core-idle-exit.md) records the policy, including why counting connections directly
+already covers a Desktop lease expiring, with no separate lease check, and why the threshold is an internal seam,
 never a user setting.
 
 ### Terminal Host
@@ -283,7 +283,7 @@ The check is whole-write, not per field. The pane layout is a tree: merging two 
 field would produce a third one neither writer asked for, so the losing writer re-derives its change
 against the state that won instead.
 
-A rejected write is the one failure the Renderer must not roll back — the state it would roll back to
+A rejected write is the one failure the Renderer must not roll back: the state it would roll back to
 is precisely the one that turned out to be stale. `patchSessionState` drops the Session's optimistic
 overlay, re-reads the snapshot, and shows no toast, because a lost race is not something the user can
 act on and the UI has already converged on what won.
@@ -296,7 +296,7 @@ predecessor stored, so `CONFLICT` keeps its real meaning: another writer moved t
 
 Because it is a designed, caller-absorbed outcome rather than a defect, `CONFLICT` is logged at `warn`
 at every boundary (`isCallerHandledFailure` in `@caxri/protocol`) instead of `error`. It stays logged
-so its real volume remains measurable — ordinary contention must be countable without being mistaken
+so its real volume remains measurable: ordinary contention must be countable without being mistaken
 for a fault.
 
 Do not confuse `revision` with the `state_version` column, which is a storage-schema version used to

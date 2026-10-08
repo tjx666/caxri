@@ -46,7 +46,7 @@ const AgentTranscriptEditor = lazy(async () => {
 });
 
 /**
- * Lazy because a preview pulls in the Markdown engine, the sanitizer, and — on the first diagram — Mermaid. A Session
+ * Lazy because a preview pulls in the Markdown engine, the sanitizer, and (on the first diagram) Mermaid. A Session
  * that never opens one must not pay for any of it.
  */
 const PreviewSurface = lazy(async () => {
@@ -111,8 +111,8 @@ function LoadedCodeEditor(properties: CodeEditorProperties) {
 }
 
 /**
- * Renders the focused editor tab. A tab whose content is not cached — restored from a previous run, or evicted by the
- * document cache cap — reads it on demand instead of being closed.
+ * Renders the focused editor tab. A tab whose content is not cached (restored from a previous run, or evicted by the
+ * document cache cap) reads it on demand instead of being closed.
  */
 function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
     const session = usePaneViewSession();

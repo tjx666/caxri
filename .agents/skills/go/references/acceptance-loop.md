@@ -82,7 +82,7 @@ an explicit file list with the relevant diff to one read-only `acceptance-checke
 quick evidence review, following the Acceptance skill's
 `references/acceptance-checker.md`. `acceptance_plan_tester` already owns the plan gate here, so
 run only that evidence stage; follow-up rounds have neither. Replace this round's `proposal.md`
-placeholder before publishing — ingest posts it into the acceptance discussion, and `finalize`
+placeholder before publishing: ingest posts it into the acceptance discussion, and `finalize`
 refuses the untouched placeholder.
 
 Before a Terminal fixture capture, run the Acceptance fixture preflight. It

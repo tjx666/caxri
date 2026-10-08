@@ -7,7 +7,7 @@ import { agentActivityGroups, nextAgentAttentionSessionId } from './agent-activi
 /**
  * Selects the next Session that needs the user, in the same order the Activity view lists them.
  *
- * Reads the store directly rather than the mounted view, so the shortcut works from anywhere — including while the
+ * Reads the store directly rather than the mounted view, so the shortcut works from anywhere, including while the
  * Primary Side Bar is hidden or showing the Project tree. With nothing waiting it is a deliberate no-op: a chord that
  * jumps somewhere arbitrary when the queue is empty is worse than one that does nothing.
  *
@@ -25,7 +25,7 @@ export function focusNextAttentionSession(): void {
     });
     const sessionId = nextAgentAttentionSessionId(groups, bootstrap.selectedSessionId);
     // Wrapping a one-entry queue lands back on the Session already selected. Re-selecting it changes nothing on screen
-    // but runs the whole Server-side `session.select` — probes, interrupted-Terminal restore, a full state broadcast.
+    // but runs the whole Server-side `session.select`: probes, interrupted-Terminal restore, a full state broadcast.
     if (!sessionId || sessionId === bootstrap.selectedSessionId) return;
     useChromeLayoutStore.getState().showPrimarySidebarActivity();
     // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`.

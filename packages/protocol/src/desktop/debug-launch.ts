@@ -30,7 +30,7 @@ export type InspectableHost = keyof typeof INSPECT_PORT_OFFSETS;
 
 /**
  * Level every Caxri process records when nothing asks for another one. `debug` keeps the per-request `ipc.request`
- * records — the timing and queue-depth detail that a failure report is useless without — and Caxri is built by coding
+ * records (the timing and queue-depth detail that a failure report is useless without) and Caxri is built by coding
  * agents whose only view of a past failure is the log it left behind, so a build that has to be relaunched with an
  * environment variable before it explains itself costs an entire iteration.
  */
@@ -74,7 +74,7 @@ function resolveInspectBasePort(
  * Node inspector argv for one Host, unless `CAXRI_INSPECT=0` turned it off.
  *
  * On by default because attaching a debugger otherwise costs a full relaunch, and a Host only reproduces the state
- * worth inspecting after the session that produced it — by the time an agent knows it needs the inspector, the process
+ * worth inspecting after the session that produced it: by the time an agent knows it needs the inspector, the process
  * it wanted is gone. Node binds the inspector to loopback and does nothing until a client attaches, and a port already
  * taken by a sibling checkout only logs one line and keeps running, so an always-open port costs nothing until used.
  *

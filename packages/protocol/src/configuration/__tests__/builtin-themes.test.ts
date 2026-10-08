@@ -33,8 +33,8 @@ describe('built-in themes', () => {
     /**
      * Three of the eight themes used to paint hover, keyboard focus, and selection in one identical fill, which left a
      * keyboard user with nothing marking the row they were on. Asserted across every theme rather than the three that
-     * were broken, because the two ways it happened — an upstream that only distinguishes two of the three states, and
-     * an importer fallback that collapsed all four onto one role — can reach any of them. See issue #1006.
+     * were broken, because the two ways it happened (an upstream that only distinguishes two of the three states, and
+     * an importer fallback that collapsed all four onto one role) can reach any of them. See issue #1006.
      */
     it('keeps list hover, keyboard focus, and selection visually apart in every theme', () => {
         for (const theme of builtinThemes) {
@@ -84,7 +84,7 @@ describe('built-in themes', () => {
     /**
      * Regression: `merged` shipped after these presets, so a `theme.json` saved earlier has no such key. Backfilling it
      * with one fixed hex made every non-Dracula preset stop matching its catalog entry, which downgraded it to
-     * `custom-*` — and `ConfigService` persists that downgrade. Recovery has to come from the preset itself.
+     * `custom-*`, and `ConfigService` persists that downgrade. Recovery has to come from the preset itself.
      */
     it('restores a color role added after a saved preset was written, without losing built-in identity', () => {
         for (const theme of builtinThemes) {

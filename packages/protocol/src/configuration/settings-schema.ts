@@ -143,7 +143,7 @@ const spec = settingsSpecByKey;
 /**
  * The canonical `AppSettings` schema shared by the IPC wire contract and the settings registry. Scalar bounds and
  * defaults come from `settings-spec.ts`; only values too rich for a generic control keep a hand-written sub-schema
- * above. Enum fields call `z.enum(enumValues(...))` inline — routing them through a generic helper defers the mapped
+ * above. Enum fields call `z.enum(enumValues(...))` inline: routing them through a generic helper defers the mapped
  * tuple type and TypeScript widens the values to `string`, losing the literal unions `AppSettings` consumers rely on.
  *
  * This schema stays transform-free so `z.toJSONSchema` introspection (`describeCaxriMethod`) can represent every method
@@ -259,7 +259,7 @@ export const appSettingsSchema = z.object({
 export type AppSettings = z.infer<typeof appSettingsSchema>;
 
 /**
- * All settings defaults in one object — `parse({})` lets every `.default()` fill in.
+ * All settings defaults in one object: `parse({})` lets every `.default()` fill in.
  */
 export const defaultAppSettings: AppSettings = appSettingsSchema.parse({});
 
@@ -352,8 +352,8 @@ const ignoredChecksFileSchema = z
 /**
  * Lenient parser for the user-authored `settings.jsonc`: a partial provider record fills from defaults, `files.exclude`
  * merges on top of the shipped exclusions, and trusted-domain rules are normalized and deduplicated. The output always
- * satisfies `AppSettings`, so everything past the parse boundary — including the IPC wire — only ever sees the
- * canonical shape.
+ * satisfies `AppSettings`, so everything past the parse boundary, including the IPC wire, only ever sees the canonical
+ * shape.
  */
 export const appSettingsFileSchema = appSettingsSchema.extend({
     'agents.providers': agentProvidersFileSchema,

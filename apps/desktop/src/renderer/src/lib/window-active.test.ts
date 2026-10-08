@@ -4,8 +4,8 @@ import { observeWindowActive } from './window-active';
 
 /**
  * The suite runs under Vitest's `node` environment (no jsdom, see `vitest.config.ts`), so neither `document` nor the
- * window's event target exists. `observeWindowActive` touches exactly three boundaries — `document.hasFocus`, the
- * document element's dataset, and the global focus/blur listeners — so stubbing those drives it deterministically,
+ * window's event target exists. `observeWindowActive` touches exactly three boundaries: `document.hasFocus`, the
+ * document element's dataset, and the global focus/blur listeners, so stubbing those drives it deterministically,
  * mirroring `lib/theme-css.test.ts`'s same mock-the-boundary approach for this same missing global.
  */
 const dataset: { windowActive?: string } = {};

@@ -33,7 +33,7 @@ import { StatusItem } from './status-item';
 const openProcessExplorer = (): void => executeCommand('processExplorer.open');
 
 /**
- * Settled fallbacks offer enabling GPU acceleration, an explicit retry, or — when this window has no GPU at all — the
+ * Settled fallbacks offer enabling GPU acceleration, an explicit retry, or (when this window has no GPU at all) the
  * Settings row that owns hardware acceleration. An automatic recovery already in progress stays informational so clicks
  * cannot multiply pending attempts.
  */
@@ -76,7 +76,7 @@ const progressIcons = {
 
 /**
  * `--accent` is reserved for the one focused pane/tab (DESIGN.md principle 2). This badge renders for every Terminal
- * with progress, not just the active one, so a background process must not borrow the accent color — only the genuinely
+ * with progress, not just the active one, so a background process must not borrow the accent color: only the genuinely
  * exceptional states (`error`/`paused`) get a status color here; the common "normal" case stays neutral.
  */
 const progressColors = {
@@ -134,14 +134,14 @@ function TerminalUsageStatus({
     const cpuLabel = formatCpuPercent(usage.cpuPercent);
     /**
      * The same thresholds Server Core alerts on, so the chip turns red exactly when a resource alert would be justified
-     * for this Terminal — without waiting for the alert's consecutive-sample confirmation.
+     * for this Terminal, without waiting for the alert's consecutive-sample confirmation.
      */
     const isHigh = isTerminalResourceUsageHigh(usage);
     return (
         <>
             {showMemory && (
                 <StatusItem
-                    ariaLabel={`Open Process Explorer — Terminal memory: ${memoryLabel}${isHigh ? ', high resource use' : ''}`}
+                    ariaLabel={`Open Process Explorer, Terminal memory: ${memoryLabel}${isHigh ? ', high resource use' : ''}`}
                     className={cn(isHigh && 'text-danger')}
                     icon={<MemoryStick />}
                     title={
@@ -169,7 +169,7 @@ function TerminalUsageStatus({
             )}
             {showChildProcessCount && (
                 <StatusItem
-                    ariaLabel={`Open Process Explorer — Terminal: ${childLabel}`}
+                    ariaLabel={`Open Process Explorer, Terminal: ${childLabel}`}
                     icon={<Workflow />}
                     title={
                         <StructuredTooltip

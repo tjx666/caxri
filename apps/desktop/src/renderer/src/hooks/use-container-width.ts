@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
  * Tracks an element's content-box width via `ResizeObserver`, quantized down to the nearest `bucket` px. Consumers that
  * derive layout thresholds from this value (e.g. status bar chip priority) see a stable, rounded number instead of
  * every sub-pixel fluctuation, which is what keeps a width sitting near a breakpoint from flickering a chip in and out
- * on every frame — hysteresis by quantization rather than by tracking resize direction.
+ * on every frame: hysteresis by quantization rather than by tracking resize direction.
  */
 export function useContainerWidth<T extends HTMLElement>(
     bucket = 8,

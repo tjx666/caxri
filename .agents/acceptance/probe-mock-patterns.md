@@ -1,4 +1,4 @@
-# Probe / Mock Patterns — Caxri
+# Probe / Mock Patterns: Caxri
 
 Reusable Caxri-specific techniques for producing fast, deterministic, and
 reviewable Acceptance evidence. Environment and fixture facts belong in
@@ -82,8 +82,8 @@ Use a fresh isolated case profile when the sequence mutates state.
 
 ## Inject the exact failure class a diagnostic claims to distinguish
 
-**Situation:** A case must prove that Caxri classifies one specific failure correctly — a suspended
-process, a reconnect window, a dropped-events advisory, a structurally impossible Git root — rather
+**Situation:** A case must prove that Caxri classifies one specific failure correctly (a suspended
+process, a reconnect window, a dropped-events advisory, a structurally impossible Git root) rather
 than merely that the surrounding feature still works.
 
 **Does not work:** Approximating the failure with load. High-frequency rewrites of the same files do
@@ -95,7 +95,7 @@ deterministically:
 
 - **Process suspension** (`process.event_loop_stall` with `stallKind: process-suspension`): `SIGSTOP`
   the launch's own Server Core for several seconds, then `SIGCONT`. The whole process freezes, so the
-  next probe measures the full freeze as its interval while the CPU delta stays near zero — the same
+  next probe measures the full freeze as its interval while the CPU delta stays near zero; the same
   shape as a laptop lid-close, on one process.
 - **A real reconnect window** (`ipc.request_failed` with `code: UNAVAILABLE`): `kill -9` Server Core.
   `SIGSTOP` does not work here: the Desktop connection has no heartbeat, so a frozen peer never
@@ -112,7 +112,7 @@ directory is temporary.
 
 ## Drive high-frequency Renderer requests from inside the page
 
-**Situation:** A case must land many real requests inside a window that is open for about a second —
+**Situation:** A case must land many real requests inside a window that is open for about a second:
 a reconnect window, a throttle interval, a cancellation race.
 
 **Does not work:** Repeated `agent-browser` clicks or tab switches. Each CLI command is a full

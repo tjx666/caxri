@@ -8,7 +8,7 @@ import { normalizeShortcut, shortcutLeadingChord } from './shortcuts.js';
 /**
  * True when two keybindings cannot coexist: the same normalized keybinding, or a single-chord binding standing on the
  * chord that opens the other's sequence. Dispatch arms the pending chord whenever one exists, so `cmd+k` and `cmd+k
- * cmd+s` are not two independent bindings — the single-chord one could never fire.
+ * cmd+s` are not two independent bindings: the single-chord one could never fire.
  */
 function areShortcutsColliding(left: string, right: string): boolean {
     if (left === right) return true;
@@ -128,7 +128,7 @@ export function reconcileDefaultKeybindings(
 
 /**
  * Finds keybindings that cannot all work: several commands on one normalized keybinding, and a keybinding standing on a
- * chord that opens a sequence. Only the keybinding that cannot fire is reported — the sequence itself works, so warning
+ * chord that opens a sequence. Only the keybinding that cannot fire is reported: the sequence itself works, so warning
  * on its row would be noise.
  */
 export function findKeybindingConflicts(keybindings: readonly Keybinding[]): KeybindingConflict[] {
@@ -144,7 +144,7 @@ export function findKeybindingConflicts(keybindings: readonly Keybinding[]): Key
     for (const [key, commands] of commandsByKey) {
         /**
          * Checked against {@link buildChordLeadingChords} rather than against the other keys, so the unconditionally
-         * reserved `cmd+k` is caught even when no sequence currently uses it — exactly the state a user reaches by
+         * reserved `cmd+k` is caught even when no sequence currently uses it, exactly the state a user reaches by
          * removing the shipped `cmd+k …` defaults and binding something to the bare chord.
          */
         if (!shortcutLeadingChord(key) && leadingChords.has(key))

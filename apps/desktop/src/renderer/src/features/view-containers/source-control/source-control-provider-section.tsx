@@ -75,9 +75,9 @@ function rowTooltip(
 }
 
 /**
- * A provider whose only content is one group — Pull Request and Last Commit modes — folds that group into its own
- * header. The caption repeated what the header and the mode switch already said (`PR #20092 Changes` under a repository
- * row that already counts the same files), and spent a second row per repository on it. Working-tree mode keeps the
+ * A provider whose only content is one group (Pull Request and Last Commit modes) folds that group into its own header.
+ * The caption repeated what the header and the mode switch already said (`PR #20092 Changes` under a repository row
+ * that already counts the same files), and spent a second row per repository on it. Working-tree mode keeps the
  * caption, because there it separates the changes from the history section below.
  */
 function foldedGroupOf(provider: ProviderModel): GroupModel | undefined {
@@ -183,7 +183,7 @@ function ProviderHeader({
      * The uncommitted notice joins the row's context menu rather than `provider.actions`, because the protocol
      * deliberately keeps it out of the action registry (`sourceControlProviderSchema.uncommittedNotice`): a mode change
      * dispatched as an action id would give one state change two dispatch paths. Carrying it here is what gives a
-     * keyboard user any entry point at all — the inline button is `tabIndex={-1}` like every other inline action in the
+     * keyboard user any entry point at all: the inline button is `tabIndex={-1}` like every other inline action in the
      * tree, so `Shift+F10` is how it is reached.
      */
     const menuItems: SourceControlRowMenuItem[] = [
@@ -241,7 +241,7 @@ function ProviderHeader({
                     if (event.key !== 'Enter') return;
                     /**
                      * Alt+Enter never reaches a button's click handler, so both modifier gestures need naming here for
-                     * a keyboard user — the same pairing the directory rows use.
+                     * a keyboard user: the same pairing the directory rows use.
                      */
                     if (didOpenExternalLink(event, provider.externalLink)) {
                         event.preventDefault();
@@ -398,7 +398,7 @@ function GroupCaption({
     provider: ProviderModel;
 }) {
     /**
-     * The provider's page for the changes this group lists — the pull request whose number the caption already prints.
+     * The provider's page for the changes this group lists: the pull request whose number the caption already prints.
      */
     const externalLink = provider.externalLink;
     const toggleRecursively = (): void =>

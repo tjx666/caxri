@@ -163,7 +163,7 @@ describe('trustableParentHostname', () => {
 
     it('offers nothing beyond three labels, where the parent would be wider than the host shown', () => {
         /**
-         * `bucket.s3.amazonaws.com` would yield `s3.amazonaws.com` — every S3 bucket on the account's region — which is
+         * `bucket.s3.amazonaws.com` would yield `s3.amazonaws.com`, every S3 bucket on the account's region, which is
          * nothing like the single host the dialog is asking about.
          */
         expect(trustableParentHostname(new URL('https://bucket.s3.amazonaws.com'))).toBeUndefined();

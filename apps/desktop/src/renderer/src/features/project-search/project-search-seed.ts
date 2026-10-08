@@ -20,8 +20,8 @@ export function projectSearchSeedQuery(text: string): string | undefined {
 
 /**
  * Seeds `cmd+shift+f` the way VS Code seeds its search from the editor selection, with the clipboard as a fallback so a
- * term copied elsewhere — a browser, a log — is one keystroke away. The selection is read before the first `await`,
- * while focus is still on the surface the user invoked the shortcut from.
+ * term copied elsewhere (a browser, a log) is one keystroke away. The selection is read before the first `await`, while
+ * focus is still on the surface the user invoked the shortcut from.
  */
 export async function resolveProjectSearchSeedQuery(
     readClipboard: () => Promise<string> = () => navigator.clipboard.readText(),

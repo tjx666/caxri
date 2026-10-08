@@ -28,7 +28,7 @@ function collectNameTreeFiles(
  *
  * Reading the order back out of the rendered structure rather than out of the raw match list is what keeps the keyboard
  * and the eye together: name results are sorted into a tree (directories first), while content results keep the
- * Server's order grouped by file. Group headers are deliberately not selectable — they have no line to preview, and
+ * Server's order grouped by file. Group headers are deliberately not selectable: they have no line to preview, and
  * stepping through a 40-hit file would otherwise cost an extra keystroke per file.
  */
 export function selectableSearchMatches(

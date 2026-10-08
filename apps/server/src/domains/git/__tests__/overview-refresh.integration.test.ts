@@ -50,7 +50,7 @@ async function fixture() {
 
 describe('Git overview refresh', () => {
     /**
-     * No Project file watcher covers this root — the same position as every Session other than the selected one — so a
+     * No Project file watcher covers this root (the same position as every Session other than the selected one), so a
      * plain working-tree write never advances its status generation. A cached read keeps answering from the old
      * snapshot; only a refreshing read sees the write (issue #859).
      */

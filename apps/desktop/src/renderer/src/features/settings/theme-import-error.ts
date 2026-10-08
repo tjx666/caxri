@@ -6,7 +6,7 @@ import { describeFailure } from '../../stores/toasts';
  * What the last Import Theme attempt did, reported inside the dialog rather than through a toast.
  *
  * A toast was the wrong channel twice over: success said nothing at all, and a failure landed in a surface the open
- * dialog's focus trap keeps out of Tab order (DESIGN.md — "a failure the dialog can report in place belongs in the
+ * dialog's focus trap keeps out of Tab order (DESIGN.md: "a failure the dialog can report in place belongs in the
  * dialog"). Both answers now render at the top of the theme editor, where the button that asked for them is.
  */
 export type ThemeImportResult =

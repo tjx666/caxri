@@ -226,7 +226,7 @@ describe('application menu', () => {
 
     /**
      * A native accelerator fires from the keystroke itself, so registering one on a chord that opens a sequence would
-     * consume `Cmd+K` before the Renderer's chord state machine could arm — the whole `Cmd+K …` family would stop
+     * consume `Cmd+K` before the Renderer's chord state machine could arm; the whole `Cmd+K …` family would stop
      * working the moment any command claimed the bare opener.
      */
     it('leaves a chord that opens a sequence to the Renderer instead of registering an accelerator', () => {
@@ -366,7 +366,7 @@ describe('application menu', () => {
 
     it('translates DOM key names Electron does not accept as accelerator tokens', () => {
         // `ARROWLEFT` is not an Electron token, so an unmapped arrow silently leaves the menu item without a working
-        // accelerator while the Renderer's own DOM shortcut keeps firing — the failure is invisible from the Renderer.
+        // accelerator while the Renderer's own DOM shortcut keeps firing: the failure is invisible from the Renderer.
         const template = buildAppMenuTemplate({
             keybindings: [
                 { command: 'session.navigateBack', key: 'ctrl+alt+arrowleft' },

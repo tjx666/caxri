@@ -19,14 +19,14 @@ describe('mergeStructurally', () => {
             settings: { fontSize: 13 },
         };
         const next = structuredClone(previous);
-        next.terminals[1].title = 'Codex — refactor';
+        next.terminals[1].title = 'Codex: refactor';
 
         const merged = mergeStructurally(previous, next);
 
         expect(merged).not.toBe(previous);
         expect(merged.settings).toBe(previous.settings);
         expect(merged.terminals[0]).toBe(previous.terminals[0]);
-        expect(merged.terminals[1]).toEqual({ id: 'b', title: 'Codex — refactor' });
+        expect(merged.terminals[1]).toEqual({ id: 'b', title: 'Codex: refactor' });
     });
 
     it('matches array elements by identifier rather than position', () => {
@@ -82,10 +82,10 @@ describe('mergeStructurally', () => {
 
     /**
      * Issue #1356: a real Session switch is not the refresh above. Selecting a Session stamps its `lastOpenedAt` and
-     * its Project's, so `sessions` and `projects` do change reference on every switch — along with the two records
-     * whose timestamp moved. Anything a Session row receives therefore cannot be derived from those arrays or records
-     * by identity alone: the rows stay quiet only because the handlers read them through refs, the id lists are keyed
-     * by content, and the Project reaches each row as fields.
+     * its Project's, so `sessions` and `projects` do change reference on every switch: along with the two records whose
+     * timestamp moved. Anything a Session row receives therefore cannot be derived from those arrays or records by
+     * identity alone: the rows stay quiet only because the handlers read them through refs, the id lists are keyed by
+     * content, and the Project reaches each row as fields.
      */
     it('replaces only the opened Session and its Project across a real Session switch', () => {
         const previous = {

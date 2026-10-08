@@ -119,7 +119,7 @@ async function applyGpuPreference(page: Page, preference: GpuPreference): Promis
         .toBe(preference.toLowerCase());
     // Settings is a Workbench tab now, not a modal (issue caxri#1289): it occupies the same
     // pane a Terminal session would, so `Cmd+W` closes it outright to get the Terminal back in
-    // view — there is no "Close" button to click anymore.
+    // view: there is no "Close" button to click anymore.
     await page.keyboard.press('Meta+w');
 }
 
@@ -218,12 +218,12 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
 
         /**
          * The status bar chip is the shortest route out of software rendering, so it must survive as a real button with
-         * a confirmation in front of the settings write — not just as a tooltip that explains the slowdown.
+         * a confirmation in front of the settings write, not just as a tooltip that explains the slowdown.
          */
         const rendererChip = running.page.locator('button.statusbar-terminal-renderer');
         await expect(rendererChip).toHaveAttribute(
             'aria-label',
-            'Turn on GPU acceleration for Terminals? — Terminal is using software rendering. GPU acceleration is turned off in Settings.',
+            'Turn on GPU acceleration for Terminals? Terminal is using software rendering. GPU acceleration is turned off in Settings.',
         );
         await rendererChip.click();
         const confirmation = running.page.locator('.confirmation-dialog');
@@ -573,7 +573,7 @@ test('repeated context losses preserve user choice and a confirmed opt-out persi
         const acceleration = settingsTab.getByRole('switch', { name: 'Hardware acceleration' });
         await expect(acceleration).not.toBeChecked();
         // Settings is a Workbench tab now, not a modal: `Cmd+W` closes it outright to get the
-        // Terminal back in view — there is no "Close" button to click anymore.
+        // Terminal back in view: there is no "Close" button to click anymore.
         await running.page.keyboard.press('Meta+w');
         const surface = running.page.locator('.terminal-surface');
         await expect(surface).toBeVisible();
@@ -645,7 +645,7 @@ test('repeated GPU incidents pin the session to DOM until an explicit retry', as
         const rendererChip = running.page.locator('.statusbar-terminal-renderer');
         await expect(rendererChip).toHaveAttribute(
             'aria-label',
-            'Retry GPU rendering? — Terminal is using software rendering. Drawing failed repeatedly. Automatic recovery is paused; click to retry GPU rendering.',
+            'Retry GPU rendering? Terminal is using software rendering. Drawing failed repeatedly. Automatic recovery is paused; click to retry GPU rendering.',
         );
         await typeTerminal(running.page, String.raw`printf 'PINNED_DOM_STILL_LIVE\n'`);
         await expect(pane.locator('.xterm-rows')).toContainText('PINNED_DOM_STILL_LIVE');

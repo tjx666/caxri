@@ -62,7 +62,7 @@ test('Session hover card counts another root’s uncommitted changes but not the
         /*
          * Reading beta once while it is selected leaves the Server a cached snapshot of a clean tree. Moving the
          * selection to alpha then stops the file watcher from following beta, so the edits below never advance that
-         * snapshot on their own — the stale-count case the card has to see through.
+         * snapshot on their own: the stale-count case the card has to see through.
          */
         await pageRequest(page, 'session.select', { sessionId: betaSessionId });
         const betaClean = await pageRequest<{ repositories: Array<{ changedFileCount: number }> }>(

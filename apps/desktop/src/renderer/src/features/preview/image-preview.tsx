@@ -42,7 +42,7 @@ async function releaseImage(
  * remount here is the decoded blob and its reference count, which the cache owns, and a `blob:` URL held by a discarded
  * query entry would be revoked out from under a live `img`.
  *
- * The checkerboard is what makes transparency legible — an SVG with a transparent background is otherwise
+ * The checkerboard is what makes transparency legible: an SVG with a transparent background is otherwise
  * indistinguishable from an empty canvas, and guessing a fill would misrepresent the file.
  */
 export function ImagePreview({ sessionId, path }: { sessionId: string; path: string }) {

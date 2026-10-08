@@ -75,7 +75,7 @@ describe('resolvePaneDropZone', () => {
 
     it('picks the nearest edge in a corner', () => {
         // Width 200 makes the horizontal distance-from-edge fraction (10/200 = 0.05) smaller than the vertical
-        // fraction (15/100 = 0.15), so the nearest edge — left — wins even though both are within the threshold.
+        // fraction (15/100 = 0.15), so the nearest edge, left, wins even though both are within the threshold.
         expect(resolvePaneDropZone(bounds, { x: 10, y: 15 })).toBe('left');
     });
 

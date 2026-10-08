@@ -144,7 +144,7 @@ test('a failed Terminal launch can retry after its folder becomes available', as
          * The folder is made inaccessible before its menu is opened, never while it is open. A mode change is a watched
          * filesystem event, so the Files tree refreshes on it; doing that behind an open context menu means the menu's
          * own row can be re-rendered out from under it, which is how `Open in Terminal` went missing for the full click
-         * timeout in CI. The row itself stays listed either way — reading the parent directory is what enumerates it,
+         * timeout in CI. The row itself stays listed either way: reading the parent directory is what enumerates it,
          * and that is still permitted.
          */
         await chmod(folder, 0o000);

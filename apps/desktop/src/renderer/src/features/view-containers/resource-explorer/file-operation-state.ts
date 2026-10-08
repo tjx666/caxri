@@ -13,7 +13,7 @@ export interface PendingFileOperation {
     affectedPaths: readonly string[];
     /**
      * Only a durable mutation (create/rename/move) is journaled with a Server-recognized `operationId`, so only those
-     * can be canceled through `files.operation.cancel`. A plain copy has no journal entry to cancel — offering Cancel
+     * can be canceled through `files.operation.cancel`. A plain copy has no journal entry to cancel: offering Cancel
      * for it would be a dead button.
      */
     cancelable: boolean;
@@ -101,7 +101,7 @@ export function useIsPathBlockedByFileOperations(projectId: string, path: string
 /**
  * Shared copy for every Paste/Duplicate menu entry disabled by an in-flight file operation.
  */
-export const FILE_OPERATION_BUSY_REASON = 'Busy — a file operation is in progress here';
+export const FILE_OPERATION_BUSY_REASON = 'Busy: a file operation is in progress here';
 
 /**
  * Why Paste cannot run into a directory, or `undefined` while it can. An empty clipboard wins over a busy target:

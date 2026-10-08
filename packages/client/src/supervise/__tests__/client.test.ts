@@ -180,7 +180,7 @@ describe('ServerClient close notification', () => {
         client.onClose(listener);
 
         // A real `ws` 'close' event always carries the close code as its first argument; 1006 is the code for an
-        // abnormal closure such as `terminate()` with no close handshake — the shape a suspended-then-revoked
+        // abnormal closure such as `terminate()` with no close handshake: the shape a suspended-then-revoked
         // Desktop connection produces (see https://github.com/tjx666/caxri/issues/553).
         socket.emit('close', 1006);
 

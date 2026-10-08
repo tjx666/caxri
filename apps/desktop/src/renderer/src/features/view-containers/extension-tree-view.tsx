@@ -210,7 +210,7 @@ function treeItemPresentation(row: VisibleItemRow, isRefreshing: boolean) {
         style: isMessage ? undefined : { paddingLeft: `${8 + row.depth * 14}px` },
         tooltip:
             row.item.tooltip ??
-            (row.item.description ? `${row.item.label} — ${row.item.description}` : row.item.label),
+            (row.item.description ? `${row.item.label}: ${row.item.description}` : row.item.label),
     };
 }
 
@@ -520,7 +520,7 @@ function ExtensionTreeViewContent({
     };
 
     /**
-     * `visibleLoading` — not the raw `loading` — is what decides whether the header spins: it drops any handle the
+     * `visibleLoading` (not the raw `loading`) is what decides whether the header spins: it drops any handle the
      * on-screen snapshot can already answer. Reading `loading` instead made every root revalidation announce itself,
      * including the one a Session switch triggers on remount, so returning to a Session the user had just left looked
      * like the panel was refetching when the rows never changed. A cold load has no snapshot, so it still spins, and a
@@ -574,7 +574,7 @@ function ExtensionTreeViewContent({
                             /*
                              * A real row puts `treeitem` on its own focusable element inside, so this wrapper steps out of
                              * the accessibility tree. A placeholder has no such element, and `role="none"` would then hoist
-                             * its `status` div to be a direct child of `role="tree"`, which ARIA does not allow — a tree
+                             * its `status` div to be a direct child of `role="tree"`, which ARIA does not allow: a tree
                              * owns `treeitem` and `group`, nothing else. So the wrapper becomes the row instead: disabled,
                              * never focusable, with `isNavigableExtensionTreeRow` keeping arrow keys stepping over it.
                              */

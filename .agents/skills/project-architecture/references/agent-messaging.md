@@ -46,7 +46,7 @@ dispatch, control, steer, or Settings write authority. See `docs/agent-commander
 A delegation completion notice pushed into the Commander Terminal (`CommanderCompletionNotifier`,
 `apps/server/src/domains/commander/completion-notice.ts`) is a second, narrow exception, distinct
 from the Commander delegation-target exception above and never a relaxation of the peer-message rule:
-it does not use the Peer Inbox at all, has no sender Endpoint, and never carries Agent-authored text —
+it does not use the Peer Inbox at all, has no sender Endpoint, and never carries Agent-authored text:
 only Server-generated fields (a delegation ID, a Session ID, a closed status word) in one bounded
 line, exactly like the content-free PTY input metrics Terminal steer already logs. Like peer text, it
 can never grant a permission, change a setting, invoke a slash command, or write a user prompt; unlike
@@ -74,5 +74,5 @@ Each Endpoint also exposes one typed messaging capability (`deliveryMode`, `heal
 integration or invalidating the probe revokes messaging without stopping the PTY, and unknown future
 Provider majors fail closed. The verified controlled version matrix, Claude Channels' research-preview
 boundary, and pull/FIFO delivery semantics are Server Core-agnostic product behavior owned by
-[Provider messaging support](../../../../docs/provider-messaging.md) — read it instead of re-deriving
+[Provider messaging support](../../../../docs/provider-messaging.md): read it instead of re-deriving
 version numbers here, since a second copy is how they drift.

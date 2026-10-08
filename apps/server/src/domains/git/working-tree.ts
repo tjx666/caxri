@@ -54,7 +54,7 @@ const DEFAULT_MAXIMUM_CONSENTS = 128;
 
 /**
  * Working-tree mutations behind the Git panel's Sync and Discard actions. Every discarded path is re-derived from the
- * Server's own status snapshot — the Renderer's `path` parameter is only a lookup key, so no Renderer-supplied string
+ * Server's own status snapshot: the Renderer's `path` parameter is only a lookup key, so no Renderer-supplied string
  * ever reaches a Git argv.
  */
 export class GitWorkingTreeService {

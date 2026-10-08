@@ -85,7 +85,7 @@ export async function didSelectSession(sessionId: string): Promise<boolean> {
  * Code explorer, and on this app's own Workbench tab strip, so a Session row must not spend that gesture on rename;
  * rename stays on the row's context menu and its Enter key.
  *
- * A Session owns the entire Workbench, so opening one is selecting it — there is no second surface to raise. A row that
+ * A Session owns the entire Workbench, so opening one is selecting it; there is no second surface to raise. A row that
  * is already selected is therefore already open, and re-issuing `session.select` for it would push a redundant
  * selection into the visit history for a gesture that changed nothing.
  */
@@ -151,7 +151,7 @@ async function createProjectSession(
  * menu rather than a centered dialog: the trigger already sits under the pointer, so the choice should too.
  *
  * `anchor` names the trigger the menu should hang from; it defaults to the Project heading so callers with no row of
- * their own — the command palette, the native menu, a shortcut — keep opening it there.
+ * their own (the command palette, the native menu, a shortcut) keep opening it there.
  *
  * The menu lives inside the Primary Side Bar, so `session.create` from the native menu, a shortcut, or the command
  * palette would otherwise mark a Project whose row is not mounted and do nothing visible. Revealing the bar first keeps
@@ -274,7 +274,7 @@ const SESSION_NOTICE_TITLE_MAX_LENGTH = 48;
 
 /**
  * Copy for a notice that records one Session lifecycle change. An empty `displayTitle` is representable in the Session
- * record — a Shell-only Session has no Agent to name it — and quoting nothing reads as a rendering bug, so that case
+ * record (a Shell-only Session has no Agent to name it) and quoting nothing reads as a rendering bug, so that case
  * names the noun instead of the title.
  */
 function describeSessionNotice(verb: string, displayTitle: string | undefined): string {
@@ -312,7 +312,7 @@ export function describeRestoredSessions(displayTitles: ReadonlyArray<string | u
 
 /**
  * Archiving deliberately skips a confirmation because it is reversible, but the Archived Sessions dialog it relies on
- * is reachable only through the PrimarySidebar footer entry, which `Command+[` hides entirely — and the `Delete`
+ * is reachable only through the PrimarySidebar footer entry, which `Command+[` hides entirely, and the `Delete`
  * keyboard path reports nothing at all on its own. The notice is therefore the state-change record for both the hover
  * button and the keyboard shortcut, it carries the reversal inline so the escape hatch never depends on finding that
  * dialog, and Sonner's live region gives the keyboard path its screen-reader announcement. It stays an ordinary
@@ -372,7 +372,7 @@ export function setSessionPinned(sessionId: string, shouldPin: boolean): void {
 
 /**
  * Puts the selected Session's sidebar row into rename mode. The rename editor _is_ that row, so a hidden Primary Side
- * Bar is revealed first rather than letting the command type into a surface nobody can see — the same reveal
+ * Bar is revealed first rather than letting the command type into a surface nobody can see; the same reveal
  * {@link beginSessionCreation} performs before opening its anchored menu.
  */
 export function renameSelectedSession(): void {
@@ -394,7 +394,7 @@ export function openArchivedSessions(): void {
 /**
  * Codex refuses to open one conversation in two processes, so handing a Session to an editor Terminal means Caxri must
  * stop its own Agent first. `session.detach` parks the Agent Terminals as `detached`; unlike background suspension,
- * selecting the Session again does not relaunch them — only `resumeSession` does.
+ * selecting the Session again does not relaunch them; only `resumeSession` does.
  */
 export function detachSession(sessionId: string): void {
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
@@ -450,7 +450,7 @@ function cachedSessionPullRequest(sessionId: string): SessionPullRequest | undef
 
 /**
  * Keyboard-reachable route to the pull request the hover card links. The card is a non-modal preview that never
- * receives focus — Tab from the row leaves the sidebar — so the row menu and the palette own this entry.
+ * receives focus: Tab from the row leaves the sidebar, so the row menu and the palette own this entry.
  */
 export function openSessionPullRequest(pullRequest: Pick<SessionPullRequest, 'url'>): void {
     // Fire-and-forget: `openExternalUrl` reports its own failure through the toast.
@@ -465,7 +465,7 @@ export function openSelectedSessionPullRequest(): void {
 }
 
 /**
- * The Agent's own conversation identifier — a Codex thread id, a Claude Code session id — which is not Caxri's Session
+ * The Agent's own conversation identifier (a Codex thread id, a Claude Code session id), which is not Caxri's Session
  * row id. Provider CLIs and their on-disk state are keyed by this value, so it is what lines a Session up against
  * `codex resume`, a rollout file, or a `~/.claude/projects` transcript when an Agent binding has to be inspected.
  */
@@ -712,7 +712,7 @@ export function deleteSelectedSession(): void {
 }
 
 /**
- * Moves a live Terminal (its PTY untouched) into a brand-new Session under the same Project, then switches to it —
+ * Moves a live Terminal (its PTY untouched) into a brand-new Session under the same Project, then switches to it,
  * analogous to a browser "move tab to new window". The Server already selects the new Session as part of the same
  * operation, so the post-command bootstrap refresh is all that is needed to reflect the switch, matching
  * `session.create`'s flow. The only-tab constraint is repeated at this request boundary so an accessibility or

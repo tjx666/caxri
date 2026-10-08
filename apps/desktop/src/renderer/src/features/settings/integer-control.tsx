@@ -17,7 +17,7 @@ interface IntegerControlProperties {
 interface IntegerDraft {
     /**
      * Stored value this text was last in agreement with. A different incoming `value` means the setting moved from
-     * outside the field — a reset, the raw source editor, or an edit to the file — so the text follows it.
+     * outside the field: a reset, the raw source editor, or an edit to the file, so the text follows it.
      */
     committed: number;
     text: string;
@@ -30,7 +30,7 @@ interface IntegerDraft {
  *
  * A rejected entry stays visible in the field as an error instead of being written: the row's "modified" bar and the
  * reset action are derived from the stored value, so nothing may reach the write channel that the settings schema will
- * refuse (DESIGN.md principle 9 — a failed write must not be presented as a successful one).
+ * refuse (DESIGN.md principle 9: a failed write must not be presented as a successful one).
  */
 export function IntegerControl({ id, label, spec, value, onChange }: IntegerControlProperties) {
     const scale = spec.display?.scale ?? 1;

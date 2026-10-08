@@ -116,7 +116,7 @@ test('Discard All Changes resolves the working diff in place without an error no
          * The same resolution inside the stacked Changes view. Two honest outcomes are possible and which one lands is
          * a race: the row can only carry the notice while the repository summary still lists the file, so if that
          * refresh wins the whole list reports a clean tree instead. Both are accepted. What must never come back is the
-         * third outcome this fix removed — the file heading still on screen above an empty box, which reads as a
+         * third outcome this fix removed: the file heading still on screen above an empty box, which reads as a
          * rendering failure rather than as news about the file.
          */
         await writeFile(join(root, 'tracked.txt'), trackedWorking);
@@ -426,7 +426,7 @@ test('Switching between two working diff tabs keeps each diff pointed at its own
 
         /**
          * VS Code parity: the change the Git view lists also paints the tab that holds the file. Both tabs above are
-         * still located by their bare filename, which is the other half of the contract — the status letter is
+         * still located by their bare filename, which is the other half of the contract: the status letter is
          * `aria-hidden` so a decorated tab is never renamed to "tracked.ts M".
          */
         await expect(trackedTab.locator('.tab-label')).toHaveClass(/text-git-modified/);

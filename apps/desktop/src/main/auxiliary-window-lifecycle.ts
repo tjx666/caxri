@@ -6,7 +6,7 @@ import type { ProcessExplorerWindowController } from './process-explorer-window'
  * resuming the Commander via `commander.ensure` (`AgentCommanderWindowController.open`); a closed Commander stays
  * closed. Process Explorer never reopens itself; only its bounds are remembered for the next manual open. Callers run
  * this after Server startup is up and the Workbench window's Renderer has actually finished booting, not merely after
- * `openMainWindow` returns (which only creates the `BrowserWindow` and starts its navigation) — otherwise a reopened
+ * `openMainWindow` returns (which only creates the `BrowserWindow` and starts its navigation); otherwise a reopened
  * Commander could appear, and possibly steal focus, before the Workbench has anything to show; see
  * `docs/agent-commander.md`.
  */

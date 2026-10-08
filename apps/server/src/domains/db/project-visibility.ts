@@ -60,8 +60,8 @@ export function listVisibleProjects(database: CaxriDatabaseConnection): ProjectR
 }
 
 /**
- * Sessions whose Project is not hidden. Anything that exists only to feed the Workbench — bootstrap, status polling,
- * pull-request lookup, CLI queries — reads this instead of the full Session list.
+ * Sessions whose Project is not hidden. Anything that exists only to feed the Workbench (bootstrap, status polling,
+ * pull-request lookup, CLI queries) reads this instead of the full Session list.
  */
 export function listVisibleSessions(database: CaxriDatabaseConnection): SessionRecord[] {
     const excludedProjectIds = new Set(
@@ -85,7 +85,7 @@ export function listVisibleSessions(database: CaxriDatabaseConnection): SessionR
  * Today the selection can only name the target Project itself: every writer of `lastSelectedProjectId` derives it from
  * a Session's own `projectId`, and `createSession` refuses owned Projects, so no Session ever lives in a worktree row.
  * The check still covers the whole cascaded set because comparing a handful of ids is free, while the failure it
- * prevents — the Renderer left pointing at a row that is gone — is one the caller cannot detect. Anything that later
+ * prevents (the Renderer left pointing at a row that is gone) is one the caller cannot detect. Anything that later
  * makes an owned Project selectable is correct here by construction rather than by remembering to revisit this
  * fallback.
  */

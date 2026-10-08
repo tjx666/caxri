@@ -479,9 +479,9 @@ export class SessionPullRequestService {
      * Hands the row to the current branch's pull request once the transcript's own one is merged or closed.
      *
      * The transcript scan can only see `gh pr create` calls made inside that one transcript, so a Session whose next
-     * pull request was opened from another conversation — or whose worktree simply moved to a new branch — keeps
-     * pointing at the delivery that already landed. The Session row then contradicts the status bar, which has always
-     * queried by branch (issue #1035).
+     * pull request was opened from another conversation (or whose worktree simply moved to a new branch) keeps pointing
+     * at the delivery that already landed. The Session row then contradicts the status bar, which has always queried by
+     * branch (issue #1035).
      *
      * Only a _different_ pull request takes over. A branch with none, or with the same one, keeps the transcript's
      * answer so a pull request merged thirty seconds ago does not blank the row before its successor exists, and a

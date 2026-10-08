@@ -235,7 +235,7 @@ describe('Agent adapter fallback', () => {
 
     /**
      * `durationMs` cannot say whether a provider's cache regressed, because it moves with machine load. The hit rate
-     * can, but only if it is on every record — including the 'debug' ones an idle Terminal produces, which are almost
+     * can, but only if it is on every record, including the 'debug' ones an idle Terminal produces, which are almost
      * all of them. A provider with no cache must add nothing, so the field set stays exactly what it was.
      */
     it('carries a provider cache counter on every probe record, including debug ones', async () => {

@@ -140,7 +140,7 @@ describe('Desktop Server attachment and build identity', () => {
 
     /**
      * The stale-Server incident this guards against: a detached dev Server kept running an older build after a rebuild
-     * with identical version and commit (dirty checkout), so only the per-build id can prove the mismatch — and the
+     * with identical version and commit (dirty checkout), so only the per-build id can prove the mismatch, and the
      * connection must replace the Server, not merely warn.
      */
     it('replaces an adopted Server whose buildId differs despite matching version and commit', async () => {

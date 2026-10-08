@@ -7,8 +7,8 @@ import { remoteDebuggingChipCopy } from './remote-debugging-label';
 import { StatusItem } from './status-item';
 
 /**
- * Standing disclosure that this instance is reachable by a debugger. Muted tokens per DESIGN.md's status bar redline —
- * a coloured chip is reserved for a degraded Caxri, and an open debugging channel is a mode the user (or the build)
+ * Standing disclosure that this instance is reachable by a debugger. Muted tokens per DESIGN.md's status bar redline: a
+ * coloured chip is reserved for a degraded Caxri, and an open debugging channel is a mode the user (or the build)
  * chose, like Screencast Mode, not a failure.
  *
  * The query reports what the running process is actually doing, not `argv.jsonc`'s `remoteDebugging`: turning the

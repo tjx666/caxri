@@ -305,8 +305,8 @@ class RendererPerformanceController implements RendererPerformanceMonitor {
     }
 
     /**
-     * Brackets one Terminal mount stage. Unlike a request it may run dozens of times per scenario — once per Terminal
-     * per stage — so it is not counted as pending work: a scenario must be allowed to settle while a kept-alive pane is
+     * Brackets one Terminal mount stage. Unlike a request it may run dozens of times per scenario: once per Terminal
+     * per stage, so it is not counted as pending work: a scenario must be allowed to settle while a kept-alive pane is
      * still finishing a stage nobody is waiting on.
      */
     beginTerminalStage(stage: TerminalPerformanceStage): () => void {

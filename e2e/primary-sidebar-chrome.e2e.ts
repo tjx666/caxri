@@ -31,8 +31,8 @@ test('primarySidebar titlebar is logo-free, holds only history and the Activity 
         const titlebar = running.page.locator('.primary-sidebar-title');
         await expect(titlebar.locator('[data-caxri-logo]')).toHaveCount(0);
         // The Add Project entry points are the `Cmd+O` shortcut, the Project menu, and the command
-        // palette; the titlebar carries exactly three controls — the Session history pair and the
-        // Activity toggle that swaps the side bar's body — and every one of them opts out of the
+        // palette; the titlebar carries exactly three controls: the Session history pair and the
+        // Activity toggle that swaps the side bar's body, and every one of them opts out of the
         // drag region so a click acts instead of moving the window.
         await expect(titlebar.getByRole('button')).toHaveCount(3);
         await expect(titlebar.locator('[data-session-history="back"]')).toHaveCount(1);
@@ -248,7 +248,7 @@ test('Session rows support keyboard selection independently from rename', async 
 
         // Delete is the keyboard equivalent of the per-row Archive button.
         // Archiving the focused row must not throw focus out of the tree: it lands on a neighbor
-        // row. Target the *non-selected* second card so the selection stays put — archiving the
+        // row. Target the *non-selected* second card so the selection stays put; archiving the
         // selected Session would re-select another one, whose Terminal would then claim focus by
         // design (same rationale as the Tab assertion above). Session Activity ordering puts the
         // newer second card first, so focus falls forward to the first-created card below it.
@@ -621,7 +621,7 @@ test('primarySidebar omits Settings and Search while shortcuts and app menu keep
         const settingsTab = await openSettingsTab(running.page);
         await expect(settingsTab).toContainText('Settings');
         // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
-        // outright — there is no "Close" button to click anymore.
+        // outright; there is no "Close" button to click anymore.
         await running.page.keyboard.press('Meta+w');
         await expect(settingsTab).toHaveCount(0);
         await running.page.keyboard.press('Meta+Shift+P');

@@ -17,7 +17,7 @@ export interface ServerLaunchEnvironmentOptions {
 
 /**
  * Curated environment forwarded from Desktop to the spawned Server Core child process. This is an explicit allowlist,
- * not a `process.env` passthrough — see `packages/client/src/supervise/launch.ts`'s `safeLaunchEnvironment()`, which
+ * not a `process.env` passthrough; see `packages/client/src/supervise/launch.ts`'s `safeLaunchEnvironment()`, which
  * merges a small separate `LAUNCH_ENVIRONMENT_KEYS` allowlist with this curated object (this object always wins on
  * overlap).
  */

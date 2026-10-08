@@ -5,9 +5,9 @@ import { getPaneLayout, selectPaneTab } from '../workbench/pane-actions';
 
 /**
  * Pure step function, exported separately so the wrap-around logic has focused unit coverage without mocking the
- * Renderer stores (see the `unit-testing` skill). When `activeId` is not present in `ids` — nothing focused yet —
- * forward stepping lands on the first tab and backward stepping lands on the last one, matching the usual "start of the
- * strip" expectation instead of an arbitrary offset.
+ * Renderer stores (see the `unit-testing` skill). When `activeId` is not present in `ids` (nothing focused yet) forward
+ * stepping lands on the first tab and backward stepping lands on the last one, matching the usual "start of the strip"
+ * expectation instead of an arbitrary offset.
  */
 export function nextTabId(
     ids: readonly string[],
@@ -23,7 +23,7 @@ export function nextTabId(
 /**
  * Cycles the active tab within the focused pane and wraps around at either end. Backs the `workbench.nextTab` /
  * `workbench.previousTab` commands (`Ctrl+Tab` / `Ctrl+Shift+Tab`, both `allowInEditable`); see
- * `commands/definitions.ts`. Cycling stays inside one pane because that is the bar the user is looking at — moving
+ * `commands/definitions.ts`. Cycling stays inside one pane because that is the bar the user is looking at: moving
  * between panes is a separate command.
  */
 export function cycleActiveTab(delta: 1 | -1): void {

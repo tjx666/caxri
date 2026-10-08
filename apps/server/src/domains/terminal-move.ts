@@ -16,7 +16,7 @@ export function createTerminalMoveHandler(dependencies: {
     mobileTerminalMutations: MobileTerminalMutationQueue;
     /**
      * `moveTerminalToNewSession` makes the new Session the selected one, so this must be the composition root's shared
-     * selection hook — not just the file watcher — or Project Status keeps polling the Session left behind.
+     * selection hook (not just the file watcher) or Project Status keeps polling the Session left behind.
      */
     observeSelectedSession: (sessionId: string | undefined) => void;
     send: (event: ServerEvent) => void;

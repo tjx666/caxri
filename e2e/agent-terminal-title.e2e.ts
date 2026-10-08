@@ -11,7 +11,7 @@ import { launchCaxri, openAddProjectDialog, pageRequest, typeTerminal } from './
 
 /**
  * What an Agent CLI paints into its window title: a transient status line, not a name. A Shell has nothing better to be
- * called, so this string would legitimately become its tab label — which is exactly why an Agent Terminal needs the
+ * called, so this string would legitimately become its tab label, which is exactly why an Agent Terminal needs the
  * arbitration under test.
  */
 const AGENT_STATUS_TITLE = 'esc to interrupt · 12s';
@@ -185,7 +185,7 @@ done
 
         /**
          * A fresh restart retires the conversation, so keeping its name would label a brand new Agent with a
-         * conversation it has nothing to do with — permanently, if the replacement never names one. The Runtime clears
+         * conversation it has nothing to do with, permanently, if the replacement never names one. The Runtime clears
          * it in `resetAgentMetadataForStart`, and only a real restart proves that reset is wired into the launch path
          * and projected back to the tab. The retired thread row stays in the fixture database on purpose: its
          * `created_at_ms` predates the new `startedAt`, which is exactly what must keep the probe from re-claiming it.

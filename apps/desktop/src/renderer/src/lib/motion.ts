@@ -1,7 +1,7 @@
 /**
  * Resolve a motion duration token (`--motion-*` in styles.css `:root`) to milliseconds, so JS timings derive from the
- * same source as CSS transitions and never restate a magic number. Falls back to 200ms — longer than every token — if
- * the token is missing or unparsable.
+ * same source as CSS transitions and never restate a magic number. Falls back to 200ms, longer than every token, if the
+ * token is missing or unparsable.
  */
 export function motionDurationMs(token: string): number {
     const raw = getComputedStyle(document.documentElement).getPropertyValue(token).trim();

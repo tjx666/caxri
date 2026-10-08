@@ -134,7 +134,7 @@ function formatOrphans(orphans: Awaited<ReturnType<typeof listOrphanedProcesses>
             relativeCommand.length > ORPHAN_COMMAND_PREVIEW
                 ? `${relativeCommand.slice(0, ORPHAN_COMMAND_PREVIEW)}…`
                 : relativeCommand;
-        return `- ${branch ?? worktreePath} (${worktreePath}): PID ${pid}${startedAt ? ` since ${startedAt}` : ''} — ${preview}`;
+        return `- ${branch ?? worktreePath} (${worktreePath}): PID ${pid}${startedAt ? ` since ${startedAt}` : ''}: ${preview}`;
     });
     return [
         'Caxri worktree processes are running with no live dev launcher. They may belong to a sibling session, so tell the user instead of stopping them unprompted:',

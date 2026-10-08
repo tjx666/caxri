@@ -128,7 +128,7 @@ export default defineConfig(
      * --type-aware` (`.oxlintrc.json`, backed by tsgolint) instead, so ESLint never pays the `projectService`
      * type-checking cost. `markdownProcessorConfig` turns fenced JS/TS code blocks in `*.md` files into virtual files
      * the rest of this config lints; it deliberately replaces the default export's document-level `markdownRulesConfig`
-     * (Markdown semantics belong to markdownlint — see `.markdownlint-cli2.jsonc` — not ESLint) per
+     * (Markdown semantics belong to markdownlint, see `.markdownlint-cli2.jsonc`, not ESLint) per
      * https://github.com/tjx666/caxri/issues/177.
      */
     typescriptConfig,
@@ -166,7 +166,7 @@ export default defineConfig(
                     case: 'kebabCase',
                     /**
                      * `__tests__` is a directory-role convention documented in source-layout. `SKILL.md` and
-                     * `README.md` are required entrypoint names — the skill loader and npm respectively — that fenced
+                     * `README.md` are required entrypoint names, the skill loader and npm respectively, that fenced
                      * snippets inherit as their physical filename.
                      */
                     ignore: [/^__tests__$/, /^SKILL\.md$/, /^README\.md$/],
@@ -235,7 +235,7 @@ export default defineConfig(
             /**
              * These unicorn rules consult type information when parserServices are available and fall back to
              * aggressive syntax-only heuristics when they are not. ESLint deliberately runs without typed linting (the
-             * type-aware layer lives in oxlint — see .oxlintrc.json), and in untyped mode each of these produced
+             * type-aware layer lives in oxlint: see .oxlintrc.json), and in untyped mode each of these produced
              * confirmed false positives on this repository (a non-Array `.push()` receiver, a string `.slice()` treated
              * as an ArrayBuffer view, an intentional boolean-to-boolean `!==` comparison).
              */

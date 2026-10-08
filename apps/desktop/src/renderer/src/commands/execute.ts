@@ -120,7 +120,7 @@ function activeAgentTerminal() {
 }
 
 /**
- * The active pane's tab together with the pane holding it — the target of every command that splits or closes "the
+ * The active pane's tab together with the pane holding it: the target of every command that splits or closes "the
  * current tab", whatever kind it holds.
  */
 function activePaneTarget(): { paneId: string; tabId: string } | undefined {
@@ -445,13 +445,13 @@ export function executeCommand(
  * while a Workbench dialog it cannot see may be open.
  *
  * This is also the single authority for the editable-focus shortcut policy (DESIGN.md Interaction rules) on the native
- * menu path. `useCommandShortcuts` already applies the same gate — using `event.target` — before ever calling
+ * menu path. `useCommandShortcuts` already applies the same gate (using `event.target`) before ever calling
  * `runCommand`, so a keyboard shortcut typed while a Terminal or the editor has focus never reaches here. The native
  * menu's accelerator, however, is delivered by Electron independently of that DOM keydown listener and previously
  * bypassed the policy entirely (e.g. `Cmd+N` still created a Project while a Terminal was focused). `viaAccelerator`
  * (set by the Main-process menu from `event.triggeredByAccelerator`, see `main/index.ts`) lets this function re-apply
- * the same `isEditableEventTarget` + `allowInEditable` gate — using `document.activeElement` in place of a keydown
- * `event.target` — but only for that accelerator path. A menu item invoked by an actual mouse/touch click is a
+ * the same `isEditableEventTarget` + `allowInEditable` gate (using `document.activeElement` in place of a keydown
+ * `event.target`), but only for that accelerator path. A menu item invoked by an actual mouse/touch click is a
  * deliberate user action and Electron cannot report focus state for it, so it is intentionally left ungated here; the
  * tradeoff is that a non-`allowInEditable` command remains reachable by clicking the native menu while a Terminal or
  * the editor has focus, which matches the least-surprising behaviour for a mouse-driven action.

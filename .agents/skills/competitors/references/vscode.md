@@ -35,8 +35,8 @@ _Researched 2026-09-05 at `1dbbce1da524efa885a751381426f1591a9f41c1`._
 
 - `src/vs/platform/files/node/watcher/parcel/parcelWatcher.ts:596-598` treats the macOS FSEvents
   "File system must be re-scanned" advisory as a log line only. VS Code neither reconciles nor
-  restarts the watcher for it, so it never needed to throttle the advisory. Caxri does reconcile —
-  its Files and Git consumers would otherwise stay stale after a kernel overflow — which is why the
+  restarts the watcher for it, so it never needed to throttle the advisory. Caxri does reconcile:
+  its Files and Git consumers would otherwise stay stale after a kernel overflow, which is why the
   coalescing window in `apps/server/src/domains/watch-hub.ts` has no VS Code counterpart to copy.
 - The live restart path is `AbstractWatcherClient.restart()` in
   `src/vs/platform/files/common/watcher.ts:226-271`: it re-inits immediately with no delay, is capped
@@ -48,5 +48,5 @@ _Researched 2026-09-05 at `1dbbce1da524efa885a751381426f1591a9f41c1`._
 - Event delivery out of the watcher is throttled rather than the advisory: a `ThrottledWorker` with
   `maxWorkChunkSize: 500`, `throttleDelay: 200`, and `maxBufferedWork: 30000`, plus a 75ms
   `FILE_CHANGES_HANDLER_DELAY` coalescing pass. The useful shape is that every window is a bound on
-  work per unit time, not a bound on staleness — the same reason Caxri's window may exceed
+  work per unit time, not a bound on staleness, the same reason Caxri's window may exceed
   `@parcel/watcher`'s 500ms forced-flush ceiling.

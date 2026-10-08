@@ -42,7 +42,7 @@ function isExtensionHostProtocolFault(value: string): value is ExtensionHostProt
  *
  * Fails closed in three ways: the sequence stays empty outside an E2E/Acceptance launch, any entry outside the closed
  * reason set discards the whole sequence rather than silently running a shorter one, and the value can only ever select
- * a reason — it never carries a payload, a path, or a command into the Host protocol.
+ * a reason: it never carries a payload, a path, or a command into the Host protocol.
  */
 export function resolveExtensionHostProtocolFaults(
     environment: NodeJS.ProcessEnv = process.env,

@@ -11,7 +11,7 @@ export const MAX_TERMINAL_TITLE_LENGTH = 120;
  * let any process disguise one Terminal as another in the tab strip.
  *
  * `Cf` is the whole invisible-formatting category; ZWNJ/ZWJ are carved back out because they are load-bearing inside
- * legitimate text — emoji sequences and Indic scripts both fall apart without them.
+ * legitimate text: emoji sequences and Indic scripts both fall apart without them.
  */
 const INVISIBLE_FORMATTING = /\p{Cf}/u;
 const ZERO_WIDTH_NON_JOINER = 0x20_0c;
@@ -97,8 +97,8 @@ const MINIMUM_COMPRESSED_SEGMENTS = 4;
  * Turns a PTY-reported window title into the label a tab shows.
  *
  * Terminal titles are overwhelmingly `user@host: /some/deep/path`, and a tab is far too narrow to render that: plain
- * end-truncation would show every tab as the same host prefix. This keeps the identifying tail — the directory the
- * Terminal is actually in — the way iTerm2 and VS Code both compress a path for a narrow slot. The untouched title
+ * end-truncation would show every tab as the same host prefix. This keeps the identifying tail (the directory the
+ * Terminal is actually in), the way iTerm2 and VS Code both compress a path for a narrow slot. The untouched title
  * stays available as the tab's tooltip and accessible name.
  */
 export function terminalTabLabel(title: string): string {

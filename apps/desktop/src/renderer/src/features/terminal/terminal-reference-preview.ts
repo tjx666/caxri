@@ -8,7 +8,7 @@ import { relativeTime, rememberBounded } from '@caxri/utils';
  */
 const PREVIEW_TTL_MS = 60_000;
 /**
- * A blank card is usually a transient condition — `gh` not logged in yet, a repository still being cloned — so it is
+ * A blank card is usually a transient condition: `gh` not logged in yet, a repository still being cloned, so it is
  * remembered just long enough to stop a pointer sweeping one line from re-asking on every row.
  */
 const UNAVAILABLE_TTL_MS = 15_000;
@@ -44,7 +44,7 @@ export interface TerminalReferencePreviewCard {
      */
     body?: string;
     /**
-     * Where the reference lives — the repository, the tracker — shown under the title.
+     * Where the reference lives (the repository, the tracker) shown under the title.
      */
     detail?: string;
     /**
@@ -112,7 +112,7 @@ function terminalReferencePreviewKey(
 }
 
 /**
- * The card shown before — and instead of — any request: the reference text and where it points. Every recognized
+ * The card shown before (and instead of) any request: the reference text and where it points. Every recognized
  * reference has one, so a hover always answers something even when the CLI is missing or the repository is unknown.
  */
 export function basicReferencePreviewCard(link: TerminalPreviewLink): TerminalReferencePreviewCard {
@@ -187,7 +187,7 @@ export function terminalReferencePreviewCard(
  * Hovering is involuntary, so the two failure modes this guards are both about volume rather than correctness: sweeping
  * the pointer across a screen of references must not open one request per row, and coming back to the same reference a
  * second later must not open a second one. A read is shared by every hover waiting on it and is canceled only when the
- * last of them leaves — cancelling on the first departure would fail a card another pointer is still waiting for.
+ * last of them leaves: cancelling on the first departure would fail a card another pointer is still waiting for.
  */
 export class TerminalReferencePreviewStore {
     private readonly entries = new Map<string, CachedPreview>();
@@ -234,7 +234,7 @@ export class TerminalReferencePreviewStore {
                 return preview;
             } finally {
                 /**
-                 * A rejection is the Server saying it could not answer — including the cancellation this store itself
+                 * A rejection is the Server saying it could not answer, including the cancellation this store itself
                  * requested when the last hover left. Nothing is remembered in that case, so the next hover asks again.
                  * The identity check keeps a late settlement from evicting a newer read under the same key.
                  */

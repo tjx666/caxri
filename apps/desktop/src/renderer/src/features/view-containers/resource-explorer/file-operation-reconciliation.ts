@@ -71,10 +71,10 @@ export function createReconciliationQueue(run: () => Promise<void>): {
  * Operation ids whose failure toast `reconcileFileMutation` must skip entirely, because the caller that started the
  * operation already owns explaining that specific failure itself. The one current user is `file-actions.ts`'s
  * `moveFile`: it registers its first (`reject`-mode) attempt's id before starting, and its own `try`/`catch` decides
- * how to explain any failure — open the interactive Replace/Keep Both/Cancel dialog for `CONFLICT`, or toast once for
- * anything else — so reconciliation must stay silent for that id regardless of the error code, or the caller's message
+ * how to explain any failure: open the interactive Replace/Keep Both/Cancel dialog for `CONFLICT`, or toast once for
+ * anything else, so reconciliation must stay silent for that id regardless of the error code, or the caller's message
  * would double up with reconciliation's own. Everything else about reconciliation (acknowledge, store finish, directory
- * invalidation) still runs unconditionally for a suppressed id — only the toast is skipped, and only once per
+ * invalidation) still runs unconditionally for a suppressed id: only the toast is skipped, and only once per
  * registration (see `didConsumeFailureToastSuppression`). The registration is cleared in the caller's own `finally`
  * (see `clearFailureToastSuppression`) so a successful or never-reconciled operation can't leak an entry either. A
  * Renderer reload mid-flight loses this in-memory registry, so a suppressed operation that somehow reaches
@@ -288,10 +288,10 @@ export function reconcileFileMutation(
 
 /**
  * Test-only: exposes the suppression registry's size directly. A black-box assertion through `reconcileFileMutation`
- * cannot observe a leaked entry on its own — that Set's `reconciled` guard (above) makes a second delivery of the
- * _same_ operation id a no-op regardless of suppression state, and a leaked entry for one id has no effect on any other
- * id's registration or consumption. So the only way to see whether a caller's `finally` actually cleared its
- * registration is to read the registry's size before and after.
+ * cannot observe a leaked entry on its own: that Set's `reconciled` guard (above) makes a second delivery of the _same_
+ * operation id a no-op regardless of suppression state, and a leaked entry for one id has no effect on any other id's
+ * registration or consumption. So the only way to see whether a caller's `finally` actually cleared its registration is
+ * to read the registry's size before and after.
  */
 export function failureToastSuppressionSizeForTests(): number {
     return failureToastSuppressed.size;
