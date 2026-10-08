@@ -60,11 +60,16 @@ export interface ExtensionTreeHorizontalIntent {
      * Present when Left/Right should move roving focus to another row.
      */
     focusIndex?: number;
+    /**
+     * Present when Right should move focus from the row into its first inline action (`TreeItem.actions`).
+     */
+    focusAction?: true;
 }
 
 /**
  * Resolves Left/Right per the standard ARIA tree authoring pattern: Right expands a collapsed node and steps into the
- * first child of an expanded one, Left collapses an expanded node and otherwise climbs to the parent.
+ * first child of an expanded one, Left collapses an expanded node and otherwise climbs to the parent. A row that
+ * carries inline actions switches Right to the treegrid convention (see `focusAction`).
  *
  * Right on an already expanded node used to do nothing, which is the half of the pattern that leaves a user who opened
  * a branch with the keyboard no way to continue into it with the same key. The step is deliberately refused while the
@@ -83,8 +88,12 @@ export function extensionTreeHorizontalIntent(
         if (isCollapsible && row.isExpanded) return { toggle: true };
         return row.parentIndex === -1 ? {} : { focusIndex: row.parentIndex };
     }
+    if (isCollapsible && !row.isExpanded) return { toggle: true };
+    // A row with inline actions follows the ARIA treegrid row pattern instead: Right on a leaf or an expanded row moves
+    // into the row's first action, the way a treegrid moves to the row's first cell. Down still reaches an expanded
+    // row's first child, and rows without actions keep the plain tree behavior below unchanged.
+    if (row.item.actions?.length) return { focusAction: true };
     if (!isCollapsible) return {};
-    if (!row.isExpanded) return { toggle: true };
     // `flattenVisibleRows` emits a branch's rows directly below it, so the first child is always the next row; the
     // parent test is what keeps an expanded-but-childless node from stepping onto its own next sibling.
     const firstChild = rows[index + 1];

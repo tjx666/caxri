@@ -156,3 +156,58 @@ describe('extensionTreeHorizontalIntent', () => {
         expect(extensionTreeHorizontalIntent(rows, 99, 'ArrowRight')).toEqual({});
     });
 });
+
+function withAction(source: TreeItemDto): TreeItemDto {
+    return {
+        ...source,
+        actions: [
+            {
+                command: { id: 'fixture.merge', title: 'Merge' },
+                icon: { kind: 'theme', id: 'git-merge' },
+            },
+        ],
+    };
+}
+
+const actionLeafItem = withAction(item('a'));
+const collapsedActionItem = withAction(item('a', 'collapsed'));
+const expandedActionItem = withAction(item('a', 'expanded'));
+const actionLeaf = rowsFor(new Map([[ROOT, [actionLeafItem]]]), new Set());
+const collapsedActionBranch = rowsFor(new Map([[ROOT, [collapsedActionItem]]]), new Set());
+const expandedActionBranch = rowsFor(
+    new Map([
+        [ROOT, [expandedActionItem]],
+        ['a', [item('a1')]],
+    ]),
+    new Set(['a']),
+);
+
+describe('extensionTreeHorizontalIntent for rows with inline actions', () => {
+    it('moves into the first action on Right from a leaf row', () => {
+        expect(extensionTreeHorizontalIntent(actionLeaf, 0, 'ArrowRight')).toEqual({
+            focusAction: true,
+        });
+    });
+
+    it('still expands a collapsed row on Right before reaching its actions', () => {
+        expect(extensionTreeHorizontalIntent(collapsedActionBranch, 0, 'ArrowRight')).toEqual({
+            toggle: true,
+        });
+    });
+
+    /**
+     * The treegrid convention: Right on an expanded row moves to the row's first cell, and Down reaches the child.
+     */
+    it('moves into the first action on Right from an expanded row instead of its child', () => {
+        expect(extensionTreeHorizontalIntent(expandedActionBranch, 0, 'ArrowRight')).toEqual({
+            focusAction: true,
+        });
+        expect(nextExtensionTreeRowIndex(expandedActionBranch, 0, 'ArrowDown')).toBe(1);
+    });
+
+    it('keeps Left collapsing an expanded row', () => {
+        expect(extensionTreeHorizontalIntent(expandedActionBranch, 0, 'ArrowLeft')).toEqual({
+            toggle: true,
+        });
+    });
+});
