@@ -47,7 +47,7 @@ export const NewSessionCreateRecovery = ({
                     testID="new-session-checked-try-again"
                 >
                     <Text style={[styles.secondaryText, { color: theme.primary }]}>
-                        I checked Sessions. Try again
+                        I checked Sessions — try again
                     </Text>
                 </Pressable>
             ) : null}

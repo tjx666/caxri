@@ -179,7 +179,7 @@ export class ProcessExplorerWindowController {
                  * failing to persist bounds for both this window and the Commander.
                  */
                 minHeight: 480,
-                title: 'Process Explorer - Caxri',
+                title: 'Process Explorer — Caxri',
                 backgroundColor: '#282a36',
                 titleBarStyle: 'hiddenInset',
                 /**

@@ -76,10 +76,10 @@ exec /bin/zsh -l
         await expect(running.page.locator('.statusbar-count')).toHaveCount(0);
         await expect(running.page.locator('.statusbar-toggle')).toHaveCount(0);
         await expect(
-            running.page.getByLabel(/^Open Process Explorer, Terminal memory: [\d.]+ MB$/),
+            running.page.getByLabel(/^Open Process Explorer — Terminal memory: [\d.]+ MB$/),
         ).toBeVisible();
         const childProcesses = running.page.getByLabel(
-            /^Open Process Explorer, Terminal: \d+ child processes?$/,
+            /^Open Process Explorer — Terminal: \d+ child processes?$/,
         );
         await expect(childProcesses).toBeVisible();
         await expect(childProcesses).toHaveText(/^\d+$/);
@@ -199,7 +199,7 @@ exec /bin/zsh -l
         await running.page.getByRole('tab', { name: 'Files', exact: true }).click();
         await running.page.getByRole('treeitem', { name: 'source.ts', exact: true }).click();
         await expect(
-            running.page.getByRole('button', { name: /^Open Process Explorer, Terminal/ }),
+            running.page.getByRole('button', { name: /^Open Process Explorer — Terminal/ }),
         ).toHaveCount(0);
         await expect(running.page.getByLabel('File type: TypeScript')).toBeVisible();
         await expect(running.page.getByLabel(/^Editor position: Ln 1, Col 1/)).toBeVisible();

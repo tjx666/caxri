@@ -342,7 +342,7 @@ setInterval(() => {
         ).toBeVisible();
 
         await running.page
-            .getByRole('button', { name: /^Open Process Explorer, Terminal memory:/ })
+            .getByRole('button', { name: /^Open Process Explorer — Terminal memory:/ })
             .click();
         await expect.poll(() => running.app.windows().length).toBe(2);
         const processPage = running.app.windows().find((page) => page !== running.page)!;

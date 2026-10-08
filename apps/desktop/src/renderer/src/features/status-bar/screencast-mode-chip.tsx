@@ -18,7 +18,7 @@ const screencastChipClassName = 'text-muted';
  * source code and Terminal output stay exactly as exposed as they would be without it.
  */
 const SCREENCAST_CHIP_LABEL =
-    'Screencast Mode is on: click to turn it off. It overlays click ripples and keystroke hints for recording; it does not hide or redact anything already on screen.';
+    'Screencast Mode is on — click to turn it off. It overlays click ripples and keystroke hints for recording; it does not hide or redact anything already on screen.';
 
 export function ScreencastModeChip() {
     const isEnabled = useScreencastStore((state) => state.enabled);

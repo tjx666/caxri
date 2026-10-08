@@ -26,7 +26,7 @@ describe('hookHealthLabel', () => {
                 kind: 'notInstalled',
                 message: 'Install the Codex CLI, then restart Caxri.',
             }),
-        ).toBe('Not in effect. Install the Codex CLI, then restart Caxri.');
+        ).toBe('Not in effect — Install the Codex CLI, then restart Caxri.');
         expect(hookHealthLabel(true, { kind: 'installedPending' })).toBe(
             'Not in effect until your next Agent session',
         );
@@ -35,7 +35,7 @@ describe('hookHealthLabel', () => {
         );
         expect(hookHealthLabel(true, { kind: 'stale' })).toContain('restart Agent Terminals');
         expect(hookHealthLabel(true, { kind: 'error', message: 'EPERM' })).toBe(
-            'Setup failed: restart Agent Terminals to try again. EPERM',
+            'Setup failed — restart Agent Terminals to try again — EPERM',
         );
     });
 });

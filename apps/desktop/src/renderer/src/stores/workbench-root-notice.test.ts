@@ -25,7 +25,7 @@ describe('workbench Root change notices', () => {
     it('names the destination of an Agent move and offers the root it left', () => {
         expect(workbenchRootNotice(followed, 'project-owner')).toEqual({
             kind: 'followed',
-            message: 'Switched to worktree "feature-entered": an Agent moved there.',
+            message: 'Switched to worktree "feature-entered" — an Agent moved there.',
             projectId: 'project-worktree',
             projectTitle: 'feature-entered',
             undoProjectId: 'project-owner',
@@ -40,7 +40,7 @@ describe('workbench Root change notices', () => {
 
         expect(notice).toMatchObject({
             kind: 'followed',
-            message: 'Switched to worktree "feature-entered": an Agent moved there.',
+            message: 'Switched to worktree "feature-entered" — an Agent moved there.',
         });
         expect(notice).not.toHaveProperty('undoProjectId');
     });
@@ -55,7 +55,7 @@ describe('workbench Root change notices', () => {
                 },
                 'project-owner',
             ),
-        ).toMatchObject({ message: 'Switched to another worktree: an Agent moved there.' });
+        ).toMatchObject({ message: 'Switched to another worktree — an Agent moved there.' });
     });
 
     it('keeps naming the Project a fallback returned to', () => {

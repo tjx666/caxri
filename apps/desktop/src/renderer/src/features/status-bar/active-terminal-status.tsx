@@ -141,7 +141,7 @@ function TerminalUsageStatus({
         <>
             {showMemory && (
                 <StatusItem
-                    ariaLabel={`Open Process Explorer, Terminal memory: ${memoryLabel}${isHigh ? ', high resource use' : ''}`}
+                    ariaLabel={`Open Process Explorer — Terminal memory: ${memoryLabel}${isHigh ? ', high resource use' : ''}`}
                     className={cn(isHigh && 'text-danger')}
                     icon={<MemoryStick />}
                     title={
@@ -169,7 +169,7 @@ function TerminalUsageStatus({
             )}
             {showChildProcessCount && (
                 <StatusItem
-                    ariaLabel={`Open Process Explorer, Terminal: ${childLabel}`}
+                    ariaLabel={`Open Process Explorer — Terminal: ${childLabel}`}
                     icon={<Workflow />}
                     title={
                         <StructuredTooltip

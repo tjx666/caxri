@@ -199,7 +199,7 @@ describe('buildContextMenuTemplate', () => {
 
         expect(item.sublabel).toBeUndefined();
         expect(item.label).toMatch(
-            /^Copy Path \[.+\]: This document is outside every added Project$/,
+            /^Copy Path \[.+\] — This document is outside every added Project$/,
         );
     });
 });
@@ -296,7 +296,7 @@ describe('showContextMenu', () => {
             { isE2E: false, systemVersion: '14.3' },
         );
         const [template] = electron.buildFromTemplate.mock.calls[0];
-        expect(template[0]).toMatchObject({ label: 'Paste: Nothing to paste', enabled: false });
+        expect(template[0]).toMatchObject({ label: 'Paste — Nothing to paste', enabled: false });
         electron.popup.mock.calls[0][0].callback?.();
         await expect(result).resolves.toEqual({});
     });

@@ -223,7 +223,7 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
         const rendererChip = running.page.locator('button.statusbar-terminal-renderer');
         await expect(rendererChip).toHaveAttribute(
             'aria-label',
-            'Turn on GPU acceleration for Terminals? Terminal is using software rendering. GPU acceleration is turned off in Settings.',
+            'Turn on GPU acceleration for Terminals? — Terminal is using software rendering. GPU acceleration is turned off in Settings.',
         );
         await rendererChip.click();
         const confirmation = running.page.locator('.confirmation-dialog');
@@ -645,7 +645,7 @@ test('repeated GPU incidents pin the session to DOM until an explicit retry', as
         const rendererChip = running.page.locator('.statusbar-terminal-renderer');
         await expect(rendererChip).toHaveAttribute(
             'aria-label',
-            'Retry GPU rendering? Terminal is using software rendering. Drawing failed repeatedly. Automatic recovery is paused; click to retry GPU rendering.',
+            'Retry GPU rendering? — Terminal is using software rendering. Drawing failed repeatedly. Automatic recovery is paused; click to retry GPU rendering.',
         );
         await typeTerminal(running.page, String.raw`printf 'PINNED_DOM_STILL_LIVE\n'`);
         await expect(pane.locator('.xterm-rows')).toContainText('PINNED_DOM_STILL_LIVE');

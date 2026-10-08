@@ -186,7 +186,7 @@ exec /bin/zsh -l
         await fileList.getByRole('treeitem', { name: 'source.ts', exact: true }).click();
         await expect(running.page.getByLabel('File type: TypeScript')).toBeVisible();
         await expect(running.page.getByLabel(/^Editor position: Ln 1, Col 1/)).toBeVisible();
-        await expect(running.page.getByLabel(/^Open Process Explorer, Terminal/)).toHaveCount(0);
+        await expect(running.page.getByLabel(/^Open Process Explorer — Terminal/)).toHaveCount(0);
         /**
          * The status bar spans every column of the `app-shell` grid, so its width is the shell's, not the window's.
          * With both sidebars open `clampLayoutToViewport`'s minimums floor that shell at 180 + 6 + 320 + 6 + 240 =
@@ -210,10 +210,10 @@ exec /bin/zsh -l
         await running.page.mouse.move(0, 0);
         await expect(running.page.locator('.tooltip-popup')).toHaveCount(0);
         const memory = running.page.getByLabel(
-            /^Open Process Explorer, Terminal memory: [\d.]+ MB$/,
+            /^Open Process Explorer — Terminal memory: [\d.]+ MB$/,
         );
         const childProcesses = running.page.getByLabel(
-            /^Open Process Explorer, Terminal: \d+ child processes?$/,
+            /^Open Process Explorer — Terminal: \d+ child processes?$/,
         );
         // Both readings arrive from a poll after the Terminal exists, so wait for the fully populated bar once.
         await expect(memory).toBeVisible();

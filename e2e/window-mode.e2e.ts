@@ -39,12 +39,12 @@ test('focused E2E keeps every Electron window hidden while the Renderer stays us
         expect((await running.page.screenshot()).byteLength).toBeGreaterThan(0);
 
         await running.page
-            .getByRole('button', { name: /^Open Process Explorer, Terminal memory:/ })
+            .getByRole('button', { name: /^Open Process Explorer — Terminal memory:/ })
             .click();
         await expect.poll(() => running.app.windows().length).toBe(2);
         const processPage = running.app.windows().find((page) => page !== running.page)!;
         await expect(
-            processPage.getByText('Process Explorer - Caxri', { exact: true }),
+            processPage.getByText('Process Explorer — Caxri', { exact: true }),
         ).toBeVisible();
         await expect
             .poll(() =>

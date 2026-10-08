@@ -41,9 +41,9 @@ describe('terminalRendererIndicator', () => {
                 title: 'Turn on GPU acceleration for Terminals?',
             },
             ariaLabel:
-                'Turn on GPU acceleration for Terminals? Terminal is using software rendering. GPU acceleration is turned off in Settings.',
+                'Turn on GPU acceleration for Terminals? — Terminal is using software rendering. GPU acceleration is turned off in Settings.',
             label: 'Software',
-            title: 'Turn on GPU acceleration for Terminals? Terminal is using software rendering. GPU acceleration is turned off in Settings.',
+            title: 'Turn on GPU acceleration for Terminals? — Terminal is using software rendering. GPU acceleration is turned off in Settings.',
         });
         expect(
             terminalRendererIndicator(
@@ -74,7 +74,7 @@ describe('terminalRendererIndicator', () => {
         expect(
             terminalRendererIndicator(status({ mode: 'dom', reason: 'context-loss-limit' }))?.title,
         ).toBe(
-            'Retry GPU rendering? Terminal is using software rendering. Drawing failed repeatedly. Automatic recovery is paused; click to retry GPU rendering.',
+            'Retry GPU rendering? — Terminal is using software rendering. Drawing failed repeatedly. Automatic recovery is paused; click to retry GPU rendering.',
         );
         // A pane whose own retries ran out before the session pinned must not keep promising that a reopened tab
         // retries WebGL; the pin's closed reason wins over the exhausted retry state.
@@ -120,7 +120,7 @@ describe('terminalRendererIndicator', () => {
     it('keeps a transient probe failure retryable instead of blaming the setting', () => {
         const indicator = terminalRendererIndicator(status({ mode: 'dom', reason: 'unsupported' }));
         expect(indicator?.title).toBe(
-            'Retry GPU rendering? Terminal is using software rendering. The GPU is unavailable in this window right now.',
+            'Retry GPU rendering? — Terminal is using software rendering. The GPU is unavailable in this window right now.',
         );
     });
 
@@ -135,7 +135,7 @@ describe('terminalRendererIndicator', () => {
         );
         expect(indicator?.action).toEqual({ opensSettings: true, title: 'Open Settings' });
         expect(indicator?.title).toBe(
-            'Open Settings: Terminal is using software rendering. Hardware acceleration is turned off, so no Terminal in any window can use the GPU.',
+            'Open Settings — Terminal is using software rendering. Hardware acceleration is turned off, so no Terminal in any window can use the GPU.',
         );
         // The flag only reinterprets the probe failure; a Terminal whose own setting is off still offers to turn it on.
         expect(

@@ -101,7 +101,7 @@ export function useIsPathBlockedByFileOperations(projectId: string, path: string
 /**
  * Shared copy for every Paste/Duplicate menu entry disabled by an in-flight file operation.
  */
-export const FILE_OPERATION_BUSY_REASON = 'Busy: a file operation is in progress here';
+export const FILE_OPERATION_BUSY_REASON = 'Busy — a file operation is in progress here';
 
 /**
  * Why Paste cannot run into a directory, or `undefined` while it can. An empty clipboard wins over a busy target:

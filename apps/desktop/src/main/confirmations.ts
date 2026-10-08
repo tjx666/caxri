@@ -40,7 +40,7 @@ function externalLinkDetail(target: URL, canTrust: boolean, parentHostname?: str
     if (!canTrust) return `${target.href}\n\nYou can open this link once.`;
     if (!parentHostname)
         return `${target.href}\n\nYou can open this link once or trust this exact origin for future links. Trusted origins can be reviewed or removed in Settings.`;
-    return `${target.href}\n\nTrusting ${target.host} covers that host alone. Trusting *.${parentHostname} covers every subdomain of ${parentHostname}, including ones you have never visited. On a shared hosting domain that means sites other people control. Both rules can be reviewed or removed in Settings.`;
+    return `${target.href}\n\nTrusting ${target.host} covers that host alone. Trusting *.${parentHostname} covers every subdomain of ${parentHostname}, including ones you have never visited — on a shared hosting domain that means sites other people control. Both rules can be reviewed or removed in Settings.`;
 }
 
 export function externalLinkPrompt(

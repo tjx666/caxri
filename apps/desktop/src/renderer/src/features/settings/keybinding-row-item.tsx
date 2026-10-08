@@ -50,11 +50,11 @@ export function KeybindingRowItem({
                 {/* The command id is one Tab lookup a script author needs and every other
                     reader does not, so it stays out of the row's own text (issue
                     caxri#1289: "unbgrouped Keybindings list" also flagged this as
-                    clutter); the title's native tooltip surfaces it on hover, and the
+                    clutter) — the title's native tooltip surfaces it on hover, and the
                     `sr-only` span keeps it in the accessible name for anyone else. */}
                 <strong className="block truncate text-[12px] text-foreground" title={row.command}>
                     {row.title}
-                    <span className="sr-only">: {row.command}</span>
+                    <span className="sr-only"> — {row.command}</span>
                 </strong>
                 {conflict && (
                     <p
@@ -107,7 +107,7 @@ export function KeybindingRowItem({
                                 keyClassName="border-accent-foreground/40 bg-transparent text-accent-foreground"
                             />
                             {/* Capture appends a second chord into a sequence, so
-                                clearing needs its own key and its own hint; otherwise a
+                                clearing needs its own key and its own hint — otherwise a
                                 mistyped first chord looks unrecoverable without leaving
                                 recording. */}
                             <span className="text-[10px] text-accent-foreground/80">

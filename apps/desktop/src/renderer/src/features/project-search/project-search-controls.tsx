@@ -148,8 +148,8 @@ export function ProjectSearchControls({
                     <Tooltip
                         content={
                             isUsingIgnoreFiles
-                                ? 'Using .gitignore: click to search ignored files too'
-                                : 'Searching ignored files: click to apply .gitignore'
+                                ? 'Using .gitignore — click to search ignored files too'
+                                : 'Searching ignored files — click to apply .gitignore'
                         }
                     >
                         <button

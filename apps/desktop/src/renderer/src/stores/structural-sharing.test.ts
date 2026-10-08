@@ -19,14 +19,14 @@ describe('mergeStructurally', () => {
             settings: { fontSize: 13 },
         };
         const next = structuredClone(previous);
-        next.terminals[1].title = 'Codex: refactor';
+        next.terminals[1].title = 'Codex — refactor';
 
         const merged = mergeStructurally(previous, next);
 
         expect(merged).not.toBe(previous);
         expect(merged.settings).toBe(previous.settings);
         expect(merged.terminals[0]).toBe(previous.terminals[0]);
-        expect(merged.terminals[1]).toEqual({ id: 'b', title: 'Codex: refactor' });
+        expect(merged.terminals[1]).toEqual({ id: 'b', title: 'Codex — refactor' });
     });
 
     it('matches array elements by identifier rather than position', () => {

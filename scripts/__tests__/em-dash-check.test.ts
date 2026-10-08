@@ -21,20 +21,36 @@ describe('findEmDashes', () => {
         });
     });
 
-    it('allows the quoted empty-value placeholder glyph in every quote style', () => {
-        for (const quote of ["'", '"', '`']) {
-            expect(findEmDashes(`a.tsx:1:value={x ?? ${quote}${EM_DASH}${quote}}`)).toBeUndefined();
+    it('allows em-dashes in code string literals and JSX text', () => {
+        for (const line of [
+            `a.ts:1:const empty = '${EM_DASH}';`,
+            `a.ts:1:return \`\${label} ${EM_DASH} \${message}\`;`,
+            `a.tsx:1:<p>No running Agent ${EM_DASH} copy the report instead.</p>`,
+            `a.html:1:<title>Process Explorer ${EM_DASH} Caxri</title>`,
+            `a.ts:1:const url = 'https://example.com'; const t = 'A ${EM_DASH} B';`,
+        ]) {
+            expect(findEmDashes(line)).toBeUndefined();
         }
     });
 
-    it('still reports prose on a line that also carries the placeholder glyph', () => {
-        expect(
-            findEmDashes(`a.ts:1:const v = x ?? '${EM_DASH}'; // empty ${EM_DASH} no data`),
-        ).toMatchObject({ line: 1, path: 'a.ts' });
+    it('reports em-dashes in code comments', () => {
+        for (const line of [
+            `a.ts:1:// Lazily ${EM_DASH} only when needed.`,
+            `a.ts:1: * JSDoc ${EM_DASH} continuation`,
+            `a.ts:1:/** Block ${EM_DASH} opener */`,
+            `a.tsx:1:{/* JSX ${EM_DASH} comment */}`,
+            `a.html:1:<!-- Markup ${EM_DASH} comment -->`,
+        ]) {
+            expect(findEmDashes(line)).toMatchObject({ line: 1 });
+        }
     });
 
-    it('does not treat a placeholder-like literal with surrounding text as allowed', () => {
-        expect(findEmDashes(`a.ts:1:const label = '${EM_DASH} none';`)).toBeDefined();
+    it('reports a trailing comment after a string that also carries an em-dash', () => {
+        expect(
+            findEmDashes(`a.ts:1:const v = x ?? '${EM_DASH}'; // empty ${EM_DASH} no data`),
+        ).toMatchObject({
+            column: 30,
+        });
     });
 });
 
@@ -64,11 +80,11 @@ describe('collectEmDashFindings', () => {
         await expect(collectEmDashFindings(repoRoot)).resolves.toEqual([]);
     });
 
-    it('reports tracked prose and skips vendored licenses and tools', async () => {
+    it('reports tracked prose and skips code strings, vendored licenses, and tools', async () => {
         repoRoot = await createRepo({
             'docs/guide.md': `One ${EM_DASH} two\n`,
             'licenses/third-party.txt': `Vendor ${EM_DASH} text\n`,
-            'src/empty.ts': `export const empty = '${EM_DASH}';\n`,
+            'src/copy.ts': `export const title = 'Process Explorer ${EM_DASH} Caxri';\n`,
             'tools/vendored/readme.md': `Vendor ${EM_DASH} text\n`,
         });
         const findings = await collectEmDashFindings(repoRoot);

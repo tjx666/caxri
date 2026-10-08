@@ -25,7 +25,7 @@ const scenarios = [
     {
         id: 'not-logged-in',
         label: 'PR needs login',
-        hint: 'GitHub CLI is not signed in. Run gh auth login, then refresh. A GH_TOKEN environment variable alone is not enough. Caxri does not forward personal shell credentials to CLI checks.',
+        hint: 'GitHub CLI is not signed in. Run gh auth login, then refresh. A GH_TOKEN environment variable alone is not enough — Caxri does not forward personal shell credentials to CLI checks.',
     },
     {
         id: 'rate-limited',
