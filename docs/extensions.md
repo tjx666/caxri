@@ -344,10 +344,17 @@ not part of this contract.
 `TreeItem.actions` adds up to three inline actions to an ordinary row. Each is a command, a
 validated theme icon, and an optional `confirmation` (title, message, confirm label). The Renderer
 shows them as icon buttons at the end of the row while it is hovered or holds keyboard focus,
-keeps a running action visible and disabled until its command settles, and dispatches through the
+keeps a running action visible and busy until its command settles, and dispatches through the
 same `viewContainers.executeCommand` path as the row's own command. A `confirmation` is shown as
-literal text in the Workbench confirmation modal; cancelling dispatches nothing. Inline actions do
-not replace `TreeItem.command`, which stays the row's activation.
+literal text in the Workbench confirmation modal; cancelling dispatches nothing and returns focus to
+the action. Inline actions do not replace `TreeItem.command`, which stays the row's activation.
+
+Keyboard users reach them the way an ARIA treegrid reaches a row's cells: Right on a focused leaf or
+expanded row moves into the first action (a collapsed row still expands first, and Down still enters
+an expanded row's children), Left and Right move between actions, and Left from the first action or
+Escape returns to the row. Enter or Space runs the focused action. The row's accessible description
+lists its actions, and the actions stay out of the Tab order until focus enters them, so the tree
+keeps one Tab stop. Rows without actions keep the plain tree keys.
 
 The Status extension uses this for its pull request row: a merge action appears on an open pull
 request whose head is known and that GitHub does not report as conflicting. It calls

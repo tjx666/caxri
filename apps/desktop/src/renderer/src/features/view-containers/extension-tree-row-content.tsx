@@ -13,11 +13,13 @@ import { pointerTreeRowAction } from './extension-tree-state';
 import { ExtensionTreeTooltip } from './extension-tree-tooltip';
 
 export function ExtensionTreeRowContent({
+    actionsDescriptionId,
     dispatchRowAction,
     isRefreshing,
     row,
     rowElement,
 }: {
+    actionsDescriptionId: string;
     dispatchRowAction: (action: TreeRowAction) => void;
     isRefreshing: boolean;
     row: VisibleItemRow;
@@ -74,7 +76,11 @@ export function ExtensionTreeRowContent({
                 </span>
             )}
             <ExtensionTreeTrailingIcon icon={row.item.trailingIcon} />
-            <ExtensionTreeRowActions actions={row.item.actions} />
+            <ExtensionTreeRowActions
+                actions={row.item.actions}
+                descriptionId={actionsDescriptionId}
+                rowElement={rowElement}
+            />
         </>
     );
 }
