@@ -326,3 +326,79 @@ describe('createOperationDispatcher', () => {
         ]);
     });
 });
+
+describe('delegation request correlation', () => {
+    it('names the delegation in ipc.request fields without logging the task input', async () => {
+        const directory = await temporaryDirectory('caxri-dispatch-delegation-');
+        const logger = createLogger(join(directory, 'logs'));
+        const principal = { kind: 'human-cli', id: 'synthetic-owner' };
+        const dispatch = createOperationDispatcher(
+            stubHandlers({
+                'agent.delegation.stopInternal': () => {
+                    throw new CaxriError('NOT_FOUND', 'Agent delegation is unavailable');
+                },
+            }),
+            logger,
+        );
+
+        await dispatch({
+            id: 'create-request',
+            method: 'agent.delegation.createInternal',
+            params: {
+                principal,
+                delegationId: 'delegation-created',
+                input: {
+                    projectId: 'project-1',
+                    sessionId: 'session-1',
+                    provider: 'claude',
+                    prompt: 'synthetic-private-prompt',
+                },
+            },
+        });
+        await dispatch({
+            id: 'status-request',
+            method: 'agent.delegation.statusInternal',
+            params: { principal, delegationId: 'delegation-read' },
+        });
+        /**
+         * The failure below is an `error` record, which flushes synchronously; draining first keeps this test about
+         * request fields rather than the ordering of an async drain racing that synchronous flush.
+         */
+        await logger.flush();
+        await expect(
+            dispatch({
+                id: 'stop-request',
+                method: 'agent.delegation.stopInternal',
+                params: { principal, delegationId: 'delegation-missing' },
+            }),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+        await dispatch({ id: 'health-request', method: 'app.health', params: {} });
+
+        const records = await logRecords(logger);
+        expect(
+            records.map(({ correlationId, event, fields }) => [correlationId, event, fields]),
+        ).toEqual([
+            [
+                'create-request',
+                'ipc.request',
+                { method: 'agent.delegation.createInternal', delegationId: 'delegation-created' },
+            ],
+            [
+                'status-request',
+                'ipc.request',
+                { method: 'agent.delegation.statusInternal', delegationId: 'delegation-read' },
+            ],
+            [
+                'stop-request',
+                'ipc.request_failed',
+                expect.objectContaining({
+                    method: 'agent.delegation.stopInternal',
+                    code: 'NOT_FOUND',
+                    delegationId: 'delegation-missing',
+                }),
+            ],
+            ['health-request', 'ipc.request', { method: 'app.health' }],
+        ]);
+        expect(JSON.stringify(records)).not.toContain('synthetic-private-prompt');
+    });
+});

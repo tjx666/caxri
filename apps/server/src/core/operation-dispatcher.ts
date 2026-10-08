@@ -10,7 +10,11 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { DomainHandlers } from '../domains/domain-services';
-import { requestFailureLogLevel, shouldLogSuccessfulRequest } from './request-observability';
+import {
+    delegationRequestLogFields,
+    requestFailureLogLevel,
+    shouldLogSuccessfulRequest,
+} from './request-observability';
 
 /**
  * The raw operation as it enters the domain layer; nothing about it is trusted before validation.
@@ -82,7 +86,10 @@ export function createOperationDispatcher(
                 logger.write('debug', logEventCatalog.ipc.request, {
                     correlationId: envelope.id,
                     durationMs: performance.now() - started,
-                    fields: { method: envelope.method },
+                    fields: {
+                        method: envelope.method,
+                        ...delegationRequestLogFields(envelope.method, request.params, result),
+                    },
                 });
             }
             return result;
@@ -98,7 +105,11 @@ export function createOperationDispatcher(
                 logger.write('debug', logEventCatalog.ipc.request, {
                     correlationId: envelope.id,
                     durationMs: performance.now() - started,
-                    fields: { method: envelope.method, code: wire.code },
+                    fields: {
+                        method: envelope.method,
+                        code: wire.code,
+                        ...delegationRequestLogFields(envelope.method, envelope.params),
+                    },
                 });
             } else {
                 logger.write(
@@ -110,6 +121,7 @@ export function createOperationDispatcher(
                         fields: {
                             method: envelope.method,
                             code: wire.code,
+                            ...delegationRequestLogFields(envelope.method, envelope.params),
                             error: wire.message,
                             /**
                              * Only unclassified faults justify a stack trace in the Server log.

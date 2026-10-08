@@ -243,17 +243,7 @@ export class AgentCommanderService {
      * whatever its Session last reported: a turn cut off by a stop or a quit leaves `running` behind.
      */
     status(): { state: CommanderRunState } {
-        const { database } = this.options;
-        const rows = database.agentCommanderRows();
-        const terminal = rows?.terminalId ? database.getTerminal(rows.terminalId) : undefined;
-        if (!rows || !terminal) return { state: 'stopped' };
-        const shell = terminal.lastProcessState;
-        if (shell !== 'starting' && shell !== 'running') return { state: 'stopped' };
-        const agent = terminal.lastAgentProcessState;
-        if (shell === 'starting' || agent === 'starting') return { state: 'starting' };
-        if (agent !== 'running') return { state: 'stopped' };
-        const activity = database.getSession(rows.sessionId)?.lastActivityState;
-        return { state: (activity && LIVE_ACTIVITY_STATES.get(activity)) ?? 'idle' };
+        return { state: commanderRunState(this.options.database) };
     }
 
     snapshot(): CommanderSnapshot | null {
@@ -305,6 +295,23 @@ export class AgentCommanderService {
         this.options.sendFullStateChange();
         return { projectId, sessionId };
     }
+}
+
+/**
+ * The Commander's run state from durable rows alone; see {@link AgentCommanderService.status}. Shared with the
+ * diagnostics snapshot, which must report it without owning the Commander service.
+ */
+export function commanderRunState(database: CaxriDatabase): CommanderRunState {
+    const rows = database.agentCommanderRows();
+    const terminal = rows?.terminalId ? database.getTerminal(rows.terminalId) : undefined;
+    if (!rows || !terminal) return 'stopped';
+    const shell = terminal.lastProcessState;
+    if (shell !== 'starting' && shell !== 'running') return 'stopped';
+    const agent = terminal.lastAgentProcessState;
+    if (shell === 'starting' || agent === 'starting') return 'starting';
+    if (agent !== 'running') return 'stopped';
+    const activity = database.getSession(rows.sessionId)?.lastActivityState;
+    return (activity && LIVE_ACTIVITY_STATES.get(activity)) ?? 'idle';
 }
 
 /**
