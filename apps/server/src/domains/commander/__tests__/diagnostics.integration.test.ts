@@ -98,6 +98,8 @@ async function fixture() {
         join(logDirectory, 'server-core.jsonl'),
         [
             logLine('agent_commander.completion_notice_delivered', { count: 2, waitMs: 100 }),
+            // A batch written twice by `flushSync` racing the async drain must count once.
+            logLine('agent_commander.completion_notice_delivered', { count: 2, waitMs: 100 }),
             logLine('agent_commander.completion_notice_delivered', { count: 1, waitMs: 300 }),
             logLine('agent_commander.completion_notice_delivery_failed', { reason: 'rejected' }),
             logLine('agent_commander.completion_notice_queued', { text: PROMPT }),
