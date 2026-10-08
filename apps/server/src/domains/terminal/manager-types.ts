@@ -131,3 +131,12 @@ export interface TerminalStartOptions {
      */
     waitForAttachedSizeMs?: number;
 }
+
+/**
+ * A pending Agent launch's start signal, keyed by Terminal in `TerminalManager`.
+ */
+export interface AgentStartWaiter {
+    launchId: string;
+    promise: Promise<boolean>;
+    resolve(isStarted: boolean): void;
+}
