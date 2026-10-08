@@ -2,46 +2,15 @@ import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createGpuIncidentBudget } from '../../gpu/gpu-incident-budget';
-import type { TerminalRendererStatus, TerminalWebglSessionPolicy } from '../terminal-renderer';
+import type { TerminalRendererStatus } from '../terminal-renderer';
 import {
-    isWebgl2Available,
     resolveTerminalRendererTarget,
     TerminalRendererController,
     terminalWebglRetryDelayMs,
 } from '../terminal-renderer';
-
-class FakeWebglAddon implements ITerminalAddon {
-    private listener: (() => void) | undefined;
-    readonly clearTextureAtlas = vi.fn();
-    readonly dispose = vi.fn();
-
-    activate(): void {}
-
-    onContextLoss(listener: () => void) {
-        this.listener = listener;
-        return {
-            dispose: () => {
-                if (this.listener === listener) this.listener = undefined;
-            },
-        };
-    }
-
-    loseContext(): void {
-        this.listener?.();
-    }
-}
-
-function createPolicy(
-    overrides: Partial<TerminalWebglSessionPolicy> & { supported?: boolean } = {},
-): TerminalWebglSessionPolicy {
-    return {
-        applyPreference: overrides.applyPreference ?? (() => {}),
-        isPinnedToDom: overrides.isPinnedToDom ?? (() => false),
-        isWebgl2Available: overrides.isWebgl2Available ?? (() => overrides.supported ?? true),
-        recordContextLoss: overrides.recordContextLoss ?? (() => {}),
-        resetForManualRetry: overrides.resetForManualRetry ?? (() => {}),
-    };
-}
+import type { TerminalWebglSessionPolicy } from '../terminal-webgl-session-policy';
+import { isWebgl2Available } from '../terminal-webgl-session-policy';
+import { createPolicy, FakeWebglAddon } from './terminal-renderer-test-helpers';
 
 describe('manual GPU retry', () => {
     it('recovers a pinned pane without changing its preference and protects again after new incidents', () => {

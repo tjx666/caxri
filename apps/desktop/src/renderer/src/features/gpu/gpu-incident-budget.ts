@@ -1,10 +1,8 @@
 import type { GpuIncidentBudgetDiagnostic } from '@caxri/protocol';
 
-import type {
-    TerminalGpuAcceleration,
-    TerminalWebglSessionPolicy,
-} from '../terminal/terminal-renderer';
-import { isWebgl2Available } from '../terminal/terminal-renderer';
+import type { TerminalGpuAcceleration } from '../terminal/terminal-renderer';
+import type { TerminalWebglSessionPolicy } from '../terminal/terminal-webgl-session-policy';
+import { isWebgl2Available } from '../terminal/terminal-webgl-session-policy';
 import { gpuRecoveryNotificationCoordinator } from './gpu-recovery-notifications';
 
 /**
@@ -70,6 +68,11 @@ export function createGpuIncidentBudget(options: GpuIncidentBudgetOptions): GpuI
     let contextLossEpisodeStartedAt: number | undefined;
     let incidentCount = 0;
     let generation = 0;
+    /**
+     * Pure measurement: never reset with the budget and never consulted by `isPinned`, because a pin decision based on
+     * context pressure would hide the very cause this count exists to reveal.
+     */
+    let liveWebglContextCount = 0;
     let webgl2ConfirmedGeneration: number | undefined;
 
     function isPinned(): boolean {
@@ -160,6 +163,13 @@ export function createGpuIncidentBudget(options: GpuIncidentBudgetOptions): GpuI
             return incidentCount;
         },
         isPinnedToDom: isPinned,
+        liveWebglContextCount: () => liveWebglContextCount,
+        recordWebglContextAcquired(): void {
+            liveWebglContextCount += 1;
+        },
+        recordWebglContextReleased(): void {
+            liveWebglContextCount = Math.max(0, liveWebglContextCount - 1);
+        },
         /**
          * A positive probe creates and discards a real WebGL2 context, so during an incident storm every pane retry and
          * preference change would manufacture throwaway contexts that compete with live Terminals. Only a GPU incident

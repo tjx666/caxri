@@ -4,6 +4,7 @@ import { createTerminalRendererDiagnostic } from '../terminal-renderer-diagnosti
 
 const status = {
     contextLossCount: 1,
+    liveWebglContextCount: 17,
     mode: 'dom' as const,
     reason: 'context-loss' as const,
     recoveryResult: 'dom-restored' as const,
@@ -46,6 +47,7 @@ describe('terminal Renderer diagnostics', () => {
             contextLossCount: 1,
             redrawCount: 2,
             visibilityRestoreCoalescedCount: 5,
+            liveWebglContextCount: 17,
             paneActive: true,
             terminalProcessRunning: true,
             agentTerminal: true,

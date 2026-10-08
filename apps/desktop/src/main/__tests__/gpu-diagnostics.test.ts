@@ -20,6 +20,7 @@ function rendererDiagnostic(
         contextLossCount: 0,
         redrawCount: 1,
         visibilityRestoreCoalescedCount: 0,
+        liveWebglContextCount: 1,
         paneActive: true,
         terminalProcessRunning: true,
         agentTerminal: true,
@@ -108,6 +109,64 @@ afterEach(() => {
 });
 
 describe('GPU diagnostics', () => {
+    it('stamps wake and GPU process exit timing onto a Terminal context loss', () => {
+        vi.useFakeTimers();
+        const harness = createHarness();
+        const contextLoss = rendererDiagnostic({
+            mode: 'dom',
+            reason: 'context-loss',
+            trigger: 'webgl-context-loss',
+            contextLossCount: 1,
+            liveWebglContextCount: 17,
+        });
+        const statusFields = () =>
+            harness.write.mock.calls.findLast(
+                ([, event]) => event === logEventCatalog.renderer.terminalRendererStatus,
+            )?.[2]?.fields;
+
+        // A cold loss with no wake and no GPU exit reads as null, never as zero elapsed time.
+        harness.diagnostics.recordRendererDiagnostic(contextLoss);
+        expect(statusFields()).toMatchObject({
+            liveWebglContextCount: 17,
+            msSinceSystemResume: null,
+            msSinceScreenUnlock: null,
+            systemResumeCount: 0,
+            msSinceGpuProcessGone: null,
+            gpuProcessGoneCount: 0,
+        });
+
+        harness.setNow(2_000);
+        harness.diagnostics.recordSystemWake('resume');
+        harness.setNow(2_500);
+        harness.diagnostics.recordSystemWake('unlock-screen');
+        harness.setNow(3_000);
+        harness.diagnostics.recordGpuProcessGone({
+            type: 'GPU',
+            reason: 'abnormal-exit',
+            exitCode: 8704,
+        });
+        expect(
+            harness.write.mock.calls.find(
+                ([, event]) => event === logEventCatalog.gpu.processGone,
+            )?.[2]?.fields,
+        ).toMatchObject({
+            msSinceSystemResume: 1_000,
+            msSinceScreenUnlock: 500,
+            systemResumeCount: 1,
+            gpuProcessGoneCount: 1,
+        });
+
+        harness.setNow(6_000);
+        harness.diagnostics.recordRendererDiagnostic(contextLoss);
+        expect(statusFields()).toMatchObject({
+            msSinceSystemResume: 4_000,
+            msSinceScreenUnlock: 3_500,
+            systemResumeCount: 1,
+            msSinceGpuProcessGone: 3_000,
+            gpuProcessGoneCount: 1,
+        });
+    });
+
     it('decodes POSIX Chromium GPU exits and links the last Renderer state', () => {
         vi.useFakeTimers();
         const harness = createHarness();
