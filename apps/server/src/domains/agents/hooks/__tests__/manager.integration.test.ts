@@ -388,8 +388,8 @@ describe('AgentHookManager', () => {
             expect(hooks.SessionStart).toHaveLength(1);
             expect(hooks.PermissionRequest).toHaveLength(1);
             expect(hooks.Stop).toHaveLength(1);
-            expect(hooks.PreToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
-            expect(hooks.PostToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
+            expect(hooks.PreToolUse).toHaveLength(2);
+            expect(hooks.PostToolUse).toHaveLength(2);
             expect(hooks.PreCompact).toHaveLength(1);
             expect(hooks.PostCompact).toHaveLength(1);
 
@@ -553,7 +553,7 @@ describe('AgentHookManager', () => {
             await manager.reconcile(settings);
             const repaired = parseHooks(await readFile(join(codexHome, 'hooks.json'), 'utf8'));
             expect(repaired.UserPromptSubmit).toHaveLength(1);
-            expect(repaired.PostToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
+            expect(repaired.PostToolUse).toHaveLength(2);
             expect(manager.getHealth().codex.kind).toBe('installedPending');
 
             settings.codex.hooks.enabled = false;

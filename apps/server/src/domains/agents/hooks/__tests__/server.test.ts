@@ -14,6 +14,39 @@ import { pruneStaleAgentHookSockets } from '../server';
 import { anyHandlingMs, createTestServer, send, validPayload } from './server.fixture';
 
 describe('AgentHookServer', () => {
+    it('accepts exact question lifecycle IDs without weakening shell intent validation', async () => {
+        const { server, socketPath, onSignal } = await createTestServer();
+        try {
+            const token = server.register('terminal-1', 'launch-1', 'codex');
+            const base = { token, provider: 'codex', agentToolUseId: 'question-1' };
+            await Promise.all(
+                ['attentionRequested', 'attentionResolved'].map(async (phase) => {
+                    expect(await send(socketPath, validPayload({ ...base, phase }))).toBe(
+                        '{"ok":true}\n',
+                    );
+                    expect(onSignal).toHaveBeenCalledWith(
+                        expect.objectContaining({ phase, agentToolUseId: 'question-1' }),
+                    );
+                }),
+            );
+            await Promise.all(
+                [
+                    { phase: 'attentionResolved', agentToolUseId: undefined },
+                    { phase: 'attentionResolved', agentToolUseId: 'x'.repeat(257) },
+                    { phase: 'attentionRequested', worktreeCreateIntent: true },
+                    { phase: 'turnFinished' },
+                    { phase: 'shellToolStarted' },
+                ].map(async (fields) => {
+                    expect(await send(socketPath, validPayload({ ...base, ...fields }))).toBe(
+                        '{"ok":false}\n',
+                    );
+                }),
+            );
+        } finally {
+            await server.close();
+        }
+    });
+
     it('waits for one authenticated attention answer and rejects another launch', async () => {
         const onAttention = vi.fn(() => Promise.resolve({ decision: 'allow' as const }));
         const { server, socketPath, onSignal } = await createTestServer(undefined, onAttention);
