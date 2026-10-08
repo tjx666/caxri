@@ -76,6 +76,33 @@ describe('TerminalResourceMonitor', () => {
         expect(alertStates(events)).toEqual(['raised', 'cleared', 'raised']);
     });
 
+    it('alerts and clears on an injected reading through the same consecutive-sample rule', async () => {
+        const override: { current?: { cpuPercent: number } } = {};
+        const events: ServerEvent[] = [];
+        const monitor = new TerminalResourceMonitor({
+            database: {
+                getSession: () => ({ displayTitle: 'Tune the timeline' }) as SessionRecord,
+                listTerminals: () => [terminal],
+            },
+            logger: { write: vi.fn() } as never,
+            sampleProcessTable: () => Promise.resolve(new ProcessTable(parseProcessTable(NORMAL))),
+            send: (event) => events.push(event),
+            terminals: { processId: () => 100 },
+            usageOverride: { intervalMs: 1_000, read: () => Promise.resolve(override.current) },
+            watchHub: { registerPoller: vi.fn() },
+        });
+        override.current = { cpuPercent: 350 };
+        await monitor.sample();
+        expect(events).toEqual([]);
+        await monitor.sample();
+        expect(events.at(-1)).toMatchObject({
+            payload: { state: 'raised', cpuPercent: 350, processCount: 2 },
+        });
+        override.current = undefined;
+        await monitor.sample();
+        expect(alertStates(events)).toEqual(['raised', 'cleared']);
+    });
+
     it('does not alert on a single high sample', async () => {
         const table = { current: HIGH };
         const { events, monitor } = createMonitor(table);

@@ -7,10 +7,11 @@ import type {
     TerminalResourceMonitor,
     TerminalSuspensionService,
 } from './terminal';
+import { applyTerminalResourceOverride } from './terminal';
 
 interface TerminalHandlerOptions {
     database: Pick<CaxriDatabase, 'getTerminal'>;
-    resourceMonitor: Pick<TerminalResourceMonitor, 'processes'>;
+    resourceMonitor: Pick<TerminalResourceMonitor, 'processes' | 'readingOverride'>;
     terminals: Pick<
         TerminalManager,
         | 'attach'
@@ -69,7 +70,15 @@ export function createTerminalHandlers({
         'terminal.snapshot': ({ terminalId }) => terminals.snapshot(terminalId),
         'terminal.preview': ({ terminalId }) => terminals.preview(terminalId),
         'terminal.runningCount': ({ sessionId }) => terminals.runningCount(sessionId),
-        'terminal.resources': ({ terminalId }) => terminals.resources(terminalId),
+        /**
+         * Applies the monitor's E2E-only reading injection so the chip and the resource alert see one value; a no-op
+         * outside an explicit E2E launch.
+         */
+        'terminal.resources': async ({ terminalId }) =>
+            applyTerminalResourceOverride(
+                await terminals.resources(terminalId),
+                await resourceMonitor.readingOverride(terminalId),
+            ),
         'terminal.processes': () => ({ terminals: resourceMonitor.processes() }),
         /**
          * Suspends rather than closes, so the Session and its Agent conversation stay resumable. `suspended: false`
