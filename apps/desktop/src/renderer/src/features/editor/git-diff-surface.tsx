@@ -8,6 +8,7 @@ import type { DiffOnMount, OnMount } from '@monaco-editor/react';
 import Editor from '@monaco-editor/react';
 
 import { useEditorOptions } from '@/hooks/use-editor-options';
+import { languageEditorOptions } from '@/lib/editor-options';
 
 import { applyEditorTheme } from '../../lib/editor-theme';
 import { monaco } from '../../lib/monaco';
@@ -243,6 +244,7 @@ export function GitDiffSurface({
             }}
             options={{
                 ...editorOptions,
+                ...languageEditorOptions(modifiedLanguage),
                 glyphMargin: true,
                 originalEditable: false,
                 readOnly: true,
