@@ -13,7 +13,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestDomainServices } from '../../__tests__/support/domain-services';
 import { LocalTerminalExecution } from '../../__tests__/support/local-terminal-execution';
 import { UNTOUCHED_SUSPENSION_DELAY_MS } from '../terminal/suspension-policy';
-import { createFakePty, createPendingAgentAdapters } from './create-test-domain-services';
+import {
+    createFakePty,
+    createPendingAgentAdapters,
+    writeClaudeTranscript,
+} from './create-test-domain-services';
 
 const temporaryDirectories: string[] = [];
 
@@ -41,7 +45,9 @@ async function createRuntime(name: string) {
         return { ...createFakePty(), kill };
     });
     const start = vi.spyOn(LocalTerminalExecution.prototype, 'start');
+    const homeDirectory = join(directory, 'home');
     const domains = await createTestDomainServices({
+        agentEnvironment: { homeDirectory, variables: {} },
         userDataPath,
         logger: new StructuredLogger(join(directory, 'logs')),
         send: () => {},
@@ -61,6 +67,8 @@ async function createRuntime(name: string) {
         spawnSpy,
         start,
         userDataPath,
+        writeClaudeTranscript: (agentSessionId: string) =>
+            writeClaudeTranscript(homeDirectory, project.rootPath, agentSessionId),
     };
 }
 
@@ -92,6 +100,7 @@ describe('background Agent suspension', () => {
                 direct
                     .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
                     .run('claude-session-1', terminalId);
+                await runtime.writeClaudeTranscript('claude-session-1');
                 if (isDelegated) {
                     const record = {
                         receipt: {
@@ -200,6 +209,7 @@ describe('background Agent suspension', () => {
                 .prepare('UPDATE terminals SET agent_session_id = ? WHERE id = ?')
                 .run('claude-session-2', terminalId);
             direct.close();
+            await runtime.writeClaudeTranscript('claude-session-2');
 
             // Detaching the selected Session kills the Agent without leaving it.
             await domains.handlers['session.detach']({ sessionId: first.session.id });

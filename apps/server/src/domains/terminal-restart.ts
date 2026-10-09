@@ -1,14 +1,18 @@
 import type { ServerEvent, TerminalRecord } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
 
-import type { AgentCoordinator } from './agents';
+import type { AgentCoordinator, AgentEnvironment } from './agents';
 import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
 import type { TerminalManager, TerminalWorkingDirectoryIdentity } from './terminal';
+import { resumableAgentSessionId } from './terminal-restore';
 
 interface TerminalRestartHandlerOptions {
+    agentEnvironment?: AgentEnvironment;
     coordinator: AgentCoordinator;
     database: CaxriDatabase;
+    logger: StructuredLogger;
     send(event: ServerEvent): void;
     terminalDirectoryIdentity(cwd: string): Promise<TerminalWorkingDirectoryIdentity>;
     terminals: TerminalManager;
@@ -27,8 +31,11 @@ export function createTerminalRestartHandler(
         const current = options.database.getTerminal(terminalId);
         if (!current) throw new CaxriError('NOT_FOUND', 'Terminal not found');
         const expectedWorkingDirectory = await options.terminalDirectoryIdentity(current.cwd);
-        const resumeAgentSessionId = mode === 'fresh' ? undefined : current.agentSessionId;
-        if (mode !== 'fresh' && !resumeAgentSessionId && current.provider === 'grok')
+        const resumeAgentSessionId =
+            mode === 'fresh'
+                ? undefined
+                : await resumableAgentSessionId(options, current, 'restart');
+        if (mode !== 'fresh' && !current.agentSessionId && current.provider === 'grok')
             throw new CaxriError(
                 'UNAVAILABLE',
                 'Original Grok Build Session identity is unavailable; start a new Session explicitly',
