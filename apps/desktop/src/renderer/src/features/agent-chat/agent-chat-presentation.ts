@@ -1,0 +1,189 @@
+import type {
+    AgentChatFailureReason,
+    AgentChatItem,
+    AgentChatItemStatus,
+    AgentChatRequest,
+    AgentChatSnapshot,
+} from '@caxri/protocol';
+
+/**
+ * User-facing copy for each closed failure reason. Provider text never selects the message; `detail` is shown beside it
+ * only as supporting context.
+ */
+export function agentChatFailureMessage(reason: AgentChatFailureReason): string {
+    switch (reason) {
+        case 'executable_not_found': {
+            return 'Codex is not installed or is not on your PATH. Install it, then retry.';
+        }
+        case 'spawn_failed': {
+            return 'Codex could not be started. Retry, or check that the Codex CLI runs in a terminal.';
+        }
+        case 'handshake_failed': {
+            return 'Codex started but did not respond. Retry, or update the Codex CLI.';
+        }
+        case 'process_exited': {
+            return 'Codex stopped unexpectedly. Retry to resume the conversation.';
+        }
+        case 'resume_failed': {
+            return 'The previous conversation could not be resumed.';
+        }
+        case 'unsupported_version': {
+            return 'This Codex version does not support Chat. Update the Codex CLI.';
+        }
+    }
+}
+
+/**
+ * Whether the composer accepts a message. A stopped Chat resumes its Agent Session on the next message, a starting one
+ * queues the message on Server Core until the provider is ready (opening a Chat and typing at once must not drop the
+ * first Enter), and a running turn accepts a message as steering. Only a failed provider, or a Chat not loaded yet,
+ * refuses input.
+ */
+export function canSendAgentChatMessage(snapshot: AgentChatSnapshot | undefined): boolean {
+    return snapshot !== undefined && snapshot.status !== 'failed';
+}
+
+export function isAgentChatTurnRunning(snapshot: AgentChatSnapshot | undefined): boolean {
+    return Boolean(snapshot?.activeTurnId);
+}
+
+/**
+ * Enter sends and Shift+Enter inserts a newline, matching the mobile Conversation composer. An IME composition owns
+ * Enter until it commits, otherwise confirming a candidate would send a half-typed message.
+ */
+export function isAgentChatSubmitKey(event: {
+    key: string;
+    shiftKey: boolean;
+    isComposing: boolean;
+}): boolean {
+    return event.key === 'Enter' && !event.shiftKey && !event.isComposing;
+}
+
+export type AgentChatStatusTone = 'danger' | 'muted' | 'running' | 'success' | 'warning';
+
+export function agentChatItemStatusTone(status: AgentChatItemStatus): AgentChatStatusTone {
+    switch (status) {
+        case 'running': {
+            return 'running';
+        }
+        case 'completed': {
+            return 'success';
+        }
+        case 'failed': {
+            return 'danger';
+        }
+        case 'declined':
+        case 'interrupted': {
+            return 'warning';
+        }
+    }
+}
+
+export function agentChatItemStatusLabel(status: AgentChatItemStatus): string {
+    switch (status) {
+        case 'running': {
+            return 'Running';
+        }
+        case 'completed': {
+            return 'Completed';
+        }
+        case 'failed': {
+            return 'Failed';
+        }
+        case 'declined': {
+            return 'Declined';
+        }
+        case 'interrupted': {
+            return 'Interrupted';
+        }
+    }
+}
+
+/**
+ * One-line heading of a collapsible activity row.
+ */
+export function agentChatActivityTitle(
+    item: Extract<AgentChatItem, { type: 'command' | 'fileChange' | 'toolCall' }>,
+): string {
+    switch (item.type) {
+        case 'command': {
+            return item.command;
+        }
+        case 'fileChange': {
+            const first = item.changes.at(0);
+            if (!first) return 'File changes';
+            return item.changes.length === 1
+                ? first.path
+                : `${first.path} and ${item.changes.length - 1} more`;
+        }
+        case 'toolCall': {
+            return item.summary ? `${item.name}: ${item.summary}` : item.name;
+        }
+    }
+}
+
+export function agentChatNoticeMessage(item: Extract<AgentChatItem, { type: 'notice' }>): string {
+    switch (item.kind) {
+        case 'compacted': {
+            return 'Context compacted';
+        }
+        case 'retrying': {
+            return item.message ? `Retrying: ${item.message}` : 'Retrying';
+        }
+        case 'error': {
+            return item.message ?? 'The Agent reported an error';
+        }
+    }
+}
+
+export function agentChatRequestTitle(request: AgentChatRequest): string {
+    switch (request.kind) {
+        case 'command': {
+            return 'Run this command?';
+        }
+        case 'fileChange': {
+            return 'Apply these file changes?';
+        }
+        case 'question': {
+            return request.questions.length === 1
+                ? 'The Agent has a question'
+                : `The Agent has ${request.questions.length} questions`;
+        }
+    }
+}
+
+/**
+ * Builds the `answers` response for a question request. A typed "Other" answer replaces the chosen option for that
+ * question; a question left unanswered is omitted, and the provider decides how to treat it.
+ */
+export function agentChatQuestionAnswers(
+    selected: Readonly<Record<string, string | undefined>>,
+    other: Readonly<Record<string, string | undefined>>,
+): Record<string, string[]> {
+    const answers: Record<string, string[]> = {};
+    const questionIds = new Set([...Object.keys(selected), ...Object.keys(other)]);
+    for (const id of questionIds) {
+        const typed = other[id]?.trim();
+        const chosen = selected[id];
+        if (typed) answers[id] = [typed];
+        else if (chosen) answers[id] = [chosen];
+    }
+    return answers;
+}
+
+/**
+ * Content keys for a list whose entries have no id (plan steps), numbered per repeated value so two identical steps
+ * still get distinct keys while an edit to one step never remounts the others.
+ */
+export function withOccurrenceKeys<T>(
+    items: readonly T[],
+    content: (item: T) => string,
+): Array<{ item: T; key: string }> {
+    const seen = new Map<string, number>();
+    return items.map((item) => {
+        const value = content(item);
+        const occurrence = seen.get(value) ?? 0;
+        seen.set(value, occurrence + 1);
+        return { item, key: `${value}\0${occurrence}` };
+    });
+}

@@ -66,9 +66,9 @@ export const toastActionHandlers: ToastActionHandlers = {
     'terminal.create': {
         unavailable: ({ sessionId }) =>
             hasSession(sessionId) ? undefined : MISSING_SESSION_REASON,
-        run: ({ cwd, kind, paneId, sessionId, split }) => {
+        run: ({ cwd, kind, paneId, sessionId, split, surface }) => {
             // eslint-disable-next-line no-void -- tryCommand reports retry failures through the toast
-            void createTerminalForSession(sessionId, kind, { cwd, paneId, split });
+            void createTerminalForSession(sessionId, kind, { cwd, paneId, split, surface });
         },
     },
     ...terminalToastActionHandlers,

@@ -4,10 +4,12 @@ import type {
     PaneSplitSide,
     TerminalKind,
     TerminalReferencePreviewRequest,
+    TerminalSurface,
 } from '@caxri/protocol';
 import {
     findResourceTabs,
     isCaxriError,
+    isChatTerminal,
     moveTab,
     openResource,
     selectTab,
@@ -56,6 +58,10 @@ interface CreateTerminalOptions {
      * Open the Terminal in a new pane split off the target pane instead of as another tab in it.
      */
     split?: PaneSplitSide;
+    /**
+     * `chat` creates a Chat Terminal for an Agent whose catalog entry supports it; defaults to a PTY.
+     */
+    surface?: TerminalSurface;
 }
 
 export async function createTerminal(
@@ -81,7 +87,7 @@ export async function createDefaultTerminal(options: CreateTerminalOptions = {})
 export async function createTerminalForSession(
     sessionId: string,
     kind: TerminalKind,
-    { cwd, paneId, split }: CreateTerminalOptions,
+    { cwd, paneId, split, surface }: CreateTerminalOptions,
 ): Promise<void> {
     await tryCommand(
         'Terminal creation failed',
@@ -90,6 +96,7 @@ export async function createTerminalForSession(
                 sessionId,
                 kind,
                 ...(cwd && { cwd }),
+                ...(surface === 'chat' && { surface }),
             });
             /**
              * Every Root the Session has already arranged gets this Terminal placed into it as a background tab before
@@ -133,7 +140,7 @@ export async function createTerminalForSession(
                 ['IO', 'VALIDATION', 'PATH_DENIED', 'NOT_FOUND'].includes(error.code)
                     ? {
                           id: 'terminal.create',
-                          params: { sessionId, kind, cwd, paneId, split },
+                          params: { sessionId, kind, cwd, paneId, split, surface },
                       }
                     : { id: 'terminal.refresh' },
         },
@@ -298,7 +305,12 @@ export function registerTerminalInputGate(
     };
 }
 
+/**
+ * A Chat Terminal has no PTY to write bytes into (ADR 0012), so every PTY input path refuses it here, at one boundary.
+ */
 export function canSendTerminalInput(terminalId: string): boolean {
+    const terminal = getBootstrap()?.terminals.find((entry) => entry.id === terminalId);
+    if (terminal && isChatTerminal(terminal)) return false;
     return inputGates.get(terminalId)?.() ?? true;
 }
 

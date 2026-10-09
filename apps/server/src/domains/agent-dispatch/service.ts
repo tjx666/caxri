@@ -12,27 +12,20 @@ import type {
     AgentProvider,
     Principal,
     ProcessState,
-    ServerEvent,
     TerminalRecord,
 } from '@caxri/protocol';
 import { CaxriError, toWireError } from '@caxri/protocol';
-import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { AgentEndpointLifecycle } from '../agent-endpoints';
-import type { AgentCoordinator } from '../agents';
 /**
  * Server domains expose public root barrels by architecture contract; structure tests reject deep provider imports.
  */
 // oxlint-disable-next-line react-doctor/no-barrel-import
 import { agentProviders } from '../agents';
-import type { CaxriDatabase } from '../db';
+import { assertPtyTerminal } from '../pty-guard';
 import { SingleFlight } from '../single-flight';
-import type {
-    TerminalLifecycleCause,
-    TerminalManager,
-    TerminalWorkingDirectoryIdentity,
-} from '../terminal';
+import type { TerminalLifecycleCause, TerminalWorkingDirectoryIdentity } from '../terminal';
+import type { AgentDispatchServiceOptions } from './service-options';
 
 interface DispatchWaiter {
     afterRevision: number;
@@ -43,23 +36,6 @@ interface DispatchWaiter {
 
 const MAX_DISPATCH_WAITERS = 256;
 const MAX_WAITERS_PER_DISPATCH = 32;
-
-export interface AgentDispatchServiceOptions {
-    logger: StructuredLogger;
-    database: CaxriDatabase;
-    endpoints?: AgentEndpointLifecycle;
-    coordinator: AgentCoordinator;
-    terminals: TerminalManager;
-    launchSettings(provider: AgentProvider): AgentLaunchSettings;
-    terminalDirectoryIdentity(path: string): Promise<TerminalWorkingDirectoryIdentity>;
-    terminalWorkingDirectory(options: {
-        authorizedRoots: readonly string[];
-        defaultRoot: string;
-        requestedCwd?: string;
-    }): Promise<string>;
-    emit(event: ServerEvent): void;
-    now?: () => number;
-}
 
 type DispatchReason = AgentDispatchFailure['reason'];
 type TransitionReason =
@@ -448,6 +424,8 @@ export class AgentDispatchService {
         const terminal = this.options.database.getTerminal(target.terminalId);
         if (!terminal || terminal.sessionId !== target.sessionId)
             throw new CaxriError('NOT_FOUND', 'Dispatch Terminal was not found in the Session');
+        // Before the receipt is persisted: dispatch drives a PTY, which a Chat Terminal does not have.
+        assertPtyTerminal(terminal);
         return terminal;
     }
 

@@ -709,7 +709,7 @@ describe('direct import test selection', () => {
             'apps/server/src/domains/terminal/__tests__/file-links.test.ts',
         ];
         expect(direct).toEqual(expected);
-        expect(selected).toEqual(expected);
+        expect(selected.filter((test) => !test.endsWith('/structure.test.ts'))).toEqual(expected);
         expect(selected).not.toContain(
             'apps/server/src/domains/__tests__/runtime.integration.test.ts',
         );

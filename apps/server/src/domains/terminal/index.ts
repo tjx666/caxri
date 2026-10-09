@@ -7,7 +7,7 @@ export type {
     TerminalObserverEvent,
 } from './execution-port';
 export { resolveTerminalFileLink } from './file-links';
-export { terminalDirectoryIdentity } from './launch';
+export { resolveTerminalExecutable, terminalDirectoryIdentity } from './launch';
 export { TerminalManager } from './manager';
 export type {
     TerminalLifecycleCause,

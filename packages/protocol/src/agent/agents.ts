@@ -92,6 +92,10 @@ export interface AgentProviderCatalogEntry {
     capabilities: {
         actions: boolean;
         automaticSuspension: boolean;
+        /**
+         * Whether Caxri can run this provider as an Agent Chat through its structured protocol (ADR 0012).
+         */
+        chat: boolean;
         messaging: boolean;
         nativeRename: boolean;
     };
@@ -122,6 +126,7 @@ export const agentProviderCatalog = {
         capabilities: {
             actions: true,
             automaticSuspension: true,
+            chat: false,
             messaging: true,
             nativeRename: true,
         },
@@ -135,6 +140,7 @@ export const agentProviderCatalog = {
         capabilities: {
             actions: true,
             automaticSuspension: true,
+            chat: true,
             messaging: true,
             nativeRename: true,
         },
@@ -152,6 +158,7 @@ export const agentProviderCatalog = {
         capabilities: {
             actions: false,
             automaticSuspension: false,
+            chat: false,
             messaging: false,
             nativeRename: false,
         },

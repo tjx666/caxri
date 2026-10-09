@@ -1,5 +1,5 @@
 import type { AgentOperation, AgentProvider, ServerEvent, TerminalRecord } from '@caxri/protocol';
-import { errorMessage } from '@caxri/protocol';
+import { errorMessage, isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -252,12 +252,17 @@ export class AgentCoordinator {
                 await this.probeShellPromotion(terminal, shouldRetryClaim);
                 return;
             }
-            if (await this.probeProviderSwitch(terminal)) return;
+            const isChat = isChatTerminal(terminal);
+            // A Chat binds its Agent Session from its own protocol; working-directory discovery could otherwise claim
+            // an unrelated PTY conversation before the Chat's first turn creates one.
+            if (isChat && !terminal.agentSessionId) return;
+            if (!isChat && (await this.probeProviderSwitch(terminal))) return;
             if (
-                await this.hookSessionRebinds.probe(
+                !isChat &&
+                (await this.hookSessionRebinds.probe(
                     terminal,
                     this.startedAtByTerminal.get(terminal.id) ?? terminal.createdAt,
-                )
+                ))
             ) {
                 const generation = (this.probeGenerations.get(terminal.id) ?? 0) + 1;
                 this.probeGenerations.set(terminal.id, generation);
@@ -369,25 +374,8 @@ export class AgentCoordinator {
             return false;
         }
         const provider = candidate.provider;
-        candidate.attempts += 1;
-        const snapshot = await this.agents.snapshot(provider, {
-            correlationId: `${terminal.id}:provider-switch:${candidate.startedAt}`,
-            excludedAgentSessionIds: this.database.claimedAgentSessionIdsForProvider(
-                provider,
-                terminal.id,
-            ),
-            rootPath: agentProviderStateRoot(terminal),
-            processState: terminal.lastProcessState,
-            startedAt: candidate.startedAt,
-        });
-        const currentCandidate = this.shellPromotionCandidates.get(terminal.id);
-        if (
-            currentCandidate !== candidate ||
-            currentCandidate.origin !== 'input' ||
-            candidate.expiresAt < Date.now()
-        ) {
-            return false;
-        }
+        const snapshot = await this.probeCandidate(terminal, candidate, 'provider-switch');
+        if (!snapshot) return false;
         if (
             !snapshot.sessionId ||
             this.database.isAgentSessionClaimedByOtherTerminal(terminal.id, snapshot.sessionId)
@@ -413,6 +401,34 @@ export class AgentCoordinator {
         return true;
     }
 
+    /**
+     * One provider snapshot for an input-opened candidate. Returns `undefined` when the candidate was replaced,
+     * cleared, or expired while the snapshot was in flight, so a stale result can never confirm it.
+     */
+    private async probeCandidate(
+        terminal: TerminalRecord,
+        candidate: ShellPromotionCandidate,
+        purpose: 'provider-switch' | 'shell-promotion',
+    ) {
+        const { provider } = candidate;
+        if (!provider) return;
+        candidate.attempts += 1;
+        const snapshot = await this.agents.snapshot(provider, {
+            correlationId: `${terminal.id}:${purpose}:${candidate.startedAt}`,
+            excludedAgentSessionIds: this.database.claimedAgentSessionIdsForProvider(
+                provider,
+                terminal.id,
+            ),
+            rootPath: agentProviderStateRoot(terminal),
+            processState: terminal.lastProcessState,
+            startedAt: candidate.startedAt,
+        });
+        const current = this.shellPromotionCandidates.get(terminal.id);
+        if (current !== candidate || current.origin !== 'input' || candidate.expiresAt < Date.now())
+            return;
+        return snapshot;
+    }
+
     private async probeShellPromotion(
         terminal: TerminalRecord,
         shouldRetryClaim: boolean,
@@ -427,25 +443,8 @@ export class AgentCoordinator {
         }
         const session = this.database.getSession(terminal.sessionId);
         if (!session) return;
-        candidate.attempts += 1;
-        const snapshot = await this.agents.snapshot(provider, {
-            correlationId: `${terminal.id}:shell-promotion:${candidate.startedAt}`,
-            excludedAgentSessionIds: this.database.claimedAgentSessionIdsForProvider(
-                provider,
-                terminal.id,
-            ),
-            rootPath: agentProviderStateRoot(terminal),
-            processState: terminal.lastProcessState,
-            startedAt: candidate.startedAt,
-        });
-        const currentCandidate = this.shellPromotionCandidates.get(terminal.id);
-        if (
-            currentCandidate !== candidate ||
-            currentCandidate.origin !== 'input' ||
-            candidate.expiresAt < Date.now()
-        ) {
-            return;
-        }
+        const snapshot = await this.probeCandidate(terminal, candidate, 'shell-promotion');
+        if (!snapshot) return;
         if (!snapshot.sessionId) {
             if (candidate.attempts < MAX_SHELL_PROMOTION_PROBES)
                 this.refreshes.schedule(terminal.id);

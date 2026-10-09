@@ -1,0 +1,366 @@
+/**
+ * Deterministic stand-in for `codex app-server --listen stdio://`, used by Agent Chat unit tests and fake-mode E2E so
+ * no test ever launches the real CLI or calls a model. Behavior is selected by keywords in the user's message:
+ *
+ * - `approve`: a command needing approval; accept runs it, decline records it as declined.
+ * - `ask`: a question; the reply quotes the chosen answer.
+ * - `slow`: a long streamed reply that `turn/interrupt` can stop.
+ * - `fail`: a failed turn with a provider error.
+ * - `crash`: the process exits mid-turn.
+ * - Anything else: reasoning, a plan, and a streamed reply quoting the message.
+ *
+ * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history.
+ */
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import process from 'node:process';
+import readline from 'node:readline';
+
+/**
+ * Loose JSON-RPC shapes: the fake only reads the fields it answers, and the Server's own schemas validate what it
+ * emits.
+ */
+interface RpcMessage {
+    id?: number;
+    method?: string;
+    params?: Record<string, unknown>;
+    result?: unknown;
+}
+interface FakeItem {
+    id: string;
+    type: string;
+    [key: string]: unknown;
+}
+interface FakeTurn {
+    id: string;
+    items: FakeItem[];
+    status: string;
+    error: { message: string } | null;
+    startedAt: number;
+    durationMs?: number;
+    interrupted?: boolean;
+    finished?: boolean;
+    onFinished?: () => void;
+}
+interface FakeThread {
+    id: string;
+    turns: FakeTurn[];
+}
+interface ApprovalResponse {
+    decision?: string;
+}
+interface QuestionResponse {
+    answers?: Record<string, { answers: string[] } | undefined>;
+}
+
+if (process.argv.includes('--version')) {
+    process.stdout.write('codex-cli 0.162.0\n');
+    exitProcess(0);
+}
+
+const stateDirectory =
+    process.env.FAKE_CODEX_STATE_DIR ?? path.join(os.tmpdir(), 'caxri-fake-codex');
+fs.mkdirSync(stateDirectory, { recursive: true });
+
+const pendingServerRequests = new Map<number, (result: unknown) => void>();
+
+/**
+ * This file stands in for a CLI process, so exiting is part of its contract.
+ */
+function exitProcess(code: number): never {
+    // eslint-disable-next-line unicorn/no-process-exit -- see above
+    process.exit(code);
+}
+/**
+ * Mutable process state, kept on one object so handlers update it without reassigning module bindings.
+ */
+const state: { nextServerRequestId: number; thread?: FakeThread; activeTurn?: FakeTurn } = {
+    nextServerRequestId: 1000,
+};
+
+function currentThread(): FakeThread {
+    if (!state.thread) throw new Error('No thread has been started.');
+    return state.thread;
+}
+function send(message: Record<string, unknown>) {
+    process.stdout.write(`${JSON.stringify(message)}\n`);
+}
+function notify(method: string, parameters: Record<string, unknown>) {
+    send({ method, params: { threadId: state.thread?.id, ...parameters } });
+}
+function threadPath(id: string) {
+    return path.join(stateDirectory, `${id.replaceAll(/[^\w-]/gu, '_')}.json`);
+}
+function save() {
+    const thread = currentThread();
+    if (thread.turns.length > 0) fs.writeFileSync(threadPath(thread.id), JSON.stringify(thread));
+}
+function delay(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+function serverRequest(method: string, parameters: Record<string, unknown>): Promise<unknown> {
+    const id = state.nextServerRequestId++;
+    send({ id, method, params: { threadId: currentThread().id, ...parameters } });
+    return new Promise((resolve) => pendingServerRequests.set(id, resolve));
+}
+
+function startItem(turn: FakeTurn, item: FakeItem) {
+    turn.items.push(item);
+    notify('item/started', { turnId: turn.id, item });
+}
+function completeItem(turn: FakeTurn, item: FakeItem) {
+    const index = turn.items.findIndex((candidate) => candidate.id === item.id);
+    if (index === -1) turn.items.push(item);
+    else turn.items[index] = item;
+    notify('item/completed', { turnId: turn.id, item });
+}
+
+async function streamMessage(turn: FakeTurn, text: string, chunkDelayMs: number) {
+    const item = { type: 'agentMessage', id: crypto.randomUUID(), text: '' };
+    startItem(turn, { ...item });
+    for (const word of text.split(/(?<= )/u)) {
+        if (turn.interrupted) return;
+        item.text += word;
+        notify('item/agentMessage/delta', { turnId: turn.id, itemId: item.id, delta: word });
+        // eslint-disable-next-line no-await-in-loop -- chunks stream one at a time on purpose
+        if (chunkDelayMs > 0) await delay(chunkDelayMs);
+    }
+    completeItem(turn, item);
+}
+
+async function runTurn(turn: FakeTurn, text: string) {
+    const user = {
+        type: 'userMessage',
+        id: crypto.randomUUID(),
+        clientId: null,
+        content: [{ type: 'text', text, text_elements: [] }],
+    };
+    startItem(turn, user);
+    completeItem(turn, user);
+    if (text.includes('crash')) exitProcess(1);
+    if (text.includes('approve')) {
+        const command = {
+            type: 'commandExecution',
+            id: crypto.randomUUID(),
+            command: 'echo approved',
+            cwd: process.cwd(),
+            status: 'inProgress',
+            aggregatedOutput: null,
+            exitCode: null,
+            durationMs: null,
+        };
+        startItem(turn, { ...command });
+        const response = (await serverRequest('item/commandExecution/requestApproval', {
+            turnId: turn.id,
+            itemId: command.id,
+            startedAtMs: Date.now(),
+            command: command.command,
+            cwd: command.cwd,
+            reason: 'Fake approval',
+        })) as ApprovalResponse | undefined;
+        if (response?.decision === 'accept' || response?.decision === 'acceptForSession') {
+            notify('item/commandExecution/outputDelta', {
+                turnId: turn.id,
+                itemId: command.id,
+                delta: 'approved\n',
+            });
+            completeItem(turn, {
+                ...command,
+                status: 'completed',
+                aggregatedOutput: 'approved\n',
+                exitCode: 0,
+                durationMs: 5,
+            });
+            await streamMessage(turn, 'The command ran.', 0);
+        } else {
+            completeItem(turn, { ...command, status: 'declined' });
+            await streamMessage(turn, 'The command was declined.', 0);
+        }
+    } else if (text.includes('ask')) {
+        const item = { type: 'dynamicToolCall', id: crypto.randomUUID() };
+        const response = (await serverRequest('item/tool/requestUserInput', {
+            turnId: turn.id,
+            itemId: item.id,
+            questions: [
+                {
+                    id: 'color',
+                    header: 'Color',
+                    question: 'Which color?',
+                    isOther: true,
+                    isSecret: false,
+                    options: [
+                        { label: 'Red', description: 'Warm' },
+                        { label: 'Blue', description: 'Cool' },
+                    ],
+                },
+            ],
+        })) as QuestionResponse | undefined;
+        const answer = response?.answers?.color?.answers[0];
+        await streamMessage(turn, `You chose ${answer ?? 'nothing'}.`, 0);
+    } else if (text.includes('slow')) {
+        await streamMessage(turn, 'word '.repeat(200), 50);
+    } else if (text.includes('fail')) {
+        turn.status = 'failed';
+        turn.error = { message: 'Fake provider failure' };
+        notify('error', { turnId: turn.id, willRetry: false, error: turn.error });
+    } else {
+        const reasoning = { type: 'reasoning', id: crypto.randomUUID(), summary: [], content: [] };
+        startItem(turn, { ...reasoning });
+        notify('item/reasoning/summaryTextDelta', {
+            turnId: turn.id,
+            itemId: reasoning.id,
+            delta: 'Thinking about it.',
+            summaryIndex: 0,
+        });
+        completeItem(turn, { ...reasoning, summary: ['Thinking about it.'] });
+        notify('turn/plan/updated', {
+            turnId: turn.id,
+            explanation: null,
+            plan: [
+                { step: 'Read the message', status: 'completed' },
+                { step: 'Reply', status: 'inProgress' },
+            ],
+        });
+        await streamMessage(turn, `Hello from fake Codex. You said: ${text}`, 0);
+        notify('thread/tokenUsage/updated', {
+            turnId: turn.id,
+            tokenUsage: {
+                total: { totalTokens: 1200 },
+                last: { totalTokens: 1200 },
+                modelContextWindow: 200000,
+            },
+        });
+    }
+    finishTurn(turn);
+}
+
+/**
+ * The turn fields Codex sends; the fake's own bookkeeping flags stay private.
+ */
+function wireTurn(turn: FakeTurn) {
+    return {
+        id: turn.id,
+        items: turn.items,
+        status: turn.status,
+        error: turn.error,
+        durationMs: turn.durationMs,
+    };
+}
+
+function finishTurn(turn: FakeTurn) {
+    if (turn.finished) return;
+    turn.finished = true;
+    if (turn.interrupted) turn.status = 'interrupted';
+    else if (turn.status === 'inProgress') turn.status = 'completed';
+    turn.durationMs = Date.now() - turn.startedAt;
+    state.activeTurn = undefined;
+    save();
+    notify('turn/completed', { turn: { ...wireTurn(turn), items: [] } });
+    turn.onFinished?.();
+}
+
+function threadResponse() {
+    const thread = currentThread();
+    return {
+        thread: {
+            id: thread.id,
+            status: { type: 'idle' },
+            cwd: process.cwd(),
+            turns: thread.turns.map((turn) => wireTurn(turn)),
+        },
+        model: 'fake-codex-model',
+    };
+}
+
+function handle(message: RpcMessage) {
+    if (message.id !== undefined && message.method === undefined) {
+        const resolve = pendingServerRequests.get(message.id);
+        pendingServerRequests.delete(message.id);
+        resolve?.(message.result);
+        return;
+    }
+    const { id, method, params: parameters = {} } = message;
+    switch (method) {
+        case 'initialize': {
+            send({ id, result: { userAgent: 'caxri/0.162.0 (fake)', platformOs: 'macos' } });
+            return;
+        }
+        case 'initialized': {
+            return;
+        }
+        case 'thread/start': {
+            state.thread = { id: crypto.randomUUID(), turns: [] };
+            send({ id, result: threadResponse() });
+            return;
+        }
+        case 'thread/resume': {
+            const threadId = String(parameters.threadId);
+            const file = threadPath(threadId);
+            if (!fs.existsSync(file)) {
+                send({
+                    id,
+                    error: { code: -32600, message: `no rollout found for thread id ${threadId}` },
+                });
+                return;
+            }
+            state.thread = JSON.parse(fs.readFileSync(file, 'utf8')) as FakeThread;
+            send({ id, result: threadResponse() });
+            return;
+        }
+        case 'turn/start': {
+            const inputs = (parameters.input ?? []) as Array<{ text?: string }>;
+            const text = inputs.map((input) => input.text ?? '').join('\n');
+            const turn: FakeTurn = {
+                id: crypto.randomUUID(),
+                items: [],
+                status: 'inProgress',
+                error: null,
+                startedAt: Date.now(),
+            };
+            currentThread().turns.push(turn);
+            state.activeTurn = turn;
+            send({ id, result: { turn: { id: turn.id, items: [], status: 'inProgress' } } });
+            notify('turn/started', { turn: { id: turn.id, items: [], status: 'inProgress' } });
+            // eslint-disable-next-line no-void -- the turn streams its own notifications after this response
+            void runTurn(turn, text);
+            return;
+        }
+        case 'turn/steer': {
+            if (state.activeTurn?.id !== parameters.expectedTurnId) {
+                send({ id, error: { code: -32600, message: 'no active turn to steer' } });
+                return;
+            }
+            send({ id, result: { turnId: state.activeTurn?.id } });
+            return;
+        }
+        case 'turn/interrupt': {
+            const turn = state.activeTurn;
+            if (!turn || turn.id !== parameters.turnId) {
+                send({ id, error: { code: -32600, message: 'no active turn to interrupt' } });
+                return;
+            }
+            turn.interrupted = true;
+            for (const [requestId, resolve] of pendingServerRequests) {
+                pendingServerRequests.delete(requestId);
+                resolve(undefined);
+            }
+            turn.onFinished = () => send({ id, result: {} });
+            setTimeout(() => finishTurn(turn), 10);
+            return;
+        }
+        default: {
+            if (id !== undefined)
+                send({
+                    id,
+                    error: { code: -32600, message: `unknown variant \`${String(method)}\`` },
+                });
+        }
+    }
+}
+
+readline.createInterface({ input: process.stdin }).on('line', (line) => {
+    if (line.trim()) handle(JSON.parse(line) as RpcMessage);
+});
+process.stdin.on('end', () => exitProcess(0));

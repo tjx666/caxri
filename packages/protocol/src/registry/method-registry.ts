@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { agentActionMethods } from '../agent/agent-action-contract.js';
+import { agentChatMethods } from '../agent/agent-chat-contract.js';
 import { commanderMethods } from '../agent/agent-commander-contract.js';
 import {
     agentDelegationInternalMethods,
@@ -75,6 +76,7 @@ import {
 import { terminalLongPasteMethods } from '../domain/terminal-long-paste.js';
 import { terminalReadMethods } from '../domain/terminal-read-contract.js';
 import { terminalReferenceMethods } from '../domain/terminal-reference-contract.js';
+import { terminalSurfaceSchema } from '../domain/terminal-surface.js';
 import { treeChildrenResultSchema } from '../domain/tree-item.js';
 import { updateStateSchema } from '../domain/update-state.js';
 import {
@@ -142,6 +144,7 @@ const externalOpenResult = z.discriminatedUnion('status', [
  */
 export const methods = {
     ...agentActionMethods,
+    ...agentChatMethods,
     ...agentDispatchMethods,
     ...agentDelegationMethods,
     ...commanderMethods,
@@ -354,6 +357,10 @@ export const methods = {
              * Files may request a bounded Project-local cwd; ordinary creation keeps settings.
              */
             cwd: pathSchema.optional(),
+            /**
+             * `chat` requires a provider whose catalog entry declares `capabilities.chat`.
+             */
+            surface: terminalSurfaceSchema.optional(),
         }),
         result: terminalRecordSchema,
     },

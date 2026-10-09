@@ -1,7 +1,7 @@
 import process from 'node:process';
 
 import type { AgentProvider, ServerEvent } from '@caxri/protocol';
-import { errorMessage } from '@caxri/protocol';
+import { errorMessage, isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -101,10 +101,17 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         sessionRenames,
         agentEnvironment,
         (terminalId, launchId) => {
-            const provider = database.getTerminal(terminalId)?.provider;
+            const terminal = database.getTerminal(terminalId);
+            const provider = terminal?.provider;
+            /**
+             * A Chat's lifecycle comes from the provider protocol, not hooks, so the hooks switch does not gate it.
+             */
             return Boolean(
+                terminal &&
                 provider &&
-                configuration.getSettings().value['agents.providers'][provider].hooks.enabled &&
+                (isChatTerminal(terminal) ||
+                    configuration.getSettings().value['agents.providers'][provider].hooks
+                        .enabled) &&
                 coordinator.isCurrentTerminalLaunch(terminalId, launchId),
             );
         },
@@ -263,6 +270,19 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             await agentHooks.close();
         },
         coordinator,
+        /**
+         * Entry for lifecycle signals a Chat synthesizes from its provider protocol. It takes the same provenance and
+         * downstream path as an authenticated hook signal.
+         */
+        observeChatLifecycleSignal: async (signal: AgentLifecycleSignal) => {
+            const decision = await provenance.handleAgentLifecycleSignal(
+                coordinator,
+                workbenchRoots,
+                signal,
+            );
+            if (decision === 'accepted') options.onLifecycleSignal?.(signal);
+            return decision;
+        },
         grantAutoAllow: (sessionId: string) => attentionAutoAllow.grant(sessionId),
         revokeAutoAllow: (sessionId: string, reason: PermissionAutoAllowRevokeReason) =>
             attentionAutoAllow.revoke(sessionId, reason),

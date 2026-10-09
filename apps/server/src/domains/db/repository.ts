@@ -16,6 +16,7 @@ import type {
     TerminalKind,
     TerminalRecord,
     TerminalSnapshot,
+    TerminalSurface,
 } from '@caxri/protocol';
 import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 import type Database from 'better-sqlite3';
@@ -47,6 +48,7 @@ import type {
 } from './models/agent-dispatch-receipts';
 import type { AppStateKey, AppStateValue } from './models/app-state';
 import type { SessionWorkbenchBinding } from './models/sessions';
+import { reorderProject } from './project-ordering';
 import {
     hideProject,
     isRestorableProjectRoot,
@@ -84,7 +86,12 @@ export class CaxriDatabase {
         this.agentDelegations = this.db.agentDelegations;
     }
 
-    private insertTerminal(sessionId: string, kind: TerminalKind, cwd?: string): TerminalRecord {
+    private insertTerminal(
+        sessionId: string,
+        kind: TerminalKind,
+        cwd?: string,
+        surface?: TerminalSurface,
+    ): TerminalRecord {
         const session = this.db.sessions.get(sessionId);
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
         const ownerProject = this.db.projects.get(session.projectId);
@@ -94,6 +101,7 @@ export class CaxriDatabase {
             sessionId,
             kind,
             cwd: cwd ?? ownerProject.rootPath,
+            surface,
             title: defaultTerminalTitle(kind),
         });
         const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
@@ -198,28 +206,7 @@ export class CaxriDatabase {
      * shift every drop one slot.
      */
     reorderProject(projectId: string, targetIndex: number): ProjectRecord[] {
-        return this.db.transaction(() => {
-            const current = this.db.projects.list();
-            const visibleIds: string[] = [];
-            const ownedIds: string[] = [];
-            for (const project of current)
-                (isTopLevelProject(project) ? visibleIds : ownedIds).push(project.id);
-            if (
-                !visibleIds.includes(projectId) ||
-                !Number.isSafeInteger(targetIndex) ||
-                targetIndex < 0 ||
-                targetIndex >= visibleIds.length
-            ) {
-                throw new CaxriError(
-                    'VALIDATION',
-                    'Project reorder must reference a current Project and valid position',
-                );
-            }
-            const reordered = visibleIds.filter((currentId) => currentId !== projectId);
-            reordered.splice(targetIndex, 0, projectId);
-            this.db.projects.reorder([...reordered, ...ownedIds]);
-            return this.db.projects.list();
-        });
+        return this.db.transaction(() => reorderProject(this.db, projectId, targetIndex));
     }
 
     /**
@@ -603,8 +590,13 @@ export class CaxriDatabase {
         return this.db.terminals.get(id);
     }
 
-    createTerminal(sessionId: string, kind: TerminalKind, cwd?: string): TerminalRecord {
-        return this.db.transaction(() => this.insertTerminal(sessionId, kind, cwd));
+    createTerminal(
+        sessionId: string,
+        kind: TerminalKind,
+        cwd?: string,
+        surface?: TerminalSurface,
+    ): TerminalRecord {
+        return this.db.transaction(() => this.insertTerminal(sessionId, kind, cwd, surface));
     }
 
     /**

@@ -3,6 +3,7 @@
 // `bunx drizzle-kit generate` from `schema.ts`; keep these in sync by regenerating rather than
 // hand-editing migration files.
 import baselineMigrationSql from './0000_baseline.sql?raw';
+import terminalSurfaceMigrationSql from './0001_terminal_surface.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -38,7 +39,10 @@ export function assertMigrationManifestMatchesJournal(
     }
 }
 
-export const migrationManifest = [{ tag: '0000_baseline', sql: baselineMigrationSql }] as const;
+export const migrationManifest = [
+    { tag: '0000_baseline', sql: baselineMigrationSql },
+    { tag: '0001_terminal_surface', sql: terminalSurfaceMigrationSql },
+] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an
 // omitted, reordered, or duplicate manifest entry fails at import time in tests and at startup,

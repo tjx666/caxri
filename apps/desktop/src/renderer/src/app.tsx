@@ -7,6 +7,7 @@ import { runCommand } from './commands/execute';
 import { useCommandShortcuts } from './commands/use-command-shortcuts';
 import { TooltipProvider } from './components/ui/tooltip';
 import { AgentActionsDialog } from './features/agent-actions/agent-actions-dialog';
+import { subscribeAgentChatPatches } from './features/agent-chat/agent-chat-client';
 import { AgentMessageApprovalDialog } from './features/agent-inbox/agent-message-approval-dialog';
 import { subscribeHeldMessageQueue } from './features/agent-inbox/agent-message-approval-store';
 import { BugReportDialog } from './features/bug-report/bug-report-dialog';
@@ -48,6 +49,7 @@ import { useStartupLoaderRemoval } from './hooks/use-startup-loader-removal';
 import { useWorkbenchAppearance } from './hooks/use-workbench-appearance';
 import { registerPickerFallbackFocus } from './lib/picker-final-focus';
 import { cn } from './lib/utilities';
+import { queryClient } from './queries/client';
 import { useGitDecorationSync } from './queries/git-decoration-sync';
 import { useRuntimeQueryInvalidation } from './queries/invalidation';
 import {
@@ -139,6 +141,7 @@ export function App() {
     useSettingsTabOpener();
     useFileMutationReconciliation(isAttached);
     useRuntimeQueryInvalidation();
+    useEffect(() => subscribeAgentChatPatches(queryClient), []);
     useEffect(() => startViewEventBridge(), []);
     useEffect(() => subscribeHeldMessageQueue(), []);
     useEffect(() => registerPickerFallbackFocus(activeWorkbenchFocusElement), []);

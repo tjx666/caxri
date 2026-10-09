@@ -2,22 +2,26 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type {
-    AuxiliaryWindowState,
     FullStateChangeReason,
-    PersistedWindowState,
     SessionRestorePlacement,
     TerminalKind,
     TerminalRecord,
 } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
 import { readActiveContext } from './active-context';
+import { AgentChatService, createAgentChatHandlers } from './agent-chat';
 import { createAgentCommandRuntime } from './agent-command-runtime';
 import type { AgentDelegationService } from './agent-delegation';
 import type { AgentDispatchService } from './agent-dispatch';
 import { createAgentRuntime } from './agent-runtime';
-import { AgentAttentionRequests, CompactionReadiness, LongPasteService } from './agents';
+import {
+    AgentAttentionRequests,
+    agentCommandEnvironment,
+    CompactionReadiness,
+    LongPasteService,
+} from './agents';
 import { createBackgroundTasks, refreshWatchSessionInBackground } from './background-tasks';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import type { CommanderCompletionNotifier } from './commander';
@@ -52,6 +56,7 @@ import {
     createTerminalBinaryInputHandler,
     createTerminalInputHandler,
 } from './terminal-input';
+import { createLifecycleEnvironment } from './terminal-lifecycle-environment';
 import { createTerminalMoveHandler } from './terminal-move';
 import { createTerminalRestartHandler } from './terminal-restart';
 import {
@@ -59,16 +64,12 @@ import {
     createInterruptedTerminalRestorer,
 } from './terminal-restore';
 import { resolveTerminalWorkingDirectory } from './terminal-working-directory';
+import { createWindowStateHandlers } from './window-state-handlers';
 import * as provenance from './workbench-provenance';
 import { validateWorkbenchRequestContext } from './workbench-request-context';
 import { createWorkbenchRootHandlers } from './workbench-root-handlers';
 import { createWorkbenchSnapshots } from './workbench-snapshot';
 
-const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
-const DEFAULT_AUXILIARY_WINDOW_STATE: AuxiliaryWindowState = {
-    agentCommander: { wasOpenAtQuit: false },
-    processExplorer: {},
-};
 const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
 export async function createDomainServices(
     dependencies: DomainDependencies,
@@ -148,53 +149,14 @@ export async function createDomainServices(
             dependencies.terminal?.agentOutputRecoverySettings ?? agentOutputRecoverySettings,
         shellEnvironment: (terminal) => agentHooks.shellEnvironment(terminal.id),
         onShellRetired: (terminalId) => agentHooks.endShellLaunch(terminalId),
-        lifecycleEnvironment: async (terminal, launch, launchId, delegationId) => {
-            if (!launchId)
-                throw new CaxriError('CONFLICT', 'Managed Agent launch identity is unavailable');
-            const hookEnvironment = agentHooks.terminalEnvironment(
-                terminal.id,
-                terminal.provider,
-                launchId,
-            );
-            delegationState.service?.bindEnvironment(
-                terminal.id,
-                launchId,
-                hookEnvironment,
-                delegationId,
-            );
-            if (!launch || terminal.kind === 'shell') return hookEnvironment;
-            const session = database.getSession(terminal.sessionId);
-            if (!session) throw new CaxriError('CONFLICT', 'Agent Session no longer exists');
-            const providerSettings =
-                configuration.getSettings().value['agents.providers'][terminal.kind];
-            /**
-             * Prime topology only when paired hook events can report a worktree change.
-             */
-            if (providerSettings.hooks.enabled && hookEnvironment.CAXRI_HOOK_TOKEN)
-                await provenance.primeAgentWorkbenchProvenance({
-                    launchId,
-                    projectId: session.projectId,
-                    terminal,
-                    workbenchRoots,
-                });
-            if (!dependencies.agentEndpoints) return hookEnvironment;
-            const endpointEnvironment = await dependencies.agentEndpoints.environment(
-                terminal,
-                session.projectId,
-                providerSettings,
-                launchId,
-                database.agentCommanderRows()?.terminalId === terminal.id ? 'commander' : undefined,
-            );
-            if (!dependencies.agentEndpoints.preparedEndpointForTerminal(terminal.id))
-                throw new CaxriError(
-                    'UNAVAILABLE',
-                    'Agent Endpoint generation was not prepared before launch',
-                );
-            return {
-                ...hookEnvironment,
-                ...endpointEnvironment,
-            };
-        },
+        lifecycleEnvironment: createLifecycleEnvironment({
+            agentHooks,
+            configuration,
+            database,
+            delegationState,
+            endpoints: dependencies.agentEndpoints,
+            workbenchRoots,
+        }),
         onLifecycleStarted: (terminal) => {
             suspensionState.service?.observeLaunch(terminal.id);
             return dependencies.agentEndpoints?.activate(terminal.id);
@@ -236,6 +198,18 @@ export async function createDomainServices(
     const unsubscribeTerminalSettings = configuration.subscribeSettings(() =>
         terminals.reconcileOutputRecoverySettings(),
     );
+    const agentChat = new AgentChatService({
+        database,
+        logger,
+        send,
+        environment: () => agentCommandEnvironment(agentEnvironment),
+        launchSettings: (provider) =>
+            (dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings)(provider),
+        resolveExecutable: dependencies.terminal?.resolveExecutable,
+        coordinator,
+        observeLifecycleSignal: agentRuntime.observeChatLifecycleSignal,
+        clientVersion: process.env.CAXRI_APP_VERSION ?? '0.0.0',
+    });
     const terminalRestores = new TerminalRestoreSupervisor();
     const terminalSuspension = new TerminalSuspensionService({
         database,
@@ -304,6 +278,8 @@ export async function createDomainServices(
         coordinator.forgetSession(sessionId);
         transcripts.forgetSession(sessionId);
         terminals.terminateSession(sessionId);
+        // eslint-disable-next-line no-void -- Session teardown is synchronous; provider exit completes on its own.
+        void agentChat.closeSession(sessionId);
         agentRuntime.revokeAutoAllow(sessionId, 'sessionDeleted'); // Archive keeps it (caxri#1295).
     };
     const evictSessionCaches = (sessionIds: readonly string[]): void => {
@@ -326,21 +302,24 @@ export async function createDomainServices(
             configured:
                 configuration.getSettings().value['terminal.defaultWorkingDirectory'] ?? undefined,
         });
+    async function newTerminalWorkingDirectory(sessionId: string, requestedCwd?: string) {
+        const session = database.getSession(sessionId);
+        if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
+        const ownerProject = database.getProject(session.projectId);
+        if (!ownerProject) throw new CaxriError('NOT_FOUND', 'Project not found');
+        return terminalWorkingDirectory({
+            authorizedRoots: [ownerProject.rootPath, session.rootPath],
+            defaultRoot: session.rootPath,
+            requestedCwd,
+        });
+    }
     async function createAndStartTerminal(
         sessionId: string,
         kind: TerminalKind,
         requestedCwd?: string,
         beforeStart?: (terminal: TerminalRecord) => void,
     ): Promise<TerminalRecord> {
-        const session = database.getSession(sessionId);
-        if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
-        const ownerProject = database.getProject(session.projectId);
-        if (!ownerProject) throw new CaxriError('NOT_FOUND', 'Project not found');
-        const cwd = await terminalWorkingDirectory({
-            authorizedRoots: [ownerProject.rootPath, session.rootPath],
-            defaultRoot: session.rootPath,
-            requestedCwd,
-        });
+        const cwd = await newTerminalWorkingDirectory(sessionId, requestedCwd);
         const expectedWorkingDirectory = await terminalDirectoryIdentity(cwd);
         const terminal = database.createTerminal(sessionId, kind, cwd);
         beforeStart?.(terminal);
@@ -350,6 +329,21 @@ export async function createDomainServices(
         } catch {
             return database.getTerminal(terminal.id)!;
         }
+    }
+    /**
+     * A Chat Terminal has no PTY: it is created without starting Terminal Host and its provider starts on first read.
+     */
+    async function createChatTerminal(
+        sessionId: string,
+        kind: TerminalKind,
+        requestedCwd?: string,
+    ): Promise<TerminalRecord> {
+        if (kind === 'shell' || !agentProviderCatalog[kind].capabilities.chat)
+            throw new CaxriError('VALIDATION', 'This Agent does not support Chat');
+        const cwd = await newTerminalWorkingDirectory(sessionId, requestedCwd);
+        const terminal = database.createTerminal(sessionId, kind, cwd, 'chat');
+        agentChat.read(terminal.id);
+        return database.getTerminal(terminal.id) ?? terminal;
     }
     const restorerOptions = {
         agentEnvironment,
@@ -456,6 +450,7 @@ export async function createDomainServices(
         terminalRestores.close();
         commanderRestores.close();
         commanderNotifierState.service?.close();
+        await agentChat.shutdown();
         await terminalSuspension.close();
         await terminalResourceMonitor.close();
         coordinator.close();
@@ -494,29 +489,13 @@ export async function createDomainServices(
             ready: true,
             pid,
             startedAt,
-            activePtyCount: terminals.runningCount(),
+            /**
+             * Live Chat provider processes count as busy work so idle exit and `server.stop` treat them like PTYs.
+             */
+            activePtyCount: terminals.runningCount() + agentChat.liveCount(),
         }),
-        'app.windowState.get': () => ({
-            bounds: database.getAppState('windowBounds') ?? DEFAULT_WINDOW_BOUNDS,
-            ...(database.getAppState('windowState') ?? {
-                isMaximized: false,
-                isFullScreen: false,
-            }),
-        }),
-        'app.windowState.update': (state) => {
-            database.setAppState('windowBounds', state.bounds);
-            database.setAppState('windowState', {
-                isMaximized: state.isMaximized,
-                isFullScreen: state.isFullScreen,
-            });
-            return state;
-        },
-        'app.auxiliaryWindowState.get': () =>
-            database.getAppState('auxiliaryWindowState') ?? DEFAULT_AUXILIARY_WINDOW_STATE,
-        'app.auxiliaryWindowState.update': (state) => {
-            database.setAppState('auxiliaryWindowState', state);
-            return state;
-        },
+        ...createAgentChatHandlers(agentChat),
+        ...createWindowStateHandlers(database),
         ...createWorkbenchRootHandlers(workbenchRoots, mainOwned),
         ...createTerminalMoveHandler({
             coordinator,
@@ -600,6 +579,7 @@ export async function createDomainServices(
                 terminalRestores.cancel(sessionId);
                 const session = database.archiveSession(sessionId);
                 await terminalSuspension.suspendSession(sessionId);
+                await agentChat.closeSession(sessionId);
                 observeSelectedSession(selectedSessionId(), true);
                 sendFullStateChange('session.archive');
                 return session;
@@ -611,6 +591,7 @@ export async function createDomainServices(
                 // A queued restore could relaunch the Agent right after it was handed over; drop it first.
                 terminalRestores.cancel(sessionId);
                 await terminalSuspension.detachSession(sessionId);
+                await agentChat.closeSession(sessionId);
                 sendFullStateChange('session.detach');
                 return database.getSession(sessionId)!;
             }),
@@ -647,8 +628,11 @@ export async function createDomainServices(
         },
         'session.queryForPrincipal': ({ principal, query }) =>
             introspection.records.session(query, principal),
-        'terminal.create': async ({ sessionId, kind, cwd }) => {
-            const terminal = await createAndStartTerminal(sessionId, kind, cwd);
+        'terminal.create': async ({ sessionId, kind, cwd, surface }) => {
+            const terminal =
+                surface === 'chat'
+                    ? await createChatTerminal(sessionId, kind, cwd)
+                    : await createAndStartTerminal(sessionId, kind, cwd);
             if (terminal.provider) coordinator.probeTerminal(terminal.id);
             sendFullStateChange('terminal.create');
             return terminal;
@@ -671,12 +655,17 @@ export async function createDomainServices(
                 const sessionId = database.getTerminal(terminalId)?.sessionId;
                 coordinator.forgetTerminal(terminalId);
                 transcripts.forgetTerminal(terminalId);
+                // eslint-disable-next-line no-void -- the provider exits on its own; the record is removed now.
+                void agentChat.close(terminalId);
                 terminals.close(terminalId);
                 if (sessionId) coordinator.probeSessionPrimaryAgent(sessionId);
                 sendFullStateChange('terminal.close');
                 return null;
             }),
-        'terminal.restart': createTerminalRestartHandler(restorerOptions),
+        'terminal.restart': createTerminalRestartHandler({
+            ...restorerOptions,
+            restartChat: (terminalId) => agentChat.restart(terminalId),
+        }),
         ...createTerminalHandlers({
             database,
             resourceMonitor: terminalResourceMonitor,
@@ -689,6 +678,7 @@ export async function createDomainServices(
             terminalRestores.close();
             commanderRestores.close();
             coordinator.close();
+            await agentChat.shutdown();
             await terminals.shutdown('terminate');
             return null;
         },

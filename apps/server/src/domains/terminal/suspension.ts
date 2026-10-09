@@ -5,6 +5,7 @@ import { logEventCatalog } from '@caxri/system';
 
 import type { AgentLifecycleSignal } from '../agents';
 import type { CaxriDatabase } from '../db';
+import { isPtyTerminal } from '../pty-guard';
 import type { WatchHandle, WatchHub } from '../watch-hub';
 import type { TerminalManager } from './manager';
 import type { TerminalActivitySample, TerminalSuspensionReason } from './suspension-policy';
@@ -167,6 +168,7 @@ export class TerminalSuspensionService {
         for (const terminal of this.options.database.listTerminals(sessionId)) {
             if (
                 !isEligible(terminal) ||
+                !isPtyTerminal(terminal) ||
                 this.options.terminals.processId(terminal.id) === undefined
             )
                 continue;

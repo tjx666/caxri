@@ -568,12 +568,8 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
         // Named after the hovered button: Base UI points the popup's `aria-labelledby` at its active trigger.
         const agentMenu = running.page.getByRole('menu', { name: 'New Terminal' });
         await expect(agentMenu).toBeVisible();
-        await expect(agentMenu.getByRole('menuitem')).toHaveText([
-            'Claude Code',
-            'Codex',
-            'Grok Build',
-            'Shell',
-        ]);
+        const agents = ['Claude Code', 'Codex', 'Codex (Chat)', 'Grok Build', 'Shell'];
+        await expect(agentMenu.getByRole('menuitem')).toHaveText(agents);
         await running.page.keyboard.press('Escape');
         await newTerminal.focus();
         await newTerminal.press('Enter');

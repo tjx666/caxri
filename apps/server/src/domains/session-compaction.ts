@@ -13,6 +13,7 @@ import {
 import type { AgentCoordinator, AgentEnvironment, CompactionReadiness } from './agents';
 import { inspectContextCache, readAgentTranscript } from './agents';
 import type { CaxriDatabase } from './db';
+import { isPtyTerminal } from './pty-guard';
 import type { TerminalManager } from './terminal';
 
 interface Options {
@@ -51,7 +52,12 @@ export class SessionCompaction {
             return 'changed';
         const terminal =
             session.primaryAgentTerminalId && database.getTerminal(session.primaryAgentTerminalId);
-        if (!terminal || (terminal.provider !== 'claude' && terminal.provider !== 'codex'))
+        // Compaction types `/compact` into the PTY; a Chat Terminal has none.
+        if (
+            !terminal ||
+            !isPtyTerminal(terminal) ||
+            (terminal.provider !== 'claude' && terminal.provider !== 'codex')
+        )
             return 'unsupported';
         const launchId = terminals.agentLaunchId(terminal.id);
         if (

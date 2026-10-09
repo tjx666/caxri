@@ -1,0 +1,389 @@
+import type {
+    AgentChatItem,
+    AgentChatItemStatus,
+    AgentChatPlan,
+    AgentChatRequest,
+    AgentChatSnapshot,
+} from '@caxri/protocol';
+import {
+    MAX_AGENT_CHAT_DIFF_LENGTH,
+    MAX_AGENT_CHAT_FILE_CHANGES,
+    MAX_AGENT_CHAT_OUTPUT_LENGTH,
+    MAX_AGENT_CHAT_PLAN_STEPS,
+    MAX_AGENT_CHAT_QUESTIONS,
+    MAX_AGENT_CHAT_TEXT_LENGTH,
+} from '@caxri/protocol';
+
+/**
+ * Pure translation from Codex app-server v2 `ThreadItem`s and server requests into the provider-neutral Agent Chat
+ * projection. Inputs are untrusted JSON, so every field is read defensively and every string is bounded.
+ *
+ * @see https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/src/protocol/v2/item.rs
+ */
+
+type Json = Record<string, unknown>;
+
+export function isRecord(value: unknown): value is Json {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function text(value: unknown): string {
+    return typeof value === 'string' ? value : '';
+}
+
+function optionalText(value: unknown, limit: number): string | undefined {
+    return typeof value === 'string' && value ? clip(value, limit) : undefined;
+}
+
+export function clip(value: string, limit: number): string {
+    return value.length <= limit ? value : value.slice(0, limit);
+}
+
+function tail(value: string, limit: number): string {
+    return value.length <= limit ? value : value.slice(value.length - limit);
+}
+
+function optionalNumber(value: unknown): number | undefined {
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function duration(value: unknown): number | undefined {
+    const ms = optionalNumber(value);
+    return ms !== undefined && ms >= 0 ? ms : undefined;
+}
+
+/**
+ * Codex statuses are `inProgress | completed | failed | declined`; MCP adds nothing new. Unknown values stay running
+ * until the turn boundary closes them.
+ */
+function itemStatus(value: unknown): AgentChatItemStatus {
+    switch (value) {
+        case 'completed': {
+            return 'completed';
+        }
+        case 'failed': {
+            return 'failed';
+        }
+        case 'declined': {
+            return 'declined';
+        }
+        default: {
+            return 'running';
+        }
+    }
+}
+
+function summarizeJson(value: unknown): string | undefined {
+    if (value === undefined || value === null) return undefined;
+    try {
+        const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+        return serialized ? clip(serialized, 1_000) : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+function mcpOutput(item: Json): string | undefined {
+    if (isRecord(item.error)) return optionalText(item.error.message, MAX_AGENT_CHAT_OUTPUT_LENGTH);
+    if (!isRecord(item.result) || !Array.isArray(item.result.content)) return undefined;
+    const parts = item.result.content.flatMap((part) =>
+        isRecord(part) && typeof part.text === 'string' ? [part.text] : [],
+    );
+    return parts.length > 0 ? tail(parts.join('\n'), MAX_AGENT_CHAT_OUTPUT_LENGTH) : undefined;
+}
+
+/**
+ * User inputs that are references rather than text; the Chat shows their name in brackets.
+ */
+const REFERENCE_INPUT_TYPES = new Set<unknown>(['localImage', 'mention', 'skill']);
+
+function userMessageText(content: unknown): string {
+    if (!Array.isArray(content)) return '';
+    return content
+        .flatMap((input) => {
+            if (!isRecord(input)) return [];
+            if (input.type === 'text') return [text(input.text)];
+            if (REFERENCE_INPUT_TYPES.has(input.type))
+                return [`[${text(input.name) || text(input.path)}]`];
+            return [];
+        })
+        .join('\n');
+}
+
+/**
+ * Maps one `ThreadItem`. Returns `undefined` for item kinds the Chat does not render (plans arrive through
+ * `turn/plan/updated`; review markers, hook prompts, and sub-agent bookkeeping are not conversation content).
+ */
+export function mapCodexItem(
+    raw: unknown,
+    turnId: string | undefined,
+    isStreaming: boolean,
+): AgentChatItem | undefined {
+    if (!isRecord(raw) || typeof raw.id !== 'string' || !raw.id) return undefined;
+    const base = { id: clip(raw.id, 200), ...(turnId && { turnId: clip(turnId, 200) }) };
+    switch (raw.type) {
+        case 'userMessage': {
+            return {
+                ...base,
+                type: 'userMessage',
+                text: clip(userMessageText(raw.content), MAX_AGENT_CHAT_TEXT_LENGTH),
+            };
+        }
+        case 'agentMessage': {
+            return {
+                ...base,
+                type: 'agentMessage',
+                text: clip(text(raw.text), MAX_AGENT_CHAT_TEXT_LENGTH),
+                streaming: isStreaming,
+            };
+        }
+        case 'reasoning': {
+            const summary = Array.isArray(raw.summary) ? raw.summary.map(text) : [];
+            return {
+                ...base,
+                type: 'reasoning',
+                text: clip(summary.join('\n\n'), MAX_AGENT_CHAT_TEXT_LENGTH),
+                streaming: isStreaming,
+            };
+        }
+        case 'commandExecution': {
+            return {
+                ...base,
+                type: 'command',
+                command: clip(text(raw.command), 4_096),
+                status: itemStatus(raw.status),
+                output: tail(text(raw.aggregatedOutput), MAX_AGENT_CHAT_OUTPUT_LENGTH),
+                ...(optionalNumber(raw.exitCode) !== undefined && {
+                    exitCode: Math.trunc(raw.exitCode as number),
+                }),
+                ...(duration(raw.durationMs) !== undefined && {
+                    durationMs: duration(raw.durationMs),
+                }),
+            };
+        }
+        case 'fileChange': {
+            const changes = Array.isArray(raw.changes) ? raw.changes : [];
+            return {
+                ...base,
+                type: 'fileChange',
+                status: itemStatus(raw.status),
+                changes: changes.slice(0, MAX_AGENT_CHAT_FILE_CHANGES).flatMap((change) => {
+                    if (!isRecord(change)) return [];
+                    const kind = isRecord(change.kind) ? change.kind.type : undefined;
+                    return [
+                        {
+                            path: clip(text(change.path), 4_096),
+                            kind: kind === 'add' || kind === 'delete' ? kind : 'update',
+                            diff: clip(text(change.diff), MAX_AGENT_CHAT_DIFF_LENGTH),
+                        },
+                    ];
+                }),
+            };
+        }
+        case 'mcpToolCall': {
+            const output = mcpOutput(raw);
+            const summary = summarizeJson(raw.arguments);
+            return {
+                ...base,
+                type: 'toolCall',
+                name: clip(`${text(raw.server)}/${text(raw.tool)}`, 200),
+                status: itemStatus(raw.status),
+                ...(summary && { summary }),
+                ...(output && { output }),
+                ...(duration(raw.durationMs) !== undefined && {
+                    durationMs: duration(raw.durationMs),
+                }),
+            };
+        }
+        case 'dynamicToolCall': {
+            const summary = summarizeJson(raw.arguments);
+            return {
+                ...base,
+                type: 'toolCall',
+                name: clip(text(raw.tool) || 'tool', 200),
+                status: itemStatus(raw.status),
+                ...(summary && { summary }),
+                ...(duration(raw.durationMs) !== undefined && {
+                    durationMs: duration(raw.durationMs),
+                }),
+            };
+        }
+        case 'webSearch': {
+            const summary = optionalText(raw.query, 1_000);
+            return {
+                ...base,
+                type: 'toolCall',
+                name: 'webSearch',
+                status: isStreaming ? 'running' : 'completed',
+                ...(summary && { summary }),
+            };
+        }
+        case 'contextCompaction': {
+            return { ...base, type: 'notice', kind: 'compacted' };
+        }
+        default: {
+            return undefined;
+        }
+    }
+}
+
+/**
+ * Closes an item the provider left open when its turn ended.
+ */
+export function closeDanglingItem(item: AgentChatItem): AgentChatItem | undefined {
+    switch (item.type) {
+        case 'agentMessage':
+        case 'reasoning': {
+            return item.streaming ? { ...item, streaming: false } : undefined;
+        }
+        case 'command':
+        case 'fileChange':
+        case 'toolCall': {
+            return item.status === 'running' ? { ...item, status: 'interrupted' } : undefined;
+        }
+        default: {
+            return undefined;
+        }
+    }
+}
+
+/**
+ * Stable request key: an approval callback id when Codex supplies one (several callbacks can share one item), else the
+ * item id. Codex re-sends pending requests with fresh transport ids after a resume, so the transport id is not stable.
+ */
+export function codexRequestKey(parameters: Json): string | undefined {
+    const key = text(parameters.approvalId) || text(parameters.itemId);
+    return key ? clip(key, 200) : undefined;
+}
+
+export type CodexRequestKind = 'command' | 'fileChange' | 'question';
+
+export function codexRequestKind(method: string): CodexRequestKind | undefined {
+    switch (method) {
+        case 'item/commandExecution/requestApproval': {
+            return 'command';
+        }
+        case 'item/fileChange/requestApproval': {
+            return 'fileChange';
+        }
+        case 'item/tool/requestUserInput': {
+            return 'question';
+        }
+        default: {
+            return undefined;
+        }
+    }
+}
+
+export function mapCodexRequest(
+    kind: CodexRequestKind,
+    id: string,
+    parameters: Json,
+): AgentChatRequest {
+    switch (kind) {
+        case 'command': {
+            const command = optionalText(parameters.command, 4_096);
+            const cwd = optionalText(parameters.cwd, 4_096);
+            const reason = optionalText(parameters.reason, 2_000);
+            return {
+                id,
+                kind,
+                ...(command && { command }),
+                ...(cwd && { cwd }),
+                ...(reason && { reason }),
+            };
+        }
+        case 'fileChange': {
+            const reason = optionalText(parameters.reason, 2_000);
+            return { id, kind, ...(reason && { reason }) };
+        }
+        case 'question': {
+            const questions = Array.isArray(parameters.questions) ? parameters.questions : [];
+            return {
+                id,
+                kind,
+                questions: questions.slice(0, MAX_AGENT_CHAT_QUESTIONS).flatMap((question) => {
+                    if (!isRecord(question) || typeof question.id !== 'string') return [];
+                    const options = Array.isArray(question.options) ? question.options : [];
+                    return [
+                        {
+                            id: clip(question.id, 200),
+                            header: clip(text(question.header), 200),
+                            question: clip(text(question.question), 2_000),
+                            options: options.slice(0, 20).flatMap((option) =>
+                                isRecord(option)
+                                    ? [
+                                          {
+                                              label: clip(text(option.label), 200),
+                                              description: clip(text(option.description), 1_000),
+                                          },
+                                      ]
+                                    : [],
+                            ),
+                            allowsOther: question.isOther === true,
+                        },
+                    ];
+                }),
+            };
+        }
+    }
+}
+
+/**
+ * `turn/plan/updated`: the turn's step list, replacing any earlier plan.
+ */
+export function mapCodexPlan(parameters: Json, turnId: string | undefined): AgentChatPlan {
+    const steps = Array.isArray(parameters.plan) ? parameters.plan : [];
+    const explanation = optionalText(parameters.explanation, 2_000);
+    return {
+        turnId: clip(turnId ?? '', 200),
+        ...(explanation && { explanation }),
+        steps: steps.slice(0, MAX_AGENT_CHAT_PLAN_STEPS).flatMap((step) =>
+            isRecord(step)
+                ? [
+                      {
+                          step: clip(text(step.step), 1_000),
+                          status:
+                              step.status === 'completed' || step.status === 'inProgress'
+                                  ? step.status
+                                  : 'pending',
+                      },
+                  ]
+                : [],
+        ),
+    };
+}
+
+/**
+ * `thread/tokenUsage/updated`: the last request's token count against the model context window.
+ */
+export function mapCodexUsage(parameters: Json): AgentChatSnapshot['usage'] {
+    const usage = isRecord(parameters.tokenUsage) ? parameters.tokenUsage : undefined;
+    const last = isRecord(usage?.last) ? usage.last : undefined;
+    const totalTokens = optionalNumber(last?.totalTokens);
+    if (totalTokens === undefined || totalTokens < 0) return undefined;
+    const contextWindow = optionalNumber(usage?.modelContextWindow);
+    return {
+        totalTokens: Math.trunc(totalTokens),
+        ...(contextWindow !== undefined &&
+            contextWindow >= 0 && { contextWindow: Math.trunc(contextWindow) }),
+    };
+}
+
+/**
+ * The `error` notification: a retry notice while Codex retries, else the turn's error notice. One item per kind and
+ * turn, so a repeated retry updates the notice instead of stacking copies.
+ */
+export function mapCodexErrorNotice(parameters: Json, turnId: string | undefined): AgentChatItem {
+    const message = isRecord(parameters.error)
+        ? optionalText(parameters.error.message, 2_000)
+        : undefined;
+    const kind = parameters.willRetry === true ? 'retrying' : 'error';
+    return {
+        id: `${turnId ?? 'thread'}:${kind}`,
+        ...(turnId && { turnId: clip(turnId, 200) }),
+        type: 'notice',
+        kind,
+        ...(message && { message }),
+    };
+}

@@ -25,10 +25,11 @@ import {
 import { caxri } from '../lib/caxri';
 import { createStore } from '../lib/store';
 import { reportAutomaticNamingNotices } from './automatic-naming-notice';
-import { recordNotification, syncNotificationSettings } from './notifications';
+import { syncNotificationSettings } from './notifications';
 import { mergeStructurally } from './structural-sharing';
 import { describeFailure, isCancelledRequest, pushToast } from './toasts';
 import type { WorkbenchEventHandlers } from './workbench-event-handlers';
+import { recordAgentNotification, recordProjectStatusAlert } from './workbench-event-notifications';
 import { reportWorkbenchRootChange } from './workbench-root-notice';
 import {
     applyPendingSessionPatches,
@@ -724,32 +725,14 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 );
                 return;
             }
-            case 'agent.notification': {
-                const bootstrap = useWorkbenchStore.getState().bootstrap;
-                const session = bootstrap?.sessions.find(
-                    (item) => item.id === event.payload.sessionId,
-                );
-                recordNotification({
-                    kind: 'info',
-                    message: `${session?.displayTitle ?? 'Agent'} ${event.payload.attentionKind === 'waiting' ? 'is waiting for your input.' : 'completed a turn.'}`,
-                    projectId: session?.projectId,
-                    projectTitle: bootstrap?.projects.find((item) => item.id === session?.projectId)
-                        ?.displayTitle,
-                });
+            case 'agent.notification':
+                recordAgentNotification(event.payload, useWorkbenchStore.getState().bootstrap);
                 return;
-            }
             case 'projectStatus.alert':
-                recordNotification({
-                    kind: 'error',
-                    message:
-                        event.payload.kind === 'check'
-                            ? `CI failed: ${event.payload.name}`
-                            : `${event.payload.name} deployment failed`,
-                    projectId: `${event.payload.repository}:${event.payload.branch}`,
-                    projectTitle: `${event.payload.repository} · ${event.payload.branch}`,
-                });
+                recordProjectStatusAlert(event.payload);
                 return;
             case 'agent.dispatch.changed':
+            case 'agentChat.patch':
             case 'viewContainers.catalogChanged':
             case 'viewContainers.treeChanged':
             case 'viewContainers.viewChanged':
@@ -773,7 +756,8 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 // `subscribeRuntimeQueryInvalidation` in `queries/invalidation.ts`, which refreshes the Session row
                 // menu's `session.permissionAutoAllowStatus` read; this store has no bootstrap state to update for it.
                 // `gitReview.changed` (issue caxri#1294) is handled the same way, refreshing `gitReview.list` and
-                // `gitReview.pending` reads instead.
+                // `gitReview.pending` reads instead. `agentChat.patch` updates the cached `agentChat.read` snapshot through
+                // `subscribeAgentChatPatches` in `features/agent-chat/agent-chat-client.ts`.
                 return;
             default:
                 return assertNever(event, 'Unhandled workbench Runtime event');

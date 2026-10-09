@@ -123,6 +123,9 @@ describe('Agent Commander Renderer policy', () => {
         expect(
             policy.route({ event: 'terminal.output', payload: { terminalId: 'workbench' } }),
         ).toEqual({ commander: false, workbench: true });
+        expect(
+            policy.route({ event: 'agentChat.patch', payload: { terminalId: 'workbench' } }),
+        ).toEqual({ commander: false, workbench: true });
         expect(policy.route({ cursor: 3, event: 'session.changed' })).toEqual({
             commander: true,
             workbench: true,

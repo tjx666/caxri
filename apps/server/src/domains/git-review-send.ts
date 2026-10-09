@@ -11,6 +11,7 @@ import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
 import type { GitService } from './git';
 import type { GitReviewCommentStore } from './git-review-comments';
+import { assertPtyTerminal } from './pty-guard';
 import type { TerminalManager } from './terminal';
 
 /**
@@ -75,6 +76,7 @@ export function createGitReviewSendHandler(
         if (comments.length === 0)
             throw new CaxriError('VALIDATION', 'No pending review comments to send');
 
+        assertPtyTerminal(options.database.getTerminal(terminalId));
         const agentLaunchId = options.terminals.agentLaunchId(terminalId);
         if (!agentLaunchId) throw new CaxriError('CONFLICT', 'Managed Agent is no longer running');
 

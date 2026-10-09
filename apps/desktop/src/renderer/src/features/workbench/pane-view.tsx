@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 
 import type { PaneLayout, PaneLayoutNode, PaneNode, PaneSplitNode } from '@caxri/protocol';
 import {
+    isChatTerminal,
     listPanes,
     listPaneTabs,
     listPaneTerminalIds,
@@ -17,6 +18,7 @@ import { hasTerminalDraggedPath } from '../../lib/file-drag';
 import { cn } from '../../lib/utilities';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useSessionState, useTerminal } from '../../stores/selectors';
+import { AgentChatPane } from '../agent-chat/agent-chat-pane';
 import { EditorSurface } from '../editor/editor-surface';
 import { workPanelId, workTabId } from '../tabs/work-tab-accessibility';
 import { NewTerminalButton } from '../terminal/new-terminal-button';
@@ -109,15 +111,19 @@ function PaneContent({
     const terminalId = tab?.resource.kind === 'terminal' ? tab.resource.terminalId : undefined;
     const terminal = useTerminal(terminalId ?? '');
     if (!tab) return <EmptyPane />;
-    if (tab.resource.kind === 'terminal')
-        return terminal ? (
+    if (tab.resource.kind === 'terminal') {
+        if (!terminal) return null;
+        if (isChatTerminal(terminal))
+            return <AgentChatPane ariaLabel={terminal.title} terminalId={terminal.id} />;
+        return (
             <TerminalPane
                 active={isActivePane}
                 ariaLabel={terminal.title}
                 isPaneVisible={isVisible}
                 terminalId={terminal.id}
             />
-        ) : null;
+        );
+    }
     return <EditorSurface paneId={pane.id} path={tab.resource.path} />;
 }
 
@@ -166,7 +172,10 @@ function PaneBox({
      * A file dragged from the Files panel onto a Terminal pastes its path; onto a document pane it means nothing, so
      * only a live Terminal accepts it.
      */
-    const isAcceptsFileDrop = Boolean(terminal) && terminal?.lastProcessState === 'running';
+    const isAcceptsFileDrop =
+        terminal !== undefined &&
+        !isChatTerminal(terminal) &&
+        terminal.lastProcessState === 'running';
     // A stable, tree-order name so a screen reader can tell each pane's tablist apart; `aria-label="Open tabs"`
     // repeated on every pane left them indistinguishable once a Workbench held more than one. The total is part of the
     // name because an ordinal alone ("pane 2") gives no sense of how far the split tree extends.
