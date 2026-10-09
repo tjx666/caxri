@@ -7,12 +7,19 @@ import { agentProviderCatalog, agentProviderIds, CaxriError } from '@caxri/proto
 export type E2EAgentPolicy =
     | { mode: 'blocked' }
     | { mode: 'fake'; executables: Partial<Record<AgentProvider, string>> }
-    | { mode: 'real'; provider: AgentProvider };
+    | { mode: 'real'; provider: AgentProvider; surface: E2ERealAgentSurface };
+
+/**
+ * The one surface a real-Agent E2E run may launch: the bounded `codex exec` PTY smoke, or one read-only Agent Chat. A
+ * run never holds both, so a Chat smoke cannot also open a Terminal and the PTY smoke cannot start a Chat.
+ */
+export type E2ERealAgentSurface = 'chat' | 'pty';
 
 export interface E2EAgentPolicyInput {
     isE2E: boolean;
     requestedMode?: string;
     requestedProvider?: string;
+    requestedSurface?: string;
     requestedExecutables?: Partial<Record<AgentProvider, string | undefined>>;
 }
 
@@ -175,7 +182,11 @@ export function resolveE2EAgentPolicy(input: E2EAgentPolicyInput): E2EAgentPolic
         const provider = input.requestedProvider || 'codex';
         if (!isAgentProvider(provider))
             throw new Error(`Unsupported E2E Agent provider: ${provider}`);
-        return { mode, provider };
+        // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string must also fall back to the fail-closed default
+        const surface = input.requestedSurface || 'pty';
+        if (surface !== 'pty' && surface !== 'chat')
+            throw new Error(`Unsupported real E2E Agent surface: ${surface}`);
+        return { mode, provider, surface };
     }
     if (mode === 'fake') {
         const executables = Object.fromEntries(
@@ -249,6 +260,8 @@ export function assertE2EAgentLaunch(
     if (policy?.mode !== 'real') return;
     if (provider !== policy.provider)
         throw new CaxriError('UNAVAILABLE', `${provider} is not enabled for this real Agent E2E`);
+    if (policy.surface !== 'pty')
+        throw new CaxriError('VALIDATION', 'Real Agent Chat E2E does not launch Agent Terminals');
     if (resumeAgentSessionId)
         throw new CaxriError(
             'VALIDATION',
@@ -274,6 +287,47 @@ export function assertE2EAgentLaunch(
             'Real Agent E2E requires the bounded read-only Codex smoke launch',
         );
     }
+}
+
+/**
+ * Providers whose Chat a real-Agent E2E may start. `false` keeps fake mode as the only authorized Chat test surface; a
+ * provider gaining Chat support does not inherit real-host authority by omission.
+ */
+const REAL_E2E_AGENT_CHAT_PROVIDERS: Record<AgentProvider, boolean> = {
+    grok: false,
+    claude: false,
+    codex: true,
+};
+
+/**
+ * Real Chat authority covers one provider process with the catalog executable. The caller pins the thread to a
+ * read-only sandbox without approvals, so an unattended run can neither write nor block on a request.
+ */
+export function assertE2EAgentChatLaunch(
+    policy: E2EAgentPolicy | undefined,
+    provider: AgentProvider,
+    launch: AgentLaunchSettings,
+): void {
+    if (policy?.mode !== 'real') return;
+    if (
+        policy.surface !== 'chat' ||
+        provider !== policy.provider ||
+        !REAL_E2E_AGENT_CHAT_PROVIDERS[provider] ||
+        launch.executable !== agentProviderCatalog[provider].executableName
+    )
+        throw new CaxriError('UNAVAILABLE', 'Chat is unavailable in this real-Agent E2E');
+}
+
+/**
+ * A real Chat smoke sends only short natural prompts, matching the PTY smoke's bound on its one argv prompt.
+ */
+export function assertE2EAgentChatInput(policy: E2EAgentPolicy | undefined, text: string): void {
+    if (policy?.mode !== 'real') return;
+    if (!text || text !== text.trim() || text.length > 200 || /\p{Cc}/u.test(text))
+        throw new CaxriError(
+            'VALIDATION',
+            'Real Agent Chat E2E accepts only short natural prompts',
+        );
 }
 
 /**
@@ -316,7 +370,10 @@ export function e2eAgentPolicyEnvironment(policy: E2EAgentPolicy | undefined): N
     return {
         CAXRI_E2E: '1',
         CAXRI_E2E_AGENT_MODE: policy.mode,
-        ...(policy.mode === 'real' && { CAXRI_E2E_AGENT_PROVIDER: policy.provider }),
+        ...(policy.mode === 'real' && {
+            CAXRI_E2E_AGENT_PROVIDER: policy.provider,
+            CAXRI_E2E_AGENT_SURFACE: policy.surface,
+        }),
         ...(policy.mode === 'fake' && e2eFakeExecutableEnvironment(policy.executables)),
     };
 }
@@ -331,6 +388,7 @@ export function readE2EAgentPolicy(
         isE2E: environment.CAXRI_E2E === '1',
         requestedMode: environment.CAXRI_E2E_AGENT_MODE,
         requestedProvider: environment.CAXRI_E2E_AGENT_PROVIDER,
+        requestedSurface: environment.CAXRI_E2E_AGENT_SURFACE,
         requestedExecutables: readE2EFakeExecutables(environment),
     });
 }

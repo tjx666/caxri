@@ -1,6 +1,6 @@
 import type { SpawnOptionsWithoutStdio } from 'node:child_process';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -86,7 +86,22 @@ async function fixture(options: { launchArgs?: string[] } = {}) {
         );
         return client();
     }
-    return { database, service, terminal, signals, coordinator, spawnProcess, client, until };
+    const threadOpens = async () =>
+        (await readFile(join(stateDirectory, 'thread-opens.jsonl'), 'utf8'))
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line) as Record<string, unknown>);
+    return {
+        database,
+        service,
+        terminal,
+        signals,
+        coordinator,
+        spawnProcess,
+        client,
+        until,
+        threadOpens,
+    };
 }
 
 describe('AgentChatService with a fake Codex app-server', () => {
@@ -109,6 +124,11 @@ describe('AgentChatService with a fake Codex app-server', () => {
             type: 'agentMessage',
             text: 'Hello from fake Codex. You said: hi there',
             streaming: false,
+        });
+        // Every summary part, the first included, is announced; only later parts start a paragraph.
+        expect(snapshot.items[1]).toMatchObject({
+            type: 'reasoning',
+            text: 'Thinking about it.\n\nChecking the reply.',
         });
         expect(snapshot.plan?.steps).toHaveLength(2);
         expect(snapshot.usage).toEqual({ totalTokens: 1200, contextWindow: 200000 });
@@ -310,5 +330,42 @@ describe('AgentChatService with a fake Codex app-server', () => {
         expect(service.liveCount()).toBe(1);
         await service.shutdown();
         expect(service.liveCount()).toBe(0);
+    });
+});
+
+describe('AgentChatService under a real-Agent E2E policy', () => {
+    function stubRealPolicy(surface: 'chat' | 'pty') {
+        vi.stubEnv('CAXRI_E2E', '1');
+        vi.stubEnv('CAXRI_E2E_AGENT_MODE', 'real');
+        vi.stubEnv('CAXRI_E2E_AGENT_PROVIDER', 'codex');
+        vi.stubEnv('CAXRI_E2E_AGENT_SURFACE', surface);
+        onTestFinished(() => {
+            vi.unstubAllEnvs();
+        });
+    }
+
+    it('opens a read-only, approval-free thread that ignores the user launch settings', async () => {
+        stubRealPolicy('chat');
+        const { service, terminal, spawnProcess, until, threadOpens } = await fixture({
+            launchArgs: ['--dangerously-bypass-approvals-and-sandbox', '-c', 'model="other"'],
+        });
+        await until((snapshot) => snapshot.status === 'ready');
+        expect(spawnProcess.mock.calls[0][1]).toEqual(['app-server', '--listen', 'stdio://']);
+        expect(await threadOpens()).toEqual([
+            { method: 'thread/start', sandbox: 'read-only', approvalPolicy: 'never' },
+        ]);
+        await expect(service.send(terminal.id, 'x'.repeat(201))).rejects.toThrow(
+            /short natural prompts/u,
+        );
+        await service.send(terminal.id, 'What is this project about?');
+        await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+    });
+
+    it('refuses to start a Chat for the real PTY smoke', async () => {
+        stubRealPolicy('pty');
+        const { spawnProcess, until } = await fixture();
+        const failed = await until((snapshot) => snapshot.status === 'failed');
+        expect(failed.failure).toMatchObject({ reason: 'spawn_failed' });
+        expect(spawnProcess).not.toHaveBeenCalled();
     });
 });

@@ -19,7 +19,12 @@ import {
     MAX_AGENT_CHAT_PATCH_OPERATIONS,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { logEventCatalog, readE2EAgentPolicy } from '@caxri/system';
+import {
+    assertE2EAgentChatInput,
+    assertE2EAgentChatLaunch,
+    logEventCatalog,
+    readE2EAgentPolicy,
+} from '@caxri/system';
 
 import type { AgentLifecycleSignal } from '../agents';
 import type { CaxriDatabase } from '../db';
@@ -30,7 +35,7 @@ import type { CodexChatSessionOptions } from './codex-chat-session';
 import { CodexChatSession } from './codex-chat-session';
 import type { ChatLifecycleEvent, CodexChatExit } from './codex-chat-types';
 import { AgentChatStartError } from './codex-chat-types';
-import { codexChatSettings } from './launch-settings';
+import { codexChatSettings, REAL_E2E_CODEX_CHAT_SETTINGS } from './launch-settings';
 
 /**
  * Streaming deltas are coalesced into one patch per frame-sized window so a fast provider does not flood every Client
@@ -237,16 +242,20 @@ export class AgentChatService {
             state.launchId === launchId && this.states.get(terminalId) === state;
         let session: CodexChatSession | undefined;
         try {
+            const launch = this.options.launchSettings('codex');
             /**
-             * Real-Agent E2E authority covers exactly one ephemeral `codex exec`; a Chat would be a second, broader
-             * launch, so only fake-executable E2E may drive it.
+             * Real-Agent E2E may start a Chat only when the run was authorized for the Chat surface; the thread then
+             * ignores the user's launch settings for a fixed read-only, approval-free configuration.
              */
-            if (readE2EAgentPolicy()?.mode === 'real')
+            const e2ePolicy = readE2EAgentPolicy();
+            try {
+                assertE2EAgentChatLaunch(e2ePolicy, 'codex', launch);
+            } catch {
                 throw new AgentChatStartError(
                     'spawn_failed',
-                    'Chat is unavailable in real-Agent E2E',
+                    'Chat is unavailable in this real-Agent E2E',
                 );
-            const launch = this.options.launchSettings('codex');
+            }
             let executable: string;
             try {
                 executable = await resolveTerminalExecutable(
@@ -263,7 +272,10 @@ export class AgentChatService {
                 cwd: terminal.cwd,
                 executable,
                 environment,
-                settings: codexChatSettings(launch),
+                settings:
+                    e2ePolicy?.mode === 'real'
+                        ? REAL_E2E_CODEX_CHAT_SETTINGS
+                        : codexChatSettings(launch),
                 threadId: database.getTerminal(terminalId)?.agentSessionId,
                 clientVersion: this.options.clientVersion,
                 spawnProcess: this.options.spawnProcess,
@@ -451,6 +463,7 @@ export class AgentChatService {
     }
 
     async send(terminalId: string, text: string): Promise<void> {
+        assertE2EAgentChatInput(readE2EAgentPolicy(), text);
         const terminal = this.requireChatTerminal(terminalId);
         const state = this.state(terminalId);
         const previous = state.sendQueue;

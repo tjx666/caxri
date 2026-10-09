@@ -164,7 +164,15 @@ message text, command output, provider stderr, or protocol bodies.
 `apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts` is a
 deterministic stand-in for the app-server, selected by keywords in the user's message (approval,
 question, table, slow stream, failure, crash). Unit and integration tests drive it; no test launches the
-real CLI or calls a model, and real-Agent E2E refuses to start a Chat.
+real CLI or calls a model.
+
+`bun run test:e2e:real-agent` is the manual, never-CI smoke against the real CLI (see the `e2e-testing` skill). Its
+Chat case runs under a real-Agent policy authorized for the Chat surface only: that run cannot open a PTY or Shell
+Terminal, and the thread is pinned to a read-only sandbox with no approvals, ignoring the user's Codex launch
+settings. It sends two short natural prompts, relaunches Caxri between them, and asserts only content-free signals:
+Chat status, turn statuses, item counts by type, an unchanged `agentSessionId`, and the `agent_chat.process_started`
+modes (`started`, then `resumed`) and `agent_chat.turn_finished` statuses from the Server Core log. It never reads,
+logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to start a Chat.
 
 ## Not yet supported
 

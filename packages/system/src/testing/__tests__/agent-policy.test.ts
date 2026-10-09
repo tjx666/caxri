@@ -2,6 +2,8 @@ import { agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    assertE2EAgentChatInput,
+    assertE2EAgentChatLaunch,
     assertE2EAgentInput,
     assertE2EAgentLaunch,
     assertE2EShellLaunch,
@@ -162,7 +164,71 @@ describe('E2E Agent policy', () => {
         );
     });
 
+    it('keeps the real PTY smoke from starting a Chat', () => {
+        const policy = resolveE2EAgentPolicy({
+            isE2E: true,
+            requestedMode: 'real',
+            requestedProvider: 'codex',
+        });
+
+        expect(policy).toEqual({ mode: 'real', provider: 'codex', surface: 'pty' });
+        expect(() =>
+            assertE2EAgentChatLaunch(policy, 'codex', { executable: 'codex', args: [] }),
+        ).toThrow('Chat is unavailable');
+    });
+
+    it('limits a real Chat run to one Codex Chat with short natural prompts', () => {
+        const policy = resolveE2EAgentPolicy({
+            isE2E: true,
+            requestedMode: 'real',
+            requestedProvider: 'codex',
+            requestedSurface: 'chat',
+        });
+        const launch = { executable: 'codex', args: ['--search'] };
+
+        expect(readE2EAgentPolicy(e2eAgentPolicyEnvironment(policy))).toEqual(policy);
+        expect(() => assertE2EAgentChatLaunch(policy, 'codex', launch)).not.toThrow();
+        expect(() =>
+            assertE2EAgentChatLaunch(policy, 'codex', { executable: '/tmp/codex', args: [] }),
+        ).toThrow('Chat is unavailable');
+        expect(() =>
+            assertE2EAgentLaunch(policy, 'codex', {
+                executable: 'codex',
+                args: ['exec', 'Read README.md'],
+            }),
+        ).toThrow('does not launch Agent Terminals');
+        expect(() => assertE2EShellLaunch(policy)).toThrow(
+            'does not allow Shell Terminal launches',
+        );
+        expect(() => assertE2EAgentChatInput(policy, 'What is this project about?')).not.toThrow();
+        expect(() => assertE2EAgentChatInput(policy, 'x'.repeat(201))).toThrow(
+            'short natural prompts',
+        );
+        expect(() => assertE2EAgentChatInput(policy, 'line\u{3}')).toThrow('short natural prompts');
+        expect(() => assertE2EAgentChatInput(undefined, 'x'.repeat(201))).not.toThrow();
+    });
+
+    it('never grants real Chat authority to a provider without a reviewed Chat policy', () => {
+        const policy = resolveE2EAgentPolicy({
+            isE2E: true,
+            requestedMode: 'real',
+            requestedProvider: 'claude',
+            requestedSurface: 'chat',
+        });
+
+        expect(() =>
+            assertE2EAgentChatLaunch(policy, 'claude', { executable: 'claude', args: [] }),
+        ).toThrow('Chat is unavailable');
+    });
+
     it('rejects invalid modes, providers, and relative fake paths', () => {
+        expect(() =>
+            resolveE2EAgentPolicy({
+                isE2E: true,
+                requestedMode: 'real',
+                requestedSurface: 'both',
+            }),
+        ).toThrow('Unsupported real E2E Agent surface');
         expect(() => resolveE2EAgentPolicy({ isE2E: true, requestedMode: 'unknown' })).toThrow(
             'Unsupported E2E Agent mode',
         );
