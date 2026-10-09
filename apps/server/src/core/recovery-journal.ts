@@ -9,11 +9,32 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, createDurableEventJournal, MAX_EVENT_JOURNAL_EVENTS } from '@caxri/protocol';
 
+import type { ServerDomainService } from './domain-service';
+
 export interface ServerRecoveryJournal {
     initialize(identity: { serverId: string; stateEpoch: string }, store: DurableEventStore): void;
     publish(event: ServerEvent): ProtocolEventEnvelope | undefined;
     recover(request: EventRecoveryRequest): Promise<EventRecovery>;
 }
+
+/**
+ * The recovery snapshot a Client resynchronizes from when its cursor fell outside the journal: the live entity ids,
+ * with every revision pinned to the cursor.
+ */
+export const serverRecoverySnapshot =
+    (domainService: ServerDomainService) =>
+    async (cursor: number): Promise<ProtocolRecoverySnapshot> => {
+        const state = await domainService.request('app.bootstrap');
+        return {
+            cursor,
+            projectIds: state.projects.map(({ id }) => id),
+            sessionIds: state.sessions.map(({ id }) => id),
+            terminalIds: state.terminals.map(({ id }) => id),
+            settingsRevision: cursor,
+            diagnosticsRevision: cursor,
+            agentRevision: cursor,
+        };
+    };
 
 /**
  * Bridges the short startup interval where domain readiness can emit before its persistence port becomes available. The

@@ -1,23 +1,24 @@
 import { Buffer } from 'node:buffer';
-import {
-    appendFile,
-    chmod,
-    mkdir,
-    mkdtemp,
-    readFile,
-    rename,
-    rm,
-    writeFile,
-} from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
 
-import type { AppSettings, BootstrapState, MobileTimelineReadResult } from '@caxri/protocol';
+import type {
+    AgentChatSnapshot,
+    AppSettings,
+    BootstrapState,
+    MobileTimelineReadResult,
+} from '@caxri/protocol';
 
-import { createFakeAgentMode } from './agent-fixture';
 import type { RunningCaxri } from './helpers';
 import { createProjectSession, launchCaxri, pageRequest, sessionCard } from './helpers';
+import {
+    createSyntheticShell,
+    fakeChatAgent,
+    fakeFailingAgent,
+    fakeWaitingAgent,
+} from './mobile-acceptance-agents';
 import {
     mobileSemantics,
     openMobilePairingLink,
@@ -39,6 +40,13 @@ import type { SyntheticMenuState } from './mobile-synthetic-menu-state';
 import { readSyntheticMenuState } from './mobile-synthetic-menu-state';
 
 export interface MobileAcceptanceFixture {
+    /**
+     * The Chat Terminal of an `agent-chat` fixture, driven by the deterministic fake Codex app-server.
+     */
+    agentChat?: {
+        read(): Promise<AgentChatSnapshot>;
+        terminalId: string;
+    };
     allowedProjectId: string;
     allowedSessionId?: string;
     deniedProjectId: string;
@@ -72,6 +80,7 @@ export interface MobileAcceptanceFixture {
 
 interface CreateMobileAcceptanceFixtureInput {
     mode:
+        | 'agent-chat'
         | 'empty'
         | 'waiting'
         | 'attention'
@@ -84,107 +93,6 @@ interface CreateMobileAcceptanceFixtureInput {
     dropSubmitAcknowledgement?: boolean;
     delayPairingResult?: boolean;
     isolatedProjectHome?: boolean;
-}
-
-const MOBILE_ACCEPTANCE_SAFE_OUTPUT = 'Synthetic Agent output: ready for Acceptance review.\r\n';
-
-async function fakeWaitingAgent(userDataDirectory: string, inputCapture: string) {
-    return createFakeAgentMode({
-        userDataDir: userDataDirectory,
-        providers: {
-            codex: {
-                executableSource: String.raw`#!${process.execPath}
-const childProcess = require('node:child_process');
-const fs = require('node:fs');
-const path = require('node:path');
-if (process.argv.includes('--version')) {
-  process.stdout.write('codex-cli 0.151.0\n');
-  process.exit(0);
-}
-function invokeHook(event, payload) {
-  const hooks = JSON.parse(fs.readFileSync(path.join(process.env.CODEX_HOME, 'hooks.json'), 'utf8'));
-  const group = hooks.hooks[event][0];
-  childProcess.execFileSync('/bin/sh', ['-c', group.hooks[0].command], {
-    env: process.env,
-    input: JSON.stringify(payload),
-  });
-}
-let resumed = false;
-const fixtureSessionId = 'mobile-acceptance-session-' + process.pid;
-process.stdin.setRawMode?.(true);
-process.stdin.on('data', (chunk) => {
-  fs.appendFileSync(${JSON.stringify(inputCapture)}, chunk);
-  if (chunk.includes(3)) process.exit(130);
-  if (!resumed) {
-    resumed = true;
-    invokeHook('UserPromptSubmit', { session_id: fixtureSessionId, turn_id: 'turn-2' });
-  }
-  if (chunk.includes(13)) process.stdout.write('Synthetic message received.\r\n');
-});
-process.stdin.resume();
-process.stdout.write(${JSON.stringify(MOBILE_ACCEPTANCE_SAFE_OUTPUT)});
-setTimeout(() => {
-  invokeHook('UserPromptSubmit', { session_id: fixtureSessionId, turn_id: 'turn-1' });
-  invokeHook('PermissionRequest', { session_id: fixtureSessionId, turn_id: 'turn-1' });
-}, 500);
-`,
-            },
-        },
-    });
-}
-
-async function fakeFailingAgent(userDataDirectory: string) {
-    return createFakeAgentMode({
-        userDataDir: userDataDirectory,
-        providers: {
-            codex: {
-                executableSource: String.raw`#!${process.execPath}
-if (process.argv.includes('--version')) {
-  process.stdout.write('codex-cli 0.151.0\n');
-  process.exit(0);
-}
-process.stderr.write('Synthetic Agent launch failed.\n');
-process.exit(7);
-`,
-            },
-        },
-    });
-}
-
-async function createSyntheticShell(testDirectory: string): Promise<string> {
-    const executable = join(testDirectory, 'synthetic-shell');
-    await writeFile(
-        executable,
-        String.raw`#!${process.execPath}
-// 为隔离验收绘制合成终端网格；仅修改临时 Project 中的状态回执。
-const fs = require('node:fs');
-const path = require('node:path');
-const statePath = path.join(process.cwd(), '.caxri-synthetic-shell-state.json');
-let generationNumber = 0;
-const render = () => {
-  const columns = process.stdout.columns ?? 0;
-  const rows = process.stdout.rows ?? 0;
-  if (columns < 18 || rows < 4) return;
-  const generation = 'synthetic-shell-' + (++generationNumber);
-  const firstGridMarker = { columns, generation, rows };
-  const lines = Array.from({ length: rows }, (_, index) => {
-    const label = 'Synthetic row ' + String(index + 1).padStart(2, '0');
-    return '│' + label.padEnd(columns - 2, ' ') + '│';
-  });
-  process.stdout.write('\x1b[2J');
-  for (const [index, line] of lines.entries()) {
-    process.stdout.write('\x1b[' + (index + 1) + ';1H' + line);
-  }
-  fs.writeFileSync(statePath + '.next', JSON.stringify({ columns, firstGridMarker, generation, rows }));
-  fs.renameSync(statePath + '.next', statePath);
-};
-process.stdout.on('resize', render);
-process.stdin.resume();
-setTimeout(render, 250);
-`,
-    );
-    await chmod(executable, 0o700);
-    return executable;
 }
 
 export async function createMobileAcceptanceFixture(
@@ -244,7 +152,9 @@ export async function createMobileAcceptanceFixture(
               ? attentionAgentMode.agentMode
               : input.mode === 'launch-failure'
                 ? await fakeFailingAgent(userData)
-                : (conversationAgentMode ?? ({ mode: 'blocked' } as const));
+                : input.mode === 'agent-chat'
+                  ? await fakeChatAgent(userData, testDirectory)
+                  : (conversationAgentMode ?? ({ mode: 'blocked' } as const));
     let running: RunningCaxri;
     try {
         running = await launchCaxri({
@@ -309,6 +219,7 @@ export async function createMobileAcceptanceFixture(
     let menuSessionId: string | undefined;
     let menuTerminalId: string | undefined;
     let conversationTerminalId: string | undefined;
+    let chatTerminalId: string | undefined;
     let transcriptPath: string | undefined;
     try {
         /**
@@ -399,6 +310,34 @@ export async function createMobileAcceptanceFixture(
                     (selected) => selected === 'true',
                 );
             }
+        } else if (input.mode === 'agent-chat') {
+            const placeholderSessionId = await createProjectSession(running.page, 'shell');
+            const placeholderState = await pageRequest<BootstrapState>(
+                running.page,
+                'app.bootstrap',
+            );
+            const placeholder = placeholderState.sessions.find(
+                ({ id }) => id === placeholderSessionId,
+            );
+            if (!placeholder) throw new Error('Allowed fixture Project is unavailable');
+            const chat = await pageRequest<{
+                session: { id: string; projectId: string };
+                terminal: { id: string } | null;
+            }>(running.page, 'session.create', {
+                projectId: placeholder.projectId,
+                defaultAgent: 'codex',
+                surface: 'chat',
+            });
+            if (!chat.terminal) throw new Error('Synthetic Chat Terminal is unavailable');
+            await pageRequest(running.page, 'session.delete', { sessionId: placeholderSessionId });
+            allowedSessionId = chat.session.id;
+            chatTerminalId = chat.terminal.id;
+            deniedSessionId = await createProjectSession(running.page, 'shell');
+            const deniedState = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+            const denied = deniedState.sessions.find(({ id }) => id === deniedSessionId);
+            if (!denied) throw new Error('Denied fixture Project is unavailable');
+            allowedProjectId = placeholder.projectId;
+            deniedProjectId = denied.projectId;
         } else if (input.mode === 'waiting') {
             const currentSettings = await pageRequest<{ value: AppSettings }>(
                 running.page,
@@ -483,6 +422,15 @@ export async function createMobileAcceptanceFixture(
     };
     let isChangesSeeded = false;
     return {
+        ...(chatTerminalId && {
+            agentChat: {
+                read: () =>
+                    pageRequest<AgentChatSnapshot>(running.page, 'agentChat.read', {
+                        terminalId: chatTerminalId,
+                    }),
+                terminalId: chatTerminalId,
+            },
+        }),
         allowedProjectId,
         allowedSessionId,
         deniedProjectId,

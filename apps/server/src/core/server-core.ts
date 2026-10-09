@@ -50,7 +50,7 @@ import {
 import { MutationAdmission } from './mutation-admission';
 import { assertProjectScope, projectScope } from './principal-project-scope';
 import { acquireServerProfile } from './profile';
-import { createServerRecoveryJournal } from './recovery-journal';
+import { createServerRecoveryJournal, serverRecoverySnapshot } from './recovery-journal';
 import {
     logDurableReceipt,
     logDurableRecovery,
@@ -159,20 +159,9 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             return domainService.forward(request.method, request.params, undefined, signal);
         });
     };
-    const recoverySnapshot = async (cursor: number) => {
-        const state = await domainService.request('app.bootstrap');
-        return {
-            cursor,
-            projectIds: state.projects.map(({ id }) => id),
-            sessionIds: state.sessions.map(({ id }) => id),
-            terminalIds: state.terminals.map(({ id }) => id),
-            settingsRevision: cursor,
-            diagnosticsRevision: cursor,
-            agentRevision: cursor,
-        };
-    };
-    const recoveryJournal = createServerRecoveryJournal(recoverySnapshot, (observation) =>
-        logDurableRecovery(logger, observation),
+    const recoveryJournal = createServerRecoveryJournal(
+        serverRecoverySnapshot(domainService),
+        (observation) => logDurableRecovery(logger, observation),
     );
     const deliver = (candidate: ServerEvent, persistedEnvelope?: ProtocolEventEnvelope): void => {
         const event = prepareServerEventForDelivery(logger, candidate);
@@ -245,8 +234,12 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     `Host received a desktop-owned method: ${request.method}`,
                 );
             if (isMobileControlRequest(request))
-                return mobileAccess.invokeControl(request, context, domainService, (terminalId) =>
-                    resolveMobileAgentEndpoint(agentEndpoints, terminalId),
+                return mobileAccess.invokeControl(
+                    request,
+                    context,
+                    domainService,
+                    (terminalId) => resolveMobileAgentEndpoint(agentEndpoints, terminalId),
+                    forwardDomainOperation,
                 );
             if (isDelegationAccessRequest(request))
                 return invokeDelegationAccess(

@@ -88,6 +88,10 @@ const terminalSummarySchema = terminalRecordSchema.pick({
     title: true,
     lastProcessState: true,
     failureReason: true,
+    /**
+     * Present only for an Agent Chat, so a Client (or a paired phone) can tell it from a PTY before attaching.
+     */
+    surface: true,
 });
 export const terminalQueryResultSchema = z.object({
     view: principalViewSchema,

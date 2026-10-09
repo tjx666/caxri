@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     emptyHostSessionUiState,
     hasKnownConversationAgent,
+    isChatSegmentShown,
     isSessionDetailVisible,
     isSideSessionSegment,
     preferredSessionSegment,
@@ -12,6 +13,7 @@ import {
     selectSessionProject,
     SESSION_SEGMENTS,
     sessionSegmentDirection,
+    sessionSegments,
 } from '../session-ui-state';
 
 describe('host Session UI state', () => {
@@ -27,6 +29,28 @@ describe('host Session UI state', () => {
         expect(preferredSessionSegment(undefined, false)).toBe('terminal');
         expect(preferredSessionSegment('changes', true)).toBe('changes');
         expect(preferredSessionSegment('terminal', true)).toBe('terminal');
+    });
+
+    it('opens a Chat on its own tab and never falls back to a Terminal it does not have', () => {
+        for (const remembered of [undefined, 'terminal', 'conversation'] as const)
+            expect(
+                resolveSessionConversationSegment({
+                    hasAgentEndpoint: false,
+                    hasKnownAgent: true,
+                    isChat: true,
+                    remembered,
+                    status: 'loading',
+                }),
+            ).toEqual({ fallback: false, hasConversation: true, segment: 'conversation' });
+        expect(
+            resolveSessionConversationSegment({
+                hasAgentEndpoint: false,
+                hasKnownAgent: true,
+                isChat: true,
+                remembered: 'changes',
+                status: 'unsupported',
+            }).segment,
+        ).toBe('changes');
     });
 
     it('defaults to a likely Agent Conversation and falls back when its record is unavailable', () => {
@@ -185,5 +209,25 @@ describe('host Session UI state', () => {
         expect(isSessionDetailVisible({ ...visible, isRouted: false })).toBe(false);
         expect(isSessionDetailVisible({ ...visible, isPhone: false, isRouted: false })).toBe(true);
         expect(isSessionDetailVisible({ ...visible, isSelected: false })).toBe(false);
+    });
+});
+
+describe('Chat Session tabs', () => {
+    it('offers no Terminal tab for a Chat', () => {
+        expect(sessionSegments({ hasConversation: true, isChat: true })).toEqual([
+            'conversation',
+            'changes',
+        ]);
+        expect(sessionSegments({ hasConversation: false, isChat: false })).toEqual([
+            'terminal',
+            'changes',
+        ]);
+    });
+
+    it('observes a Chat on its tab or behind wide Changes only', () => {
+        expect(isChatSegmentShown('conversation', false)).toBe(true);
+        expect(isChatSegmentShown('changes', false)).toBe(false);
+        expect(isChatSegmentShown('changes', true)).toBe(true);
+        expect(isChatSegmentShown('panel:notes', true)).toBe(false);
     });
 });

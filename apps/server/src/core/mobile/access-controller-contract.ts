@@ -53,6 +53,11 @@ export type MobileControlRequest = Extract<
             | 'mobile.terminal.release'
             | 'mobile.terminal.input'
             | 'mobile.terminal.scroll'
+            | 'mobile.agentChat.read'
+            | 'mobile.agentChat.send'
+            | 'mobile.agentChat.interrupt'
+            | 'mobile.agentChat.respond'
+            | 'mobile.agentChat.retry'
             | 'mobile.pairing.create'
             | 'mobile.project.browse'
             | 'mobile.project.add'
@@ -90,6 +95,11 @@ export interface MobileAccessController {
         context: CommandExecutionContext,
         domainService: ServerDomainService,
         resolveAgentEndpoint?: (terminalId: string) => AgentEndpointRef | undefined,
+        /**
+         * Core's admission-checked forwarder for mutations a paired device triggers on a Server domain, such as Agent
+         * Chat sends and restarts. Omitted only by callers that never route those methods.
+         */
+        forwardOperation?: (request: ServerOperationRequest) => Promise<unknown>,
     ) => Promise<unknown>;
     invokeDesktopOperation: (request: MobileDesktopOperation) => Promise<unknown>;
     authorizePairedDeviceMethod: (principal: Principal, method: string) => void;
