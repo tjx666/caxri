@@ -136,7 +136,7 @@ describe('AgentDelegationService', () => {
         );
         f.service.bindLaunch(f.terminal.id, 'launch');
         await vi.waitFor(() =>
-            expect(changes).toHaveBeenLastCalledWith(
+            expect(changes.mock.lastCall?.[0]).toEqual(
                 expect.objectContaining({
                     sessionId: f.input.sessionId,
                     status: 'blocked',
@@ -564,7 +564,7 @@ describe('AgentDelegationService', () => {
         });
         clock.mockReturnValue(1300);
         expect((await f.service.result(f.id, owner)).answer?.text).toBe('Answer');
-        expect(changes).toHaveBeenLastCalledWith(
+        expect(changes.mock.lastCall?.[0]).toEqual(
             expect.objectContaining({ delegationId: f.id, status: 'completed' }),
         );
         f.service.initialize();

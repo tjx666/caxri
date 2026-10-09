@@ -1,4 +1,7 @@
-export { CommanderCompletionNotifier } from './completion-notice';
+export {
+    CommanderCompletionNotifier,
+    createCommanderCompletionNotifier,
+} from './completion-notice';
 export { commanderDiagnostics } from './diagnostics';
 export { commanderLaunchArguments } from './launch';
 export type { AgentCommanderServiceOptions } from './service';

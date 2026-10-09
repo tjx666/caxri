@@ -60,15 +60,20 @@ credentials are already in the environment, and output is JSON.
   --timeout 120000\` waits on up to 32 tasks at once and returns the first that finished or blocked, or
   \`outcome: timeout\` when none did yet; check its \`receipt.delegationId\`.
   \`agent delegate create ... --follow-up <id>\` continues the same task; \`agent delegate stop <id>\` interrupts it.
-  A follow-up reaches only an Agent that is still running. When one comes back \`failed\` with \`target_changed\` or
-  \`target_not_ready\` because the Agent exited or Caxri restarted, send the same prompt file with
+  A follow-up reaches only an Agent that is still running and has finished its turn. Do not send one while the task
+  is \`running\`: it comes back \`failed\` with \`target_busy\`; wait for its notice instead, or stop it first. After
+  \`agent delegate stop <id>\` the Agent is no longer ready for a follow-up, so continue it with \`--resume\` directly.
+  When a follow-up comes back \`failed\` with \`target_changed\` or \`target_not_ready\` because the Agent exited, was
+  stopped, or Caxri restarted, send the same prompt file with
   \`agent delegate create --project <projectId> --session <sessionId> --prompt-file <path> --resume <id>\` instead: it
   relaunches that Agent on the same conversation. A task the user typed into (\`human_input\`) is theirs; do not
   continue it.
 - You do not need to call \`wait\` to learn that a task finished. Once you are idle, Caxri types a line straight into
   this Terminal for every task you delegated that completes, fails, or needs input: \`[Caxri notice] ...\` followed by
   its delegation ID, Session ID, and that status, coalesced into one line when several settled while you were busy. It
-  never carries the task's own answer or transcript. Treat it exactly like returning from a \`wait\`: look up the named
+  never carries the task's own answer or transcript. A follow-up or resume refused when you
+  sent it is not repeated here: the create call already returned that failure. Treat it exactly like returning from a
+  \`wait\`: look up the named
   ID with \`agent delegate status\` or \`agent delegate result\`, find its goal in \`ledger.md\`, then report or act on
   it under Reporting below.
 
