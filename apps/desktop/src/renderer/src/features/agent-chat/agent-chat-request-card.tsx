@@ -112,9 +112,9 @@ function QuestionForm({
 }
 
 /**
- * The files an approval would change, read from the timeline item it gates: Codex announces the file change before
- * asking, so the card can show the diff "Accept" applies instead of asking blind. A single file opens straight to its
- * diff; several start as headers so the decision buttons stay close.
+ * The files an approval would change, read from the timeline item it gates: the provider announces the file change
+ * before asking, so the card can show the diff "Accept" applies instead of asking blind. A single file opens straight to
+ * its diff; several start as headers so the decision buttons stay close.
  */
 function ApprovalFiles({ item }: { item: AgentChatItem | undefined }) {
     if (item?.type !== 'fileChange' || item.changes.length === 0) return null;
@@ -164,6 +164,11 @@ export function AgentChatRequestCard({
                 <QuestionForm isAnswering={isAnswering} request={request} respond={respond} />
             ) : (
                 <>
+                    {request.kind === 'tool' && request.summary && (
+                        <pre className="m-0 max-h-40 overflow-auto rounded bg-background px-2 py-1.5 font-mono text-[11px] leading-4 wrap-anywhere whitespace-pre-wrap text-foreground">
+                            {request.summary}
+                        </pre>
+                    )}
                     {request.kind === 'command' && request.command && (
                         <pre className="m-0 max-h-40 overflow-auto rounded bg-background px-2 py-1.5 font-mono text-[11px] leading-4 wrap-anywhere whitespace-pre-wrap text-foreground">
                             {request.command}

@@ -10,9 +10,31 @@ Agent CLI through the vendor's structured protocol and renders a conversation (s
 collapsible tool rows, approval and question cards) instead of a terminal grid. The decision and
 its trade-offs are in [ADR 0012](adr/0012-agent-chat-surface.md).
 
-Codex is the only Chat-capable provider today (`capabilities.chat` in the provider catalog,
-`packages/protocol/src/agent/agents.ts`). Claude Code will follow through the Claude Agent SDK;
-Grok Build stays PTY-only.
+Codex and Claude Code are Chat-capable (`capabilities.chat` in the provider catalog,
+`packages/protocol/src/agent/agents.ts`); Grok Build stays PTY-only. Copy that names the Agent
+(failure banners, "Starting ...", the composer placeholder) reads the catalog's `displayName`.
+
+## Provider seam
+
+`AgentChatService` owns everything provider-neutral: the Terminal row, the projection and its
+revisions, patch coalescing, lifecycle delivery, and process state. Each provider is a driver in
+`agentChatDrivers` (`service.ts`) that creates one `AgentChatProviderSession` per live process
+(`chat-provider.ts`). A session only translates its protocol into projection operations and
+lifecycle events through the `AgentChatSessionHost` callbacks, which the service fences so a
+replaced session's late reports are dropped. Shared pieces:
+
+- `ProviderProcess` (`provider-process.ts`): the child in its own process group, stderr drained
+  without being retained, and the stdin EOF, SIGTERM, SIGKILL stop escalation.
+- `chat-items.ts`: bounded string helpers, closing dangling items, the operations for a process
+  that ended, and the `answered` notice.
+
+| Provider    | Driver                   | Protocol                                                          |
+| ----------- | ------------------------ | ----------------------------------------------------------------- |
+| Codex       | `codex-chat-session.ts`  | `codex app-server --listen stdio://` JSON-RPC                     |
+| Claude Code | `claude-chat-session.ts` | Claude Agent SDK streaming input over the user's own `claude` CLI |
+
+Adding a provider means a driver, its item mapping, its launch-settings translation, and a fake
+CLI fixture; the service, reducer, and pane do not change.
 
 ## Surface and identity
 
@@ -29,9 +51,10 @@ Grok Build stays PTY-only.
   while a click on the tab strip's `+` clones the primary Agent Terminal on its own surface.
 - A Chat keeps everything else a Terminal owns: its Session, Primary Agent election, naming, pane
   placement, and the `terminal` pane resource.
-- The Agent Session (the Codex thread id) is bound to the Terminal only when the thread's first
-  turn starts. Codex writes no rollout before that, so an earlier binding could never be resumed.
-  An unbound Chat simply opens a new thread on its next start.
+- The Agent Session (the Codex thread id, or the Claude Code session id) is bound to the Terminal
+  only when the first turn starts. Neither provider writes its record before that, so an earlier
+  binding could never be resumed. An unbound Chat simply opens a new conversation on its next
+  start. Claude Code is started with a preset `--session-id`, so the id is known before the turn.
 - PTY-only operations (Terminal input from other Clients, Agent dispatch, compaction, Git review
   sends, long pastes, mobile submits, suspension, restore) reject or skip a Chat through
   `apps/server/src/domains/pty-guard.ts` before any side effect. A phone drives a Chat through
@@ -39,8 +62,8 @@ Grok Build stays PTY-only.
 
 ## Process lifecycle
 
-`AgentChatService` (`apps/server/src/domains/agent-chat/service.ts`) owns one
-`codex app-server --listen stdio://` child per live Chat, spawned by Server Core with the same
+`AgentChatService` (`apps/server/src/domains/agent-chat/service.ts`) owns one provider child per
+live Chat (`codex app-server --listen stdio://`, or `claude` in stream-json mode), spawned by Server Core with the same
 allowlisted environment as other Agent launches and no lifecycle-hook environment (the Chat
 synthesizes its own lifecycle signals, so hooks would double-report).
 
@@ -50,6 +73,12 @@ synthesizes its own lifecycle signals, so hooks would double-report).
   rebuilds the projection from the returned history. `model` is omitted on resume so the thread
   keeps its own model and effort. A failed resume is a visible `resume_failed` failure, never a
   silent new thread.
+- **Claude Code resume.** Claude Code does not replay a resumed conversation over the protocol, so
+  the history comes from the bounded tail of its JSONL transcript, read through the same
+  Server-derived path as `terminal.transcript`. Sidechain (subagent) and harness records are
+  skipped, a visible user prompt opens a turn, and every resumed turn is finished. A missing
+  transcript or a `--resume` that fails its handshake is `resume_failed`. The `answered` notices
+  Caxri synthesized are not in the transcript, so they do not survive a resume.
 - **Stop.** Closing, deleting, archiving, or detaching the Session stops the child (stdin EOF, then
   SIGTERM and SIGKILL on its process group). `terminal.restart` restarts it; a fresh restart drops
   the thread binding first. A failed Chat stays failed on read; the pane's Retry restarts it, which
@@ -65,8 +94,8 @@ synthesizes its own lifecycle signals, so hooks would double-report).
 
 ## Launch settings
 
-The Codex launch settings configured for the TUI are translated, not appended
-(`apps/server/src/domains/agent-chat/launch-settings.ts`):
+The launch settings configured for the TUI are translated, not appended
+(`apps/server/src/domains/agent-chat/launch-settings.ts`). Codex:
 
 | TUI argument                                 | Chat equivalent                                          |
 | -------------------------------------------- | -------------------------------------------------------- |
@@ -75,6 +104,41 @@ The Codex launch settings configured for the TUI are translated, not appended
 | `--model`, `--sandbox`, `--ask-for-approval` | The thread field of the same meaning                     |
 | `--config`, `--profile`                      | Kept as root options before `app-server`                 |
 | Anything else (`--search`, UI flags)         | Dropped: it has no meaning outside the TUI               |
+
+Claude Code:
+
+| TUI argument                                              | Chat equivalent                              |
+| --------------------------------------------------------- | -------------------------------------------- |
+| `--dangerously-skip-permissions`                          | `permissionMode: bypassPermissions`          |
+| (absent)                                                  | `permissionMode: default` (manual approvals) |
+| `--permission-mode`, `--model`, `--add-dir`, `--settings` | The SDK option of the same meaning           |
+| `--allowedTools`, `--disallowedTools` (either spelling)   | `allowedTools`, `disallowedTools`            |
+| Anything else (UI flags)                                  | Dropped: it has no meaning outside the TUI   |
+
+The Claude Code Chat uses the `claude_code` system prompt and tool presets and loads the user's,
+Project's, and local settings, so it behaves like the TUI in the same folder.
+
+## Claude Code mapping
+
+The SDK speaks Claude Code's stream-json control protocol; Caxri passes the resolved executable as
+`pathToClaudeCodeExecutable` and spawns it through `spawnClaudeCodeProcess`, so the SDK's bundled
+binary is never used and `ProviderProcess` owns the child. ADR 0012 deferred a dedicated Chat worker process
+until the SDK arrived; because the SDK only frames stdio for that separate `claude` child, it runs
+inside Server Core without one. `claude-items.ts` holds the pure message mapping,
+`claude-history.ts` rebuilds a resumed Chat from the transcript, and `claude-requests.ts` holds
+pending permission prompts and questions until the user answers:
+
+- Claude Code has no turn ids. A turn is named by the uuid of the user message that started it and
+  ends with the `result` message once `queued_turn_count` is zero, so a message sent mid-turn is
+  folded into the running turn. The prompt is recorded locally because Claude Code does not echo it.
+- Text and thinking stream from `stream_event` deltas and are finalized by the complete
+  `assistant` frame under the same id (model message id plus the block's per-kind ordinal).
+- `Bash` is a command row, `Edit`/`MultiEdit`/`Write`/`NotebookEdit` a file change whose diff is
+  replaced by Claude Code's `structuredPatch` when the result arrives, `TodoWrite` the plan, and
+  every other tool a generic tool row. Subagent frames (`parent_tool_use_id`) stay inside their
+  parent tool call.
+- Usage is the latest model request's input plus cache plus output tokens; the context window
+  comes from the result's per-model usage.
 
 ## Projection and streaming
 
@@ -103,6 +167,13 @@ record is the source of truth.
   when the turn ends or the process exits.
 
 ## Approvals and questions
+
+Claude Code asks through the SDK's `canUseTool` callback, keyed by the tool use id. `Bash` is a
+`command` request, file tools a `fileChange` request linked to their item, `AskUserQuestion` a
+`question` (answers are returned keyed by question text), and any other tool the generic `tool`
+request (`Allow WebFetch?` with its URL or arguments). "Accept for this Chat" is offered only when
+Claude Code suggests a session rule and applies those suggestions; decline denies the tool and
+marks its row declined.
 
 Codex server requests become pending `requests` keyed by the approval callback id when present,
 else the item id. Codex re-sends pending requests with fresh transport ids after a resume, and
@@ -198,9 +269,12 @@ message text, command output, provider stderr, or protocol bodies.
 
 ## Testing
 
-`apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts` is a
-deterministic stand-in for the app-server, selected by keywords in the user's message (approval,
-file-change approval, oversized diff, question, table, slow stream, failure, crash). Unit and integration tests drive it; no test launches the
+`apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts` and
+`fake-claude-cli.ts` are deterministic stand-ins for each provider, selected by keywords in the
+user's message (approval, file-change approval, edit, oversized diff, question, plan approval,
+table, slow stream, failure, crash). The Claude fake speaks the stream-json control protocol the
+SDK drives and writes a real transcript, so resume is exercised end to end. Unit, integration, and
+fake-mode E2E tests drive them; no test launches the
 real CLI or calls a model.
 
 `bun run test:e2e:real-agent` is the manual, never-CI smoke against the real CLI (see the `e2e-testing` skill). Its
@@ -213,6 +287,7 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 
 ## Not yet supported
 
-Switching an existing Terminal between surfaces, image input, slash commands, and the Claude Agent
-SDK provider. On mobile, a Chat shows no plan, model, or context usage yet, and older history beyond
-the window stays on the computer.
+Switching an existing Terminal between surfaces, image input, and slash commands. Claude Code's
+`initialize` response already lists its slash commands, models, and agents for that follow-up. On
+mobile, a Chat shows no plan, model, or context usage yet, and older history beyond the window stays
+on the computer.

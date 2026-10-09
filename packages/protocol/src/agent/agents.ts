@@ -126,7 +126,7 @@ export const agentProviderCatalog = {
         capabilities: {
             actions: true,
             automaticSuspension: true,
-            chat: false,
+            chat: true,
             messaging: true,
             nativeRename: true,
         },

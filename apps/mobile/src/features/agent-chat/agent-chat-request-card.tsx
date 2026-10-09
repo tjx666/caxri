@@ -14,7 +14,7 @@ import {
 import type { AgentChatResponse } from './use-agent-chat';
 
 type QuestionRequest = Extract<AgentChatRequest, { kind: 'question' }>;
-type ApprovalRequest = Extract<AgentChatRequest, { kind: 'command' | 'fileChange' }>;
+type ApprovalRequest = Extract<AgentChatRequest, { kind: 'command' | 'fileChange' | 'tool' }>;
 
 const ActionButton = ({
     disabled,
@@ -81,6 +81,15 @@ const ApprovalBody = ({
     const files = agentChatApprovalFiles(request, items);
     return (
         <>
+            {request.kind === 'tool' && request.summary ? (
+                <Text
+                    numberOfLines={6}
+                    style={[styles.code, { backgroundColor: theme.elevated, color: theme.text }]}
+                    testID="agent-chat-request-tool"
+                >
+                    {request.summary}
+                </Text>
+            ) : null}
             {request.kind === 'command' && request.command ? (
                 <Text
                     numberOfLines={6}

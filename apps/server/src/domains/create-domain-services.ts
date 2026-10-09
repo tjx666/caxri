@@ -15,12 +15,7 @@ import { createAgentCommandRuntime } from './agent-command-runtime';
 import type { AgentDelegationService } from './agent-delegation';
 import type { AgentDispatchService } from './agent-dispatch';
 import { createAgentRuntime } from './agent-runtime';
-import {
-    AgentAttentionRequests,
-    agentCommandEnvironment,
-    CompactionReadiness,
-    LongPasteService,
-} from './agents';
+import { AgentAttentionRequests, CompactionReadiness, LongPasteService } from './agents';
 import { createBackgroundTasks, refreshWatchSessionInBackground } from './background-tasks';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import { createChatTerminalCreator } from './chat-terminal-creation';
@@ -206,7 +201,7 @@ export async function createDomainServices(
         database,
         logger,
         send,
-        environment: () => agentCommandEnvironment(agentEnvironment),
+        agentEnvironment,
         launchSettings: (provider) =>
             (dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings)(provider),
         resolveExecutable: dependencies.terminal?.resolveExecutable,
