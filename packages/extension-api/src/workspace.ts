@@ -169,6 +169,6 @@ export interface WorkspaceGit {
         repoId: string,
         pullRequest: { number: number; headSha: string },
         token?: CancellationToken,
-    ): Promise<{ method: 'squash' | 'merge' | 'rebase' }>;
+    ): Promise<{ method: 'squash' | 'merge' | 'rebase'; url: string }>;
     remoteHost(repoId: string, token?: CancellationToken): Promise<string | null>;
 }

@@ -43,7 +43,7 @@ export function createWorkspaceApiClient(
                 pullRequest: { number: number; headSha: string },
                 token?: CancellationToken,
             ) =>
-                request<{ method: 'squash' | 'merge' | 'rebase' }>(
+                request<{ method: 'squash' | 'merge' | 'rebase'; url: string }>(
                     'git.mergePullRequest',
                     {
                         repositoryId: repoId,
