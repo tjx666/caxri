@@ -113,8 +113,8 @@ function QuestionForm({
 
 /**
  * The files an approval would change, read from the timeline item it gates: the provider announces the file change
- * before asking, so the card can show the diff "Accept" applies instead of asking blind. A single file opens straight to
- * its diff; several start as headers so the decision buttons stay close.
+ * before asking, so the card can show the diff "Accept" applies instead of asking blind. A single file opens straight
+ * to its diff; several start as headers so the decision buttons stay close.
  */
 function ApprovalFiles({ item }: { item: AgentChatItem | undefined }) {
     if (item?.type !== 'fileChange' || item.changes.length === 0) return null;
