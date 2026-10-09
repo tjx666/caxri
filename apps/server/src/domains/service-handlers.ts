@@ -31,6 +31,7 @@ import { withGitRequestSignal } from './git';
 import type { createIntrospectionServices } from './introspection';
 import { resolveOwnerProjectRoot, resolveProjectRoot } from './project-root-identity';
 import type { ProjectStatusService, VercelDeploymentStore } from './project-status';
+import { refreshAfterMerge } from './pull-request-merge-refresh';
 import type { SessionContextService } from './session-context';
 import { SessionPullRequestService } from './session-pull-requests';
 import { resolveTerminalFileLink } from './terminal';
@@ -431,7 +432,13 @@ export function createServiceHandlers(services: {
         'git.discard': () => mainOwned('git.discard'),
         'git.discard.preflight': (parameters) => git.discardPreflight(parameters),
         'git.discard.apply': (parameters) => git.discardApply(parameters),
-        'git.mergePullRequest': (parameters) => git.mergePullRequest(parameters),
+        'git.mergePullRequest': async (parameters) => {
+            const result = await git.mergePullRequest(parameters);
+            // Fire-and-forget: the refresh logs its own failure, and the merge already succeeded.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard
+            void refreshAfterMerge(sessionPullRequests, parameters.sessionId, parameters.number);
+            return result;
+        },
         'git.diffDocument': ({ sessionId, repositoryId, path }) =>
             git.diffDocument(sessionId, repositoryId, path),
         'git.pullRequestChanges': (parameters, signal) =>

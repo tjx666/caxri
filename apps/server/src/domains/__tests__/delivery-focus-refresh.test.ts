@@ -4,7 +4,13 @@ import {
     DELIVERY_FOCUS_REFRESH_MIN_INTERVAL_MS,
     DeliveryFocusRefresh,
 } from '../delivery-focus-refresh';
-import { createdPullRequestLines, harness, pullRequestJson } from './session-pull-requests.fixture';
+import { refreshAfterMerge } from '../pull-request-merge-refresh';
+import {
+    createdPullRequestLines,
+    harness,
+    pullRequestJson,
+    session,
+} from './session-pull-requests.fixture';
 
 describe('SessionPullRequestService.refreshSession', () => {
     it('re-reads a pull request whose cached state is still fresh', async () => {
@@ -98,5 +104,41 @@ describe('DeliveryFocusRefresh', () => {
             'summary:session-2:forced',
             'summary:session-1:forced',
         ]);
+    });
+});
+
+describe('refreshAfterMerge', () => {
+    it('re-reads every Session showing the merged pull request while its open entry is still fresh', async () => {
+        const clock = { now: 0 };
+        let state = 'OPEN';
+        const gh = vi.fn((arguments_: readonly string[]) =>
+            Promise.resolve(
+                arguments_[1] === 'list'
+                    ? `[${pullRequestJson({ number: 42, state })}]`
+                    : pullRequestJson({ number: 42, state }),
+            ),
+        );
+        const { service } = await harness({
+            gh,
+            now: () => clock.now,
+            sessions: [
+                session({ primaryAgentTerminalId: 'terminal-1' }),
+                session({ id: 'session-2', sidebarOrder: 1 }),
+            ],
+        });
+        await service.refresh();
+        expect(service.snapshot().pullRequests['session-1']?.state).toBe('open');
+        expect(service.snapshot().pullRequests['session-2']?.state).toBe('open');
+
+        // Merged from the Status panel moments later: an ordinary sweep keeps both open entries inside their TTL.
+        state = 'MERGED';
+        clock.now = 10_000;
+        await service.refresh();
+        expect(service.snapshot().pullRequests['session-2']?.state).toBe('open');
+
+        await refreshAfterMerge(service, 'session-1', 42);
+
+        expect(service.snapshot().pullRequests['session-1']?.state).toBe('merged');
+        expect(service.snapshot().pullRequests['session-2']?.state).toBe('merged');
     });
 });
