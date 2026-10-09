@@ -25,6 +25,7 @@ export const desktopServerOperationIds = [
     'files.authorizeTrash',
     'files.authorizeOpen',
     'terminal.fileLink.resolve',
+    'terminal.createInExternalDirectory',
     'terminal.detachAll',
     'terminal.terminateAll',
     'theme.importPath',

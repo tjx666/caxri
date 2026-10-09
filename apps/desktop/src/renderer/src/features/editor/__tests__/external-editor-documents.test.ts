@@ -58,7 +58,7 @@ afterEach(() => {
 });
 
 describe('external editor documents', () => {
-    it('opens authorized content as a read-only ephemeral tab without file or Session IPC', async () => {
+    it('opens authorized content as an editable ephemeral tab and saves it through Main', async () => {
         installSession();
 
         const path = openExternalEditorDocument({
@@ -68,10 +68,9 @@ describe('external editor documents', () => {
                 id: 'external-1',
                 name: 'doctor.config.jsonc',
                 displayPath: '/Users/me/code/caxri/doctor.config.jsonc',
-                content: '{ "readOnly": true }',
+                content: '{ "before": true }',
                 mtimeMs: 10,
-                size: 20,
-                readOnly: true,
+                size: 18,
             },
         });
 
@@ -81,23 +80,93 @@ describe('external editor documents', () => {
         const occurrence = findResourceTabs(state.paneLayout, { kind: 'file', path }).at(0);
         expect(occurrence?.pane.activeTabId).toBe(occurrence?.tab.id);
         expect(getSessionDocuments('session-1', 'project-1')?.[path]).toMatchObject({
-            content: '{ "readOnly": true }',
+            content: '{ "before": true }',
             dirty: false,
             displayPath: '/Users/me/code/caxri/doctor.config.jsonc',
             ephemeral: true,
-            readOnly: true,
         });
-
-        changeDocument('session-1', 'project-1', path, 'changed');
-        await saveActiveEditor();
-        expect(getSessionDocuments('session-1', 'project-1')?.[path]?.content).toBe(
-            '{ "readOnly": true }',
-        );
         expect(mocks.request).not.toHaveBeenCalled();
 
+        changeDocument('session-1', 'project-1', path, 'changed');
+        expect(getSessionDocuments('session-1', 'project-1')?.[path]?.dirty).toBe(true);
+        mocks.request.mockResolvedValueOnce({ content: 'changed', mtimeMs: 20, size: 7 });
+        await saveActiveEditor();
+
+        expect(mocks.request).toHaveBeenCalledExactlyOnceWith('externalDocument.write', {
+            documentId: 'external-1',
+            content: 'changed',
+        });
+        expect(getSessionDocuments('session-1', 'project-1')?.[path]).toMatchObject({
+            content: 'changed',
+            dirty: false,
+            displayPath: '/Users/me/code/caxri/doctor.config.jsonc',
+            ephemeral: true,
+            mtimeMs: 20,
+        });
+
+        mocks.request.mockClear();
         await closeDocumentTabs([occurrence!.tab.id]);
         expect(getSessionDocuments('session-1', 'project-1')?.[path]).toBeUndefined();
         expect(mocks.request).not.toHaveBeenCalled();
+    });
+
+    it('asks before closing an external tab with unsaved edits', async () => {
+        installSession();
+        const path = openExternalEditorDocument({
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            document: {
+                id: 'external-1',
+                name: 'notes.md',
+                displayPath: '/tmp/notes.md',
+                content: 'before',
+                mtimeMs: 10,
+                size: 6,
+            },
+        });
+        if (!path) throw new Error('Expected an external editor path');
+        changeDocument('session-1', 'project-1', path, 'after');
+        const state = useWorkbenchStore.getState().bootstrap!.sessionStates[0];
+        const tabId = findResourceTabs(state.paneLayout, { kind: 'file', path }).at(0)!.tab.id;
+        mocks.request.mockResolvedValueOnce({ choice: 'cancel' });
+
+        await closeDocumentTabs([tabId]);
+
+        expect(mocks.request).toHaveBeenCalledExactlyOnceWith('editor.confirmDiscard', {
+            name: 'notes.md',
+        });
+        expect(getSessionDocuments('session-1', 'project-1')?.[path]?.content).toBe('after');
+    });
+
+    it('keeps unsaved edits when the same file is opened again', () => {
+        installSession();
+        const document = {
+            id: 'external-1',
+            name: 'notes.md',
+            displayPath: '/tmp/notes.md',
+            content: 'before',
+            mtimeMs: 10,
+            size: 6,
+        };
+        const path = openExternalEditorDocument({
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            document,
+        });
+        if (!path) throw new Error('Expected an external editor path');
+        changeDocument('session-1', 'project-1', path, 'unsaved');
+
+        expect(
+            openExternalEditorDocument({
+                sessionId: 'session-1',
+                workbenchProjectId: 'project-1',
+                document: { ...document, id: 'external-2', content: 'from disk' },
+            }),
+        ).toBe(path);
+        expect(getSessionDocuments('session-1', 'project-1')?.[path]).toMatchObject({
+            content: 'unsaved',
+            dirty: true,
+        });
     });
 
     it('reuses the open tab identity when Main refreshes the same external path', () => {
@@ -113,7 +182,6 @@ describe('external editor documents', () => {
                 content: 'select 1;',
                 mtimeMs: 10,
                 size: 9,
-                readOnly: true,
             },
         });
         const refreshedPath = openExternalEditorDocument({
@@ -126,7 +194,6 @@ describe('external editor documents', () => {
                 content: 'select 2;',
                 mtimeMs: 20,
                 size: 9,
-                readOnly: true,
             },
         });
 
@@ -157,7 +224,6 @@ describe('external editor documents', () => {
                     content: 'outside',
                     mtimeMs: 10,
                     size: 7,
-                    readOnly: true,
                 },
             }),
         ).toBe(false);
@@ -178,7 +244,6 @@ describe('external editor documents', () => {
                     content: 'outside',
                     mtimeMs: 10,
                     size: 7,
-                    readOnly: true,
                 },
             }),
         ).toBe(false);

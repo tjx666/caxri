@@ -426,7 +426,7 @@ describe('path browser authority', () => {
         );
     });
 
-    it('opens a free file as one bounded read-only document without Project or Session routing', async () => {
+    it('opens a free file as one bounded document without Project or Session routing', async () => {
         const ownerRoot = await temporaryDirectory('caxri-path-owner-');
         const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
         const externalRoot = await temporaryDirectory('caxri-path-external-');
@@ -451,7 +451,6 @@ describe('path browser authority', () => {
                 name: 'external.ts',
                 displayPath: canonicalExternalPath,
                 content: 'export const external = true;\n',
-                readOnly: true,
             },
         });
         expect(openFile).not.toHaveBeenCalled();

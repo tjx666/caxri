@@ -1,5 +1,4 @@
 import { Buffer } from 'node:buffer';
-import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, open, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
@@ -7,6 +6,7 @@ import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import type { MethodResult } from '@caxri/protocol';
 import { CaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
 
+import { rememberExternalDocument } from './external-documents';
 import type { EntrySnapshot, RootIdentity } from './path-browser-identity';
 import {
     authorizeCandidate,
@@ -48,9 +48,10 @@ export async function readBoundedExternalContent(file: BoundedFileReader): Promi
 }
 
 /**
- * Reads one bounded read-only snapshot of a file the user explicitly chose outside every Project (a Terminal link or
- * free-path browser entry). The parent directory is revalidated around the read and the path may not traverse a
- * symbolic link, so a confirmed path cannot be redirected before Main opens it.
+ * Reads one bounded snapshot of a file the user explicitly chose outside every Project (a Terminal link or free-path
+ * browser entry) and registers it so later saves and desktop actions can name it by ID. The parent directory is
+ * revalidated around the read and the path may not traverse a symbolic link, so a confirmed path cannot be redirected
+ * before Main opens it.
  */
 export async function readExternalFileSnapshot(path: string): Promise<ExternalEditorDocument> {
     if (!isAbsolute(path))
@@ -122,14 +123,14 @@ export async function readExternalFile(
         )
             throw new CaxriError('CONFLICT', 'File changed while it was opened');
         await validateDirectory(parent);
+        const id = rememberExternalDocument({ parent, path: authorized.path });
         return {
-            id: randomUUID(),
+            id,
             name,
             displayPath: authorized.path,
             content: boundedContent.toString('utf8'),
             mtimeMs: Number(opened.mtimeMs),
             size: Number(opened.size),
-            readOnly: true,
         };
     } catch (error) {
         return pathFailure(error, 'Unable to read external file');

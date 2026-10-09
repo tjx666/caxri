@@ -7,6 +7,7 @@ import {
     listPaneTabs,
     MAX_TABS_PER_PANE,
     paneResourceKey,
+    parseFilePreviewTab,
 } from '@caxri/protocol';
 
 interface ExternalTabPlacement {
@@ -22,6 +23,15 @@ interface ExternalSessionState {
 }
 
 const externalStates = new Map<string, ExternalSessionState>();
+
+/**
+ * An external document's own tab, or a preview of one: both name a Renderer-only buffer that cannot be restored.
+ */
+function isExternalTab(tab: PaneTab): boolean {
+    if (tab.resource.kind !== 'file') return false;
+    const { path } = tab.resource;
+    return isExternalEditorTabPath(parseFilePreviewTab(path)?.path ?? path);
+}
 
 function hasPaneLayoutRoot(state: SessionState): boolean {
     return Boolean((state as { paneLayout?: { root?: unknown } }).paneLayout?.root);
@@ -45,7 +55,7 @@ function replacePane(node: PaneLayoutNode, paneId: string, replacement: PaneNode
 export function recordExternalEditorState(state: SessionState): void {
     if (!hasPaneLayoutRoot(state)) return;
     const placements = listPaneTabs(state.paneLayout).flatMap(({ pane, tab }) =>
-        tab.resource.kind === 'file' && isExternalEditorTabPath(tab.resource.path)
+        isExternalTab(tab)
             ? [
                   {
                       active: pane.activeTabId === tab.id,
@@ -70,7 +80,7 @@ export function recordExternalEditorState(state: SessionState): void {
 export function stripExternalEditorTabs(state: SessionState): SessionState {
     if (!hasPaneLayoutRoot(state)) return state;
     const tabIds = listPaneTabs(state.paneLayout).flatMap(({ tab }) =>
-        tab.resource.kind === 'file' && isExternalEditorTabPath(tab.resource.path) ? [tab.id] : [],
+        isExternalTab(tab) ? [tab.id] : [],
     );
     if (tabIds.length === 0) return state;
     const stripped = closeTabs(state.paneLayout, tabIds);

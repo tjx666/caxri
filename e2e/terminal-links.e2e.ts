@@ -317,7 +317,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
         ).toHaveText('2');
         await expect
             .poll(() => linkProbeField(running.app, 'caxriExternalLinkProbe', 'confirmations'))
-            .toEqual(['Open outside-target.ts read-only?']);
+            .toEqual(['Open outside-target.ts from outside your Projects?']);
 
         await running.page.getByRole('tab', { name: 'Shell' }).click();
         const trustedHomeLink = '~/outside-project/outside-second.ts';
@@ -416,7 +416,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
             }),
         ).resolves.toMatchObject({
             confirmations: [
-                'Open outside-target.ts read-only?',
+                'Open outside-target.ts from outside your Projects?',
                 'Open example.com in your default browser?',
                 'Open example.com in your default browser?',
                 'Open example.org in your default browser?',
@@ -772,7 +772,7 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
         ).toContainText('outside Project root');
         expect(
             (await linkProbeField(running.app, 'caxriKeyboardLinkProbe', 'confirmations'))?.at(-1),
-        ).toBe('Open denied-target.ts read-only?');
+        ).toBe('Open denied-target.ts from outside your Projects?');
         await running.page.getByRole('tab', { name: 'Shell' }).click();
         await expect(terminalInput).toBeFocused();
 

@@ -84,7 +84,15 @@ describe('previewSourcePath', () => {
 
     it('offers nothing for another virtual tab that happens to end in a previewable extension', () => {
         expect(previewSourcePath(gitFileDiffTabPath('repo-1', '/p/README.md'))).toBeUndefined();
-        expect(previewSourcePath(externalEditorTabPath('doc-1', 'README.md'))).toBeUndefined();
+    });
+
+    it('previews an external Markdown document from its cached buffer, and nothing else external', () => {
+        const external = externalEditorTabPath('doc-1', '接入说明.md');
+
+        expect(previewSourcePath(external)).toBe(external);
+        expect(previewSourcePath(filePreviewTabPath(external))).toBe(external);
+        expect(previewSourcePath(externalEditorTabPath('doc-2', 'badge.svg'))).toBeUndefined();
+        expect(previewSourcePath(externalEditorTabPath('doc-3', 'notes.txt'))).toBeUndefined();
     });
 });
 

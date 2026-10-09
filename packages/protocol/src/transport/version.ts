@@ -22,7 +22,11 @@ export const protocolWelcomeSchema = z.object({
     protocolVersion: protocolVersionSchema,
     principal: principalSchema,
     capabilities: z.array(capabilitySchema).max(64),
-    commands: z.array(z.string().min(1).max(120)).max(256),
+    /**
+     * Bounds a hostile welcome, not the registry: keep it well above the method count, which the protocol contract test
+     * asserts against.
+     */
+    commands: z.array(z.string().min(1).max(120)).max(1024),
     /**
      * Optional on the v2 welcome so a client can feature-gate A4 behavior while connecting to an older same-version
      * development build. Current Servers always send the negotiated list.

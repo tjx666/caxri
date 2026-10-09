@@ -1,4 +1,9 @@
-import { filePreviewTabPath, isVirtualEditorTabPath, parseFilePreviewTab } from '@caxri/protocol';
+import {
+    filePreviewTabPath,
+    isExternalEditorTabPath,
+    isVirtualEditorTabPath,
+    parseFilePreviewTab,
+} from '@caxri/protocol';
 
 import { openEditorTab } from '../editor/document-commands';
 import {
@@ -7,12 +12,15 @@ import {
     getActivePaneTab,
     splitPaneTab,
 } from '../workbench/pane-actions';
-import { canPreviewPath } from './preview-registry';
+import { canPreviewPath, previewerForPath } from './preview-registry';
 
 /**
- * The Project file a preview of this editor tab would show: the tab's own document when a previewer claims it, or, for
- * a preview tab, the document that preview is already showing. Every other virtual tab (a Git diff, a transcript, an
- * external document) has no preview even when its encoded path ends in a previewable extension.
+ * The document a preview of this editor tab would show: the tab's own document when a previewer claims it, or, for a
+ * preview tab, the document that preview is already showing. Every other virtual tab (a Git diff, a transcript) has no
+ * preview even when its encoded path ends in a previewable extension.
+ *
+ * An external document previews only as Markdown, because that view renders the editor's cached buffer. The image view
+ * loads its asset through Project file IPC, which cannot reach a file outside every Project.
  *
  * This is the one predicate behind every preview entry point: the commands, the tab-rail icon, and both context menus,
  * so a format registered in `preview-registry.ts` appears in all of them at once.
@@ -20,6 +28,8 @@ import { canPreviewPath } from './preview-registry';
 export function previewSourcePath(tabPath: string): string | undefined {
     const preview = parseFilePreviewTab(tabPath);
     if (preview) return preview.path;
+    if (isExternalEditorTabPath(tabPath))
+        return previewerForPath(tabPath)?.id === 'markdown' ? tabPath : undefined;
     if (isVirtualEditorTabPath(tabPath)) return undefined;
     return canPreviewPath(tabPath) ? tabPath : undefined;
 }

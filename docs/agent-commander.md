@@ -111,7 +111,7 @@ hand-off must never grant it authority over another Project: Main always substit
 Session for the Commander's own before opening anything, in `workbench-root-authority.ts`'s
 `pickCommanderFileLinkSession` (path resolves inside a Project: prefers a Session the Commander
 itself created, then the Workbench's current selection, then the first) and `pickAnyVisibleSessionId`
-(path resolves outside every Project: any live Session, to host the read-only ephemeral tab). An
+(path resolves outside every Project: any live Session, to host the ephemeral tab). An
 ambiguous resolution answers the Commander's own already-mounted link picker without raising the
 Workbench; every other branch raises it first, so the external-file confirmation dialog and the
 opened editor both land on a window the user can see.

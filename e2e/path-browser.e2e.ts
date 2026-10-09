@@ -273,10 +273,12 @@ test('Cmd+P removes the Project anchor and opens an external file without a pick
         await running.clipboard.claimText(externalPath);
         const editor = running.page.locator('.monaco-editor').first();
         await expect(editor).toContainText('external path browser E2E');
+        await expect(running.page.getByText('Read-only', { exact: true })).toHaveCount(0);
         await editor.getByRole('textbox', { name: 'Editor content' }).focus();
-        await running.page.keyboard.type('external-mutation-must-not-appear');
-        await expect(editor).not.toContainText('external-mutation-must-not-appear');
-        await expect(editor).toContainText('external path browser E2E');
+        await running.page.keyboard.press('Meta+End');
+        await running.page.keyboard.type('\n// external-edit-saved');
+        await running.page.keyboard.press('Meta+s');
+        await expect.poll(() => readFile(externalPath, 'utf8')).toContain('// external-edit-saved');
 
         const after = await pageRequest<{
             projects: Array<{ id: string }>;

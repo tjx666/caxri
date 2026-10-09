@@ -10,6 +10,7 @@ export * from './diff-stat-colors.js';
 export * from './domain.js';
 export * from './editor.js';
 export * from './extension-manifest.js';
+export * from './external-editor-tab.js';
 export * from './file-contract.js';
 export * from './file-preview.js';
 export * from './file-search.js';

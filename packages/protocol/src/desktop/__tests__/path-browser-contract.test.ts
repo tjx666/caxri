@@ -169,7 +169,6 @@ describe('path browser contract', () => {
                     content: 'export {};',
                     mtimeMs: 1,
                     size: 10,
-                    readOnly: true,
                 },
             }).success,
         ).toBe(true);
@@ -184,7 +183,6 @@ describe('path browser contract', () => {
                     content: 'x'.repeat(MAX_CONFIGURABLE_FILE_BYTES + 1),
                     mtimeMs: 1,
                     size: MAX_CONFIGURABLE_FILE_BYTES + 1,
-                    readOnly: true,
                 },
             }).success,
         ).toBe(false);
