@@ -73,7 +73,7 @@ export function MarkdownPreview({
             sessionId,
             controller.signal,
         );
-        decorateCodeBlocks(container, rendered.codeBlocks, controller.signal);
+        decorateCodeBlocks(container, rendered.codeBlocks, theme, controller.signal);
         // eslint-disable-next-line no-void -- diagram failures are rendered in their own placeholders
         void renderDiagrams(container, rendered.diagrams, theme, controller.signal);
         const shouldRevealLastPosition = followedPathReference.current !== documentPath;
