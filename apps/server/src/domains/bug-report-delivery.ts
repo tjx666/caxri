@@ -2,8 +2,8 @@ import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
 
 import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
+import { assertPtyTerminal } from './pty-guard';
 import type { TerminalManager } from './terminal';
-import { assertPtyTerminal } from './terminal';
 
 interface BugReportDeliveryHandlerOptions {
     database: CaxriDatabase;

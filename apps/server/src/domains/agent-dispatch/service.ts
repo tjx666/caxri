@@ -22,9 +22,9 @@ import { logEventCatalog } from '@caxri/system';
  */
 // oxlint-disable-next-line react-doctor/no-barrel-import
 import { agentProviders } from '../agents';
+import { assertPtyTerminal } from '../pty-guard';
 import { SingleFlight } from '../single-flight';
 import type { TerminalLifecycleCause, TerminalWorkingDirectoryIdentity } from '../terminal';
-import { assertPtyTerminal } from '../terminal';
 import type { AgentDispatchServiceOptions } from './service-options';
 
 interface DispatchWaiter {

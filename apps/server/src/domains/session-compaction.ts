@@ -13,8 +13,8 @@ import {
 import type { AgentCoordinator, AgentEnvironment, CompactionReadiness } from './agents';
 import { inspectContextCache, readAgentTranscript } from './agents';
 import type { CaxriDatabase } from './db';
+import { isPtyTerminal } from './pty-guard';
 import type { TerminalManager } from './terminal';
-import { isPtyTerminal } from './terminal';
 
 interface Options {
     database: CaxriDatabase;

@@ -7,8 +7,9 @@ import { delegationResumeLaunch } from './agent-delegation';
 import type { AgentCoordinator, AgentEnvironment } from './agents';
 import { isAgentConversationUnwritten } from './agents';
 import type { CaxriDatabase } from './db';
+import { isPtyTerminal } from './pty-guard';
 import type { TerminalManager, TerminalWorkingDirectoryIdentity } from './terminal';
-import { isPtyTerminal, TerminalRestoreSupervisor } from './terminal';
+import { TerminalRestoreSupervisor } from './terminal';
 
 interface InterruptedTerminalRestorerOptions {
     agentEnvironment?: AgentEnvironment;

@@ -5,9 +5,9 @@ import { logEventCatalog } from '@caxri/system';
 
 import type { AgentLifecycleSignal } from '../agents';
 import type { CaxriDatabase } from '../db';
+import { isPtyTerminal } from '../pty-guard';
 import type { WatchHandle, WatchHub } from '../watch-hub';
 import type { TerminalManager } from './manager';
-import { isPtyTerminal } from './pty-guard';
 import type { TerminalActivitySample, TerminalSuspensionReason } from './suspension-policy';
 import { decideTerminalSuspensions } from './suspension-policy';
 
