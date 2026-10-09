@@ -54,6 +54,21 @@ describe('changed-file discovery', () => {
     });
 });
 
+describe('server domain contract selection', () => {
+    it('runs the source-scanning domain structure test for any Runtime domain change', async () => {
+        const contract = 'apps/server/src/domains/__tests__/structure.test.ts';
+
+        await expect(
+            selectedTestCandidates(process.cwd(), [
+                'apps/server/src/domains/agent-chat/service.ts',
+            ]),
+        ).resolves.toContain(contract);
+        await expect(
+            selectedTestCandidates(process.cwd(), ['apps/server/src/core/core-methods.ts']),
+        ).resolves.not.toContain(contract);
+    });
+});
+
 describe('removed-path test selection', () => {
     it('routes removed paths and path-reference configs through the doctor path contract', async () => {
         const contract = 'scripts/__tests__/doctor-config-paths.test.ts';
