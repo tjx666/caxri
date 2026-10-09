@@ -8,6 +8,7 @@ import Editor from '@monaco-editor/react';
 import type { editor as Monaco } from 'monaco-editor';
 
 import { useEditorOptions } from '@/hooks/use-editor-options';
+import { languageEditorOptions } from '@/lib/editor-options';
 
 import { bindGitReviewCommentEditor } from './git-review-comment-binding';
 import { bindSingleDiffEditor } from './git-single-diff-binding';
@@ -90,6 +91,7 @@ export function GitSingleDiffEditor({
             onMount={setEditor}
             options={{
                 ...editorOptions,
+                ...languageEditorOptions(isAdded ? modifiedLanguage : originalLanguage),
                 glyphMargin: true,
                 ariaLabel: kind === 'added' ? 'Added file contents' : 'Deleted file contents',
                 readOnly: true,
