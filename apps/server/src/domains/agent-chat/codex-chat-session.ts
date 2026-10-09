@@ -327,8 +327,18 @@ export class CodexChatSession {
                 }),
             },
         });
+        const unanswered = this.pending.keys().toArray();
         this.pending.clear();
         this.options.apply(operations);
+        /**
+         * The process took its requests with it; resolve their attention so the Session stops waiting on them.
+         */
+        for (const key of unanswered)
+            this.options.lifecycle({
+                phase: 'attentionResolved',
+                agentSessionId: this.threadId,
+                agentToolUseId: key,
+            });
         const counters = this.connection?.counters;
         this.options.onExit({
             end,

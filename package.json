@@ -165,7 +165,7 @@
             },
             "apps/server": {
                 "entry": [
-                    "src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.mjs",
+                    "src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts",
                     "src/terminal-host/agent-launcher/process.ts",
                     "src/extension-host/process.ts",
                     "src/core/bootstrap.ts",

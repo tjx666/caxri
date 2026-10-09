@@ -98,7 +98,7 @@ export function NewTerminalButton({
                          * preview. `CommandTooltip` below covers the sighted hint plus the ⌘T shortcut it shares.
                          */
                         <Button
-                            aria-label={`New Terminal (${resolveAgentIcon(target).label})`}
+                            aria-label={`New Terminal (${resolveAgentIcon(target.kind).label}${target.surface === 'chat' ? ' Chat' : ''})`}
                             size="icon"
                             variant="ghost"
                         >
@@ -120,7 +120,7 @@ export function NewTerminalButton({
                          */
                         if (open && details.reason === 'trigger-press') {
                             details.cancel();
-                            create(target);
+                            create(target.kind, target.surface);
                             return;
                         }
                         setIconMenuOpen(open);

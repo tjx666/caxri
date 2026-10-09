@@ -388,12 +388,22 @@ export class AgentChatService {
         // A start in progress reports its own closed failure reason.
         if (state.launchId !== launchId || this.isShuttingDown || this.starts.has(terminalId))
             return;
-        if (!exit.requested && exit.activeTurnId)
-            this.lifecycle(terminalId, launchId, {
-                phase: 'turnFailed',
-                agentTurnId: exit.activeTurnId,
-                agentFailure: 'provider_failed',
-            });
+        /**
+         * The projection already marked the running turn interrupted; end it for Session Activity too. A requested stop
+         * (Restart, close) ends the turn the way an interrupt does; an unrequested one is a provider failure.
+         */
+        if (exit.activeTurnId)
+            this.lifecycle(
+                terminalId,
+                launchId,
+                exit.requested
+                    ? { phase: 'turnFinished', agentTurnId: exit.activeTurnId }
+                    : {
+                          phase: 'turnFailed',
+                          agentTurnId: exit.activeTurnId,
+                          agentFailure: 'provider_failed',
+                      },
+            );
         state.session = undefined;
         state.launchId = undefined;
         this.options.coordinator.endTerminalLaunch(terminalId);
