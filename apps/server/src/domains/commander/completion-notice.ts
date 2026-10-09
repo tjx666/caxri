@@ -3,8 +3,9 @@ import { normalizeTerminalTitle } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { AgentLifecycleSignal } from '../agents';
+import type { AgentCoordinator, AgentLifecycleSignal } from '../agents';
 import type { CaxriDatabase } from '../db';
+import type { TerminalManager } from '../terminal';
 
 /**
  * How a delegation's terminal transition reads in the Commander Terminal. `needsInput` covers both a startup prompt
@@ -24,6 +25,12 @@ export interface CommanderCompletionNoticeEntry {
  * confirmed idle and on its current generation a moment earlier in the same synchronous call.
  */
 export type CommanderCompletionNoticeDeliveryFailure = 'rejected' | 'unconfirmed';
+
+/**
+ * Why pending notices were discarded without ever being written. Pending notices live only in Server Core memory, so a
+ * Server shutdown is the one path that loses them; logging it keeps "the Commander never heard back" answerable.
+ */
+type CommanderCompletionNoticeDropReason = 'server_shutdown';
 
 /**
  * Which delivery gate is holding the pending notices back. Logged once per change for the current batch, so a report
@@ -147,9 +154,10 @@ export interface CommanderCompletionNotifierOptions {
  * is not detectable.
  *
  * Pending notices live only in memory: a delegation transition consumed by a batch (see `tryFlush`) can never be sent
- * twice, but an undelivered batch does not survive a Codex relaunch or a Server restart. `commander board` and the
- * ledger the Commander keeps in its workspace are the compensation for that loss, exactly as they already are for the
- * pre-existing `agent delegate wait` / board-polling path this feature supplements.
+ * twice, and an undelivered batch waits through a Codex relaunch for the new launch's first clean turn, but it does not
+ * survive a Server restart (`close` logs what that discards). `commander board` and the ledger the Commander keeps in
+ * its workspace are the compensation for that loss, exactly as they already are for the pre-existing `agent delegate
+ * wait` / board-polling path this feature supplements.
  */
 export class CommanderCompletionNotifier {
     private readonly pending = new Map<string, CommanderCompletionNoticeEntry>();
@@ -176,6 +184,11 @@ export class CommanderCompletionNotifier {
      * The deferral last logged for the current batch, so each gate change is logged once rather than per signal.
      */
     private loggedDeferral: CommanderCompletionNoticeDeferral | undefined;
+    /**
+     * Finished Commander turns that could not take the current batch. The deferral is logged once per gate change, so
+     * without this count five consecutive turns held back by the same draft read as a single log line.
+     */
+    private blockedTurns = 0;
 
     constructor(private readonly options: CommanderCompletionNotifierOptions) {}
 
@@ -199,6 +212,16 @@ export class CommanderCompletionNotifier {
         return undefined;
     }
 
+    private oldestPendingWaitMs(): number {
+        return Math.round(performance.now() - (this.oldestPendingAt ?? performance.now()));
+    }
+
+    private resetBatch(): void {
+        this.oldestPendingAt = undefined;
+        this.loggedDeferral = undefined;
+        this.blockedTurns = 0;
+    }
+
     private reportDeliveryFailed(reason: CommanderCompletionNoticeDeliveryFailure): void {
         this.options.logger?.write(
             'warn',
@@ -212,16 +235,23 @@ export class CommanderCompletionNotifier {
      * is not satisfied yet: the ordinary path while the Commander is mid-turn, which resolves itself the next time a
      * turn settles or a new notice arrives. Each change of the holding gate is logged once per batch.
      */
-    private tryFlush(terminalId: string): void {
+    private tryFlush(terminalId: string, isTurnFinished = false): void {
         if (this.pending.size === 0) return;
         const deferral = this.deferral(terminalId);
         if (deferral) {
+            if (isTurnFinished) this.blockedTurns += 1;
             if (deferral !== this.loggedDeferral) {
                 this.loggedDeferral = deferral;
                 this.options.logger?.write(
                     'debug',
                     logEventCatalog.agentCommander.completionNoticeDeferred,
-                    { fields: { reason: deferral, pendingCount: this.pending.size } },
+                    {
+                        fields: {
+                            reason: deferral,
+                            pendingCount: this.pending.size,
+                            blockedTurns: this.blockedTurns,
+                        },
+                    },
                 );
             }
             return;
@@ -234,9 +264,9 @@ export class CommanderCompletionNotifier {
          * consume-before-send comment for the identical reason.
          */
         this.pending.clear();
-        const waitMs = Math.round(performance.now() - (this.oldestPendingAt ?? performance.now()));
-        this.oldestPendingAt = undefined;
-        this.loggedDeferral = undefined;
+        const waitMs = this.oldestPendingWaitMs();
+        const { blockedTurns } = this;
+        this.resetBatch();
         /**
          * Also consume the finished-turn identity this flush just proved idle against. The write below never bumps
          * `inputEpoch` and does not invalidate `hasIdleProof`, so without this a second delegation reaching this method
@@ -255,7 +285,7 @@ export class CommanderCompletionNotifier {
             this.options.logger?.write(
                 'info',
                 logEventCatalog.agentCommander.completionNoticeDelivered,
-                { fields: { count: entries.length, waitMs } },
+                { fields: { count: entries.length, waitMs, blockedTurns } },
             );
     }
 
@@ -276,7 +306,27 @@ export class CommanderCompletionNotifier {
         }
         if (signal.phase !== 'turnFinished' || !signal.agentTurnId) return;
         this.lastFinishedTurn = { launchId: signal.launchId, turnId: signal.agentTurnId };
-        this.tryFlush(signal.terminalId);
+        this.tryFlush(signal.terminalId, true);
+    }
+
+    /**
+     * Records the batch a Server shutdown discards. Nothing is retried: the pending notices exist only in this process,
+     * and the Commander recovers the same facts from `commander board` and its ledger after the restart.
+     */
+    close(): void {
+        if (this.pending.size === 0) return;
+        const reason: CommanderCompletionNoticeDropReason = 'server_shutdown';
+        this.options.logger?.write('info', logEventCatalog.agentCommander.completionNoticeDropped, {
+            fields: {
+                reason,
+                count: this.pending.size,
+                waitMs: this.oldestPendingWaitMs(),
+                blockedTurns: this.blockedTurns,
+                lastDeferral: this.loggedDeferral ?? null,
+            },
+        });
+        this.pending.clear();
+        this.resetBatch();
     }
 
     /**
@@ -284,13 +334,19 @@ export class CommanderCompletionNotifier {
      * (`receipt.callerTerminalId` is the Commander Terminal) into a Session it created is eligible; an external
      * delegation caller that happens to target a Commander Session is not this module's concern.
      */
-    notifyReceiptChanged(receipt: AgentDelegationReceipt): void {
+    notifyReceiptChanged(receipt: AgentDelegationReceipt, previous?: AgentDelegationReceipt): void {
         const rows = this.options.database.agentCommanderRows();
         if (!rows?.terminalId) return;
         if (receipt.callerTerminalId !== rows.terminalId) return;
         if (!rows.sessionIds.includes(receipt.sessionId)) return;
         const status = classifyCommanderCompletionNotice(receipt);
         if (!status) return;
+        /**
+         * A task that fails straight out of `requested` was refused at admission (`target_busy`, `target_not_ready`,
+         * ...) inside the very `agent delegate create` call the Commander is still waiting on, so the CLI already
+         * returned that failure. Pushing it again only queues a duplicate line behind the Commander's next turn.
+         */
+        if (status === 'failed' && previous?.status === 'requested') return;
         const notifiedRevision = this.notifiedRevisions.get(receipt.delegationId) ?? 0;
         if (receipt.revision <= notifiedRevision) return;
         this.notifiedRevisions.set(receipt.delegationId, receipt.revision);
@@ -310,4 +366,30 @@ export class CommanderCompletionNotifier {
         });
         this.tryFlush(rows.terminalId);
     }
+}
+
+/**
+ * Binds the notifier to the Server's coordinator and Terminal manager. `write` fixes `origin: 'delegation'` so the
+ * injected notice line itself never bumps the input epoch a later notice's own draft fence reads.
+ */
+export function createCommanderCompletionNotifier({
+    coordinator,
+    database,
+    logger,
+    terminals,
+}: {
+    coordinator: Pick<AgentCoordinator, 'hasIdleProof'>;
+    database: CommanderCompletionNotifierOptions['database'];
+    logger?: StructuredLogger;
+    terminals: Pick<TerminalManager, 'inputEpoch' | 'writeAgentExact'>;
+}): CommanderCompletionNotifier {
+    return new CommanderCompletionNotifier({
+        database,
+        hasIdleProof: (terminalId, launchId, turnId) =>
+            coordinator.hasIdleProof(terminalId, launchId, turnId),
+        inputEpoch: (terminalId) => terminals.inputEpoch(terminalId),
+        logger,
+        write: (terminalId, data, launchId, onDelivered) =>
+            terminals.writeAgentExact(terminalId, data, launchId, 'delegation', onDelivered),
+    });
 }

@@ -40,30 +40,29 @@ interface FoldOnOpenInput {
      */
     hasRememberedViewState: boolean;
     cursorLine: number;
-    cursorColumn: number;
 }
 
 /**
  * Whether a freshly opened document should be collapsed to its structure.
  *
  * Two guards keep this from fighting the user. A document this pane has shown before is restored, not refolded:
- * expanding a few regions and switching tabs would otherwise undo itself on every return. And a caret that is not at
- * the very start means something navigated here by line: a search hit, a Terminal `path:line` link, a breadcrumb jump.
- * Folding then would not merely hide the surrounding file, it would move the caret (Monaco pulls a selection that lands
- * inside a collapsed region back to that region's first line) so the jump the user asked for would silently land
- * somewhere else.
+ * expanding a few regions and switching tabs would otherwise undo itself on every return. And a caret below the first
+ * line means something navigated here by line: a search hit, a Terminal `path:line` link, a breadcrumb jump. Folding
+ * then would not merely hide the surrounding file, it would move the caret (Monaco pulls a selection that lands inside
+ * a collapsed region back to that region's first line) so the jump the user asked for would silently land somewhere
+ * else. Line 1 is the exception: no region can hide it, so a jump there (an Agent listing files as `path:1` selects the
+ * whole first line) still opens the file as its outline.
  */
 function shouldFoldOnOpen({
     lineCount,
     threshold,
     hasRememberedViewState,
     cursorLine,
-    cursorColumn,
 }: FoldOnOpenInput): boolean {
     if (threshold <= 0) return false;
     if (lineCount <= threshold) return false;
     if (hasRememberedViewState) return false;
-    return cursorLine === 1 && cursorColumn === 1;
+    return cursorLine === 1;
 }
 
 /**
@@ -97,7 +96,6 @@ export function foldEditorOnOpen(
         threshold,
         hasRememberedViewState: hasEditorViewState(editor, editorInstanceId),
         cursorLine: position.lineNumber,
-        cursorColumn: position.column,
     });
     if (!isFoldedOnOpen) return;
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see `foldIgnoringFailure`

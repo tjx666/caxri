@@ -293,6 +293,11 @@ const commanderDelegationDiagnosticSchema = z.object({
 const commanderCompletionNoticeDiagnosticSchema = z.object({
     deliveredBatches: z.number().int().nonnegative(),
     deliveredNotices: z.number().int().nonnegative(),
+    /**
+     * Notices discarded unsent, today only by a Server shutdown while the Commander had not yet reached a clean idle
+     * turn.
+     */
+    droppedNotices: z.number().int().nonnegative(),
     averageWaitMs: z.number().nonnegative().optional(),
     maximumWaitMs: z.number().nonnegative().optional(),
     deliveryFailures: z.object({

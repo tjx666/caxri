@@ -45,9 +45,9 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
      * service alone (a startup deadline, an asynchronous result collection, a rejected follow-up) with no Session or
      * Terminal record change beside them, yet the Agent Commander board shows both fields. Saves that only advance
      * internal bookkeeping (transcript offsets, input epochs, fencing marks) stay silent, so a busy collector does not
-     * flood the event journal.
+     * flood the event journal. `previous` is the stored receipt before this save, absent for a newly created task.
      */
-    onReceiptChanged?(receipt: AgentDelegationReceipt): void;
+    onReceiptChanged?(receipt: AgentDelegationReceipt, previous?: AgentDelegationReceipt): void;
     /**
      * The Agent Commander's own Sessions, for a `newSession` delegation. Optional so a unit test can omit the
      * Commander.

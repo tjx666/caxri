@@ -303,8 +303,13 @@ the Commander Terminal's current launch, so a Codex relaunch mid-flight cannot d
 one notice per settled transition, never two. The residual risk is the same in-flight-keystroke race
 every exact-launch write already accepts (a keystroke sent in the same event-loop turn as the write,
 before its epoch bump is observed). Pending notices live only in Server Core memory: an undelivered
-one does not survive a Codex relaunch or a Server restart, and `commander board` plus the delegation
-CLI reads are the compensation for that loss.
+one waits through a Codex relaunch for the new launch's first clean turn, but it does not survive a
+Server restart. The shutdown logs what it discards (`completion_notice_dropped`), and
+`commander board` plus the delegation CLI reads are the compensation for that loss.
+
+A follow-up or resume refused at admission (`target_busy`, `target_not_ready`, and the other
+rejections that fail a task straight out of `requested`) raises no notice: the refusal happens inside
+the `agent delegate create` call the Commander is still waiting on, so the CLI already returned it.
 
 ## Observability
 
@@ -323,7 +328,8 @@ they reconstruct a bug report without Terminal output or transcripts:
 | `agent_delegation.admission_rejected`          | Why a follow-up or resume was refused, as a closed reason.                                                                        |
 | `agent_commander.completion_notice_queued`     | A settled task was queued for the Commander Terminal, with the batch size (debug).                                                |
 | `agent_commander.completion_notice_deferred`   | Which gate holds the batch back (`commander_busy`, `draft_input`, `awaiting_permission`, ...), once per change (debug).           |
-| `agent_commander.completion_notice_delivered`  | The coalesced line was written, with its task count and how long the oldest entry waited.                                         |
+| `agent_commander.completion_notice_delivered`  | The coalesced line was written, with its task count, the oldest entry's wait, and the finished turns that could not take it.      |
+| `agent_commander.completion_notice_dropped`    | A Server shutdown discarded the pending batch: `count`, `waitMs`, `blockedTurns`, and the `lastDeferral` gate that held it.       |
 
 The delegation ID links them: the Commander's `agent delegate create` returns it, every transition
 and notice names it, and the `ipc.request` line of each `agent.delegation.*` call carries it as
@@ -334,8 +340,8 @@ command attaches it to a bug report: the Commander run `state`, its Terminal ID 
 Agent process states, the number of Commander Sessions, the 20 most recently updated tasks in those
 Sessions (`delegationId`, `status`, `failure`, `correlationFailure`, provider, whether the
 Commander sent it, and the time from admission to the latest transition), and completion notice
-delivery (batch and notice counts, average and maximum `waitMs`, and `rejected`/`unconfirmed`
-failures). Task fields are IDs, enums, and timestamps only, never the prompt, answer, or launch
+delivery (batch, delivered, and dropped notice counts, average and maximum `waitMs`, and
+`rejected`/`unconfirmed` failures). Task fields are IDs, enums, and timestamps only, never the prompt, answer, or launch
 input. Notice latency is aggregated from the retained `agent_commander.completion_notice_*` log
 lines, so it covers only what log rotation still keeps; the snapshot does not measure how long a
 notice waits before it is queued.

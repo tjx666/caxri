@@ -259,6 +259,12 @@ export const logEventCatalog = {
          * itself on the next idle point.
          */
         completionNoticeDeliveryFailed: 'agent_commander.completion_notice_delivery_failed',
+        /**
+         * Pending notices were discarded unsent. `fields.reason` is a closed `CommanderCompletionNoticeDropReason`
+         * (`server_shutdown`), with the discarded `count`, the oldest entry's `waitMs`, the `blockedTurns` that could
+         * not take the batch, and the `lastDeferral` gate that held it.
+         */
+        completionNoticeDropped: 'agent_commander.completion_notice_dropped',
         pageException: 'agent_commander.page_exception',
         preloadError: 'agent_commander.preload_error',
         renderProcessCrashLoop: 'agent_commander.render_process_crash_loop',

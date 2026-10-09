@@ -137,6 +137,18 @@ describe('Editor fold on open', () => {
         expect(mounted.foldAll).not.toHaveBeenCalled();
     });
 
+    /**
+     * An Agent listing files as `path:1` opens them with the whole first line selected. No region can hide line 1, so
+     * folding cannot move that caret and the file should still open as its outline.
+     */
+    it('still folds a document opened at its first line', () => {
+        const mounted = mountedEditor({ line: 1, column: 52 });
+
+        open(mounted);
+
+        expect(mounted.foldAll).toHaveBeenCalledOnce();
+    });
+
     it('opens the file unfolded when Monaco has no folding for the model', () => {
         const mounted = mountedEditor({ foldable: false });
 
