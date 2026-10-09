@@ -42,6 +42,7 @@ export {
 } from './title-generation';
 export type { DelegationTranscriptBatch } from './transcript';
 export {
+    isAgentConversationUnwritten,
     locateAgentTranscript,
     readAgentTranscript,
     readDelegationTranscript,

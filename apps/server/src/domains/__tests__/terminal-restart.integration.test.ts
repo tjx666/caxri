@@ -11,7 +11,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestDomainServices } from '../../__tests__/support/domain-services';
 import { createTestTerminalExecution } from '../../__tests__/support/terminal';
 import { CaxriDatabase } from '../db/repository';
-import { createFakePty, createPendingAgentAdapters } from './create-test-domain-services';
+import {
+    createFakePty,
+    createPendingAgentAdapters,
+    writeClaudeTranscript,
+} from './create-test-domain-services';
 
 const temporaryDirectories: string[] = [];
 
@@ -68,12 +72,16 @@ describe('Agent Terminal restart', () => {
                 provider,
                 sessionId,
             );
+            const homeDirectory = join(directory, 'home');
+            if (provider === 'claude')
+                await writeClaudeTranscript(homeDirectory, canonicalProjectRoot, sessionId);
             const createdActivityAt = created.session.lastSessionActivityAt;
             const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
             const logger = new StructuredLogger(join(directory, 'logs'));
             const execution = createTestTerminalExecution(logger, { spawn });
             const start = vi.spyOn(execution, 'start');
             const runtime = await createTestDomainServices({
+                agentEnvironment: { homeDirectory, variables: {} },
                 userDataPath,
                 logger,
                 send: () => {},
@@ -186,6 +194,56 @@ describe('Agent Terminal restart', () => {
                 lastProcessState: 'running',
                 lastAgentProcessState: 'running',
             });
+        } finally {
+            await runtime.close();
+        }
+    });
+
+    it('starts a Claude Code Agent fresh when its conversation was never written', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-claude-unwritten-restart-'));
+        temporaryDirectories.push(directory);
+        const userDataPath = join(directory, 'user-data');
+        const projectRoot = join(directory, 'project');
+        await Promise.all([mkdir(projectRoot), mkdir(userDataPath)]);
+        const created = seedStoppedAgentSession(
+            userDataPath,
+            await realpath(projectRoot),
+            'claude',
+            'claude-session-unwritten',
+        );
+        const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const execution = createTestTerminalExecution(logger, { spawn });
+        const start = vi.spyOn(execution, 'start');
+        const runtime = await createTestDomainServices({
+            agentEnvironment: { homeDirectory: join(directory, 'home'), variables: {} },
+            userDataPath,
+            logger,
+            send: () => {},
+            terminal: {
+                execution,
+                resolveExecutable: (kind) =>
+                    Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/usr/local/bin/claude'),
+            },
+            agentAdapters: createPendingAgentAdapters(),
+        });
+
+        try {
+            await runtime.handlers['terminal.restart']({
+                terminalId: created.terminal!.id,
+                mode: 'resume',
+            });
+
+            expect(start.mock.calls[0]?.[0]).toMatchObject({
+                agent: {
+                    provider: 'claude',
+                    args: [...defaultAgentProviderSettings.claude.launch.args],
+                },
+            });
+            const bootstrap = await runtime.handlers['app.bootstrap']({});
+            expect(
+                bootstrap.terminals.find((terminal) => terminal.id === created.terminal!.id),
+            ).toMatchObject({ agentSessionId: undefined, lastAgentProcessState: 'running' });
         } finally {
             await runtime.close();
         }
