@@ -93,7 +93,8 @@ record is the source of truth.
   holding the old snapshot sees a gap and re-reads instead of discarding new patches.
 - Bounds: 1,000 items, 64 KiB per message, 16 KiB of command output (the tail is kept), 64 KiB per
   diff, 1 MiB of diffs per file-change item, and a 4 MiB aggregate text budget. The budget also holds
-  while a reply streams. Older items are dropped first and `truncated` is set.
+  while a reply streams. Older items are dropped first and `truncated` is set. A diff cut by either
+  diff bound carries its own `truncated` flag, so the pane marks where it stops.
 - A Client that receives a patch while its own read is still in flight holds the patch (up to 200)
   and replays it once the read lands, instead of dropping it and re-reading again.
 - The stdio connection frames Codex output by bytes, rejects an oversized frame before parsing
@@ -112,8 +113,9 @@ several callbacks can share one item, so the transport id is never the key.
   questions take answers per question id. Skip answers a question with no answers, which Codex
   reads as "no answer"; any other decision for a question is rejected.
 - Approval cards show what is being approved: the command and its working directory (relative to the
-  Project, hidden at its root), the network host for a network approval, the files a file-change
-  approval would touch, and Codex's stated reason. Only the decisions Codex lists in
+  Project, hidden at its root), the network host for a network approval, the diff of every file a
+  file-change approval would touch (read from the file-change item the request gates), and Codex's
+  stated reason. Only the decisions Codex lists in
   `availableDecisions` are offered. Controls stay disabled while an answer is in flight.
 - An answered question leaves an `answered` notice in the timeline, so the transcript records what
   the user chose after the card disappears.
@@ -142,6 +144,18 @@ several callbacks can share one item, so the transport id is never the key.
 - A file path the Agent cites in inline code or a link (a `path:line` code span, or a link whose destination is a relative path with an optional `#L` anchor)
   opens in the editor through the same resolver and Project candidate picker as a Terminal file
   link.
+- A file change collapses to `N files changed` with its `+A -D` line totals. Expanded, and in a
+  file-change approval card, it lists one block per file: the Git status letter (`A`, `D`, `M`) in
+  the file's `--git-*` color, the Project-relative path, the file's line counts, and a disclosed
+  diff with old and new line numbers. Added and removed lines use the `--diff-stat-*` colors every
+  `+N -M` count uses, and a tall diff scrolls inside its own box. Codex sends an added or deleted
+  file's whole content rather than a patch, so those read as all-added or all-removed lines. A
+  diff Server Core cut ends with `Diff truncated`, and its counts cover only what is shown. File
+  blocks start expanded when the change touches at most three files in the timeline, or one file in
+  an approval card, so a wide change does not push the decision buttons away. A path opens the file
+  in the Editor when it exists at that point: an applied change keeps added files, a pending or
+  declined one keeps deleted files.
+  Parsing and counting live in `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-diff.ts`.
 
 ## Mobile
 
@@ -186,7 +200,7 @@ message text, command output, provider stderr, or protocol bodies.
 
 `apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts` is a
 deterministic stand-in for the app-server, selected by keywords in the user's message (approval,
-question, table, slow stream, failure, crash). Unit and integration tests drive it; no test launches the
+file-change approval, oversized diff, question, table, slow stream, failure, crash). Unit and integration tests drive it; no test launches the
 real CLI or calls a model.
 
 `bun run test:e2e:real-agent` is the manual, never-CI smoke against the real CLI (see the `e2e-testing` skill). Its

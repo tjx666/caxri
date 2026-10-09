@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 
+import type { Locator } from '@playwright/test';
+
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -47,6 +49,25 @@ import(${JSON.stringify(pathToFileURL(FAKE_APP_SERVER).href)});
     });
 }
 
+/**
+ * Waits until every expanded disclosure of one kind has finished its height transition, so a screenshot shows the
+ * opened content rather than the first frame of the animation.
+ */
+async function expectDisclosuresSettled(scope: Locator, kind: string): Promise<void> {
+    await expect
+        .poll(() =>
+            scope
+                .locator(`[data-disclosure="${kind}"][data-expanded="true"]`)
+                .evaluateAll((nodes) =>
+                    nodes.every(
+                        (node) =>
+                            Math.abs(node.getBoundingClientRect().height - node.scrollHeight) < 1,
+                    ),
+                ),
+        )
+        .toBe(true);
+}
+
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('a Codex Chat streams a reply, answers an approval and a question', async ({}, testInfo) => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-'));
@@ -56,6 +77,11 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
     await writeFile(
         join(root, 'src', 'app.ts'),
         'export const app = 1;\nexport const cited = 2;\n',
+    );
+    // The file the fake `patch` change updates, so its path can open in the Editor.
+    await writeFile(
+        join(root, 'src', 'greeting.ts'),
+        "export function greet(name: string) {\n    return 'Hello ' + name;\n}\n",
     );
     const agentMode = await fakeCodexAgentMode(directory, userData);
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
@@ -181,6 +207,60 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(
             chat.getByText('Hello from fake Codex. You said: from a new Session'),
         ).toBeVisible();
+
+        // A file-change approval previews each file's colored diff before Accept.
+        await message.fill('make a patch');
+        await message.press('Enter');
+        const fileApproval = chat.getByRole('region', { name: 'Apply these file changes?' });
+        await expect(fileApproval).toContainText('src/greeting.ts');
+        await expect(fileApproval).toContainText('docs/greeting.md');
+        await expect(fileApproval).toContainText('legacy.txt');
+        // Several files start as headers; the user opens the one to read.
+        await expect(fileApproval.locator('[data-diff-line]')).toHaveCount(0);
+        await fileApproval.getByRole('button', { name: 'Show diff: src/greeting.ts' }).click();
+        await expect(fileApproval.locator('[data-diff-line="added"]')).toHaveCount(2);
+        await expect(fileApproval.locator('[data-diff-line="removed"]')).toHaveCount(1);
+        await expect(fileApproval.getByText('return greeting;')).toBeVisible();
+        await expectDisclosuresSettled(fileApproval, 'agent-chat-file-change');
+        await expect(fileApproval.getByText('Diff truncated')).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-diff-approval.png') });
+        await fileApproval.getByRole('button', { name: 'Accept', exact: true }).click();
+        await expect(fileApproval).toHaveCount(0);
+        await expect(chat.getByText('The files were changed.')).toBeVisible();
+
+        // The timeline entry collapses to a file count and line totals, then lists each file's diff.
+        const changeRow = chat.getByRole('button', {
+            name: /3 files changed ?, 5 lines added, 2 removed$/u,
+        });
+        await expect(changeRow).toHaveAttribute('aria-expanded', 'false');
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-diff-collapsed.png') });
+        await changeRow.click();
+        await expect(chat.getByText('const greeting = `Hello, ${name}!`;')).toBeVisible();
+        await expect(chat.getByText('Call `greet(name)`.')).toBeVisible();
+        await expectDisclosuresSettled(chat, 'agent-chat-item');
+        await expectDisclosuresSettled(chat, 'agent-chat-file-change');
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-diff-expanded.png') });
+
+        // A diff Server Core cut says so where it stops.
+        await message.fill('write a bigdiff');
+        await message.press('Enter');
+        await expect(chat.getByText('Generated a large file.')).toBeVisible();
+        await chat.getByRole('button', { name: /1 file changed ?, / }).click();
+        // The header says so up front; the note at the cut is a scroll away in a long diff.
+        await expect(chat.getByText('Truncated', { exact: true })).toBeVisible();
+        await expectDisclosuresSettled(chat, 'agent-chat-item');
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-diff-truncated.png') });
+        const truncatedNote = chat.getByText('Diff truncated');
+        await truncatedNote.scrollIntoViewIfNeeded();
+        await expect(truncatedNote).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-diff-truncated-end.png') });
+
+        // An applied file's path opens it in the Editor.
+        await chat.getByRole('button', { name: 'Open src/greeting.ts in Editor' }).click();
+        await expect(page.getByRole('tab', { name: 'greeting.ts' })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

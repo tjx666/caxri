@@ -177,16 +177,15 @@ export function mapCodexItem(
                 changes: changes.slice(0, MAX_AGENT_CHAT_FILE_CHANGES).flatMap((change) => {
                     if (!isRecord(change)) return [];
                     const kind = isRecord(change.kind) ? change.kind.type : undefined;
-                    const diff = clip(
-                        text(change.diff),
-                        Math.min(MAX_AGENT_CHAT_DIFF_LENGTH, remaining),
-                    );
+                    const fullDiff = text(change.diff);
+                    const diff = clip(fullDiff, Math.min(MAX_AGENT_CHAT_DIFF_LENGTH, remaining));
                     remaining -= diff.length;
                     return [
                         {
                             path: clip(text(change.path), 4_096),
                             kind: kind === 'add' || kind === 'delete' ? kind : 'update',
                             diff,
+                            ...(diff.length < fullDiff.length && { truncated: true }),
                         },
                     ];
                 }),
