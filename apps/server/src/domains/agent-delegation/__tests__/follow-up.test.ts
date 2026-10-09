@@ -9,6 +9,7 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { AgentDispatchService } from '../../agent-dispatch';
 import { CaxriDatabase } from '../../db';
 import { AgentDelegationService } from '../service';
+import type { AgentDelegationServiceOptions } from '../service-options';
 
 const owner = { principal: { kind: 'human-cli', id: 'synthetic-owner' } } as const;
 const digest = (text: string) => createHash('sha256').update(text).digest('hex');
@@ -47,6 +48,7 @@ async function fixture(submissionTimeoutMs = 1000) {
         >);
     });
     const loggerWrite = vi.fn<StructuredLogger['write']>();
+    const receiptChanges = vi.fn<NonNullable<AgentDelegationServiceOptions['onReceiptChanged']>>();
     const service = new AgentDelegationService({
         database,
         dispatch: { start, resume },
@@ -60,6 +62,7 @@ async function fixture(submissionTimeoutMs = 1000) {
         isIdle: () => state.isIdle,
         write,
         submissionTimeoutMs,
+        onReceiptChanged: receiptChanges,
     });
     onTestFinished(async () => {
         service.close();
@@ -129,6 +132,7 @@ async function fixture(submissionTimeoutMs = 1000) {
     return {
         deliver,
         rejections,
+        receiptChanges,
         directory,
         database,
         terminal: terminal!,
@@ -487,6 +491,11 @@ describe('Visible same-Terminal follow-up', () => {
             'target_busy',
         );
         expect(f.write).toHaveBeenCalledTimes(1);
+        // The Commander's completion notice reads the prior status to skip a refusal the create call already returned.
+        expect(f.receiptChanges).toHaveBeenCalledWith(
+            expect.objectContaining({ status: 'failed', failure: 'target_busy' }),
+            expect.objectContaining({ status: 'requested' }),
+        );
     });
 
     it('reports missing submission confirmation without replaying the task', async () => {

@@ -310,6 +310,31 @@ describe('CommanderCompletionNotifier', () => {
         expect(f.writeCalls[1].data).not.toContain('d1');
     });
 
+    /**
+     * A follow-up refused at admission fails straight out of `requested` inside the `agent delegate create` call the
+     * Commander is still waiting on, so the CLI already returned that failure.
+     */
+    it('skips a failure the admission call already returned to the Commander', () => {
+        f.startTurn('launch-1');
+        f.notifier.notifyReceiptChanged(
+            receipt({ status: 'failed', failure: 'target_busy', revision: 2 }),
+            receipt({ status: 'requested', revision: 1 }),
+        );
+        f.finishTurn('launch-1', 'turn-1');
+        expect(f.writeCalls).toHaveLength(0);
+    });
+
+    it('still notifies a failure that settled after the task launched', () => {
+        f.startTurn('launch-1');
+        f.notifier.notifyReceiptChanged(
+            receipt({ status: 'failed', failure: 'rate_limited', revision: 5 }),
+            receipt({ status: 'running', revision: 4 }),
+        );
+        f.finishTurn('launch-1', 'turn-1');
+        expect(f.writeCalls).toHaveLength(1);
+        expect(f.writeCalls[0].data).toContain('failed');
+    });
+
     it('ignores a receipt the Commander did not delegate itself', () => {
         f.startTurn('launch-1');
         f.notifier.notifyReceiptChanged(
@@ -409,7 +434,59 @@ describe('CommanderCompletionNotifier', () => {
         notifier.onLifecycleApplied(signal({ phase: 'turnStarted' }));
         notifier.onLifecycleApplied(signal({ phase: 'turnFinished', agentTurnId: 'turn-2' }));
         expect(fieldsOf('completion_notice_delivered')).toEqual([
-            { count: 1, waitMs: fieldsOf('completion_notice_delivered')[0].waitMs },
+            {
+                count: 1,
+                waitMs: fieldsOf('completion_notice_delivered')[0].waitMs,
+                blockedTurns: 1,
+            },
         ]);
+    });
+
+    /**
+     * Pending notices exist only in Server Core memory. A shutdown that discards them has to say so, with how long the
+     * batch waited and how many Commander turns could not take it, or the loss is invisible after the fact.
+     */
+    it('logs the batch a Server shutdown discards with the turns that could not take it', () => {
+        const logger = { write: vi.fn() };
+        let epoch = 0;
+        const notifier = new CommanderCompletionNotifier({
+            database: {
+                agentCommanderRows: () => ({
+                    terminalId: COMMANDER_TERMINAL_ID,
+                    sessionIds: ['session-1'],
+                    projectId: 'commander-project',
+                    sessionId: 'commander-session',
+                }),
+                getSession: () => session(),
+            },
+            hasIdleProof: () => true,
+            inputEpoch: () => epoch,
+            logger: logger as never,
+            write: () => true,
+        });
+        notifier.onLifecycleApplied(signal({ phase: 'turnStarted' }));
+        notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
+        for (const turnId of ['turn-1', 'turn-2']) {
+            notifier.onLifecycleApplied(signal({ phase: 'turnStarted' }));
+            epoch += 1;
+            notifier.onLifecycleApplied(signal({ phase: 'turnFinished', agentTurnId: turnId }));
+        }
+
+        notifier.close();
+        notifier.close();
+
+        const dropped = logger.write.mock.calls.filter((call) =>
+            String(call[1]).endsWith('completion_notice_dropped'),
+        );
+        expect(dropped).toHaveLength(1);
+        expect(dropped[0][2]).toEqual({
+            fields: {
+                reason: 'server_shutdown',
+                count: 1,
+                waitMs: expect.any(Number) as number,
+                blockedTurns: 2,
+                lastDeferral: 'draft_input',
+            },
+        });
     });
 });

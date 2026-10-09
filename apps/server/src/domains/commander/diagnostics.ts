@@ -13,6 +13,7 @@ function finiteNonNegative(value: unknown): number | undefined {
 interface CompletionNoticeTally {
     deliveredBatches: number;
     deliveredNotices: number;
+    droppedNotices: number;
     deliveryFailures: { rejected: number; unconfirmed: number };
     maximumWaitMs: number | undefined;
     totalWaitMs: number;
@@ -33,6 +34,8 @@ function tallyCompletionNoticeLine(line: string, tally: CompletionNoticeTally): 
                 tally.totalWaitMs += waitMs;
                 tally.maximumWaitMs = Math.max(tally.maximumWaitMs ?? 0, waitMs);
             }
+        } else if (record.event === logEventCatalog.agentCommander.completionNoticeDropped) {
+            tally.droppedNotices += finiteNonNegative(fields.count) ?? 0;
         } else if (
             record.event === logEventCatalog.agentCommander.completionNoticeDeliveryFailed &&
             (fields.reason === 'rejected' || fields.reason === 'unconfirmed')
@@ -52,6 +55,7 @@ function summarizeCommanderCompletionNotices(logs: readonly string[]): Completio
     const tally: CompletionNoticeTally = {
         deliveredBatches: 0,
         deliveredNotices: 0,
+        droppedNotices: 0,
         deliveryFailures: { rejected: 0, unconfirmed: 0 },
         maximumWaitMs: undefined,
         totalWaitMs: 0,
@@ -65,6 +69,7 @@ function summarizeCommanderCompletionNotices(logs: readonly string[]): Completio
     return {
         deliveredBatches: tally.deliveredBatches,
         deliveredNotices: tally.deliveredNotices,
+        droppedNotices: tally.droppedNotices,
         ...(tally.deliveredBatches > 0 && {
             averageWaitMs: Math.round((tally.totalWaitMs / tally.deliveredBatches) * 100) / 100,
         }),
