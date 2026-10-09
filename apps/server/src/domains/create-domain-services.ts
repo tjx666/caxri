@@ -260,11 +260,13 @@ export async function createDomainServices(
             refreshWatchSessionInBackground(files, git, logger, sessionId);
         }
     });
+    const countRunning = (sessionId?: string): number =>
+        terminals.runningCount(sessionId) + agentChat.liveCount(sessionId);
     const diagnostics = new DiagnosticsService(
         database,
         logger,
         () => configuration.getSettings().value,
-        () => terminals.runningCount(),
+        () => countRunning(),
         startedAt,
         () => watchHub.snapshot(),
     );
@@ -485,10 +487,7 @@ export async function createDomainServices(
             ready: true,
             pid,
             startedAt,
-            /**
-             * Live Chat provider processes count as busy work so idle exit and `server.stop` treat them like PTYs.
-             */
-            activePtyCount: terminals.runningCount() + agentChat.liveCount(),
+            activePtyCount: countRunning(),
         }),
         ...createAgentChatHandlers(agentChat),
         ...createWindowStateHandlers(database),
@@ -663,6 +662,7 @@ export async function createDomainServices(
             restartChat: (terminalId) => agentChat.restart(terminalId),
         }),
         ...createTerminalHandlers({
+            countRunning,
             database,
             resourceMonitor: terminalResourceMonitor,
             terminals,
