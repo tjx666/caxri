@@ -64,7 +64,7 @@ export async function resumableAgentSessionId(
         logger: StructuredLogger;
     },
     terminal: TerminalRecord,
-    source: 'restart' | 'restore',
+    source: 'restart' | 'restore' | 'surfaceSwitch',
 ): Promise<string | undefined> {
     if (!terminal.provider || !terminal.agentSessionId) return undefined;
     if (

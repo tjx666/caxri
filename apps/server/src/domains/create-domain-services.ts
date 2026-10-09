@@ -58,7 +58,7 @@ import {
 } from './terminal-input';
 import { createLifecycleEnvironment } from './terminal-lifecycle-environment';
 import { createTerminalMoveHandler } from './terminal-move';
-import { createTerminalRestartHandler } from './terminal-restart';
+import { createRelaunchHandlers } from './terminal-relaunch';
 import {
     createCommanderTerminalRestorer,
     createInterruptedTerminalRestorer,
@@ -620,10 +620,7 @@ export async function createDomainServices(
                 sendFullStateChange('terminal.close');
                 return null;
             }),
-        'terminal.restart': createTerminalRestartHandler({
-            ...restorerOptions,
-            restartChat: (terminalId) => agentChat.restart(terminalId),
-        }),
+        ...createRelaunchHandlers({ ...restorerOptions, agentChat, mobileTerminalMutations }),
         ...createTerminalHandlers({
             countRunning,
             database,

@@ -12,6 +12,7 @@ import type { TerminalExecutionPort } from './execution-port';
 export type TerminalLifecycleCause =
     | 'hostRestart'
     | 'terminalRestart'
+    | 'surfaceSwitched'
     | 'idleSuspended'
     | 'untouchedSuspended'
     | 'sessionArchived'

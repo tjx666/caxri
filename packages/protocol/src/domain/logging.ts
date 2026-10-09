@@ -448,6 +448,11 @@ export const logEventCatalog = {
         resumeSkipped: 'terminal.resume_skipped',
         suspendFailed: 'terminal.suspend_failed',
         suspended: 'terminal.suspended',
+        /**
+         * One `terminal.switchSurface` request: the closed `outcome` (`switched`, `turnRunning`, `unbound`, `failed`),
+         * both surfaces, the provider, whether a running turn was interrupted, and the duration.
+         */
+        surfaceSwitched: 'terminal.surface_switched',
     },
     terminalHost: {
         attachFailed: 'terminal_host.attach_failed',
