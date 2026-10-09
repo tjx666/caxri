@@ -112,6 +112,33 @@ describe('Agent Chat reducer', () => {
         expect(large.truncated).toBe(true);
     });
 
+    it('holds the aggregate budget while a reply streams', () => {
+        let snapshot = empty();
+        const count = Math.floor(MAX_AGENT_CHAT_TOTAL_TEXT_LENGTH / MAX_AGENT_CHAT_TEXT_LENGTH);
+        for (let index = 0; index < count; index += 1)
+            snapshot = applyAgentChatOperation(snapshot, {
+                op: 'upsertItem',
+                item: {
+                    id: `m${index}`,
+                    type: 'userMessage',
+                    text: 'y'.repeat(MAX_AGENT_CHAT_TEXT_LENGTH),
+                },
+            });
+        snapshot = applyAgentChatOperation(snapshot, {
+            op: 'upsertItem',
+            item: { id: 'live', type: 'agentMessage', text: '', streaming: true },
+        });
+        expect(snapshot.truncated).toBe(false);
+        snapshot = applyAgentChatOperation(snapshot, {
+            op: 'appendText',
+            itemId: 'live',
+            delta: 'z'.repeat(1024),
+        });
+        expect(snapshot.items[0]?.id).toBe('m1');
+        expect(snapshot.items.at(-1)?.id).toBe('live');
+        expect(snapshot.truncated).toBe(true);
+    });
+
     it('clears optional state with null and resets everything but the revision', () => {
         let snapshot: AgentChatSnapshot = { ...empty(), revision: 4 };
         snapshot = applyAgentChatOperation(snapshot, {
