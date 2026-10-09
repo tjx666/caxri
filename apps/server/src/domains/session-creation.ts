@@ -1,5 +1,5 @@
-import type { TerminalKind } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import type { TerminalKind, TerminalRecord, TerminalSurface } from '@caxri/protocol';
+import { canUseAgentChat, CaxriError } from '@caxri/protocol';
 
 import type { AgentCoordinator } from './agents';
 import type { CaxriDatabase } from './db';
@@ -12,6 +12,10 @@ export function createSessionCreator(dependencies: {
     database: CaxriDatabase;
     observeSelectedSession: (sessionId: string) => void;
     sendFullStateChange: () => void;
+    /**
+     * Starts the provider behind a new Chat Terminal. A Chat has no PTY for `terminals.start` to launch.
+     */
+    startChat: (terminalId: string) => void;
     terminalSuspension: Pick<TerminalSuspensionService, 'observeSelection'>;
     terminalWorkingDirectory: (options: {
         authorizedRoots: readonly string[];
@@ -24,17 +28,41 @@ export function createSessionCreator(dependencies: {
         database,
         observeSelectedSession,
         sendFullStateChange,
+        startChat,
         terminalSuspension,
         terminalWorkingDirectory,
         terminals,
     } = dependencies;
+    /**
+     * A Chat Session is an empty Session plus a Chat Terminal, the same records `terminal.create` writes when a Chat is
+     * added to an existing Session, so both paths place and assign the Terminal identically.
+     */
+    const createChatSession = (
+        projectId: string,
+        kind: TerminalKind,
+        cwd: string,
+        selection: 'select' | 'preserve',
+    ): {
+        session: ReturnType<CaxriDatabase['createSession']>['session'];
+        terminal: TerminalRecord;
+    } => {
+        const { session } = database.createSession(projectId, null, undefined, { selection });
+        const terminal = database.createTerminal(session.id, kind, cwd, 'chat');
+        startChat(terminal.id);
+        return { session, terminal };
+    };
     return async (
         projectId: string,
         defaultAgent: TerminalKind | null,
         selection: 'select' | 'preserve',
         signal?: AbortSignal,
+        surface: TerminalSurface = 'pty',
     ) => {
         if (signal?.aborted) throw new CaxriError('CANCELLED', 'Session creation was canceled');
+        const chatAgent = surface === 'chat' ? defaultAgent : null;
+        // Checked before anything is written, so a refused Chat never leaves an empty Session behind.
+        if (surface === 'chat' && (!chatAgent || !canUseAgentChat(chatAgent)))
+            throw new CaxriError('VALIDATION', 'This Agent does not support Chat');
         const project = database.getProject(projectId);
         if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
         const cwd = defaultAgent
@@ -47,9 +75,11 @@ export function createSessionCreator(dependencies: {
          * The final cancellation check is adjacent to the synchronous durable creation transaction.
          */
         if (signal?.aborted) throw new CaxriError('CANCELLED', 'Session creation was canceled');
-        const created = database.createSession(projectId, defaultAgent, cwd, { selection });
+        const created = chatAgent
+            ? createChatSession(projectId, chatAgent, cwd!, selection)
+            : database.createSession(projectId, defaultAgent, cwd, { selection });
         let launchError: { code: 'TERMINAL_START_FAILED'; message: string } | undefined;
-        if (created.terminal) {
+        if (!chatAgent && created.terminal) {
             let expectedWorkingDirectory:
                 Awaited<ReturnType<typeof terminalDirectoryIdentity>> | undefined;
             if (selection === 'select') {

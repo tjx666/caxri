@@ -5,7 +5,7 @@ import { Plus } from 'lucide-react';
 
 import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
-import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../components/ui/menu';
+import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/menu';
 import {
     SplitButton,
     SplitButtonAction,
@@ -14,9 +14,11 @@ import {
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useSettings, useTerminals } from '../../stores/selectors';
+import { ChatSurfaceMarker, OpenInChatMenuItem } from '../session/open-in-chat-menu-item';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import {
+    newAgentSurface,
     newTerminalAgentChoices,
     resolveNewTerminalAgent,
     resolveNewTerminalTarget,
@@ -50,10 +52,12 @@ export function NewTerminalButton({
     const session = usePaneViewSession();
     const terminals = useTerminals();
     const primaryTerminal = session ? sessionAgentTerminal(session, terminals) : undefined;
-    const defaultAgent = resolveNewTerminalAgent(useSettings()?.['session.defaultAgent']);
+    const settings = useSettings();
+    const defaultAgent = resolveNewTerminalAgent(settings?.['session.defaultAgent']);
+    const openInChat = settings?.['session.openAgentsInChat'];
     const isIcon = appearance === 'icon';
     const [iconMenuOpen, setIconMenuOpen] = useState(false);
-    const create = (kind: TerminalKind, surface: TerminalSurface = 'pty'): void => {
+    const create = (kind: TerminalKind, surface: TerminalSurface): void => {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
         void createTerminal(kind, {
             ...(paneId && { paneId }),
@@ -67,17 +71,19 @@ export function NewTerminalButton({
      */
     const menu = (
         <MenuContent align="end">
-            {newTerminalAgentChoices(defaultAgent).map(({ isDefault, kind, surface }) => (
-                <MenuItem key={`${kind}:${surface}`} onClick={() => create(kind, surface)}>
-                    <AgentIdentityIcon identity={kind} size={14} />
-                    <span className="flex-1 truncate">
-                        {resolveAgentIcon(kind).label}
-                        {surface === 'chat' && ' (Chat)'}
-                    </span>
-                    {/* A text twin rather than a color or a check glyph: the marker has to survive a screen reader. */}
-                    {isDefault && <span className="text-muted">Default</span>}
-                </MenuItem>
-            ))}
+            {newTerminalAgentChoices(defaultAgent, openInChat).map(
+                ({ isDefault, kind, surface }) => (
+                    <MenuItem key={kind} onClick={() => create(kind, surface)}>
+                        <AgentIdentityIcon identity={kind} size={14} />
+                        <span className="flex-1 truncate">{resolveAgentIcon(kind).label}</span>
+                        {surface === 'chat' && <ChatSurfaceMarker />}
+                        {/* A text twin rather than a color or a check glyph: the marker has to survive a screen reader. */}
+                        {isDefault && <span className="text-muted">Default</span>}
+                    </MenuItem>
+                ),
+            )}
+            <MenuSeparator />
+            <OpenInChatMenuItem />
         </MenuContent>
     );
 
@@ -85,7 +91,7 @@ export function NewTerminalButton({
         // Fix #1292: a click clones the Session's own primary Agent before falling back to the configured default,
         // so the tab strip keeps a live conversation going instead of always asking or always following a possibly
         // stale setting. See `resolveNewTerminalTarget`.
-        const target = resolveNewTerminalTarget(primaryTerminal, defaultAgent);
+        const target = resolveNewTerminalTarget(primaryTerminal, defaultAgent, openInChat);
         if (target) {
             const icon = (
                 <MenuTrigger
@@ -170,10 +176,11 @@ export function NewTerminalButton({
      * Names what this button will actually create. The labelled leading half never shows the list once a default is
      * configured, so "New Terminal" alone would leave a screen reader user guessing which Agent starts.
      */
+    const defaultSurface = newAgentSurface(defaultAgent, openInChat);
     const action = (
         <SplitButtonAction
-            aria-label={`New Terminal (${resolveAgentIcon(defaultAgent).label})`}
-            onClick={() => create(defaultAgent)}
+            aria-label={`New Terminal (${resolveAgentIcon(defaultAgent).label}${defaultSurface === 'chat' ? ' Chat' : ''})`}
+            onClick={() => create(defaultAgent, defaultSurface)}
             size="default"
             variant="default"
         >

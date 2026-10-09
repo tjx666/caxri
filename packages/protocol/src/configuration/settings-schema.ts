@@ -156,6 +156,7 @@ export const appSettingsSchema = z.object({
         .enum(enumValues(spec['session.defaultAgent'].options))
         .nullable()
         .default(spec['session.defaultAgent'].default),
+    'session.openAgentsInChat': booleanField(spec['session.openAgentsInChat']),
     'workbench.newWorktreeBehavior': z
         .enum(enumValues(spec['workbench.newWorktreeBehavior'].options))
         .default(spec['workbench.newWorktreeBehavior'].default),
