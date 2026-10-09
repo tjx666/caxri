@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 
+import { openExternalUrl } from '../lib/external-link';
 import { cn } from '../lib/utilities';
+import { pushToast } from '../stores/toasts';
 
 interface StructuredTooltipRow {
     label: string;
@@ -9,6 +11,15 @@ interface StructuredTooltipRow {
      * Paths and addresses: monospace, and allowed to break anywhere because they have no word boundaries to wait for.
      */
     isCode?: boolean;
+}
+
+/**
+ * One sibling subject the tooltip names. `href` makes it a link; without one it stays plain text, so a reference the
+ * provider never resolved is still listed without pretending it can be opened.
+ */
+interface StructuredTooltipLink {
+    label: string;
+    href?: string;
 }
 
 /**
@@ -32,6 +43,12 @@ export interface StructuredTooltipData {
      */
     notes?: readonly string[];
     /**
+     * A muted `label: a, b` line naming sibling subjects the trigger could not show. Its linked items are only
+     * reachable when the host renders this inside a hover card rather than the non-interactive Tooltip, which closes as
+     * soon as the pointer leaves the trigger.
+     */
+    links?: { label: string; items: readonly StructuredTooltipLink[] };
+    /**
      * What clicking does, set apart at the bottom so it never reads as part of the state. A row with modifier gestures
      * lists one per line.
      */
@@ -47,6 +64,7 @@ export function StructuredTooltip({
     details,
     eyebrow,
     hint,
+    links,
     notes,
     rows,
     title,
@@ -78,6 +96,21 @@ export function StructuredTooltip({
                     {note}
                 </span>
             ))}
+            {links && links.items.length > 0 && (
+                <span className="text-[11px] leading-[1.45] text-muted">
+                    {links.label}:{' '}
+                    {links.items.map((item, index) => (
+                        <span key={item.label}>
+                            {index > 0 && ', '}
+                            {item.href ? (
+                                <StructuredTooltipAnchor href={item.href} label={item.label} />
+                            ) : (
+                                item.label
+                            )}
+                        </span>
+                    ))}
+                </span>
+            )}
             {hints.length > 0 && (
                 <span className="mt-0.5 flex flex-col text-[11px] text-muted">
                     {hints.map((line) => (
@@ -86,5 +119,23 @@ export function StructuredTooltip({
                 </span>
             )}
         </span>
+    );
+}
+
+function StructuredTooltipAnchor({ href, label }: { href: string; label: string }) {
+    return (
+        <a
+            className="cursor-pointer text-accent no-underline underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
+            href={href}
+            rel="noreferrer"
+            onClick={(event) => {
+                // Main denies every window navigation, so the anchor is semantic only; `external.open` navigates.
+                event.preventDefault();
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, openExternalUrl reports its own failure
+                void openExternalUrl(href, (message) => pushToast('error', message));
+            }}
+        >
+            {label}
+        </a>
     );
 }

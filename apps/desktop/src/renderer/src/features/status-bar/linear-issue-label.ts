@@ -36,6 +36,15 @@ export function linearIssueAriaLabel(
 }
 
 /**
+ * Whether the hover card lists another issue it can open, which needs a card the pointer can enter.
+ */
+export function hasOpenableLinearIssue(
+    extra: readonly ProjectStatusOverviewLinearIssue[],
+): boolean {
+    return extra.some((other) => other.url);
+}
+
+/**
  * The hover tooltip's content. Kept as data rather than JSX so the wording stays unit-testable; `StructuredTooltip`
  * decides the hierarchy.
  */
@@ -47,12 +56,19 @@ export function linearIssueTooltip(
         eyebrow: issue.title ? issue.identifier : undefined,
         title: issue.title ?? issue.identifier,
         details: issue.state ? [issue.state] : [],
-        notes: [
-            linearIssueSourceLabel(issue.source),
+        notes: [linearIssueSourceLabel(issue.source)],
+        links:
             extra.length > 0
-                ? `Also referenced: ${extra.map((other) => other.identifier).join(', ')}`
+                ? {
+                      label: 'Also referenced',
+                      items: extra.map((other) => ({ label: other.identifier, href: other.url })),
+                  }
                 : undefined,
-        ].filter((line): line is string => Boolean(line)),
-        hint: issue.url ? 'Click to open in Linear' : undefined,
+        // With other issues listed, "open in Linear" alone no longer says which one the chip itself opens.
+        hint: issue.url
+            ? extra.length > 0
+                ? `Click to open ${issue.identifier} in Linear`
+                : 'Click to open in Linear'
+            : undefined,
     };
 }
