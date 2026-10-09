@@ -65,6 +65,84 @@ describe('MobileGatewaySubscriptions', () => {
         subscriptions.close();
     });
 
+    it('forwards only the subscribed Chat patches, shortened for the phone', async () => {
+        const sent: MobileServerPayload[] = [];
+        const subscriptions = new MobileGatewaySubscriptions({
+            authorize: async () => {},
+            currentPrincipal: () => principal,
+            matches: async () => true,
+            randomId: () => 'chat-subscription',
+            send: async (payload) => {
+                sent.push(payload);
+            },
+            terminate: vi.fn(),
+            connectionId: 'connection-1',
+        });
+        const id = await subscriptions.subscribe({ kind: 'agentChat', terminalId: 'terminal-1' });
+        const patch = (terminalId: string, revision: number) => ({
+            event: 'agentChat.patch' as const,
+            payload: {
+                terminalId,
+                baseRevision: revision - 1,
+                revision,
+                operations: [
+                    {
+                        op: 'upsertItem' as const,
+                        item: {
+                            id: `item-${revision}`,
+                            type: 'agentMessage' as const,
+                            text: 'x'.repeat(10_000),
+                            streaming: false,
+                        },
+                    },
+                ],
+            },
+        });
+        // Not activated yet: the phone has not installed its read, so nothing is sent.
+        subscriptions.publish(patch('terminal-1', 1));
+        subscriptions.activate(id);
+        subscriptions.publish(patch('terminal-other', 2));
+        subscriptions.publish(patch('terminal-1', 2));
+        await vi.waitFor(() => expect(sent).toHaveLength(1));
+        const [event] = sent as Array<Extract<MobileServerPayload, { kind: 'agentChat.patch' }>>;
+        expect(event).toMatchObject({ kind: 'agentChat.patch', sequence: 0, subscriptionId: id });
+        const forwarded = event.patch as { operations: Array<{ item: { text: string } }> };
+        expect(forwarded.operations[0]?.item.text.length).toBeLessThan(10_000);
+        subscriptions.close();
+    });
+
+    it('asks the phone to re-read when a Chat patch cannot fit one frame', async () => {
+        const sent: MobileServerPayload[] = [];
+        const subscriptions = new MobileGatewaySubscriptions({
+            authorize: async () => {},
+            currentPrincipal: () => principal,
+            matches: async () => true,
+            randomId: () => 'chat-subscription',
+            send: async (payload) => {
+                sent.push(payload);
+            },
+            terminate: vi.fn(),
+            connectionId: 'connection-1',
+        });
+        const id = await subscriptions.subscribe({ kind: 'agentChat', terminalId: 'terminal-1' });
+        subscriptions.activate(id);
+        subscriptions.publish({
+            event: 'agentChat.patch',
+            payload: {
+                terminalId: 'terminal-1',
+                baseRevision: 0,
+                revision: 1,
+                operations: [{ op: 'appendText', itemId: 'item-1', delta: 'y'.repeat(60_000) }],
+            },
+        });
+        await vi.waitFor(() =>
+            expect(sent).toEqual([
+                { type: 'event', subscriptionId: id, sequence: 0, kind: 'agentChat.changed' },
+            ]),
+        );
+        subscriptions.close();
+    });
+
     it('streams a normal 256 KiB Host batch without a capacity resync', async () => {
         const sent: MobileServerPayload[] = [];
         const execution = port();

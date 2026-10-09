@@ -5,7 +5,7 @@ import type {
 } from '@caxri/mobile-transport';
 import { MOBILE_GATEWAY_MAX_WIRE_BYTES } from '@caxri/mobile-transport';
 import type { Principal, ServerEvent } from '@caxri/protocol';
-import { assertNever, CaxriError } from '@caxri/protocol';
+import { assertNever, CaxriError, clipAgentChatPatchForMobile } from '@caxri/protocol';
 
 import type { TerminalExecutionPort, TerminalObserverEvent } from '../../../domains/terminal';
 import type { MobileTerminalResyncReason } from './diagnostics';
@@ -31,6 +31,19 @@ interface Subscription {
 }
 
 type PushPayload = MobileEventPayload;
+
+/**
+ * What one queued event will send, decided when it is queued so its byte cost is known up front.
+ */
+type QueuedBody =
+    | {
+          kind:
+              | 'dashboard.changed'
+              | 'conversation.changed'
+              | 'changes.changed'
+              | 'agentChat.changed';
+      }
+    | { kind: 'agentChat.patch'; patch: unknown };
 
 export interface MobileSubscriptionOptions {
     authorize: (principal: Principal, resource: MobileSubscriptionResource) => Promise<void>;
@@ -232,17 +245,32 @@ export class MobileGatewaySubscriptions {
         switch (resource.kind) {
             case 'dashboard': {
                 if (event.event === 'state.changed')
-                    this.#queue(subscription, event, 'dashboard.changed');
+                    this.#queue(subscription, event, { kind: 'dashboard.changed' });
                 break;
             }
             case 'conversation': {
                 if (subscription.activated && event.event === 'agentTranscript.changed')
-                    this.#queue(subscription, event, 'conversation.changed');
+                    this.#queue(subscription, event, { kind: 'conversation.changed' });
                 break;
             }
             case 'changes': {
                 if (subscription.activated && changedSessionIds?.has(resource.sessionId))
-                    this.#queue(subscription, event, 'changes.changed');
+                    this.#queue(subscription, event, { kind: 'changes.changed' });
+                break;
+            }
+            case 'agentChat': {
+                if (
+                    subscription.activated &&
+                    event.event === 'agentChat.patch' &&
+                    event.payload.terminalId === resource.terminalId
+                ) {
+                    const patch = clipAgentChatPatchForMobile(event.payload);
+                    this.#queue(
+                        subscription,
+                        event,
+                        patch ? { kind: 'agentChat.patch', patch } : { kind: 'agentChat.changed' },
+                    );
+                }
                 break;
             }
             case 'terminal': {
@@ -271,9 +299,9 @@ export class MobileGatewaySubscriptions {
         this.#pendingBytes -= bytes;
     }
 
-    #queue(subscription: Subscription, event: ServerEvent, kindOrChunk: string): void {
+    #queue(subscription: Subscription, event: ServerEvent, body: QueuedBody): void {
         if (!this.#isActive(subscription)) return;
-        const estimatedBytes = kindOrChunk.length + 256;
+        const estimatedBytes = JSON.stringify(body).length + 256;
         if (
             subscription.pendingFrames >= MAXIMUM_PENDING_FRAMES ||
             subscription.pendingBytes + estimatedBytes > MAXIMUM_PENDING_BYTES ||
@@ -289,7 +317,7 @@ export class MobileGatewaySubscriptions {
             subscription.tail,
             subscription,
             event,
-            kindOrChunk,
+            body,
             estimatedBytes,
         );
     }
@@ -298,7 +326,7 @@ export class MobileGatewaySubscriptions {
         previous: Promise<void>,
         subscription: Subscription,
         event: ServerEvent,
-        kindOrChunk: string,
+        body: QueuedBody,
         estimatedBytes: number,
     ): Promise<void> {
         try {
@@ -312,8 +340,7 @@ export class MobileGatewaySubscriptions {
                 type: 'event',
                 subscriptionId: subscription.id,
                 sequence,
-                kind: kindOrChunk as
-                    'dashboard.changed' | 'conversation.changed' | 'changes.changed',
+                ...body,
             };
             await this.#options.send(payload);
         } catch {

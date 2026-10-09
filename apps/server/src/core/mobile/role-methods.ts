@@ -21,6 +21,7 @@ const mobileEveryRoleMethods = [
 const mobileGatewayMethodsByRole = {
     view: [
         'mobile.dashboard',
+        'mobile.agentChat.read',
         'mobile.session.show',
         'mobile.timeline.read',
         'mobile.changes.list',
@@ -33,6 +34,12 @@ const mobileGatewayMethodsByRole = {
     ],
     reply: [
         'mobile.dashboard',
+        'mobile.agentChat.read',
+        /**
+         * Sending is a reply device's whole job; Retry only resumes a failed Chat so that reply can be delivered.
+         */
+        'mobile.agentChat.send',
+        'mobile.agentChat.retry',
         'mobile.session.show',
         'mobile.timeline.read',
         'mobile.changes.list',
@@ -48,6 +55,14 @@ const mobileGatewayMethodsByRole = {
     ],
     control: [
         'mobile.dashboard',
+        'mobile.agentChat.read',
+        'mobile.agentChat.send',
+        'mobile.agentChat.retry',
+        /**
+         * Approvals, answers, and Stop match `mobile.attention.answer` and `agent.control.interrupt`: control only.
+         */
+        'mobile.agentChat.respond',
+        'mobile.agentChat.interrupt',
         'mobile.session.show',
         'mobile.timeline.read',
         'mobile.changes.list',

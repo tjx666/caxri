@@ -3,6 +3,8 @@ import { Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import type { MobileTheme } from '../../../theme/tokens';
+import { AgentChatView } from '../../agent-chat/agent-chat-view';
+import type { AgentChatController } from '../../agent-chat/use-agent-chat';
 import { AttentionCards } from '../../conversation/attention-cards';
 import { ConversationView } from '../../conversation/conversation-view';
 import type { useConversationTimeline } from '../../conversation/use-conversation-timeline';
@@ -35,6 +37,7 @@ const conversationAwareEntering = (
 };
 
 export const SessionDetailBody = ({
+    chat,
     changesPanel,
     panelView,
     conversationTimeline,
@@ -49,6 +52,10 @@ export const SessionDetailBody = ({
     wideBackgroundSegment,
     wideChanges,
 }: {
+    /**
+     * Present when the primary Terminal is a Chat, which replaces both the Conversation and the Terminal.
+     */
+    chat: { controller: AgentChatController; provider: string } | null;
     changesPanel: ReactNode;
     /**
      * The selected Project view, when a panel tab is open.
@@ -69,12 +76,15 @@ export const SessionDetailBody = ({
     const segmentEntering = useSegmentEntering(segment, segments);
     const { bodyEntering, conversationEnterFrom } = conversationAwareEntering(
         segment,
-        conversationTimeline.items.length > 0,
+        (chat ? (chat.controller.snapshot?.items.length ?? 0) : conversationTimeline.items.length) >
+            0,
         segmentEntering,
     );
+    const backgroundSegment = chat ? 'conversation' : wideBackgroundSegment;
     const showTerminal =
-        segment === 'terminal' ||
-        (isSideSessionSegment(segment) && wideChanges && wideBackgroundSegment === 'terminal');
+        !chat &&
+        (segment === 'terminal' ||
+            (isSideSessionSegment(segment) && wideChanges && backgroundSegment === 'terminal'));
     const terminalId = session.primaryTerminal?.id ?? session.primaryAgentTerminalId;
     const terminal = terminalId ? (
         <TerminalLiveView
@@ -111,7 +121,16 @@ export const SessionDetailBody = ({
             {attention(false, false)}
         </View>
     );
-    const conversation = (
+    const conversation = chat ? (
+        <AgentChatView
+            canAnswer={deviceRole === 'control'}
+            canRetry={deviceRole === 'reply' || deviceRole === 'control'}
+            chat={chat.controller}
+            enterFrom={conversationEnterFrom}
+            provider={chat.provider}
+            theme={theme}
+        />
+    ) : (
         <View style={{ flex: 1 }}>
             <ConversationView
                 enterFrom={conversationEnterFrom}
@@ -130,7 +149,7 @@ export const SessionDetailBody = ({
     if (wideChanges && isSideSessionSegment(segment)) {
         return (
             <View style={styles.bodyRow}>
-                {wideBackgroundSegment === 'conversation' ? conversation : terminalWithAttention}
+                {backgroundSegment === 'conversation' ? conversation : terminalWithAttention}
                 <View
                     style={[styles.wideChanges, { borderColor: theme.border }]}
                     testID="changes-right-pane"

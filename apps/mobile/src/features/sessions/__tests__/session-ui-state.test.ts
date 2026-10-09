@@ -29,6 +29,28 @@ describe('host Session UI state', () => {
         expect(preferredSessionSegment('terminal', true)).toBe('terminal');
     });
 
+    it('opens a Chat on its own tab and never falls back to a Terminal it does not have', () => {
+        for (const remembered of [undefined, 'terminal', 'conversation'] as const)
+            expect(
+                resolveSessionConversationSegment({
+                    hasAgentEndpoint: false,
+                    hasKnownAgent: true,
+                    isChat: true,
+                    remembered,
+                    status: 'loading',
+                }),
+            ).toEqual({ fallback: false, hasConversation: true, segment: 'conversation' });
+        expect(
+            resolveSessionConversationSegment({
+                hasAgentEndpoint: false,
+                hasKnownAgent: true,
+                isChat: true,
+                remembered: 'changes',
+                status: 'unsupported',
+            }).segment,
+        ).toBe('changes');
+    });
+
     it('defaults to a likely Agent Conversation and falls back when its record is unavailable', () => {
         expect(
             resolveSessionConversationSegment({

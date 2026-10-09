@@ -16,6 +16,7 @@ import {
     executeMobileImageAttachmentScenario,
     finish,
 } from './support/mobile-agent-actions-scenarios.ts';
+import { executeMobileAgentChatScenario } from './support/mobile-agent-chat-scenario.ts';
 import {
     adbShell,
     mobileDisplayState,
@@ -46,7 +47,7 @@ import { executeMobileUiAuditScenario } from './support/mobile-ui-audit-scenario
 import {
     assertMobileComposerDraft,
     assertMobileUnknownFeedback,
-    setMobileComposerUnicode,
+    enterComposerText,
 } from './support/mobile-unicode-input.ts';
 
 /**
@@ -95,19 +96,6 @@ async function openComposerSession(serial: string, sessionId: string): Promise<v
 function requireRemoteVideoPath(): string {
     if (!remoteVideoPath) throw new Error('Scenario-owned Android recording path is unavailable');
     return remoteVideoPath;
-}
-
-async function enterComposerText(
-    serial: string,
-    value: string,
-    mode: 'commit' | 'compose' = 'commit',
-): Promise<void> {
-    await setMobileComposerUnicode(serial, value, mode);
-    await waitForMobile(
-        () => mobileSemantics(serial),
-        (nodes) =>
-            nodes.some(({ checkId, enabled }) => checkId === 'session-composer-send' && enabled),
-    );
 }
 
 // These three Terminal cases share one call shape; only which Terminal fixture behavior they drive differs.
@@ -652,6 +640,9 @@ test('executes one report-bound Android product scenario', async ({}) => {
         case 'MOB-PROJECT-01':
         case 'MOB-PANELS-01':
             await executeMobileProjectPanelsScenario(environment, artifacts);
+            break;
+        case 'MOB-CHAT-01':
+            await executeMobileAgentChatScenario(environment, artifacts);
             break;
         case 'MOB-CONV-05':
             await executeMobileConversationTransitionScenario(environment, artifacts);

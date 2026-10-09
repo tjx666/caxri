@@ -99,14 +99,26 @@ export const hasKnownConversationAgent = (
 export const resolveSessionConversationSegment = ({
     hasAgentEndpoint,
     hasKnownAgent,
+    isChat = false,
     remembered,
     status,
 }: {
     hasAgentEndpoint: boolean;
     hasKnownAgent: boolean;
+    /**
+     * A Chat has no PTY, so its conversation tab is always available and a remembered Terminal tab falls back to it.
+     */
+    isChat?: boolean;
     remembered: SessionSegment | undefined;
     status: ConversationTimelineState['status'];
 }): { fallback: boolean; hasConversation: boolean; segment: SessionSegment } => {
+    if (isChat)
+        return {
+            fallback: false,
+            hasConversation: true,
+            segment:
+                remembered === undefined || remembered === 'terminal' ? 'conversation' : remembered,
+        };
     const hasConversation =
         hasAgentEndpoint ||
         hasKnownAgent ||

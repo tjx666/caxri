@@ -88,6 +88,7 @@ export const buildMobileDashboard = (input: {
                   kind: primaryTerminal.kind,
                   ...(primaryTerminal.provider && { provider: primaryTerminal.provider }),
                   lastProcessState: primaryTerminal.lastProcessState,
+                  ...(primaryTerminal.surface && { surface: primaryTerminal.surface }),
                   ...(primaryTerminal.failureReason && {
                       failureReason: primaryTerminal.failureReason,
                   }),
