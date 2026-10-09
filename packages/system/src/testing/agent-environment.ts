@@ -4,7 +4,7 @@ import { isAbsolute, join } from 'node:path';
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderIds } from '@caxri/protocol';
 
-import type { E2EAgentPolicy } from './agent-policy';
+import type { E2EAgentPolicy, E2ERealAgentSurface } from './agent-policy';
 import {
     e2eAgentPolicyEnvironment,
     e2eAgentShellShims,
@@ -23,7 +23,7 @@ export type E2EAgentEnvironmentMode =
           environment?: NodeJS.ProcessEnv;
           executables: Partial<Record<AgentProvider, string>>;
       }
-    | { mode: 'real'; provider: AgentProvider };
+    | { mode: 'real'; provider: AgentProvider; surface?: E2ERealAgentSurface };
 
 /**
  * Provider-owned state paths are an explicit isolation decision. A new provider must name every environment override
@@ -134,6 +134,7 @@ export async function createE2EAgentEnvironment(options: {
             ...e2eAgentPolicyEnvironment({
                 mode: 'real',
                 provider: options.mode.provider,
+                surface: options.mode.surface ?? 'pty',
             }),
         };
     }
@@ -196,6 +197,7 @@ export function e2eAgentEnvironmentKeys(): readonly string[] {
     return [
         'CAXRI_E2E_AGENT_MODE',
         'CAXRI_E2E_AGENT_PROVIDER',
+        'CAXRI_E2E_AGENT_SURFACE',
         ...e2eFakeExecutableEnvironmentKeys(),
         ...e2eAgentStateEnvironmentKeys,
     ];

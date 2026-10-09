@@ -132,6 +132,7 @@ describe('E2E Agent isolation environment', () => {
             CAXRI_E2E: '1',
             CAXRI_E2E_AGENT_MODE: 'real',
             CAXRI_E2E_AGENT_PROVIDER: 'codex',
+            CAXRI_E2E_AGENT_SURFACE: 'pty',
         });
     });
 });

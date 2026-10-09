@@ -11,7 +11,9 @@
  *   table, and a fenced code block, streamed in small chunks.
  * - Anything else: reasoning, a plan, and a streamed reply quoting the message.
  *
- * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history.
+ * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history. Each
+ * thread open also appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert
+ * the configuration Caxri asked for.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -99,6 +101,12 @@ function save() {
     const thread = currentThread();
     if (thread.turns.length > 0) fs.writeFileSync(threadPath(thread.id), JSON.stringify(thread));
 }
+function recordThreadOpen(method: string, parameters: Record<string, unknown>) {
+    fs.appendFileSync(
+        path.join(stateDirectory, 'thread-opens.jsonl'),
+        `${JSON.stringify({ method, sandbox: parameters.sandbox, approvalPolicy: parameters.approvalPolicy })}\n`,
+    );
+}
 function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -110,13 +118,13 @@ function serverRequest(method: string, parameters: Record<string, unknown>): Pro
 
 function startItem(turn: FakeTurn, item: FakeItem) {
     turn.items.push(item);
-    notify('item/started', { turnId: turn.id, item });
+    notify('item/started', { turnId: turn.id, item, startedAtMs: Date.now() });
 }
 function completeItem(turn: FakeTurn, item: FakeItem) {
     const index = turn.items.findIndex((candidate) => candidate.id === item.id);
     if (index === -1) turn.items.push(item);
     else turn.items[index] = item;
-    notify('item/completed', { turnId: turn.id, item });
+    notify('item/completed', { turnId: turn.id, item, completedAtMs: Date.now() });
 }
 
 async function streamMessage(turn: FakeTurn, text: string, chunkDelayMs: number) {
@@ -244,13 +252,24 @@ async function runTurn(turn: FakeTurn, text: string) {
     } else {
         const reasoning = { type: 'reasoning', id: crypto.randomUUID(), summary: [], content: [] };
         startItem(turn, { ...reasoning });
-        notify('item/reasoning/summaryTextDelta', {
-            turnId: turn.id,
-            itemId: reasoning.id,
-            delta: 'Thinking about it.',
-            summaryIndex: 0,
-        });
-        completeItem(turn, { ...reasoning, summary: ['Thinking about it.'] });
+        /**
+         * Real Codex announces every summary part, including the first, before streaming its text.
+         */
+        const summary = ['Thinking about it.', 'Checking the reply.'];
+        for (const [summaryIndex, delta] of summary.entries()) {
+            notify('item/reasoning/summaryPartAdded', {
+                turnId: turn.id,
+                itemId: reasoning.id,
+                summaryIndex,
+            });
+            notify('item/reasoning/summaryTextDelta', {
+                turnId: turn.id,
+                itemId: reasoning.id,
+                delta,
+                summaryIndex,
+            });
+        }
+        completeItem(turn, { ...reasoning, summary });
         notify('turn/plan/updated', {
             turnId: turn.id,
             explanation: null,
@@ -327,11 +346,13 @@ function handle(message: RpcMessage) {
             return;
         }
         case 'thread/start': {
+            recordThreadOpen(method, parameters);
             state.thread = { id: crypto.randomUUID(), turns: [] };
             send({ id, result: threadResponse() });
             return;
         }
         case 'thread/resume': {
+            recordThreadOpen(method, parameters);
             const threadId = String(parameters.threadId);
             const file = threadPath(threadId);
             if (!fs.existsSync(file)) {

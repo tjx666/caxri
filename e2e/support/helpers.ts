@@ -111,7 +111,7 @@ type E2EAgentMode =
           environment: NodeJS.ProcessEnv;
           executables: Partial<Record<AgentProvider, string>>;
       }
-    | { mode: 'real'; provider?: AgentProvider };
+    | { mode: 'real'; provider?: AgentProvider; surface?: 'chat' | 'pty' };
 
 async function e2eAgentEnvironment(
     userDataDirectory: string,
@@ -129,7 +129,7 @@ async function e2eAgentEnvironment(
         fixtureRoot: join(userDataDirectory, 'e2e-agents'),
         mode:
             agentMode.mode === 'real'
-                ? { mode: 'real', provider: agentMode.provider ?? 'codex' }
+                ? { ...agentMode, provider: agentMode.provider ?? 'codex' }
                 : agentMode,
         sourceEnvironment: explicitEnvironmentWithPath,
     });
@@ -474,7 +474,7 @@ export async function waitForCreatedSession(
  * pointer click can observe the button detaching after its click event already created the Session and then retry the
  * action until timeout. Enter dispatches the same accessible activation without waiting on the removed pointer target.
  */
-async function chooseDefaultTerminal(page: Page, name: string): Promise<void> {
+export async function chooseDefaultTerminal(page: Page, name: string): Promise<void> {
     const choice = page.getByRole('dialog').getByRole('button', { exact: true, name });
     await choice.focus();
     await expect(choice).toBeFocused();
