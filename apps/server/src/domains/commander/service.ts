@@ -324,6 +324,7 @@ export function createCommanderSession(
     database: CaxriDatabase,
     projectId: string,
     logger?: StructuredLogger,
+    title?: string,
 ): string {
     const project = database.listVisibleProjects().find((candidate) => candidate.id === projectId);
     if (!project || !isTopLevelProject(project))
@@ -338,6 +339,11 @@ export function createCommanderSession(
     const { session } = database.createSession(projectId, null, undefined, {
         selection: 'preserve',
     });
+    /**
+     * A manual title: the Agent has not started, so there is no native session to rename, and automatic naming would
+     * only replace the Commander's subject with a name taken from the task-file pointer.
+     */
+    if (title) database.renameSession(session.id, title);
     database.setAppState('agentCommander', {
         projectId: rows.projectId,
         sessionId: rows.sessionId,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isTerminalProtocolResponse } from '../input-origin';
+import { isTerminalMouseReport, isTerminalProtocolResponse } from '../input-origin';
 
 describe('Terminal input origin', () => {
     it.each([
@@ -37,4 +37,18 @@ describe('Terminal input origin', () => {
     ])('preserves human, unknown and mixed input %j', (data) => {
         expect(isTerminalProtocolResponse(data)).toBe(false);
     });
+
+    it.each(['\u{1B}[<64;40;12M', '\u{1B}[<0;10;5M\u{1B}[<0;10;5m', '\u{1B}[<35;120;48M'])(
+        'recognizes an SGR mouse report %j',
+        (data) => {
+            expect(isTerminalMouseReport(data)).toBe(true);
+        },
+    );
+
+    it.each(['\u{1B}[<64;40;12', '\u{1B}[<64;40;12Mhello', '\u{1B}[64;40;12M', 'q'])(
+        'keeps typed or partial input out of mouse reports %j',
+        (data) => {
+            expect(isTerminalMouseReport(data)).toBe(false);
+        },
+    );
 });

@@ -45,7 +45,8 @@ async function fixture() {
         verifyLaunch: () => Promise.resolve(),
         readTranscript: vi.fn().mockResolvedValue(null),
         commanderSessions: {
-            create: (projectId) => createCommanderSession(database, projectId),
+            create: (projectId, title) =>
+                createCommanderSession(database, projectId, undefined, title),
             discard: (sessionId) => discardCommanderSession(database, sessionId),
         },
     });
@@ -65,6 +66,7 @@ async function fixture() {
         provider: 'claude' as const,
         prompt: 'Synthetic private task',
         newSession: true as const,
+        title: 'Fix login retry',
     };
     return { database, service, commanderAuthority, request };
 }
@@ -82,6 +84,11 @@ describe('Delegation into a new Commander Session', () => {
 
         expect(database.agentCommanderRows()?.sessionIds).toEqual([receipt.sessionId]);
         expect(database.listTerminals(receipt.sessionId)).toHaveLength(1);
+        // The task file pointer is all automatic naming would see, so the Commander's title is kept as a manual one.
+        expect(database.getSession(receipt.sessionId)).toMatchObject({
+            displayTitle: 'Fix login retry',
+            titleMode: 'manual',
+        });
         expect((await service.create(id, commanderAuthority, request)).sessionId).toBe(
             receipt.sessionId,
         );
