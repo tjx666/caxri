@@ -157,6 +157,34 @@ describe('status bar Linear issues', () => {
         ).toBe(false);
     });
 
+    it('gives the issues the chip only counts an address in the lead issue workspace', async () => {
+        const { run, status } = await service('feat/abc-42-abc-43', {
+            context: {
+                ...EMPTY_CONTEXT,
+                linearReferences: [
+                    { identifier: 'XYZ-7', workspace: 'other' },
+                    { identifier: 'ABC-44' },
+                ],
+            },
+        });
+        const overview = await status.overview('session-1');
+        expect(overview.repository?.linearIssues.slice(1)).toEqual([
+            { identifier: 'ABC-43', source: 'branch', url: 'https://linear.app/acme/issue/ABC-43' },
+            {
+                identifier: 'XYZ-7',
+                source: 'conversation',
+                url: 'https://linear.app/other/issue/XYZ-7',
+            },
+            {
+                identifier: 'ABC-44',
+                source: 'conversation',
+                url: 'https://linear.app/acme/issue/ABC-44',
+            },
+        ]);
+        // Still one allow-list query plus the lead issue: the tail's addresses cost nothing.
+        expect(run.mock.calls.filter(([command]) => command === 'linear')).toHaveLength(2);
+    });
+
     it('reads the conversation when neither the pull request nor the branch says anything', async () => {
         const { status } = await service('feature/status', {
             context: { ...EMPTY_CONTEXT, linearReferences: [{ identifier: 'ABC-42' }] },

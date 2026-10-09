@@ -197,9 +197,9 @@ export async function loadPullRequestLinearIssues(
  * one resolved.
  *
  * The chip renders one issue and counts the remainder, so resolving the tail would spend a CLI query per refresh on a
- * title and a state colour nothing draws. A failed lookup degrades to the bare identifier rather than surfacing a
- * provider error: the status bar has no room to explain one, and the Status panel already reports Linear outages
- * properly.
+ * title and a state colour nothing draws. The tail still gets an address (`linearIssueUrl`) so the hover card can open
+ * it. A failed lookup degrades to the bare identifier rather than surfacing a provider error: the status bar has no
+ * room to explain one, and the Status panel already reports Linear outages properly.
  */
 export async function loadOverviewLinearIssues(
     store: LinearIssueStore,
@@ -238,11 +238,32 @@ export async function loadOverviewLinearIssues(
         remaining(),
     );
     if (outcome.settled && 'value' in outcome) resolved = outcome.value;
+    const leadWorkspace = resolved.url ? linearWorkspaceFromUrl(resolved.url) : undefined;
     return [
         { ...resolved, source: lead.source },
-        ...rest.map((candidate) => ({
-            identifier: candidate.identifier,
-            source: candidate.source,
-        })),
+        ...rest.map((candidate) => {
+            const workspace = candidate.workspace ?? leadWorkspace;
+            return {
+                identifier: candidate.identifier,
+                source: candidate.source,
+                ...(workspace && { url: linearIssueUrl(workspace, candidate.identifier) }),
+            };
+        }),
     ];
+}
+
+const LINEAR_ISSUE_URL_PATTERN = /^https:\/\/linear\.app\/([\w-]+)\/issue\//u;
+
+function linearWorkspaceFromUrl(url: string): string | undefined {
+    return LINEAR_ISSUE_URL_PATTERN.exec(url)?.[1];
+}
+
+/**
+ * The address of an issue the overview never queried. Linear serves `/<workspace>/issue/<identifier>` without the title
+ * slug its API appends, so the tail issues stay openable from the chip's hover card without one more CLI query each. A
+ * bare branch or conversation marker carries no workspace of its own, but it only got past the team-key allow-list
+ * because the lead's workspace defines that key, so it borrows the lead's.
+ */
+function linearIssueUrl(workspace: string, identifier: string): string {
+    return `https://linear.app/${workspace}/issue/${identifier}`;
 }

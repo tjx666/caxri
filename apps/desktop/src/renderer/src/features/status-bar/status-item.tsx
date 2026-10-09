@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 
-import { Tooltip } from '../../components/ui/tooltip';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
+import { StatusTooltip } from './status-tooltip';
 
 /**
  * The glyph is sized here rather than by each caller's `size` prop, so that `icon` can take any rendered element: a
@@ -24,6 +24,7 @@ export function StatusItem({
     className,
     href,
     icon,
+    interactiveTitle,
     onClick,
     title,
 }: {
@@ -32,6 +33,10 @@ export function StatusItem({
     className?: string;
     href?: string;
     icon: ReactNode;
+    /**
+     * Renders `title` in a hover card the pointer can enter, for a title that carries its own links.
+     */
+    interactiveTitle?: boolean;
     onClick?: () => void;
     title: ReactNode;
 }) {
@@ -42,7 +47,7 @@ export function StatusItem({
         </>
     );
     return (
-        <Tooltip content={title}>
+        <StatusTooltip content={title} interactive={interactiveTitle}>
             {href ? (
                 <a
                     className={cn(statusItemClassName, className)}
@@ -69,6 +74,6 @@ export function StatusItem({
                     {content}
                 </button>
             )}
-        </Tooltip>
+        </StatusTooltip>
     );
 }

@@ -2,7 +2,11 @@ import type { ProjectStatusOverviewLinearIssue } from '@caxri/protocol';
 
 import { StructuredTooltip } from '../../components/structured-tooltip';
 import { LinearStatusIcon } from '../../icons/linear/linear-status-icon';
-import { linearIssueAriaLabel, linearIssueTooltip } from './linear-issue-label';
+import {
+    hasOpenableLinearIssue,
+    linearIssueAriaLabel,
+    linearIssueTooltip,
+} from './linear-issue-label';
 import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
 
@@ -27,6 +31,8 @@ export function LinearIssueStatus({
                 style={issue.stateColor ? { color: issue.stateColor } : undefined}
             />
         ),
+        // The other referenced issues are links on the card, so it must stay open under the pointer.
+        interactiveTitle: hasOpenableLinearIssue(extra),
         title: <StructuredTooltip {...linearIssueTooltip(issue, extra)} />,
     };
     const label = (
