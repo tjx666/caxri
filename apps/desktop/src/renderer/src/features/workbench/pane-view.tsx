@@ -124,6 +124,11 @@ function PaneContent({
                             ? agentProviderCatalog[terminal.provider].displayName
                             : 'the Agent'
                     }
+                    supportsImages={
+                        terminal.provider
+                            ? agentProviderCatalog[terminal.provider].capabilities.chatImages
+                            : false
+                    }
                     terminalId={terminal.id}
                 />
             );

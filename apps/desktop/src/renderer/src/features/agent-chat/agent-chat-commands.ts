@@ -1,4 +1,4 @@
-import type { AgentChatDecision } from '@caxri/protocol';
+import type { AgentChatDecision, AgentChatMessageInput } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import { tryCommand } from '../../stores/toasts';
@@ -7,13 +7,31 @@ import { tryCommand } from '../../stores/toasts';
  * Sends a message, starting a turn or steering the running one. Resolves `true` once Server Core accepted it, so the
  * composer clears its draft only for a message that was actually delivered.
  */
-export async function didSendAgentChatMessage(terminalId: string, text: string): Promise<boolean> {
+export async function didSendAgentChatMessage(
+    terminalId: string,
+    message: AgentChatMessageInput,
+): Promise<boolean> {
     let isSent = false;
     await tryCommand('Message could not be sent', async () => {
-        await caxri.request('agentChat.send', { terminalId, text });
+        await caxri.request('agentChat.send', { terminalId, ...message });
         isSent = true;
     });
     return isSent;
+}
+
+/**
+ * Runs one of the provider's slash commands. Resolves `true` once Server Core accepted it.
+ */
+export async function didRunAgentChatCommand(
+    terminalId: string,
+    command: { name: string; arguments?: string },
+): Promise<boolean> {
+    let isRun = false;
+    await tryCommand(`/${command.name} could not run`, async () => {
+        await caxri.request('agentChat.runCommand', { terminalId, ...command });
+        isRun = true;
+    });
+    return isRun;
 }
 
 export function interruptAgentChat(terminalId: string): void {

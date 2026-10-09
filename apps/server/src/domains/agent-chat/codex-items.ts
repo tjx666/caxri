@@ -10,6 +10,7 @@ import {
     MAX_AGENT_CHAT_DIFF_LENGTH,
     MAX_AGENT_CHAT_FILE_CHANGE_DIFF_TOTAL,
     MAX_AGENT_CHAT_FILE_CHANGES,
+    MAX_AGENT_CHAT_IMAGES,
     MAX_AGENT_CHAT_OUTPUT_LENGTH,
     MAX_AGENT_CHAT_PLAN_STEPS,
     MAX_AGENT_CHAT_QUESTIONS,
@@ -87,7 +88,18 @@ function mcpOutput(item: Json): string | undefined {
 /**
  * User inputs that are references rather than text; the Chat shows their name in brackets.
  */
-const REFERENCE_INPUT_TYPES = new Set<unknown>(['localImage', 'mention', 'skill']);
+const REFERENCE_INPUT_TYPES = new Set<unknown>(['mention', 'skill']);
+
+const IMAGE_INPUT_TYPES = new Set<unknown>(['image', 'localImage']);
+
+/**
+ * How many images a user message carried. Codex echoes the full image (a data URL or a local path), which is never
+ * copied into the projection; the session pairs a message it sent with the thumbnails the Client made.
+ */
+function codexUserImageCount(content: unknown): number {
+    if (!Array.isArray(content)) return 0;
+    return content.filter((input) => isRecord(input) && IMAGE_INPUT_TYPES.has(input.type)).length;
+}
 
 function userMessageText(content: unknown): string {
     if (!Array.isArray(content)) return '';
@@ -115,10 +127,12 @@ export function mapCodexItem(
     const base = { id: clip(raw.id, 200), ...(turnId && { turnId: clip(turnId, 200) }) };
     switch (raw.type) {
         case 'userMessage': {
+            const imageCount = Math.min(codexUserImageCount(raw.content), MAX_AGENT_CHAT_IMAGES);
             return {
                 ...base,
                 type: 'userMessage',
                 text: clip(userMessageText(raw.content), MAX_AGENT_CHAT_TEXT_LENGTH),
+                ...(imageCount > 0 && { images: Array.from({ length: imageCount }, () => ({})) }),
             };
         }
         case 'agentMessage': {

@@ -11,6 +11,7 @@ import { MarkdownBlocks } from '../../components/markdown/markdown-blocks';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
+import { AgentChatMessageImages } from './agent-chat-message-images';
 import { agentChatNoticeMessage } from './agent-chat-presentation';
 
 function openChatLink(url: string): void {
@@ -20,12 +21,23 @@ function openChatLink(url: string): void {
 
 const CHAT_PARSE_OPTIONS: MarkdownBlockOptions = { tables: true, fileLinks: true };
 
-export function AgentChatUserMessage({ text }: { text: string }) {
+export function AgentChatUserMessage({
+    images,
+    text,
+}: {
+    images?: ReadonlyArray<{ thumbnail?: string }>;
+    text: string;
+}) {
     return (
-        <div className="flex justify-end">
-            <div className="max-w-[85%] rounded-lg bg-elevated px-3 py-2 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground">
-                {text}
-            </div>
+        <div className="flex flex-col items-end gap-1.5">
+            {images && images.length > 0 && (
+                <AgentChatMessageImages className="max-w-[85%]" images={images} />
+            )}
+            {text && (
+                <div className="max-w-[85%] rounded-lg bg-elevated px-3 py-2 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground">
+                    {text}
+                </div>
+            )}
         </div>
     );
 }

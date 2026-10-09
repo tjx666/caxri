@@ -9,7 +9,7 @@ describe('AgentChatService with a fake Codex app-server', () => {
         expect(database.getTerminal(terminal.id)?.agentSessionId).toBeUndefined();
         expect(database.getTerminal(terminal.id)?.lastProcessState).toBe('running');
 
-        await service.send(terminal.id, 'hi there');
+        await service.send(terminal.id, { text: 'hi there' });
         const snapshot = await until(
             (current) => current.turns.at(-1)?.status === 'completed' && !current.activeTurnId,
         );
@@ -42,7 +42,7 @@ describe('AgentChatService with a fake Codex app-server', () => {
 
     it('answers an approval by its stable request id and clears attention', async () => {
         const { service, terminal, signals, until } = await fixture();
-        await service.send(terminal.id, 'please approve this');
+        await service.send(terminal.id, { text: 'please approve this' });
         const pending = await until((snapshot) => snapshot.requests.length === 1);
         const request = pending.requests[0];
         expect(request).toMatchObject({ kind: 'command', command: 'echo approved' });
@@ -63,7 +63,7 @@ describe('AgentChatService with a fake Codex app-server', () => {
 
     it('links a file-change approval to the change it gates and marks an oversized diff', async () => {
         const { service, terminal, until } = await fixture();
-        await service.send(terminal.id, 'make a patch');
+        await service.send(terminal.id, { text: 'make a patch' });
         const pending = await until((snapshot) => snapshot.requests.length === 1);
         const request = pending.requests[0];
         if (request.kind !== 'fileChange') throw new Error('expected a file-change approval');
@@ -79,7 +79,7 @@ describe('AgentChatService with a fake Codex app-server', () => {
             status: 'completed',
         });
 
-        await service.send(terminal.id, 'write a bigdiff');
+        await service.send(terminal.id, { text: 'write a bigdiff' });
         const done = await until(
             (snapshot) => snapshot.turns.length === 2 && snapshot.turns[1].status === 'completed',
         );
@@ -89,7 +89,7 @@ describe('AgentChatService with a fake Codex app-server', () => {
 
     it('answers a question with the chosen option', async () => {
         const { service, terminal, until } = await fixture();
-        await service.send(terminal.id, 'ask me');
+        await service.send(terminal.id, { text: 'ask me' });
         const pending = await until((snapshot) => snapshot.requests.length === 1);
         const request = pending.requests[0];
         expect(request.kind).toBe('question');
@@ -109,7 +109,7 @@ describe('AgentChatService with a fake Codex app-server', () => {
 
     it('skips a question so the turn continues without an answer', async () => {
         const { service, terminal, until } = await fixture();
-        await service.send(terminal.id, 'ask me');
+        await service.send(terminal.id, { text: 'ask me' });
         const pending = await until((snapshot) => snapshot.requests.length === 1);
         service.respond(terminal.id, pending.requests[0].id, {
             kind: 'decision',
@@ -123,7 +123,7 @@ describe('AgentChatService with a fake Codex app-server', () => {
 
     it('interrupts a running turn and closes its dangling stream', async () => {
         const { service, terminal, until } = await fixture();
-        await service.send(terminal.id, 'slow please');
+        await service.send(terminal.id, { text: 'slow please' });
         await until((snapshot) =>
             snapshot.items.some((item) => item.type === 'agentMessage' && item.text.length > 0),
         );
@@ -137,7 +137,7 @@ describe('AgentChatService with a fake Codex app-server', () => {
 
     it('resumes the bound thread with its history after the process stops', async () => {
         const { service, terminal, spawnProcess, until } = await fixture();
-        await service.send(terminal.id, 'remember me');
+        await service.send(terminal.id, { text: 'remember me' });
         await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
         await service.restart(terminal.id);
         const resumed = service.read(terminal.id);
@@ -150,11 +150,11 @@ describe('AgentChatService with a fake Codex app-server', () => {
 
     it('keeps a Client that cached the old projection converging after a restart', async () => {
         const { service, terminal, client, until } = await fixture();
-        await service.send(terminal.id, 'before restart');
+        await service.send(terminal.id, { text: 'before restart' });
         await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
         const cachedRevision = client().revision;
         await service.restart(terminal.id);
-        await service.send(terminal.id, 'after restart');
+        await service.send(terminal.id, { text: 'after restart' });
         const snapshot = await until((current) =>
             current.items.some(
                 (item) =>
@@ -168,7 +168,7 @@ describe('AgentChatService with a fake Codex app-server', () => {
 
     it('ends the turn and its pending attention when a restart stops the process mid-request', async () => {
         const { service, terminal, signals, until } = await fixture();
-        await service.send(terminal.id, 'please approve this');
+        await service.send(terminal.id, { text: 'please approve this' });
         const pending = await until((snapshot) => snapshot.requests.length === 1);
         await service.restart(terminal.id);
         const phases = signals.map((signal) => signal.phase);
@@ -199,7 +199,7 @@ describe('AgentChatService with a fake Codex app-server', () => {
 
     it('marks a crash mid-turn as a failed turn and a dead process', async () => {
         const { database, service, terminal, signals, until } = await fixture();
-        await service.send(terminal.id, 'crash now');
+        await service.send(terminal.id, { text: 'crash now' });
         const snapshot = await until((current) => current.status === 'failed');
         expect(snapshot.failure?.reason).toBe('process_exited');
         expect(snapshot.turns.at(-1)?.status).toBe('interrupted');
@@ -214,7 +214,10 @@ describe('AgentChatService with a fake Codex app-server', () => {
         const { service, terminal, spawnProcess, until } = await fixture();
         service.read(terminal.id);
         service.read(terminal.id);
-        await Promise.all([service.send(terminal.id, 'one'), service.send(terminal.id, 'two')]);
+        await Promise.all([
+            service.send(terminal.id, { text: 'one' }),
+            service.send(terminal.id, { text: 'two' }),
+        ]);
         await until((snapshot) => snapshot.turns.length > 0 && !snapshot.activeTurnId);
         expect(spawnProcess).toHaveBeenCalledTimes(1);
     });
@@ -224,7 +227,7 @@ describe('AgentChatService with a fake Codex app-server', () => {
         service.read(terminal.id);
         await vi.waitFor(() => expect(spawnProcess).toHaveBeenCalledTimes(1), { interval: 1 });
         expect(service.read(terminal.id).status).toBe('starting');
-        await service.send(terminal.id, 'early bird');
+        await service.send(terminal.id, { text: 'early bird' });
         const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
         expect(done.items.at(-1)).toMatchObject({
             text: 'Hello from fake Codex. You said: early bird',
@@ -280,10 +283,10 @@ describe('AgentChatService under a real-Agent E2E policy', () => {
         expect(await threadOpens()).toEqual([
             { method: 'thread/start', sandbox: 'read-only', approvalPolicy: 'never' },
         ]);
-        await expect(service.send(terminal.id, 'x'.repeat(201))).rejects.toThrow(
+        await expect(service.send(terminal.id, { text: 'x'.repeat(201) })).rejects.toThrow(
             /short natural prompts/u,
         );
-        await service.send(terminal.id, 'What is this project about?');
+        await service.send(terminal.id, { text: 'What is this project about?' });
         await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
     });
 

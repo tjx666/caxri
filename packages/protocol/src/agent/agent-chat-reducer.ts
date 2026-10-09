@@ -27,7 +27,15 @@ export function emptyAgentChatSnapshot(terminalId: string): AgentChatSnapshot {
 
 function itemTextLength(item: AgentChatItem): number {
     switch (item.type) {
-        case 'userMessage':
+        case 'userMessage': {
+            return (
+                item.text.length +
+                (item.images ?? []).reduce(
+                    (total, image) => total + (image.thumbnail?.length ?? 0),
+                    0,
+                )
+            );
+        }
         case 'agentMessage':
         case 'reasoning': {
             return item.text.length;
@@ -132,7 +140,12 @@ export function applyAgentChatOperation(
 ): AgentChatSnapshot {
     switch (operation.op) {
         case 'reset': {
-            return { ...emptyAgentChatSnapshot(snapshot.terminalId), revision: snapshot.revision };
+            // Commands describe the running provider, not the conversation being replaced.
+            return {
+                ...emptyAgentChatSnapshot(snapshot.terminalId),
+                revision: snapshot.revision,
+                ...(snapshot.commands && { commands: snapshot.commands }),
+            };
         }
         case 'upsertItem': {
             const index = snapshot.items.findIndex((item) => item.id === operation.item.id);
@@ -162,6 +175,7 @@ export function applyAgentChatOperation(
             if (state.plan !== undefined) next.plan = state.plan ?? undefined;
             if (state.model !== undefined) next.model = state.model ?? undefined;
             if (state.usage !== undefined) next.usage = state.usage ?? undefined;
+            if (state.commands !== undefined) next.commands = state.commands;
             for (const key of ['failure', 'activeTurnId', 'plan', 'model', 'usage'] as const)
                 if (next[key] === undefined) delete next[key];
             return next;

@@ -1,0 +1,64 @@
+import type { AgentChatCommand, AgentChatItem, AgentChatMessageInput } from '@caxri/protocol';
+
+import { isRecord, stringField } from './chat-items';
+
+/**
+ * Slash commands Caxri maps to app-server methods. The Codex TUI's other commands drive its own screen (`/model`
+ * pickers, `/status` panels) and have no app-server equivalent, so they are not offered.
+ */
+export const CODEX_COMMANDS: AgentChatCommand[] = [
+    { name: 'compact', description: 'Summarize the conversation to free up context' },
+];
+
+/**
+ * Sent messages whose Codex echo has not arrived yet, kept only to pair thumbnails with it.
+ */
+const MAX_PENDING_THUMBNAILS = 20;
+
+/**
+ * `UserInput` entries for `turn/start` and `turn/steer`: images as data URLs first, as the Codex TUI sends a pasted
+ * image, then the text when there is any.
+ */
+export function codexUserInput({ text, images = [] }: AgentChatMessageInput): unknown[] {
+    return [
+        ...images.map((image) => ({
+            type: 'image',
+            url: `data:${image.mediaType};base64,${image.data}`,
+        })),
+        ...(text ? [{ type: 'text', text, text_elements: [] }] : []),
+    ];
+}
+
+/**
+ * Thumbnails of sent messages with images, keyed by the `clientUserMessageId` Codex echoes back as the user message
+ * item's `clientId`. Codex echoes the full image, which never enters the projection, so the item only says how many
+ * images there were until it is paired here.
+ */
+export class CodexThumbnails {
+    private readonly pending = new Map<string, string[]>();
+
+    remember(clientUserMessageId: string, { images = [] }: AgentChatMessageInput): void {
+        if (images.length === 0) return;
+        this.pending.set(
+            clientUserMessageId,
+            images.map((image) => image.thumbnail),
+        );
+        for (const key of this.pending.keys()) {
+            if (this.pending.size <= MAX_PENDING_THUMBNAILS) break;
+            this.pending.delete(key);
+        }
+    }
+
+    apply(item: AgentChatItem, raw: unknown): AgentChatItem {
+        if (item.type !== 'userMessage' || !item.images || !isRecord(raw)) return item;
+        const clientId = stringField(raw.clientId);
+        const thumbnails = clientId ? this.pending.get(clientId) : undefined;
+        if (!thumbnails) return item;
+        return {
+            ...item,
+            images: item.images.map((image, index) =>
+                thumbnails[index] ? { thumbnail: thumbnails[index] } : image,
+            ),
+        };
+    }
+}

@@ -69,7 +69,7 @@ describe('createPullRequestMergeNotice', () => {
 
         await expect(notice('session-1', URL)).resolves.toBe('sent');
 
-        expect(send).toHaveBeenCalledWith('terminal-1', formatMergeNotice(URL));
+        expect(send).toHaveBeenCalledWith('terminal-1', { text: formatMergeNotice(URL) });
         expect(submitAgentExact).not.toHaveBeenCalled();
     });
 

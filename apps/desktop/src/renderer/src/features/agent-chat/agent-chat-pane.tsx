@@ -24,7 +24,7 @@ import {
 import { AgentChatRequestCard } from './agent-chat-request-card';
 import { AgentChatPlanCard } from './agent-chat-status-glyph';
 import { AgentChatTimelineItem } from './agent-chat-timeline-item';
-import { useAgentChatScroll } from './use-agent-chat-scroll';
+import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 
 /**
  * A streamed delta replaces only the item it appends to (`applyAgentChatPatch` keeps every other item's identity), so
@@ -104,6 +104,7 @@ function AgentChatActivity({
 export function AgentChatPane({
     ariaLabel,
     providerName,
+    supportsImages,
     terminalId,
 }: {
     ariaLabel: string;
@@ -111,6 +112,10 @@ export function AgentChatPane({
      * The provider catalog's display name, for copy that names the Agent.
      */
     providerName: string;
+    /**
+     * The provider catalog's `capabilities.chatImages`.
+     */
+    supportsImages: boolean;
     terminalId: string;
 }) {
     const query = useCaxriQuery('agentChat.read', { terminalId }, { staleTime: Infinity });
@@ -233,9 +238,11 @@ export function AgentChatPane({
             <AgentChatComposer
                 activeTurnId={snapshot?.activeTurnId}
                 canSend={canSendAgentChatMessage(snapshot)}
+                commands={snapshot?.commands}
                 contextSummary={agentChatContextSummary(snapshot)}
                 inputReference={inputReference}
                 providerName={providerName}
+                supportsImages={supportsImages}
                 terminalId={terminalId}
             />
         </section>
