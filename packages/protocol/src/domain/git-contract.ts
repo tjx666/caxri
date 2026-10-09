@@ -119,7 +119,10 @@ export const gitMethods = {
             number: z.number().int().positive(),
             headSha: z.string().regex(/^[0-9a-f]{40}$/),
         }),
-        result: z.object({ method: z.enum(['squash', 'merge', 'rebase']) }),
+        /**
+         * `url` is the merged pull request's GitHub page.
+         */
+        result: z.object({ method: z.enum(['squash', 'merge', 'rebase']), url: z.url() }),
     },
     'git.remoteHost': {
         ...serverRead,

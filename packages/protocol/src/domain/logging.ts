@@ -194,6 +194,7 @@ export const logEventCatalog = {
         commandFailed: 'git.command_failed',
         githubCommand: 'git.github_command',
         githubCommandFailed: 'git.github_command_failed',
+        mergeAgentNotice: 'git.merge_agent_notice',
         metadataWatcherReady: 'git.metadata_watcher_ready',
         refreshSummary: 'git.refresh_summary',
         summary: 'git.summary',
