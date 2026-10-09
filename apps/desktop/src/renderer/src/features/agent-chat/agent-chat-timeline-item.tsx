@@ -1,11 +1,15 @@
 import type { ReactNode } from 'react';
-import { useId, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 
 import type { AgentChatItem } from '@caxri/protocol';
 import { ChevronRight } from 'lucide-react';
 
+import { DiffStat } from '../../components/diff-stat';
 import { DisclosureMotion } from '../../components/disclosure-motion';
+import { diffStatLabel } from '../../lib/diff-stat-label';
 import { cn } from '../../lib/utilities';
+import { agentChatFileChangesStat } from './agent-chat-diff';
+import { AgentChatFileChanges } from './agent-chat-file-changes';
 import {
     AgentChatMessage,
     AgentChatNotice,
@@ -20,11 +24,16 @@ import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
  * they start collapsed and keep the reply text as the thing the eye lands on.
  */
 function CollapsibleRow({
+    accessory,
     children,
     glyph,
     title,
     titleClassName,
 }: {
+    /**
+     * Trailing summary after the title, such as a change's line counts.
+     */
+    accessory?: ReactNode;
     children: ReactNode;
     glyph: ReactNode;
     title: string;
@@ -49,6 +58,7 @@ function CollapsibleRow({
                 />
                 {glyph}
                 <span className={cn('min-w-0 flex-1 truncate', titleClassName)}>{title}</span>
+                {accessory}
             </button>
             <DisclosureMotion animate expanded={isExpanded} id={detailId} kind="agent-chat-item">
                 <div className="mt-1 ml-5">{children}</div>
@@ -57,12 +67,42 @@ function CollapsibleRow({
     );
 }
 
+/**
+ * An expanded file change shows every file's diff when it touches only a few files; a wider change starts as headers.
+ */
+const TIMELINE_EXPANDED_FILE_LIMIT = 3;
+
 function OutputBlock({ text }: { text: string }) {
     if (!text) return <p className="m-0 text-muted">No output</p>;
     return (
         <pre className="m-0 max-h-80 overflow-auto rounded bg-surface px-2 py-1.5 font-mono text-[11px] leading-4 wrap-anywhere whitespace-pre-wrap text-foreground">
             {text}
         </pre>
+    );
+}
+
+/**
+ * A file change collapses to `N files changed` and its total line counts; expanded, it lists one diff block per file.
+ */
+function FileChangeRow({ item }: { item: Extract<AgentChatItem, { type: 'fileChange' }> }) {
+    const stat = useMemo(() => agentChatFileChangesStat(item.changes), [item.changes]);
+    return (
+        <CollapsibleRow
+            accessory={
+                <>
+                    <span className="sr-only">, {diffStatLabel(stat)}</span>
+                    <DiffStat additions={stat.additions} deletions={stat.deletions} />
+                </>
+            }
+            glyph={<AgentChatStatusGlyph status={item.status} />}
+            title={agentChatActivityTitle(item)}
+        >
+            <AgentChatFileChanges
+                changes={item.changes}
+                expandAtMost={TIMELINE_EXPANDED_FILE_LIMIT}
+                status={item.status}
+            />
+        </CollapsibleRow>
     );
 }
 
@@ -114,23 +154,7 @@ export function AgentChatTimelineItem({
             );
         }
         case 'fileChange': {
-            return (
-                <CollapsibleRow
-                    glyph={<AgentChatStatusGlyph status={item.status} />}
-                    title={agentChatActivityTitle(item)}
-                >
-                    <div className="space-y-2">
-                        {item.changes.map((change) => (
-                            <div key={change.path}>
-                                <p className="m-0 mb-0.5 font-mono text-[11px] text-foreground">
-                                    {change.path}
-                                </p>
-                                <OutputBlock text={change.diff} />
-                            </div>
-                        ))}
-                    </div>
-                </CollapsibleRow>
-            );
+            return <FileChangeRow item={item} />;
         }
         case 'toolCall': {
             return (

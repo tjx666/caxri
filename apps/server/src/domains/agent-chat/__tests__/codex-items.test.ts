@@ -243,5 +243,42 @@ describe('Codex item mapping', () => {
         // Every path is still listed, so the user sees what changed even when a diff is cut.
         expect(item.changes).toHaveLength(count);
         expect(item.changes.at(-1)?.diff).toBe('');
+        // The cut is marked wherever it lands, so the pane never presents a partial patch as the whole change.
+        expect(item.changes.at(0)?.truncated).toBeUndefined();
+        expect(item.changes.at(-1)?.truncated).toBe(true);
+    });
+
+    it('marks a single oversized diff as truncated and leaves a whole one unmarked', () => {
+        const item = mapCodexItem(
+            {
+                id: 'patch',
+                type: 'fileChange',
+                status: 'completed',
+                changes: [
+                    {
+                        path: 'big.ts',
+                        kind: { type: 'update', move_path: null },
+                        diff: 'd'.repeat(MAX_AGENT_CHAT_DIFF_LENGTH + 1),
+                    },
+                    {
+                        path: 'small.ts',
+                        kind: { type: 'add' },
+                        diff: 'one line\n',
+                    },
+                ],
+            },
+            'turn',
+            false,
+        );
+        if (item?.type !== 'fileChange') throw new Error('expected a file-change item');
+        expect(item.changes).toEqual([
+            {
+                path: 'big.ts',
+                kind: 'update',
+                diff: 'd'.repeat(MAX_AGENT_CHAT_DIFF_LENGTH),
+                truncated: true,
+            },
+            { path: 'small.ts', kind: 'add', diff: 'one line\n' },
+        ]);
     });
 });
