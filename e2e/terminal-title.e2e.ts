@@ -40,11 +40,11 @@ test('a PTY window title reaches the tab label and survives a Renderer reload', 
 
         // A prompt-shaped title is compressed down to its identifying tail for the narrow tab, so the untouched
         // original has to stay reachable as the tooltip. A title the label shows in full offers no tooltip at all.
-        await typeTerminal(running.page, osc0('tj@probe:~/code/caxri-worktrees/feat-title'));
+        await typeTerminal(running.page, osc0('dev@probe:~/code/demo-worktrees/feat-title'));
         await expect(tabLabel).toHaveText('~/…/feat-title');
         await tab.hover();
         await expect(running.page.locator('.tooltip-popup[data-open]')).toHaveText(
-            'tj@probe:~/code/caxri-worktrees/feat-title',
+            'dev@probe:~/code/demo-worktrees/feat-title',
         );
 
         // Untrusted PTY output: control characters must never reach the label, and an empty payload

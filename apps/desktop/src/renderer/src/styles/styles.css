@@ -256,7 +256,7 @@
 
 /*
  * Truncates from the head instead of the tail, for a value whose meaning is at its end: a filesystem path, where
- * `…/features/path-browser/` says far more than `/Users/tj/code/caxri-worktre…`. The path must be wrapped in one child
+ * `…/features/path-browser/` says far more than `/Users/me/code/caxri-worktre…`. The path must be wrapped in one child
  * element; the two halves only work together.
  *
  * `direction: rtl` on the box is what moves the overflow, and so the ellipsis, to the start. It also makes the box an

@@ -9,6 +9,7 @@ import {
 function status(overrides: Partial<TerminalRendererStatus>): TerminalRendererStatus {
     return {
         contextLossCount: 0,
+        liveWebglContextCount: 1,
         mode: 'webgl',
         reason: 'active',
         recoveryResult: 'not-requested',
@@ -49,6 +50,7 @@ describe('terminalRendererIndicator', () => {
             terminalRendererIndicator(
                 status({
                     contextLossCount: 1,
+                    liveWebglContextCount: 1,
                     mode: 'dom',
                     reason: 'context-loss',
                     retryAttemptCount: 1,

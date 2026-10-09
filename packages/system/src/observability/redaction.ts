@@ -1,4 +1,4 @@
-import { homedir } from 'node:os';
+import { homedir, userInfo } from 'node:os';
 
 import { isSecretKey, redactSecretText } from '@caxri/utils';
 
@@ -9,10 +9,38 @@ import { isSecretKey, redactSecretText } from '@caxri/utils';
 export { isSecretKey } from '@caxri/utils';
 
 /**
- * Redacts secret-shaped tokens and `key=value` assignments from free-form log text.
+ * The OS account's home from the password database. It differs from `homedir()` when a launcher overrides `HOME`: E2E
+ * and Acceptance run Caxri with an isolated fixture HOME while the self-hosted runner's workspace and job temp root
+ * still sit under the runner account's real home, so redacting only `homedir()` leaves the account name in every
+ * fixture path (issue #1461).
+ */
+function readAccountHome(): string | undefined {
+    try {
+        return userInfo().homedir || undefined;
+    } catch {
+        // `userInfo()` throws when the uid has no password-database entry; `homedir()` still covers HOME.
+        return undefined;
+    }
+}
+
+const accountHome = readAccountHome();
+
+/**
+ * Replaces both the process HOME and the OS account home with `$HOME`, longest first so a HOME nested under the account
+ * home keeps its own token. A root-level or empty home would erase every absolute path, so it is skipped.
+ */
+function redactHomePaths(value: string): string {
+    const homes = [...new Set([homedir(), accountHome])]
+        .filter((home): home is string => Boolean(home) && home !== '/')
+        .toSorted((left, right) => right.length - left.length);
+    return homes.reduce((redacted, home) => redacted.replaceAll(home, '$HOME'), value);
+}
+
+/**
+ * Redacts home paths, secret-shaped tokens, and `key=value` assignments from free-form log text.
  */
 export function redactLogValue(value: string): string {
-    return redactSecretText(value.replaceAll(homedir(), '$HOME'));
+    return redactSecretText(redactHomePaths(value));
 }
 
 /**
@@ -30,7 +58,7 @@ export function redactSecrets(value: unknown, key = ''): unknown {
         );
     }
     if (typeof value === 'string') {
-        return redactSecretText(value.replaceAll(homedir(), '$HOME'));
+        return redactLogValue(value);
     }
     return value;
 }

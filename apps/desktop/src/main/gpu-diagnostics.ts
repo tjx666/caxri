@@ -63,6 +63,36 @@ interface RecentRendererDiagnostic {
     receivedAt: number;
 }
 
+/**
+ * The `powerMonitor` events that end a period in which the GPU may have been powered down or switched.
+ */
+export type SystemWakeKind = 'resume' | 'unlock-screen';
+
+/**
+ * Main-owned context a Renderer cannot observe: when the system last woke and when the GPU process last died. Stamped
+ * onto every Terminal renderer record so one context-loss line can separate a GPU process reset, a sleep/wake cycle,
+ * and Chromium's live-context cap (`liveWebglContextCount`) without joining logs by timestamp.
+ */
+interface CauseContext {
+    gpuProcessGoneCount: number;
+    lastGpuProcessGoneAt: number | undefined;
+    lastResumeAt: number | undefined;
+    lastUnlockAt: number | undefined;
+    systemResumeCount: number;
+}
+
+function elapsedMs(since: number | undefined, now: number): number | null {
+    return since === undefined ? null : Math.max(0, now - since);
+}
+
+function systemWakeFields(context: CauseContext, now: number): LogFields {
+    return {
+        msSinceSystemResume: elapsedMs(context.lastResumeAt, now),
+        msSinceScreenUnlock: elapsedMs(context.lastUnlockAt, now),
+        systemResumeCount: context.systemResumeCount,
+    };
+}
+
 const FEATURE_FIELDS: Record<string, string> = {
     '2d_canvas': 'feature2dCanvas',
     'direct_rendering_display_compositor': 'featureDirectRenderingDisplayCompositor',
@@ -198,7 +228,11 @@ function decodeGpuExitStatus(
     };
 }
 
-function rendererDiagnosticFields(diagnostic: TerminalRendererDiagnostic): LogFields {
+function rendererDiagnosticFields(
+    diagnostic: TerminalRendererDiagnostic,
+    context: CauseContext,
+    now: number,
+): LogFields {
     return {
         code: 'TERMINAL_RENDERER_STATUS',
         diagnosticId: diagnostic.diagnosticId,
@@ -210,6 +244,7 @@ function rendererDiagnosticFields(diagnostic: TerminalRendererDiagnostic): LogFi
         contextLossCount: diagnostic.contextLossCount,
         redrawCount: diagnostic.redrawCount,
         visibilityRestoreCoalescedCount: diagnostic.visibilityRestoreCoalescedCount,
+        liveWebglContextCount: diagnostic.liveWebglContextCount,
         recoveryResult: diagnostic.recoveryResult,
         retryAttemptCount: diagnostic.retryAttemptCount,
         retryDelayMs: diagnostic.retryDelayMs,
@@ -224,6 +259,9 @@ function rendererDiagnosticFields(diagnostic: TerminalRendererDiagnostic): LogFi
         documentVisible: diagnostic.documentVisible,
         documentFocused: diagnostic.documentFocused,
         terminalFocused: diagnostic.terminalFocused,
+        ...systemWakeFields(context, now),
+        msSinceGpuProcessGone: elapsedMs(context.lastGpuProcessGoneAt, now),
+        gpuProcessGoneCount: context.gpuProcessGoneCount,
     };
 }
 
@@ -297,6 +335,7 @@ function relatedRendererFields(
         relatedRendererTrigger: diagnostic.trigger,
         relatedRendererPreference: diagnostic.preference,
         relatedRendererContextLossCount: diagnostic.contextLossCount,
+        relatedRendererLiveWebglContextCount: diagnostic.liveWebglContextCount,
         relatedRendererRetryAttemptCount: diagnostic.retryAttemptCount,
         relatedRendererRetrySequenceId: diagnostic.retrySequenceId ?? null,
         relatedRendererRetryState: diagnostic.retryState,
@@ -333,6 +372,13 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
     const recentGpuIncidents: RecentGpuIncident[] = [];
     const recentRendererDiagnostics: RecentRendererDiagnostic[] = [];
     let lastEvictedRendererDiagnosticAt: number | undefined;
+    const causeContext: CauseContext = {
+        gpuProcessGoneCount: 0,
+        lastGpuProcessGoneAt: undefined,
+        lastResumeAt: undefined,
+        lastUnlockAt: undefined,
+        systemResumeCount: 0,
+    };
     let previousFeatureFields: LogFields | undefined;
     let isGpuInfoUpdateObserved = false;
     const pendingIncidentTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -416,7 +462,7 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
             .logger()
             ?.write(isFailure ? 'warn' : 'info', logEventCatalog.renderer.terminalRendererStatus, {
                 correlationId: correlated?.id,
-                fields: rendererDiagnosticFields(diagnostic),
+                fields: rendererDiagnosticFields(diagnostic, causeContext, receivedAt),
             });
         if (correlated)
             options.logger()?.write('info', logEventCatalog.gpu.recovery, {
@@ -448,6 +494,8 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
         if (details.type !== 'GPU' || details.reason === 'clean-exit') return undefined;
         const occurredAt = now();
         const incidentId = createIncidentId();
+        causeContext.gpuProcessGoneCount += 1;
+        causeContext.lastGpuProcessGoneAt = occurredAt;
         recentGpuIncidents.push({ id: incidentId, occurredAt });
         if (recentGpuIncidents.length > MAX_GPU_INCIDENTS) recentGpuIncidents.shift();
         const result = decodeGpuExitStatus(details.exitCode, platform);
@@ -473,6 +521,8 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
                 osRelease: operatingSystemRelease,
                 ...commandLineFields(options.app),
                 ...windowFields(options.window()),
+                ...systemWakeFields(causeContext, occurredAt),
+                gpuProcessGoneCount: causeContext.gpuProcessGoneCount,
                 ...relatedRendererFields(
                     recentRendererDiagnostics,
                     lastEvictedRendererDiagnosticAt,
@@ -506,11 +556,26 @@ export function createGpuDiagnostics(options: GpuDiagnosticsOptions) {
         );
     }
 
+    /**
+     * Records the moment of a wake; the event itself is not logged because Main's event-loop monitor already counts
+     * suspensions, and the elapsed time only matters next to a GPU or Terminal renderer record.
+     */
+    function recordSystemWake(kind: SystemWakeKind): void {
+        const at = now();
+        if (kind === 'resume') {
+            causeContext.lastResumeAt = at;
+            causeContext.systemResumeCount += 1;
+            return;
+        }
+        causeContext.lastUnlockAt = at;
+    }
+
     return {
         captureBaseline: () =>
             isGpuInfoUpdateObserved ? captureSnapshot(undefined, true) : Promise.resolve(),
         handleGpuInfoUpdate,
         recordGpuProcessGone,
         recordRendererDiagnostic,
+        recordSystemWake,
     };
 }

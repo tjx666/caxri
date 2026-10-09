@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     createE2EAgentEnvironment,
     createE2EAgentIsolationEnvironment,
+    E2E_SHELL_PROMPT,
     e2eAgentStateEnvironmentKeys,
     selectE2ERealAgentStateEnvironment,
 } from '../agent-environment';
@@ -67,6 +68,33 @@ describe('E2E Agent isolation environment', () => {
                     sourceEnvironment: {},
                 }),
             ).rejects.toThrow('Fake Agent executables must use absolute paths');
+        } finally {
+            await rm(fixtureRoot, { recursive: true, force: true });
+        }
+    });
+
+    it('pins a synthetic shell prompt and startup directory inside the isolated HOME', async () => {
+        const fixtureRoot = await mkdtemp(join(tmpdir(), 'caxri-e2e-agent-environment-'));
+        try {
+            const home = join(fixtureRoot, 'home');
+            const environment = await createE2EAgentEnvironment({
+                fixtureRoot,
+                mode: { mode: 'blocked' },
+                sourceEnvironment: { PATH: '/usr/bin:/bin', ZDOTDIR: '/host/private-zdotdir' },
+            });
+
+            expect(environment).toMatchObject({ HOME: home, ZDOTDIR: home });
+            expect(await readFile(join(home, '.zlogin'), 'utf8')).toBe(
+                `PROMPT='${E2E_SHELL_PROMPT}'\nPS1="$PROMPT"\nunset RPROMPT RPS1\n`,
+            );
+            const profiles = await Promise.all(
+                ['.bash_profile', '.profile'].map((profile) =>
+                    readFile(join(home, profile), 'utf8'),
+                ),
+            );
+            for (const profile of profiles)
+                expect(profile).toContain(`\nPS1='${E2E_SHELL_PROMPT}'\n`);
+            expect(await readFile(join(home, '.zprofile'), 'utf8')).not.toContain('PS1');
         } finally {
             await rm(fixtureRoot, { recursive: true, force: true });
         }

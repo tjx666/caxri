@@ -224,11 +224,16 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
         await expect(firstSession).toHaveClass(/active/);
         await running.page.waitForTimeout(1_050);
 
-        await typeTerminal(running.page, 'stty -echo');
         const historicalClipboardPayload = encoded('HISTORICAL_REPLAY_WRITE');
+        /**
+         * Zsh's line editor redraws typed input even after `stty -echo`, so the command line itself lands in the
+         * buffer. Split the payload across two printf arguments: the contiguous payload then exists only inside the OSC
+         * 52 sequence, which is what must never be persisted and replayed.
+         */
+        const payloadSplit = Math.floor(historicalClipboardPayload.length / 2);
         await typeTerminal(
             running.page,
-            String.raw`printf 'SNAPSHOT_REPLAY_VISIBLE\n'; ${osc52(historicalClipboardPayload)}; exit`,
+            String.raw`printf 'SNAPSHOT_REPLAY_VISIBLE\n'; printf '\033]52;c;%s%s\007' '${historicalClipboardPayload.slice(0, payloadSplit)}' '${historicalClipboardPayload.slice(payloadSplit)}'; exit`,
         );
         await expect(running.page.locator('[data-terminal-exit-state="stopped"]')).toBeVisible();
         await expect.poll(() => running.clipboard.textEquals('HISTORICAL_REPLAY_WRITE')).toBe(true);

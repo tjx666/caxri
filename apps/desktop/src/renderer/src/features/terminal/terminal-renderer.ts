@@ -2,6 +2,8 @@ import type { AppSettings } from '@caxri/protocol';
 import { WebglAddon } from '@xterm/addon-webgl';
 import type { IDisposable, ITerminalAddon } from '@xterm/xterm';
 
+import type { TerminalWebglSessionPolicy } from './terminal-webgl-session-policy';
+
 export type TerminalGpuAcceleration = AppSettings['terminal.gpuAcceleration'];
 export type TerminalRendererMode = 'dom' | 'webgl';
 export type TerminalRendererRedrawIntent = 'content-only' | 'grid-sync';
@@ -59,6 +61,11 @@ const TERMINAL_WEBGL_RETRY_WINDOW_MS = 60_000;
 
 export interface TerminalRendererStatus {
     contextLossCount: number;
+    /**
+     * Terminal WebGL contexts live in this Renderer when the status was published; on a loss it is sampled before the
+     * lost context is released, so it includes the lost one. See `TerminalWebglSessionPolicy.liveWebglContextCount`.
+     */
+    liveWebglContextCount: number;
     mode: TerminalRendererMode;
     reason: TerminalRendererReason;
     redrawCount: number;
@@ -81,28 +88,6 @@ interface TerminalRendererHost {
 }
 
 type WebglAddonFactory = () => WebglRendererAddon;
-
-/**
- * Session-wide WebGL policy shared by every mounted Terminal. The controller is rebuilt on each tab switch, so anything
- * that must outlive a pane (the GPU incident budget, the cached WebGL2 probe) lives behind this seam.
- */
-export interface TerminalWebglSessionPolicy {
-    /**
-     * Records the preference each pane applies; an actual change is the user's request to try WebGL again.
-     */
-    applyPreference(preference: TerminalGpuAcceleration): void;
-    isPinnedToDom(): boolean;
-    isWebgl2Available(): boolean;
-    /**
-     * Reports one lost WebGL context so the `auto` preference can converge on DOM when losses repeat without a
-     * Main-visible GPU process exit.
-     */
-    recordContextLoss(): void;
-    /**
-     * Clears the session incident budget only after an explicit user retry.
-     */
-    resetForManualRetry(): void;
-}
 
 export interface TerminalRendererControllerOptions {
     /**
@@ -145,32 +130,16 @@ export function resolveTerminalRendererTarget(
 }
 
 /**
- * Probes the capability xterm actually needs instead of constructor presence, which remains truthy when Chromium cannot
- * create a WebGL2 context. The temporary context is released immediately so probing cannot evict a live Terminal
- * context from Chromium's per-page limit.
- */
-export function isWebgl2Available(): boolean {
-    try {
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('webgl2');
-        if (!context) return false;
-        try {
-            return true;
-        } finally {
-            context.getExtension('WEBGL_lose_context')?.loseContext();
-        }
-    } catch {
-        return false;
-    }
-}
-
-/**
  * Owns the replaceable xterm renderer only. Falling back disposes WebGL and asks xterm to redraw; it never touches the
  * Server, PTY, buffer, or Agent lifecycle.
  */
 export class TerminalRendererController {
     private contextLossCount = 0;
     private disposed = false;
+    /**
+     * Whether `webgl` was counted by the session policy; a load that threw before xterm activated it never was.
+     */
+    private isWebglContextCounted = false;
     private lossDisposable: IDisposable | undefined;
     private preference: TerminalGpuAcceleration | undefined;
     private redrawCount = 0;
@@ -184,6 +153,11 @@ export class TerminalRendererController {
     private status: TerminalRendererStatus | undefined;
     private suspended = false;
     private webgl: WebglRendererAddon | undefined;
+    /**
+     * Live-context count captured at the start of a loss transition, before the lost context is released, so every
+     * record that transition publishes reports the pressure that existed when the context was lost.
+     */
+    private webglContextCountAtLoss: number | undefined;
 
     private readonly beginActivationMeasurement: () => () => void;
     private readonly canRetryWebgl: () => boolean;
@@ -211,8 +185,13 @@ export class TerminalRendererController {
 
     private handleContextLoss(): void {
         if (!this.webgl) return;
-        this.recordContextLoss();
-        this.fallback('context-loss', 'webgl-context-loss');
+        this.webglContextCountAtLoss = this.policy.liveWebglContextCount();
+        try {
+            this.recordContextLoss();
+            this.fallback('context-loss', 'webgl-context-loss');
+        } finally {
+            this.webglContextCountAtLoss = undefined;
+        }
     }
 
     private recordContextLoss(): void {
@@ -254,6 +233,8 @@ export class TerminalRendererController {
             this.webgl = addon;
             this.lossDisposable = addon.onContextLoss(() => this.handleContextLoss());
             this.host.loadAddon(addon);
+            this.isWebglContextCounted = true;
+            this.policy.recordWebglContextAcquired();
             settleMeasurement();
             this.redrawTerminal('grid-sync');
             if (successTrigger === 'webgl-retry-succeeded') this.retryState = 'succeeded';
@@ -270,6 +251,7 @@ export class TerminalRendererController {
             this.lossDisposable?.dispose();
             this.lossDisposable = undefined;
             if (this.webgl === addon) this.webgl = undefined;
+            this.releaseWebglContextCount();
             try {
                 addon?.dispose();
             } catch {
@@ -389,11 +371,18 @@ export class TerminalRendererController {
         return true;
     }
 
+    private releaseWebglContextCount(): void {
+        if (!this.isWebglContextCounted) return;
+        this.isWebglContextCounted = false;
+        this.policy.recordWebglContextReleased();
+    }
+
     private disposeWebgl(): void {
         this.lossDisposable?.dispose();
         this.lossDisposable = undefined;
         const addon = this.webgl;
         this.webgl = undefined;
+        this.releaseWebglContextCount();
         try {
             addon?.dispose();
         } catch {
@@ -413,6 +402,8 @@ export class TerminalRendererController {
     ): void {
         this.status = {
             contextLossCount: this.contextLossCount,
+            liveWebglContextCount:
+                this.webglContextCountAtLoss ?? this.policy.liveWebglContextCount(),
             mode: this.webgl ? 'webgl' : 'dom',
             reason,
             redrawCount: this.redrawCount,
@@ -612,32 +603,37 @@ export class TerminalRendererController {
         // A suspended pane holds no context, so a GPU process exit costs it nothing and must not be charged to the
         // incident budget as if it had lost one.
         if (this.suspended) return 'already-dom';
-        const isHadWebgl = Boolean(this.webgl);
-        if (isHadWebgl) this.recordContextLoss();
-        this.disposeWebgl();
+        this.webglContextCountAtLoss = this.policy.liveWebglContextCount();
         try {
-            this.redrawTerminal(isHadWebgl ? 'grid-sync' : 'content-only');
-        } catch {
-            this.publish(
-                isHadWebgl ? 'context-loss' : (this.status?.reason ?? 'disabled'),
-                'gpu-process-recovery',
-                'failed',
-            );
-            return 'failed';
+            const isHadWebgl = Boolean(this.webgl);
+            if (isHadWebgl) this.recordContextLoss();
+            this.disposeWebgl();
+            try {
+                this.redrawTerminal(isHadWebgl ? 'grid-sync' : 'content-only');
+            } catch {
+                this.publish(
+                    isHadWebgl ? 'context-loss' : (this.status?.reason ?? 'disabled'),
+                    'gpu-process-recovery',
+                    'failed',
+                );
+                return 'failed';
+            }
+            const result = isHadWebgl ? 'dom-restored' : 'already-dom';
+            if (isHadWebgl) this.beginRetry('context-loss');
+            // The session budget may have tripped on this very incident; the pane then settles on the closed reason,
+            // and a pane still carrying a retry sequence from an earlier loss ends it here instead of re-arming later.
+            const reason = isHadWebgl
+                ? this.policy.isPinnedToDom()
+                    ? 'context-loss-limit'
+                    : 'context-loss'
+                : this.settledDomReason();
+            if (!isHadWebgl && reason === 'context-loss-limit' && this.retrySequenceId)
+                this.publishIncidentLimit();
+            this.publish(reason, 'gpu-process-recovery', result);
+            return result;
+        } finally {
+            this.webglContextCountAtLoss = undefined;
         }
-        const result = isHadWebgl ? 'dom-restored' : 'already-dom';
-        if (isHadWebgl) this.beginRetry('context-loss');
-        // The session budget may have tripped on this very incident; the pane then settles on the closed reason, and a
-        // pane still carrying a retry sequence from an earlier loss ends it here instead of re-arming later.
-        const reason = isHadWebgl
-            ? this.policy.isPinnedToDom()
-                ? 'context-loss-limit'
-                : 'context-loss'
-            : this.settledDomReason();
-        if (!isHadWebgl && reason === 'context-loss-limit' && this.retrySequenceId)
-            this.publishIncidentLimit();
-        this.publish(reason, 'gpu-process-recovery', result);
-        return result;
     }
 
     dispose(): void {

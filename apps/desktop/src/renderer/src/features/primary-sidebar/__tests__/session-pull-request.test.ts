@@ -12,7 +12,7 @@ function pullRequest(overrides: Partial<SessionPullRequest> = {}): SessionPullRe
     return {
         number: 42,
         title: 'feat: session PR status',
-        url: 'https://github.com/yutengjing/caxri/pull/42',
+        url: 'https://github.com/example/caxri/pull/42',
         state: 'open',
         source: 'agent',
         ...overrides,
