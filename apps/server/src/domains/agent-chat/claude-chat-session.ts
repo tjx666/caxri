@@ -303,14 +303,14 @@ class ClaudeChatSession implements AgentChatProviderSession {
     private onToolResults(message: SDKUserMessage): void {
         const content = isRecord(message.message) ? message.message.content : undefined;
         if (!Array.isArray(content)) return;
-        const { items } = this.options.read();
+        const items = new Map(this.options.read().items.map((item) => [item.id, item]));
         for (const block of content) {
             if (!isRecord(block) || block.type !== 'tool_result') continue;
             const toolUseId = stringField(block.tool_use_id);
             if (!toolUseId) continue;
             const id = clip(toolUseId, 200);
             const wasDeclined = this.requests.takeDeclined(id);
-            const item = items.find((candidate) => candidate.id === id);
+            const item = items.get(id);
             const settled =
                 item && settleClaudeToolItem(item, block, message.tool_use_result, wasDeclined);
             if (settled) this.options.apply([{ op: 'upsertItem', item: settled }]);

@@ -16,7 +16,7 @@ import {
     executeMobileImageAttachmentScenario,
     finish,
 } from './support/mobile-agent-actions-scenarios.ts';
-import { executeMobileAgentChatScenario } from './support/mobile-agent-chat-scenario.ts';
+import { executeMobileAgentChatCase } from './support/mobile-agent-chat-scenario.ts';
 import {
     adbShell,
     mobileDisplayState,
@@ -236,10 +236,9 @@ test('executes one report-bound Android product scenario', async ({}) => {
             );
             break;
         }
-        case 'MOB-EDIT-01': {
+        case 'MOB-EDIT-01':
             await executeMobileFileEditScenario(environment, artifacts);
             break;
-        }
         case 'MOB-PAIR-02': {
             await adbShell(environment.serial, [
                 'am',
@@ -642,7 +641,8 @@ test('executes one report-bound Android product scenario', async ({}) => {
             await executeMobileProjectPanelsScenario(environment, artifacts);
             break;
         case 'MOB-CHAT-01':
-            await executeMobileAgentChatScenario(environment, artifacts);
+        case 'MOB-CHAT-02':
+            await executeMobileAgentChatCase(environment, artifacts);
             break;
         case 'MOB-CONV-05':
             await executeMobileConversationTransitionScenario(environment, artifacts);

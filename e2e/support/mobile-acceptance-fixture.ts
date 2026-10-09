@@ -41,7 +41,7 @@ import { readSyntheticMenuState } from './mobile-synthetic-menu-state';
 
 export interface MobileAcceptanceFixture {
     /**
-     * The Chat Terminal of an `agent-chat` fixture, driven by the deterministic fake Codex app-server.
+     * The Chat Terminal of an `agent-chat` fixture, driven by the deterministic fake of its `chatProvider`.
      */
     agentChat?: {
         read(): Promise<AgentChatSnapshot>;
@@ -89,6 +89,10 @@ interface CreateMobileAcceptanceFixtureInput {
         | 'shell-conversation'
         | 'journey';
     serial: string;
+    /**
+     * The provider an `agent-chat` fixture opens its Chat with. Defaults to Codex.
+     */
+    chatProvider?: 'claude' | 'codex';
     changes?: MobileChangesFixtureKind;
     dropSubmitAcknowledgement?: boolean;
     delayPairingResult?: boolean;
@@ -325,7 +329,7 @@ export async function createMobileAcceptanceFixture(
                 terminal: { id: string } | null;
             }>(running.page, 'session.create', {
                 projectId: placeholder.projectId,
-                defaultAgent: 'codex',
+                defaultAgent: input.chatProvider ?? 'codex',
                 surface: 'chat',
             });
             if (!chat.terminal) throw new Error('Synthetic Chat Terminal is unavailable');

@@ -6,6 +6,7 @@
  * - `approve`: a Bash command needing approval; accept runs it, decline records it as declined.
  * - `edit`: a file edit needing approval; accept reports a structured patch.
  * - `ask`: an `AskUserQuestion` question; the reply quotes the chosen answer.
+ * - `planmode`: an `ExitPlanMode` approval, the generic tool request kind that is neither a command nor a file edit.
  * - `slow`: a long streamed reply that an interrupt can stop.
  * - `pause`: a short reply streamed over about a second, long enough to send another message into the turn.
  * - `fail`: a failed turn with an error result.
@@ -284,6 +285,17 @@ async function runTurn(text: string) {
         );
         if (!isInterrupted())
             await didStreamFully(isAllowed ? 'Edited notes.txt.' : 'Left notes.txt alone.', 0);
+        result(startedAt, 'done');
+        return;
+    }
+    if (text.includes('planmode')) {
+        const isAllowed = await wasToolAllowed(
+            'ExitPlanMode',
+            { plan: '1. Read the notes.\n2. Summarize them in one paragraph.' },
+            () => ({ content: 'User has approved your plan.' }),
+        );
+        if (!isInterrupted())
+            await didStreamFully(isAllowed ? 'Plan approved.' : 'Kept planning.', 0);
         result(startedAt, 'done');
         return;
     }
