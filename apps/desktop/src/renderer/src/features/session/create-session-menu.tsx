@@ -14,7 +14,9 @@ import { cn } from '../../lib/utilities';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
 import { closeCreateSessionMenu, useDialogStore } from '../../stores/dialogs';
 import { useSettings } from '../../stores/selectors';
-import { beginSessionCreation, chooseSessionTerminalKind } from './session-commands';
+import { newAgentSurface } from '../terminal/new-terminal-agent';
+import { ChatSurfaceMarker, OpenInChatMenuItem } from './open-in-chat-menu-item';
+import { beginSessionCreation, chooseSessionTerminalKind } from './session-creation-commands';
 
 /**
  * The Terminal-choice menu for a new Session, hung from whichever control opened it.
@@ -49,7 +51,9 @@ function SessionCreationMenu({
             state.createSessionMenu?.projectId === project.id &&
             state.createSessionMenu.anchor === anchor,
     );
-    const defaultAgent = useSettings()?.['session.defaultAgent'];
+    const settings = useSettings();
+    const defaultAgent = settings?.['session.defaultAgent'];
+    const openInChat = settings?.['session.openAgentsInChat'];
     /**
      * A Project can leave the bootstrap while its menu is open: removed from another window, or dropped by a Server
      * state change. React then unmounts the only component that renders this claim, so Base UI never reports a close
@@ -128,6 +132,7 @@ function SessionCreationMenu({
                     >
                         <AgentIdentityIcon identity={kind} size={14} />
                         <span className="flex-1 truncate">{resolveAgentIcon(kind).label}</span>
+                        {newAgentSurface(kind, openInChat) === 'chat' && <ChatSurfaceMarker />}
                     </MenuItem>
                 ))}
                 <MenuSeparator />
@@ -142,6 +147,8 @@ function SessionCreationMenu({
                     <SquareDashed size={14} />
                     <span className="flex-1 truncate">Start without a Terminal</span>
                 </MenuItem>
+                <MenuSeparator />
+                <OpenInChatMenuItem />
             </MenuContent>
         </Menu>
     );

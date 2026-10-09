@@ -36,9 +36,7 @@ import { deleteProject, hideSelectedProject } from '../features/session/project-
 import {
     archiveSelectedSession,
     archiveSession,
-    beginSessionCreation,
     canNavigateSessionHistory,
-    chooseProjectFolder,
     deleteSelectedSession,
     detachSelectedSession,
     moveTerminalToNewSession,
@@ -52,6 +50,10 @@ import {
     switchMruSession,
 } from '../features/session/session-commands';
 import { compactWarmSessions } from '../features/session/session-compaction-commands';
+import {
+    beginSessionCreation,
+    chooseProjectFolder,
+} from '../features/session/session-creation-commands';
 import { lastTabTerminalSessionId } from '../features/session/session-last-tab';
 import {
     installShellCommand,

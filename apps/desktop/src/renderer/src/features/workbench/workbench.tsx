@@ -8,7 +8,7 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { useDialogStore } from '../../stores/dialogs';
 import { useSelectedSession } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
-import { chooseProjectFolder } from '../session/session-commands';
+import { chooseProjectFolder } from '../session/session-creation-commands';
 import { SettingsWorkbenchPage } from '../settings/settings-workbench-page';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
 import { PaneView } from './pane-view';

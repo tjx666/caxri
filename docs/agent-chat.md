@@ -19,6 +19,14 @@ Grok Build stays PTY-only.
 - `terminal.create` takes `surface: 'chat'`; the default is a PTY. The surface is stored in the
   `terminals.surface` column and never changes after creation. `isChatTerminal` is the one
   predicate every surface-dependent path checks.
+- `session.create` takes the same optional `surface`, so a new Session can start with a Chat as its
+  first Terminal. Server Core refuses a Chat for an Agent without `capabilities.chat` before writing
+  anything (`canUseAgentChat`).
+- Users choose the surface through one setting, `session.openAgentsInChat` (Settings, or the
+  "Open in Chat" toggle at the foot of the New Session and New Terminal menus and the centered
+  Agent-choice dialog). Each menu lists every Agent once; with the toggle on, Chat-capable rows show
+  a muted "Chat" marker. Direct creation with a default Agent and `Cmd+T` follow the setting too,
+  while a click on the tab strip's `+` clones the primary Agent Terminal on its own surface.
 - A Chat keeps everything else a Terminal owns: its Session, Primary Agent election, naming, pane
   placement, and the `terminal` pane resource.
 - The Agent Session (the Codex thread id) is bound to the Terminal only when the thread's first

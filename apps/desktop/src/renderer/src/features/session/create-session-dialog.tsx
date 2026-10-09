@@ -13,8 +13,10 @@ import {
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useDialogStore } from '../../stores/dialogs';
-import { useProjects } from '../../stores/selectors';
-import { cancelPendingSession, confirmPendingSession } from './session-commands';
+import { useProjects, useSettings } from '../../stores/selectors';
+import { newAgentSurface } from '../terminal/new-terminal-agent';
+import { ChatSurfaceMarker, OpenInChatSwitch } from './open-in-chat-menu-item';
+import { cancelPendingSession, confirmPendingSession } from './session-creation-commands';
 
 /**
  * Centered fallback for the one Terminal choice that has nothing to anchor to: adding a Project starts at the native
@@ -25,6 +27,7 @@ export function CreateSessionDialog() {
     const pendingRoot = useDialogStore((state) => state.pendingRoot);
     const pendingProjectId = useDialogStore((state) => state.pendingProjectId);
     const projects = useProjects();
+    const openInChat = useSettings()?.['session.openAgentsInChat'];
     const isOpen = Boolean(pendingRoot ?? pendingProjectId);
     // Mirrors the Server's Project-title derivation (`basename(rootPath)` in apps/server/src/domains/db/models/projects.ts) so
     // the dialog previews the same title the created Project will get.
@@ -52,7 +55,8 @@ export function CreateSessionDialog() {
                             onClick={() => onCreate(kind)}
                         >
                             <AgentIdentityIcon identity={kind} size={15} />
-                            {resolveAgentIcon(kind).label}
+                            <span className="flex-1 text-left">{resolveAgentIcon(kind).label}</span>
+                            {newAgentSurface(kind, openInChat) === 'chat' && <ChatSurfaceMarker />}
                         </Button>
                     ))}
                     {/**
@@ -66,6 +70,7 @@ export function CreateSessionDialog() {
                     >
                         <SquareDashed size={15} /> Start without a Terminal
                     </Button>
+                    <OpenInChatSwitch />
                 </div>
             </DialogContent>
         </Dialog>
