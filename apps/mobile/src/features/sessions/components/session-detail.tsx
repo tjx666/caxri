@@ -2,6 +2,9 @@ import { useMemo } from 'react';
 import { KeyboardAvoidingView, Platform, Text } from 'react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
+import { AgentChatComposer } from '../../agent-chat/agent-chat-composer';
+import { agentChatProviderName, isAgentChatTerminal } from '../../agent-chat/agent-chat-model';
+import { useAgentChat } from '../../agent-chat/use-agent-chat';
 import { ChangesPanel } from '../../changes/changes-panel';
 import { COMMIT_DRAFT } from '../../changes/changes-view';
 import { useChangesList } from '../../changes/use-changes';
@@ -66,12 +69,29 @@ export const SessionDetail = ({
 }) => {
     const changes = useChangesList(isVisible, session.id);
     const panels = useSessionPanels(session.id);
+    const isChat = isAgentChatTerminal(session.primaryTerminal);
+    const chatProvider = agentChatProviderName(session.primaryTerminal);
+    /**
+     * A Chat stays observed while its tab or the wide layout's background shows it.
+     */
+    const chat = useAgentChat({
+        enabled:
+            isChat &&
+            isVisible &&
+            (segment === 'conversation' || (wideChanges && !isPanelSessionSegment(segment))),
+        terminalId: isChat ? (session.primaryTerminal?.id ?? null) : null,
+    });
     const segments = useMemo<SessionSegment[]>(
         () => [
-            ...SESSION_SEGMENTS.filter((option) => hasConversation || option !== 'conversation'),
+            ...SESSION_SEGMENTS.filter(
+                (option) =>
+                    (hasConversation || option !== 'conversation') &&
+                    // A Chat has no PTY to attach.
+                    !(isChat && option === 'terminal'),
+            ),
             ...(panels.panels ?? []).map((panel) => panelSessionSegment(panel.id)),
         ],
-        [hasConversation, panels.panels],
+        [hasConversation, isChat, panels.panels],
     );
     const changesPanel = (
         <ChangesPanel
@@ -129,6 +149,7 @@ export const SessionDetail = ({
                         />
                     ) : null
                 }
+                chat={isChat ? { controller: chat, provider: chatProvider } : null}
                 conversationTimeline={conversationTimeline}
                 deviceRole={deviceRole}
                 isConnected={isConnected}
@@ -146,7 +167,17 @@ export const SessionDetail = ({
              * device keeps the composer on the Terminal because it is that device's only way to answer the Agent.
              */}
             {isPanelSessionSegment(segment) ||
-            (segment === 'terminal' && deviceRole === 'control') ? null : (
+            (segment === 'terminal' && deviceRole === 'control') ? null : isChat ? (
+                <AgentChatComposer
+                    chat={chat}
+                    deviceRole={deviceRole}
+                    draft={draft}
+                    isConnected={isConnected}
+                    onDraftChange={onDraftChange}
+                    provider={chatProvider}
+                    theme={theme}
+                />
+            ) : (
                 <SessionDetailComposer
                     deviceRole={deviceRole}
                     draft={draft}

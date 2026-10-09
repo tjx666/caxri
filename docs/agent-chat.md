@@ -34,7 +34,8 @@ Grok Build stays PTY-only.
   An unbound Chat simply opens a new thread on its next start.
 - PTY-only operations (Terminal input from other Clients, Agent dispatch, compaction, Git review
   sends, long pastes, mobile submits, suspension, restore) reject or skip a Chat through
-  `apps/server/src/domains/pty-guard.ts` before any side effect.
+  `apps/server/src/domains/pty-guard.ts` before any side effect. A phone drives a Chat through
+  the `mobile.agentChat.*` methods instead; see [Mobile](#mobile).
 
 ## Process lifecycle
 
@@ -142,6 +143,28 @@ several callbacks can share one item, so the transport id is never the key.
   opens in the editor through the same resolver and Project candidate picker as a Terminal file
   link.
 
+## Mobile
+
+- The dashboard projects `surface` on the primary Terminal. A phone shows a Chat in its own Chat
+  tab instead of the Conversation and Terminal tabs, so it never attaches to a PTY that does not
+  exist.
+- A sealed gateway frame carries 64 KiB, while a Chat projection may hold megabytes.
+  `mobile.agentChat.read` therefore returns a window of the newest items within 48 KiB and sets
+  `truncated` for the rest. Each item is shortened deterministically by
+  `packages/protocol/src/mobile/mobile-agent-chat-contract.ts`: messages, reasoning, and output keep
+  their tail behind a `…` marker, so streamed `appendText` deltas still continue the phone's copy;
+  diffs keep their head under one budget per file change.
+- The `{kind:'agentChat',terminalId}` subscription forwards each `agentChat.patch` after the
+  subscribe ACK, shortened the same way. A patch that still does not fit one frame becomes a
+  content-free `agentChat.changed`, and the phone re-reads. The phone folds patches with the
+  shared `applyAgentChatPatch`, holds those that arrive during a read, and re-reads on any break in
+  the revision chain.
+- Roles: `view` reads; `reply` also sends and retries a failed Chat; `control` also answers
+  approvals and questions and stops a turn. Mutations resolve the Terminal through the device's
+  granted Projects, refuse a non-Chat Terminal with `CONFLICT`, and go through Core's mutation
+  admission like a Desktop request. Retry restarts only a `failed` Chat (`terminal.restart` with
+  `mode: 'resume'`).
+
 ## Lifecycle signals
 
 A Chat begins its own launch generation with the Agent coordinator and synthesizes
@@ -176,5 +199,6 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 
 ## Not yet supported
 
-Switching an existing Terminal between surfaces, Chat on mobile, image input, slash commands, and
-the Claude Agent SDK provider.
+Switching an existing Terminal between surfaces, image input, slash commands, and the Claude Agent
+SDK provider. On mobile, a Chat shows no plan, model, or context usage yet, and older history beyond
+the window stays on the computer.

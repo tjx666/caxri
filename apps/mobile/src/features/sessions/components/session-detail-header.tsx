@@ -18,6 +18,7 @@ import { IconButton } from '../../../components/icon-button';
 import { PopoverMenu } from '../../../components/popover-menu';
 import { usePopoverAnchor } from '../../../components/use-popover-anchor';
 import type { MobileTheme } from '../../../theme/tokens';
+import { isAgentChatTerminal } from '../../agent-chat/agent-chat-model';
 import { MobileGatewayRequestError } from '../../connection/mobile-gateway-client';
 import { PanelIcon } from '../../panels/panels-view';
 import type { Panel } from '../../panels/use-panels';
@@ -46,7 +47,10 @@ const fixedSegmentPresentation: Record<
 const segmentPresentation = (
     segment: SessionSegment,
     panels: readonly Panel[] | undefined,
+    isChat: boolean,
 ): { icon: LucideIcon; label: string; panel?: Panel } => {
+    // A Chat's conversation tab carries the Desktop name for that surface.
+    if (segment === 'conversation' && isChat) return { icon: MessagesSquare, label: 'Chat' };
     if (!isPanelSessionSegment(segment)) return fixedSegmentPresentation[segment];
     const panel = panels?.find((candidate) => candidate.id === panelIdOfSegment(segment));
     return { icon: ListTree, label: panel?.title ?? 'Project view', panel };
@@ -66,6 +70,7 @@ const segmentTestId = (segment: SessionSegment): string =>
  */
 const SessionSegmentTab = ({
     changesCount,
+    isChat,
     onPress,
     option,
     panels,
@@ -73,13 +78,14 @@ const SessionSegmentTab = ({
     theme,
 }: {
     changesCount: number | null;
+    isChat: boolean;
     onPress: () => void;
     option: SessionSegment;
     panels: readonly Panel[] | undefined;
     selected: boolean;
     theme: MobileTheme;
 }) => {
-    const { icon: Icon, label, panel } = segmentPresentation(option, panels);
+    const { icon: Icon, label, panel } = segmentPresentation(option, panels, isChat);
     /**
      * A zero badge reads as a value to act on; an empty Changes tab says the same thing without the noise.
      */
@@ -267,6 +273,7 @@ export const SessionDetailHeader = ({
                     <SessionSegmentTab
                         key={option}
                         changesCount={changesCount}
+                        isChat={isAgentChatTerminal(session.primaryTerminal)}
                         onPress={() => onSegmentChange(option)}
                         option={option}
                         panels={panels}
