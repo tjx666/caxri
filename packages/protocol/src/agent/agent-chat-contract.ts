@@ -87,6 +87,12 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
                     path: z.string().max(4_096),
                     kind: z.enum(['add', 'delete', 'update']),
                     diff: z.string().max(MAX_AGENT_CHAT_DIFF_LENGTH),
+                    /**
+                     * Set when Server Core cut this diff to `MAX_AGENT_CHAT_DIFF_LENGTH` or to the item's remaining
+                     * `MAX_AGENT_CHAT_FILE_CHANGE_DIFF_TOTAL` budget, so a Client can say where the diff stops instead
+                     * of presenting a partial patch as the whole change.
+                     */
+                    truncated: z.boolean().optional(),
                 }),
             )
             .max(MAX_AGENT_CHAT_FILE_CHANGES),

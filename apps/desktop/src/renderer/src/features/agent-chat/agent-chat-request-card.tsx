@@ -5,9 +5,9 @@ import type { AgentChatDecision, AgentChatItem, AgentChatRequest } from '@caxri/
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Tooltip } from '../../components/ui/tooltip';
-import { projectRelativePath } from '../../lib/file-path';
 import { cn } from '../../lib/utilities';
 import { didAnswerAgentChatRequest } from './agent-chat-commands';
+import { AgentChatFileChanges } from './agent-chat-file-changes';
 import {
     agentChatApprovalChoices,
     agentChatCommandCwd,
@@ -113,29 +113,12 @@ function QuestionForm({
 
 /**
  * The files an approval would change, read from the timeline item it gates: Codex announces the file change before
- * asking, so the card can say what "Accept" applies to instead of asking blind.
+ * asking, so the card can show the diff "Accept" applies instead of asking blind. A single file opens straight to its
+ * diff; several start as headers so the decision buttons stay close.
  */
-function ApprovalFiles({
-    item,
-    projectRoot,
-}: {
-    item: AgentChatItem | undefined;
-    projectRoot: string | undefined;
-}) {
+function ApprovalFiles({ item }: { item: AgentChatItem | undefined }) {
     if (item?.type !== 'fileChange' || item.changes.length === 0) return null;
-    return (
-        <ul className="m-0 max-h-32 list-none space-y-0.5 overflow-y-auto p-0">
-            {item.changes.map((change) => (
-                <li className="flex gap-2 font-mono text-[11px] text-foreground" key={change.path}>
-                    <span className="w-12 shrink-0 text-muted">{change.kind}</span>
-                    <span className="min-w-0 wrap-anywhere">
-                        {(projectRoot && projectRelativePath(change.path, projectRoot)) ??
-                            change.path}
-                    </span>
-                </li>
-            ))}
-        </ul>
-    );
+    return <AgentChatFileChanges changes={item.changes} expandAtMost={1} status={item.status} />;
 }
 
 /**
@@ -191,9 +174,7 @@ export function AgentChatRequestCard({
                             in {cwd}
                         </p>
                     )}
-                    {request.kind === 'fileChange' && (
-                        <ApprovalFiles item={linkedItem} projectRoot={projectRoot} />
-                    )}
+                    {request.kind === 'fileChange' && <ApprovalFiles item={linkedItem} />}
                     {request.reason && <p className="m-0 text-muted">{request.reason}</p>}
                     <div className="flex flex-wrap gap-2">
                         {agentChatApprovalChoices(request).map(({ decision, label }) => (

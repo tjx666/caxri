@@ -7,6 +7,7 @@ import type {
 } from '@caxri/protocol';
 
 import { projectRelativePath } from '../../lib/file-path';
+import { agentChatFilesChangedLabel } from './agent-chat-diff';
 
 /**
  * User-facing copy for each closed failure reason. Provider text never selects the message; `detail` is shown beside it
@@ -155,11 +156,7 @@ export function agentChatActivityTitle(
             return item.command;
         }
         case 'fileChange': {
-            const first = item.changes.at(0);
-            if (!first) return 'File changes';
-            return item.changes.length === 1
-                ? first.path
-                : `${first.path} and ${item.changes.length - 1} more`;
+            return agentChatFilesChangedLabel(item.changes.length);
         }
         case 'toolCall': {
             return item.summary ? `${item.name}: ${item.summary}` : item.name;

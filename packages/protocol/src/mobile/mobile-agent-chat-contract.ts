@@ -68,7 +68,11 @@ export function clipAgentChatItemForMobile(item: AgentChatItem): AgentChatItem {
                 const limit = Math.max(remaining, 0);
                 remaining -= change.diff.length;
                 if (change.diff.length <= limit) return change;
-                return { ...change, diff: limit > 0 ? keepHead(change.diff, limit) : '' };
+                return {
+                    ...change,
+                    diff: limit > 0 ? keepHead(change.diff, limit) : '',
+                    truncated: true,
+                };
             });
             return changes.some((change, index) => change !== item.changes[index])
                 ? { ...item, changes }

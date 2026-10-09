@@ -163,6 +163,32 @@ describe('AgentChatService with a fake Codex app-server', () => {
         expect(signals.map((signal) => signal.phase)).toContain('attentionResolved');
     });
 
+    it('links a file-change approval to the change it gates and marks an oversized diff', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, 'make a patch');
+        const pending = await until((snapshot) => snapshot.requests.length === 1);
+        const request = pending.requests[0];
+        if (request.kind !== 'fileChange') throw new Error('expected a file-change approval');
+        // The card reads its diff preview from this item, so it must already hold every change.
+        const gated = pending.items.find((item) => item.id === request.itemId);
+        expect(gated).toMatchObject({ type: 'fileChange', status: 'running' });
+        if (gated?.type !== 'fileChange') throw new Error('expected a file-change item');
+        expect(gated.changes.map((change) => change.kind)).toEqual(['update', 'add', 'delete']);
+        expect(gated.changes.every((change) => change.truncated === undefined)).toBe(true);
+        service.respond(terminal.id, request.id, { kind: 'decision', decision: 'accept' });
+        const applied = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(applied.items.find((item) => item.id === request.itemId)).toMatchObject({
+            status: 'completed',
+        });
+
+        await service.send(terminal.id, 'write a bigdiff');
+        const done = await until(
+            (snapshot) => snapshot.turns.length === 2 && snapshot.turns[1].status === 'completed',
+        );
+        const large = done.items.findLast((item) => item.type === 'fileChange');
+        expect(large).toMatchObject({ changes: [{ truncated: true }] });
+    });
+
     it('answers a question with the chosen option', async () => {
         const { service, terminal, until } = await fixture();
         await service.send(terminal.id, 'ask me');
