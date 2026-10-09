@@ -20,7 +20,6 @@ import { cn } from '../../lib/utilities';
 import { openSessionPullRequest } from '../session/session-commands';
 import { pullRequestUnavailableLabel } from '../status-bar/pull-request-status-label';
 import { useSessionChanges } from './hooks/use-session-changes';
-import { sessionDiffStatAriaLabel, useSessionDiffStat } from './hooks/use-session-diff-stat';
 import { ProjectIcon } from './project-icon';
 import type { SessionActivityPresentation } from './session-activity';
 import {
@@ -164,7 +163,6 @@ export function SessionActivityCard({
         : undefined;
     const visible = open && !suppressed;
     const changes = useSessionChanges(session, visible);
-    const diffStat = useSessionDiffStat(session.id);
     const accessibleDescription = [
         // The pin has no visible mark on the row itself (it is the group the row sits in) and a pinned Session is
         // listed only there, so this sentence is the only thing that says the row is pinned at all.
@@ -176,7 +174,6 @@ export function SessionActivityCard({
         pullRequestUnavailable && `Pull request unknown. ${pullRequestUnavailable.hint}`,
         worktreeProject && `Working in worktree ${worktreeProject.displayTitle}.`,
         changes?.ariaLabel,
-        sessionDiffStatAriaLabel(diffStat),
         `Last opened ${lastOpened}.`,
         unread ? `${unread}.` : undefined,
     ]

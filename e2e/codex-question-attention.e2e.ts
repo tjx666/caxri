@@ -91,7 +91,8 @@ process.stdout.write('Question fixture ready\r\n');
         await row.screenshot({ path: testInfo.outputPath('question-attention.png') });
         await emit('PostToolUse', 'request_user_input', 'question-1');
         await expect.poll(state).toBe('running');
-        await expect(row.locator('.session-status-line')).toContainText('Working');
+        // Unread attention outranks running on the icon, so the resumed work shows in its accessible name.
+        await expect(status).toHaveAccessibleName(/Current status: Working\./);
         await emit('Stop');
         await expect.poll(state).toBe('completed');
     } finally {

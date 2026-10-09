@@ -118,7 +118,7 @@ const DETACHED_PRESENTATION: SessionActivityPresentation = {
 };
 
 /**
- * What the Session's Agent is doing right now, as the hover card and the row's status line both word it.
+ * What the Session's Agent is doing right now, as the hover card words it.
  */
 export function currentSessionActivityPresentation(
     session: Pick<SessionRecord, 'lastActivityState'>,
@@ -126,17 +126,4 @@ export function currentSessionActivityPresentation(
 ): SessionActivityPresentation {
     if (terminal?.lastProcessState === 'detached') return DETACHED_PRESENTATION;
     return sessionActivityPresentation(session.lastActivityState, terminal?.agentOperation);
-}
-
-/**
- * The activity the row's status line names, or `undefined` when it should show only the time. A Shell-only Session
- * never reports activity, and spelling out "No activity reported" on every such row is noise the hover card already
- * covers.
- */
-export function sessionStatusLineActivity(
-    session: Pick<SessionRecord, 'lastActivityState'>,
-    terminal?: SessionStatusTerminal,
-): SessionActivityPresentation | undefined {
-    const activity = currentSessionActivityPresentation(session, terminal);
-    return activity === PRESENTATIONS.unknown ? undefined : activity;
 }

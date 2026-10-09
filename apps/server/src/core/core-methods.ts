@@ -75,7 +75,6 @@ export const coreForwardedMethods = [
     'session.compactWarm',
     'session.create',
     'session.detach',
-    'session.diffStats',
     'session.dismissWorkbenchCandidate',
     'session.markRead',
     'session.permissionAutoAllowStatus',

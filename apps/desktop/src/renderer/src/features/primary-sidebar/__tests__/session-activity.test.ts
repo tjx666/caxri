@@ -2,8 +2,8 @@ import type { AgentActivityState } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    currentSessionActivityPresentation,
     sessionActivityPresentation,
-    sessionStatusLineActivity,
     sessionUnreadTone,
 } from '../session-activity';
 
@@ -67,24 +67,22 @@ describe('Session activity presentation', () => {
     });
 });
 
-describe('Session status line activity', () => {
+describe('current Session activity', () => {
     it('names the current activity, with compaction and detachment overriding the stored state', () => {
-        expect(sessionStatusLineActivity({ lastActivityState: 'running' })?.label).toBe('Working');
+        expect(currentSessionActivityPresentation({ lastActivityState: 'running' }).label).toBe(
+            'Working',
+        );
         expect(
-            sessionStatusLineActivity(
+            currentSessionActivityPresentation(
                 { lastActivityState: 'running' },
                 { agentOperation: 'compacting' },
-            )?.label,
+            ).label,
         ).toBe('Compacting');
         expect(
-            sessionStatusLineActivity(
+            currentSessionActivityPresentation(
                 { lastActivityState: 'running' },
                 { lastProcessState: 'detached' },
-            )?.label,
+            ).label,
         ).toBe('Detached');
-    });
-
-    it('leaves a Session that never reported activity to show only its time', () => {
-        expect(sessionStatusLineActivity({ lastActivityState: 'unknown' })).toBeUndefined();
     });
 });

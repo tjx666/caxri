@@ -13,7 +13,6 @@ import { SessionRenameInput } from './session-rename-input';
 import { SessionRowActions } from './session-row-actions';
 import { SessionRowMenu } from './session-row-menu';
 import { SessionRowTrigger } from './session-row-trigger';
-import { SessionStatusLine } from './session-status-line';
 
 interface ActiveSessionRowProperties {
     sessionOrder: SessionOrderController;
@@ -141,79 +140,69 @@ export function ActiveSessionRow({
             onBeginRename={beginRename}
             onFocusChange={setFocused}
         >
+            {/* The Agent's lifecycle rides on its own icon; the trailing track keeps only delivery state. */}
+            <SessionAgentStatusIcon session={session} terminal={terminal} />
+            {renaming ? (
+                <SessionRenameInput
+                    sessionId={session.id}
+                    title={session.displayTitle}
+                    error={renameError}
+                    value={renameValue}
+                    focusInput={focusRenameInput}
+                    onBlur={onBlurRename}
+                    onChange={onRenameValueChange}
+                    onCommit={onCommitRename}
+                    onCancel={onCancelRename}
+                />
+            ) : (
+                <span className="session-copy overflow-fade flex min-w-0 flex-1 items-center gap-1">
+                    <strong
+                        ref={viewportReference}
+                        /*
+                         * `flex-none` with `max-w-full` is what makes the title win the row. Both items were
+                         * shrinkable before, and flexbox shrinks in proportion to each item's own width, so a long
+                         * Project name took the larger share of the row and clipped an eight-character Session title
+                         * down to two, which reads as the Project name covering the title rather than as either one
+                         * being truncated. The title now claims its natural width up to the whole row, and the Project
+                         * name takes whatever is left.
+                         */
+                        className="session-title max-w-full min-w-0 flex-none overflow-hidden font-medium whitespace-nowrap"
+                        onPointerEnter={() => setHovered(true)}
+                        onPointerLeave={() => setHovered(false)}
+                    >
+                        <span ref={textReference} className="block w-max max-w-full">
+                            {session.displayTitle}
+                        </span>
+                    </strong>
+                    {/*
+                     * `aria-hidden` because the row's accessible name is composed elsewhere and would otherwise read
+                     * the Project twice; the hover card names it for anyone who needs the full sentence. Allowed to
+                     * shrink to nothing so a long Session title still wins the row.
+                     */}
+                    {showProjectName && (
+                        <span
+                            aria-hidden="true"
+                            className="session-project min-w-0 flex-1 basis-0 overflow-hidden text-[11px] whitespace-nowrap text-muted"
+                        >
+                            {projectDisplayTitle}
+                        </span>
+                    )}
+                </span>
+            )}
             {/*
-             * The Agent's lifecycle rides on its own icon; the trailing track keeps only delivery state. Both sit in a
-             * box one title line tall, so they stay beside the title rather than centering on the two-line row.
+             * Delivery state only: the pull request and its production deployment. Agent lifecycle lives on the
+             * leading icon, so a running or unread Session no longer hides its pull request. The wrapper follows the
+             * glyph's width, so a Session with no PR gives the empty 14px track back to its title while every visible
+             * glyph lands on the same right edge. Pointer hover collapses the track entirely: Pin/Archive need ~42px,
+             * and a 14px ghost track would still let the title paint through those glyphs.
              */}
-            <span className="flex h-5 flex-none items-center">
-                <SessionAgentStatusIcon session={session} terminal={terminal} />
-            </span>
-            <span className="flex min-w-0 flex-1 flex-col">
-                {renaming ? (
-                    <SessionRenameInput
-                        sessionId={session.id}
-                        title={session.displayTitle}
-                        error={renameError}
-                        value={renameValue}
-                        focusInput={focusRenameInput}
-                        onBlur={onBlurRename}
-                        onChange={onRenameValueChange}
-                        onCommit={onCommitRename}
-                        onCancel={onCancelRename}
+            <span className="session-indicators flex flex-none items-center justify-end group-hover/session-row:w-0 group-hover/session-row:min-w-0 group-hover/session-row:overflow-hidden">
+                {!renaming && (
+                    <SessionPullRequestIndicator
+                        className="transition-opacity group-hover/session-row:opacity-0"
+                        pullRequest={pullRequestUnavailable ? undefined : pullRequest}
                     />
-                ) : (
-                    <span className="flex h-5 min-w-0 items-center gap-2">
-                        <span className="session-copy overflow-fade flex h-5 min-w-0 flex-1 items-center gap-1">
-                            <strong
-                                ref={viewportReference}
-                                /*
-                                 * `flex-none` with `max-w-full` is what makes the title win the row. Both items were
-                                 * shrinkable before, and flexbox shrinks in proportion to each item's own width, so a
-                                 * long Project name took the larger share of the row and clipped an eight-character
-                                 * Session title down to two, which reads as the Project name covering the title rather
-                                 * than as either one being truncated. The title now claims its natural width up to the
-                                 * whole row, and the Project name takes whatever is left.
-                                 */
-                                className="session-title max-w-full min-w-0 flex-none overflow-hidden font-medium whitespace-nowrap"
-                                onPointerEnter={() => setHovered(true)}
-                                onPointerLeave={() => setHovered(false)}
-                            >
-                                <span ref={textReference} className="block w-max max-w-full">
-                                    {session.displayTitle}
-                                </span>
-                            </strong>
-                            {/*
-                             * `aria-hidden` because the row's accessible name is composed elsewhere and would otherwise
-                             * read the Project twice; the hover card names it for anyone who needs the full sentence.
-                             * Allowed to shrink to nothing so a long Session title still wins the row.
-                             */}
-                            {showProjectName && (
-                                <span
-                                    aria-hidden="true"
-                                    className="session-project min-w-0 flex-1 basis-0 overflow-hidden text-[11px] whitespace-nowrap text-muted"
-                                >
-                                    {projectDisplayTitle}
-                                </span>
-                            )}
-                        </span>
-                        {/*
-                         * Delivery state only: the pull request and its production deployment. Agent lifecycle lives on
-                         * the leading icon, so a running or unread Session no longer hides its pull request. The
-                         * wrapper follows the glyph's width, so a Session with no PR gives the empty 14px track back to
-                         * its title while every visible glyph lands on the same right edge. Pointer hover collapses the
-                         * track entirely: Pin/Archive need ~42px, and a 14px ghost track would still let the title
-                         * paint through those glyphs. The track sits inside the title line rather than in a column of
-                         * its own, so it shares a right edge with the status line's trailing `+N -M` below it.
-                         */}
-                        <span className="session-indicators flex h-5 flex-none items-center justify-end group-hover/session-row:w-0 group-hover/session-row:min-w-0 group-hover/session-row:overflow-hidden">
-                            <SessionPullRequestIndicator
-                                className="transition-opacity group-hover/session-row:opacity-0"
-                                pullRequest={pullRequestUnavailable ? undefined : pullRequest}
-                            />
-                        </span>
-                    </span>
                 )}
-                <SessionStatusLine session={session} terminal={terminal} />
             </span>
         </SessionRowTrigger>
     );
