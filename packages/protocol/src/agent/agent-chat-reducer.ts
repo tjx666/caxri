@@ -93,6 +93,9 @@ function appendToItem(item: AgentChatItem, delta: string): AgentChatItem {
     }
 }
 
+/**
+ * Drops the oldest items until the projection fits its count and text budgets.
+ */
 function enforceBudget(snapshot: AgentChatSnapshot): AgentChatSnapshot {
     let { items } = snapshot;
     let isTruncated = snapshot.truncated;
@@ -143,7 +146,8 @@ export function applyAgentChatOperation(
             if (index === -1) return snapshot;
             const items = [...snapshot.items];
             items[index] = appendToItem(snapshot.items[index], operation.delta);
-            return { ...snapshot, items };
+            // Streaming grows the aggregate as surely as an upsert does, so the budget holds mid-stream too.
+            return enforceBudget({ ...snapshot, items });
         }
         case 'state': {
             const next: AgentChatSnapshot = { ...snapshot };

@@ -23,32 +23,21 @@ export function interruptAgentChat(terminalId: string): void {
     );
 }
 
-export function decideAgentChatRequest(
+/**
+ * Answers a pending approval or question. Resolves `true` once Server Core accepted the answer; the request card then
+ * waits for the projection to remove it, and re-enables its controls only when the answer failed.
+ */
+export async function didAnswerAgentChatRequest(
     terminalId: string,
     requestId: string,
-    decision: AgentChatDecision,
-): void {
-    // eslint-disable-next-line no-void -- tryCommand reports response failures through the toast
-    void tryCommand('Unable to answer the Agent', () =>
-        caxri.request('agentChat.respond', {
-            terminalId,
-            requestId,
-            response: { kind: 'decision', decision },
-        }),
-    );
-}
-
-export function answerAgentChatQuestions(
-    terminalId: string,
-    requestId: string,
-    answers: Record<string, string[]>,
-): void {
-    // eslint-disable-next-line no-void -- tryCommand reports response failures through the toast
-    void tryCommand('Unable to answer the Agent', () =>
-        caxri.request('agentChat.respond', {
-            terminalId,
-            requestId,
-            response: { kind: 'answers', answers },
-        }),
-    );
+    response:
+        | { kind: 'decision'; decision: AgentChatDecision }
+        | { kind: 'answers'; answers: Record<string, string[]> },
+): Promise<boolean> {
+    let isAnswered = false;
+    await tryCommand('Unable to answer the Agent', async () => {
+        await caxri.request('agentChat.respond', { terminalId, requestId, response });
+        isAnswered = true;
+    });
+    return isAnswered;
 }

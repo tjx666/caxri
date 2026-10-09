@@ -14,6 +14,10 @@ export const MAX_AGENT_CHAT_TEXT_LENGTH = 64 * 1024;
 export const MAX_AGENT_CHAT_OUTPUT_LENGTH = 16 * 1024;
 export const MAX_AGENT_CHAT_DIFF_LENGTH = 64 * 1024;
 export const MAX_AGENT_CHAT_FILE_CHANGES = 100;
+/**
+ * Sum of every diff in one file-change item, kept well under the aggregate budget below.
+ */
+export const MAX_AGENT_CHAT_FILE_CHANGE_DIFF_TOTAL = 1024 * 1024;
 export const MAX_AGENT_CHAT_PLAN_STEPS = 50;
 export const MAX_AGENT_CHAT_QUESTIONS = 10;
 export const MAX_AGENT_CHAT_MESSAGE_LENGTH = 100_000;
@@ -106,9 +110,11 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
         ...itemBase,
         type: z.literal('notice'),
         /**
-         * Closed kind so the Renderer owns the copy for known events; `message` carries provider text only for errors.
+         * Closed kind so the Renderer owns the copy for known events. `message` carries provider text for errors and
+         * retries, and for `answered` the user's own answers to a question request, so the transcript keeps what was
+         * chosen after the request card goes away.
          */
-        kind: z.enum(['error', 'compacted', 'retrying']),
+        kind: z.enum(['error', 'compacted', 'retrying', 'answered']),
         message: z.string().max(2_000).optional(),
     }),
 ]);
@@ -133,22 +139,37 @@ export const agentChatPlanSchema = z.strictObject({
         .max(MAX_AGENT_CHAT_PLAN_STEPS),
 });
 
+export const agentChatDecisionSchema = z.enum(['accept', 'acceptForSession', 'decline', 'cancel']);
+
+/**
+ * Fields shared by approvals. `itemId` links the approval to the timeline item it gates (the command or file change),
+ * so a card can show what it would change. `decisions`, when the provider lists them, are the only choices it accepts.
+ */
+const approvalBase = {
+    id: z.string().min(1).max(200),
+    itemId: z.string().min(1).max(200).optional(),
+    reason: z.string().max(2_000).optional(),
+    decisions: z.array(agentChatDecisionSchema).max(4).optional(),
+};
+
 /**
  * A provider request waiting for the user. `id` is Caxri's stable key for the request (the provider item id), not the
  * transport request id, because a provider may re-send a pending request with a new transport id after a resume.
  */
 export const agentChatRequestSchema = z.discriminatedUnion('kind', [
     z.strictObject({
-        id: z.string().min(1).max(200),
+        ...approvalBase,
         kind: z.literal('command'),
         command: z.string().max(4_096).optional(),
         cwd: z.string().max(4_096).optional(),
-        reason: z.string().max(2_000).optional(),
+        /**
+         * Host a sandboxed command asks to reach, when the approval is for network access rather than the command.
+         */
+        networkHost: z.string().max(500).optional(),
     }),
     z.strictObject({
-        id: z.string().min(1).max(200),
+        ...approvalBase,
         kind: z.literal('fileChange'),
-        reason: z.string().max(2_000).optional(),
     }),
     z.strictObject({
         id: z.string().min(1).max(200),
@@ -266,8 +287,6 @@ export const agentChatPatchSchema = z.strictObject({
     revision: z.number().int().positive(),
     operations: z.array(agentChatPatchOperationSchema).min(1).max(MAX_AGENT_CHAT_PATCH_OPERATIONS),
 });
-
-export const agentChatDecisionSchema = z.enum(['accept', 'acceptForSession', 'decline', 'cancel']);
 
 export type AgentChatItem = z.infer<typeof agentChatItemSchema>;
 export type AgentChatItemStatus = z.infer<typeof agentChatItemStatusSchema>;

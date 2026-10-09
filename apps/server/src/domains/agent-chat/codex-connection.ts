@@ -2,7 +2,6 @@ import { Buffer } from 'node:buffer';
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import process from 'node:process';
-import { StringDecoder } from 'node:string_decoder';
 
 import { CaxriError } from '@caxri/protocol';
 
@@ -11,7 +10,13 @@ import { CaxriError } from '@caxri/protocol';
  * so the bound is generous, but an unbounded buffer would let a misbehaving child exhaust Server Core memory.
  */
 const CODEX_MAX_FRAME_BYTES = 32 * 1024 * 1024;
+/**
+ * Bytes Caxri may queue on the provider's stdin. Outgoing frames are small (a message is at most 100k characters), so a
+ * provider this far behind has stopped reading and the connection is failed instead of buffering without limit.
+ */
+const CODEX_MAX_PENDING_WRITE_BYTES = 8 * 1024 * 1024;
 const TERMINATION_GRACE_MS = 1_000;
+const NEWLINE = 0x0a;
 
 /**
  * Closed reasons for a connection that ended. Each one maps to a Chat failure or an orderly stop.
@@ -87,9 +92,13 @@ export class CodexConnection {
 
     private nextId = 1;
 
-    private buffer = '';
+    /**
+     * Raw bytes of the frame still being received. Frames are split on the newline byte before decoding (UTF-8 never
+     * uses 0x0a inside a multi-byte sequence), so the size bound is exact and checked before anything is parsed.
+     */
+    private partial: Buffer[] = [];
 
-    private readonly decoder = new StringDecoder('utf8');
+    private partialBytes = 0;
 
     private hasEnded = false;
 
@@ -166,6 +175,11 @@ export class CodexConnection {
 
     private write(message: Record<string, unknown>): void {
         if (this.hasEnded) return;
+        if (this.child.stdin.writableLength > CODEX_MAX_PENDING_WRITE_BYTES) {
+            this.end({ reason: 'writeFailed' });
+            this.signal('SIGKILL');
+            return;
+        }
         try {
             this.child.stdin.write(`${JSON.stringify(message)}\n`);
         } catch {
@@ -173,22 +187,39 @@ export class CodexConnection {
         }
     }
 
+    /**
+     * Fails the connection for a frame past {@link CODEX_MAX_FRAME_BYTES}. Returns `true` when it did.
+     */
+    private rejectsOversizedFrame(bytes: number): boolean {
+        if (bytes <= CODEX_MAX_FRAME_BYTES) return false;
+        this.partial = [];
+        this.partialBytes = 0;
+        this.end({ reason: 'frameTooLarge' });
+        this.signal('SIGKILL');
+        return true;
+    }
+
     private receive(chunk: Buffer): void {
         if (this.hasEnded) return;
-        this.buffer += this.decoder.write(chunk);
-        let newline = this.buffer.indexOf('\n');
+        let start = 0;
+        let newline = chunk.indexOf(NEWLINE);
         while (newline !== -1) {
-            const line = this.buffer.slice(0, newline);
-            this.buffer = this.buffer.slice(newline + 1);
-            this.handleLine(line);
+            const tail = chunk.subarray(start, newline);
+            if (this.rejectsOversizedFrame(this.partialBytes + tail.length)) return;
+            const frame = this.partial.length > 0 ? Buffer.concat([...this.partial, tail]) : tail;
+            this.partial = [];
+            this.partialBytes = 0;
+            this.handleLine(frame.toString('utf8'));
             // A handler may have ended the connection; TypeScript cannot see that through the call.
             if (!this.isOpen) return;
-            newline = this.buffer.indexOf('\n');
+            start = newline + 1;
+            newline = chunk.indexOf(NEWLINE, start);
         }
-        if (Buffer.byteLength(this.buffer) > CODEX_MAX_FRAME_BYTES) {
-            this.end({ reason: 'frameTooLarge' });
-            this.signal('SIGKILL');
-        }
+        if (start === chunk.length) return;
+        const rest = chunk.subarray(start);
+        if (this.rejectsOversizedFrame(this.partialBytes + rest.length)) return;
+        this.partial.push(rest);
+        this.partialBytes += rest.length;
     }
 
     private handleLine(line: string): void {

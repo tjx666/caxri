@@ -83,7 +83,11 @@ export function historyOperations(
         op: 'state',
         state: {
             turns,
-            truncated: isTruncated,
+            /**
+             * Only ever raised here: `reset` already cleared it, and the upserts above may have set it while evicting
+             * items past the budget, which a plain `false` would hide.
+             */
+            ...(isTruncated && { truncated: true }),
             activeTurnId: activeTurnId ?? null,
             ...(model && { model: clip(model, 200) }),
         },

@@ -81,7 +81,12 @@ record is the source of truth.
   but never reuses a revision: the replacement starts one past the last revision, so a Client
   holding the old snapshot sees a gap and re-reads instead of discarding new patches.
 - Bounds: 1,000 items, 64 KiB per message, 16 KiB of command output (the tail is kept), 64 KiB per
-  diff, and a 4 MiB aggregate text budget. Older items are dropped first and `truncated` is set.
+  diff, 1 MiB of diffs per file-change item, and a 4 MiB aggregate text budget. The budget also holds
+  while a reply streams. Older items are dropped first and `truncated` is set.
+- A Client that receives a patch while its own read is still in flight holds the patch (up to 200)
+  and replays it once the read lands, instead of dropping it and re-reading again.
+- The stdio connection frames Codex output by bytes, rejects an oversized frame before parsing
+  it, and stops a provider whose stdin backlog passes 8 MiB rather than buffering without bound.
 - Items a turn left open (an interrupted command, a cut-off message) are closed as `interrupted`
   when the turn ends or the process exits.
 
@@ -93,11 +98,30 @@ several callbacks can share one item, so the transport id is never the key.
 
 - `agentChat.respond` answers one request; a request that is no longer pending fails with
   `CONFLICT`. Approvals take a decision (`accept`, `acceptForSession`, `decline`, `cancel`);
-  questions take answers per question id.
+  questions take answers per question id. Skip answers a question with no answers, which Codex
+  reads as "no answer"; any other decision for a question is rejected.
+- Approval cards show what is being approved: the command and its working directory (relative to the
+  Project, hidden at its root), the network host for a network approval, the files a file-change
+  approval would touch, and Codex's stated reason. Only the decisions Codex lists in
+  `availableDecisions` are offered. Controls stay disabled while an answer is in flight.
+- An answered question leaves an `answered` notice in the timeline, so the transcript records what
+  the user chose after the card disappears.
 - Requests Caxri cannot render are answered immediately (MCP elicitation is declined, anything
   else gets a JSON-RPC error) so the turn never blocks on a request no one can see.
 - Each pending request raises Attention through a synthesized `attentionRequested` signal and
   clears it with `attentionResolved`, so Activity and the Primary Sidebar behave as for a PTY.
+
+## Pane
+
+- The transcript and the composer share one centered column. Pending approvals, questions, the
+  plan, and the failure banner sit in a dock above the composer, outside the scroller, so reading
+  history never hides them. The timeline follows new output until the user scrolls up; Jump to
+  latest returns to the end.
+- The composer keeps an unsent draft per Chat across tab switches, clears only the text that was
+  actually sent, and treats Escape as Stop while a turn runs. Its footer shows the model and the
+  remaining context window.
+- Replies render Markdown with tables and fenced code; a code block shows its language and a Copy
+  button on hover.
 
 ## Lifecycle signals
 
@@ -120,7 +144,7 @@ message text, command output, provider stderr, or protocol bodies.
 
 `apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts` is a
 deterministic stand-in for the app-server, selected by keywords in the user's message (approval,
-question, slow stream, failure, crash). Unit and integration tests drive it; no test launches the
+question, table, slow stream, failure, crash). Unit and integration tests drive it; no test launches the
 real CLI or calls a model, and real-Agent E2E refuses to start a Chat.
 
 ## Not yet supported
