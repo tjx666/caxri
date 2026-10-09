@@ -185,4 +185,15 @@ describe('agentChatRequestTitle', () => {
             }),
         ).toBe('Allow WebFetch?');
     });
+
+    it('asks to start with the plan Claude Code proposes', () => {
+        expect(
+            agentChatRequestTitle({
+                id: 'r',
+                kind: 'tool',
+                name: 'ExitPlanMode',
+                decisions: ['accept'],
+            }),
+        ).toBe('Start with this plan?');
+    });
 });

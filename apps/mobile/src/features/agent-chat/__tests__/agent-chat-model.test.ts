@@ -127,6 +127,9 @@ describe('Agent Chat model', () => {
     });
 
     it('names the tool a generic tool approval would run', () => {
+        expect(agentChatRequestTitle({ id: 'r', kind: 'tool', name: 'WebFetch' })).toBe(
+            'Allow WebFetch?',
+        );
         expect(
             agentChatRequestTitle({
                 id: 'r',
@@ -134,7 +137,7 @@ describe('Agent Chat model', () => {
                 name: 'ExitPlanMode',
                 summary: 'Plan',
             }),
-        ).toBe('Allow ExitPlanMode?');
+        ).toBe('Start with this plan?');
     });
 
     it('lists the files a file-change approval gates', () => {
