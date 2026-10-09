@@ -422,11 +422,20 @@ export class AgentChatService {
     }
 
     /**
-     * Number of live provider processes. Counted as busy work so Server Core idle exit cannot stop a running Chat.
+     * Number of live provider processes, optionally limited to one Session. Counted as running work so Server Core idle
+     * exit, the window-close confirmation, and Session deletion prompts treat a running Chat like a running PTY.
      */
-    liveCount(): number {
+    liveCount(sessionId?: string): number {
         let count = 0;
-        for (const state of this.states.values()) if (state.session?.isOpen) count += 1;
+        for (const [terminalId, state] of this.states) {
+            if (!state.session?.isOpen) continue;
+            if (
+                sessionId !== undefined &&
+                this.options.database.getTerminal(terminalId)?.sessionId !== sessionId
+            )
+                continue;
+            count += 1;
+        }
         return count;
     }
 

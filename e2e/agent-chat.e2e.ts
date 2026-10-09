@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -26,13 +26,11 @@ const FAKE_APP_SERVER = join(
     'apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts',
 );
 
-// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a Codex Chat streams a reply, answers an approval and a question', async ({}, testInfo) => {
-    const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-'));
-    const userData = join(directory, 'user-data');
-    const root = join(directory, 'project');
-    await mkdir(root, { recursive: true });
-    const agentMode = await createFakeAgentMode({
+/**
+ * A fake Codex whose `app-server` is the deterministic Server-test fixture; threads persist under `directory`.
+ */
+function fakeCodexAgentMode(directory: string, userData: string) {
+    return createFakeAgentMode({
         userDataDir: userData,
         providers: {
             codex: {
@@ -47,6 +45,15 @@ import(${JSON.stringify(pathToFileURL(FAKE_APP_SERVER).href)});
             },
         },
     });
+}
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Codex Chat streams a reply, answers an approval and a question', async ({}, testInfo) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await fakeCodexAgentMode(directory, userData);
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         const { page } = running;
@@ -156,6 +163,87 @@ import(${JSON.stringify(pathToFileURL(FAKE_APP_SERVER).href)});
         await expect(
             chat.getByText('Hello from fake Codex. You said: from a new Session'),
         ).toBeVisible();
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * A running Chat has no PTY, yet its provider process outlives the window: closing must ask first and Terminate must
+ * stop it (caxri#1536). The native dialog is stubbed; only the requested count and the outcome are asserted.
+ */
+test('closing the window with only a Chat running asks first and Terminate stops it', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-close-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await fakeCodexAgentMode(directory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
+        const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
+        await terminalMenu.getByRole('menuitemcheckbox', { name: 'Open in Chat' }).click();
+        await chooseTerminalFromCreateMenu(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        await message.fill('hi there');
+        await message.press('Enter');
+        await expect(chat.getByText('Hello from fake Codex. You said: hi there')).toBeVisible();
+
+        // Close the Session's shell PTY so the Chat is the only running Terminal.
+        const bootstrap = await pageRequest<{
+            terminals: Array<{ id: string; surface?: string }>;
+        }>(page, 'app.bootstrap', {});
+        for (const terminal of bootstrap.terminals) {
+            if (terminal.surface === 'chat') continue;
+            // eslint-disable-next-line no-await-in-loop -- Serialized closes keep Session focus deterministic.
+            await pageRequest(page, 'terminal.close', { terminalId: terminal.id });
+        }
+        await expect(message).toBeVisible();
+        await expect.poll(() => pageRequest<number>(page, 'terminal.runningCount', {})).toBe(1);
+
+        await running.app.evaluate(({ dialog }) => {
+            // Records the prompt, then picks "Terminate and Close".
+            dialog.showMessageBox = (...parameters: unknown[]) => {
+                const options = parameters.at(-1) as { message?: string };
+                Reflect.set(globalThis, '__caxriCloseConfirmMessage', options.message);
+                return Promise.resolve({ response: 1, checkboxChecked: false });
+            };
+        });
+        const closed = page.waitForEvent('close');
+        await running.app.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows()[0]?.close(),
+        );
+        await closed;
+        expect(
+            await running.app.evaluate(() => {
+                const value: unknown = Reflect.get(globalThis, '__caxriCloseConfirmMessage');
+                return typeof value === 'string' ? value : undefined;
+            }),
+        ).toBe('1 Terminal is still running.');
+        const log = join(userData, 'logs', 'server-core.jsonl');
+        await expect
+            .poll(async () =>
+                (await readFile(log, 'utf8'))
+                    .trim()
+                    .split('\n')
+                    .map(
+                        (line) =>
+                            JSON.parse(line) as {
+                                event?: string;
+                                fields?: { requested?: boolean };
+                            },
+                    )
+                    .some(
+                        (record) =>
+                            record.event === 'agent_chat.process_exited' &&
+                            record.fields?.requested === true,
+                    ),
+            )
+            .toBe(true);
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });
