@@ -54,9 +54,10 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
      */
     commanderSessions?: {
         /**
-         * Creates an empty Commander Session in a visible top-level Project and returns its ID.
+         * Creates an empty Commander Session in a visible top-level Project and returns its ID. A title names it
+         * manually, so automatic naming never replaces it.
          */
-        create(projectId: string): string;
+        create(projectId: string, title?: string): string;
         /**
          * Removes a Commander Session the delegation just created but never used. Metadata only.
          */

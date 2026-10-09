@@ -46,11 +46,12 @@ export function createAgentCommandRuntime(
         logger: options.logger,
         userDataPath: options.userDataPath,
         commanderSessions: {
-            create: (projectId) => {
+            create: (projectId, title) => {
                 const sessionId = createCommanderSession(
                     options.database,
                     projectId,
                     options.logger,
+                    title,
                 );
                 announce('session.create');
                 return sessionId;

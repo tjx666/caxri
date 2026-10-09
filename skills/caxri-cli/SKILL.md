@@ -157,9 +157,10 @@ lifecycle completion from Terminal silence or read output to guess Agent state.
 
 Only the Agent Commander Terminal holds the `commander` capability. It reads every visible Project
 and Session through one board, instead of `project current` or `session current`, and delegates each
-task into a Session it created itself. `agent delegate create --new-session` (in place of
+task into a Session it created itself. `agent delegate create --new-session --title <title>` (in place of
 `--session <id>`) creates that Session together with the task, so it never sits empty in the
-Workbench; `commander session create` creates an empty one:
+Workbench. The required title names the Session after the task's concrete subject, because its
+Agent only ever sees a pointer to the task file. `commander session create` creates an empty one:
 
 ```bash
 caxri commander board --json

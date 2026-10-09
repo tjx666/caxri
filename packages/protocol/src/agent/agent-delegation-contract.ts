@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/domain.js';
+import { sessionRenameTitleSchema } from '../domain/session.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
@@ -139,12 +140,17 @@ export const agentDelegationCreateSchema = z
  * What a caller sends. `newSession` asks the Agent Commander's own delegation to create the Session it runs in, so the
  * Session first appears with its Agent Terminal already inside instead of sitting empty while the Commander writes the
  * next command. It starts a new task, so it cannot continue a saved one.
+ *
+ * `title` names that new Session and is required with it. The delegated Agent's first message is only a pointer to the
+ * private task file, so automatic naming saw nothing but "read the delegated task" and titled every Commander Session
+ * the same; the Commander, which wrote the task, is the one caller that knows its subject.
  */
 export const agentDelegationCreateRequestSchema = z
     .strictObject({
         ...agentDelegationCreateFields,
         sessionId: identifierSchema.optional(),
         newSession: z.literal(true).optional(),
+        title: sessionRenameTitleSchema.optional(),
     })
     .refine(isOneContinuation, 'Choose follow-up or exact resume')
     .refine(isPresetExclusive, 'A preset owns its provider, model and effort')
@@ -156,6 +162,10 @@ export const agentDelegationCreateRequestSchema = z
     .refine(
         (value) => !value.newSession || (!value.followUpOf && !value.resumeFrom),
         'A new Session starts a new task',
+    )
+    .refine(
+        (value) => Boolean(value.title) === Boolean(value.newSession),
+        'Name a new Session with a title; an existing Session keeps its own',
     );
 
 export const agentDelegationAnswerSchema = z.strictObject({
