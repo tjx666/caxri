@@ -26,7 +26,7 @@ Grok Build stays PTY-only.
   An unbound Chat simply opens a new thread on its next start.
 - PTY-only operations (Terminal input from other Clients, Agent dispatch, compaction, Git review
   sends, long pastes, mobile submits, suspension, restore) reject or skip a Chat through
-  `apps/server/src/domains/terminal/pty-guard.ts` before any side effect.
+  `apps/server/src/domains/pty-guard.ts` before any side effect.
 
 ## Process lifecycle
 

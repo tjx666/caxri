@@ -13,7 +13,7 @@ import { CaxriError, MAX_LONG_PASTE_BYTES } from '@caxri/protocol';
 import { AsyncSemaphore } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
-import { assertPtyTerminal } from '../terminal/pty-guard';
+import { assertPtyTerminal } from '../pty-guard';
 
 const LONG_PASTE_DIRECTORY_NAME = 'pastes';
 const LONG_PASTE_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;

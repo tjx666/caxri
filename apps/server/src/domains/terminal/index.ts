@@ -7,14 +7,13 @@ export type {
     TerminalObserverEvent,
 } from './execution-port';
 export { resolveTerminalFileLink } from './file-links';
-export { terminalDirectoryIdentity } from './launch';
+export { resolveTerminalExecutable, terminalDirectoryIdentity } from './launch';
 export { TerminalManager } from './manager';
 export type {
     TerminalLifecycleCause,
     TerminalManagerOptions,
     TerminalWorkingDirectoryIdentity,
 } from './manager-types';
-export { assertPtyTerminal, isPtyTerminal } from './pty-guard';
 export { TerminalResourceMonitor } from './resource-monitor';
 export { TerminalRestoreSupervisor } from './restore-supervisor';
 export { ShellIntegrationService } from './shell-integration';

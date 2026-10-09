@@ -12,6 +12,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { disposeAllThenRethrow } from '@caxri/utils';
 
+import { assertPtyTerminal, isPtyTerminal } from '../pty-guard';
 import type { ShutdownReason } from '../session-policy';
 import { shutdownOutcome } from '../session-policy';
 import { SingleFlight } from '../single-flight';
@@ -30,7 +31,6 @@ import type {
     TerminalStartOptions,
 } from './manager-types';
 import { terminalPreview } from './preview';
-import { assertPtyTerminal, isPtyTerminal } from './pty-guard';
 import { TerminalSnapshotPersistence } from './snapshot-persistence';
 import type { TerminalStateStore } from './state-store';
 import { createTerminalTitleListener } from './terminal-title';

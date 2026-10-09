@@ -1,7 +1,7 @@
 import type { AppSettings, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 
-import { isPtyTerminal } from './pty-guard';
+import { isPtyTerminal } from '../pty-guard';
 
 export type TerminalSuspensionReason = 'idle' | 'untouched';
 

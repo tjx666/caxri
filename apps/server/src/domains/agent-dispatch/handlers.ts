@@ -7,8 +7,8 @@ import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentCoordinator } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
+import { assertPtyTerminal } from '../pty-guard';
 import type { TerminalManager } from '../terminal';
-import { assertPtyTerminal } from '../terminal';
 import type { AgentDispatchService } from './service';
 
 type AgentCommandMethod =
