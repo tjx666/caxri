@@ -186,6 +186,40 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         // The sidebar's New Session menu shares the preference, so a whole Session can start as a Chat.
         const previous = await pageRequest<{ selectedSessionId?: string }>(page, 'app.bootstrap');
         const newSession = page.getByRole('button', { name: /^New Session in / });
+        // TEMP diagnostic for a CI-only hover interception.
+        console.log(
+            'CI-DIAG',
+            JSON.stringify(
+                await page.evaluate(() => {
+                    const heading = document.querySelector('.project-heading');
+                    const rect = heading?.getBoundingClientRect();
+                    const hit = rect
+                        ? document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
+                        : null;
+                    const describe = (element: Element | null) =>
+                        element
+                            ? `${element.tagName} ${element.getAttribute('role') ?? ''} ${String(element.className).slice(0, 120)} ${element.getAttribute('aria-label') ?? ''}`
+                            : null;
+                    return {
+                        viewport: [window.innerWidth, window.innerHeight],
+                        rect: rect && [rect.x, rect.y, rect.width, rect.height],
+                        hit: describe(hit),
+                        bodyPointer: getComputedStyle(document.body).pointerEvents,
+                        rootPointer: getComputedStyle(document.documentElement).pointerEvents,
+                        bodyStyle: document.body.getAttribute('style'),
+                        rootStyle: document.documentElement.getAttribute('style'),
+                        open: [
+                            ...document.querySelectorAll(
+                                '[role="menu"],[role="dialog"],[role="alertdialog"],[role="listbox"],[data-open],[data-popup-open],[inert]',
+                            ),
+                        ].map((element) => describe(element)),
+                        bodyChildren: [...document.body.children].map((element) => describe(element)),
+                    };
+                }),
+                null,
+                2,
+            ),
+        );
         await page.locator('.project-heading').filter({ has: newSession }).hover();
         await newSession.click();
         const sessionMenu = page.getByRole('menu', { name: /^New Session in / });
