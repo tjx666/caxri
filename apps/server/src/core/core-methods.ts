@@ -124,6 +124,7 @@ export const coreForwardedMethods = [
     'terminal.runningCount',
     'terminal.snapshot',
     'terminal.suspend',
+    'terminal.switchSurface',
     'theme.get',
     'theme.update',
 ] as const satisfies readonly ServerMethod[];

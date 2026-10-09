@@ -6,18 +6,21 @@ status: accepted
 # Agent Chat: a structured Terminal surface beside the PTY
 
 - Date: 2026-10-09
-- Refs: [#1529](https://github.com/tjx666/caxri/issues/1529)
+- Refs: [#1529](https://github.com/tjx666/caxri/issues/1529), [#1538](https://github.com/tjx666/caxri/issues/1538)
 
 Caxri launched every Agent CLI inside a real PTY and promised never to proxy or rewrite its I/O.
 A TUI is the most faithful surface, but on the desktop it reads worse than the mobile Conversation
 view: streamed Markdown, grouped tool calls, and approval cards are easier to scan than a scrolling
 terminal grid. Users asked for that conversation reading experience on the desktop.
 
-**Decision**: an Agent Terminal has a fixed **surface**, chosen when it is created: `pty` (today's
+**Decision**: an Agent Terminal has a **surface**, chosen when it is created: `pty` (today's
 behavior) or `chat`. A Chat Terminal runs the same user-installed, unmodified Agent CLI through the
-provider's own structured protocol and renders a conversation instead of a terminal grid. The
-surface never changes after creation; a later change may add switching an idle Terminal by
-resuming its Agent Session in the other surface, which the model below already allows.
+provider's own structured protocol and renders a conversation instead of a terminal grid. A bound
+Agent Terminal can later switch surface (`terminal.switchSurface`, amended for
+[#1538](https://github.com/tjx666/caxri/issues/1538)): its current process stops and the same Agent
+Session resumes on the other surface, because Codex's `thread/resume` and `codex resume`, and
+Claude Code's SDK `resume` and `claude --resume`, read the same provider record. Only one surface is
+ever attached to a conversation at a time.
 
 - **Vendor protocols, not ACP.** Claude Code and Codex are the priority providers and neither ships
   native Agent Client Protocol support; ACP reaches them only through community adapters that wrap

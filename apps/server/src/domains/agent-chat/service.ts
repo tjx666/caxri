@@ -514,6 +514,14 @@ export class AgentChatService {
         return count;
     }
 
+    /**
+     * Whether a live Chat is inside a turn, which `terminal.switchSurface` asks before ending.
+     */
+    hasActiveTurn(terminalId: string): boolean {
+        const state = this.states.get(terminalId);
+        return Boolean(state?.session?.isOpen && state.snapshot.activeTurnId);
+    }
+
     read(terminalId: string): AgentChatSnapshot {
         const terminal = this.requireChatTerminal(terminalId);
         const state = this.state(terminalId);

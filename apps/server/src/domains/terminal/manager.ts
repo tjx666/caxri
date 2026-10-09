@@ -649,12 +649,12 @@ export class TerminalManager {
     /**
      * Parks a live Terminal without losing it: the PTY is killed behind the same barrier a restart uses, the final
      * screen is captured for the tab, and the durable record moves to `suspended` so selecting its Session restores the
-     * process (resuming the bound Agent session) exactly like an app-shutdown interruption would. `detached` is the
-     * user-driven variant: it survives Session selection and only an explicit `session.resume` relaunches it.
+     * process (resuming the bound Agent session) exactly like an app-shutdown interruption would. `detached` survives
+     * Session selection until `session.resume`; `stopped` hands it to the other surface (`terminal.switchSurface`).
      */
     async suspend(
         terminalId: string,
-        state: 'suspended' | 'detached' = 'suspended',
+        state: 'suspended' | 'detached' | 'stopped' = 'suspended',
         cause?: TerminalLifecycleCause,
     ): Promise<TerminalRecord | undefined> {
         const record = this.database.getTerminal(terminalId);

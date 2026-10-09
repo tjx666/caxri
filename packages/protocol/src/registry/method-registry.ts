@@ -79,6 +79,7 @@ import {
 import { terminalLongPasteMethods } from '../domain/terminal-long-paste.js';
 import { terminalReadMethods } from '../domain/terminal-read-contract.js';
 import { terminalReferenceMethods } from '../domain/terminal-reference-contract.js';
+import { terminalRelaunchMethods } from '../domain/terminal-relaunch-contract.js';
 import { terminalSurfaceSchema } from '../domain/terminal-surface.js';
 import { treeChildrenResultSchema } from '../domain/tree-item.js';
 import { updateStateSchema } from '../domain/update-state.js';
@@ -449,14 +450,7 @@ export const methods = {
             terminal: terminalRecordSchema,
         }),
     },
-    'terminal.restart': {
-        ...serverControl,
-        params: z.object({
-            terminalId: identifierSchema,
-            mode: z.enum(['resume', 'fresh']).default('resume'),
-        }),
-        result: terminalRecordSchema,
-    },
+    ...terminalRelaunchMethods,
     ...terminalFileLinkMethods,
     ...terminalReferenceMethods,
     ...terminalReadMethods,
