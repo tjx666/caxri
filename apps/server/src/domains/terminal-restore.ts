@@ -4,12 +4,14 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import { delegationResumeLaunch } from './agent-delegation';
-import type { AgentCoordinator } from './agents';
+import type { AgentCoordinator, AgentEnvironment } from './agents';
+import { isAgentConversationUnwritten } from './agents';
 import type { CaxriDatabase } from './db';
 import type { TerminalManager, TerminalWorkingDirectoryIdentity } from './terminal';
 import { TerminalRestoreSupervisor } from './terminal';
 
 interface InterruptedTerminalRestorerOptions {
+    agentEnvironment?: AgentEnvironment;
     coordinator: AgentCoordinator;
     database: CaxriDatabase;
     logger: StructuredLogger;
@@ -49,6 +51,41 @@ function delegatedAgentRestore(
     };
 }
 
+/**
+ * The bound conversation to pass to `--resume`, or `undefined` when the provider provably never wrote it (see
+ * `isAgentConversationUnwritten`). Dropping the id turns the relaunch into a fresh start, which is all an empty
+ * conversation could have resumed to; the skip is logged because it otherwise looks identical to an ordinary start.
+ */
+export async function resumableAgentSessionId(
+    options: {
+        agentEnvironment?: AgentEnvironment;
+        database: CaxriDatabase;
+        logger: StructuredLogger;
+    },
+    terminal: TerminalRecord,
+    source: 'restart' | 'restore',
+): Promise<string | undefined> {
+    if (!terminal.provider || !terminal.agentSessionId) return undefined;
+    if (
+        !(await isAgentConversationUnwritten(
+            options.database,
+            terminal.id,
+            options.agentEnvironment,
+        ))
+    )
+        return terminal.agentSessionId;
+    options.logger.write('info', logEventCatalog.terminal.resumeSkipped, {
+        fields: {
+            provider: terminal.provider,
+            reason: 'conversation_unwritten',
+            sessionId: terminal.sessionId,
+            source,
+            terminalId: terminal.id,
+        },
+    });
+    return undefined;
+}
+
 export interface TerminalRestoreOptions {
     /**
      * `detached` Terminals were parked by the user for another client and must survive an ordinary Session selection;
@@ -73,6 +110,7 @@ export function createCommanderTerminalRestorer(
 
 export function createInterruptedTerminalRestorer(options: InterruptedTerminalRestorerOptions) {
     const {
+        agentEnvironment,
         coordinator,
         database,
         logger,
@@ -119,8 +157,13 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
                     ['detached', 'interrupted', 'running', 'starting', 'suspended'].includes(
                         terminal.lastAgentProcessState ?? 'stopped',
                     );
-                const resumeAgentSessionId =
-                    shouldRestoreAgent && terminal.provider ? terminal.agentSessionId : undefined;
+                const resumeAgentSessionId = shouldRestoreAgent
+                    ? await resumableAgentSessionId(
+                          { agentEnvironment, database, logger },
+                          terminal,
+                          'restore',
+                      )
+                    : undefined;
                 if (shouldRestoreAgent && !resumeAgentSessionId && terminal.provider === 'grok') {
                     database.updateTerminalState(
                         terminal.id,

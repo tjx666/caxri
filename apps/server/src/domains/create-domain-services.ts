@@ -352,6 +352,7 @@ export async function createDomainServices(
         }
     }
     const restorerOptions = {
+        agentEnvironment,
         coordinator,
         database,
         logger,
@@ -675,13 +676,7 @@ export async function createDomainServices(
                 sendFullStateChange('terminal.close');
                 return null;
             }),
-        'terminal.restart': createTerminalRestartHandler({
-            coordinator,
-            database,
-            send,
-            terminalDirectoryIdentity,
-            terminals,
-        }),
+        'terminal.restart': createTerminalRestartHandler(restorerOptions),
         ...createTerminalHandlers({
             database,
             resourceMonitor: terminalResourceMonitor,

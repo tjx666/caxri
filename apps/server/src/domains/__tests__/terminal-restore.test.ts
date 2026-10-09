@@ -12,6 +12,7 @@ import { CaxriDatabase } from '../db';
 import type { TerminalManager } from '../terminal';
 import { TerminalRestoreSupervisor } from '../terminal';
 import { createInterruptedTerminalRestorer } from '../terminal-restore';
+import { writeClaudeTranscript } from './create-test-domain-services';
 
 const FROZEN_LAUNCH = { executable: 'codex', args: ['--model', 'frozen-model'] };
 
@@ -117,5 +118,85 @@ describe('Interrupted Terminal restore of a delegated Agent', () => {
             resumeAgentSessionId: 'conversation-1',
         });
         expect(f.restart.mock.calls[0]?.[1]).not.toHaveProperty('launchSettings');
+    });
+});
+
+describe('Interrupted Terminal restore of a Claude Code Agent', () => {
+    async function claudeFixture() {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-terminal-restore-claude-'));
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        onTestFinished(async () => {
+            database.close();
+            await rm(directory, { recursive: true, force: true });
+        });
+        const agentSessionId = randomUUID();
+        const project = database.createProject(directory);
+        const { session, terminal } = database.createSession(project.id, 'claude');
+        database.rebindAgentSession(terminal!.id, 'claude', agentSessionId);
+        database.updateTerminalState(terminal!.id, 'suspended');
+        database.updateAgentProcessState(terminal!.id, 'suspended');
+        const environment = { homeDirectory: directory, variables: {} };
+        const coordinator = {
+            prepareTerminalResume: vi.fn(),
+            prepareTerminalStart: vi.fn(),
+            probeTerminal: vi.fn(),
+        };
+        const logger = { write: vi.fn<StructuredLogger['write']>() };
+        const restart = vi.fn<TerminalManager['restart']>(() =>
+            Promise.resolve({ lastProcessState: 'running' } as TerminalRecord),
+        );
+        const restore = createInterruptedTerminalRestorer({
+            agentEnvironment: environment,
+            coordinator: coordinator as unknown as AgentCoordinator,
+            database,
+            logger: logger as unknown as StructuredLogger,
+            send: vi.fn(),
+            terminalDirectoryIdentity: () =>
+                Promise.resolve({ device: '1', inode: '1', path: directory }),
+            terminalRestores: new TerminalRestoreSupervisor(),
+            terminals: { restart } as unknown as TerminalManager,
+            userDataPath: directory,
+            visibleGridWaitMs: 0,
+        });
+        return {
+            agentSessionId,
+            coordinator,
+            logger,
+            restart,
+            restore: () => restore(session.id),
+            writeTranscript: () => writeClaudeTranscript(directory, directory, agentSessionId),
+        };
+    }
+
+    it('starts a fresh Agent when the conversation was suspended before its first prompt', async () => {
+        const f = await claudeFixture();
+
+        await f.restore();
+
+        expect(f.restart.mock.calls[0]?.[1]).toMatchObject({
+            launchAgent: true,
+            resumeAgentSessionId: undefined,
+        });
+        expect(f.coordinator.prepareTerminalStart).toHaveBeenCalledOnce();
+        expect(f.coordinator.prepareTerminalResume).not.toHaveBeenCalled();
+        const skipped = f.logger.write.mock.calls.find(
+            ([, event]) => event === 'terminal.resume_skipped',
+        );
+        expect(skipped?.[2]).toMatchObject({
+            fields: { reason: 'conversation_unwritten', source: 'restore' },
+        });
+    });
+
+    it('resumes the conversation once Claude Code has written its transcript', async () => {
+        const f = await claudeFixture();
+        await f.writeTranscript();
+
+        await f.restore();
+
+        expect(f.restart.mock.calls[0]?.[1]).toMatchObject({
+            launchAgent: true,
+            resumeAgentSessionId: f.agentSessionId,
+        });
+        expect(f.coordinator.prepareTerminalResume).toHaveBeenCalledOnce();
     });
 });

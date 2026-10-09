@@ -228,3 +228,26 @@ export async function readAgentTranscript(
     if (!tail) return { path: location.path, exists: false, truncated: false };
     return { path: location.path, exists: true, content: tail.content, truncated: tail.truncated };
 }
+
+/**
+ * Whether the Terminal's bound conversation provably never reached disk, so `--resume` would only print "No
+ * conversation found" and exit. Claude Code assigns its session id at launch but writes the transcript with the first
+ * prompt; an Agent parked before any input (the `untouched` suspension sweep) therefore has an id with nothing behind
+ * it, and the restore must start a fresh Agent instead. Only a pure `transcriptPath` can prove absence: a
+ * `locateTranscript` miss may be a fail-closed scan budget rather than a missing file, so those providers keep
+ * resuming. Any error other than `ENOENT` also keeps the resume.
+ */
+export async function isAgentConversationUnwritten(
+    database: CaxriDatabase,
+    terminalId: string,
+    environment: AgentEnvironment = defaultAgentEnvironment(),
+): Promise<boolean> {
+    const location = resolveAgentTranscriptLocation(database, terminalId, environment);
+    if (!location) return false;
+    try {
+        await lstat(location.path);
+        return false;
+    } catch (error) {
+        return (error as NodeJS.ErrnoException).code === 'ENOENT';
+    }
+}
