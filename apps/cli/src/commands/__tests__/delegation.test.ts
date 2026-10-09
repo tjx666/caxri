@@ -48,12 +48,19 @@ describe('delegation CLI', () => {
             (item) => item.method === 'agent.delegation.create',
         )!;
         const base = ['--project', 'project', '--provider', 'codex', '--prompt-file', path];
-        expect(await command.parseParams([...base, '--new-session'])).toEqual({
+        expect(
+            await command.parseParams([...base, '--new-session', '--title', 'Fix login retry']),
+        ).toEqual({
             projectId: 'project',
             newSession: true,
+            title: 'Fix login retry',
             provider: 'codex',
             prompt: 'Synthetic task',
         });
+        await expect(command.parseParams([...base, '--new-session'])).rejects.toThrow(/--title/u);
+        await expect(
+            command.parseParams([...base, '--session', 'session', '--title', 'Fix login retry']),
+        ).rejects.toThrow(/--title/u);
         await expect(
             command.parseParams([...base, '--new-session', '--session', 'session']),
         ).rejects.toThrow(/one of --session or --new-session/u);
@@ -61,7 +68,14 @@ describe('delegation CLI', () => {
             /one of --session or --new-session/u,
         );
         await expect(
-            command.parseParams([...base, '--new-session', '--follow-up', 'task-1']),
+            command.parseParams([
+                ...base,
+                '--new-session',
+                '--title',
+                'Fix login retry',
+                '--follow-up',
+                'task-1',
+            ]),
         ).rejects.toThrow();
     });
 

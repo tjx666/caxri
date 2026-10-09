@@ -412,7 +412,7 @@ Session from a shell.
 
 ```bash
 caxri commander board --json
-caxri agent delegate create --project <project-id> --new-session --prompt-file task.md --provider codex --json
+caxri agent delegate create --project <project-id> --new-session --title <title> --prompt-file task.md --provider codex --json
 caxri agent delegate create --project <project-id> --session <session-id> --prompt-file task.md --resume <delegation-id> --json
 caxri commander session create --project <project-id> --json
 ```
@@ -424,7 +424,10 @@ sees the Session with its Agent Terminal already in it. Before it, the Commander
 Session sat empty for as long as the Commander took to write the second one. Only the recorded
 Commander caller may pass it. A retry of the same request reuses the Session its first attempt
 created, and a request refused before any task was recorded removes that empty Session again
-(metadata only). `commander session create` still exists for a Session the Commander wants to prepare
+(metadata only). `--new-session` requires `--title`, which becomes the Session's manual title. The
+delegated Agent's first message is only a pointer to the private task file, so automatic naming used
+to see nothing but "read the delegated task" and gave every Commander Session the same name; the
+Commander wrote the task and is the caller that knows its subject. `commander session create` still exists for a Session the Commander wants to prepare
 without a task.
 
 Inside the Commander Terminal, the Commander calls the version-matched CLI through

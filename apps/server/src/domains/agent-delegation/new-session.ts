@@ -14,7 +14,7 @@ import type { AgentDelegationServiceOptions } from './service-options';
  * Session is created here, right before its Agent Terminal, so the Workbench never shows it empty while the Commander
  * composes a second command. A retry of the same request reuses the Session its first attempt created, and a request
  * refused before any task was recorded removes the empty Session again (metadata only; the Project folder is never
- * touched).
+ * touched). The Session carries the Commander's title from the start; see `agentDelegationCreateRequestSchema`.
  */
 export async function admitDelegationRequest(
     options: Pick<AgentDelegationServiceOptions, 'commanderSessions' | 'database'>,
@@ -23,7 +23,7 @@ export async function admitDelegationRequest(
     request: AgentDelegationCreateRequest,
     admit: (input: AgentDelegationCreate) => Promise<AgentDelegationReceipt>,
 ): Promise<AgentDelegationReceipt> {
-    const { newSession, sessionId: requestedSessionId, ...fields } = request;
+    const { newSession, sessionId: requestedSessionId, title, ...fields } = request;
     if (!newSession) return admit({ ...fields, sessionId: requestedSessionId! });
     const { commanderSessions, database } = options;
     const existing = database.agentDelegations.get(id);
@@ -33,7 +33,7 @@ export async function admitDelegationRequest(
             'FORBIDDEN',
             'Only the Agent Commander can delegate into a new Session',
         );
-    const sessionId = commanderSessions.create(fields.projectId);
+    const sessionId = commanderSessions.create(fields.projectId, title);
     try {
         return await admit({ ...fields, sessionId });
     } catch (error) {
