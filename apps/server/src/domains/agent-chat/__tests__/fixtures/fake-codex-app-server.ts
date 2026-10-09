@@ -7,6 +7,7 @@
  * - `slow`: a long streamed reply that `turn/interrupt` can stop.
  * - `fail`: a failed turn with a provider error.
  * - `crash`: the process exits mid-turn.
+ * - `table`: a reply with a Markdown table and a fenced code block.
  * - Anything else: reasoning, a plan, and a streamed reply quoting the message.
  *
  * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history.
@@ -201,6 +202,21 @@ async function runTurn(turn: FakeTurn, text: string) {
         await streamMessage(turn, `You chose ${answer ?? 'nothing'}.`, 0);
     } else if (text.includes('slow')) {
         await streamMessage(turn, 'word '.repeat(200), 50);
+    } else if (text.includes('table')) {
+        await streamMessage(
+            turn,
+            [
+                '| Option | Cost |',
+                '| :--- | ---: |',
+                '| Fast | 2 |',
+                '| Safe | 5 |',
+                '',
+                '```ts',
+                'const choice = "Safe";',
+                '```',
+            ].join('\n'),
+            0,
+        );
     } else if (text.includes('fail')) {
         turn.status = 'failed';
         turn.error = { message: 'Fake provider failure' };

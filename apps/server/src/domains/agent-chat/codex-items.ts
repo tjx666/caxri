@@ -1,4 +1,5 @@
 import type {
+    AgentChatDecision,
     AgentChatItem,
     AgentChatItemStatus,
     AgentChatPlan,
@@ -7,6 +8,7 @@ import type {
 } from '@caxri/protocol';
 import {
     MAX_AGENT_CHAT_DIFF_LENGTH,
+    MAX_AGENT_CHAT_FILE_CHANGE_DIFF_TOTAL,
     MAX_AGENT_CHAT_FILE_CHANGES,
     MAX_AGENT_CHAT_OUTPUT_LENGTH,
     MAX_AGENT_CHAT_PLAN_STEPS,
@@ -163,6 +165,11 @@ export function mapCodexItem(
         }
         case 'fileChange': {
             const changes = Array.isArray(raw.changes) ? raw.changes : [];
+            /**
+             * One item may carry many diffs; their sum is bounded too, so a single large patch cannot outgrow the whole
+             * projection's text budget (which always keeps the newest item).
+             */
+            let remaining = MAX_AGENT_CHAT_FILE_CHANGE_DIFF_TOTAL;
             return {
                 ...base,
                 type: 'fileChange',
@@ -170,11 +177,16 @@ export function mapCodexItem(
                 changes: changes.slice(0, MAX_AGENT_CHAT_FILE_CHANGES).flatMap((change) => {
                     if (!isRecord(change)) return [];
                     const kind = isRecord(change.kind) ? change.kind.type : undefined;
+                    const diff = clip(
+                        text(change.diff),
+                        Math.min(MAX_AGENT_CHAT_DIFF_LENGTH, remaining),
+                    );
+                    remaining -= diff.length;
                     return [
                         {
                             path: clip(text(change.path), 4_096),
                             kind: kind === 'add' || kind === 'delete' ? kind : 'update',
-                            diff: clip(text(change.diff), MAX_AGENT_CHAT_DIFF_LENGTH),
+                            diff,
                         },
                     ];
                 }),
@@ -275,6 +287,35 @@ export function codexRequestKind(method: string): CodexRequestKind | undefined {
     }
 }
 
+const SIMPLE_DECISIONS = new Set<AgentChatDecision>([
+    'accept',
+    'acceptForSession',
+    'decline',
+    'cancel',
+]);
+
+/**
+ * Fields every approval shares. Codex lists `availableDecisions` for prompts that must not offer every choice; only the
+ * plain decisions are kept (policy amendments carry payloads Caxri does not offer), and an absent list means all.
+ */
+function approvalFields(id: string, parameters: Json) {
+    const itemId = optionalText(parameters.itemId, 200);
+    const reason = optionalText(parameters.reason, 2_000);
+    const decisions = Array.isArray(parameters.availableDecisions)
+        ? parameters.availableDecisions.filter(
+              (decision): decision is AgentChatDecision =>
+                  typeof decision === 'string' &&
+                  SIMPLE_DECISIONS.has(decision as AgentChatDecision),
+          )
+        : undefined;
+    return {
+        id,
+        ...(itemId && { itemId }),
+        ...(reason && { reason }),
+        ...(decisions?.length && { decisions: [...new Set(decisions)] }),
+    };
+}
+
 export function mapCodexRequest(
     kind: CodexRequestKind,
     id: string,
@@ -284,18 +325,19 @@ export function mapCodexRequest(
         case 'command': {
             const command = optionalText(parameters.command, 4_096);
             const cwd = optionalText(parameters.cwd, 4_096);
-            const reason = optionalText(parameters.reason, 2_000);
+            const networkHost = isRecord(parameters.networkApprovalContext)
+                ? optionalText(parameters.networkApprovalContext.host, 500)
+                : undefined;
             return {
-                id,
+                ...approvalFields(id, parameters),
                 kind,
                 ...(command && { command }),
                 ...(cwd && { cwd }),
-                ...(reason && { reason }),
+                ...(networkHost && { networkHost }),
             };
         }
         case 'fileChange': {
-            const reason = optionalText(parameters.reason, 2_000);
-            return { id, kind, ...(reason && { reason }) };
+            return { ...approvalFields(id, parameters), kind };
         }
         case 'question': {
             const questions = Array.isArray(parameters.questions) ? parameters.questions : [];
@@ -385,5 +427,31 @@ export function mapCodexErrorNotice(parameters: Json, turnId: string | undefined
         type: 'notice',
         kind,
         ...(message && { message }),
+    };
+}
+
+/**
+ * Timeline record of the answers given to a question request. The request card disappears once answered, and without
+ * this record the conversation would show the Agent acting on a choice the transcript never mentions.
+ */
+export function answeredNotice(
+    request: AgentChatRequest | undefined,
+    turnId: string | undefined,
+    answers: Readonly<Record<string, readonly string[]>>,
+): AgentChatItem | undefined {
+    if (request?.kind !== 'question') return undefined;
+    const lines = request.questions.flatMap((question) => {
+        if (!Object.hasOwn(answers, question.id)) return [];
+        const chosen = answers[question.id];
+        if (chosen.length === 0) return [];
+        return [`${question.header || question.question}: ${chosen.join(', ')}`];
+    });
+    if (lines.length === 0) return undefined;
+    return {
+        id: clip(`answer:${request.id}`, 200),
+        ...(turnId && { turnId }),
+        type: 'notice',
+        kind: 'answered',
+        message: clip(lines.join('\n'), 2_000),
     };
 }

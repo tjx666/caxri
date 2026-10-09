@@ -15,6 +15,8 @@ function openChatLink(url: string): void {
     void openExternalUrl(url, (message) => pushToast('error', message));
 }
 
+const CHAT_MARKDOWN_OPTIONS = { isCodeCopyable: true };
+
 export function AgentChatUserMessage({ text }: { text: string }) {
     return (
         <div className="flex justify-end">
@@ -30,10 +32,14 @@ export function AgentChatUserMessage({ text }: { text: string }) {
  * the parse stays small.
  */
 export function AgentChatMessage({ text, className }: { text: string; className?: string }) {
-    const blocks = useMemo(() => parseMarkdownBlocks(text), [text]);
+    const blocks = useMemo(() => parseMarkdownBlocks(text, { tables: true }), [text]);
     return (
         <div className={cn('space-y-2 text-[13px] leading-5 wrap-anywhere', className)}>
-            <MarkdownBlocks blocks={blocks} onOpenUrl={openChatLink} />
+            <MarkdownBlocks
+                blocks={blocks}
+                options={CHAT_MARKDOWN_OPTIONS}
+                onOpenUrl={openChatLink}
+            />
         </div>
     );
 }
@@ -49,7 +55,9 @@ export function AgentChatNotice({ item }: { item: Extract<AgentChatItem, { type:
             role={isError ? 'alert' : undefined}
         >
             {isError && <CircleAlert className="mt-0.5 size-3.5 shrink-0" />}
-            <span className="wrap-anywhere">{agentChatNoticeMessage(item)}</span>
+            <span className="wrap-anywhere whitespace-pre-line">
+                {agentChatNoticeMessage(item)}
+            </span>
         </div>
     );
 }

@@ -155,6 +155,26 @@ describe('AgentChatService with a fake Codex app-server', () => {
         service.respond(terminal.id, request.id, { kind: 'answers', answers: { color: ['Blue'] } });
         const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
         expect(done.items.at(-1)).toMatchObject({ text: 'You chose Blue.' });
+        // The card is gone, so the timeline keeps the chosen answer before the reply that acts on it.
+        expect(done.items.at(-2)).toMatchObject({
+            type: 'notice',
+            kind: 'answered',
+            message: 'Color: Blue',
+        });
+    });
+
+    it('skips a question so the turn continues without an answer', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, 'ask me');
+        const pending = await until((snapshot) => snapshot.requests.length === 1);
+        service.respond(terminal.id, pending.requests[0].id, {
+            kind: 'decision',
+            decision: 'cancel',
+        });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.requests).toEqual([]);
+        expect(done.items.at(-1)).toMatchObject({ text: 'You chose nothing.' });
+        expect(done.items.some((item) => item.type === 'notice')).toBe(false);
     });
 
     it('interrupts a running turn and closes its dangling stream', async () => {

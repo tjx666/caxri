@@ -60,12 +60,15 @@ import(${JSON.stringify(pathToFileURL(FAKE_APP_SERVER).href)});
         await message.press('Enter');
         await expect(chat.getByText('Hello from fake Codex. You said: hi there')).toBeVisible();
         await expect(message).toHaveAttribute('placeholder', 'Message Codex');
+        // The footer keeps the model and remaining context in view, as the Codex TUI does.
+        await expect(chat.getByText(/^fake-codex-model · \d+% context left$/u)).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-reply.png') });
 
         await message.fill('please approve this');
         await message.press('Enter');
         const approval = chat.getByRole('region', { name: 'Run this command?' });
         await expect(approval).toContainText('echo approved');
+        await expect(approval.getByRole('button', { name: 'Accept for this Chat' })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-approval.png') });
         await approval.getByRole('button', { name: 'Accept', exact: true }).click();
         await expect(approval).toHaveCount(0);
@@ -77,7 +80,18 @@ import(${JSON.stringify(pathToFileURL(FAKE_APP_SERVER).href)});
         await question.getByRole('button', { name: /^Blue/u }).click();
         await question.getByRole('button', { name: 'Submit' }).click();
         await expect(chat.getByText('You chose Blue.')).toBeVisible();
+        await expect(chat.getByText('Answered: Color: Blue')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-question.png') });
+
+        // Tables and fenced code keep their structure in the transcript.
+        await message.fill('show a table');
+        await message.press('Enter');
+        const table = chat.getByRole('table');
+        await expect(table.getByRole('columnheader', { name: 'Cost' })).toBeVisible();
+        await expect(table.getByRole('cell', { name: 'Safe' })).toBeVisible();
+        await chat.getByText('const choice = "Safe";').hover();
+        await expect(chat.getByRole('button', { name: 'Copy code' })).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-table.png') });
 
         // A crash fails the Chat; Retry restarts the provider on the same conversation and the pane follows it.
         await message.fill('crash now');
