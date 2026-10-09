@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AGENT_CHAT_FOLLOW_THRESHOLD_PX, isScrolledToEnd } from './use-agent-chat-scroll';
+import { AGENT_CHAT_FOLLOW_THRESHOLD_PX, isScrolledToEnd } from '../use-agent-chat-scroll';
 
 describe('isScrolledToEnd', () => {
     it('follows while the view is within the threshold of the end', () => {

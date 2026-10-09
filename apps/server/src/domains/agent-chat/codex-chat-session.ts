@@ -12,6 +12,7 @@ import type { CodexConnectionEnd, CodexServerRequest } from './codex-connection'
 import { CodexConnection, CodexRequestError } from './codex-connection';
 import type { CodexRequestKind } from './codex-items';
 import {
+    answeredNotice,
     clip,
     closeDanglingItem,
     codexRequestKey,
@@ -33,6 +34,22 @@ import {
 const HANDSHAKE_TIMEOUT_MS = 15_000;
 const THREAD_OPEN_TIMEOUT_MS = 30_000;
 const TURN_REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * Answers for a question request. Skipping is a `cancel` decision from the Client; Codex has no decision for questions,
+ * and an empty `answers` map is its own "no answer" (the app-server sends the same when a request fails), so the turn
+ * continues instead of blocking on the user.
+ */
+function questionAnswers(
+    response:
+        | { kind: 'decision'; decision: 'accept' | 'acceptForSession' | 'decline' | 'cancel' }
+        | { kind: 'answers'; answers: Record<string, string[]> },
+): Record<string, string[]> {
+    if (response.kind === 'answers') return response.answers;
+    if (response.decision === 'cancel') return {};
+    throw new CaxriError('VALIDATION', 'A question needs answers');
+}
+
 /**
  * The interrupt response is held until the turn actually aborts. A provider that never answers is stopped instead so
  * the Chat cannot stay stuck in a running turn.
@@ -547,13 +564,18 @@ export class CodexChatSession {
         const pending = this.pending.get(requestId);
         if (!pending) throw new CaxriError('CONFLICT', 'This request is no longer pending');
         if (pending.kind === 'question') {
-            if (response.kind !== 'answers')
-                throw new CaxriError('VALIDATION', 'A question needs answers');
+            const answers = questionAnswers(response);
             connection.respond(pending.transportId, {
                 answers: Object.fromEntries(
-                    Object.entries(response.answers).map(([id, answers]) => [id, { answers }]),
+                    Object.entries(answers).map(([id, values]) => [id, { answers: values }]),
                 ),
             });
+            const answered = answeredNotice(
+                this.options.read().requests.find((request) => request.id === requestId),
+                pending.turnId,
+                answers,
+            );
+            if (answered) this.options.apply([{ op: 'upsertItem', item: answered }]);
         } else {
             if (response.kind !== 'decision')
                 throw new CaxriError('VALIDATION', 'An approval needs a decision');

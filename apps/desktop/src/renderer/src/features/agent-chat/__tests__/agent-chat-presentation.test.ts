@@ -3,12 +3,16 @@ import { emptyAgentChatSnapshot } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    agentChatActivityLabel,
     agentChatActivityTitle,
+    agentChatCommandCwd,
+    agentChatContextSummary,
     agentChatQuestionAnswers,
     canSendAgentChatMessage,
+    isAgentChatInterruptKey,
     isAgentChatSubmitKey,
     withOccurrenceKeys,
-} from './agent-chat-presentation';
+} from '../agent-chat-presentation';
 
 function snapshot(status: AgentChatSnapshot['status']): AgentChatSnapshot {
     return { ...emptyAgentChatSnapshot('terminal-1'), status };
@@ -88,5 +92,68 @@ describe('withOccurrenceKeys', () => {
         expect(
             withOccurrenceKeys(['Read', 'Test', 'Read'], (step) => step).map(({ key }) => key),
         ).toEqual(['Read\u{0}0', 'Test\u{0}0', 'Read\u{0}1']);
+    });
+});
+
+describe('agentChatCommandCwd', () => {
+    it('hides the Project root, shortens paths below it, and keeps paths outside it absolute', () => {
+        expect(agentChatCommandCwd('/work/app', '/work/app')).toBeUndefined();
+        expect(agentChatCommandCwd('/work/app/packages/ui', '/work/app')).toBe('packages/ui');
+        expect(agentChatCommandCwd('/tmp/scratch', '/work/app')).toBe('/tmp/scratch');
+        expect(agentChatCommandCwd('/work/app', undefined)).toBe('/work/app');
+        expect(agentChatCommandCwd(undefined, '/work/app')).toBeUndefined();
+    });
+});
+
+describe('agentChatContextSummary', () => {
+    it('shows the model and the context left once the provider reports them', () => {
+        expect(agentChatContextSummary(undefined)).toBeUndefined();
+        expect(agentChatContextSummary({})).toBeUndefined();
+        expect(agentChatContextSummary({ model: 'gpt-test' })).toBe('gpt-test');
+        expect(
+            agentChatContextSummary({
+                model: 'gpt-test',
+                usage: { totalTokens: 25_000, contextWindow: 100_000 },
+            }),
+        ).toBe('gpt-test · 75% context left');
+        expect(agentChatContextSummary({ usage: { totalTokens: 500 } })).toBeUndefined();
+        expect(
+            agentChatContextSummary({ usage: { totalTokens: 200_000, contextWindow: 100_000 } }),
+        ).toBe('0% context left');
+    });
+});
+
+describe('agentChatActivityLabel', () => {
+    it('tells starting, working, and waiting on the user apart', () => {
+        expect(agentChatActivityLabel(undefined)).toEqual({
+            text: 'Starting Codex…',
+            isBusy: true,
+        });
+        expect(agentChatActivityLabel(snapshot('ready'))).toBeUndefined();
+        const running = { ...snapshot('ready'), activeTurnId: 'turn-1' };
+        expect(agentChatActivityLabel(running)).toEqual({ text: 'Working…', isBusy: true });
+        expect(
+            agentChatActivityLabel({
+                ...running,
+                requests: [{ id: 'r', kind: 'fileChange' }],
+            }),
+        ).toEqual({ text: 'Waiting for your answer', isBusy: false });
+    });
+});
+
+describe('isAgentChatInterruptKey', () => {
+    it('interrupts on a single Escape outside an IME composition', () => {
+        expect(isAgentChatInterruptKey({ key: 'Escape', isComposing: false, repeat: false })).toBe(
+            true,
+        );
+        expect(isAgentChatInterruptKey({ key: 'Escape', isComposing: true, repeat: false })).toBe(
+            false,
+        );
+        expect(isAgentChatInterruptKey({ key: 'Escape', isComposing: false, repeat: true })).toBe(
+            false,
+        );
+        expect(isAgentChatInterruptKey({ key: 'Enter', isComposing: false, repeat: false })).toBe(
+            false,
+        );
     });
 });

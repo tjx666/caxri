@@ -114,7 +114,13 @@ function PaneContent({
     if (tab.resource.kind === 'terminal') {
         if (!terminal) return null;
         if (isChatTerminal(terminal))
-            return <AgentChatPane ariaLabel={terminal.title} terminalId={terminal.id} />;
+            return (
+                <AgentChatPane
+                    ariaLabel={terminal.title}
+                    key={terminal.id}
+                    terminalId={terminal.id}
+                />
+            );
         return (
             <TerminalPane
                 active={isActivePane}

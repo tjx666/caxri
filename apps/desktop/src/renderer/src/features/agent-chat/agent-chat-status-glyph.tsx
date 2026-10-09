@@ -1,5 +1,5 @@
 import type { AgentChatItemStatus, AgentChatPlan } from '@caxri/protocol';
-import { Check, Circle, CircleSlash, CircleX } from 'lucide-react';
+import { Check, Circle, CircleDot, CircleSlash, CircleX } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
 import { cn } from '../../lib/utilities';
@@ -45,13 +45,17 @@ export function AgentChatStatusGlyph({ status }: { status: AgentChatItemStatus }
 
 type PlanStepStatus = AgentChatPlan['steps'][number]['status'];
 
-function planStepGlyph(status: PlanStepStatus) {
+function planStepGlyph(status: PlanStepStatus, isTurnRunning: boolean) {
     switch (status) {
         case 'completed': {
             return <Check aria-label="Completed" className="size-3.5 text-success" role="img" />;
         }
         case 'inProgress': {
-            return <Spinner aria-label="In progress" className="size-3.5 text-muted" />;
+            return isTurnRunning ? (
+                <Spinner aria-label="In progress" className="size-3.5 text-muted" />
+            ) : (
+                <CircleDot aria-label="In progress" className="size-3.5 text-muted" role="img" />
+            );
         }
         case 'pending': {
             return <Circle aria-label="Pending" className="size-3.5 text-muted" role="img" />;
@@ -59,7 +63,17 @@ function planStepGlyph(status: PlanStepStatus) {
     }
 }
 
-export function AgentChatPlanCard({ plan }: { plan: AgentChatPlan }) {
+/**
+ * The latest plan the Agent reported. A step left in progress after the turn ended (interrupted, failed, or simply
+ * never updated) is shown still, so the card never spins while nothing is running.
+ */
+export function AgentChatPlanCard({
+    plan,
+    isTurnRunning,
+}: {
+    plan: AgentChatPlan;
+    isTurnRunning: boolean;
+}) {
     return (
         <section
             aria-label="Plan"
@@ -70,7 +84,9 @@ export function AgentChatPlanCard({ plan }: { plan: AgentChatPlan }) {
             <ol className="m-0 list-none space-y-0.5 p-0">
                 {withOccurrenceKeys(plan.steps, (step) => step.step).map(({ item: step, key }) => (
                     <li className="flex items-start gap-2" key={key}>
-                        <span className="mt-0.5 shrink-0">{planStepGlyph(step.status)}</span>
+                        <span className="mt-0.5 shrink-0">
+                            {planStepGlyph(step.status, isTurnRunning)}
+                        </span>
                         <span
                             className={cn(
                                 'wrap-anywhere',

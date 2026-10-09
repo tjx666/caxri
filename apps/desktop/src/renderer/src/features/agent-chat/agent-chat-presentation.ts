@@ -6,6 +6,8 @@ import type {
     AgentChatSnapshot,
 } from '@caxri/protocol';
 
+import { projectRelativePath } from '../../lib/file-path';
+
 /**
  * User-facing copy for each closed failure reason. Provider text never selects the message; `detail` is shown beside it
  * only as supporting context.
@@ -43,6 +45,37 @@ export function canSendAgentChatMessage(snapshot: AgentChatSnapshot | undefined)
     return snapshot !== undefined && snapshot.status !== 'failed';
 }
 
+/**
+ * The composer's footer: the model the provider reported and how much of its context window remains, the two facts the
+ * Codex TUI keeps visible. Omitted until the provider reports them.
+ */
+export function agentChatContextSummary(
+    snapshot: Pick<AgentChatSnapshot, 'model' | 'usage'> | undefined,
+): string | undefined {
+    const parts: string[] = [];
+    if (snapshot?.model) parts.push(snapshot.model);
+    const usage = snapshot?.usage;
+    if (usage?.contextWindow) {
+        const used = Math.min(usage.totalTokens / usage.contextWindow, 1);
+        parts.push(`${Math.round((1 - used) * 100)}% context left`);
+    }
+    return parts.length > 0 ? parts.join(' · ') : undefined;
+}
+
+/**
+ * What the Chat is doing right now, for the activity line. A pending request means the turn is blocked on the user, not
+ * working, so it says so instead of spinning.
+ */
+export function agentChatActivityLabel(
+    snapshot: Pick<AgentChatSnapshot, 'status' | 'activeTurnId' | 'requests'> | undefined,
+): { text: string; isBusy: boolean } | undefined {
+    if (!snapshot || snapshot.status === 'starting')
+        return { text: 'Starting Codex…', isBusy: true };
+    if (!snapshot.activeTurnId) return undefined;
+    if (snapshot.requests.length > 0) return { text: 'Waiting for your answer', isBusy: false };
+    return { text: 'Working…', isBusy: true };
+}
+
 export function isAgentChatTurnRunning(snapshot: AgentChatSnapshot | undefined): boolean {
     return Boolean(snapshot?.activeTurnId);
 }
@@ -57,6 +90,18 @@ export function isAgentChatSubmitKey(event: {
     isComposing: boolean;
 }): boolean {
     return event.key === 'Enter' && !event.shiftKey && !event.isComposing;
+}
+
+/**
+ * Escape interrupts a running turn, as it does in the Codex TUI; the draft is kept for the next message. An IME
+ * composition owns Escape (it dismisses the candidate list), and a held key must not fire a stream of interrupts.
+ */
+export function isAgentChatInterruptKey(event: {
+    key: string;
+    isComposing: boolean;
+    repeat: boolean;
+}): boolean {
+    return event.key === 'Escape' && !event.isComposing && !event.repeat;
 }
 
 export type AgentChatStatusTone = 'danger' | 'muted' | 'running' | 'success' | 'warning';
@@ -133,13 +178,49 @@ export function agentChatNoticeMessage(item: Extract<AgentChatItem, { type: 'not
         case 'error': {
             return item.message ?? 'The Agent reported an error';
         }
+        case 'answered': {
+            return item.message ? `Answered: ${item.message}` : 'Answered';
+        }
     }
+}
+
+/**
+ * Where an approval's command runs, as the user thinks of it: hidden at the Project root (the usual case, and the one
+ * the user already assumes), Project-relative below it, and absolute only when the Agent leaves the Project.
+ */
+export function agentChatCommandCwd(
+    cwd: string | undefined,
+    projectRoot: string | undefined,
+): string | undefined {
+    if (!cwd) return undefined;
+    if (projectRoot === undefined) return cwd;
+    const relative = projectRelativePath(cwd, projectRoot);
+    if (relative === '.') return undefined;
+    return relative ?? cwd;
+}
+
+/**
+ * The approval buttons to show, in a fixed order. The provider may restrict them; `cancel` is never a button here
+ * because declining already answers the request without stopping the turn.
+ */
+export function agentChatApprovalChoices(
+    request: Extract<AgentChatRequest, { kind: 'command' | 'fileChange' }>,
+): Array<{ decision: 'accept' | 'acceptForSession' | 'decline'; label: string }> {
+    const choices = [
+        { decision: 'accept', label: 'Accept' },
+        { decision: 'acceptForSession', label: 'Accept for this Chat' },
+        { decision: 'decline', label: 'Decline' },
+    ] as const;
+    const allowed = request.decisions;
+    return choices.filter((choice) => !allowed || allowed.includes(choice.decision));
 }
 
 export function agentChatRequestTitle(request: AgentChatRequest): string {
     switch (request.kind) {
         case 'command': {
-            return 'Run this command?';
+            return request.networkHost
+                ? `Allow network access to ${request.networkHost}?`
+                : 'Run this command?';
         }
         case 'fileChange': {
             return 'Apply these file changes?';

@@ -1,6 +1,13 @@
+import { MAX_AGENT_CHAT_DIFF_LENGTH, MAX_AGENT_CHAT_FILE_CHANGE_DIFF_TOTAL } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { closeDanglingItem, codexRequestKey, mapCodexItem, mapCodexRequest } from '../codex-items';
+import {
+    answeredNotice,
+    closeDanglingItem,
+    codexRequestKey,
+    mapCodexItem,
+    mapCodexRequest,
+} from '../codex-items';
 
 describe('Codex item mapping', () => {
     it('maps conversation and tool items into bounded Chat items', () => {
@@ -113,6 +120,38 @@ describe('Codex item mapping', () => {
         expect(codexRequestKey({})).toBeUndefined();
     });
 
+    it('keeps the approval context Codex sends and only the decisions Caxri can offer', () => {
+        expect(
+            mapCodexRequest('command', 'r', {
+                itemId: 'cmd-1',
+                reason: 'Needs the network',
+                command: 'curl example.com',
+                cwd: '/work',
+                networkApprovalContext: { host: 'example.com', protocol: 'https' },
+                availableDecisions: [
+                    'accept',
+                    'decline',
+                    'accept',
+                    { acceptWithExecpolicyAmendment: { execpolicy_amendment: [] } },
+                ],
+            }),
+        ).toEqual({
+            id: 'r',
+            kind: 'command',
+            itemId: 'cmd-1',
+            reason: 'Needs the network',
+            command: 'curl example.com',
+            cwd: '/work',
+            networkHost: 'example.com',
+            decisions: ['accept', 'decline'],
+        });
+        // No list, or a list with nothing Caxri can offer, means every plain decision applies.
+        expect(mapCodexRequest('fileChange', 'f', { availableDecisions: [{ other: 1 }] })).toEqual({
+            id: 'f',
+            kind: 'fileChange',
+        });
+    });
+
     it('maps questions with their options', () => {
         expect(
             mapCodexRequest('question', 'q', {
@@ -140,5 +179,69 @@ describe('Codex item mapping', () => {
                 },
             ],
         });
+    });
+
+    it('records the answers to a question, labelled by header, and skips unanswered questions', () => {
+        const question = (id: string, header: string) => ({
+            id,
+            header,
+            question: `${id}?`,
+            options: [],
+            allowsOther: true,
+        });
+        expect(
+            answeredNotice(
+                {
+                    id: 'q',
+                    kind: 'question',
+                    questions: [
+                        question('color', 'Color'),
+                        question('size', ''),
+                        question('skip', ''),
+                    ],
+                },
+                'turn-1',
+                { color: ['Blue'], size: ['S', 'M'] },
+            ),
+        ).toEqual({
+            id: 'answer:q',
+            turnId: 'turn-1',
+            type: 'notice',
+            kind: 'answered',
+            message: 'Color: Blue\nsize?: S, M',
+        });
+        expect(answeredNotice({ id: 'a', kind: 'fileChange' }, undefined, {})).toBeUndefined();
+        expect(
+            answeredNotice(
+                { id: 'q', kind: 'question', questions: [question('x', 'X')] },
+                undefined,
+                {},
+            ),
+        ).toBeUndefined();
+    });
+
+    it("bounds the sum of one file-change item's diffs", () => {
+        const count =
+            Math.ceil(MAX_AGENT_CHAT_FILE_CHANGE_DIFF_TOTAL / MAX_AGENT_CHAT_DIFF_LENGTH) + 3;
+        const item = mapCodexItem(
+            {
+                id: 'patch',
+                type: 'fileChange',
+                status: 'completed',
+                changes: Array.from({ length: count }, (_, index) => ({
+                    path: `file-${index}.ts`,
+                    kind: { type: 'update' },
+                    diff: 'd'.repeat(MAX_AGENT_CHAT_DIFF_LENGTH),
+                })),
+            },
+            'turn',
+            false,
+        );
+        if (item?.type !== 'fileChange') throw new Error('expected a file-change item');
+        const total = item.changes.reduce((sum, change) => sum + change.diff.length, 0);
+        expect(total).toBe(MAX_AGENT_CHAT_FILE_CHANGE_DIFF_TOTAL);
+        // Every path is still listed, so the user sees what changed even when a diff is cut.
+        expect(item.changes).toHaveLength(count);
+        expect(item.changes.at(-1)?.diff).toBe('');
     });
 });

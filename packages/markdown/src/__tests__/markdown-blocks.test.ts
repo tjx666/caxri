@@ -91,7 +91,29 @@ describe('parseMarkdownBlocks', () => {
                 type: 'quote',
                 children: [{ type: 'paragraph', children: [{ type: 'text', value: 'quoted' }] }],
             },
-            { type: 'code', value: 'const a = 1;' },
+            { type: 'code', value: 'const a = 1;', language: 'ts' },
         ]);
+    });
+
+    it('keeps tables when asked, aligned and padded to the header width', () => {
+        const source = [
+            '| Name | **Size** | Note |',
+            '| :--- | ---: | :-: |',
+            '| a | 1 |',
+            '| b | 2 | `x` | extra |',
+        ].join('\n');
+        const text = (value: string) => [{ type: 'text', value }];
+        expect(parseMarkdownBlocks(source, { tables: true })).toEqual([
+            {
+                type: 'table',
+                align: ['left', 'right', 'center'],
+                header: [text('Name'), [{ type: 'strong', children: text('Size') }], text('Note')],
+                rows: [
+                    [text('a'), text('1'), []],
+                    [text('b'), text('2'), [{ type: 'code', value: 'x' }]],
+                ],
+            },
+        ]);
+        expect(parseMarkdownBlocks(source)).toEqual([]);
     });
 });

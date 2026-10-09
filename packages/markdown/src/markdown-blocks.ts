@@ -17,15 +17,35 @@ export type MarkdownInline =
     | { type: 'link'; href?: string; children: MarkdownInline[] };
 
 /**
- * A closed, HTML-free subset of Markdown for small untrusted surfaces such as hover cards.
+ * A closed, HTML-free subset of Markdown for untrusted surfaces such as hover cards and Agent Chat messages.
  */
 export type MarkdownBlock =
     | { type: 'paragraph'; children: MarkdownInline[] }
     | { type: 'heading'; children: MarkdownInline[] }
-    | { type: 'code'; value: string }
+    /**
+     * `language` is the fence's info string up to its first space, when one was given.
+     */
+    | { type: 'code'; value: string; language?: string }
     | { type: 'quote'; children: MarkdownBlock[] }
+    /**
+     * Present only when the caller opts in with `tables`. Every row carries one cell per header column.
+     */
+    | {
+          type: 'table';
+          align: Array<'center' | 'left' | 'right' | undefined>;
+          header: MarkdownInline[][];
+          rows: MarkdownInline[][][];
+      }
     | { type: 'list'; ordered: boolean; items: MarkdownBlock[][] }
     | { type: 'rule' };
+
+export interface MarkdownBlockOptions {
+    /**
+     * Keep tables. Off by default: a hover card is too narrow to lay one out and its full text is one click away at the
+     * source, while a conversation transcript has room and no other place to show it.
+     */
+    tables?: boolean;
+}
 
 /**
  * `html: true` is deliberate: with raw HTML disabled, markdown-it re-emits `<sub>` and friends as literal text, while
@@ -133,12 +153,73 @@ function closingIndex(tokens: readonly Token[], start: number): number {
     return tokens.length;
 }
 
-function listItems(tokens: readonly Token[], start: number, end: number): MarkdownBlock[][] {
+function cellAlign(token: Token): 'center' | 'left' | 'right' | undefined {
+    const style = token.attrGet('style');
+    const match =
+        typeof style === 'string' ? /text-align:\s*(center|left|right)/u.exec(style) : null;
+    return match?.[1] as 'center' | 'left' | 'right' | undefined;
+}
+
+interface TableRow {
+    cells: MarkdownInline[][];
+    align: Array<ReturnType<typeof cellAlign>>;
+}
+
+function pushCell(row: TableRow | undefined, open: Token, inline: Token | undefined): void {
+    row?.cells.push(inline?.type === 'inline' ? convertInline(inline.children ?? []) : []);
+    row?.align.push(cellAlign(open));
+}
+
+/**
+ * Reads a table's rows between `start` and `end`. Each row is padded or cut to the header's width so a host can lay the
+ * grid out without checking ragged rows.
+ */
+function convertTable(
+    tokens: readonly Token[],
+    start: number,
+    end: number,
+): Extract<MarkdownBlock, { type: 'table' }> {
+    const rows: TableRow[] = [];
+    let isHeader = false;
+    let headerCount = 0;
+    for (let index = start + 1; index < end; index += 1) {
+        const token = tokens[index]!;
+        if (token.type === 'thead_open' || token.type === 'thead_close') {
+            isHeader = token.type === 'thead_open';
+            continue;
+        }
+        if (token.type === 'tr_open') {
+            rows.push({ cells: [], align: [] });
+            if (isHeader) headerCount += 1;
+            continue;
+        }
+        if (token.type === 'th_open' || token.type === 'td_open') {
+            pushCell(rows.at(-1), token, tokens[index + 1]);
+        }
+    }
+    const header = rows.slice(0, headerCount).at(-1) ?? { cells: [], align: [] };
+    const width = header.cells.length;
+    return {
+        type: 'table',
+        align: header.align,
+        header: header.cells,
+        rows: rows
+            .slice(headerCount)
+            .map(({ cells }) => Array.from({ length: width }, (_, column) => cells[column] ?? [])),
+    };
+}
+
+function listItems(
+    tokens: readonly Token[],
+    start: number,
+    end: number,
+    options: MarkdownBlockOptions,
+): MarkdownBlock[][] {
     const items: MarkdownBlock[][] = [];
     let cursor = start + 1;
     while (cursor < end) {
         const itemEnd = closingIndex(tokens, cursor);
-        items.push(convertBlocks(tokens.slice(cursor + 1, itemEnd)));
+        items.push(convertBlocks(tokens.slice(cursor + 1, itemEnd), options));
         cursor = itemEnd + 1;
     }
     return items;
@@ -151,6 +232,7 @@ function listItems(tokens: readonly Token[], start: number, end: number): Markdo
 function convertBlockAt(
     tokens: readonly Token[],
     index: number,
+    options: MarkdownBlockOptions,
 ): { block?: MarkdownBlock; next: number } {
     const token = tokens[index]!;
     switch (token.type) {
@@ -165,7 +247,7 @@ function convertBlockAt(
         }
         case 'blockquote_open': {
             const end = closingIndex(tokens, index);
-            const children = convertBlocks(tokens.slice(index + 1, end));
+            const children = convertBlocks(tokens.slice(index + 1, end), options);
             return {
                 block: children.length > 0 ? { type: 'quote', children } : undefined,
                 next: end + 1,
@@ -176,15 +258,31 @@ function convertBlockAt(
             const end = closingIndex(tokens, index);
             const isOrdered = token.type === 'ordered_list_open';
             return {
-                block: { type: 'list', ordered: isOrdered, items: listItems(tokens, index, end) },
+                block: {
+                    type: 'list',
+                    ordered: isOrdered,
+                    items: listItems(tokens, index, end, options),
+                },
                 next: end + 1,
             };
         }
         case 'fence':
         case 'code_block': {
+            const language = token.info.trim().split(/\s/u, 1)[0];
             return {
-                block: { type: 'code', value: token.content.replace(/\n$/u, '') },
+                block: {
+                    type: 'code',
+                    value: token.content.replace(/\n$/u, ''),
+                    ...(language && { language }),
+                },
                 next: index + 1,
+            };
+        }
+        case 'table_open': {
+            const end = closingIndex(tokens, index);
+            return {
+                block: options.tables ? convertTable(tokens, index, end) : undefined,
+                next: end + 1,
             };
         }
         case 'hr': {
@@ -192,19 +290,18 @@ function convertBlockAt(
         }
         default: {
             /**
-             * `html_block` is dropped. Tables are skipped by jumping past their closing token: a hover card is too
-             * narrow to lay one out, and the full text stays one click away at the source.
+             * `html_block` and any unknown container are dropped by jumping past their closing token.
              */
             return { next: (token.nesting === 1 ? closingIndex(tokens, index) : index) + 1 };
         }
     }
 }
 
-function convertBlocks(tokens: readonly Token[]): MarkdownBlock[] {
+function convertBlocks(tokens: readonly Token[], options: MarkdownBlockOptions): MarkdownBlock[] {
     const blocks: MarkdownBlock[] = [];
     let index = 0;
     while (index < tokens.length) {
-        const { block, next } = convertBlockAt(tokens, index);
+        const { block, next } = convertBlockAt(tokens, index, options);
         if (block) blocks.push(block);
         index = next;
     }
@@ -215,6 +312,9 @@ function convertBlocks(tokens: readonly Token[]): MarkdownBlock[] {
  * Parses untrusted Markdown into an HTML-free block tree. Raw HTML is dropped, images collapse to alt text, and only
  * absolute HTTP(S) links keep a destination, so a host can render the result with text nodes and no sanitizer.
  */
-export function parseMarkdownBlocks(source: string): MarkdownBlock[] {
-    return convertBlocks(engine.parse(source, {}));
+export function parseMarkdownBlocks(
+    source: string,
+    options: MarkdownBlockOptions = {},
+): MarkdownBlock[] {
+    return convertBlocks(engine.parse(source, {}), options);
 }
