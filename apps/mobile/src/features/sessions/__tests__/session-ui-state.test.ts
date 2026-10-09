@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     emptyHostSessionUiState,
     hasKnownConversationAgent,
+    isChatSegmentShown,
     isSessionDetailVisible,
     isSideSessionSegment,
     preferredSessionSegment,
@@ -12,6 +13,7 @@ import {
     selectSessionProject,
     SESSION_SEGMENTS,
     sessionSegmentDirection,
+    sessionSegments,
 } from '../session-ui-state';
 
 describe('host Session UI state', () => {
@@ -207,5 +209,25 @@ describe('host Session UI state', () => {
         expect(isSessionDetailVisible({ ...visible, isRouted: false })).toBe(false);
         expect(isSessionDetailVisible({ ...visible, isPhone: false, isRouted: false })).toBe(true);
         expect(isSessionDetailVisible({ ...visible, isSelected: false })).toBe(false);
+    });
+});
+
+describe('Chat Session tabs', () => {
+    it('offers no Terminal tab for a Chat', () => {
+        expect(sessionSegments({ hasConversation: true, isChat: true })).toEqual([
+            'conversation',
+            'changes',
+        ]);
+        expect(sessionSegments({ hasConversation: false, isChat: false })).toEqual([
+            'terminal',
+            'changes',
+        ]);
+    });
+
+    it('observes a Chat on its tab or behind wide Changes only', () => {
+        expect(isChatSegmentShown('conversation', false)).toBe(true);
+        expect(isChatSegmentShown('changes', false)).toBe(false);
+        expect(isChatSegmentShown('changes', true)).toBe(true);
+        expect(isChatSegmentShown('panel:notes', true)).toBe(false);
     });
 });

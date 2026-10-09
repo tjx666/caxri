@@ -1,7 +1,9 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import type { ReactNode } from 'react';
-import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import type { ListRenderItemInfo } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+
+import type { AgentChatRequest } from '@caxri/protocol';
 
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationView } from '../conversation/conversation-view';
@@ -63,36 +65,17 @@ const Banner = ({
     </View>
 );
 
-/**
- * The phone's Chat: the same Conversation rendering a terminal Agent gets (Markdown replies, grouped tool rows, a
- * collapsed Thought row for reasoning), with the Chat's own states and pending requests docked above the composer.
- */
-export const AgentChatView = ({
-    canAnswer,
-    canRetry,
+const AgentChatBody = ({
     chat,
     enterFrom,
-    isConnected,
     provider,
     theme,
 }: {
-    /**
-     * Only a control device answers approvals and questions.
-     */
-    canAnswer: boolean;
-    canRetry: boolean;
     chat: AgentChatController;
     enterFrom: -1 | 0 | 1 | null;
-    /**
-     * While the phone is disconnected the app-wide connection banner already explains the stale copy, so the Chat only
-     * reports its own read failures.
-     */
-    isConnected: boolean;
     provider: string;
     theme: MobileTheme;
 }) => {
-    const [isRestarting, setRestarting] = useState(false);
-    const [restartError, setRestartError] = useState<string | null>(null);
     const { snapshot } = chat;
     const timeline = useMemo<ConversationTimelineState & { loadOlder: () => Promise<void> }>(
         () => ({
@@ -106,6 +89,136 @@ export const AgentChatView = ({
         }),
         [snapshot],
     );
+    if (timeline.items.length > 0)
+        return (
+            <ConversationView
+                enterFrom={enterFrom}
+                onRetry={chat.refresh}
+                theme={theme}
+                timeline={timeline}
+            />
+        );
+    if (chat.status === 'error')
+        return (
+            <View style={styles.status} testID="agent-chat-status-error">
+                <Text style={[styles.statusText, { color: theme.muted }]}>
+                    Unable to load this Chat.
+                </Text>
+                <Pressable
+                    accessibilityRole="button"
+                    onPress={chat.refresh}
+                    style={[styles.bannerButton, { backgroundColor: theme.surface }]}
+                    testID="agent-chat-reload"
+                >
+                    <Text style={[styles.bannerButtonText, { color: theme.text }]}>Retry</Text>
+                </Pressable>
+            </View>
+        );
+    if (!snapshot || snapshot.status === 'starting')
+        return (
+            <View style={styles.status} testID="agent-chat-status-loading">
+                <ActivityIndicator color={theme.muted} />
+                <Text style={[styles.statusText, { color: theme.muted }]}>
+                    {snapshot ? `Starting ${provider}…` : 'Loading Chat…'}
+                </Text>
+            </View>
+        );
+    return (
+        <View style={styles.status} testID="agent-chat-status-empty">
+            <Text style={[styles.statusText, { color: theme.muted }]}>
+                {`No messages yet. Send a message to start working with ${provider}.`}
+            </Text>
+        </View>
+    );
+};
+
+const AgentChatRequests = ({
+    canAnswer,
+    chat,
+    theme,
+}: {
+    canAnswer: boolean;
+    chat: AgentChatController;
+    theme: MobileTheme;
+}) => {
+    const { respond, snapshot } = chat;
+    const items = snapshot?.items;
+    const renderRequest = useCallback(
+        ({ item }: ListRenderItemInfo<AgentChatRequest>) => (
+            <AgentChatRequestCard
+                canAnswer={canAnswer}
+                items={items ?? []}
+                onRespond={respond}
+                request={item}
+                theme={theme}
+            />
+        ),
+        [canAnswer, items, respond, theme],
+    );
+    const requests = snapshot?.requests ?? [];
+    if (requests.length === 0) return null;
+    return (
+        <FlatList
+            contentContainerStyle={styles.requests}
+            data={requests}
+            keyExtractor={(request) => request.id}
+            renderItem={renderRequest}
+            style={[styles.dock, { borderColor: theme.border }]}
+            testID="agent-chat-requests"
+        />
+    );
+};
+
+const AgentChatActivity = ({
+    chat,
+    provider,
+    theme,
+}: {
+    chat: AgentChatController;
+    provider: string;
+    theme: MobileTheme;
+}) => {
+    const { snapshot } = chat;
+    const activity = agentChatActivityLabel(snapshot, provider);
+    if (!activity || !snapshot || snapshot.status === 'starting') return null;
+    return (
+        <View style={styles.activity} testID="agent-chat-activity">
+            {activity.isBusy ? <ActivityIndicator color={theme.muted} size="small" /> : null}
+            <Text style={[styles.activityText, { color: theme.muted }]}>{activity.text}</Text>
+        </View>
+    );
+};
+
+/**
+ * The phone's Chat: the same Conversation rendering a terminal Agent gets (Markdown replies, grouped tool rows, a
+ * collapsed Thought row for reasoning), with the Chat's own states and pending requests docked above the composer.
+ */
+export const AgentChatView = ({
+    chat,
+    deviceRole,
+    enterFrom,
+    isConnected,
+    provider,
+    theme,
+}: {
+    chat: AgentChatController;
+    /**
+     * Reply and control devices retry a failed provider; only a control device answers approvals and questions.
+     */
+    deviceRole: 'view' | 'reply' | 'control' | null;
+    enterFrom: -1 | 0 | 1 | null;
+    /**
+     * While the phone is disconnected the app-wide connection banner already explains the stale copy, so the Chat only
+     * reports its own read failures.
+     */
+    isConnected: boolean;
+    provider: string;
+    theme: MobileTheme;
+}) => {
+    const [isRestarting, setRestarting] = useState(false);
+    const [restartError, setRestartError] = useState<string | null>(null);
+    const { snapshot } = chat;
+    const canRetry = deviceRole === 'reply' || deviceRole === 'control';
     const restart = async (): Promise<void> => {
         setRestarting(true);
         setRestartError(null);
@@ -117,66 +230,15 @@ export const AgentChatView = ({
             setRestarting(false);
         }
     };
-    const activity = agentChatActivityLabel(snapshot, provider);
-    const requests = snapshot?.requests ?? [];
-
-    let body: ReactNode;
-    if (timeline.items.length > 0)
-        body = (
-            <ConversationView
-                enterFrom={enterFrom}
-                onRetry={() => {
-                    chat.refresh();
-                }}
-                theme={theme}
-                timeline={timeline}
-            />
-        );
-    else if (chat.status === 'error')
-        body = (
-            <View style={styles.status} testID="agent-chat-status-error">
-                <Text style={[styles.statusText, { color: theme.muted }]}>
-                    Unable to load this Chat.
-                </Text>
-                <Pressable
-                    accessibilityRole="button"
-                    onPress={() => {
-                        chat.refresh();
-                    }}
-                    style={[styles.bannerButton, { backgroundColor: theme.surface }]}
-                    testID="agent-chat-reload"
-                >
-                    <Text style={[styles.bannerButtonText, { color: theme.text }]}>Retry</Text>
-                </Pressable>
-            </View>
-        );
-    else if (!snapshot || snapshot.status === 'starting')
-        body = (
-            <View style={styles.status} testID="agent-chat-status-loading">
-                <ActivityIndicator color={theme.muted} />
-                <Text style={[styles.statusText, { color: theme.muted }]}>
-                    {snapshot ? `Starting ${provider}…` : 'Loading Chat…'}
-                </Text>
-            </View>
-        );
-    else
-        body = (
-            <View style={styles.status} testID="agent-chat-status-empty">
-                <Text style={[styles.statusText, { color: theme.muted }]}>
-                    {`No messages yet. Send a message to start working with ${provider}.`}
-                </Text>
-            </View>
-        );
+    const failure = snapshot?.status === 'failed' ? snapshot.failure : undefined;
 
     return (
         <View style={styles.root} testID="agent-chat">
-            {snapshot?.status === 'failed' && snapshot.failure ? (
+            {failure ? (
                 <Banner
                     actionLabel={canRetry ? 'Retry' : undefined}
                     isBusy={isRestarting}
-                    message={
-                        restartError ?? agentChatFailureMessage(snapshot.failure.reason, provider)
-                    }
+                    message={restartError ?? agentChatFailureMessage(failure.reason, provider)}
                     onAction={() => {
                         // eslint-disable-next-line no-void -- The banner reports a failed restart itself.
                         void restart();
@@ -190,43 +252,22 @@ export const AgentChatView = ({
                 <Banner
                     actionLabel="Retry"
                     message="This Chat could not be updated."
-                    onAction={() => {
-                        chat.refresh();
-                    }}
+                    onAction={chat.refresh}
                     testID="agent-chat-stale"
                     theme={theme}
                     tone="muted"
                 />
             ) : null}
-            <View style={styles.body}>{body}</View>
-            {requests.length > 0 ? (
-                <ScrollView
-                    contentContainerStyle={styles.requests}
-                    style={[styles.dock, { borderColor: theme.border }]}
-                    testID="agent-chat-requests"
-                >
-                    {requests.map((request) => (
-                        <AgentChatRequestCard
-                            key={request.id}
-                            canAnswer={canAnswer}
-                            items={snapshot?.items ?? []}
-                            onRespond={chat.respond}
-                            request={request}
-                            theme={theme}
-                        />
-                    ))}
-                </ScrollView>
-            ) : null}
-            {activity && snapshot && snapshot.status !== 'starting' ? (
-                <View style={styles.activity} testID="agent-chat-activity">
-                    {activity.isBusy ? (
-                        <ActivityIndicator color={theme.muted} size="small" />
-                    ) : null}
-                    <Text style={[styles.activityText, { color: theme.muted }]}>
-                        {activity.text}
-                    </Text>
-                </View>
-            ) : null}
+            <View style={styles.body}>
+                <AgentChatBody
+                    chat={chat}
+                    enterFrom={enterFrom}
+                    provider={provider}
+                    theme={theme}
+                />
+            </View>
+            <AgentChatRequests canAnswer={deviceRole === 'control'} chat={chat} theme={theme} />
+            <AgentChatActivity chat={chat} provider={provider} theme={theme} />
         </View>
     );
 };

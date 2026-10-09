@@ -269,6 +269,7 @@ export const SessionDetailHeader = ({
                 showsHorizontalScrollIndicator={false}
                 style={[styles.tabStrip, { borderColor: theme.border }]}
             >
+                {/* react-doctor-disable-next-line react-doctor/rn-no-scrollview-mapped-list -- A handful of tabs; virtualizing would only break the strip's layout animation. */}
                 {segments.map((option) => (
                     <SessionSegmentTab
                         key={option}

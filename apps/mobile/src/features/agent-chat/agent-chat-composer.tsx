@@ -9,6 +9,46 @@ import { agentChatComposerDisabledReason } from './agent-chat-model';
 import type { AgentChatController } from './use-agent-chat';
 
 /**
+ * Runs the composer's one action (send, or Stop on an empty draft during a turn) and keeps its busy and error state.
+ */
+const useComposerAction = ({
+    chat,
+    draft,
+    isStopAction,
+    onDraftChange,
+    provider,
+}: {
+    chat: AgentChatController;
+    draft: string;
+    isStopAction: boolean;
+    onDraftChange: (draft: string) => void;
+    provider: string;
+}) => {
+    const [isBusy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const run = async (): Promise<void> => {
+        setBusy(true);
+        setError(null);
+        try {
+            if (isStopAction) await chat.interrupt();
+            else {
+                await chat.send(draft.trim());
+                onDraftChange('');
+            }
+        } catch {
+            setError(
+                isStopAction
+                    ? `${provider} could not be stopped. Try again.`
+                    : 'Your message was not sent. Try again.',
+            );
+        } finally {
+            setBusy(false);
+        }
+    };
+    return { error, isBusy, run };
+};
+
+/**
  * Sends a message to a Chat. While a turn runs, a control device gets Stop in place of Send when the draft is empty,
  * matching the Desktop composer; a message typed during a turn steers it.
  */
@@ -29,38 +69,39 @@ export const AgentChatComposer = ({
     provider: string;
     theme: MobileTheme;
 }) => {
-    const [isBusy, setBusy] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const disabledReason = agentChatComposerDisabledReason({
         deviceRole,
         isConnected,
         snapshot: chat.snapshot,
     });
     const isRunning = Boolean(chat.snapshot?.activeTurnId);
-    const isStopAction = isRunning && deviceRole === 'control' && draft.trim().length === 0;
-    const canSubmit =
-        !isBusy && disabledReason === undefined && (isStopAction || draft.trim().length > 0);
+    const hasDraft = draft.trim().length > 0;
+    const isStopAction = isRunning && deviceRole === 'control' && !hasDraft;
+    const { error, isBusy, run } = useComposerAction({
+        chat,
+        draft,
+        isStopAction,
+        onDraftChange,
+        provider,
+    });
+    const isEditable = !isBusy && disabledReason === undefined;
+    const canSubmit = isEditable && (isStopAction || hasDraft);
     const submit = async (): Promise<void> => {
-        if (!canSubmit) return;
-        setBusy(true);
-        setError(null);
-        try {
-            if (isStopAction) await chat.interrupt();
-            else {
-                await chat.send(draft.trim());
-                onDraftChange('');
-            }
-        } catch {
-            setError(
-                isStopAction
-                    ? `${provider} could not be stopped. Try again.`
-                    : 'Your message was not sent. Try again.',
-            );
-        } finally {
-            setBusy(false);
-        }
+        if (canSubmit) await run();
     };
-    const Icon = isStopAction ? Square : ArrowUp;
+    const action = isStopAction
+        ? {
+              Icon: Square,
+              color: theme.danger,
+              label: `Stop ${provider}`,
+              testID: 'agent-chat-composer-stop',
+          }
+        : {
+              Icon: ArrowUp,
+              color: theme.primary,
+              label: 'Send message',
+              testID: 'agent-chat-composer-send',
+          };
     return (
         <View
             style={[styles.composerBlock, { borderColor: theme.border }]}
@@ -70,7 +111,7 @@ export const AgentChatComposer = ({
                 <TextInput
                     accessibilityHint="Return inserts a new line. Use Send message to submit."
                     accessibilityLabel={`Message ${provider}`}
-                    editable={!isBusy && disabledReason === undefined}
+                    editable={isEditable}
                     multiline
                     numberOfLines={6}
                     onChangeText={onDraftChange}
@@ -93,7 +134,7 @@ export const AgentChatComposer = ({
                     value={draft}
                 />
                 <Pressable
-                    accessibilityLabel={isStopAction ? `Stop ${provider}` : 'Send message'}
+                    accessibilityLabel={action.label}
                     accessibilityRole="button"
                     accessibilityState={{ disabled: !canSubmit, busy: isBusy }}
                     disabled={!canSubmit}
@@ -101,16 +142,16 @@ export const AgentChatComposer = ({
                     style={[
                         styles.sendButton,
                         {
-                            backgroundColor: isStopAction ? theme.danger : theme.primary,
+                            backgroundColor: action.color,
                             opacity: canSubmit ? 1 : 0.38,
                         },
                     ]}
-                    testID={isStopAction ? 'agent-chat-composer-stop' : 'agent-chat-composer-send'}
+                    testID={action.testID}
                 >
                     {isBusy ? (
                         <ActivityIndicator color={theme.primaryForeground} />
                     ) : (
-                        <Icon color={theme.primaryForeground} size={20} strokeWidth={2.5} />
+                        <action.Icon color={theme.primaryForeground} size={20} strokeWidth={2.5} />
                     )}
                 </Pressable>
             </View>
