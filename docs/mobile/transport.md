@@ -52,8 +52,10 @@ for commands, subscribe, and unsubscribe.
 | Server → Client | `heartbeat-ack {nonce}`                                                           | Echo the client's probe nonce.                                      |
 | Server → Client | `revoked`                                                                         | Final encrypted revocation notice, followed by close.               |
 
-Resources are `{kind:'dashboard'}`, `{kind:'conversation',sessionId}`, `{kind:'changes',sessionId}`, and
-`{kind:'terminal',terminalId}`. The Server chooses opaque subscription IDs. `sequence` starts at
+Resources are `{kind:'dashboard'}`, `{kind:'conversation',sessionId}`, `{kind:'changes',sessionId}`,
+`{kind:'terminal',terminalId}`, and `{kind:'agentChat',terminalId}`. An Agent Chat subscription
+carries `agentChat.patch` events holding a frame-sized patch, or a content-free `agentChat.changed`
+when a patch cannot fit; see [Agent Chat](../agent-chat.md#mobile). The Server chooses opaque subscription IDs. `sequence` starts at
 zero for each subscription and increases across both `event` and `stream`. Dashboard and
 conversation events use `dashboard.changed` and `conversation.changed`; they carry no Session,
 Project, transcript, or Terminal content. Clients re-query an authoritative snapshot after a hint.

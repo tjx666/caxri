@@ -11,6 +11,7 @@ import type { ExtensionService } from '../extensions/service';
 import type { MobileAccessController } from './access-controller-contract';
 import { createMobileAccessPersistence } from './access-persistence';
 import { listMobileAgentActions, terminalForPrincipal } from './action-requests';
+import { invokeMobileAgentChatRequest } from './agent-chat-requests';
 import { invokeMobileAttentionRequest } from './attention-requests';
 import { buildMobileDashboard } from './dashboard';
 import { MobileDeviceRegistry } from './device-registry';
@@ -25,6 +26,11 @@ import {
     readMobileArchivedSessions,
     sessionForPrincipal,
 } from './session-management';
+import {
+    authorizeMobileSubscriptionResource,
+    isMobileSubscriptionEvent,
+    mobileSubscriptionMethod,
+} from './subscription-authority';
 import { invokeMobileTerminalRequest } from './terminal-requests';
 import { createMobileUpdateRequests } from './update-bundle';
 
@@ -99,33 +105,16 @@ export const openMobileAccessController = async (options: {
             throw new CaxriError('FORBIDDEN', 'Paired device role does not allow this method');
         return current;
     };
-    const authorizeSubscription = async (
+    const authorizeSubscription = (
         principal: Principal,
         resource: MobileSubscriptionResource,
         domainService: ServerDomainService,
-    ): Promise<void> => {
-        const current = currentPairedPrincipal(
-            principal,
-            resource.kind === 'terminal' ? 'terminal.preview' : 'mobile.dashboard',
+    ): Promise<void> =>
+        authorizeMobileSubscriptionResource(
+            domainService,
+            currentPairedPrincipal(principal, mobileSubscriptionMethod(resource)),
+            resource,
         );
-        switch (resource.kind) {
-            case 'terminal': {
-                await terminalForPrincipal(domainService, current, resource.terminalId);
-                return;
-            }
-            case 'conversation':
-            case 'changes': {
-                await sessionForPrincipal(domainService, current, resource.sessionId);
-                return;
-            }
-            case 'dashboard': {
-                return;
-            }
-            default: {
-                assertNever(resource, 'Unhandled mobile subscription authority');
-            }
-        }
-    };
     const operationKey = (deviceId: string, generation: number): string =>
         `${deviceId}:${generation}`;
     const registerOperation = (principal: Extract<Principal, { kind: 'paired-device' }>) => {
@@ -207,31 +196,7 @@ export const openMobileAccessController = async (options: {
                 },
                 matchesSubscriptionEvent: async (principal, resource, event) => {
                     await authorizeSubscription(principal, resource, domainService);
-                    switch (resource.kind) {
-                        case 'dashboard':
-                            return event.event === 'state.changed';
-                        case 'terminal':
-                            return (
-                                event.event === 'terminal.output' &&
-                                event.payload.terminalId === resource.terminalId
-                            );
-                        case 'changes':
-                            return (
-                                event.event === 'git.changed' &&
-                                event.payload.sessionIds.includes(resource.sessionId)
-                            );
-                        case 'conversation': {
-                            if (event.event !== 'agentTranscript.changed') return false;
-                            const terminal = await terminalForPrincipal(
-                                domainService,
-                                principal,
-                                event.payload.terminalId,
-                            );
-                            return terminal.sessionId === resource.sessionId;
-                        }
-                        default:
-                            return assertNever(resource, 'Unhandled mobile subscription event');
-                    }
+                    return isMobileSubscriptionEvent(domainService, principal, resource, event);
                 },
                 ...(options.selectAddress && { selectAddress: options.selectAddress }),
                 updateSource: updateRequests.readSource,
@@ -246,7 +211,13 @@ export const openMobileAccessController = async (options: {
                 await gateway?.close();
             }),
         publish: (event) => gateway?.publish(event),
-        invokeControl: async (request, context, domainService, resolveAgentEndpoint) => {
+        invokeControl: async (
+            request,
+            context,
+            domainService,
+            resolveAgentEndpoint,
+            forwardOperation,
+        ) => {
             const activeGateway = requiredGateway(gateway);
             switch (request.method) {
                 case 'mobile.access.status':
@@ -526,6 +497,30 @@ export const openMobileAccessController = async (options: {
                         request.params.terminalId,
                     );
                     return invokeMobileTerminalRequest(request, observer);
+                }
+                /**
+                 * Chat mutations take the same authority order as an attention answer, so a revoke that lands first
+                 * always wins; a read needs no serialization.
+                 */
+                case 'mobile.agentChat.read':
+                case 'mobile.agentChat.send':
+                case 'mobile.agentChat.interrupt':
+                case 'mobile.agentChat.respond':
+                case 'mobile.agentChat.retry': {
+                    const invoke = async () => {
+                        assertOpen();
+                        const principal = currentPairedPrincipal(context.principal, request.method);
+                        return invokeMobileAgentChatRequest(
+                            request,
+                            principal,
+                            domainService,
+                            forwardOperation,
+                            () => currentPairedPrincipal(principal, request.method),
+                        );
+                    };
+                    return request.method === 'mobile.agentChat.read'
+                        ? invoke()
+                        : withAuthority(invoke);
                 }
                 case 'mobile.pairing.create': {
                     return withAuthority(async () => {

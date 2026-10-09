@@ -20,6 +20,7 @@ import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
 import { mobileDeviceRoleSchema } from './device-role.js';
+import { mobileAgentChatMethods } from './mobile-agent-chat-contract.js';
 import {
     mobileAttentionAnswerParametersSchema,
     mobileAttentionRequestSchema,
@@ -30,14 +31,20 @@ import {
 } from './mobile-changes-contract.js';
 import { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
 import { mobileTerminalMethods } from './mobile-terminal-contract.js';
+import {
+    mobileTimelineReadParametersSchema,
+    mobileTimelineReadResultSchema,
+} from './mobile-timeline-contract.js';
 import { mobileUpdateMethods } from './mobile-update-contract.js';
 
 export type { MobileDeviceRole } from './device-role.js';
 export { mobileDeviceRoleSchema } from './device-role.js';
+export * from './mobile-agent-chat-contract.js';
 export * from './mobile-attention-contract.js';
 export * from './mobile-changes-contract.js';
 export { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
 export * from './mobile-terminal-contract.js';
+export * from './mobile-timeline-contract.js';
 export * from './mobile-update-contract.js';
 
 const noParameters = z.strictObject({}).default({});
@@ -98,6 +105,11 @@ export const mobileDashboardSessionSchema = z.strictObject({
             provider: true,
             lastProcessState: true,
             failureReason: true,
+            /**
+             * `chat` tells the phone to open the Agent Chat projection instead of attaching to a PTY that does not
+             * exist; see `docs/agent-chat.md`.
+             */
+            surface: true,
         })
         .optional(),
 });
@@ -188,85 +200,6 @@ export const mobileImageUploadParametersSchema = z.strictObject({
 export const mobileAgentSubmitResultSchema = z.strictObject({
     terminalId: identifierSchema,
     outcome: z.enum(['accepted', 'unknown']),
-});
-
-const timelineItemBase = {
-    id: z.string().min(1).max(128),
-    timestamp: z.number().int().nonnegative().optional(),
-};
-
-/**
- * Harness-injected content the provider CLI writes into the transcript on the user's turn, never text the reader typed.
- * `taskNotification` is a background Agent completion; `slashCommand` is a `/command` echo, including its stdout when
- * the harness inlines one; `bashCommand` is a `!`-prefixed shell echo with its stdout/stderr; `caveat` is a one-line
- * harness disclaimer attached to a slash command. `systemReminder` content never reaches the timeline as an item; a
- * turn made of only a system reminder is dropped instead of rendered.
- */
-export const agentSystemEventStatusSchema = z.enum([
-    'completed',
-    'failed',
-    'killed',
-    'running',
-    'unknown',
-]);
-
-export const agentSystemEventKindSchema = z.enum([
-    'taskNotification',
-    'slashCommand',
-    'bashCommand',
-    'caveat',
-]);
-
-export const agentTimelineItemSchema = z.discriminatedUnion('type', [
-    z.strictObject({
-        ...timelineItemBase,
-        type: z.literal('userMessage'),
-        text: z.string().min(1).max(32_768),
-    }),
-    z.strictObject({
-        ...timelineItemBase,
-        type: z.literal('agentMessage'),
-        text: z.string().min(1).max(32_768),
-    }),
-    z.strictObject({
-        ...timelineItemBase,
-        type: z.literal('toolCall'),
-        name: z.string().min(1).max(100),
-        summary: z.string().min(1).max(240),
-        status: z.enum(['running', 'succeeded', 'failed']),
-        durationMs: z.number().int().nonnegative().optional(),
-        detail: z.string().max(2_048).optional(),
-    }),
-    z.strictObject({
-        ...timelineItemBase,
-        type: z.literal('turnBoundary'),
-        durationMs: z.number().int().nonnegative().optional(),
-    }),
-    z.strictObject({
-        ...timelineItemBase,
-        type: z.literal('systemEvent'),
-        kind: agentSystemEventKindSchema,
-        summary: z.string().min(1).max(240),
-        /**
-         * Outcome a `taskNotification` reports; absent for event kinds that carry no outcome.
-         */
-        status: agentSystemEventStatusSchema.optional(),
-        detail: z.string().max(2_048).optional(),
-    }),
-]);
-
-export const mobileTimelineReadParametersSchema = z.strictObject({
-    sessionId: identifierSchema,
-    before: z.string().min(1).max(128).optional(),
-    limit: z.number().int().min(1).max(80).default(40),
-});
-
-export const mobileTimelineReadResultSchema = z.strictObject({
-    status: z.enum(['available', 'unsupported', 'missing']),
-    items: z.array(agentTimelineItemSchema).max(80),
-    olderCursor: z.string().min(1).max(128).optional(),
-    truncated: z.boolean(),
-    cursorExpired: z.boolean(),
 });
 
 const mobileAgentAvailabilitySchema = z.strictObject({
@@ -571,6 +504,7 @@ export const mobileMethods = {
         result: mobileArchivedSessionsResultSchema,
     },
     ...mobileTerminalMethods,
+    ...mobileAgentChatMethods,
     'mobile.device.revoke': {
         ...commandPolicy('desktop', 'control'),
         params: z.strictObject({ deviceId: mobileDeviceIdSchema }),
@@ -745,11 +679,7 @@ export type MobileAccessStatus = z.infer<typeof mobileAccessStatusSchema>;
 export type MobileDashboardResult = z.infer<typeof mobileDashboardResultSchema>;
 export type MobileArchivedSessionsResult = z.infer<typeof mobileArchivedSessionsResultSchema>;
 export type MobileDeviceSummary = z.infer<typeof mobileDeviceSummarySchema>;
-export type AgentTimelineItem = z.infer<typeof agentTimelineItemSchema>;
-export type AgentSystemEventKind = z.infer<typeof agentSystemEventKindSchema>;
-export type AgentSystemEventStatus = z.infer<typeof agentSystemEventStatusSchema>;
 export type MobilePanelViewKind = z.infer<typeof mobilePanelViewKindSchema>;
-export type MobileTimelineReadResult = z.infer<typeof mobileTimelineReadResultSchema>;
 export type MobileProjectSummary = z.infer<typeof mobileProjectSummarySchema>;
 export type MobileProjectBrowseResult = z.infer<typeof mobileProjectBrowseResultSchema>;
 export type MobileProjectAddResult = z.infer<typeof mobileProjectAddResultSchema>;

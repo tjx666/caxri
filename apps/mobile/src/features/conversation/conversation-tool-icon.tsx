@@ -4,6 +4,7 @@ import { ActivityIndicator, View } from 'react-native';
 import type { LucideProps } from 'lucide-react-native';
 import {
     Bot,
+    Brain,
     CircleStop,
     FilePenLine,
     FilePlus,
@@ -39,6 +40,7 @@ const TOOL_ICONS: Record<ToolKind, ComponentType<LucideProps>> = {
     search: Search,
     skill: Sparkles,
     stop: CircleStop,
+    thought: Brain,
     web: Globe,
     write: FilePlus,
 };

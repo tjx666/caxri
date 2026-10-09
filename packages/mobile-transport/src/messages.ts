@@ -13,6 +13,12 @@ export const mobileSubscriptionResourceSchema = z.discriminatedUnion('kind', [
     z.strictObject({ kind: z.literal('terminal'), terminalId: identifierSchema }),
     z.strictObject({ kind: z.literal('conversation'), sessionId: identifierSchema }),
     z.strictObject({ kind: z.literal('changes'), sessionId: identifierSchema }),
+    /**
+     * One Agent Chat's live projection. Unlike the other resources it carries content: each event is an
+     * `agentChat.patch` the phone folds into its own window, or a content-free `agentChat.changed` asking it to re-read
+     * when a patch could not fit one frame.
+     */
+    z.strictObject({ kind: z.literal('agentChat'), terminalId: identifierSchema }),
 ]);
 
 export const mobileSubscribeResultSchema = z.strictObject({ subscriptionId: identifierSchema });
@@ -53,7 +59,23 @@ export const mobileEventPayloadSchema = z.union([
         type: z.literal('event'),
         subscriptionId: identifierSchema,
         sequence: sequenceSchema,
-        kind: z.enum(['dashboard.changed', 'conversation.changed', 'changes.changed']),
+        kind: z.enum([
+            'dashboard.changed',
+            'conversation.changed',
+            'changes.changed',
+            'agentChat.changed',
+        ]),
+    }),
+    z.strictObject({
+        type: z.literal('event'),
+        subscriptionId: identifierSchema,
+        sequence: sequenceSchema,
+        kind: z.literal('agentChat.patch'),
+        /**
+         * An `AgentChatPatch` already shortened for the phone. Validated by the app against the protocol schema; the
+         * transport only frames it.
+         */
+        patch: z.unknown(),
     }),
     z.strictObject({
         type: z.literal('event'),

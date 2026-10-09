@@ -192,7 +192,16 @@ export class RecordQueryService {
         return {
             view: principalView(principal),
             terminals: selected.map(
-                ({ id, sessionId, kind, provider, title, lastProcessState, failureReason }) => ({
+                ({
+                    id,
+                    sessionId,
+                    kind,
+                    provider,
+                    title,
+                    lastProcessState,
+                    failureReason,
+                    surface,
+                }) => ({
                     id,
                     sessionId,
                     kind,
@@ -200,6 +209,7 @@ export class RecordQueryService {
                     title,
                     lastProcessState,
                     ...(failureReason && { failureReason }),
+                    ...(surface && { surface }),
                 }),
             ),
         };

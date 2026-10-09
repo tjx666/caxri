@@ -16,6 +16,7 @@ export type ToolKind =
     | 'search'
     | 'skill'
     | 'stop'
+    | 'thought'
     | 'web'
     | 'write';
 
@@ -70,10 +71,14 @@ const TOOL_KINDS: Partial<Record<string, { kind: ToolKind; label: string }>> = {
     skill: { kind: 'skill', label: 'Used skill' },
     askuserquestion: { kind: 'question', label: 'Asked' },
     view_image: { kind: 'image', label: 'Viewed image' },
+    /**
+     * Agent Chat reasoning, projected as a collapsed row whose detail holds the reasoning text.
+     */
+    reasoning: { kind: 'thought', label: 'Thought' },
 };
 
 const FILE_KINDS = new Set<ToolKind>(['edit', 'list', 'read', 'write']);
-const PROSE_KINDS = new Set<ToolKind>(['agent', 'question', 'web']);
+const PROSE_KINDS = new Set<ToolKind>(['agent', 'question', 'thought', 'web']);
 
 const basename = (path: string): string => {
     const trimmed = path.replace(/[\\/]+$/u, '');
@@ -134,6 +139,7 @@ const GROUP_PHRASES: Record<ToolKind, (count: number) => string> = {
     question: (count) => `asked ${plural(count, 'question')}`,
     image: (count) => `viewed ${plural(count, 'image')}`,
     stop: (count) => `stopped ${plural(count, 'process', 'processes')}`,
+    thought: () => 'thought',
     other: (count) => `used ${plural(count, 'tool')}`,
 };
 

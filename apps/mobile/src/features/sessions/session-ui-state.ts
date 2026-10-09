@@ -43,6 +43,28 @@ export const sessionSegmentDirection = (
  * Side segments inspect the workspace rather than the Agent. On a wide tablet they open beside the last content
  * segment, so switching to one must remember which content segment to keep showing.
  */
+/**
+ * The fixed tabs a Session offers: Conversation only when there is one to show, and no Terminal for a Chat, which has
+ * no PTY to attach.
+ */
+export const sessionSegments = ({
+    hasConversation,
+    isChat,
+}: {
+    hasConversation: boolean;
+    isChat: boolean;
+}): SessionSegment[] =>
+    SESSION_SEGMENTS.filter(
+        (option) =>
+            (hasConversation || option !== 'conversation') && !(isChat && option === 'terminal'),
+    );
+
+/**
+ * Whether a Chat is on screen: its own tab, or the wide layout's background beside Changes.
+ */
+export const isChatSegmentShown = (segment: SessionSegment, isWideChanges: boolean): boolean =>
+    segment === 'conversation' || (isWideChanges && segment === 'changes');
+
 export const isSideSessionSegment = (
     segment: SessionSegment,
 ): segment is 'changes' | PanelSessionSegment =>
@@ -99,14 +121,26 @@ export const hasKnownConversationAgent = (
 export const resolveSessionConversationSegment = ({
     hasAgentEndpoint,
     hasKnownAgent,
+    isChat = false,
     remembered,
     status,
 }: {
     hasAgentEndpoint: boolean;
     hasKnownAgent: boolean;
+    /**
+     * A Chat has no PTY, so its conversation tab is always available and a remembered Terminal tab falls back to it.
+     */
+    isChat?: boolean;
     remembered: SessionSegment | undefined;
     status: ConversationTimelineState['status'];
 }): { fallback: boolean; hasConversation: boolean; segment: SessionSegment } => {
+    if (isChat)
+        return {
+            fallback: false,
+            hasConversation: true,
+            segment:
+                remembered === undefined || remembered === 'terminal' ? 'conversation' : remembered,
+        };
     const hasConversation =
         hasAgentEndpoint ||
         hasKnownAgent ||

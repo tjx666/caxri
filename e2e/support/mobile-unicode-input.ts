@@ -136,3 +136,19 @@ export async function assertMobileUnknownFeedback(serial: string): Promise<void>
     if (!node.exists || !node.textMatches)
         throw new Error('Unknown delivery feedback is unavailable');
 }
+
+/**
+ * Enters composer text through the fixture IME and waits until Send is enabled.
+ */
+export async function enterComposerText(
+    serial: string,
+    value: string,
+    mode: 'commit' | 'compose' = 'commit',
+): Promise<void> {
+    await setMobileComposerUnicode(serial, value, mode);
+    await waitForMobile(
+        () => mobileSemantics(serial),
+        (nodes) =>
+            nodes.some(({ checkId, enabled }) => checkId === 'session-composer-send' && enabled),
+    );
+}
