@@ -11,27 +11,30 @@ import { agentChatFilesChangedLabel } from './agent-chat-diff';
 
 /**
  * User-facing copy for each closed failure reason. Provider text never selects the message; `detail` is shown beside it
- * only as supporting context.
+ * only as supporting context. `providerName` is the provider catalog's display name.
  */
-export function agentChatFailureMessage(reason: AgentChatFailureReason): string {
+export function agentChatFailureMessage(
+    reason: AgentChatFailureReason,
+    providerName: string,
+): string {
     switch (reason) {
         case 'executable_not_found': {
-            return 'Codex is not installed or is not on your PATH. Install it, then retry.';
+            return `${providerName} is not installed or is not on your PATH. Install it, then retry.`;
         }
         case 'spawn_failed': {
-            return 'Codex could not be started. Retry, or check that the Codex CLI runs in a terminal.';
+            return `${providerName} could not be started. Retry, or check that the ${providerName} CLI runs in a terminal.`;
         }
         case 'handshake_failed': {
-            return 'Codex started but did not respond. Retry, or update the Codex CLI.';
+            return `${providerName} started but did not respond. Retry, or update the ${providerName} CLI.`;
         }
         case 'process_exited': {
-            return 'Codex stopped unexpectedly. Retry to resume the conversation.';
+            return `${providerName} stopped unexpectedly. Retry to resume the conversation.`;
         }
         case 'resume_failed': {
             return 'The previous conversation could not be resumed.';
         }
         case 'unsupported_version': {
-            return 'This Codex version does not support Chat. Update the Codex CLI.';
+            return `This ${providerName} version does not support Chat. Update the ${providerName} CLI.`;
         }
     }
 }
@@ -69,9 +72,10 @@ export function agentChatContextSummary(
  */
 export function agentChatActivityLabel(
     snapshot: Pick<AgentChatSnapshot, 'status' | 'activeTurnId' | 'requests'> | undefined,
+    providerName: string,
 ): { text: string; isBusy: boolean } | undefined {
     if (!snapshot || snapshot.status === 'starting')
-        return { text: 'Starting Codex…', isBusy: true };
+        return { text: `Starting ${providerName}…`, isBusy: true };
     if (!snapshot.activeTurnId) return undefined;
     if (snapshot.requests.length > 0) return { text: 'Waiting for your answer', isBusy: false };
     return { text: 'Working…', isBusy: true };
@@ -201,7 +205,7 @@ export function agentChatCommandCwd(
  * because declining already answers the request without stopping the turn.
  */
 export function agentChatApprovalChoices(
-    request: Extract<AgentChatRequest, { kind: 'command' | 'fileChange' }>,
+    request: Extract<AgentChatRequest, { kind: 'command' | 'fileChange' | 'tool' }>,
 ): Array<{ decision: 'accept' | 'acceptForSession' | 'decline'; label: string }> {
     const choices = [
         { decision: 'accept', label: 'Accept' },
@@ -221,6 +225,14 @@ export function agentChatRequestTitle(request: AgentChatRequest): string {
         }
         case 'fileChange': {
             return 'Apply these file changes?';
+        }
+        case 'tool': {
+            /**
+             * Claude Code asks to leave plan mode through this tool; its summary is the plan.
+             */
+            return request.name === 'ExitPlanMode'
+                ? 'Start with this plan?'
+                : `Allow ${request.name}?`;
         }
         case 'question': {
             return request.questions.length === 1

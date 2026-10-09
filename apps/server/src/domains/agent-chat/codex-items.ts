@@ -16,6 +16,8 @@ import {
     MAX_AGENT_CHAT_TEXT_LENGTH,
 } from '@caxri/protocol';
 
+import { clip, isRecord, tail } from './chat-items';
+
 /**
  * Pure translation from Codex app-server v2 `ThreadItem`s and server requests into the provider-neutral Agent Chat
  * projection. Inputs are untrusted JSON, so every field is read defensively and every string is bounded.
@@ -25,24 +27,12 @@ import {
 
 type Json = Record<string, unknown>;
 
-export function isRecord(value: unknown): value is Json {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function text(value: unknown): string {
     return typeof value === 'string' ? value : '';
 }
 
 function optionalText(value: unknown, limit: number): string | undefined {
     return typeof value === 'string' && value ? clip(value, limit) : undefined;
-}
-
-export function clip(value: string, limit: number): string {
-    return value.length <= limit ? value : value.slice(0, limit);
-}
-
-function tail(value: string, limit: number): string {
-    return value.length <= limit ? value : value.slice(value.length - limit);
 }
 
 function optionalNumber(value: unknown): number | undefined {
@@ -239,26 +229,6 @@ export function mapCodexItem(
 }
 
 /**
- * Closes an item the provider left open when its turn ended.
- */
-export function closeDanglingItem(item: AgentChatItem): AgentChatItem | undefined {
-    switch (item.type) {
-        case 'agentMessage':
-        case 'reasoning': {
-            return item.streaming ? { ...item, streaming: false } : undefined;
-        }
-        case 'command':
-        case 'fileChange':
-        case 'toolCall': {
-            return item.status === 'running' ? { ...item, status: 'interrupted' } : undefined;
-        }
-        default: {
-            return undefined;
-        }
-    }
-}
-
-/**
  * Stable request key: an approval callback id when Codex supplies one (several callbacks can share one item), else the
  * item id. Codex re-sends pending requests with fresh transport ids after a resume, so the transport id is not stable.
  */
@@ -426,31 +396,5 @@ export function mapCodexErrorNotice(parameters: Json, turnId: string | undefined
         type: 'notice',
         kind,
         ...(message && { message }),
-    };
-}
-
-/**
- * Timeline record of the answers given to a question request. The request card disappears once answered, and without
- * this record the conversation would show the Agent acting on a choice the transcript never mentions.
- */
-export function answeredNotice(
-    request: AgentChatRequest | undefined,
-    turnId: string | undefined,
-    answers: Readonly<Record<string, readonly string[]>>,
-): AgentChatItem | undefined {
-    if (request?.kind !== 'question') return undefined;
-    const lines = request.questions.flatMap((question) => {
-        if (!Object.hasOwn(answers, question.id)) return [];
-        const chosen = answers[question.id];
-        if (chosen.length === 0) return [];
-        return [`${question.header || question.question}: ${chosen.join(', ')}`];
-    });
-    if (lines.length === 0) return undefined;
-    return {
-        id: clip(`answer:${request.id}`, 200),
-        ...(turnId && { turnId }),
-        type: 'notice',
-        kind: 'answered',
-        message: clip(lines.join('\n'), 2_000),
     };
 }

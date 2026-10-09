@@ -18,10 +18,26 @@ const FAKE_CODEX_APP_SERVER = join(
     'apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts',
 );
 
+/**
+ * The Claude Code stand-in the Server's Agent Chat tests drive through the Claude Agent SDK.
+ */
+const FAKE_CLAUDE_CLI = join(
+    import.meta.dirname,
+    '..',
+    '..',
+    'apps/server/src/domains/agent-chat/__tests__/fixtures/fake-claude-cli.ts',
+);
+
 export async function fakeChatAgent(userDataDirectory: string, testDirectory: string) {
     return createFakeAgentMode({
         userDataDir: userDataDirectory,
         providers: {
+            claude: {
+                executableSource: `#!${process.execPath}
+process.env.CLAUDE_CONFIG_DIR = ${JSON.stringify(join(testDirectory, 'claude-config'))};
+import(${JSON.stringify(pathToFileURL(FAKE_CLAUDE_CLI).href)});
+`,
+            },
             codex: {
                 executableSource: String.raw`#!${process.execPath}
 if (process.argv.includes('--version')) {

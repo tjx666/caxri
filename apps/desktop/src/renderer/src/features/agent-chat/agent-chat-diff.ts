@@ -4,7 +4,7 @@ import type { GitDecoration } from '../../lib/git-decorations';
 
 export type AgentChatFileChange = Extract<AgentChatItem, { type: 'fileChange' }>['changes'][number];
 
-export type AgentChatDiffLineKind = 'added' | 'removed' | 'context' | 'hunk' | 'meta';
+type AgentChatDiffLineKind = 'added' | 'removed' | 'context' | 'hunk' | 'meta';
 
 export interface AgentChatDiffLine {
     kind: AgentChatDiffLineKind;

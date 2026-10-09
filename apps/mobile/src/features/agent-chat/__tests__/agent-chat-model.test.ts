@@ -10,6 +10,7 @@ import {
     agentChatFailureMessage,
     agentChatProviderName,
     agentChatQuestionAnswers,
+    agentChatRequestTitle,
     agentChatTimelineItems,
     isAgentChatTerminal,
 } from '../agent-chat-model';
@@ -123,6 +124,20 @@ describe('Agent Chat model', () => {
                 decisions: ['accept', 'decline', 'cancel'],
             }).map((choice) => choice.decision),
         ).toEqual(['accept', 'decline']);
+    });
+
+    it('names the tool a generic tool approval would run', () => {
+        expect(agentChatRequestTitle({ id: 'r', kind: 'tool', name: 'WebFetch' })).toBe(
+            'Allow WebFetch?',
+        );
+        expect(
+            agentChatRequestTitle({
+                id: 'r',
+                kind: 'tool',
+                name: 'ExitPlanMode',
+                summary: 'Plan',
+            }),
+        ).toBe('Start with this plan?');
     });
 
     it('lists the files a file-change approval gates', () => {

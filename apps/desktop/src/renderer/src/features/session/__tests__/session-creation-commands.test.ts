@@ -176,12 +176,12 @@ describe('Session creation commands', () => {
     it('keeps an Agent without Chat on a PTY even when Open in Chat is on', async () => {
         mocks.getBootstrap.mockReturnValue({ settings: { 'session.openAgentsInChat': true } });
 
-        chooseSessionTerminalKind('project-1', 'claude');
+        chooseSessionTerminalKind('project-1', 'grok');
         await mocks.tryCommand.mock.results[0]?.value;
 
         expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
             projectId: 'project-1',
-            defaultAgent: 'claude',
+            defaultAgent: 'grok',
         });
     });
 

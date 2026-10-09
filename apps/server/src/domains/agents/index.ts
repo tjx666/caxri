@@ -67,3 +67,4 @@ export {
     type TranscriptSessionContextScan,
 } from './transcript-session-context';
 export { AgentTranscriptWatcher } from './transcript-watcher';
+export { extractVisibleTranscriptMessage } from './visible-transcript-message';

@@ -134,7 +134,7 @@ describe('newAgentSurface', () => {
     });
 
     it('keeps Agents without Chat and the shell on a PTY', () => {
-        expect(newAgentSurface('claude', true)).toBe('pty');
+        expect(newAgentSurface('grok', true)).toBe('pty');
         expect(newAgentSurface('shell', true)).toBe('pty');
     });
 });

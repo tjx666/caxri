@@ -1,54 +1,42 @@
-import type {
-    AgentChatPatchOperation,
-    AgentChatRequest,
-    AgentChatSnapshot,
-    AgentChatTurn,
-} from '@caxri/protocol';
+import type { AgentChatRequest } from '@caxri/protocol';
 import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
-import type { ChatLifecycleEvent, CodexChatExit, CodexThreadSettings } from './codex-chat-types';
-import { AgentChatStartError } from './codex-chat-types';
-import type { CodexConnectionEnd, CodexServerRequest } from './codex-connection';
-import { CodexConnection, CodexRequestError } from './codex-connection';
-import type { CodexRequestKind } from './codex-items';
 import {
     answeredNotice,
     clip,
-    closeDanglingItem,
+    endedSessionOperations,
+    isRecord,
+    MAX_TRACKED_TURNS,
+    questionAnswers,
+    stringField,
+} from './chat-items';
+import type {
+    AgentChatDriver,
+    AgentChatProviderSession,
+    AgentChatResponse,
+    AgentChatSessionHost,
+    ChatProcessEnd,
+} from './chat-provider';
+import { AgentChatStartError } from './chat-provider';
+import type { CodexThreadSettings } from './codex-chat-types';
+import type { CodexServerRequest } from './codex-connection';
+import { CodexConnection, CodexRequestError } from './codex-connection';
+import type { CodexRequestKind } from './codex-items';
+import {
     codexRequestKey,
     codexRequestKind,
-    isRecord,
     mapCodexErrorNotice,
     mapCodexItem,
     mapCodexPlan,
     mapCodexRequest,
     mapCodexUsage,
 } from './codex-items';
-import {
-    finishedTurnOperations,
-    historyOperations,
-    MAX_TRACKED_TURNS,
-    stringField,
-} from './codex-turns';
+import { finishedTurnOperations, historyOperations } from './codex-turns';
+import { codexChatSettings, REAL_E2E_CODEX_CHAT_SETTINGS } from './launch-settings';
 
 const HANDSHAKE_TIMEOUT_MS = 15_000;
 const THREAD_OPEN_TIMEOUT_MS = 30_000;
 const TURN_REQUEST_TIMEOUT_MS = 30_000;
-
-/**
- * Answers for a question request. Skipping is a `cancel` decision from the Client; Codex has no decision for questions,
- * and an empty `answers` map is its own "no answer" (the app-server sends the same when a request fails), so the turn
- * continues instead of blocking on the user.
- */
-function questionAnswers(
-    response:
-        | { kind: 'decision'; decision: 'accept' | 'acceptForSession' | 'decline' | 'cancel' }
-        | { kind: 'answers'; answers: Record<string, string[]> },
-): Record<string, string[]> {
-    if (response.kind === 'answers') return response.answers;
-    if (response.decision === 'cancel') return {};
-    throw new CaxriError('VALIDATION', 'A question needs answers');
-}
 
 /**
  * The interrupt response is held until the turn actually aborts. A provider that never answers is stopped instead so
@@ -57,31 +45,6 @@ function questionAnswers(
 const INTERRUPT_TIMEOUT_MS = 10_000;
 
 type Json = Record<string, unknown>;
-
-export interface CodexChatSessionOptions {
-    terminalId: string;
-    cwd: string;
-    executable: string;
-    environment: NodeJS.ProcessEnv;
-    settings: CodexThreadSettings;
-    /**
-     * Agent Session to resume. Absent for a Chat that has never started a turn.
-     */
-    threadId?: string;
-    clientVersion: string;
-    read(): AgentChatSnapshot;
-    apply(operations: AgentChatPatchOperation[]): void;
-    lifecycle(event: ChatLifecycleEvent): void;
-    /**
-     * A new thread is bound to the Terminal only once its first turn starts: Codex writes no rollout before that, so
-     * binding earlier would leave an identity that can never be resumed.
-     */
-    onThreadBound(threadId: string): void;
-    onTurnFinished(status: AgentChatTurn['status'], durationMs: number | undefined): void;
-    onProtocolRejected(reason: 'unsupportedRequest' | 'unkeyedRequest', method: string): void;
-    onExit(exit: CodexChatExit): void;
-    spawnProcess?: ConstructorParameters<typeof CodexConnection>[0]['spawnProcess'];
-}
 
 interface PendingRequest {
     transportId: number | string;
@@ -93,7 +56,9 @@ interface PendingRequest {
  * One live `codex app-server` process bound to one Chat Terminal. It translates the provider protocol into projection
  * operations and lifecycle events; the owning service persists, broadcasts, and serializes them.
  */
-export class CodexChatSession {
+class CodexChatSession implements AgentChatProviderSession {
+    private readonly settings: CodexThreadSettings;
+
     private connection: CodexConnection | undefined;
 
     private threadId: string | undefined;
@@ -108,9 +73,12 @@ export class CodexChatSession {
 
     private rejectedRequests = 0;
 
-    constructor(private readonly options: CodexChatSessionOptions) {
-        this.threadId = options.threadId;
-        this.isThreadBound = Boolean(options.threadId);
+    constructor(private readonly options: AgentChatSessionHost) {
+        this.settings = options.isRealAgentE2E
+            ? REAL_E2E_CODEX_CHAT_SETTINGS
+            : codexChatSettings(options.launch);
+        this.threadId = options.agentSessionId;
+        this.isThreadBound = Boolean(options.agentSessionId);
     }
 
     private requireConnection(): CodexConnection {
@@ -129,7 +97,7 @@ export class CodexChatSession {
         if (snapshot.turns.some((turn) => turn.id === id)) return;
         if (!this.isThreadBound && this.threadId) {
             this.isThreadBound = true;
-            this.options.onThreadBound(this.threadId);
+            this.options.onSessionBound(this.threadId);
             this.options.lifecycle({ phase: 'sessionIdentified', agentSessionId: this.threadId });
         }
         this.turnCount += 1;
@@ -322,28 +290,10 @@ export class CodexChatSession {
         });
     }
 
-    private onEnd(end: CodexConnectionEnd): void {
+    private onEnd(end: ChatProcessEnd): void {
         const snapshot = this.options.read();
-        const operations: AgentChatPatchOperation[] = [];
-        for (const item of snapshot.items) {
-            const closed = closeDanglingItem(item);
-            if (closed) operations.push({ op: 'upsertItem', item: closed });
-        }
         const { activeTurnId } = snapshot;
-        operations.push({
-            op: 'state',
-            state: {
-                requests: [],
-                activeTurnId: null,
-                ...(activeTurnId && {
-                    turns: snapshot.turns.map((turn) =>
-                        turn.id === activeTurnId
-                            ? { ...turn, status: 'interrupted' as const }
-                            : turn,
-                    ),
-                }),
-            },
-        });
+        const operations = endedSessionOperations(snapshot);
         const unanswered = this.pending.keys().toArray();
         this.pending.clear();
         this.options.apply(operations);
@@ -380,8 +330,8 @@ export class CodexChatSession {
      * Spawns the provider, completes the handshake, and opens the thread. Resolves once the Chat can accept input.
      */
     async start(): Promise<'resumed' | 'started'> {
-        const { settings } = this.options;
-        let spawnFailure: CodexConnectionEnd | undefined;
+        const { settings } = this;
+        let spawnFailure: ChatProcessEnd | undefined;
         const connection = new CodexConnection({
             executable: this.options.executable,
             args: [...settings.rootArgs, 'app-server', '--listen', 'stdio://'],
@@ -554,12 +504,7 @@ export class CodexChatSession {
         }
     }
 
-    respond(
-        requestId: string,
-        response:
-            | { kind: 'decision'; decision: 'accept' | 'acceptForSession' | 'decline' | 'cancel' }
-            | { kind: 'answers'; answers: Record<string, string[]> },
-    ): void {
+    respond(requestId: string, response: AgentChatResponse): void {
         const connection = this.requireConnection();
         const pending = this.pending.get(requestId);
         if (!pending) throw new CaxriError('CONFLICT', 'This request is no longer pending');
@@ -584,11 +529,12 @@ export class CodexChatSession {
         this.settleRequest(requestId);
     }
 
-    /**
-     * Orderly stop requested by Caxri. The provider's record is already durable, so nothing is lost.
-     */
     async close(): Promise<void> {
         this.requested = true;
         await this.connection?.close();
     }
 }
+
+export const codexChatDriver: AgentChatDriver = {
+    create: (host) => new CodexChatSession(host),
+};
