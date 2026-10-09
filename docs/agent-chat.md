@@ -57,8 +57,10 @@ synthesizes its own lifecycle signals, so hooks would double-report).
   `running`, `stopped` after an orderly stop, `dead` after an unexpected exit, `failed` with a
   closed `failureReason` when it cannot start. Orderly Server Core shutdown stamps `interrupted`
   through the shared shutdown path, not completion.
-- **Idle exit.** Live Chat children count toward `activePtyCount`, so Server Core idle exit and
-  `server.stop` treat them like live PTYs.
+- **Running count.** Live Chat children count toward `activePtyCount` and `terminal.runningCount`
+  (whole app or one Session), so Server Core idle exit, `server.stop`, the window-close
+  confirmation, and Session or Project deletion prompts treat them like live PTYs. Choosing
+  Terminate and Close stops the Chat provider process with the PTYs.
 
 ## Launch settings
 
