@@ -12,6 +12,22 @@ type MonacoEditor = Parameters<OnMount>[0];
  */
 const FOLD_ALL_ACTION = 'editor.foldAll';
 
+/**
+ * Monaco's Fold Level 2 command (`Cmd+K Cmd+2`). A JSON document is one root value, so Fold All collapses it to a
+ * single `{…}` line that says nothing. Folding the second level instead keeps the root open and collapses each
+ * first-level value, which is the outline a data file actually has: its top-level keys.
+ */
+const FOLD_LEVEL_2_ACTION = 'editor.foldLevel2';
+
+/**
+ * Languages whose whole document is a single root object or array, so the useful outline starts one level down.
+ */
+const SINGLE_ROOT_LANGUAGES = new Set(['json', 'jsonc']);
+
+function foldOnOpenAction(languageId: string): string {
+    return SINGLE_ROOT_LANGUAGES.has(languageId) ? FOLD_LEVEL_2_ACTION : FOLD_ALL_ACTION;
+}
+
 interface FoldOnOpenInput {
     lineCount: number;
     /**
@@ -51,21 +67,22 @@ function shouldFoldOnOpen({
 }
 
 /**
- * Folding the whole document is a convenience, never a correctness step. Monaco hands out no Fold All action for a
- * model it cannot fold, and the action's own promise can reject when the editor is disposed while the folding ranges
- * are still being computed: a tab closed the moment it opened. Either way the file simply opens unfolded.
+ * Folding on open is a convenience, never a correctness step. Monaco hands out no folding action for a model it cannot
+ * fold, and the action's own promise can reject when the editor is disposed while the folding ranges are still being
+ * computed: a tab closed the moment it opened. Either way the file simply opens unfolded.
  */
-async function foldAllIgnoringFailure(editor: MonacoEditor): Promise<void> {
+async function foldIgnoringFailure(editor: MonacoEditor, actionId: string): Promise<void> {
     try {
-        await editor.getAction(FOLD_ALL_ACTION)?.run();
+        await editor.getAction(actionId)?.run();
     } catch {
         // Nothing about opening the document depends on this succeeding.
     }
 }
 
 /**
- * Collapses every foldable region the first time a long document opens in this pane, so a file that is too long to read
- * top to bottom opens as an outline of itself instead: the `Cmd+K Cmd+0` a user would otherwise press by hand.
+ * Collapses a long document the first time it opens in this pane, so a file that is too long to read top to bottom
+ * opens as an outline of itself instead: the `Cmd+K Cmd+0` a user would otherwise press by hand, or `Cmd+K Cmd+2` for
+ * JSON so its top-level keys stay visible.
  */
 export function foldEditorOnOpen(
     editor: MonacoEditor,
@@ -83,6 +100,6 @@ export function foldEditorOnOpen(
         cursorColumn: position.column,
     });
     if (!isFoldedOnOpen) return;
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see `foldAllIgnoringFailure`
-    void foldAllIgnoringFailure(editor);
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see `foldIgnoringFailure`
+    void foldIgnoringFailure(editor, foldOnOpenAction(model.getLanguageId()));
 }
