@@ -122,11 +122,16 @@ export async function executeMobileAgentChatScenario(
 
         await setMobileNetworkAvailable(serial, false);
         isNetworkDisabled = true;
-        await waitForCheck(serial, 'agent-chat-stale', 60_000);
+        await waitForCheck(serial, 'connection-stale-banner', 60_000);
+        const offline = await mobileSemantics(serial);
+        if (!hasCheck(offline, 'agent-chat') || hasCheck(offline, 'agent-chat-stale'))
+            throw new Error(
+                'An offline Chat must keep its last copy under the one connection banner',
+            );
         await capture(environment, 'offline', artifacts);
         await setMobileNetworkAvailable(serial, true);
         isNetworkDisabled = false;
-        await waitForNoCheck(serial, 'agent-chat-stale', 60_000);
+        await waitForNoCheck(serial, 'connection-stale-banner', 60_000);
 
         await finish(environment, artifacts, {
             approval: 'accepted',
