@@ -20,7 +20,7 @@ import type {
     TerminalExecutionExit,
     TerminalExecutionPort,
 } from './execution-port';
-import { isTerminalProtocolResponse } from './input-origin';
+import { isTerminalMouseReport, isTerminalProtocolResponse } from './input-origin';
 import { TerminalLaunchPlanner } from './launch-plan';
 import type {
     AgentStartWaiter,
@@ -484,7 +484,7 @@ export class TerminalManager {
     }
 
     private observeUserInput(terminalId: string, data: string): void {
-        if (isTerminalProtocolResponse(data)) return;
+        if (isTerminalProtocolResponse(data) || isTerminalMouseReport(data)) return;
         this.inputEpochs.set(terminalId, this.inputEpoch(terminalId) + 1);
         this.onInput?.(terminalId, data);
     }

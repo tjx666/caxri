@@ -9,7 +9,7 @@ import { LocalTerminalExecution } from '../../../__tests__/support/local-termina
 import { createTestTerminalManager } from '../../../__tests__/support/terminal';
 import { CaxriDatabase } from '../../db';
 
-it('retains draft-input ownership while excluding native protocol replies and internal task submission', async () => {
+it('retains draft-input ownership while excluding native protocol replies, mouse reports and internal task submission', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-input-epoch-'));
     const database = new CaxriDatabase(join(directory, 'state.db'));
     const logger = new StructuredLogger(join(directory, 'logs'));
@@ -19,6 +19,8 @@ it('retains draft-input ownership while excluding native protocol replies and in
         const id = database.createSession(database.createProject(directory).id, 'shell').terminal!
             .id;
         manager.write(id, '\u{1B}[?1;2c');
+        // Scrolling a mouse-tracking Agent such as Codex only reads it.
+        manager.writeAgentExact(id, '\u{1B}[<64;40;12M', 'launch');
         manager.writeAgentExact(
             id,
             '\u{1B}[200~Synthetic pointer\u{1B}[201~\r',
