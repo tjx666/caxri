@@ -76,15 +76,20 @@ describe('parseMarkdownBlocks', () => {
                 type: 'list',
                 ordered: false,
                 items: [
-                    [{ type: 'paragraph', children: [{ type: 'text', value: 'one' }] }],
-                    [
-                        {
-                            type: 'paragraph',
-                            children: [
-                                { type: 'emphasis', children: [{ type: 'text', value: 'two' }] },
-                            ],
-                        },
-                    ],
+                    { blocks: [{ type: 'paragraph', children: [{ type: 'text', value: 'one' }] }] },
+                    {
+                        blocks: [
+                            {
+                                type: 'paragraph',
+                                children: [
+                                    {
+                                        type: 'emphasis',
+                                        children: [{ type: 'text', value: 'two' }],
+                                    },
+                                ],
+                            },
+                        ],
+                    },
                 ],
             },
             {
@@ -115,5 +120,64 @@ describe('parseMarkdownBlocks', () => {
             },
         ]);
         expect(parseMarkdownBlocks(source)).toEqual([]);
+    });
+
+    it('keeps heading levels, an ordered list start, and task markers', () => {
+        const text = (value: string) => [{ type: 'text', value }];
+        expect(
+            parseMarkdownBlocks(
+                ['## Plan', '', '3. third', '4. fourth', '', '- [x] done', '- [ ] todo'].join('\n'),
+            ),
+        ).toEqual([
+            { type: 'heading', level: 2, children: text('Plan') },
+            {
+                type: 'list',
+                ordered: true,
+                start: 3,
+                items: [
+                    { blocks: [{ type: 'paragraph', children: text('third') }] },
+                    { blocks: [{ type: 'paragraph', children: text('fourth') }] },
+                ],
+            },
+            {
+                type: 'list',
+                ordered: false,
+                items: [
+                    { blocks: [{ type: 'paragraph', children: text('done') }], checked: true },
+                    { blocks: [{ type: 'paragraph', children: text('todo') }], checked: false },
+                ],
+            },
+        ]);
+    });
+
+    it('marks local file links and path-like inline code only when file links are enabled', () => {
+        const source =
+            'Fixed [store.ts](/repo/src/store.ts:42), [docs](file:///repo/docs/a%20b.md), and `src/app.tsx:7` but not `console.log`.';
+        const [paragraph] = parseMarkdownBlocks(source, { fileLinks: true });
+        expect(paragraph).toEqual({
+            type: 'paragraph',
+            children: [
+                { type: 'text', value: 'Fixed ' },
+                {
+                    type: 'link',
+                    href: undefined,
+                    file: '/repo/src/store.ts:42',
+                    children: [{ type: 'text', value: 'store.ts' }],
+                },
+                { type: 'text', value: ', ' },
+                {
+                    type: 'link',
+                    href: undefined,
+                    file: '/repo/docs/a b.md',
+                    children: [{ type: 'text', value: 'docs' }],
+                },
+                { type: 'text', value: ', and ' },
+                { type: 'code', value: 'src/app.tsx:7', file: 'src/app.tsx:7' },
+                { type: 'text', value: ' but not ' },
+                { type: 'code', value: 'console.log' },
+                { type: 'text', value: '.' },
+            ],
+        });
+        expect(JSON.stringify(parseMarkdownBlocks(source))).not.toContain('"file"');
     });
 });

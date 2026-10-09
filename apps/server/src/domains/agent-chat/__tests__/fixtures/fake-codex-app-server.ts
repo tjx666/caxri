@@ -7,7 +7,8 @@
  * - `slow`: a long streamed reply that `turn/interrupt` can stop.
  * - `fail`: a failed turn with a provider error.
  * - `crash`: the process exits mid-turn.
- * - `table`: a reply with a Markdown table and a fenced code block.
+ * - `table`: a reply exercising the transcript's Markdown: headings, nested and task lists, cited files, a quote, a
+ *   table, and a fenced code block, streamed in small chunks.
  * - Anything else: reasoning, a plan, and a streamed reply quoting the message.
  *
  * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history.
@@ -206,6 +207,22 @@ async function runTurn(turn: FakeTurn, text: string) {
         await streamMessage(
             turn,
             [
+                '## Summary',
+                '',
+                'Updated [app.ts](src/app.ts:2) and `src/app.ts#L1-L2`; see **the plan** below.',
+                '',
+                '### Plan',
+                '',
+                '1. Read the *current* state',
+                '   - check `package.json`',
+                '   - compare with ~~old~~ new',
+                '2. Apply the fix',
+                '',
+                '- [x] Write tests',
+                '- [ ] Ship it',
+                '',
+                '> Note: nothing outside the Project was touched.',
+                '',
                 '| Option | Cost |',
                 '| :--- | ---: |',
                 '| Fast | 2 |',
@@ -213,9 +230,12 @@ async function runTurn(turn: FakeTurn, text: string) {
                 '',
                 '```ts',
                 'const choice = "Safe";',
+                'export function pick(cost: number): string {',
+                '    return cost > 3 ? choice : "Fast";',
+                '}',
                 '```',
             ].join('\n'),
-            0,
+            5,
         );
     } else if (text.includes('fail')) {
         turn.status = 'failed';

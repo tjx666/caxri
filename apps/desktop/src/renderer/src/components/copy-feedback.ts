@@ -29,6 +29,28 @@ export async function writeToClipboardWithFeedback(
 }
 
 /**
+ * Writes both a plain-text and an HTML flavor in one clipboard item, so the paste target picks the richer one it
+ * understands: a spreadsheet takes the HTML table, a code editor or a Chat composer takes the text. Resolves to a
+ * status like {@link writeToClipboardWithFeedback}.
+ */
+export async function writeRichToClipboardWithFeedback(
+    clipboard: Pick<Clipboard, 'write'>,
+    content: { text: string; html: string },
+): Promise<CopyFeedbackStatus> {
+    try {
+        await clipboard.write([
+            new ClipboardItem({
+                'text/plain': new Blob([content.text], { type: 'text/plain' }),
+                'text/html': new Blob([content.html], { type: 'text/html' }),
+            }),
+        ]);
+        return 'copied';
+    } catch {
+        return 'failed';
+    }
+}
+
+/**
  * Resolves the button's visible label for the current feedback status, falling back to the caller's idle-state label
  * (e.g. "Copy details").
  */

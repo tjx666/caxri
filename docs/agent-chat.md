@@ -130,8 +130,17 @@ several callbacks can share one item, so the transport id is never the key.
 - The composer keeps an unsent draft per Chat across tab switches, clears only the text that was
   actually sent, and treats Escape as Stop while a turn runs. Its footer shows the model and the
   remaining context window.
-- Replies render Markdown with tables and fenced code; a code block shows its language and a Copy
-  button on hover.
+- Replies render Markdown through the shared `@caxri/markdown` block tree
+  ([`components/markdown/`](../apps/desktop/src/renderer/src/components/markdown/markdown-blocks.tsx)):
+  leveled headings, nested and task lists, quotes, tables with Copy table (Markdown plus HTML), and
+  fenced code with a header (language, word-wrap toggle, Copy code) painted by Monaco's colorizer
+  once the fence closes. A reply offers Copy message on hover after it finishes.
+- While a reply streams, `repairStreamingMarkdown` completes the last block's unfinished emphasis,
+  inline code, and links so raw syntax never flashes, and blocks are memoized by value so a delta
+  re-renders only the block it changed.
+- A file path the Agent cites in inline code or a link (a `path:line` code span, or a link whose destination is a relative path with an optional `#L` anchor)
+  opens in the editor through the same resolver and Project candidate picker as a Terminal file
+  link.
 
 ## Lifecycle signals
 
