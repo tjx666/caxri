@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Pressable, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -150,6 +150,8 @@ const ConversationList = ({
 }) => {
     const list = useRef<FlashListRef<Entry>>(null);
     const [isAtBottom, setIsAtBottom] = useState(true);
+    const isAtBottomReference = useRef(true);
+    const viewportHeight = useRef(0);
     const isPositionedReference = useRef(false);
     const revealProgress = useSharedValue(0);
     const enterOffset = enterFrom === null ? 0 : segmentEnterOffset(enterFrom);
@@ -163,7 +165,20 @@ const ConversationList = ({
         if (!isPositionedReference.current) return;
         const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
         const distance = contentSize.height - layoutMeasurement.height - contentOffset.y;
-        setIsAtBottom(shouldFollowConversation(distance, layoutMeasurement.height));
+        const isFollowing = shouldFollowConversation(distance, layoutMeasurement.height);
+        isAtBottomReference.current = isFollowing;
+        setIsAtBottom(isFollowing);
+    }, []);
+    /**
+     * `autoscrollToBottomThreshold` follows new content only; a viewport that shrinks under a docked card or the
+     * keyboard would otherwise leave a reader who was at the end looking at older rows.
+     */
+    const onViewportLayout = useCallback((event: LayoutChangeEvent): void => {
+        const { height } = event.nativeEvent.layout;
+        const hasShrunk = height < viewportHeight.current;
+        viewportHeight.current = height;
+        if (hasShrunk && isPositionedReference.current && isAtBottomReference.current)
+            list.current?.scrollToEnd({ animated: false });
     }, []);
     const onLoad = useCallback((): void => {
         const reveal = (): void => {
@@ -194,7 +209,7 @@ const ConversationList = ({
     }, []);
     return (
         <View style={styles.root} testID="conversation-view">
-            <Animated.View style={[styles.list, revealStyle]}>
+            <Animated.View onLayout={onViewportLayout} style={[styles.list, revealStyle]}>
                 <FlashList
                     contentContainerStyle={styles.listContent}
                     data={entries}
