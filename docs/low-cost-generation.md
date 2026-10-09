@@ -42,6 +42,18 @@ An opening request that is only an image, a link, or an issue identifier carries
 own. The assistant's first reply supplies it, which is why the naming subprocess needs no tools,
 no network fetches, and no image access of its own.
 
+## Rename with AI
+
+The Session rename editor's AI button, and `Shift+Enter` on a focused Session row or inside the
+editor, ask for a name on demand through `session.suggestTitle`. It reads the same naming material
+and shares the automatic naming concurrency limit, but ignores the Session's title mode and naming
+state, so it also works after the user named the Session by hand. The Server only generates the
+suggestion; the Renderer commits it through `session.rename`, so it carries manual ownership and
+automatic naming never replaces it. Each request logs `agent.title_suggestion_finished` with a
+closed `reason` and its duration, never the transcript, prompt, or generated name.
+
+## Naming failures
+
 Automatic naming shows one notice and suppresses further attempts for that managed launch.
 A new Agent launch can try again. Naming never logs prompts, model output, instruction contents,
 or provider configuration paths.

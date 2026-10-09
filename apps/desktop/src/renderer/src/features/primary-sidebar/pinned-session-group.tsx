@@ -37,6 +37,7 @@ interface PinnedSessionGroupProperties {
     onBlurRename: () => void;
     onCancelRename: () => void;
     onCommitRename: () => void;
+    onSuggestRename: (sessionId: string, displayTitle: string, rowId: string) => void;
     onRenameValueChange: (value: string) => void;
     onRevealMoreSessions: () => void;
     onToggle: () => void;
@@ -46,6 +47,7 @@ interface PinnedSessionGroupProperties {
      */
     projects: Record<string, ProjectRecord | undefined>;
     renameError?: string;
+    renameSuggestingSessionId?: string;
     renameValue: string;
     renamingRowId?: string;
     /**
@@ -86,11 +88,13 @@ export function PinnedSessionGroup({
     onBlurRename,
     onCancelRename,
     onCommitRename,
+    onSuggestRename,
     onRenameValueChange,
     onRevealMoreSessions,
     onToggle,
     projects,
     renameError,
+    renameSuggestingSessionId,
     renameValue,
     renamingRowId,
     rovingRowId,
@@ -168,12 +172,14 @@ export function PinnedSessionGroup({
                                     onBlurRename={onBlurRename}
                                     onCancelRename={onCancelRename}
                                     onCommitRename={onCommitRename}
+                                    onSuggestRename={onSuggestRename}
                                     onRenameValueChange={onRenameValueChange}
                                     projectDisplayTitle={project.displayTitle}
                                     projectIcon={project.icon}
                                     projectId={project.id}
                                     projectRootPath={project.rootPath}
                                     renameError={renameError}
+                                    renameSuggesting={session.id === renameSuggestingSessionId}
                                     renameValue={renameValue}
                                     renaming={rowId === renamingRowId}
                                     roving={rowId === rovingRowId}

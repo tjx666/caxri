@@ -43,9 +43,9 @@ import { createProjectHidingHandlers } from './project-hiding-handlers';
 import { ProjectStatusService, VercelDeploymentStore } from './project-status';
 import { createRootServices } from './root-services';
 import { createServiceHandlers, mainOwned, mainOwnedHandlers } from './service-handlers';
+import { createSessionAgentRuntimeHandlers } from './session-agent-runtime-handlers';
 import { SessionCompaction } from './session-compaction';
 import { createMobileSessionHandler, createSessionCreator } from './session-creation';
-import { createSessionPermissionAutoAllowHandlers } from './session-permission-auto-allow-handlers';
 import { SessionSelectionQueue } from './session-selection';
 import {
     ShellIntegrationService,
@@ -601,7 +601,7 @@ export async function createDomainServices(
                 sendFullStateChange('session.resume');
                 return database.getSession(sessionId)!;
             }),
-        ...createSessionPermissionAutoAllowHandlers(agentRuntime),
+        ...createSessionAgentRuntimeHandlers(agentRuntime),
         'session.unarchive': ({ placement, sessionId }) =>
             unarchiveSessions([sessionId], placement)[0],
         'session.unarchiveMany': ({ placement, sessionIds }) =>
