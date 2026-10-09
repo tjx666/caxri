@@ -191,6 +191,9 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await chat.getByRole('button', { name: 'New Terminal (Codex Chat)' }).click();
         await expect(chat.getByText('You chose Blue.')).toHaveCount(0);
         await expect(message).toHaveAttribute('placeholder', 'Message Codex');
+        // The `+` opens its Agent menu on hover; leave it so only the New Session menu below offers "Codex Chat".
+        await page.mouse.move(0, 0);
+        await expect(page.getByRole('menu', { name: 'New Terminal (Codex Chat)' })).toHaveCount(0);
 
         // The sidebar's New Session menu shares the preference, so a whole Session can start as a Chat.
         const previous = await pageRequest<{ selectedSessionId?: string }>(page, 'app.bootstrap');

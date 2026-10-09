@@ -8,7 +8,6 @@ import type {
     SpawnedProcess,
     SpawnOptions,
 } from '@anthropic-ai/claude-agent-sdk';
-import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentChatPatchOperation } from '@caxri/protocol';
 import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
@@ -455,6 +454,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 'Claude Code could not find this conversation',
             );
         const { settings } = this;
+        /**
+         * The SDK bundle is over a megabyte; load it with the first Claude Chat, not with Server Core.
+         */
+        const { query } = await import('@anthropic-ai/claude-agent-sdk');
         const stream = query({
             prompt: this.prompts,
             options: {
