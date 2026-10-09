@@ -105,3 +105,32 @@ export function resolveEditorOptions(
         ...(fontFamily && { fontFamily }),
     };
 }
+
+/**
+ * Languages written as prose, where VS Code turns Unicode highlighting off by default (its `[markdown]` and
+ * `[plaintext]` language defaults set `editor.unicodeHighlight.ambiguousCharacters` and `invisibleCharacters` to
+ * `false`). Monaco ships neither per-language default, so without this every full-width CJK punctuation mark in a
+ * Chinese Markdown document (`：` U+FF1A, `，` U+FF0C) wore a "could be confused with an ASCII character" box.
+ */
+const PROSE_LANGUAGES = new Set(['markdown', 'plaintext']);
+
+/**
+ * Per-language overrides a surface spreads after {@link resolveEditorOptions}; Monaco has no language-scoped options of
+ * its own, so the surface that knows the document's language applies them. An unresolved language is a file Monaco
+ * opens as plain text, so it is treated as `plaintext`.
+ *
+ * Code languages state Monaco's defaults explicitly rather than omitting the keys: `updateOptions` merges, so an editor
+ * that switched from a Markdown file to a TypeScript file would otherwise keep highlighting off. `includeStrings` is
+ * restated too because Monaco's `UnicodeHighlight.validate` fills any key missing from a passed object with
+ * `inUntrustedWorkspace` rather than its default `true`, which silently stopped checking string literals.
+ */
+export function languageEditorOptions(languageId: string | undefined): Monaco.IEditorOptions {
+    const isCode = !PROSE_LANGUAGES.has(languageId ?? 'plaintext');
+    return {
+        unicodeHighlight: {
+            ambiguousCharacters: isCode,
+            includeStrings: true,
+            invisibleCharacters: isCode,
+        },
+    };
+}

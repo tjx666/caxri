@@ -87,7 +87,10 @@ export function AgentActivityRowTrigger({
                  * The Project tree's hover-action rule: while the mark-read chip shows, the text makes room for it and
                  * fades before it instead of painting under it. A pull request slot is already wider than the chip.
                  */
-                canMarkRead && visiblePullRequest === undefined && 'group-hover/activity-row:pr-7',
+                canMarkRead &&
+                    !isRenaming &&
+                    visiblePullRequest === undefined &&
+                    'group-hover/activity-row:pr-7',
             )}
             data-activity-group={row.groupId}
             data-row-id={session.id}
@@ -115,6 +118,12 @@ export function AgentActivityRowTrigger({
             onDoubleClick={beginRename}
             onKeyDown={(event) => {
                 if (isRenaming) return;
+                // The Project tree's `Shift+Enter`: open the editor and ask for an AI-generated name.
+                if (event.key === 'Enter' && event.shiftKey) {
+                    event.preventDefault();
+                    sessionRename.suggestRename(session.id, session.displayTitle, session.id);
+                    return;
+                }
                 if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
                     // Fire-and-forget: the selection reports its own failures through a toast.

@@ -7,6 +7,7 @@ import type { OnMount } from '@monaco-editor/react';
 import Editor from '@monaco-editor/react';
 
 import { useEditorOptions } from '@/hooks/use-editor-options';
+import { languageEditorOptions } from '@/lib/editor-options';
 
 import { applyEditorTheme } from '../../lib/editor-theme';
 import { registerTextSelectionSource } from '../../lib/focused-text-selection';
@@ -14,7 +15,7 @@ import { monaco } from '../../lib/monaco';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { publishSourceScroll } from '../preview/preview-scroll-sync';
 import { foldEditorOnOpen } from './editor-auto-fold';
-import { resolveEditorLanguage } from './editor-language';
+import { resolveEditorLanguage, resolveRegisteredEditorLanguage } from './editor-language';
 import { synchronizeControlledEditorModel } from './editor-model-sync';
 import { markEditorBeforeMount, markEditorMounted } from './editor-performance';
 import { registerEditorRevealTarget } from './editor-reveal';
@@ -227,6 +228,10 @@ export function CodeEditor({
                 // `editor.wordWrap` belongs to the file editor, so this surface takes it from the base options rather
                 // than forcing `off` the way the diff and transcript surfaces do for their own layout reasons.
                 ...editorOptions,
+                // `language` names only Caxri's own registrations; Monaco infers the rest (Markdown included) from the path.
+                ...languageEditorOptions(
+                    resolveRegisteredEditorLanguage(path, monaco.languages.getLanguages()),
+                ),
                 readOnly: readOnly === true,
                 domReadOnly: readOnly === true,
                 find: { addExtraSpaceOnTop: false },

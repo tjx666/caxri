@@ -1,5 +1,5 @@
 import type { AutomaticNamingNotice } from '@caxri/protocol';
-import { agentProviderCatalog, isCaxriError } from '@caxri/protocol';
+import { agentProviderCatalog, CaxriError, isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { AsyncSemaphore, logEventCatalog } from '@caxri/system';
 
@@ -363,6 +363,97 @@ export class SessionAutoNamingService {
             }
         };
         this.running.set(session.id, { controller, promise: execute() });
+    }
+
+    /**
+     * Generates a title on the user's request from the primary Agent's conversation, regardless of `titleMode` or the
+     * automatic naming state, and returns it without applying it. The caller commits it through `session.rename`, which
+     * claims manual ownership so automatic naming never replaces a name the user asked for.
+     */
+    async suggestTitle(sessionId: string, signal?: AbortSignal): Promise<{ displayTitle: string }> {
+        const startedAt = performance.now();
+        let provider: string | undefined;
+        let reason:
+            | 'completed'
+            | 'noAgent'
+            | 'insufficientContext'
+            | 'cancelled'
+            | 'failed'
+            | NonNullable<ReturnType<typeof lowCostSandboxFailureReason>> = 'failed';
+        let failure: string | undefined;
+        try {
+            const session = this.database.getSession(sessionId);
+            if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
+            const terminal =
+                session.primaryAgentTerminalId &&
+                this.database.getTerminal(session.primaryAgentTerminalId);
+            if (!terminal || !terminal.provider) {
+                reason = 'noAgent';
+                throw new CaxriError(
+                    'UNAVAILABLE',
+                    'This Session has no Agent conversation to name',
+                );
+            }
+            provider = terminal.provider;
+            const terminalProvider = terminal.provider;
+            const title = await this.executions.run(async () => {
+                signal?.throwIfAborted();
+                const location = await locateAgentTranscript(
+                    this.database,
+                    terminal.id,
+                    this.environment,
+                    signal,
+                );
+                const context = location
+                    ? await readAgentTitleMessages(location)
+                    : { opening: [], recent: [] };
+                if (!hasTitleNamingMaterial(context)) return;
+                const generate = (isRetry: boolean): Promise<string> =>
+                    this.agents.generateTitle(terminalProvider, {
+                        cwd: terminal.cwd,
+                        prompt: buildAgentTitlePrompt(context, isRetry),
+                        signal,
+                    });
+                const candidate = await generate(false);
+                return (
+                    normalizeGeneratedAgentTitle(candidate, context) ??
+                    (candidate.trim() === 'SKIP'
+                        ? undefined
+                        : normalizeGeneratedAgentTitle(await generate(true), context))
+                );
+            });
+            if (!title) {
+                reason = 'insufficientContext';
+                throw new CaxriError(
+                    'UNAVAILABLE',
+                    'Not enough conversation to name this Session yet',
+                );
+            }
+            reason = 'completed';
+            return { displayTitle: title };
+        } catch (error) {
+            if (signal?.aborted) reason = 'cancelled';
+            else if (reason === 'failed') {
+                const sandboxReason = lowCostSandboxFailureReason(error);
+                if (sandboxReason) reason = sandboxReason;
+                else failure = automaticNamingFailure(error);
+            }
+            throw error;
+        } finally {
+            this.logger.write(
+                reason === 'failed' ? 'warn' : 'info',
+                logEventCatalog.agent.titleSuggestionFinished,
+                {
+                    durationMs: performance.now() - startedAt,
+                    fields: {
+                        provider: provider ?? null,
+                        reason,
+                        ...(failure && { failure }),
+                        sessionId,
+                    },
+                },
+            );
+        }
     }
 
     /**

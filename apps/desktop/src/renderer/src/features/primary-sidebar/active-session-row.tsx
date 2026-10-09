@@ -30,6 +30,7 @@ interface ActiveSessionRowProperties {
     onCancelRename: () => void;
     onCommitRename: () => void;
     onRenameValueChange: (value: string) => void;
+    onSuggestRename: (sessionId: string, displayTitle: string, rowId: string) => void;
     /**
      * The owning Project's title, icon, id, and root, passed as fields rather than as its record. The record is
      * replaced whenever the Project's `lastOpenedAt` moves, which every Session switch inside it does, and a record
@@ -46,6 +47,7 @@ interface ActiveSessionRowProperties {
      */
     showProjectName?: boolean;
     renameError?: string;
+    renameSuggesting: boolean;
     renameValue: string;
     renaming: boolean;
     /**
@@ -90,12 +92,14 @@ export function ActiveSessionRow({
     onCancelRename,
     onCommitRename,
     onRenameValueChange,
+    onSuggestRename,
     projectDisplayTitle,
     projectIcon,
     projectId,
     projectRootPath,
     showProjectName,
     renameError,
+    renameSuggesting,
     renameValue,
     renaming,
     roving,
@@ -114,6 +118,9 @@ export function ActiveSessionRow({
     };
     const beginRename = (): void => {
         onBeginRename(session.id, session.displayTitle, rowId ?? session.id);
+    };
+    const suggestRename = (): void => {
+        onSuggestRename(session.id, session.displayTitle, rowId ?? session.id);
     };
     /**
      * Read here rather than handed down from the sidebar root: the snapshot is refreshed on a timer, and a row that
@@ -139,6 +146,7 @@ export function ActiveSessionRow({
             sessionOrder={sessionOrder}
             visibleSessionIds={visibleSessionIds}
             onBeginRename={beginRename}
+            onSuggestRename={suggestRename}
             onFocusChange={setFocused}
         >
             {/* A plain brand-color mark: its color is what tells Agents apart; lifecycle lives at the right edge. */}
@@ -154,6 +162,8 @@ export function ActiveSessionRow({
                     onChange={onRenameValueChange}
                     onCommit={onCommitRename}
                     onCancel={onCancelRename}
+                    onSuggest={suggestRename}
+                    suggesting={renameSuggesting}
                 />
             ) : (
                 <span className="session-copy overflow-fade flex min-w-0 flex-1 items-center gap-1">
@@ -245,7 +255,8 @@ export function ActiveSessionRow({
                     worktreeProject={worktreeProject}
                 />
             )}
-            <SessionRowActions session={session} />
+            {/* The editor's own AI button takes the right edge while renaming; hover actions would cover it. */}
+            {!renaming && <SessionRowActions session={session} />}
         </div>
     );
     if (renaming) return row;

@@ -5,6 +5,7 @@ import type { SessionRecord } from '@caxri/protocol';
 import { useLatestReference } from '../../../hooks/use-latest-reference';
 import { clearSessionRenameRequest, useDialogStore } from '../../../stores/dialogs';
 import { didRenameSession } from '../../session/session-commands';
+import { suggestSessionTitle } from '../../session/session-title-suggestion-commands';
 
 export interface SessionRenameController {
     beginRename: (sessionId: string, displayTitle: string, rowId: string) => void;
@@ -15,6 +16,16 @@ export interface SessionRenameController {
     onRenameValueChange: (value: string) => void;
     renameError?: string;
     renameValue: string;
+    /**
+     * The Session whose AI name suggestion is in flight. Rows compare it with their own Session rather than receiving a
+     * boolean, so a suggestion still pending after its editor closed never shows as loading in another row's editor.
+     */
+    renameSuggestingSessionId?: string;
+    /**
+     * Opens the row's editor if it is not already open, then asks the Server for a name generated from the Session's
+     * Agent conversation and commits it like a typed name.
+     */
+    suggestRename: (sessionId: string, displayTitle: string, rowId: string) => void;
     /**
      * The tree row currently showing the rename input, not the Session id: a pinned Session has a row in the Pinned
      * group and another under its own Project, and only the one the user started the rename from may swap itself for a
@@ -42,6 +53,12 @@ export function useSessionRename(
     const [renamingRowId, setRenamingRowId] = useState<string>();
     const [renameValue, setRenameValue] = useState('');
     const [renameError, setRenameError] = useState<string>();
+    const [renameSuggestingSessionId, setRenameSuggestingSessionId] = useState<string>();
+    /**
+     * Identity of the suggestion in flight. A result applies only while this still holds the same object: Escape, a
+     * typed commit, or a newer suggestion replaces or clears it, so a late provider answer cannot overwrite them.
+     */
+    const suggestionReference = useRef<{ sessionId: string } | undefined>(undefined);
     const renamingSessionIdReference = useRef<string | undefined>(undefined);
     const renamingRowIdReference = useRef<string | undefined>(undefined);
     const restoreFocusRowIdReference = useRef<string | undefined>(undefined);
@@ -98,14 +115,24 @@ export function useSessionRename(
         setRenameError(undefined);
     }, []);
 
+    const dropSuggestion = useCallback((sessionId: string): void => {
+        if (suggestionReference.current?.sessionId !== sessionId) return;
+        suggestionReference.current = undefined;
+        setRenameSuggestingSessionId(undefined);
+    }, []);
+
     const cancelRename = useCallback((): void => {
         const sessionId = renamingSessionIdReference.current;
-        if (sessionId) finishRename(sessionId, true);
-    }, [finishRename]);
+        if (!sessionId) return;
+        dropSuggestion(sessionId);
+        finishRename(sessionId, true);
+    }, [dropSuggestion, finishRename]);
 
     const commitRename = useCallback((): void => {
         const sessionId = renamingSessionIdReference.current;
         if (!sessionId) return;
+        // The input is read-only while a suggestion is pending; Enter there must not discard the answer on its way.
+        if (suggestionReference.current?.sessionId === sessionId) return;
         const displayTitle = renameValue.trim();
         if (!displayTitle) {
             setRenameError('Session name is required');
@@ -128,11 +155,45 @@ export function useSessionRename(
             (session) => session.id === sessionId,
         )?.displayTitle;
         finishRename(sessionId, false);
+        /**
+         * Clicking away while a suggestion is pending keeps it: the user asked for an AI name and the editor merely
+         * lost focus, so the answer still lands when it arrives. The draft cannot have changed, because the input is
+         * read-only for that whole time.
+         */
+        if (suggestionReference.current?.sessionId === sessionId) return;
         // Fire-and-forget: `didRenameSession` funnels its own failures into a toast.
         if (displayTitle && displayTitle !== currentTitle)
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void didRenameSession(sessionId, displayTitle);
     }, [renameValue, latestSessions, finishRename]);
+
+    const suggestRename = useCallback(
+        (sessionId: string, displayTitle: string, rowId: string): void => {
+            if (renamingRowIdReference.current !== rowId)
+                beginRename(sessionId, displayTitle, rowId);
+            if (suggestionReference.current?.sessionId === sessionId) return;
+            const request = { sessionId };
+            suggestionReference.current = request;
+            setRenameSuggestingSessionId(sessionId);
+            setRenameError(undefined);
+            // Fire-and-forget: `suggestSessionTitle` and `didRenameSession` funnel their own failures into a toast.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void suggestSessionTitle(sessionId).then((suggestion) => {
+                if (suggestionReference.current !== request) return;
+                suggestionReference.current = undefined;
+                setRenameSuggestingSessionId(undefined);
+                // On failure the editor stays open with the draft untouched, so the user can type a name instead.
+                if (!suggestion) return;
+                finishRename(sessionId, true);
+                const currentTitle = latestSessions.current.find(
+                    (session) => session.id === sessionId,
+                )?.displayTitle;
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+                if (suggestion !== currentTitle) void didRenameSession(sessionId, suggestion);
+            });
+        },
+        [beginRename, finishRename, latestSessions],
+    );
 
     const onRenameValueChange = useCallback((value: string): void => {
         setRenameValue(value);
@@ -186,8 +247,10 @@ export function useSessionRename(
             focusRenameInput,
             onRenameValueChange,
             renameError,
+            renameSuggestingSessionId,
             renameValue,
             renamingRowId,
+            suggestRename,
         }),
         [
             beginRename,
@@ -197,8 +260,10 @@ export function useSessionRename(
             focusRenameInput,
             onRenameValueChange,
             renameError,
+            renameSuggestingSessionId,
             renameValue,
             renamingRowId,
+            suggestRename,
         ],
     );
 }

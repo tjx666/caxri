@@ -93,6 +93,7 @@ export const coreForwardedMethods = [
     'session.select',
     'session.selectWorkbenchRoot',
     'session.setPinned',
+    'session.suggestTitle',
     'session.unarchive',
     'session.unarchiveMany',
     'session.updateState',
