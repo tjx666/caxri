@@ -8,6 +8,7 @@ import type { AgentCoordinator } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import type { TerminalManager } from '../terminal';
+import { assertPtyTerminal } from '../terminal';
 import type { AgentDispatchService } from './service';
 
 type AgentCommandMethod =
@@ -100,6 +101,8 @@ export function createAgentCommandHandlers(
         'agent.control.stopInternal': ({ endpoint }) => signalAgent(endpoint, 'SIGHUP'),
         'terminal.sendInternal': async ({ attentionEpoch, enter, terminalId, text }, signal) => {
             if (signal?.aborted) throw new CaxriError('CANCELLED', 'Terminal input was canceled');
+            // Reject before an attention reply is consumed: a Chat answers through `agentChat.respond`.
+            assertPtyTerminal(options.database.getTerminal(terminalId));
             let claimedSessionId: string | undefined;
             let claimedActivityAt: number | undefined;
             if (attentionEpoch !== undefined) {

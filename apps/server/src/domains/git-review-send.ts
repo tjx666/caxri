@@ -12,6 +12,7 @@ import type { DomainHandlers } from './domain-services';
 import type { GitService } from './git';
 import type { GitReviewCommentStore } from './git-review-comments';
 import type { TerminalManager } from './terminal';
+import { assertPtyTerminal } from './terminal';
 
 /**
  * Duplicated from the Desktop Renderer's `lib/repository-file-path.ts` rather than imported: the Server may not import
@@ -75,6 +76,7 @@ export function createGitReviewSendHandler(
         if (comments.length === 0)
             throw new CaxriError('VALIDATION', 'No pending review comments to send');
 
+        assertPtyTerminal(options.database.getTerminal(terminalId));
         const agentLaunchId = options.terminals.agentLaunchId(terminalId);
         if (!agentLaunchId) throw new CaxriError('CONFLICT', 'Managed Agent is no longer running');
 

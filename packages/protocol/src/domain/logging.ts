@@ -31,6 +31,25 @@ export const logEventCatalog = {
         pairingOutcome: 'mobile_gateway.pairing_outcome',
         pairingSummary: 'mobile_gateway.pairing_summary',
     },
+    agentChat: {
+        /**
+         * Provider process start outcome with a closed `outcome`/`reason`, the resume mode, and the handshake duration.
+         */
+        processStarted: 'agent_chat.process_started',
+        /**
+         * Provider process exit with the lifetime aggregates (turns, server requests, dropped frames, unknown methods)
+         * and whether Caxri asked it to stop. Never carries stderr or protocol bodies.
+         */
+        processExited: 'agent_chat.process_exited',
+        /**
+         * One record per finished turn with its closed status and duration.
+         */
+        turnFinished: 'agent_chat.turn_finished',
+        /**
+         * A provider request or response Caxri could not honor, with a closed `reason`.
+         */
+        protocolRejected: 'agent_chat.protocol_rejected',
+    },
     agent: {
         automaticNamingFinished: 'agent.automatic_naming_finished',
         hookTurnExpired: 'agent.hook_turn_expired',

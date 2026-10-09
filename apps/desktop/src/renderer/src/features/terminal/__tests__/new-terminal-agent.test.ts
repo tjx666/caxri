@@ -1,5 +1,5 @@
 import type { ProcessState, TerminalKind, TerminalRecord } from '@caxri/protocol';
-import { agentProviderIds, terminalKindSchema } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds, terminalKindSchema } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -12,7 +12,9 @@ import {
 const CATALOG_ORDER: TerminalKind[] = [...agentProviderIds, 'shell'];
 
 function orderOf(defaultAgent: TerminalKind | null): TerminalKind[] {
-    return newTerminalAgentChoices(defaultAgent).map((choice) => choice.kind);
+    return newTerminalAgentChoices(defaultAgent)
+        .filter((choice) => choice.surface === 'pty')
+        .map((choice) => choice.kind);
 }
 
 function terminal(kind: TerminalKind, lastProcessState: ProcessState = 'running'): TerminalRecord {
@@ -86,8 +88,21 @@ describe('newTerminalAgentChoices', () => {
 
     it('marks the configured default and nothing else', () => {
         expect(newTerminalAgentChoices('grok').filter((choice) => choice.isDefault)).toEqual([
-            { isDefault: true, kind: 'grok' },
+            { isDefault: true, kind: 'grok', surface: 'pty' },
         ]);
+    });
+
+    it('follows each Agent that supports Agent Chat with its Chat entry', () => {
+        const choices = newTerminalAgentChoices(null).map(
+            ({ kind, surface }) => `${kind}:${surface}`,
+        );
+        const chatKinds = agentProviderIds.filter(
+            (provider) => agentProviderCatalog[provider].capabilities.chat,
+        );
+        expect(chatKinds.length).toBeGreaterThan(0);
+        for (const kind of chatKinds)
+            expect(choices.indexOf(`${kind}:chat`)).toBe(choices.indexOf(`${kind}:pty`) + 1);
+        expect(choices.filter((choice) => choice.endsWith(':chat'))).toHaveLength(chatKinds.length);
     });
 
     it('marks nothing when no default Agent is configured', () => {

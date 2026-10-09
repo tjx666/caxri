@@ -1,5 +1,5 @@
 import type { ServerEvent, TerminalRecord } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentCoordinator, AgentEnvironment } from './agents';
@@ -16,6 +16,10 @@ interface TerminalRestartHandlerOptions {
     send(event: ServerEvent): void;
     terminalDirectoryIdentity(cwd: string): Promise<TerminalWorkingDirectoryIdentity>;
     terminals: TerminalManager;
+    /**
+     * Restarts a Chat Terminal's provider process; a Chat never reaches the PTY restart path.
+     */
+    restartChat(terminalId: string): Promise<TerminalRecord>;
 }
 
 /**
@@ -30,6 +34,17 @@ export function createTerminalRestartHandler(
     return async ({ mode, terminalId }) => {
         const current = options.database.getTerminal(terminalId);
         if (!current) throw new CaxriError('NOT_FOUND', 'Terminal not found');
+        if (isChatTerminal(current)) {
+            // A fresh restart drops the Agent Session binding so the next start opens a new conversation.
+            if (mode === 'fresh') options.coordinator.prepareTerminalStart(terminalId);
+            const terminal = await options.restartChat(terminalId);
+            const sessionIds = recordAgentRestart(options.database, terminal);
+            options.send({
+                event: 'state.changed',
+                payload: { kind: 'records', sessionIds, terminalIds: [terminal.id] },
+            });
+            return terminal;
+        }
         const expectedWorkingDirectory = await options.terminalDirectoryIdentity(current.cwd);
         const resumeAgentSessionId =
             mode === 'fresh'

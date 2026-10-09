@@ -14,6 +14,7 @@ export type {
     TerminalManagerOptions,
     TerminalWorkingDirectoryIdentity,
 } from './manager-types';
+export { assertPtyTerminal, isPtyTerminal } from './pty-guard';
 export { TerminalResourceMonitor } from './resource-monitor';
 export { TerminalRestoreSupervisor } from './restore-supervisor';
 export { ShellIntegrationService } from './shell-integration';
