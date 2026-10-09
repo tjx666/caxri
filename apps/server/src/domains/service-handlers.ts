@@ -31,6 +31,8 @@ import { withGitRequestSignal } from './git';
 import type { createIntrospectionServices } from './introspection';
 import { resolveOwnerProjectRoot, resolveProjectRoot } from './project-root-identity';
 import type { ProjectStatusService, VercelDeploymentStore } from './project-status';
+import type { PullRequestMergeNoticeOptions } from './pull-request-merge-notice';
+import { createPullRequestMergeNotice } from './pull-request-merge-notice';
 import { refreshAfterMerge } from './pull-request-merge-refresh';
 import type { SessionContextService } from './session-context';
 import { SessionPullRequestService } from './session-pull-requests';
@@ -245,6 +247,7 @@ export const mainOwnedHandlers = Object.fromEntries(
  */
 export function createServiceHandlers(services: {
     acknowledgeFileMutation: (sessionId: string, operationId: string) => Promise<void>;
+    agentChat: PullRequestMergeNoticeOptions['agentChat'];
     agentEnvironment: AgentEnvironment;
     agentHooks: AgentHookManager;
     awaitAgentSettingsReconcile: () => Promise<void>;
@@ -261,6 +264,7 @@ export function createServiceHandlers(services: {
     logger: StructuredLogger;
     projectStatus: ProjectStatusService;
     sessionContext: SessionContextService;
+    terminals: PullRequestMergeNoticeOptions['terminals'];
     timeline: AgentTimelineService;
     transcripts: AgentTranscriptWatcher;
     userDataPath: string;
@@ -310,6 +314,13 @@ export function createServiceHandlers(services: {
         logger,
         pullRequests: () => sessionPullRequests.snapshot(),
         userDataPath,
+    });
+    const noticeMergedPullRequest = createPullRequestMergeNotice({
+        agentChat: services.agentChat,
+        database,
+        isEnabled: () => configuration.getSettings().value['projectStatus.notifyAgentOnMerge'],
+        logger,
+        terminals: services.terminals,
     });
     const deliveryFocusRefresh = new DeliveryFocusRefresh({
         logger,
@@ -437,6 +448,9 @@ export function createServiceHandlers(services: {
             // Fire-and-forget: the refresh logs its own failure, and the merge already succeeded.
             // eslint-disable-next-line no-void -- intentional floating-promise discard
             void refreshAfterMerge(sessionPullRequests, parameters.sessionId, parameters.number);
+            // Fire-and-forget for the same reason: the notice logs its own outcome.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard
+            void noticeMergedPullRequest(parameters.sessionId, result.url);
             return result;
         },
         'git.diffDocument': ({ sessionId, repositoryId, path }) =>

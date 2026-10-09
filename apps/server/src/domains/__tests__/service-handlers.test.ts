@@ -22,6 +22,7 @@ describe('Runtime service handler cancellation', () => {
         });
         const handlers = createServiceHandlers({
             acknowledgeFileMutation: () => Promise.resolve(),
+            agentChat: {} as never,
             agentEnvironment: {} as never,
             agentHooks: {} as never,
             awaitAgentSettingsReconcile: () => Promise.resolve(),
@@ -38,6 +39,7 @@ describe('Runtime service handler cancellation', () => {
             longPastes: {} as never,
             projectStatus: { useSessionPullRequests: () => {} } as unknown as ProjectStatusService,
             sessionContext: {} as never,
+            terminals: {} as never,
             timeline: {} as never,
             transcripts: {} as never,
             userDataPath: '/tmp/caxri-runtime-handler-test',
@@ -61,6 +63,7 @@ describe('Theme import handler', () => {
         const setAppState = vi.fn();
         const handlers = createServiceHandlers({
             acknowledgeFileMutation: () => Promise.resolve(),
+            agentChat: {} as never,
             agentEnvironment: {} as never,
             agentHooks: {} as never,
             awaitAgentSettingsReconcile: () => Promise.resolve(),
@@ -77,6 +80,7 @@ describe('Theme import handler', () => {
             longPastes: {} as never,
             projectStatus: { useSessionPullRequests: () => {} } as unknown as ProjectStatusService,
             sessionContext: {} as never,
+            terminals: {} as never,
             timeline: {} as never,
             transcripts: {} as never,
             userDataPath: '/tmp/caxri-theme-import-handler-test',

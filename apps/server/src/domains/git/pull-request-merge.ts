@@ -141,5 +141,5 @@ export async function mergeGitHubPullRequest(
         durationMs: performance.now() - startedAt,
         fields: { operation: 'pr.merge', method },
     });
-    return { method };
+    return { method, url: `https://github.com/${slug}/pull/${parameters.number}` };
 }
