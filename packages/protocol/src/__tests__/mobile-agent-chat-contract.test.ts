@@ -96,6 +96,12 @@ describe('mobile Agent Chat projection', () => {
         expect(clipped.changes[0]?.diff).toBe(item.changes[0]?.diff);
         expect(clipped.changes[1]?.diff.endsWith(MOBILE_AGENT_CHAT_CLIP_MARKER)).toBe(true);
         expect(clipped.changes[3]?.diff).toBe('');
+        expect(clipped.changes.map((change) => change.truncated)).toEqual([
+            undefined,
+            true,
+            true,
+            true,
+        ]);
     });
 
     it('windows the newest items into one frame and marks older history as not shown', () => {

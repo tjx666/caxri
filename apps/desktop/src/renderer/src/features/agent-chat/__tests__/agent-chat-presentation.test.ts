@@ -49,7 +49,7 @@ describe('isAgentChatSubmitKey', () => {
 });
 
 describe('agentChatActivityTitle', () => {
-    it('names the first changed file and counts the rest', () => {
+    it('counts the changed files; the line counts and paths render beside it', () => {
         expect(
             agentChatActivityTitle({
                 id: 'f',
@@ -60,7 +60,7 @@ describe('agentChatActivityTitle', () => {
                     { path: 'b.ts', kind: 'add', diff: '' },
                 ],
             }),
-        ).toBe('a.ts and 1 more');
+        ).toBe('2 files changed');
     });
 
     it('joins a tool name with its summary', () => {

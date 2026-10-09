@@ -3,6 +3,8 @@
  * no test ever launches the real CLI or calls a model. Behavior is selected by keywords in the user's message:
  *
  * - `approve`: a command needing approval; accept runs it, decline records it as declined.
+ * - `patch`: a three-file change (update, add, delete) needing approval; nothing is written to disk.
+ * - `bigdiff`: a completed file change whose diff is longer than Server Core keeps.
  * - `ask`: a question; the reply quotes the chosen answer.
  * - `slow`: a long streamed reply that `turn/interrupt` can stop.
  * - `fail`: a failed turn with a provider error.
@@ -188,6 +190,72 @@ async function runTurn(turn: FakeTurn, text: string) {
             completeItem(turn, { ...command, status: 'declined' });
             await streamMessage(turn, 'The command was declined.', 0);
         }
+    } else if (text.includes('patch')) {
+        const change = {
+            type: 'fileChange',
+            id: crypto.randomUUID(),
+            status: 'inProgress',
+            changes: [
+                {
+                    path: path.join(process.cwd(), 'src', 'greeting.ts'),
+                    kind: { type: 'update', move_path: null },
+                    diff: [
+                        '@@ -1,3 +1,4 @@',
+                        ' export function greet(name: string) {',
+                        "-    return 'Hello ' + name;",
+                        '+    const greeting = `Hello, ${name}!`;',
+                        '+    return greeting;',
+                        ' }',
+                        '',
+                    ].join('\n'),
+                },
+                {
+                    path: path.join(process.cwd(), 'docs', 'greeting.md'),
+                    kind: { type: 'add' },
+                    diff: '# Greeting\n\nCall `greet(name)`.\n',
+                },
+                {
+                    path: path.join(process.cwd(), 'legacy.txt'),
+                    kind: { type: 'delete' },
+                    diff: 'unused\n',
+                },
+            ],
+        };
+        startItem(turn, { ...change });
+        const response = (await serverRequest('item/fileChange/requestApproval', {
+            turnId: turn.id,
+            itemId: change.id,
+            startedAtMs: Date.now(),
+            reason: 'Fake file change',
+            grantRoot: null,
+        })) as ApprovalResponse | undefined;
+        const isAccepted =
+            response?.decision === 'accept' || response?.decision === 'acceptForSession';
+        completeItem(turn, { ...change, status: isAccepted ? 'completed' : 'declined' });
+        await streamMessage(
+            turn,
+            isAccepted ? 'The files were changed.' : 'The change was declined.',
+            0,
+        );
+    } else if (text.includes('bigdiff')) {
+        const lineCount = 6000;
+        const lines = Array.from(
+            { length: lineCount },
+            (_, index) => `+generated line ${String(index + 1).padStart(5, '0')}`,
+        );
+        completeItem(turn, {
+            type: 'fileChange',
+            id: crypto.randomUUID(),
+            status: 'completed',
+            changes: [
+                {
+                    path: path.join(process.cwd(), 'generated.txt'),
+                    kind: { type: 'update', move_path: null },
+                    diff: [`@@ -0,0 +1,${lineCount} @@`, ...lines, ''].join('\n'),
+                },
+            ],
+        });
+        await streamMessage(turn, 'Generated a large file.', 0);
     } else if (text.includes('ask')) {
         const item = { type: 'dynamicToolCall', id: crypto.randomUUID() };
         const response = (await serverRequest('item/tool/requestUserInput', {
