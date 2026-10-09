@@ -112,7 +112,7 @@ import {
     beginSessionCreation,
     chooseSessionTerminalKind,
     confirmPendingSession,
-} from '../session-commands';
+} from '../session-creation-commands';
 
 describe('Session creation commands', () => {
     beforeEach(() => {
@@ -156,6 +156,33 @@ describe('Session creation commands', () => {
             defaultAgent: 'codex',
         });
         expect(mocks.openCreateSessionMenu).not.toHaveBeenCalled();
+    });
+
+    it('opens a Chat-capable default Agent as a Chat when Open in Chat is on', async () => {
+        mocks.getBootstrap.mockReturnValue({
+            settings: { 'session.defaultAgent': 'codex', 'session.openAgentsInChat': true },
+        });
+
+        beginSessionCreation('project-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
+            projectId: 'project-1',
+            defaultAgent: 'codex',
+            surface: 'chat',
+        });
+    });
+
+    it('keeps an Agent without Chat on a PTY even when Open in Chat is on', async () => {
+        mocks.getBootstrap.mockReturnValue({ settings: { 'session.openAgentsInChat': true } });
+
+        chooseSessionTerminalKind('project-1', 'claude');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
+            projectId: 'project-1',
+            defaultAgent: 'claude',
+        });
     });
 
     /**

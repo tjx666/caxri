@@ -1,4 +1,5 @@
 import { Menu as MenuPrimitive } from '@base-ui/react/menu';
+import { Check } from 'lucide-react';
 
 import { useModalRegistration } from '@/hooks/use-modal-registration';
 import { cn } from '@/lib/utilities';
@@ -73,6 +74,34 @@ export function MenuItem({ className, ...properties }: MenuPrimitive.Item.Props)
             )}
             {...properties}
         />
+    );
+}
+
+/**
+ * A menu row that toggles a preference in place. It keeps the menu open (Base UI's default for checkbox items) so the
+ * user sees the rest of the menu update before choosing an item; the check sits where an item's icon would.
+ */
+export function MenuCheckboxItem({
+    children,
+    className,
+    ...properties
+}: MenuPrimitive.CheckboxItem.Props) {
+    return (
+        <MenuPrimitive.CheckboxItem
+            data-slot="menu-checkbox-item"
+            className={cn(
+                'flex h-7 cursor-default items-center gap-2 rounded px-2 text-[12px] outline-none data-disabled:pointer-events-none data-disabled:opacity-45 data-highlighted:bg-[var(--selection)]',
+                className,
+            )}
+            {...properties}
+        >
+            <span className="flex size-3.5 shrink-0 items-center justify-center">
+                <MenuPrimitive.CheckboxItemIndicator>
+                    <Check size={14} />
+                </MenuPrimitive.CheckboxItemIndicator>
+            </span>
+            {children}
+        </MenuPrimitive.CheckboxItem>
     );
 }
 

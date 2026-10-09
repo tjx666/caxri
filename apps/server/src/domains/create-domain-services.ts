@@ -7,7 +7,7 @@ import type {
     TerminalKind,
     TerminalRecord,
 } from '@caxri/protocol';
-import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
 import { readActiveContext } from './active-context';
@@ -24,6 +24,7 @@ import {
 } from './agents';
 import { createBackgroundTasks, refreshWatchSessionInBackground } from './background-tasks';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
+import { createChatTerminalCreator } from './chat-terminal-creation';
 import type { CommanderCompletionNotifier } from './commander';
 import { commanderLaunchArguments, createCommanderCompletionNotifier } from './commander';
 import { createDeletionHandlers } from './deletion-handlers';
@@ -330,21 +331,11 @@ export async function createDomainServices(
             return database.getTerminal(terminal.id)!;
         }
     }
-    /**
-     * A Chat Terminal has no PTY: it is created without starting Terminal Host and its provider starts on first read.
-     */
-    async function createChatTerminal(
-        sessionId: string,
-        kind: TerminalKind,
-        requestedCwd?: string,
-    ): Promise<TerminalRecord> {
-        if (kind === 'shell' || !agentProviderCatalog[kind].capabilities.chat)
-            throw new CaxriError('VALIDATION', 'This Agent does not support Chat');
-        const cwd = await newTerminalWorkingDirectory(sessionId, requestedCwd);
-        const terminal = database.createTerminal(sessionId, kind, cwd, 'chat');
-        agentChat.read(terminal.id);
-        return database.getTerminal(terminal.id) ?? terminal;
-    }
+    const createChatTerminal = createChatTerminalCreator({
+        agentChat,
+        database,
+        newTerminalWorkingDirectory,
+    });
     const restorerOptions = {
         agentEnvironment,
         coordinator,
@@ -398,6 +389,7 @@ export async function createDomainServices(
         database,
         observeSelectedSession,
         sendFullStateChange: () => sendFullStateChange('session.create'),
+        startChat: (terminalId) => agentChat.read(terminalId),
         terminalSuspension,
         terminalWorkingDirectory,
         terminals,
@@ -526,8 +518,8 @@ export async function createDomainServices(
             terminalRestores,
             terminalSuspension,
         }),
-        'session.create': ({ projectId, defaultAgent }) =>
-            createSessionForProject(projectId, defaultAgent, 'select'),
+        'session.create': ({ projectId, defaultAgent, surface }) =>
+            createSessionForProject(projectId, defaultAgent, 'select', undefined, surface),
         'mobile.session.create': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile Session creation requires a paired device');
         },

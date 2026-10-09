@@ -1,5 +1,5 @@
 import type { AppSettings, TerminalKind, TerminalRecord, TerminalSurface } from '@caxri/protocol';
-import { agentProviderCatalog, isChatTerminal, terminalKindSchema } from '@caxri/protocol';
+import { canUseAgentChat, isChatTerminal, terminalKindSchema } from '@caxri/protocol';
 
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 
@@ -7,6 +7,11 @@ import { getTerminalExitPresentation } from './terminal-exit-presentation';
  * The value `session.defaultAgent` holds: an Agent, `shell`, or `null` when the user never named one.
  */
 type ConfiguredDefaultAgent = AppSettings['session.defaultAgent'] | undefined;
+
+/**
+ * The value `session.openAgentsInChat` holds; `undefined` before settings load reads as off.
+ */
+type OpenAgentsInChat = AppSettings['session.openAgentsInChat'] | undefined;
 
 /**
  * Every kind a new Terminal can start as, in the protocol catalog's declaration order with `shell` last.
@@ -32,13 +37,18 @@ export interface NewTerminalAgentChoice {
     isDefault: boolean;
     kind: TerminalKind;
     /**
-     * `chat` offers the same Agent as a structured Agent Chat (ADR 0012). The surface is fixed at creation.
+     * What choosing this row creates: `chat` when the user opens Agents in Chat and this Agent supports it (ADR 0012).
      */
     surface: TerminalSurface;
 }
 
-function isChatCapable(kind: TerminalKind): boolean {
-    return kind !== 'shell' && agentProviderCatalog[kind].capabilities.chat;
+/**
+ * How a new Terminal or Session for `kind` opens. The surface is a preference rather than a separate menu entry per
+ * Agent, so the menus list each Agent once and every creation path (menus, the split button, `⌘T`, a direct New
+ * Session) agrees. An Agent without Chat support, and Shell, always open in a terminal.
+ */
+export function newAgentSurface(kind: TerminalKind, openInChat: OpenAgentsInChat): TerminalSurface {
+    return openInChat === true && canUseAgentChat(kind) ? 'chat' : 'pty';
 }
 
 /**
@@ -91,6 +101,7 @@ export interface NewTerminalTarget {
 export function resolveNewTerminalTarget(
     primaryTerminal: TerminalRecord | undefined,
     defaultAgent: ConfiguredDefaultAgent,
+    openInChat: OpenAgentsInChat,
 ): NewTerminalTarget | null {
     if (primaryTerminal && isLiveAgentTerminal(primaryTerminal))
         return {
@@ -98,7 +109,7 @@ export function resolveNewTerminalTarget(
             surface: isChatTerminal(primaryTerminal) ? 'chat' : 'pty',
         };
     const kind = resolveNewTerminalAgent(defaultAgent);
-    return kind ? { kind, surface: 'pty' } : null;
+    return kind ? { kind, surface: newAgentSurface(kind, openInChat) } : null;
 }
 
 /**
@@ -111,22 +122,18 @@ export function newTerminalCommandKind(defaultAgent: ConfiguredDefaultAgent): Te
 }
 
 /**
- * Every kind the split button's dropdown offers, in catalog order, with the configured default marked. An Agent that
- * supports Agent Chat is followed directly by its Chat entry, so both ways to run it sit together. Nothing here depends
- * on what was picked last, so the list a user learns once stays where they learned it.
+ * Every kind the split button's dropdown offers, in catalog order, with the configured default marked. Each Agent
+ * appears once; `surface` says whether choosing it opens a Chat under the current preference. Nothing here depends on
+ * what was picked last, so the list a user learns once stays where they learned it.
  */
 export function newTerminalAgentChoices(
     defaultAgent: ConfiguredDefaultAgent,
+    openInChat: OpenAgentsInChat,
 ): NewTerminalAgentChoice[] {
     const configured = resolveNewTerminalAgent(defaultAgent);
-    return NEW_TERMINAL_KIND_CATALOG.flatMap((kind): NewTerminalAgentChoice[] => {
-        const terminal: NewTerminalAgentChoice = {
-            isDefault: kind === configured,
-            kind,
-            surface: 'pty',
-        };
-        return isChatCapable(kind)
-            ? [terminal, { isDefault: false, kind, surface: 'chat' }]
-            : [terminal];
-    });
+    return NEW_TERMINAL_KIND_CATALOG.map((kind) => ({
+        isDefault: kind === configured,
+        kind,
+        surface: newAgentSurface(kind, openInChat),
+    }));
 }

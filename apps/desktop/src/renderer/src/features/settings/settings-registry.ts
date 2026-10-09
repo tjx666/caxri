@@ -235,6 +235,7 @@ const categoryTitles = Object.fromEntries(
 
 const rows: SettingRowSource[] = [
     specRow('session.defaultAgent'),
+    specRow('session.openAgentsInChat'),
     specRow('primarySidebar.autoCollapseProjects'),
     specRow('workbench.newWorktreeBehavior'),
     specRow('workbench.fontFamily'),
