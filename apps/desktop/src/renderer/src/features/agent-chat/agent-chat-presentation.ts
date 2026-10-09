@@ -170,3 +170,20 @@ export function agentChatQuestionAnswers(
     }
     return answers;
 }
+
+/**
+ * Content keys for a list whose entries have no id (plan steps), numbered per repeated value so two identical steps
+ * still get distinct keys while an edit to one step never remounts the others.
+ */
+export function withOccurrenceKeys<T>(
+    items: readonly T[],
+    content: (item: T) => string,
+): Array<{ item: T; key: string }> {
+    const seen = new Map<string, number>();
+    return items.map((item) => {
+        const value = content(item);
+        const occurrence = seen.get(value) ?? 0;
+        seen.set(value, occurrence + 1);
+        return { item, key: `${value}\0${occurrence}` };
+    });
+}
