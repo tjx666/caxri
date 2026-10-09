@@ -194,7 +194,10 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
                     const heading = document.querySelector('.project-heading');
                     const rect = heading?.getBoundingClientRect();
                     const hit = rect
-                        ? document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
+                        ? document.elementFromPoint(
+                              rect.x + rect.width / 2,
+                              rect.y + rect.height / 2,
+                          )
                         : null;
                     const describe = (element: Element | null) =>
                         element
@@ -213,7 +216,9 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
                                 '[role="menu"],[role="dialog"],[role="alertdialog"],[role="listbox"],[data-open],[data-popup-open],[inert]',
                             ),
                         ].map((element) => describe(element)),
-                        bodyChildren: [...document.body.children].map((element) => describe(element)),
+                        bodyChildren: [...document.body.children].map((element) =>
+                            describe(element),
+                        ),
                     };
                 }),
                 null,
