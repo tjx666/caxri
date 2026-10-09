@@ -71,7 +71,7 @@ function createSupervisor(): {
             bootId,
             buildId: 'build-1',
             commit: 'deadbeef',
-            e2eAgentPolicy: { mode: 'real', provider: 'codex' },
+            e2eAgentPolicy: { mode: 'real', provider: 'codex', surface: 'pty' },
             forkProcess,
             logger,
             outputFlushMs: 1_000,

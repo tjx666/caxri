@@ -101,8 +101,12 @@ Use the launch helpers instead of the developer's real profile:
   be awaited through the lease API, never killed or bypassed, and must not force an immediate APK rebuild.
 
 The manual real-Agent smoke is Codex-only: `bun run test:e2e:real-agent`. It requires an
-authenticated Codex CLI, sends one bounded read-only natural-language prompt in a temporary
-Project, disables screenshots and traces, and never falls back to another provider.
+authenticated Codex CLI, disables screenshots and traces, and never falls back to another provider.
+Its PTY case sends one bounded read-only prompt through `codex exec` in a temporary Project. Its Chat
+case runs under a Chat-only real policy (read-only sandbox, no approvals, no Terminal launches),
+sends two short natural prompts across a relaunch, and asserts only content-free signals (statuses,
+item counts, `thread/resume`, unchanged thread id); see `docs/agent-chat.md`. Run one case with
+`-g Chat` to avoid spending a second real turn.
 It never runs through the ordinary focused checker, full suite, CI, or Acceptance. Provider-owned
 input protocols may also use the `debug` skill's controlled real-Codex probe; that remains diagnostic
 evidence rather than automated test or Acceptance evidence.
