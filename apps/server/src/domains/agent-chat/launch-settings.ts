@@ -73,3 +73,13 @@ export function codexChatSettings(launch: AgentLaunchSettings): CodexThreadSetti
         rootArgs: parsed.rootArgs,
     };
 }
+
+/**
+ * The only thread configuration a real-Agent Chat E2E may use: read-only, no approvals to block an unattended run, and
+ * no root options, so neither the user's settings nor a profile can widen it.
+ */
+export const REAL_E2E_CODEX_CHAT_SETTINGS: Readonly<CodexThreadSettings> = Object.freeze({
+    approvalPolicy: 'never',
+    sandbox: 'read-only',
+    rootArgs: [],
+});
