@@ -30,6 +30,14 @@ export function applyEditorTheme(theme: ThemeTokens): void {
 }
 
 /**
+ * Identity of the theme Monaco currently paints with. Colorized markup refers to Monaco's color-map classes, whose
+ * numbering is only valid for the theme it was produced under, so a cache of that markup keys on this.
+ */
+export function appliedEditorThemeKey(): string | undefined {
+    return appliedTheme.key;
+}
+
+/**
  * Test seam: the applied definition is module state shared by every editor in the window.
  */
 export function resetAppliedEditorTheme(): void {

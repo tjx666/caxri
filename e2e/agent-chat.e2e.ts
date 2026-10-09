@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -52,7 +52,11 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-'));
     const userData = join(directory, 'user-data');
     const root = join(directory, 'project');
-    await mkdir(root, { recursive: true });
+    await mkdir(join(root, 'src'), { recursive: true });
+    await writeFile(
+        join(root, 'src', 'app.ts'),
+        'export const app = 1;\nexport const cited = 2;\n',
+    );
     const agentMode = await fakeCodexAgentMode(directory, userData);
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
@@ -111,15 +115,29 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(chat.getByText('Answered: Color: Blue')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-question.png') });
 
-        // Tables and fenced code keep their structure in the transcript.
+        // Headings, task lists, tables, and fenced code keep their structure in the transcript.
         await message.fill('show a table');
         await message.press('Enter');
         const table = chat.getByRole('table');
         await expect(table.getByRole('columnheader', { name: 'Cost' })).toBeVisible();
         await expect(table.getByRole('cell', { name: 'Safe' })).toBeVisible();
-        await chat.getByText('const choice = "Safe";').hover();
+        await expect(chat.getByRole('heading', { name: 'Summary', level: 2 })).toBeVisible();
+        await expect(
+            chat.getByRole('listitem').filter({ hasText: 'Done: Write tests' }),
+        ).toBeVisible();
         await expect(chat.getByRole('button', { name: 'Copy code' })).toBeVisible();
+        await expect(chat.getByRole('button', { name: 'Enable word wrap' })).toBeVisible();
+        // A finished block is painted with the editor's token colors.
+        await expect(chat.locator('pre code span[class*="mtk"]').first()).toBeVisible();
+        await chat.getByText('Ship it').hover();
+        await expect(chat.getByRole('button', { name: 'Copy message' }).last()).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-table.png') });
+        // A cited file opens in the editor at the cited line.
+        await chat.getByRole('button', { name: 'app.ts', exact: true }).click();
+        await expect(page.getByRole('tab', { name: 'app.ts' })).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-file-link.png') });
+        await page.getByRole('tab', { name: 'Codex', exact: true }).click();
+        await expect(message).toBeVisible();
 
         // A crash fails the Chat; Retry restarts the provider on the same conversation and the pane follows it.
         await message.fill('crash now');

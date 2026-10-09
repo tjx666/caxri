@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
 import { ArrowDown, CircleAlert, RotateCcw } from 'lucide-react';
@@ -6,7 +6,12 @@ import { ArrowDown, CircleAlert, RotateCcw } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { useCaxriQuery } from '../../queries/client';
+import { useTerminalLinkPicker } from '../terminal/hooks/use-terminal-link-picker';
 import { registerTerminalFocusHandler, restartTerminal } from '../terminal/terminal-commands';
+import { openTerminalFileTarget } from '../terminal/terminal-file-link-open';
+import { parseTerminalFileLocation } from '../terminal/terminal-file-location';
+import { TerminalLinkPicker } from '../terminal/terminal-link-picker';
+import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatComposer } from './agent-chat-composer';
 import {
@@ -20,6 +25,12 @@ import { AgentChatRequestCard } from './agent-chat-request-card';
 import { AgentChatPlanCard } from './agent-chat-status-glyph';
 import { AgentChatTimelineItem } from './agent-chat-timeline-item';
 import { useAgentChatScroll } from './use-agent-chat-scroll';
+
+/**
+ * A streamed delta replaces only the item it appends to (`applyAgentChatPatch` keeps every other item's identity), so
+ * the rest of the transcript skips rendering entirely.
+ */
+const MemoizedAgentChatTimelineItem = memo(AgentChatTimelineItem);
 
 /**
  * Why the Chat cannot continue, with the one action that recovers it. It sits in the dock, outside the scrolling
@@ -95,6 +106,22 @@ export function AgentChatPane({
     const inputReference = useRef<HTMLTextAreaElement | null>(null);
     const { scrollReference, contentReference, isFollowing, onScroll, jumpToLatest } =
         useAgentChatScroll(snapshot?.revision);
+    const focusComposer = useCallback(() => inputReference.current?.focus(), []);
+    /**
+     * A cited file resolves exactly like a path printed in a Terminal: against the Projects this Chat Terminal may
+     * reach, with the same candidate picker when several match.
+     */
+    const linkPicker = useTerminalLinkPicker(terminalId, focusComposer);
+    const openFile = useCallback(
+        (reference: string) => {
+            const { target, location } = parseTerminalFileLocation(reference);
+            // eslint-disable-next-line no-void -- the opener reports its own failures as toasts
+            void openTerminalFileTarget(terminalId, target, location, {
+                hasWorkbenchLinks: terminalPaneHost().hasWorkbenchLinks,
+            });
+        },
+        [terminalId],
+    );
     useEffect(
         () =>
             registerTerminalFocusHandler(
@@ -128,7 +155,11 @@ export function AgentChatPane({
                             </p>
                         )}
                         {snapshot?.items.map((item) => (
-                            <AgentChatTimelineItem item={item} key={item.id} />
+                            <MemoizedAgentChatTimelineItem
+                                item={item}
+                                key={item.id}
+                                onOpenFile={openFile}
+                            />
                         ))}
                         {isEmpty && (
                             <p className="m-0 py-8 text-center text-[13px] text-muted">
@@ -176,6 +207,15 @@ export function AgentChatPane({
                     />
                 ))}
             </div>
+            <TerminalLinkPicker
+                isOpen={linkPicker.isOpen}
+                isTruncated={linkPicker.isTruncated}
+                links={linkPicker.links}
+                mode={linkPicker.mode}
+                status={linkPicker.status}
+                onOpenChange={linkPicker.onOpenChange}
+                onSelect={linkPicker.selectLink}
+            />
             <AgentChatComposer
                 activeTurnId={snapshot?.activeTurnId}
                 canSend={canSendAgentChatMessage(snapshot)}
