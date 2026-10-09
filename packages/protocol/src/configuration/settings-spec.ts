@@ -473,6 +473,16 @@ export const settingsSpec = [
     },
     {
         kind: 'boolean',
+        key: 'projectStatus.notifyAgentOnMerge',
+        title: 'Tell the Agent when a pull request merges',
+        description:
+            "After Caxri merges a pull request, send its link to the Session's primary Agent",
+        category: 'projectStatus',
+        keywords: ['merge', 'pull request', 'pr', 'agent', 'message', 'notify', 'github'],
+        default: false,
+    },
+    {
+        kind: 'boolean',
         key: 'projectStatus.notifications.enabled',
         title: 'Delivery failure notifications',
         description: 'Notify when a CI check or a Vercel deployment starts failing',

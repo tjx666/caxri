@@ -63,7 +63,10 @@ describe('mergeGitHubPullRequest', () => {
             mergeCommitAllowed: true,
         });
 
-        await expect(merge()).resolves.toEqual({ method: 'merge' });
+        await expect(merge()).resolves.toEqual({
+            method: 'merge',
+            url: 'https://github.com/acme/widget/pull/42',
+        });
 
         expect(run).toHaveBeenLastCalledWith(
             'gh',

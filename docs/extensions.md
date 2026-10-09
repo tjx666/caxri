@@ -368,6 +368,12 @@ clean without asking; it confirms first when checks are failing or still running
 reports the pull request `blocked`, `behind`, or not yet computed. GitHub's `unstable` alone does not
 ask, because the only red or running checks left may be ones the user chose to ignore.
 
+With the `projectStatus.notifyAgentOnMerge` setting on (off by default), Server Core follows every
+successful merge with a best-effort message to the Session's primary Agent naming the merged pull
+request's URL: a fenced submit pinned to the current launch for a Terminal Agent, or an ordinary turn
+for a Chat Agent. A missing or stopped Agent never fails the merge; each attempt logs
+`git.merge_agent_notice` with a closed `outcome`.
+
 The shared Renderer owns virtualization, the side bar scroll cue
 ([secondary-sidebar-trees.md](secondary-sidebar-trees.md)), ThemeIcon rendering, roving focus,
 arrow/Home/End navigation, expansion, loading/empty/provider-error rows, local Retry, tooltip presentation, and

@@ -373,6 +373,7 @@ const rows: SettingRowSource[] = [
         ...specRow('projectStatus.ignoredChecks'),
         binding: { type: 'ignored-checks' },
     },
+    specRow('projectStatus.notifyAgentOnMerge'),
     specRow('notifications.worktreeFallback'),
     specRow('notifications.agentRecovery'),
     specRow('projectStatus.notifications.enabled'),

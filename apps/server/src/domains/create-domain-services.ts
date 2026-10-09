@@ -26,7 +26,11 @@ import { createBackgroundTasks, refreshWatchSessionInBackground } from './backgr
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import { createChatTerminalCreator } from './chat-terminal-creation';
 import type { CommanderCompletionNotifier } from './commander';
-import { commanderLaunchArguments, createCommanderCompletionNotifier } from './commander';
+import {
+    commanderHostOptions,
+    commanderLaunchArguments,
+    createCommanderCompletionNotifier,
+} from './commander';
 import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
@@ -676,31 +680,20 @@ export async function createDomainServices(
         },
         ...createServiceHandlers({
             acknowledgeFileMutation,
+            agentChat,
             agentEnvironment,
             agentHooks,
             awaitAgentSettingsReconcile: agentRuntime.awaitSettingsReconcile,
-            commander: {
-                cancelRestore: (sessionId) => {
-                    commanderRestores.cancel(sessionId);
-                    return commanderRestores.settled(sessionId);
-                },
+            commander: commanderHostOptions({
+                coordinator,
                 createAndStartTerminal,
-                probeTerminal: (terminalId) => coordinator.probeTerminal(terminalId),
-                /**
-                 * `includeDetached` is what lets an explicit reopen resume a Commander the user stopped:
-                 * `commander.stop` parks it as `detached`, which an ordinary restore leaves alone.
-                 */
-                restoreTerminals: (sessionId) =>
-                    restoreCommanderTerminals(sessionId, { includeDetached: true }),
+                restores: commanderRestores,
+                restoreTerminals: restoreCommanderTerminals,
                 scopedWorkbench: snapshots.commander,
+                send,
                 sendFullStateChange: () => sendFullStateChange('session.create'),
-                sendTerminalChange: (terminalId) =>
-                    send({
-                        event: 'state.changed',
-                        payload: { kind: 'records', sessionIds: [], terminalIds: [terminalId] },
-                    }),
-                stopTerminal: (terminalId) => terminals.suspend(terminalId, 'detached'),
-            },
+                terminals,
+            }),
             configuration,
             database,
             emit: send,
@@ -713,6 +706,7 @@ export async function createDomainServices(
             logger,
             projectStatus,
             sessionContext,
+            terminals,
             timeline,
             transcripts,
             userDataPath,
