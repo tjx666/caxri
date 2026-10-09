@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { PreviewMemoCache } from '../preview-memo-cache';
+import { MemoCache } from './memo-cache';
 
-describe('PreviewMemoCache', () => {
+describe('MemoCache', () => {
     it('returns what it stored', () => {
-        const cache = new PreviewMemoCache<string>(2);
+        const cache = new MemoCache<string>(2);
         cache.set('a', 'first');
 
         expect(cache.get('a')).toBe('first');
@@ -12,7 +12,7 @@ describe('PreviewMemoCache', () => {
     });
 
     it('evicts the least recently used entry once it is over capacity', () => {
-        const cache = new PreviewMemoCache<string>(2);
+        const cache = new MemoCache<string>(2);
         cache.set('a', 'first');
         cache.set('b', 'second');
         cache.set('c', 'third');
@@ -24,7 +24,7 @@ describe('PreviewMemoCache', () => {
     });
 
     it('keeps an entry a re-render read again', () => {
-        const cache = new PreviewMemoCache<string>(2);
+        const cache = new MemoCache<string>(2);
         cache.set('a', 'first');
         cache.set('b', 'second');
         cache.get('a');
@@ -35,7 +35,7 @@ describe('PreviewMemoCache', () => {
     });
 
     it('overwrites a key without growing', () => {
-        const cache = new PreviewMemoCache<string>(2);
+        const cache = new MemoCache<string>(2);
         cache.set('a', 'first');
         cache.set('a', 'replacement');
 
@@ -44,7 +44,7 @@ describe('PreviewMemoCache', () => {
     });
 
     it('drops everything when the theme it was rendered against changes', () => {
-        const cache = new PreviewMemoCache<string>(2);
+        const cache = new MemoCache<string>(2);
         cache.set('a', 'first');
         cache.clear();
 

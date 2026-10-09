@@ -6,7 +6,12 @@ import { ChevronRight } from 'lucide-react';
 
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { cn } from '../../lib/utilities';
-import { AgentChatMessage, AgentChatNotice, AgentChatUserMessage } from './agent-chat-message';
+import {
+    AgentChatMessage,
+    AgentChatNotice,
+    AgentChatReply,
+    AgentChatUserMessage,
+} from './agent-chat-message';
 import { agentChatActivityTitle } from './agent-chat-presentation';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 
@@ -64,19 +69,33 @@ function OutputBlock({ text }: { text: string }) {
 /**
  * One timeline entry. Messages render inline; commands, file changes, tool calls, and reasoning collapse to one line.
  */
-export function AgentChatTimelineItem({ item }: { item: AgentChatItem }) {
+export function AgentChatTimelineItem({
+    item,
+    onOpenFile,
+}: {
+    item: AgentChatItem;
+    /**
+     * Opens a file the reply cites, resolved against the Chat Terminal's reachable Projects.
+     */
+    onOpenFile?: (target: string) => void;
+}) {
     switch (item.type) {
         case 'userMessage': {
             return <AgentChatUserMessage text={item.text} />;
         }
         case 'agentMessage': {
-            return <AgentChatMessage className="text-foreground" text={item.text} />;
+            return <AgentChatReply item={item} onOpenFile={onOpenFile} />;
         }
         case 'reasoning': {
             if (!item.text) return null;
             return (
                 <CollapsibleRow glyph={null} title={item.streaming ? 'Thinking…' : 'Thought'}>
-                    <AgentChatMessage className="text-muted" text={item.text} />
+                    <AgentChatMessage
+                        className="text-muted"
+                        isStreaming={item.streaming}
+                        text={item.text}
+                        onOpenFile={onOpenFile}
+                    />
                 </CollapsibleRow>
             );
         }

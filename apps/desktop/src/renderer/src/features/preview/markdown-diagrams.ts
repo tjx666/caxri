@@ -3,13 +3,13 @@ import type { ThemeTokens } from '@caxri/protocol';
 import { delay, Semaphore } from 'es-toolkit';
 import type Mermaid from 'mermaid';
 
-import { PreviewMemoCache } from './preview-memo-cache';
+import { MemoCache } from '../../lib/memo-cache';
 
 /**
  * Rendered SVG keyed by theme and diagram source, so a keystroke elsewhere in the document does not re-run Mermaid's
  * layout for every diagram in it.
  */
-const renderedDiagrams = new PreviewMemoCache<string>(48);
+const renderedDiagrams = new MemoCache<string>(48);
 /**
  * Mermaid owns global theme and layout state, so mounted previews share a single layout permit.
  */

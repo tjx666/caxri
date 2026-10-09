@@ -99,8 +99,8 @@ afterward, each driven by one of the side tables:
 
 Every step is abortable via an `AbortSignal` so a fast edit stream never paints a stale document,
 and the two expensive ones are memoized by content in a small LRU
-([`preview-memo-cache.ts`](../apps/desktop/src/renderer/src/features/preview/preview-memo-cache.ts)):
-Monaco colorization keyed by language and source, Mermaid output keyed by diagram source. Typing
+([`memo-cache.ts`](../apps/desktop/src/renderer/src/lib/memo-cache.ts)):
+Monaco colorization (`lib/code-colorize.ts`, shared with Agent Chat) keyed by theme, language, and source, Mermaid output keyed by diagram source. Typing
 one character therefore re-renders the Markdown but reuses every untouched block.
 
 Code highlighting reuses `monaco.editor.colorize()` against the live `caxri-active` theme. That

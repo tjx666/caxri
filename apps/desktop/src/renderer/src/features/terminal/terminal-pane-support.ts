@@ -1,18 +1,9 @@
-import type {
-    EditorNavigationTarget,
-    MethodResult,
-    TerminalFileLinkRefusalReason,
-} from '@caxri/protocol';
+import type { EditorNavigationTarget } from '@caxri/protocol';
 import { errorMessage, isCaxriError } from '@caxri/protocol';
-import { editorModelPath } from '@desktop-shared/editor-state';
 import type { ITheme, Terminal } from '@xterm/xterm';
 
 import { openExternalUrl } from '../../lib/external-link';
-import { sessionViewScope } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
-import { useWorkbenchStore } from '../../stores/workbench';
-import { revealEditorNavigation } from '../editor/editor-reveal';
-import { openExternalEditorDocument } from '../editor/external-editor-documents';
 import {
     dispatchExtensionViewAction,
     executeViewCatalogShortcut,
@@ -20,8 +11,6 @@ import {
 } from '../view-containers/view-container-commands';
 import {
     loadTerminalReferencePreview,
-    openCommanderFileLink,
-    openTerminalFileLink,
     registerTerminalInputGate,
     registerTerminalPasteHandler,
     resolveTerminalCommitLink,
@@ -29,6 +18,7 @@ import {
     sendTerminalInput,
     sendTerminalInputToAgent,
 } from './terminal-commands';
+import { openTerminalFileTarget } from './terminal-file-link-open';
 import {
     openTerminalLinkCandidatePicker,
     registerTerminalLinkScanner,
@@ -157,16 +147,6 @@ interface TerminalPaneLinkRegistration {
 }
 
 /**
- * What to say when Main refused a file link on its own. Without these the link reads as broken: the click lands, the
- * Terminal does nothing, and nothing anywhere says why. A user-initiated cancel carries no reason and stays silent.
- */
-const TERMINAL_FILE_LINK_REFUSALS: Record<TerminalFileLinkRefusalReason, string> = {
-    project_gone: 'That file\u{2019}s Project is no longer in Caxri.',
-    worktree_project_unbound:
-        'That file is in a Git worktree no Session is using as its Workbench Root. Continue a Session in the worktree first.',
-};
-
-/**
  * The Agent Commander window has no Git view, so a commit link has nowhere to open there. File links are allowed: they
  * hand off to the Workbench through an authorized request instead (see `openFileLink` below).
  */
@@ -180,79 +160,13 @@ export function registerTerminalPaneLinks(
     terminal: Terminal,
     latest: () => TerminalLinkSnapshot,
 ): TerminalPaneLinkRegistration {
-    const openFileLink = async (
+    const openFileLink = (
         target: string,
         location: EditorNavigationTarget | undefined,
-    ): Promise<void> => {
-        try {
-            const { terminalId } = latest();
-            /**
-             * The Commander Terminal has no editor of its own, so its opener hands the link to the Workbench through a
-             * separate, Main-validated request instead of `terminal.openFileLink` (see `hasWorkbenchLinks`'s JSDoc).
-             *
-             * Deliberately an `if`/`else` assigning into an explicitly typed `result`, not a ternary: both calls return
-             * the same shared result union (`terminalFileLinkOpenResultSchema`), but a ternary combining two
-             * independently named aliases of that identical union makes TypeScript compute their "best common type"
-             * across branches instead of keeping the declared union, and it collapses the subtype `{ opened: true;
-             * document; sessionId }` into the plain `{ opened: true }` member it structurally overlaps with, silently
-             * losing `document`/`sessionId` from the inferred type. Assigning into a pre-typed variable checks each
-             * branch against that type independently and keeps every member intact.
-             */
-            let result: MethodResult<'terminal.openFileLink'>;
-            if (terminalPaneHost().hasWorkbenchLinks) {
-                result = await openTerminalFileLink(terminalId, target, location);
-            } else {
-                result = await openCommanderFileLink(terminalId, target, location);
-            }
-            if ('document' in result) {
-                const workbenchProjectId = useWorkbenchStore
-                    .getState()
-                    .bootstrap?.sessions.find(
-                        (session) => session.id === result.sessionId,
-                    )?.workbenchProjectId;
-                const opened =
-                    workbenchProjectId !== undefined &&
-                    openExternalEditorDocument({
-                        document: result.document,
-                        sessionId: result.sessionId,
-                        workbenchProjectId,
-                    });
-                if (!opened) throw new Error('Unable to open external file in this Session');
-                if (location)
-                    revealEditorNavigation(
-                        editorModelPath(
-                            sessionViewScope(result.sessionId, workbenchProjectId),
-                            opened,
-                        ),
-                        location,
-                    );
-                return;
-            }
-            if ('canceled' in result) {
-                if (result.reason) onError(TERMINAL_FILE_LINK_REFUSALS[result.reason]);
-                return;
-            }
-            if ('status' in result)
-                openTerminalLinkCandidatePicker(
-                    latest().terminalId,
-                    result.candidates.map((candidate) => ({
-                        accessibleName: `Open matching file ${candidate.relativePath} in ${candidate.projectTitle}`,
-                        activate: () => {
-                            // eslint-disable-next-line no-void -- this helper owns user-visible failure reporting
-                            void openFileLink(candidate.path, location);
-                        },
-                        bufferLine: 0,
-                        detail: candidate.projectTitle,
-                        id: `candidate:${candidate.projectId}:${candidate.path}`,
-                        kind: 'file',
-                        target: candidate.relativePath,
-                    })),
-                    result.truncated,
-                );
-        } catch (error) {
-            onError(errorMessage(error, 'Terminal file link failed'));
-        }
-    };
+    ): Promise<void> =>
+        openTerminalFileTarget(latest().terminalId, target, location, {
+            hasWorkbenchLinks: terminalPaneHost().hasWorkbenchLinks,
+        });
     const openCommitCandidate = async (repoId: string, sha: string): Promise<void> => {
         await executeViewCatalogShortcut('secondarySidebar.showGit');
         const status = await dispatchExtensionViewAction(

@@ -1,12 +1,12 @@
 import type { MarkdownCodeBlock } from '@caxri/markdown';
+import type { ThemeTokens } from '@caxri/protocol';
 
 import {
     COPY_FEEDBACK_RESET_MS,
     copyButtonLabel,
     writeToClipboardWithFeedback,
 } from '../../components/copy-feedback';
-import { monaco } from '../../lib/monaco';
-import { PreviewMemoCache } from './preview-memo-cache';
+import { colorizeCode } from '../../lib/code-colorize';
 
 /**
  * Lucide's `copy` and `check` glyphs, inlined because these buttons are built with plain DOM calls rather than React,
@@ -21,53 +21,14 @@ const CHECK_GLYPH =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
     '<path d="M20 6 9 17l-5-5"></path></svg>';
 
-/**
- * Colorized markup keyed by language and code. A live preview re-renders on every keystroke, and only the edited block
- * actually changed.
- */
-const colorizedBlocks = new PreviewMemoCache<string>(256);
-
-/**
- * Maps a fence info string onto a registered Monaco language.
- *
- * Monaco is the single source of truth for what `ts`, `typescript`, and `.ts` all mean, so the fence word is matched
- * against each registration's id, aliases, and extensions rather than against a second hand-written table that would
- * drift from the editor's own highlighting.
- */
-function monacoLanguageId(fence: string): string | undefined {
-    const wanted = fence.trim().toLowerCase();
-    if (!wanted) return undefined;
-    for (const language of monaco.languages.getLanguages()) {
-        if (language.id.toLowerCase() === wanted) return language.id;
-        if (language.aliases?.some((alias) => alias.toLowerCase() === wanted)) return language.id;
-        if (
-            language.extensions?.some(
-                (extension) => extension.replace('.', '').toLowerCase() === wanted,
-            )
-        )
-            return language.id;
-    }
-    return undefined;
-}
-
-async function colorize(code: string, languageId: string): Promise<string> {
-    const key = `${languageId}\0${code}`;
-    const cached = colorizedBlocks.get(key);
-    if (cached !== undefined) return cached;
-    const html = await monaco.editor.colorize(code, languageId, {});
-    colorizedBlocks.set(key, html);
-    return html;
-}
-
 async function paintCodeBlock(
     element: HTMLElement,
     block: MarkdownCodeBlock,
+    theme: ThemeTokens,
     signal: AbortSignal,
 ): Promise<void> {
-    const languageId = monacoLanguageId(block.language);
-    if (!languageId) return;
-    const html = await colorize(block.code, languageId);
-    if (signal.aborted) return;
+    const html = await colorizeCode(block.code, block.language, theme);
+    if (!html || signal.aborted) return;
     const code = element.querySelector('code');
     if (code) code.innerHTML = html;
 }
@@ -110,13 +71,13 @@ function attachCopyButton(element: HTMLElement, code: string, signal: AbortSigna
 /**
  * Gives every fenced block the editor's own colors and a copy affordance.
  *
- * Highlighting runs through `monaco.editor.colorize` against the live `caxri-active` theme, so a code block in the
- * preview and the same lines in the editor are painted from one set of token colors, and the preview needs no second
- * highlighting library to stay in sync when the theme changes.
+ * Highlighting runs through the shared {@link colorizeCode}, so a code block in the preview and the same lines in the
+ * editor are painted from one set of token colors.
  */
 export function decorateCodeBlocks(
     container: HTMLElement,
     blocks: readonly MarkdownCodeBlock[],
+    theme: ThemeTokens,
     signal: AbortSignal,
 ): void {
     for (const block of blocks) {
@@ -131,6 +92,6 @@ export function decorateCodeBlocks(
         attachCopyButton(element, block.code, signal);
         // Fire-and-forget: an unhighlightable block simply keeps its plain-text rendering.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void paintCodeBlock(element, block, signal);
+        void paintCodeBlock(element, block, theme, signal);
     }
 }
