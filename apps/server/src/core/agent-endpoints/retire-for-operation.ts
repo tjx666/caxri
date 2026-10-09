@@ -15,6 +15,7 @@ export function retireEndpointsForOperation(
             break;
         // Restart preserves the Terminal's monotonic generation record for the next begin().
         case 'terminal.restart':
+        case 'terminal.switchSurface':
             registry.retireTerminal(request.params.terminalId);
             break;
         case 'session.delete':

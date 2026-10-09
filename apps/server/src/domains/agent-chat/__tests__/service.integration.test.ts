@@ -127,9 +127,11 @@ describe('AgentChatService with a fake Codex app-server', () => {
         await until((snapshot) =>
             snapshot.items.some((item) => item.type === 'agentMessage' && item.text.length > 0),
         );
+        expect(service.hasActiveTurn(terminal.id)).toBe(true);
         await service.interrupt(terminal.id);
         const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'interrupted');
         expect(done.activeTurnId).toBeUndefined();
+        expect(service.hasActiveTurn(terminal.id)).toBe(false);
         expect(done.items.at(-1)).toMatchObject({ type: 'agentMessage', streaming: false });
     });
 
