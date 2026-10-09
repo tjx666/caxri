@@ -127,6 +127,7 @@ export const SessionDetailBody = ({
             canRetry={deviceRole === 'reply' || deviceRole === 'control'}
             chat={chat.controller}
             enterFrom={conversationEnterFrom}
+            isConnected={isConnected}
             provider={chat.provider}
             theme={theme}
         />

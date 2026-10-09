@@ -72,6 +72,7 @@ export const AgentChatView = ({
     canRetry,
     chat,
     enterFrom,
+    isConnected,
     provider,
     theme,
 }: {
@@ -82,6 +83,11 @@ export const AgentChatView = ({
     canRetry: boolean;
     chat: AgentChatController;
     enterFrom: -1 | 0 | 1 | null;
+    /**
+     * While the phone is disconnected the app-wide connection banner already explains the stale copy, so the Chat only
+     * reports its own read failures.
+     */
+    isConnected: boolean;
     provider: string;
     theme: MobileTheme;
 }) => {
@@ -180,10 +186,10 @@ export const AgentChatView = ({
                     tone="danger"
                 />
             ) : null}
-            {chat.status === 'stale' ? (
+            {isConnected && chat.status === 'stale' ? (
                 <Banner
                     actionLabel="Retry"
-                    message="Reconnect to update this Chat."
+                    message="This Chat could not be updated."
                     onAction={() => {
                         chat.refresh();
                     }}
