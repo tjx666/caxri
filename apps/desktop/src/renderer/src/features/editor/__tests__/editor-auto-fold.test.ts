@@ -10,6 +10,7 @@ const THRESHOLD = 1_000;
 
 interface MountedEditorOptions {
     modelUri?: string;
+    languageId?: string;
     lineCount?: number;
     /**
      * Where the caret sits once the remembered position and any queued reveal have been applied.
@@ -24,21 +25,33 @@ interface MountedEditorOptions {
 
 function mountedEditor({
     modelUri = LONG_FILE,
+    languageId = 'typescript',
     lineCount = 5_000,
     line = 1,
     column = 1,
     foldable = true,
 }: MountedEditorOptions = {}) {
     const foldAll = vi.fn(() => Promise.resolve());
+    const foldLevel2 = vi.fn(() => Promise.resolve());
+    const actions: Record<string, () => Promise<void>> = {
+        'editor.foldAll': foldAll,
+        'editor.foldLevel2': foldLevel2,
+    };
     const editor = {
-        getAction: (id: string) =>
-            foldable && id === 'editor.foldAll' ? { run: foldAll } : undefined,
-        getModel: () => ({ getLineCount: () => lineCount, uri: { toString: () => modelUri } }),
+        getAction: (id: string) => {
+            const run = foldable ? actions[id] : undefined;
+            return run ? { run } : undefined;
+        },
+        getModel: () => ({
+            getLanguageId: () => languageId,
+            getLineCount: () => lineCount,
+            uri: { toString: () => modelUri },
+        }),
         getPosition: () => ({ column, lineNumber: line }),
         restoreViewState: vi.fn(),
         saveViewState: () => 'view-state',
     };
-    return { editor, foldAll };
+    return { editor, foldAll, foldLevel2 };
 }
 
 function open(mounted: ReturnType<typeof mountedEditor>, threshold = THRESHOLD): void {
@@ -108,6 +121,19 @@ describe('Editor fold on open', () => {
 
         open(mounted);
 
+        expect(mounted.foldAll).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Fold All would collapse a JSON document to its single root `{…}` line. Folding one level down keeps the top-level
+     * keys readable with their values collapsed.
+     */
+    it.each(['json', 'jsonc'])('folds a long %s document to its top-level keys', (languageId) => {
+        const mounted = mountedEditor({ languageId });
+
+        open(mounted);
+
+        expect(mounted.foldLevel2).toHaveBeenCalledOnce();
         expect(mounted.foldAll).not.toHaveBeenCalled();
     });
 
