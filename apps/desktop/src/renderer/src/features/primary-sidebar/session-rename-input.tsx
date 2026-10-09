@@ -1,4 +1,8 @@
+import { LoaderCircle, Sparkles } from 'lucide-react';
+
 import { Input } from '../../components/ui/input';
+import { Tooltip } from '../../components/ui/tooltip';
+import { sessionRowActionButton } from './session-row-actions';
 
 interface SessionRenameInputProperties {
     sessionId: string;
@@ -10,6 +14,14 @@ interface SessionRenameInputProperties {
     onChange: (value: string) => void;
     onCommit: () => void;
     onCancel: () => void;
+    /**
+     * Asks for a name generated from the Session's Agent conversation; `Shift+Enter` in the input does the same.
+     */
+    onSuggest: () => void;
+    /**
+     * A suggestion is in flight: the input turns read-only so the answer cannot overwrite something typed meanwhile.
+     */
+    suggesting: boolean;
 }
 
 export function SessionRenameInput({
@@ -22,25 +34,29 @@ export function SessionRenameInput({
     onChange,
     onCommit,
     onCancel,
+    onSuggest,
+    suggesting,
 }: SessionRenameInputProperties) {
     const errorId = `session-rename-error-${sessionId}`;
     return (
         <>
             {/*
-             * The input replaces the 20px title line inside a `flex-col`, so `flex-1` there would set a zero flex-basis
-             * along the column and crush `h-6` to the line height, shrinking the whole row mid-rename. Instead it
-             * keeps its 24px box and bleeds 2px into the card's `py-1` on each side, and 5px (padding + border) to the
-             * left so the edited text sits exactly where the title was: the row neither shrinks nor grows, and the
-             * text does not jump. Size and weight match `.session-title` for the same reason.
+             * The input fills the row up to the AI button, so the row never overflows: an overflowing row shrank the
+             * Agent icon beside it and shifted the edited text. It keeps its 24px box and bleeds 2px into the card's
+             * `py-1` on each side, and 5px (padding + border) to the left so the edited text sits exactly where the
+             * title was: the row neither shrinks nor grows, and the text does not jump. Size and weight match
+             * `.session-title` for the same reason.
              */}
             <Input
                 ref={focusInput}
                 appearance="workbench"
-                className="session-rename -mx-1.25 -my-0.5 w-auto text-[13px] font-medium text-foreground"
+                className="session-rename -mx-1.25 -my-0.5 w-auto flex-1 text-[13px] font-medium text-foreground"
                 aria-label={`Rename ${title}`}
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? errorId : undefined}
                 value={value}
+                readOnly={suggesting}
+                aria-busy={suggesting}
                 onBlur={onBlur}
                 onChange={(event) => onChange(event.target.value)}
                 onClick={(event) => event.stopPropagation()}
@@ -57,7 +73,10 @@ export function SessionRenameInput({
                      */
                     // oxlint-disable-next-line typescript/no-deprecated -- 229 is the only signal for this keystroke; see comment above
                     if (event.nativeEvent.isComposing || event.keyCode === 229) return; // eslint-disable-line unicorn/prefer-keyboard-event-key -- `.key` reports "Process" or the composed text here
-                    if (event.key === 'Enter') {
+                    if (event.key === 'Enter' && event.shiftKey) {
+                        event.preventDefault();
+                        onSuggest();
+                    } else if (event.key === 'Enter') {
                         event.preventDefault();
                         onCommit();
                     } else if (event.key === 'Escape') {
@@ -67,6 +86,29 @@ export function SessionRenameInput({
                 }}
                 size="compact"
             />
+            <Tooltip content="Rename with AI" shortcut="shift+enter">
+                <button
+                    type="button"
+                    className={`${sessionRowActionButton} session-rename-suggest flex-none disabled:cursor-default`}
+                    aria-label={`Rename ${title} with AI`}
+                    aria-keyshortcuts="Shift+Enter"
+                    disabled={suggesting}
+                    tabIndex={-1}
+                    // Keeps focus in the input: a blur would end the rename before the click lands.
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onSuggest();
+                    }}
+                    onDoubleClick={(event) => event.stopPropagation()}
+                >
+                    {suggesting ? (
+                        <LoaderCircle size={12} className="motion-safe:animate-spin" />
+                    ) : (
+                        <Sparkles size={12} />
+                    )}
+                </button>
+            </Tooltip>
             {error && (
                 <span
                     id={errorId}

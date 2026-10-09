@@ -23,6 +23,10 @@ interface SessionRowTriggerProperties extends ComponentProps<'div'> {
      */
     visibleSessionIds: readonly string[];
     onBeginRename: () => void;
+    /**
+     * `Shift+Enter`: opens the editor and asks for a name generated from the Session's Agent conversation.
+     */
+    onSuggestRename: () => void;
     onFocusChange: (isFocused: boolean) => void;
 }
 
@@ -50,6 +54,7 @@ export function SessionRowTrigger({
     sessionOrder,
     visibleSessionIds,
     onBeginRename,
+    onSuggestRename,
     onFocusChange,
     ref,
     ...properties
@@ -70,7 +75,9 @@ export function SessionRowTrigger({
             onDragOver={(event) => sessionOrder.dragOver(event, session.id)}
             onDrop={(event) => sessionOrder.drop(event, session.id)}
             className={cn(
-                'session-card flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-foreground group-hover/session-row:pr-[var(--session-hover-actions)] hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]',
+                'session-card flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]',
+                // Room for the hover actions, which a renaming row does not show.
+                !renaming && 'group-hover/session-row:pr-[var(--session-hover-actions)]',
                 'focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',
                 selected && 'active bg-elevated',
                 renaming && 'cursor-text',
@@ -92,7 +99,10 @@ export function SessionRowTrigger({
             onKeyDown={(event) => {
                 if (!renaming) sessionOrder.keyDown(event, session.id, visibleSessionIds);
                 if (event.defaultPrevented) return;
-                if (!renaming && event.key === 'Enter') {
+                if (!renaming && event.key === 'Enter' && event.shiftKey) {
+                    event.preventDefault();
+                    onSuggestRename();
+                } else if (!renaming && event.key === 'Enter') {
                     event.preventDefault();
                     onBeginRename();
                 } else if (!renaming && event.key === ' ') {
