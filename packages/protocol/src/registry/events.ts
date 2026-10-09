@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { agentChatPatchSchema } from '../agent/agent-chat-contract.js';
 import { agentDispatchReceiptSchema } from '../agent/agent-dispatch-contract.js';
 import { agentEndpointSummarySchema } from '../agent/agent-endpoint-contract.js';
 import {
@@ -129,6 +130,11 @@ export const serverEventPayloads = {
     }),
     'state.changed': stateChangedPayloadSchema,
     'agentTranscript.changed': z.object({ terminalId: identifierSchema }),
+    /**
+     * Incremental Agent Chat projection change. Content-bearing and boot-scoped, so it is transient like Terminal
+     * output.
+     */
+    'agentChat.patch': agentChatPatchSchema,
     'terminal.output': z.object({
         terminalId: identifierSchema,
         data: z.string(),

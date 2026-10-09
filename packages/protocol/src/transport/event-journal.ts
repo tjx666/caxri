@@ -16,6 +16,7 @@ export type TransientServerEvent = Extract<
     ServerEvent,
     {
         event:
+            | 'agentChat.patch'
             | 'agent.message.held'
             | 'agent.notification'
             | 'agent.automaticNamingUnavailable'
@@ -45,6 +46,7 @@ export type TransientServerEvent = Extract<
 export type DurableServerEvent = Exclude<ServerEvent, TransientServerEvent>;
 
 const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
+    'agentChat.patch',
     'agent.notification',
     'agent.automaticNamingUnavailable',
     'agent.permissionAutoAllowChanged',

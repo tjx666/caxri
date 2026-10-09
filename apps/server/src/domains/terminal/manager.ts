@@ -12,9 +12,11 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { disposeAllThenRethrow } from '@caxri/utils';
 
+import { assertPtyTerminal, isPtyTerminal } from '../pty-guard';
 import type { ShutdownReason } from '../session-policy';
 import { shutdownOutcome } from '../session-policy';
 import { SingleFlight } from '../single-flight';
+import { logTerminalAttach } from './attach-log';
 import type {
     TerminalExecutionEvent,
     TerminalExecutionExit,
@@ -112,27 +114,6 @@ export class TerminalManager {
                 event: 'state.changed',
                 payload: { kind: 'records', sessionIds: [], terminalIds: interrupted },
             });
-    }
-
-    private logAttach(
-        terminalId: string,
-        size: { cols: number; rows: number } | undefined,
-        wasAttached: boolean,
-        source: 'live' | 'persisted',
-        payloadBytes: number,
-    ): void {
-        /**
-         * Content-free evidence localizes reconnect failures without recording Terminal output or snapshots.
-         */
-        this.logger.write('info', ptyLogEvents.attach, {
-            fields: {
-                terminalId,
-                source,
-                wasAttached,
-                payloadBytes,
-                ...(size !== undefined && { cols: size.cols, rows: size.rows }),
-            },
-        });
     }
 
     private projectExecutionEvent(event: TerminalExecutionEvent): void {
@@ -489,9 +470,10 @@ export class TerminalManager {
         this.onInput?.(terminalId, data);
     }
 
-    start(record: TerminalRecord, options?: TerminalStartOptions): Promise<TerminalRecord> {
+    async start(record: TerminalRecord, options?: TerminalStartOptions): Promise<TerminalRecord> {
+        assertPtyTerminal(record);
         if (this.execution.processId(record.id) !== undefined)
-            return Promise.resolve(this.database.getTerminal(record.id)!);
+            return this.database.getTerminal(record.id)!;
         return this.starts.run(record.id, () => this.spawn(record, options));
     }
 
@@ -599,24 +581,23 @@ export class TerminalManager {
     ): Promise<TerminalSnapshot | null> {
         const pendingSnapshot = this.snapshots.pending(terminalId);
         if (pendingSnapshot) await pendingSnapshot;
-        if (
-            this.execution.processId(terminalId) === undefined &&
-            !this.database.getTerminal(terminalId)
-        )
-            return null;
+        const record = this.database.getTerminal(terminalId);
+        if (!record && this.execution.processId(terminalId) === undefined) return null;
+        // A Chat Terminal renders its conversation, never a screen grid.
+        if (record && !isPtyTerminal(record)) return null;
         const attached = await this.execution.attach(terminalId, size);
         /**
          * The execution boundary is asynchronous; retirement may remove the Terminal while attach is pending.
          */
         if (size && this.database.getTerminal(terminalId)) this.viewSizes.set(terminalId, size);
         const snapshot = attached.snapshot ?? this.snapshots.read(terminalId);
-        this.logAttach(
+        logTerminalAttach(this.logger, {
             terminalId,
             size,
-            attached.wasAttached,
-            attached.snapshot ? 'live' : 'persisted',
-            snapshot?.payload.length ?? 0,
-        );
+            wasAttached: attached.wasAttached,
+            source: attached.snapshot ? 'live' : 'persisted',
+            payloadBytes: snapshot?.payload.length ?? 0,
+        });
         return snapshot;
     }
 
@@ -644,6 +625,7 @@ export class TerminalManager {
     async restart(terminalId: string, options?: TerminalStartOptions): Promise<TerminalRecord> {
         const record = this.database.getTerminal(terminalId);
         if (!record) throw new CaxriError('NOT_FOUND', 'Terminal not found');
+        assertPtyTerminal(record);
         /**
          * Fence the managed Agent generation before Host cancellation can report its intentional SIGHUP as an
          * unexpected process failure. The late exit event is then ignored by its retired launch ID.
@@ -676,7 +658,8 @@ export class TerminalManager {
         cause?: TerminalLifecycleCause,
     ): Promise<TerminalRecord | undefined> {
         const record = this.database.getTerminal(terminalId);
-        if (!record || this.execution.processId(terminalId) === undefined) return undefined;
+        if (!record || !isPtyTerminal(record) || this.execution.processId(terminalId) === undefined)
+            return undefined;
         const resumesAgent = this.agentLaunches.has(terminalId);
         this.retireAgentLifecycleSoon(terminalId, state, cause);
         const capture = await this.execution.restartBarrier(terminalId);

@@ -7,6 +7,7 @@ import { delegationResumeLaunch } from './agent-delegation';
 import type { AgentCoordinator, AgentEnvironment } from './agents';
 import { isAgentConversationUnwritten } from './agents';
 import type { CaxriDatabase } from './db';
+import { isPtyTerminal } from './pty-guard';
 import type { TerminalManager, TerminalWorkingDirectoryIdentity } from './terminal';
 import { TerminalRestoreSupervisor } from './terminal';
 
@@ -142,11 +143,13 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
         const visibleTerminalIds = new Set(
             visiblePaneTerminalIds(database.getSessionState(sessionId).paneLayout),
         );
+        // A Chat resumes lazily on its next read; restore relaunches PTYs only.
         const interrupted = sessionTerminals.filter(
             (terminal) =>
-                terminal.lastProcessState === 'interrupted' ||
-                terminal.lastProcessState === 'suspended' ||
-                (options.includeDetached && terminal.lastProcessState === 'detached'),
+                isPtyTerminal(terminal) &&
+                (terminal.lastProcessState === 'interrupted' ||
+                    terminal.lastProcessState === 'suspended' ||
+                    (options.includeDetached && terminal.lastProcessState === 'detached')),
         );
         const restored = await terminalRestores.restore(
             sessionId,

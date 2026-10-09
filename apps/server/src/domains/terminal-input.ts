@@ -5,6 +5,7 @@ import { assertE2EAgentInputFromEnvironment } from '@caxri/system';
 import type { AgentCoordinator } from './agents';
 import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
+import { assertPtyTerminal } from './pty-guard';
 import type { TerminalManager } from './terminal';
 
 interface TerminalInputHandlerOptions {
@@ -23,6 +24,7 @@ export function createTerminalInputHandler(
 ): DomainHandlers['terminal.input'] {
     return async ({ terminalId, data, requireRunningAgent }, abortSignal) => {
         const terminal = options.database.getTerminal(terminalId);
+        assertPtyTerminal(terminal);
         assertE2EAgentInputFromEnvironment(terminal?.provider);
         /**
          * A batch submit must never fall through to the shell after its Agent exits.
@@ -67,6 +69,7 @@ export function createTerminalBinaryInputHandler(
 ): DomainHandlers['terminal.inputBinary'] {
     return async ({ terminalId, data, expectedAgentLaunchId }, abortSignal) => {
         const terminal = options.database.getTerminal(terminalId);
+        assertPtyTerminal(terminal);
         assertE2EAgentInputFromEnvironment(terminal?.provider);
         const accepted = expectedAgentLaunchId
             ? options.terminals.writeAgentExact(
@@ -91,6 +94,7 @@ export function createTerminalAgentExactInputHandler(
 ): DomainHandlers['terminal.inputAgentExact'] {
     return ({ terminalId, data, expectedAgentLaunchId }) => {
         const terminal = options.database.getTerminal(terminalId);
+        assertPtyTerminal(terminal);
         assertE2EAgentInputFromEnvironment(terminal?.provider);
         if (!options.terminals.writeAgentExact(terminalId, data, expectedAgentLaunchId))
             throw new CaxriError('CONFLICT', 'Managed Agent changed before long paste insertion');

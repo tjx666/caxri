@@ -2,6 +2,7 @@ import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
 
 import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
+import { assertPtyTerminal } from './pty-guard';
 import type { TerminalManager } from './terminal';
 
 interface BugReportDeliveryHandlerOptions {
@@ -22,6 +23,7 @@ export function createBugReportDeliveryHandler({
         'bugReport.deliver': ({ pasteImage, report, sessionId, terminalId }) => {
             const terminal = database.getTerminal(terminalId);
             if (!terminal) throw new CaxriError('NOT_FOUND', 'Agent Terminal not found');
+            assertPtyTerminal(terminal);
             if (terminal.sessionId !== sessionId)
                 throw new CaxriError(
                     'CONFLICT',

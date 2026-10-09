@@ -6,6 +6,7 @@ import { CaxriError } from '@caxri/protocol';
 import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { CaxriDatabase } from '../db';
 import type { MobileTerminalMutationQueue } from '../mobile-terminal-mutation-queue';
+import { assertPtyTerminal } from '../pty-guard';
 import type { TerminalManager } from '../terminal';
 import type { MobileImageStore } from './image-store';
 
@@ -59,6 +60,7 @@ export function createMobileAgentSubmitHandler(options: {
         const terminal = options.database.getTerminal(terminalId);
         if (!terminal || terminal.sessionId !== sessionId)
             throw new CaxriError('NOT_FOUND', 'Terminal not found');
+        assertPtyTerminal(terminal);
         if (
             terminal.kind === 'shell' ||
             session.primaryAgentTerminalId !== terminalId ||

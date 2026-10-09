@@ -16,6 +16,11 @@ import { runChangedFileGuardrails } from './changed-file-guardrails';
 import type { DirtyLayer } from './changed-file-layers';
 import { dirtyLayerReportForFiles, TYPE_AWARE_EXTENSIONS } from './changed-file-layers';
 import {
+    pathReferenceContractTestCandidates,
+    rendererContractTestCandidates,
+    serverDomainContractTestCandidates,
+} from './contract-test-candidates';
+import {
     directImportTestCandidates,
     relatedE2ESpecs,
     TEST_EXTENSIONS,
@@ -530,37 +535,6 @@ async function skillContractTestCandidates(root: string, files: string[]): Promi
     return nested.flat();
 }
 
-/**
- * Renderer contracts scan source files at runtime, so import-based test discovery cannot find them.
- */
-function rendererContractTestCandidates(files: string[]): string[] {
-    if (
-        files.every((file) => !file.replaceAll('\\', '/').startsWith('apps/desktop/src/renderer/'))
-    ) {
-        return [];
-    }
-    return [
-        'apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts',
-        'apps/desktop/src/renderer/__tests__/renderer-theme-contract.test.ts',
-    ];
-}
-
-const PATH_REFERENCE_CONFIGS = new Set(['components.json', 'doctor.config.jsonc']);
-
-/**
- * `doctor.config.jsonc` and `components.json` name source paths as plain strings that import-based discovery cannot
- * see. Removing or renaming a source file can leave either config stale without touching it, so any removed path, or an
- * edit to either config, selects the path contract CI's full suite would otherwise be the first to run.
- */
-function pathReferenceContractTestCandidates(
-    files: readonly string[],
-    removedFiles: readonly string[],
-): string[] {
-    return removedFiles.length > 0 || files.some((file) => PATH_REFERENCE_CONFIGS.has(file))
-        ? ['scripts/__tests__/doctor-config-paths.test.ts']
-        : [];
-}
-
 export async function selectedTestCandidates(
     root: string,
     files: string[],
@@ -572,6 +546,7 @@ export async function selectedTestCandidates(
             ...(await directImportTestCandidates(root, files)),
             ...(await skillContractTestCandidates(root, files)),
             ...rendererContractTestCandidates(files),
+            ...serverDomainContractTestCandidates(files),
             ...pathReferenceContractTestCandidates(files, removedFiles),
         ]),
     ];

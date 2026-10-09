@@ -75,6 +75,9 @@ export function isCaxriMethod(value: string): value is CaxriMethod {
  */
 export const effectfulCommandRecovery = {
     'agentActions.recordRecent': 'none',
+    'agentChat.send': 'memory',
+    'agentChat.interrupt': 'memory',
+    'agentChat.respond': 'memory',
     'agent.dispatch.start': 'durable',
     'agent.delegation.create': 'durable',
     'commander.ensure': 'memory',

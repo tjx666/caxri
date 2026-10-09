@@ -16,6 +16,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | ------------------------------------------------------------------ | -------------------------------------------------------------- |
 | [activity-view.md](activity-view.md)                               | The Activity view's cross-Project attention queue              |
 | [agent-actions.md](agent-actions.md)                               | Unified Agent skills and slash-command picker                  |
+| [agent-chat.md](agent-chat.md)                                     | Chat Terminals over Codex app-server                           |
 | [agent-command-authority.md](agent-command-authority.md)           | Separate Agent command domains and their authority boundaries  |
 | [agent-commander.md](agent-commander.md)                           | Second-window Codex commander and cross-Project Agent board    |
 | [agent-delegation.md](agent-delegation.md)                         | Visible Agent delegation into a sibling pane                   |
@@ -77,6 +78,7 @@ rewritten, only superseded.
 | [0009](adr/0009-session-activity-recency.md)                  | Session Activity owns Primary Sidebar recency              |
 | [0010](adr/0010-server-core-idle-exit.md)                     | Server Core idle-exit policy                               |
 | [0011](adr/0011-required-merge-guards.md)                     | A required `guards` check replaces direct pushes to `main` |
+| [0012](adr/0012-agent-chat-surface.md)                        | Agent Chat: a structured Terminal surface beside the PTY   |
 
 ## Historical
 

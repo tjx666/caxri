@@ -320,7 +320,7 @@ test('the tab bar reveals the Agent menu on hover with one tab and accents only 
         await running.page.keyboard.press('Meta+t');
         await expect(tabs).toHaveCount(1);
         await expect(agentMenu).toBeVisible();
-        await agentMenu.getByRole('menuitem', { name: 'Codex' }).hover();
+        await agentMenu.getByRole('menuitem', { exact: true, name: 'Codex' }).hover();
         await expect(agentMenu).toBeVisible();
         await running.page.mouse.move(0, 300);
         await expect(agentMenu).toBeHidden();
@@ -335,7 +335,7 @@ test('the tab bar reveals the Agent menu on hover with one tab and accents only 
         const existingTerminalIds = await running.page
             .locator('.work-tab[data-terminal-id]')
             .evaluateAll((elements) => elements.map((element) => element.dataset.terminalId ?? ''));
-        await agentMenu.getByRole('menuitem', { name: 'Codex' }).click();
+        await agentMenu.getByRole('menuitem', { exact: true, name: 'Codex' }).click();
         const secondTerminalId = await waitForNewTerminalId(running.page, existingTerminalIds);
         await expect(tabs).toHaveCount(2);
         await expect(running.page.getByRole('tab', { name: 'Codex', exact: true })).toBeVisible();
