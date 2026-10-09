@@ -1,11 +1,4 @@
-import type {
-    EditorNavigationTarget,
-    MethodResult,
-    PaneSplitSide,
-    TerminalKind,
-    TerminalReferencePreviewRequest,
-    TerminalSurface,
-} from '@caxri/protocol';
+import type { MethodResult, PaneSplitSide, TerminalKind, TerminalSurface } from '@caxri/protocol';
 import {
     findResourceTabs,
     isCaxriError,
@@ -51,6 +44,11 @@ export function activateTerminal(terminalId: string): void {
 interface CreateTerminalOptions {
     cwd?: string;
     /**
+     * Starts a shell in this external document's folder instead of `cwd`. Main resolves the opaque ID to the folder,
+     * because a Renderer-supplied cwd must stay inside the Session's roots.
+     */
+    externalDocumentId?: string;
+    /**
      * Where to place the new Terminal; defaults to the active pane.
      */
     paneId?: string;
@@ -89,17 +87,22 @@ export async function createDefaultTerminal(options: CreateTerminalOptions = {})
 export async function createTerminalForSession(
     sessionId: string,
     kind: TerminalKind,
-    { cwd, paneId, split, surface }: CreateTerminalOptions,
+    { cwd, externalDocumentId, paneId, split, surface }: CreateTerminalOptions,
 ): Promise<void> {
     await tryCommand(
         'Terminal creation failed',
         async () => {
-            const terminal = await caxri.request('terminal.create', {
-                sessionId,
-                kind,
-                ...(cwd && { cwd }),
-                ...(surface === 'chat' && { surface }),
-            });
+            const terminal = externalDocumentId
+                ? await caxri.request('externalDocument.openInTerminal', {
+                      documentId: externalDocumentId,
+                      sessionId,
+                  })
+                : await caxri.request('terminal.create', {
+                      sessionId,
+                      kind,
+                      ...(cwd && { cwd }),
+                      ...(surface === 'chat' && { surface }),
+                  });
             /**
              * Every Root the Session has already arranged gets this Terminal placed into it as a background tab before
              * `terminal.create` even resolves (`SessionsModel.addTerminalToAllRootStates`), including the active Root
@@ -138,6 +141,7 @@ export async function createTerminalForSession(
             // These errors come from directory/session validation before Server creates a Terminal. A lost response
             // could follow a successful durable create, so an uncertain result may only refresh the current state.
             recovery: (error) =>
+                !externalDocumentId &&
                 isCaxriError(error) &&
                 ['IO', 'VALIDATION', 'PATH_DENIED', 'NOT_FOUND'].includes(error.code)
                     ? {
@@ -537,61 +541,4 @@ export async function detachTerminalQuietly(terminalId: string): Promise<void> {
     } catch {
         // Intentionally swallowed, see the function comment above.
     }
-}
-
-/**
- * Resolves a path printed in the Terminal against the Projects this Terminal may reach. The result is either the opened
- * document, or the candidates to disambiguate when more than one Project matched.
- */
-export async function openTerminalFileLink(
-    terminalId: string,
-    target: string,
-    location?: EditorNavigationTarget,
-): Promise<MethodResult<'terminal.openFileLink'>> {
-    return caxri.request('terminal.openFileLink', {
-        terminalId,
-        target,
-        ...(location && { location }),
-    });
-}
-
-/**
- * The Agent Commander's counterpart to {@link openTerminalFileLink}: same resolution, but Main hands the opened file to
- * a real, visible Session instead of the Commander's own hidden one. Only the Commander Terminal pane calls this (see
- * `hasWorkbenchLinks` in `terminal-pane-host.ts`); Main independently validates that `terminalId` names the Commander's
- * own Terminal.
- */
-export async function openCommanderFileLink(
-    terminalId: string,
-    target: string,
-    location?: EditorNavigationTarget,
-): Promise<MethodResult<'agentCommander.openFileLink'>> {
-    return caxri.request('agentCommander.openFileLink', {
-        terminalId,
-        target,
-        ...(location && { location }),
-    });
-}
-
-/**
- * Resolves a commit reference printed in the Terminal to a repository and SHA, or to the repositories that all contain
- * that reference.
- */
-export async function resolveTerminalCommitLink(
-    terminalId: string,
-    reference: string,
-): Promise<MethodResult<'terminal.commitLink.resolve'>> {
-    return caxri.request('terminal.commitLink.resolve', { terminalId, reference });
-}
-
-/**
- * Reads the metadata behind one hovered reference. Carries a signal because the caller is a hover card: the pointer
- * moving on is the common case, and the read it started must stop with it rather than finish into nothing.
- */
-export function loadTerminalReferencePreview(
-    terminalId: string,
-    reference: TerminalReferencePreviewRequest,
-    signal: AbortSignal,
-): Promise<MethodResult<'terminal.reference.preview'>> {
-    return caxri.requestWithSignal('terminal.reference.preview', signal, { terminalId, reference });
 }

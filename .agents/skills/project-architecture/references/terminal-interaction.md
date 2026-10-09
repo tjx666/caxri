@@ -63,11 +63,12 @@ target, whose approved root/file identity becomes an expected identity that Serv
 its first `files.authorizeOpen` result and revalidates again when Main redeems the target. An explicit
 absolute, `file://`, `./`, `../`, or `~/` target outside every Project (OSC 8 hyperlinks carry the
 absolute URI even when their label reads `~/...`) is reported as `external` without being read. Main
-then reuses the free-path browser's read-only snapshot: it confirms once with Open / Trust Folder and
+then reuses the free-path browser's external snapshot: it confirms once with Open / Trust Folder and
 Open / Cancel, or skips the prompt when the `security.trustedFolders` setting already contains the
-file's folder, reads one bounded no-follow snapshot, and the Renderer opens it as an ephemeral read-only
-tab in the Terminal's own Session. Trusting a folder persists only that prompt-skip preference; it never
-creates a Project, grants Files, Search, Git, Terminal cwd, or save authority, or makes the tab durable.
+file's folder, reads one bounded no-follow snapshot, and the Renderer opens it as an ephemeral editable
+tab in the Terminal's own Session (saves and desktop actions follow the external document rules in
+`files-and-paths.md`). Trusting a folder persists only that prompt-skip preference; it never creates a
+Project, grants Files, Search, or Git authority over the folder, or makes the tab durable.
 Home expansion and suffix search never create a permanent single-file exception or a Renderer filesystem
 capability.
 

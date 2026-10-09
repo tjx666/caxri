@@ -15,6 +15,7 @@ import {
     listPaneTabs,
     openResource,
     paneTabIdsToClose,
+    parseExternalEditorTab,
     pinPaneTab,
     remapPaneLayoutPaths,
 } from '@caxri/protocol';
@@ -47,6 +48,12 @@ import {
 import { closeTerminal } from '../terminal/terminal-commands';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
 import {
+    layoutCachedDocumentPaths,
+    layoutDocumentPaths,
+    survivingCachedDocumentPaths,
+} from './document-layout-paths';
+import { isSavableEditorPath, writeEditorDocument } from './document-write-commands';
+import {
     beginFileOpenIntent,
     isCurrentFileOpenIntent,
     supersedePendingFileOpens,
@@ -74,16 +81,6 @@ function sessionStateOf(sessionId: string): SessionState | undefined {
     return useWorkbenchStore
         .getState()
         .bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
-}
-
-/**
- * Every document path currently occupying a tab in the given layout, in tree order. Repeated because the same document
- * may be open in several panes.
- */
-function layoutDocumentPaths(layout: PaneLayout): string[] {
-    return listPaneTabs(layout).flatMap(({ tab }) =>
-        tab.resource.kind === 'file' ? [tab.resource.path] : [],
-    );
 }
 
 function isDocumentDirty(sessionId: string, path: string, workbenchProjectId?: string): boolean {
@@ -191,9 +188,11 @@ export function didOpenEditorTabForSession(
      * Opening into a preview slot replaces whatever preview was there. Its buffer is released in the same update, but
      * only once no other pane still shows that document.
      */
-    const surviving = new Set(layoutDocumentPaths(opened));
+    const surviving = new Set(layoutCachedDocumentPaths(opened));
     const replacedPaths = [
-        ...new Set(layoutDocumentPaths(current.paneLayout).filter((path) => !surviving.has(path))),
+        ...new Set(
+            layoutCachedDocumentPaths(current.paneLayout).filter((path) => !surviving.has(path)),
+        ),
     ];
     const replacedDocuments = replacedPaths.flatMap((replaced) => {
         const document = getSessionDocuments(sessionId, workbenchProjectId)?.[replaced];
@@ -425,11 +424,7 @@ async function didSaveDocumentAt(sessionId: string, path: string): Promise<boole
         await tryCommand(
             'Save failed',
             async () => {
-                const result = await caxri.request('files.write', {
-                    sessionId,
-                    path,
-                    content: document.content,
-                });
+                const result = await writeEditorDocument(sessionId, path, document.content);
                 if (!operation.discarded) {
                     const current = getSessionDocuments(sessionId, operation.workbenchProjectId)?.[
                         operation.path
@@ -439,6 +434,8 @@ async function didSaveDocumentAt(sessionId: string, path: string): Promise<boole
                         useSessionViewStore.getState().cacheDocument(
                             sessionId,
                             {
+                                // Keeps an external document's display path and ephemeral lifetime.
+                                ...current,
                                 ...result,
                                 path: operation.path,
                                 content: isChangedDuringSave ? current.content : result.content,
@@ -511,7 +508,7 @@ export async function saveActiveEditor(): Promise<void> {
     const active = getActivePaneTab();
     if (!session || active?.resource.kind !== 'file') return;
     const path = active.resource.path;
-    if (isVirtualEditorTabPath(path)) return;
+    if (!isSavableEditorPath(path)) return;
     await didSaveDocumentAt(session.id, path);
 }
 
@@ -536,7 +533,7 @@ async function didConfirmDirtyEditorCloses(
                 const tab = findTab(layout, tabId)?.tab;
                 if (tab?.resource.kind !== 'file') return [];
                 const path = tab.resource.path;
-                if (remaining.has(path) || isVirtualEditorTabPath(path)) return [];
+                if (remaining.has(path) || !isSavableEditorPath(path)) return [];
                 return isDocumentDirty(sessionId, path) ? [path] : [];
             }),
         ),
@@ -546,7 +543,7 @@ async function didConfirmDirtyEditorCloses(
         // each confirmation must resolve before the next one is requested.
         // eslint-disable-next-line no-await-in-loop -- intentional sequential await, see comment above
         const { choice } = await caxri.request('editor.confirmDiscard', {
-            name: pathBasename(path),
+            name: parseExternalEditorTab(path)?.name ?? pathBasename(path),
         });
         if (choice === 'cancel') return false;
         // Intentionally sequential: a bulk close must never end up half applied, so each save
@@ -578,8 +575,10 @@ export async function closeDocumentTabs(tabIds: readonly string[]): Promise<void
     if (remaining.length === 0) return;
     const remainingIds = remaining.map((tab) => tab.id);
     const next = closeTabs(current.paneLayout, remainingIds);
-    const survivingPaths = new Set(layoutDocumentPaths(next));
-    for (const path of layoutDocumentPaths(current.paneLayout))
+    const survivingPaths = survivingCachedDocumentPaths(next, (path) =>
+        isDocumentDirty(session.id, path),
+    );
+    for (const path of layoutCachedDocumentPaths(current.paneLayout))
         if (!survivingPaths.has(path))
             useSessionViewStore.getState().evictDocument(session.id, path);
     patchSessionState({ ...current, paneLayout: next });

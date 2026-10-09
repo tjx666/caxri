@@ -11,8 +11,8 @@ import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { revealEditorNavigation } from '../editor/editor-reveal';
 import { openExternalEditorDocument } from '../editor/external-editor-documents';
-import { openCommanderFileLink, openTerminalFileLink } from './terminal-commands';
 import { openTerminalLinkCandidatePicker } from './terminal-link-actions';
+import { openCommanderFileLink, openTerminalFileLink } from './terminal-link-commands';
 
 /**
  * What to say when Main refused a file link on its own. Without these the link reads as broken: the click lands, the

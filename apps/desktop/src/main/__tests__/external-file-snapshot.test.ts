@@ -37,7 +37,6 @@ describe('readExternalFileSnapshot', () => {
 
         expect(document.content).toBe('external content');
         expect(document.name).toBe('note.txt');
-        expect(document.readOnly).toBe(true);
     });
 
     it('still refuses a symbolic link standing in for the file itself', async () => {

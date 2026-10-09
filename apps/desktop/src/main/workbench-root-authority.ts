@@ -298,8 +298,8 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         const result = await showMessageBox(options.getWindow(), {
             type: 'question',
             title: 'Open a File Outside Added Projects?',
-            message: `Open ${basename(path)} read-only?`,
-            detail: `${path}\n\nThis file is outside every added Project, so Caxri opens a read-only copy without adding a Project. Trusting the folder skips this prompt for files under ${folder}.`,
+            message: `Open ${basename(path)} from outside your Projects?`,
+            detail: `${path}\n\nThis file is outside every added Project. Caxri opens it in the editor without adding a Project, and saving writes back to this file. Trusting the folder skips this prompt for files under ${folder}.`,
             buttons: ['Open', 'Trust Folder and Open', 'Cancel'],
             defaultId: 0,
             cancelId: 2,

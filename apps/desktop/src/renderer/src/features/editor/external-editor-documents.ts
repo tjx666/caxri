@@ -10,12 +10,14 @@ interface ExternalEditorDocumentResult {
     id: string;
     mtimeMs: number;
     name: string;
-    readOnly: true;
     size: number;
 }
 
 /**
  * Opens content that Main already authorized and read without routing its absolute path through Project file IPC.
+ *
+ * Reopening a file that is already open reuses its tab. A clean buffer takes the fresh read; a dirty one is kept, so
+ * reopening never discards unsaved edits.
  */
 export function openExternalEditorDocument({
     sessionId,
@@ -33,26 +35,20 @@ export function openExternalEditorDocument({
                 state.sessionId === sessionId && state.workbenchProjectId === workbenchProjectId,
         );
     if (!sessionState) return false;
-    const existingPath = Object.entries(
-        getSessionDocuments(sessionId, workbenchProjectId) ?? {},
-    ).find(
-        ([path, cached]) =>
-            isExternalEditorTabPath(path) &&
-            cached.ephemeral &&
-            cached.readOnly &&
-            cached.displayPath === document.displayPath,
-    )?.[0];
+    const [existingPath, existing] =
+        Object.entries(getSessionDocuments(sessionId, workbenchProjectId) ?? {}).find(
+            ([path, cached]) =>
+                isExternalEditorTabPath(path) &&
+                cached.ephemeral &&
+                cached.displayPath === document.displayPath,
+        ) ?? [];
+    if (existingPath && existing?.dirty)
+        return didOpenEditorTabForSession(sessionId, existingPath) && existingPath;
     const path = existingPath ?? externalEditorTabPath(document.id, document.name);
     const view = useSessionViewStore.getState();
     const didCache = view.cacheDocument(
         sessionId,
-        {
-            ...document,
-            path,
-            dirty: false,
-            ephemeral: true,
-            readOnly: true,
-        },
+        { ...document, path, dirty: false, ephemeral: true },
         workbenchProjectId,
     );
     if (!didCache) return false;
