@@ -25,6 +25,11 @@ where images come from.
 | Follow a link to another document    | Click it: Caxri opens that file as a new editor tab                                |
 | Follow an external link              | Click it: opens in the system browser                                              |
 
+A Markdown file opened from outside every Project (an external document) previews too, rendered
+from the editor's buffer. Its relative links and images do not resolve, because there is no Project
+root to contain them; an external `.svg` has no preview, because the image view loads its asset
+through Project file reads.
+
 Double-clicking a Markdown or SVG file in the explorer still opens the source. Both formats are
 readable as text, so the preview stays an explicit command; VS Code makes the same call with
 `priority.textEditor: 'option'`. A format with no useful text form registers `defaultView:
@@ -42,7 +47,7 @@ Smart typography is deliberately off, so what you typed is what you see.
 
 ## How a preview tab is addressed
 
-`caxri-file-preview://<url-encoded absolute path>`, see
+`caxri-file-preview://<url-encoded absolute path or external document tab path>`, see
 [`packages/protocol/src/domain/file-preview.ts`](../packages/protocol/src/domain/file-preview.ts).
 The scheme carries only the source path. Which renderer that path gets is decided by the Renderer's
 previewer registry, so adding a format never changes the tab contract or the persisted workspace

@@ -1,6 +1,7 @@
 import {
     agentTranscriptTabPath,
     externalEditorTabPath,
+    filePreviewTabPath,
     gitChangesDiffTabPath,
     gitCommitFileDiffTabPath,
     gitFileDiffTabPath,
@@ -10,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import {
     documentTabDesktopActionState,
     documentTabPathMenuState,
+    editorTabActionsPath,
     resolveDocumentTabPath,
 } from '../document-tab-path-actions';
 
@@ -20,16 +22,30 @@ const repositories = [
     { id: 'linked', rootPath: '/elsewhere/linked' },
 ] as const;
 
+describe('editorTabActionsPath', () => {
+    const fileTab = (path: string) => ({ id: 'tab', resource: { kind: 'file' as const, path } });
+
+    it('gives Project files, diffs, and external documents a tab action slot', () => {
+        const external = externalEditorTabPath('external-1', 'guide.md');
+        const diff = gitFileDiffTabPath('primary', 'README.md');
+        for (const path of ['/project/README.md', diff, external])
+            expect(editorTabActionsPath(fileTab(path))).toBe(path);
+        const preview = fileTab(filePreviewTabPath(external));
+        expect(editorTabActionsPath(preview)).toBeUndefined();
+        expect(editorTabActionsPath(undefined)).toBeUndefined();
+    });
+});
+
 describe('documentTabPathMenuState', () => {
     const loaded = { isError: false, isPending: false };
     it('offers external absolute paths and single-file diffs but not aggregate virtual documents', () => {
         expect(
             documentTabPathMenuState(externalEditorTabPath('external-1', 'outside.ts'), loaded),
-        ).toMatchObject({ isExternal: true, showMenu: true });
-        expect(documentTabPathMenuState('/project/file.ts', loaded)).toMatchObject({
-            isExternal: false,
-            showMenu: true,
-        });
+        ).toMatchObject({ externalDocumentId: 'external-1', showMenu: true });
+        expect(documentTabPathMenuState('/project/file.ts', loaded)).not.toHaveProperty(
+            'externalDocumentId',
+        );
+        expect(documentTabPathMenuState('/project/file.ts', loaded).showMenu).toBe(true);
         expect(
             documentTabPathMenuState(gitFileDiffTabPath('primary', 'file.ts'), loaded).showMenu,
         ).toBe(true);
@@ -179,24 +195,23 @@ describe('documentTabDesktopActionState', () => {
         expect(
             documentTabDesktopActionState(
                 { absolutePath: '/project/page.html', relativeRoot: '/project' },
-                { isExternal: false, unavailableReason },
+                { unavailableReason },
             ),
-        ).toEqual({ path: '/project/page.html' });
+        ).toEqual({ target: { kind: 'path', path: '/project/page.html' } });
     });
 
-    it('withholds an external document even though it resolved to a real path', () => {
-        const state = documentTabDesktopActionState(
-            { absolutePath: '/Users/me/Downloads/report.html' },
-            { isExternal: true, unavailableReason },
-        );
-
-        expect(state.path).toBeUndefined();
-        expect(state.disabledReason).toBe('This document is outside every added Project');
+    it('routes an external document through its opaque ID instead of its real path', () => {
+        expect(
+            documentTabDesktopActionState(
+                { absolutePath: '/Users/me/Downloads/report.html' },
+                { externalDocumentId: 'external-1', unavailableReason },
+            ),
+        ).toEqual({ target: { kind: 'external', documentId: 'external-1' } });
     });
 
     it('falls back to the supplied reason when no path resolved at all', () => {
-        expect(
-            documentTabDesktopActionState(undefined, { isExternal: false, unavailableReason }),
-        ).toEqual({ disabledReason: unavailableReason });
+        expect(documentTabDesktopActionState(undefined, { unavailableReason })).toEqual({
+            disabledReason: unavailableReason,
+        });
     });
 });

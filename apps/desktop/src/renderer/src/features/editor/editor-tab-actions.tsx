@@ -2,6 +2,7 @@ import type { GitDiffTab } from '@caxri/protocol';
 import {
     gitCommitFileDiffTabPath,
     gitPullRequestFileDiffTabPath,
+    isExternalEditorTabPath,
     parseGitDiffTab,
 } from '@caxri/protocol';
 import { ArrowDown, ArrowUp, FileSymlink, GitCommitHorizontal, GitPullRequest } from 'lucide-react';
@@ -51,7 +52,8 @@ export function EditorTabActions({ path, paneId }: { paneId?: string; path: stri
     return (
         <>
             {previewPath && <PreviewTabAction path={previewPath} />}
-            <FileEditorTabActions path={path} />
+            {/* An external document belongs to no Project repository, so it has no Git history to open. */}
+            {!isExternalEditorTabPath(path) && <FileEditorTabActions path={path} />}
         </>
     );
 }

@@ -64,7 +64,8 @@ const pathBrowserSnapshot = z.object({
 });
 const nonnegativeInteger = z.number().int().nonnegative();
 /**
- * One bounded read-only snapshot that Main already authorized and read; the Renderer opens it as an ephemeral tab.
+ * One bounded snapshot of a file outside every Project that Main already authorized and read; the Renderer opens it as
+ * an ephemeral tab and writes it back through `externalDocument.write` with the same `id`.
  */
 export const externalEditorDocumentSchema = z.object({
     id: identifierSchema,
@@ -73,7 +74,6 @@ export const externalEditorDocumentSchema = z.object({
     content: z.string().max(MAX_CONFIGURABLE_FILE_BYTES),
     mtimeMs: z.number().nonnegative(),
     size: nonnegativeInteger.max(MAX_CONFIGURABLE_FILE_BYTES),
-    readOnly: z.literal(true),
 });
 const pathBrowserOpened = z.discriminatedUnion('kind', [
     z.object({ opened: z.literal(true), kind: z.literal('project') }),

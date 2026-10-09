@@ -4,7 +4,6 @@ import process from 'node:process';
 import type {
     FullStateChangeReason,
     SessionRestorePlacement,
-    TerminalKind,
     TerminalRecord,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
@@ -55,6 +54,7 @@ import {
     TerminalRestoreSupervisor,
     TerminalSuspensionService,
 } from './terminal';
+import { createTerminalCreation } from './terminal-creation';
 import { createTerminalHandlers } from './terminal-handlers';
 import {
     createTerminalAgentExactInputHandler,
@@ -68,7 +68,6 @@ import {
     createCommanderTerminalRestorer,
     createInterruptedTerminalRestorer,
 } from './terminal-restore';
-import { resolveTerminalWorkingDirectory } from './terminal-working-directory';
 import { createWindowStateHandlers } from './window-state-handlers';
 import * as provenance from './workbench-provenance';
 import { validateWorkbenchRequestContext } from './workbench-request-context';
@@ -299,44 +298,8 @@ export async function createDomainServices(
         database,
         liveTerminalRecord,
     });
-    const terminalWorkingDirectory = (options: {
-        authorizedRoots: readonly string[];
-        defaultRoot: string;
-        requestedCwd?: string;
-    }) =>
-        resolveTerminalWorkingDirectory({
-            ...options,
-            configured:
-                configuration.getSettings().value['terminal.defaultWorkingDirectory'] ?? undefined,
-        });
-    async function newTerminalWorkingDirectory(sessionId: string, requestedCwd?: string) {
-        const session = database.getSession(sessionId);
-        if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
-        const ownerProject = database.getProject(session.projectId);
-        if (!ownerProject) throw new CaxriError('NOT_FOUND', 'Project not found');
-        return terminalWorkingDirectory({
-            authorizedRoots: [ownerProject.rootPath, session.rootPath],
-            defaultRoot: session.rootPath,
-            requestedCwd,
-        });
-    }
-    async function createAndStartTerminal(
-        sessionId: string,
-        kind: TerminalKind,
-        requestedCwd?: string,
-        beforeStart?: (terminal: TerminalRecord) => void,
-    ): Promise<TerminalRecord> {
-        const cwd = await newTerminalWorkingDirectory(sessionId, requestedCwd);
-        const expectedWorkingDirectory = await terminalDirectoryIdentity(cwd);
-        const terminal = database.createTerminal(sessionId, kind, cwd);
-        beforeStart?.(terminal);
-        coordinator.prepareTerminalStart(terminal.id);
-        try {
-            return await terminals.start(terminal, { expectedWorkingDirectory });
-        } catch {
-            return database.getTerminal(terminal.id)!;
-        }
-    }
+    const { createAndStartTerminal, newTerminalWorkingDirectory, terminalWorkingDirectory } =
+        createTerminalCreation({ configuration, coordinator, database, terminals });
     const createChatTerminal = createChatTerminalCreator({
         agentChat,
         database,
@@ -629,6 +592,11 @@ export async function createDomainServices(
                     ? await createChatTerminal(sessionId, kind, cwd)
                     : await createAndStartTerminal(sessionId, kind, cwd);
             if (terminal.provider) coordinator.probeTerminal(terminal.id);
+            sendFullStateChange('terminal.create');
+            return terminal;
+        },
+        'terminal.createInExternalDirectory': async ({ sessionId, cwd }) => {
+            const terminal = await createAndStartTerminal(sessionId, 'shell', cwd, undefined, cwd);
             sendFullStateChange('terminal.create');
             return terminal;
         },

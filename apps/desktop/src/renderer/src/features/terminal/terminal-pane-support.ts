@@ -10,10 +10,8 @@ import {
     invalidateControlledViewSnapshot,
 } from '../view-containers/view-container-commands';
 import {
-    loadTerminalReferencePreview,
     registerTerminalInputGate,
     registerTerminalPasteHandler,
-    resolveTerminalCommitLink,
     sendTerminalBinaryInput,
     sendTerminalInput,
     sendTerminalInputToAgent,
@@ -23,6 +21,7 @@ import {
     openTerminalLinkCandidatePicker,
     registerTerminalLinkScanner,
 } from './terminal-link-actions';
+import { loadTerminalReferencePreview, resolveTerminalCommitLink } from './terminal-link-commands';
 import { createTerminalLinkScanner } from './terminal-link-scanner';
 import type { TerminalLinkContext, TerminalLinkMatch } from './terminal-links';
 import { registerTerminalLinks } from './terminal-links';

@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
     externalEditorTabPath,
     isExternalEditorTabPath,
-    isVirtualEditorTabPath,
     parseExternalEditorTab,
-} from '../virtual-tabs';
+} from '../external-editor-tab';
+import { isVirtualEditorTabPath } from '../virtual-tabs';
 
 describe('external editor virtual tabs', () => {
     it('round-trips an opaque document id and display name without embedding a filesystem path', () => {

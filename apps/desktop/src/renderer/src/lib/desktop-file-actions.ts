@@ -45,3 +45,23 @@ export function openFileWithDefaultApp(path: string): Promise<void | undefined> 
 export function openFileInTerminal(directory: string): Promise<void> {
     return createTerminal('shell', { cwd: directory });
 }
+
+/**
+ * The same three actions for an external document, a file outside every added Project. The Renderer holds only the
+ * opaque ID Main issued when it read the file, and Main resolves it back to that file.
+ */
+export function revealExternalDocument(documentId: string): Promise<void | undefined> {
+    return tryCommand('Unable to reveal item in Finder', async () => {
+        await caxri.request('externalDocument.reveal', { documentId });
+    });
+}
+
+export function openExternalDocumentWithDefaultApp(documentId: string): Promise<void | undefined> {
+    return tryCommand('Unable to open item with the default application', async () => {
+        await caxri.request('externalDocument.openWithDefaultApp', { documentId });
+    });
+}
+
+export function openExternalDocumentInTerminal(documentId: string): Promise<void> {
+    return createTerminal('shell', { externalDocumentId: documentId });
+}

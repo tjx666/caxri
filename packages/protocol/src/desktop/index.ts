@@ -4,5 +4,7 @@ export * from './debug-launch.js';
 export * from './desktop-contract.js';
 export * from './desktop-launch.js';
 export * from './desktop-server-operations.js';
+export * from './external-document-contract.js';
 export * from './path-browser-contract.js';
 export * from './shell-command-contract.js';
+export * from './window-state-contract.js';

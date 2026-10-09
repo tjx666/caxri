@@ -186,7 +186,7 @@ test('Codex hard-wrapped file paths open as one trusted Terminal link', async ()
                     return target.caxriHardWrapProbe?.confirmations;
                 }),
             )
-            .toEqual(['Open outside-target.ts read-only?']);
+            .toEqual(['Open outside-target.ts from outside your Projects?']);
         await expect(running.page.getByRole('tab', { name: 'outside-target.ts' })).toHaveCount(0);
         await expect(running.page.locator('.toast')).toHaveCount(0);
         const afterDenied = await pageRequest<{ projects: unknown[]; sessions: unknown[] }>(

@@ -55,7 +55,6 @@ describe('terminal.openFileLink result schema', () => {
         content: '{}',
         mtimeMs: 1,
         size: 2,
-        readOnly: true as const,
     };
 
     it('keeps the external document on an opened reply', () => {

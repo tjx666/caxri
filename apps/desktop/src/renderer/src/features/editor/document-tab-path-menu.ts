@@ -2,14 +2,20 @@ import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { copyFilePath } from '../../lib/copy-file-path';
 import {
+    openExternalDocumentInTerminal,
+    openExternalDocumentWithDefaultApp,
     openFileInTerminal,
     openFileWithDefaultApp,
+    revealExternalDocument,
     revealFile,
 } from '../../lib/desktop-file-actions';
 import { parentDirectoryPath } from '../../lib/file-path';
 import { readCommandShortcut } from '../../lib/keybindings';
 import { openFilePreview } from '../preview/preview-commands';
-import type { DocumentTabPathResolution } from './document-tab-path-actions';
+import type {
+    DocumentTabDesktopTarget,
+    DocumentTabPathResolution,
+} from './document-tab-path-actions';
 import { documentTabDesktopActionState } from './document-tab-path-actions';
 
 /**
@@ -22,20 +28,23 @@ import { documentTabDesktopActionState } from './document-tab-path-actions';
 export function documentTabPathMenu({
     resolution,
     unavailableReason,
-    isExternal,
+    externalDocumentId,
     previewPath,
 }: {
     resolution?: DocumentTabPathResolution;
     unavailableReason: string;
-    isExternal: boolean;
+    externalDocumentId?: string;
     /**
      * The file a preview of this tab would show, when a previewer claims it. Absent for every other tab, which hides
      * the item instead of disabling it: "cannot preview a `.ts` file" is not a state worth explaining.
      */
     previewPath?: string;
 }): ContextMenuEntries {
-    const desktop = documentTabDesktopActionState(resolution, { isExternal, unavailableReason });
-    const desktopPath = desktop.path;
+    const desktop = documentTabDesktopActionState(resolution, {
+        externalDocumentId,
+        unavailableReason,
+    });
+    const target = desktop.target;
     return [
         ...(previewPath
             ? [
@@ -49,21 +58,21 @@ export function documentTabPathMenu({
             : []),
         {
             label: 'Open with Default App',
-            disabled: !desktopPath,
+            disabled: !target,
             disabledReason: desktop.disabledReason,
-            onSelect: () => desktopPath && openFileWithDefaultApp(desktopPath),
+            onSelect: () => target && openWithDefaultApp(target),
         },
         {
             label: 'Reveal in Finder',
-            disabled: !desktopPath,
+            disabled: !target,
             disabledReason: desktop.disabledReason,
-            onSelect: () => desktopPath && revealFile(desktopPath),
+            onSelect: () => target && reveal(target),
         },
         {
             label: 'Open in Terminal',
-            disabled: !desktopPath,
+            disabled: !target,
             disabledReason: desktop.disabledReason,
-            onSelect: () => desktopPath && openFileInTerminal(parentDirectoryPath(desktopPath)),
+            onSelect: () => target && openInTerminal(target),
         },
         CONTEXT_MENU_SEPARATOR,
         {
@@ -72,7 +81,7 @@ export function documentTabPathMenu({
             disabledReason: unavailableReason,
             onSelect: () => resolution && copyFilePath(resolution.absolutePath),
         },
-        !isExternal && {
+        !externalDocumentId && {
             label: 'Copy Relative Path',
             disabled: !resolution?.relativeRoot,
             disabledReason: unavailableReason,
@@ -81,4 +90,22 @@ export function documentTabPathMenu({
                 copyFilePath(resolution.absolutePath, resolution.relativeRoot),
         },
     ];
+}
+
+function openWithDefaultApp(target: DocumentTabDesktopTarget) {
+    return target.kind === 'external'
+        ? openExternalDocumentWithDefaultApp(target.documentId)
+        : openFileWithDefaultApp(target.path);
+}
+
+function reveal(target: DocumentTabDesktopTarget) {
+    return target.kind === 'external'
+        ? revealExternalDocument(target.documentId)
+        : revealFile(target.path);
+}
+
+function openInTerminal(target: DocumentTabDesktopTarget) {
+    return target.kind === 'external'
+        ? openExternalDocumentInTerminal(target.documentId)
+        : openFileInTerminal(parentDirectoryPath(target.path));
 }

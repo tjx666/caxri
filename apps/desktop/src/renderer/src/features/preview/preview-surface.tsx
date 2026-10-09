@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 
 import type { FilePreviewTab } from '@caxri/protocol';
+import { isExternalEditorTabPath } from '@caxri/protocol';
 
 import { useResourceLoad } from '../../hooks/use-resource-load';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
@@ -42,6 +43,12 @@ function MarkdownPreviewSurface({
         load,
     });
     if (!theme) return null;
+    /**
+     * An external document lives only in the Renderer cache; there is no Project file to read it back from once its
+     * source tab is gone, so say so instead of showing a load that never finishes.
+     */
+    if (!document && isExternalEditorTabPath(path))
+        return <div className={emptyWorkClassName}>External file is no longer available.</div>;
     if (!document)
         return failure ? (
             <EditorLoadFailure

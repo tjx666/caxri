@@ -1,5 +1,10 @@
-import type { GitRepositoryOverview } from '@caxri/protocol';
-import { isVirtualEditorTabPath, parseExternalEditorTab, parseGitDiffTab } from '@caxri/protocol';
+import type { GitRepositoryOverview, PaneTab } from '@caxri/protocol';
+import {
+    isExternalEditorTabPath,
+    isVirtualEditorTabPath,
+    parseExternalEditorTab,
+    parseGitDiffTab,
+} from '@caxri/protocol';
 
 import { relativePathRoot } from '../../lib/copy-file-path';
 import { projectRelativePath } from '../../lib/file-path';
@@ -8,18 +13,31 @@ import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repo
 type RepoRoot = Pick<GitRepositoryOverview, 'id' | 'rootPath'>;
 
 /**
+ * The document whose actions fill the tab rail's action slot: a Project file, a Git diff, or an external document.
+ * Other virtual tabs (Settings, previews, transcripts) carry no editor actions.
+ */
+export function editorTabActionsPath(tab: PaneTab | undefined): string | undefined {
+    if (tab?.resource.kind !== 'file') return undefined;
+    const { path } = tab.resource;
+    if (!isVirtualEditorTabPath(path)) return path;
+    return parseGitDiffTab(path) || isExternalEditorTabPath(path) ? path : undefined;
+}
+
+/**
  * Keeps virtual-resource capabilities and query feedback out of the tab's presentation branches.
  */
 export function documentTabPathMenuState(
     path: string,
     query: { isError: boolean; isPending: boolean },
-): { isExternal: boolean; showMenu: boolean; unavailableReason: string } {
-    const isExternal = Boolean(parseExternalEditorTab(path));
+): { externalDocumentId?: string; showMenu: boolean; unavailableReason: string } {
+    const external = parseExternalEditorTab(path);
     const diff = parseGitDiffTab(path);
     return {
-        isExternal,
+        ...(external && { externalDocumentId: external.documentId }),
         showMenu:
-            !isVirtualEditorTabPath(path) || isExternal || Boolean(diff && diff.kind !== 'changes'),
+            !isVirtualEditorTabPath(path) ||
+            Boolean(external) ||
+            Boolean(diff && diff.kind !== 'changes'),
         unavailableReason: query.isError
             ? 'Unable to load repository information'
             : query.isPending
@@ -34,22 +52,22 @@ export interface DocumentTabPathResolution {
 }
 
 /**
- * Availability of the tab menu's desktop actions (Open with Default App, Reveal in Finder, Open in Terminal) which all
- * hand a path to the operating system through Server Core.
- *
- * An external document is withheld even though it has a real absolute path: it sits outside every authorized Project
- * root, so Server Core would refuse the request, and a disabled item with a reason explains that before the click
- * rather than through an error toast after it. Clipboard items are unaffected: copying a path claims no authority,
- * which is why this state is separate from `unavailableReason`.
+ * What the tab menu's desktop actions (Open with Default App, Reveal in Finder, Open in Terminal) hand to the operating
+ * system: a Project path, which Server Core re-validates against the Session's Project root, or an external document's
+ * opaque ID, which Main resolves to the file it read. An external document never takes the path route because it sits
+ * outside every Project root and Server Core would refuse it.
  */
+export type DocumentTabDesktopTarget =
+    { kind: 'path'; path: string } | { kind: 'external'; documentId: string };
+
 export function documentTabDesktopActionState(
     resolution: DocumentTabPathResolution | undefined,
-    options: { isExternal: boolean; unavailableReason: string },
-): { disabledReason?: string; path?: string } {
-    if (options.isExternal)
-        return { disabledReason: 'This document is outside every added Project' };
+    options: { externalDocumentId?: string; unavailableReason: string },
+): { disabledReason?: string; target?: DocumentTabDesktopTarget } {
+    if (options.externalDocumentId)
+        return { target: { kind: 'external', documentId: options.externalDocumentId } };
     if (!resolution) return { disabledReason: options.unavailableReason };
-    return { path: resolution.absolutePath };
+    return { target: { kind: 'path', path: resolution.absolutePath } };
 }
 
 /**
