@@ -4,7 +4,11 @@ import { Check, Circle, CircleSlash, CircleX } from 'lucide-react';
 import { Spinner } from '../../components/ui/spinner';
 import { cn } from '../../lib/utilities';
 import type { AgentChatStatusTone } from './agent-chat-presentation';
-import { agentChatItemStatusLabel, agentChatItemStatusTone } from './agent-chat-presentation';
+import {
+    agentChatItemStatusLabel,
+    agentChatItemStatusTone,
+    withOccurrenceKeys,
+} from './agent-chat-presentation';
 
 const toneClassName: Record<AgentChatStatusTone, string> = {
     danger: 'text-danger',
@@ -64,8 +68,8 @@ export function AgentChatPlanCard({ plan }: { plan: AgentChatPlan }) {
             <h3 className="m-0 mb-1 text-[12px] font-semibold text-foreground">Plan</h3>
             {plan.explanation && <p className="m-0 mb-1 text-muted">{plan.explanation}</p>}
             <ol className="m-0 list-none space-y-0.5 p-0">
-                {plan.steps.map((step, index) => (
-                    <li className="flex items-start gap-2" key={index}>
+                {withOccurrenceKeys(plan.steps, (step) => step.step).map(({ item: step, key }) => (
+                    <li className="flex items-start gap-2" key={key}>
                         <span className="mt-0.5 shrink-0">{planStepGlyph(step.status)}</span>
                         <span
                             className={cn(

@@ -7,6 +7,7 @@ import {
     agentChatQuestionAnswers,
     canSendAgentChatMessage,
     isAgentChatSubmitKey,
+    withOccurrenceKeys,
 } from './agent-chat-presentation';
 
 function snapshot(status: AgentChatSnapshot['status']): AgentChatSnapshot {
@@ -79,5 +80,13 @@ describe('agentChatQuestionAnswers', () => {
                 { q2: '  Later  ', q4: ' '.repeat(3) },
             ),
         ).toEqual({ q1: ['Yes'], q2: ['Later'] });
+    });
+});
+
+describe('withOccurrenceKeys', () => {
+    it('keys entries by content and numbers repeated values', () => {
+        expect(
+            withOccurrenceKeys(['Read', 'Test', 'Read'], (step) => step).map(({ key }) => key),
+        ).toEqual(['Read\u{0}0', 'Test\u{0}0', 'Read\u{0}1']);
     });
 });

@@ -30,9 +30,11 @@ export function AgentChatComposer({
     const submit = async (): Promise<void> => {
         if (!isSendable) return;
         setSending(true);
-        const isSent = await didSendAgentChatMessage(terminalId, draft);
-        setSending(false);
-        if (isSent) setDraft('');
+        try {
+            if (await didSendAgentChatMessage(terminalId, draft)) setDraft('');
+        } finally {
+            setSending(false);
+        }
     };
     return (
         <form
