@@ -420,6 +420,7 @@ export const logEventCatalog = {
         resourceSampleFailed: 'terminal.resource_sample_failed',
         restoreCwdRejected: 'terminal.restore_cwd_rejected',
         restoreInterruptedFailed: 'terminal.restore_interrupted_failed',
+        resumeSkipped: 'terminal.resume_skipped',
         suspendFailed: 'terminal.suspend_failed',
         suspended: 'terminal.suspended',
     },

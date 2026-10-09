@@ -131,6 +131,10 @@ fs.writeFileSync(path.join(sessions, endpointId + '.json'), JSON.stringify({
   updatedAt: now,
   status: 'busy',
 }));
+// A restart resumes only a conversation Claude Code has written to disk.
+const transcripts = path.join(process.env.CLAUDE_CONFIG_DIR, 'projects', process.cwd().replaceAll(/[^a-z0-9]/gi, '-'));
+fs.mkdirSync(transcripts, { recursive: true });
+fs.appendFileSync(path.join(transcripts, providerSessionId + '.jsonl'), '{}\n');
 fs.appendFileSync(${JSON.stringify(capturePath)}, JSON.stringify({
   context,
   credential: {
