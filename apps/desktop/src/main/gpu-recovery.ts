@@ -4,6 +4,7 @@ import type { ArgvConfig, ArgvConfigChanges, ServerEvent } from '@caxri/protocol
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import type { App } from 'electron';
+import { powerMonitor } from 'electron';
 
 import { readArgvConfigAtBoot } from './argv-config';
 import type { createGpuDiagnostics, GpuProcessGoneDetails } from './gpu-diagnostics';
@@ -93,6 +94,14 @@ export function createGpuRecoveryCoordinator(options: GpuRecoveryCoordinatorOpti
                 // Electron emits this synchronously; snapshot failures are logged by the collector.
                 // eslint-disable-next-line no-void -- asynchronous post-crash evidence collection
                 void options.diagnostics.handleGpuInfoUpdate();
+            });
+            // `powerMonitor` is unusable before `ready`. A wake is recorded, not acted on: it only explains a later
+            // Terminal context loss or GPU process exit that `gpu-diagnostics.ts` stamps with the elapsed time.
+            options.app.on('ready', () => {
+                powerMonitor.on('resume', () => options.diagnostics.recordSystemWake('resume'));
+                powerMonitor.on('unlock-screen', () =>
+                    options.diagnostics.recordSystemWake('unlock-screen'),
+                );
             });
             options.app.on('child-process-gone', (_event, details) => {
                 if (details.reason === 'clean-exit') return;

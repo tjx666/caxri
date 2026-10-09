@@ -464,6 +464,13 @@ jobs:
         run: >-
           bun run scripts/performance-baseline-gate.ts --receipt
           test-results/receipts/renderer-performance.json --baseline scripts/performance-baseline.json
+      # Playwright's own outputs (`error-context.md`, `trace.zip`) carry absolute workspace and fixture paths, and both
+      # sit under the runner account's home; scrub them before any failure-artifact upload below (issue #1461).
+      - name: Redact E2E artifacts before upload
+        if: always()
+        run: >-
+          bun run scripts/redact-e2e-artifacts.ts
+          test-results/parallel-safe test-results/desktop-exclusive test-results/control
       # A concurrent-validation pool can fail its receipt check without ever starting: a sibling `checks` failure
       # aborts the run before this pool's turn, and `ci-concurrent-validation.json` records the pool as `null`. There is
       # nothing to upload then, so that branch waits for the pool's own receipt. The direct pool step always launched

@@ -61,6 +61,13 @@ export const terminalRendererDiagnosticSchema = z.strictObject({
      * scheduled per-frame restore instead of running their own; the "cause" side of the visibility-restore trigger.
      */
     visibilityRestoreCoalescedCount: z.number().int().nonnegative().max(1_000_000),
+    /**
+     * Terminal WebGL contexts this Renderer held when the record was published. On a loss (`webgl-context-loss`,
+     * `gpu-process-recovery`) it is sampled before the lost context is released, so it includes the lost one. Chromium
+     * caps a renderer process at 16 live WebGL contexts and force-loses the oldest past that, so a loss at the cap
+     * points at context pressure rather than at the GPU.
+     */
+    liveWebglContextCount: z.number().int().nonnegative().max(1_000),
     correlationId: z.uuid().optional(),
     recoveryResult: z.enum(['not-requested', 'already-dom', 'dom-restored', 'failed']),
     retryAttemptCount: z.number().int().nonnegative().max(3),
