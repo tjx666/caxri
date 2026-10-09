@@ -246,7 +246,7 @@ esac
     });
 }
 
-test('Session status rides on the Agent icon while the pull request glyph keeps the right edge', async () => {
+test('Session status takes the right-edge slot before its pull request glyph', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-pull-request-status-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -365,9 +365,9 @@ setInterval(() => {
 
         await writeClaudeMetadata(config, root, startedAt, 'busy');
         await expect(status).toHaveAttribute('data-session-status', 'running');
-        // Agent lifecycle rides on the leading icon, so the delivery glyph stays at the right edge.
-        await expect(pullRequest).toBeVisible();
-        await expectRightEdge(pullRequest);
+        // Lifecycle outranks delivery: the running glyph takes the pull request's right-edge slot.
+        await expect(pullRequest).toHaveCount(0);
+        await expectRightEdge(status);
         await expect(status).toHaveAccessibleName('Working. The Agent is running.');
 
         // Collapsing the Project must not fold a running Agent out of sight: the heading summarizes it.
@@ -380,7 +380,7 @@ setInterval(() => {
         await expect(projectTitle).toHaveAccessibleName('project (1 Session), 1 running');
         await running.page.locator('.project-disclosure').first().click();
         await expect(agentSummary).toHaveCount(0);
-        await expect(pullRequest).toBeVisible();
+        await expect(status).toBeVisible();
         const runningLayout = await layout();
         expect(runningLayout.indicatorRightGap).toBe(idleLayout.indicatorRightGap);
         expect(runningLayout.indicatorWidth).toBe(idleLayout.indicatorWidth);
@@ -414,7 +414,8 @@ setInterval(() => {
         await expect(status).toHaveAttribute('data-session-status', 'running');
         await writeClaudeMetadata(config, root, startedAt, 'completed');
         await expect(status).toHaveAttribute('data-session-status', 'attention');
-        await expect(pullRequest).toBeVisible();
+        await expect(pullRequest).toHaveCount(0);
+        await expectRightEdge(status);
         const attentionLayout = await layout();
         expect(attentionLayout.indicatorRightGap).toBe(idleLayout.indicatorRightGap);
         expect(attentionLayout.indicatorWidth).toBe(idleLayout.indicatorWidth);

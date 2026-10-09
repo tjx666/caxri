@@ -24,7 +24,7 @@ export interface AgentActivityRow {
     session: SessionRecord;
     /**
      * The same projection the row's glyph uses, resolved here because the group a row lands in has to be decided by it
-     * too. `SessionAgentStatusIcon` resolves it again from the same Session and Terminal, so the two always agree; this
+     * too. `SessionStatusIndicator` resolves it again from the same Session and Terminal, so the two always agree; this
      * copy exists so the grouping and the row's state phrase never drift from the glyph beside them.
      */
     status: SessionStatus;
