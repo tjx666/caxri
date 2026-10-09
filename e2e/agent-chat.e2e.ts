@@ -11,7 +11,9 @@ import {
     closeAppQuietly,
     createProjectSession,
     launchCaxri,
+    pageRequest,
     VISIBLE_SESSION,
+    waitForCreatedSession,
 } from './support/helpers.ts';
 
 /**
@@ -50,7 +52,26 @@ import(${JSON.stringify(pathToFileURL(FAKE_APP_SERVER).href)});
         const { page } = running;
         await createProjectSession(page, 'shell');
         await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
-        await chooseTerminalFromCreateMenu(page, 'Codex (Chat)');
+        // One row per Agent. The footer toggle keeps the menu open and turns the Chat-capable rows into Chats.
+        const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
+        const openInChat = terminalMenu.getByRole('menuitemcheckbox', { name: 'Open in Chat' });
+        await expect(openInChat).not.toBeChecked();
+        await expect(terminalMenu.getByRole('menuitem')).toHaveText([
+            'Claude Code',
+            'Codex',
+            'Grok Build',
+            'Shell',
+        ]);
+        await openInChat.click();
+        await expect(openInChat).toBeChecked();
+        await expect(terminalMenu.getByRole('menuitem')).toHaveText([
+            'Claude Code',
+            'CodexChat',
+            'Grok Build',
+            'Shell',
+        ]);
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-new-terminal-menu.png') });
+        await chooseTerminalFromCreateMenu(page, 'Codex Chat');
 
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
@@ -110,6 +131,31 @@ import(${JSON.stringify(pathToFileURL(FAKE_APP_SERVER).href)});
         await chat.getByRole('button', { name: 'New Terminal (Codex Chat)' }).click();
         await expect(chat.getByText('You chose Blue.')).toHaveCount(0);
         await expect(message).toHaveAttribute('placeholder', 'Message Codex');
+
+        // The sidebar's New Session menu shares the preference, so a whole Session can start as a Chat.
+        const previous = await pageRequest<{ selectedSessionId?: string }>(page, 'app.bootstrap');
+        const newSession = page.getByRole('button', { name: /^New Session in / });
+        await page.locator('.project-heading').filter({ has: newSession }).hover();
+        await newSession.click();
+        const sessionMenu = page.getByRole('menu', { name: /^New Session in / });
+        await expect(
+            sessionMenu.getByRole('menuitemcheckbox', { name: 'Open in Chat' }),
+        ).toBeChecked();
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-new-session-menu.png') });
+        await chooseTerminalFromCreateMenu(page, 'Codex Chat');
+        const sessionId = await waitForCreatedSession(page, previous.selectedSessionId);
+        const state = await pageRequest<{
+            terminals: Array<{ sessionId: string; surface?: string }>;
+        }>(page, 'app.bootstrap');
+        expect(state.terminals.filter((terminal) => terminal.sessionId === sessionId)).toEqual([
+            expect.objectContaining({ surface: 'chat' }),
+        ]);
+        await expect(message).toHaveAttribute('placeholder', 'Message Codex');
+        await message.fill('from a new Session');
+        await message.press('Enter');
+        await expect(
+            chat.getByText('Hello from fake Codex. You said: from a new Session'),
+        ).toBeVisible();
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

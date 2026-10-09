@@ -22,6 +22,7 @@ import {
     sessionContentSearchParametersSchema,
     sessionContentSearchResultSchema,
 } from './session-content-search.js';
+import { terminalSurfaceSchema } from './terminal-surface.js';
 
 const serverWrite = commandPolicy('server', 'write');
 const desktopWrite = commandPolicy('desktop', 'write');
@@ -62,6 +63,11 @@ export const sessionMethods = {
         params: z.object({
             projectId: identifierSchema,
             defaultAgent: terminalKindSchema.nullable(),
+            /**
+             * `chat` starts `defaultAgent` as an Agent Chat; it requires a provider whose catalog entry declares
+             * `capabilities.chat`. Defaults to a PTY.
+             */
+            surface: terminalSurfaceSchema.optional(),
         }),
         result: z.object({
             session: sessionRecordSchema,
