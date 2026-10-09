@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { execFileAsync } from '@caxri/system';
 
 import type { E2EApp } from './support/electron-app.ts';
-import { expect, test } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     createAdditionalShellSession,
     createProjectSession,
@@ -33,6 +33,12 @@ async function closeAppQuietly(app: E2EApp): Promise<void> {
 }
 
 test('Session inline rename validates input and survives Renderer reload', async () => {
+    allowE2EErrors([
+        // Shift+Enter below asks a Shell Session for an AI name, which the Server refuses and the user sees.
+        { source: 'desktop', event: 'ipc.request_failed', code: 'UNAVAILABLE', count: 1 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'UNAVAILABLE', count: 1 },
+        { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-rename-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -70,6 +76,13 @@ test('Session inline rename validates input and survives Renderer reload', async
             })),
         ).toEqual({ end: 8, start: 0, value: 'Untitled' });
 
+        // The editor's AI button owns the right edge; the hover Pin/Archive actions must not cover it.
+        await card.hover();
+        await expect(
+            running.page.locator('.session-row', { has: card }).locator('.session-row-actions'),
+        ).toHaveCount(0);
+        await expect(card.getByRole('button', { name: 'Rename Untitled with AI' })).toBeVisible();
+
         await input.fill(' '.repeat(3));
         await input.press('Enter');
         await expect(input).toHaveAttribute('aria-invalid', 'true');
@@ -97,6 +110,17 @@ test('Session inline rename validates input and survives Renderer reload', async
         await expect(card.getByRole('textbox')).toHaveCount(0);
         await expect(card.locator('strong')).toHaveText('Blurred investigation');
         await expect(filesTab).toBeFocused();
+
+        // Shift+Enter opens the editor and asks for an AI name. A Shell Session has no conversation to name, so the
+        // request fails into a toast and leaves the editor open for a typed name.
+        await card.focus();
+        await card.press('Shift+Enter');
+        const suggestInput = card.getByRole('textbox', { name: 'Rename Blurred investigation' });
+        await expect(suggestInput).toBeFocused();
+        await expect(running.page.getByText('Session name suggestion failed')).toBeVisible();
+        await expect(suggestInput).not.toHaveAttribute('readonly');
+        await suggestInput.press('Escape');
+        await expect(card.locator('strong')).toHaveText('Blurred investigation');
 
         await card.focus();
         await card.press('Enter');

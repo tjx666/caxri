@@ -40,6 +40,8 @@ export function AgentActivityRowTitle({
                     onChange={sessionRename.onRenameValueChange}
                     onCommit={sessionRename.commitRename}
                     onCancel={sessionRename.cancelRename}
+                    onSuggest={() => sessionRename.suggestRename(sessionId, title, sessionId)}
+                    suggesting={sessionRename.renameSuggestingSessionId === sessionId}
                 />
             ) : (
                 <span

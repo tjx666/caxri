@@ -1,7 +1,7 @@
 import { defaultAppSettings } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { EDITOR_OPTION_KEYS, resolveEditorOptions } from './editor-options';
+import { EDITOR_OPTION_KEYS, languageEditorOptions, resolveEditorOptions } from './editor-options';
 
 describe('resolveEditorOptions', () => {
     it('falls back to the shipped defaults before settings load', () => {
@@ -100,6 +100,31 @@ describe('resolveEditorOptions', () => {
             fontSize: 20,
             minimap: { enabled: true },
             wordWrap: 'bounded',
+        });
+    });
+});
+
+describe('languageEditorOptions', () => {
+    it('turns Unicode highlighting off for prose, as VS Code does for Markdown and plain text', () => {
+        const prose = {
+            unicodeHighlight: {
+                ambiguousCharacters: false,
+                includeStrings: true,
+                invisibleCharacters: false,
+            },
+        };
+        expect(languageEditorOptions('markdown')).toEqual(prose);
+        expect(languageEditorOptions('plaintext')).toEqual(prose);
+        expect(languageEditorOptions(undefined)).toEqual(prose);
+    });
+
+    it('restates Monaco defaults for code, so an editor switching from Markdown turns them back on', () => {
+        expect(languageEditorOptions('typescript')).toEqual({
+            unicodeHighlight: {
+                ambiguousCharacters: true,
+                includeStrings: true,
+                invisibleCharacters: true,
+            },
         });
     });
 });

@@ -109,6 +109,15 @@ export const sessionMethods = {
         result: sessionRecordSchema,
     },
     /**
+     * Asks the Session's primary Agent provider for a title derived from its conversation, without applying it. The
+     * caller commits the suggestion through `session.rename`, so it carries the same manual ownership as a typed name.
+     */
+    'session.suggestTitle': {
+        ...commandPolicy('server', 'read'),
+        params: z.object({ sessionId: identifierSchema }),
+        result: z.object({ displayTitle: sessionRenameTitleSchema }),
+    },
+    /**
      * Pinning is a durable user choice, not activity: it never touches `sidebarOrder` or the Session Activity clock, so
      * a pinned Session keeps its place inside its own Project group.
      */

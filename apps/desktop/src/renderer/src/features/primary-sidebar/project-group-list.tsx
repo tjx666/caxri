@@ -64,6 +64,7 @@ export function ProjectGroupList({
                 onBlurRename={sessionRename.blurRename}
                 onCancelRename={sessionRename.cancelRename}
                 onCommitRename={sessionRename.commitRename}
+                onSuggestRename={sessionRename.suggestRename}
                 onDragEnd={projectOrder.endDrag}
                 onDragOver={(event) => projectOrder.updateDropTarget(event, project.id)}
                 onDragStart={(event) => projectOrder.startDrag(event, project.id)}
@@ -80,6 +81,7 @@ export function ProjectGroupList({
                         : undefined
                 }
                 renameError={sessionRename.renameError}
+                renameSuggestingSessionId={sessionRename.renameSuggestingSessionId}
                 renameValue={sessionRename.renameValue}
                 renamingRowId={sessionRename.renamingRowId}
                 rovingRowId={rovingRowId}

@@ -67,6 +67,11 @@ export const logEventCatalog = {
          */
         permissionAutoAllowed: 'agent.permission_auto_allowed',
         probe: 'agent.probe',
+        /**
+         * One record per user-requested Session title suggestion with a closed `reason` and duration. Never carries the
+         * transcript, prompt, or generated title.
+         */
+        titleSuggestionFinished: 'agent.title_suggestion_finished',
         probeFailed: 'agent.probe_failed',
         processProbeFailed: 'agent.process_probe_failed',
         sessionActivityChanged: 'agent.session_activity_changed',

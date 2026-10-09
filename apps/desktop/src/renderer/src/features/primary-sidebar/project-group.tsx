@@ -54,6 +54,7 @@ interface ProjectGroupProperties {
     onBlurRename: () => void;
     onCancelRename: () => void;
     onCommitRename: () => void;
+    onSuggestRename: (sessionId: string, displayTitle: string, rowId: string) => void;
     onDragEnd: () => void;
     onDragOver: (event: DragEvent<HTMLElement>) => void;
     onDragStart: (event: DragEvent<HTMLElement>) => void;
@@ -69,6 +70,7 @@ interface ProjectGroupProperties {
     projectSessions: readonly SessionRecord[];
     projectDropTarget?: ProjectDropTarget;
     renameError?: string;
+    renameSuggestingSessionId?: string;
     renameValue: string;
     renamingRowId?: string;
     /**
@@ -101,6 +103,7 @@ export function ProjectGroup({
     onBlurRename,
     onCancelRename,
     onCommitRename,
+    onSuggestRename,
     onDragEnd,
     onDragOver,
     onDragStart,
@@ -113,6 +116,7 @@ export function ProjectGroup({
     projectSessions,
     projectDropTarget,
     renameError,
+    renameSuggestingSessionId,
     renameValue,
     renamingRowId,
     rovingRowId,
@@ -333,12 +337,14 @@ export function ProjectGroup({
                                 onBlurRename={onBlurRename}
                                 onCancelRename={onCancelRename}
                                 onCommitRename={onCommitRename}
+                                onSuggestRename={onSuggestRename}
                                 onRenameValueChange={onRenameValueChange}
                                 projectDisplayTitle={project.displayTitle}
                                 projectIcon={project.icon}
                                 projectId={project.id}
                                 projectRootPath={project.rootPath}
                                 renameError={renameError}
+                                renameSuggesting={session.id === renameSuggestingSessionId}
                                 renameValue={renameValue}
                                 renaming={session.id === renamingRowId}
                                 roving={session.id === rovingRowId}

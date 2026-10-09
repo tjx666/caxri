@@ -255,11 +255,13 @@ export function PrimarySidebarProjectTree() {
                         onBlurRename={sessionRename.blurRename}
                         onCancelRename={sessionRename.cancelRename}
                         onCommitRename={sessionRename.commitRename}
+                        onSuggestRename={sessionRename.suggestRename}
                         onRenameValueChange={sessionRename.onRenameValueChange}
                         onRevealMoreSessions={revealMorePinnedSessions}
                         onToggle={() => togglePinnedGroup()}
                         projects={pinnedGroup.projects}
                         renameError={sessionRename.renameError}
+                        renameSuggestingSessionId={sessionRename.renameSuggestingSessionId}
                         renameValue={sessionRename.renameValue}
                         renamingRowId={sessionRename.renamingRowId}
                         rovingRowId={rovingRowId}
