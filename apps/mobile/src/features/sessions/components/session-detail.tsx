@@ -3,8 +3,7 @@ import { KeyboardAvoidingView, Platform, Text } from 'react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
 import { AgentChatComposer } from '../../agent-chat/agent-chat-composer';
-import { agentChatProviderName, isAgentChatTerminal } from '../../agent-chat/agent-chat-model';
-import { useAgentChat } from '../../agent-chat/use-agent-chat';
+import { useSessionAgentChat } from '../../agent-chat/use-session-agent-chat';
 import { ChangesPanel } from '../../changes/changes-panel';
 import { COMMIT_DRAFT } from '../../changes/changes-view';
 import { useChangesList } from '../../changes/use-changes';
@@ -14,10 +13,11 @@ import { useSessionPanels } from '../../panels/use-panels';
 import type { MobileSessionItem } from '../session-model';
 import type { SessionSegment } from '../session-ui-state';
 import {
+    isChatSegmentShown,
     isPanelSessionSegment,
     panelIdOfSegment,
     panelSessionSegment,
-    SESSION_SEGMENTS,
+    sessionSegments,
 } from '../session-ui-state';
 import { SessionDetailBody } from './session-detail-body';
 import { SessionDetailComposer } from './session-detail-composer';
@@ -69,26 +69,17 @@ export const SessionDetail = ({
 }) => {
     const changes = useChangesList(isVisible, session.id);
     const panels = useSessionPanels(session.id);
-    const isChat = isAgentChatTerminal(session.primaryTerminal);
-    const chatProvider = agentChatProviderName(session.primaryTerminal);
     /**
      * A Chat stays observed while its tab or the wide layout's background shows it.
      */
-    const chat = useAgentChat({
-        enabled:
-            isChat &&
-            isVisible &&
-            (segment === 'conversation' || (wideChanges && !isPanelSessionSegment(segment))),
-        terminalId: isChat ? (session.primaryTerminal?.id ?? null) : null,
+    const chat = useSessionAgentChat({
+        isObserved: isVisible && isChatSegmentShown(segment, wideChanges),
+        terminal: session.primaryTerminal,
     });
+    const isChat = chat !== null;
     const segments = useMemo<SessionSegment[]>(
         () => [
-            ...SESSION_SEGMENTS.filter(
-                (option) =>
-                    (hasConversation || option !== 'conversation') &&
-                    // A Chat has no PTY to attach.
-                    !(isChat && option === 'terminal'),
-            ),
+            ...sessionSegments({ hasConversation, isChat }),
             ...(panels.panels ?? []).map((panel) => panelSessionSegment(panel.id)),
         ],
         [hasConversation, isChat, panels.panels],
@@ -149,7 +140,7 @@ export const SessionDetail = ({
                         />
                     ) : null
                 }
-                chat={isChat ? { controller: chat, provider: chatProvider } : null}
+                chat={chat}
                 conversationTimeline={conversationTimeline}
                 deviceRole={deviceRole}
                 isConnected={isConnected}
@@ -167,14 +158,14 @@ export const SessionDetail = ({
              * device keeps the composer on the Terminal because it is that device's only way to answer the Agent.
              */}
             {isPanelSessionSegment(segment) ||
-            (segment === 'terminal' && deviceRole === 'control') ? null : isChat ? (
+            (segment === 'terminal' && deviceRole === 'control') ? null : chat ? (
                 <AgentChatComposer
-                    chat={chat}
+                    chat={chat.controller}
                     deviceRole={deviceRole}
                     draft={draft}
                     isConnected={isConnected}
                     onDraftChange={onDraftChange}
-                    provider={chatProvider}
+                    provider={chat.provider}
                     theme={theme}
                 />
             ) : (

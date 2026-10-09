@@ -93,6 +93,24 @@ export const startAgentChatReader = ({
         return taken;
     };
 
+    /**
+     * Reads are serialized so held patches replay onto one base; a read requested meanwhile runs after this one.
+     */
+    const drainReads = async (): Promise<void> => {
+        isReadAgain = false;
+        takeHeld();
+        try {
+            const result = await read();
+            if (!isCurrent()) return;
+            const replay = takeHeld();
+            if (!snapshot || result.revision >= snapshot.revision) publish(result);
+            if (replay.isOverflow || !canApplyPatches(replay.patches)) isReadAgain = true;
+        } catch {
+            if (isCurrent()) onError();
+        }
+        if (isCurrent() && hasQueuedRead()) await drainReads();
+    };
+
     const readLatest = async (): Promise<void> => {
         if (!isActive) return;
         if (isReading) {
@@ -100,21 +118,11 @@ export const startAgentChatReader = ({
             return;
         }
         isReading = true;
-        do {
-            isReadAgain = false;
-            takeHeld();
-            try {
-                // eslint-disable-next-line no-await-in-loop -- Reads are serialized so held patches replay onto one base.
-                const result = await read();
-                if (!isCurrent()) break;
-                const replay = takeHeld();
-                if (!snapshot || result.revision >= snapshot.revision) publish(result);
-                if (replay.isOverflow || !canApplyPatches(replay.patches)) isReadAgain = true;
-            } catch {
-                if (isCurrent()) onError();
-            }
-        } while (isCurrent() && hasQueuedRead());
-        isReading = false;
+        try {
+            await drainReads();
+        } finally {
+            isReading = false;
+        }
     };
 
     const onPatch = (payload: unknown): void => {
