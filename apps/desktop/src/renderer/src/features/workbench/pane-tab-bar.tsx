@@ -35,7 +35,6 @@ import { documentTabPresentation } from '../editor/document-tab-presentation';
 import { EditorTabActions } from '../editor/editor-tab-actions';
 import { GitReviewTabBadge } from '../editor/git-review-tab-badge';
 import { previewSourcePath } from '../preview/preview-commands';
-import { moveTerminalToNewSession } from '../session/session-commands';
 import { WorkTab } from '../tabs/work-tab';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
 import { workTabId, workTabNavigationTarget } from '../tabs/work-tab-accessibility';
@@ -46,6 +45,7 @@ import {
     terminalProgressLabel,
     useTerminalProgress,
 } from '../terminal/terminal-progress';
+import { terminalTabMenuEntries } from '../terminal/terminal-tab-menu';
 import { selectPaneTab } from './pane-actions';
 import { EDITOR_PATH_DRAG_TYPE, PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
 import { paneTabMenu } from './pane-tab-menu';
@@ -159,15 +159,7 @@ function TerminalPaneTab({
                     paneId,
                     paneLayout,
                     tabId: tab.id,
-                    resourceEntries: [
-                        {
-                            label: 'Move to New Session',
-                            disabled: isOnlySessionTerminal,
-                            disabledReason: 'This is the only tab open in this session',
-                            onSelect: () =>
-                                moveTerminalToNewSession(terminal.id, isOnlySessionTerminal),
-                        },
-                    ],
+                    resourceEntries: terminalTabMenuEntries(terminal, isOnlySessionTerminal),
                 })
             }
         />

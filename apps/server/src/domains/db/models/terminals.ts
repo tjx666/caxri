@@ -184,6 +184,17 @@ export class TerminalsModel {
             .run();
     }
 
+    /**
+     * Only `terminal.switchSurface` changes a surface after creation; it stops the old process first (ADR 0012).
+     */
+    updateSurface(id: string, surface: TerminalSurface, now = Date.now()): void {
+        this.database
+            .update(terminals)
+            .set({ surface, updatedAt: now })
+            .where(and(eq(terminals.id, id), sql`${terminals.provider} IS NOT NULL`))
+            .run();
+    }
+
     updateAgentSessionId(id: string, agentSessionId: string | undefined, now = Date.now()): void {
         this.database
             .update(terminals)

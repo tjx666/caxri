@@ -64,6 +64,7 @@ import {
 } from './session-ordering';
 import { renameSessionWithPrimaryAgentTab } from './session-title';
 import { assertTerminalCapacity } from './terminal-capacity';
+import { terminalIdsBySession } from './terminal-ids-by-session';
 
 /**
  * Facade kept close to the pre-split `Database` API so every consumer (composition root, Terminal manager, File
@@ -665,6 +666,10 @@ export class CaxriDatabase {
         this.db.transaction(() => this.db.terminals.updateAgentProcessState(id, state));
     }
 
+    updateTerminalSurface(id: string, surface: TerminalSurface): void {
+        this.db.transaction(() => this.db.terminals.updateSurface(id, surface));
+    }
+
     updateAgentProcessExitState(id: string, state: 'dead' | 'stopped'): string | undefined {
         return this.db.transaction(() => {
             if (!this.db.terminals.get(id)) return;
@@ -738,14 +743,9 @@ export class CaxriDatabase {
     }
 
     listSessionStates(terminalRecords?: readonly TerminalRecord[]): SessionState[] {
-        if (!terminalRecords) return this.db.sessions.listStates();
-        const terminalIdsBySession = new Map<string, string[]>();
-        for (const terminal of terminalRecords) {
-            const terminalIds = terminalIdsBySession.get(terminal.sessionId);
-            if (terminalIds) terminalIds.push(terminal.id);
-            else terminalIdsBySession.set(terminal.sessionId, [terminal.id]);
-        }
-        return this.db.sessions.listStates(terminalIdsBySession);
+        return this.db.sessions.listStates(
+            terminalRecords && terminalIdsBySession(terminalRecords),
+        );
     }
 
     getSessionState(sessionId: string): SessionState {

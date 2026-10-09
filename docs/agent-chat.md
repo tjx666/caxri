@@ -39,7 +39,7 @@ CLI fixture; the service, reducer, and pane do not change.
 ## Surface and identity
 
 - `terminal.create` takes `surface: 'chat'`; the default is a PTY. The surface is stored in the
-  `terminals.surface` column and never changes after creation. `isChatTerminal` is the one
+  `terminals.surface` column; only a surface switch (below) changes it. `isChatTerminal` is the one
   predicate every surface-dependent path checks.
 - `session.create` takes the same optional `surface`, so a new Session can start with a Chat as its
   first Terminal. Server Core refuses a Chat for an Agent without `capabilities.chat` before writing
@@ -59,6 +59,29 @@ CLI fixture; the service, reducer, and pane do not change.
   sends, long pastes, mobile submits, suspension, restore) reject or skip a Chat through
   `apps/server/src/domains/pty-guard.ts` before any side effect. A phone drives a Chat through
   the `mobile.agentChat.*` methods instead; see [Mobile](#mobile).
+
+## Switching surface
+
+A bound Agent Terminal reopens on the other surface from its tab's context menu: "Open as Chat" on a
+PTY Agent, "Open as Terminal" on a Chat (`terminal.switchSurface`,
+`apps/server/src/domains/terminal-surface-switch.ts`). The Terminal row, tab, title, and Primary
+Agent election stay; only the process is replaced.
+
+- The current process stops first: the PTY through the same barrier a suspension uses (cause
+  `surfaceSwitched`), or the Chat provider through its orderly stop. Then `surface` flips and the
+  bound Agent Session resumes there: `thread/resume` or the Claude Code transcript for a Chat,
+  `codex resume <thread>` or `claude --resume <session>` for a PTY. A failed Chat resume is the
+  usual visible `resume_failed`; it never starts a new conversation.
+- An unbound Agent (no Agent Session yet, or a Claude Code session whose transcript was never
+  written) has nothing to carry over. The menu entry is disabled with "Send a message first", and
+  Server Core answers `CONFLICT` without touching the process.
+- A running turn is never ended silently. Server Core answers `turnRunning` instead of switching;
+  the Renderer asks "Stop the running turn?" and only Stop and Switch repeats the request with
+  `interruptTurn`. A Chat's turn is its projection's active turn; a PTY's is the Session's
+  `running` or `waiting` activity while it is the Primary Agent (a secondary PTY Agent has no
+  per-Terminal turn state, so it switches like a restart).
+- Each request logs `terminal.surface_switched` with a closed outcome (`switched`, `turnRunning`,
+  `unbound`, `failed`), both surfaces, the provider, and the duration.
 
 ## Process lifecycle
 
@@ -264,7 +287,8 @@ conversation.
 `agent_chat.process_started` (closed outcome and reason, resume mode, duration),
 `agent_chat.process_exited` (closed end reason with lifetime aggregates of turns, server
 requests, rejected requests, and dropped frames), `agent_chat.turn_finished` (status, duration),
-and `agent_chat.protocol_rejected` (closed reason, protocol method name). None of them carries
+`agent_chat.protocol_rejected` (closed reason, protocol method name), and
+`terminal.surface_switched` (closed outcome, both surfaces, duration). None of them carries
 message text, command output, provider stderr, or protocol bodies.
 
 ## Testing
@@ -287,7 +311,7 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 
 ## Not yet supported
 
-Switching an existing Terminal between surfaces, image input, and slash commands. Claude Code's
-`initialize` response already lists its slash commands, models, and agents for that follow-up. On
-mobile, a Chat shows no plan, model, or context usage yet, and older history beyond the window stays
-on the computer.
+Image input and slash commands. Claude Code's `initialize` response already lists its slash
+commands, models, and agents for that follow-up. On mobile, a Chat shows no plan, model, or context
+usage yet, older history beyond the window stays on the computer, and switching surface is
+Desktop-only.
