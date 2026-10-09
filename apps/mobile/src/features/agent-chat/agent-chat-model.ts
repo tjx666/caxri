@@ -253,7 +253,12 @@ export const agentChatRequestTitle = (request: AgentChatRequest): string => {
             return 'Apply these file changes?';
         }
         case 'tool': {
-            return `Allow ${request.name}?`;
+            /**
+             * Claude Code asks to leave plan mode through this tool; its summary is the plan.
+             */
+            return request.name === 'ExitPlanMode'
+                ? 'Start with this plan?'
+                : `Allow ${request.name}?`;
         }
         case 'question': {
             return request.questions.length === 1

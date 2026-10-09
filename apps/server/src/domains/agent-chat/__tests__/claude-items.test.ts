@@ -39,6 +39,12 @@ describe('Claude item mapping', () => {
             ),
         ).toMatchObject({ type: 'toolCall', name: 'WebFetch', summary: 'https://example.com' });
         expect(
+            mapClaudeToolUse(
+                { id: 't6', name: 'ExitPlanMode', input: { plan: '1. Read.\n2. Sum.' } },
+                'turn',
+            ),
+        ).toMatchObject({ type: 'toolCall', summary: '1. Read.\n2. Sum.' });
+        expect(
             mapClaudeToolUse({ id: 't4', name: 'TodoWrite', input: {} }, 'turn'),
         ).toBeUndefined();
         expect(

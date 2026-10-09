@@ -55,6 +55,7 @@ const TOOL_SUBJECT_FIELDS = [
     'description',
     'skill',
     'prompt',
+    'plan',
 ] as const;
 
 /**
