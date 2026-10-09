@@ -13,6 +13,8 @@
  *   table, and a fenced code block, streamed in small chunks.
  * - Anything else: reasoning, a plan, and a streamed reply quoting the message.
  *
+ * A message with images is answered with how many it received, and `thread/compact/start` runs a compaction turn.
+ *
  * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history. Each
  * thread open also appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert
  * the configuration Caxri asked for.
@@ -53,6 +55,11 @@ interface FakeTurn {
 interface FakeThread {
     id: string;
     turns: FakeTurn[];
+}
+interface FakeInput {
+    type: string;
+    text?: string;
+    url?: string;
 }
 interface ApprovalResponse {
     decision?: string;
@@ -142,17 +149,16 @@ async function streamMessage(turn: FakeTurn, text: string, chunkDelayMs: number)
     completeItem(turn, item);
 }
 
-async function runTurn(turn: FakeTurn, text: string) {
-    const user = {
-        type: 'userMessage',
-        id: crypto.randomUUID(),
-        clientId: null,
-        content: [{ type: 'text', text, text_elements: [] }],
-    };
+async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | null) {
+    const text = input.map((entry) => entry.text ?? '').join('\n');
+    const imageCount = input.filter((entry) => entry.type === 'image').length;
+    const user = { type: 'userMessage', id: crypto.randomUUID(), clientId, content: input };
     startItem(turn, user);
     completeItem(turn, user);
     if (text.includes('crash')) exitProcess(1);
-    if (text.includes('approve')) {
+    if (imageCount > 0) {
+        await streamMessage(turn, `Received ${imageCount} image${imageCount === 1 ? '' : 's'}.`, 0);
+    } else if (text.includes('approve')) {
         const command = {
             type: 'commandExecution',
             id: crypto.randomUUID(),
@@ -397,6 +403,23 @@ function threadResponse() {
     };
 }
 
+/**
+ * Starts a turn Caxri did not ask for with `turn/start`, as Codex does for compaction.
+ */
+function beginFakeTurn(): FakeTurn {
+    const turn: FakeTurn = {
+        id: crypto.randomUUID(),
+        items: [],
+        status: 'inProgress',
+        error: null,
+        startedAt: Date.now(),
+    };
+    currentThread().turns.push(turn);
+    state.activeTurn = turn;
+    notify('turn/started', { turn: { id: turn.id, items: [], status: 'inProgress' } });
+    return turn;
+}
+
 function handle(message: RpcMessage) {
     if (message.id !== undefined && message.method === undefined) {
         const resolve = pendingServerRequests.get(message.id);
@@ -434,9 +457,21 @@ function handle(message: RpcMessage) {
             send({ id, result: threadResponse() });
             return;
         }
+        case 'thread/compact/start': {
+            const turn = beginFakeTurn();
+            send({ id, result: {} });
+            const compaction = { type: 'contextCompaction', id: crypto.randomUUID() };
+            startItem(turn, compaction);
+            completeItem(turn, compaction);
+            finishTurn(turn);
+            return;
+        }
         case 'turn/start': {
-            const inputs = (parameters.input ?? []) as Array<{ text?: string }>;
-            const text = inputs.map((input) => input.text ?? '').join('\n');
+            const input = (parameters.input ?? []) as FakeInput[];
+            const clientId =
+                typeof parameters.clientUserMessageId === 'string'
+                    ? parameters.clientUserMessageId
+                    : null;
             const turn: FakeTurn = {
                 id: crypto.randomUUID(),
                 items: [],
@@ -449,7 +484,7 @@ function handle(message: RpcMessage) {
             send({ id, result: { turn: { id: turn.id, items: [], status: 'inProgress' } } });
             notify('turn/started', { turn: { id: turn.id, items: [], status: 'inProgress' } });
             // eslint-disable-next-line no-void -- the turn streams its own notifications after this response
-            void runTurn(turn, text);
+            void runTurn(turn, input, clientId);
             return;
         }
         case 'turn/steer': {

@@ -96,6 +96,10 @@ export interface AgentProviderCatalogEntry {
          * Whether Caxri can run this provider as an Agent Chat through its structured protocol (ADR 0012).
          */
         chat: boolean;
+        /**
+         * Whether an Agent Chat with this provider accepts images with a message.
+         */
+        chatImages: boolean;
         messaging: boolean;
         nativeRename: boolean;
     };
@@ -127,6 +131,7 @@ export const agentProviderCatalog = {
             actions: true,
             automaticSuspension: true,
             chat: true,
+            chatImages: true,
             messaging: true,
             nativeRename: true,
         },
@@ -141,6 +146,7 @@ export const agentProviderCatalog = {
             actions: true,
             automaticSuspension: true,
             chat: true,
+            chatImages: true,
             messaging: true,
             nativeRename: true,
         },
@@ -159,6 +165,7 @@ export const agentProviderCatalog = {
             actions: false,
             automaticSuspension: false,
             chat: false,
+            chatImages: false,
             messaging: false,
             nativeRename: false,
         },

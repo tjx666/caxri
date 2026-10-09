@@ -96,6 +96,26 @@ describe('Agent Chat model', () => {
         expect(timeline[5]).toMatchObject({ durationMs: 9000 });
     });
 
+    it('counts the images of a message, so an image-only message still shows', () => {
+        const timeline = agentChatTimelineItems({
+            ...base,
+            items: [
+                { id: 'u1', turnId: 't1', type: 'userMessage', text: '', images: [{}] },
+                {
+                    id: 'u2',
+                    turnId: 't1',
+                    type: 'userMessage',
+                    text: 'Compare these',
+                    images: [{}, {}],
+                },
+            ],
+        });
+        expect(timeline.filter((item) => item.type === 'userMessage')).toEqual([
+            { id: 'u1', type: 'userMessage', text: '[1 image]' },
+            { id: 'u2', type: 'userMessage', text: 'Compare these\n\n[2 images]' },
+        ]);
+    });
+
     it('reports what the Chat is doing and waits on a pending request', () => {
         expect(agentChatActivityLabel(undefined, 'Codex')?.text).toBe('Starting Codex…');
         expect(agentChatActivityLabel(base, 'Codex')).toBeUndefined();

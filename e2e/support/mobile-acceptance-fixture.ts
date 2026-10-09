@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import process from 'node:process';
 
 import type {
+    AgentChatMessageInput,
     AgentChatSnapshot,
     AppSettings,
     BootstrapState,
@@ -45,6 +46,10 @@ export interface MobileAcceptanceFixture {
      */
     agentChat?: {
         read(): Promise<AgentChatSnapshot>;
+        /**
+         * Sends a message from the desktop side, for input the phone cannot compose (images).
+         */
+        send(message: AgentChatMessageInput): Promise<void>;
         terminalId: string;
     };
     allowedProjectId: string;
@@ -431,6 +436,11 @@ export async function createMobileAcceptanceFixture(
                 read: () =>
                     pageRequest<AgentChatSnapshot>(running.page, 'agentChat.read', {
                         terminalId: chatTerminalId,
+                    }),
+                send: (message: AgentChatMessageInput) =>
+                    pageRequest<void>(running.page, 'agentChat.send', {
+                        terminalId: chatTerminalId,
+                        ...message,
                     }),
                 terminalId: chatTerminalId,
             },

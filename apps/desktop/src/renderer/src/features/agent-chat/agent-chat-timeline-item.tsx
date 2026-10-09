@@ -121,7 +121,7 @@ export function AgentChatTimelineItem({
 }) {
     switch (item.type) {
         case 'userMessage': {
-            return <AgentChatUserMessage text={item.text} />;
+            return <AgentChatUserMessage images={item.images} text={item.text} />;
         }
         case 'agentMessage': {
             return <AgentChatReply item={item} onOpenFile={onOpenFile} />;
