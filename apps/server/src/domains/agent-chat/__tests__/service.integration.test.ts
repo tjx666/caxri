@@ -292,6 +292,18 @@ describe('AgentChatService with a fake Codex app-server', () => {
         expect(() => service.read(pty.id)).toThrow(/does not use Chat/u);
     });
 
+    it('counts live provider processes per Session', async () => {
+        const { database, service, terminal, until } = await fixture();
+        await until((snapshot) => snapshot.status === 'ready');
+        const other = database.createSession(
+            database.getSession(terminal.sessionId)!.projectId,
+            null,
+        );
+        expect(service.liveCount(terminal.sessionId)).toBe(1);
+        expect(service.liveCount(other.session.id)).toBe(0);
+        await service.shutdown();
+    });
+
     it('stops every provider process on shutdown', async () => {
         const { service, until } = await fixture();
         await until((snapshot) => snapshot.status === 'ready');
