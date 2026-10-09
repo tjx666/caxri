@@ -235,7 +235,7 @@ runner and the harness, not real user data:
   workspace and job temp root sit under the runner account's real home; covering both keeps fixture
   and workspace paths in the `.jsonl` logs from naming the account.
 - Playwright's own outputs (`error-context.md`, `trace.zip`) carry absolute workspace and fixture
-  paths in stack frames, error text, and DOM snapshots. The `Redact E2E failure artifacts` CI step
+  paths in stack frames, error text, and DOM snapshots. The `Redact E2E artifacts before upload` CI step
   runs `scripts/redact-e2e-artifacts.ts` over every pool output directory before upload, rewriting
   each home prefix to `$HOME` in text files and in the text entries of `trace.zip`.
 - Screenshots and `trace.zip` render Caxri's UI against synthetic fixtures (fake projects, fake file

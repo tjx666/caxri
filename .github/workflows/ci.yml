@@ -466,7 +466,7 @@ jobs:
           test-results/receipts/renderer-performance.json --baseline scripts/performance-baseline.json
       # Playwright's own outputs (`error-context.md`, `trace.zip`) carry absolute workspace and fixture paths, and both
       # sit under the runner account's home; scrub them before any failure-artifact upload below (issue #1461).
-      - name: Redact E2E failure artifacts
+      - name: Redact E2E artifacts before upload
         if: always()
         run: >-
           bun run scripts/redact-e2e-artifacts.ts
