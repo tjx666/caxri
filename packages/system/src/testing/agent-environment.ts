@@ -101,6 +101,25 @@ function shellQuote(value: string): string {
 }
 
 /**
+ * Fixed prompt for every isolated E2E and Acceptance shell. Without it, the system startup files (`/etc/zshrc`,
+ * `/etc/bashrc`) render `%n@%m` / `\h \u`, so a screenshot or trace of a Terminal-focused failure names the runner's
+ * account and host (issue #1461).
+ */
+export const E2E_SHELL_PROMPT = 'caxri-e2e$ ';
+
+const BASH_FAMILY_PROMPT = `PS1=${shellQuote(E2E_SHELL_PROMPT)}\n`;
+
+/**
+ * Zsh reads `.zlogin` last for the login shells Caxri launches, after `/etc/zshrc` and any `.zshrc` a spec seeds, so
+ * the fixed prompt wins without overwriting spec-owned startup files. `RPROMPT` would otherwise be free to show host
+ * state.
+ */
+const ZSH_PROMPT = `PROMPT=${shellQuote(E2E_SHELL_PROMPT)}
+PS1="$PROMPT"
+unset RPROMPT RPS1
+`;
+
+/**
  * Builds the complete fail-closed Agent environment shared by Electron E2E and Acceptance. Fake authority is explicit,
  * uses absolute executables, and keeps every provider state directory beneath the caller-owned fixture root.
  */
@@ -143,10 +162,18 @@ export async function createE2EAgentEnvironment(options: {
     const isolatedHome = isolatedEnvironment.HOME;
     if (!isolatedHome || !isAbsolute(isolatedHome))
         throw new Error('Isolated E2E Agent HOME must be an absolute path');
+    const bashFamilyProfile = `${profile}${BASH_FAMILY_PROMPT}`;
     await Promise.all([
         writeFile(join(isolatedHome, '.zprofile'), profile, { encoding: 'utf8', mode: 0o600 }),
-        writeFile(join(isolatedHome, '.bash_profile'), profile, { encoding: 'utf8', mode: 0o600 }),
-        writeFile(join(isolatedHome, '.profile'), profile, { encoding: 'utf8', mode: 0o600 }),
+        writeFile(join(isolatedHome, '.zlogin'), ZSH_PROMPT, { encoding: 'utf8', mode: 0o600 }),
+        writeFile(join(isolatedHome, '.bash_profile'), bashFamilyProfile, {
+            encoding: 'utf8',
+            mode: 0o600,
+        }),
+        writeFile(join(isolatedHome, '.profile'), bashFamilyProfile, {
+            encoding: 'utf8',
+            mode: 0o600,
+        }),
     ]);
 
     const policy: E2EAgentPolicy =
@@ -156,6 +183,11 @@ export async function createE2EAgentEnvironment(options: {
     return {
         ...isolatedEnvironment,
         PATH: shellPath,
+        /**
+         * Caxri's zsh integration sources user startup files from `ZDOTDIR ?? HOME`; an inherited `ZDOTDIR` would
+         * bypass the isolated HOME and load the host's real dotfiles.
+         */
+        ZDOTDIR: isolatedHome,
         ...e2eAgentPolicyEnvironment(policy),
     };
 }

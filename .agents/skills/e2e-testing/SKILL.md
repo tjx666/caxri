@@ -230,21 +230,23 @@ runner and the harness, not real user data:
   with `$HOME` and redacts secret-shaped text before anything reaches disk. Re-verify that path, not
   the narrower receipt parser, after a logger change. The pool receipt is narrower still, and
   `assertE2EPoolReceipt` rejects an absolute path in it.
-- Fixture paths are not covered by that home redaction on the self-hosted runner: the job's temp root
-  sits under the runner account's home but outside the E2E process `HOME`, so a fixture path in a log,
-  `error-context.md`, or `trace.zip` still names the runner account. Every CI job log already prints
-  the same root in its step environment, so the artifact adds no new identity; neutralizing it is
-  tracked with the Terminal item below in issue #1461.
+- `redactLogValue()` replaces both the process `HOME` and the OS account home (`userInfo().homedir`)
+  with `$HOME`. E2E runs Caxri under an isolated fixture `HOME`, while the self-hosted runner's
+  workspace and job temp root sit under the runner account's real home; covering both keeps fixture
+  and workspace paths in the `.jsonl` logs from naming the account.
+- Playwright's own outputs (`error-context.md`, `trace.zip`) carry absolute workspace and fixture
+  paths in stack frames, error text, and DOM snapshots. The `Redact E2E failure artifacts` CI step
+  runs `scripts/redact-e2e-artifacts.ts` over every pool output directory before upload, rewriting
+  each home prefix to `$HOME` in text files and in the text entries of `trace.zip`.
 - Screenshots and `trace.zip` render Caxri's UI against synthetic fixtures (fake projects, fake file
   content), so the Editor/File Explorer/diff surfaces they capture are not real user data.
-- The Terminal pane is the other residual risk: it hosts a real PTY shell with the runner's real
-  environment (`launchCaxriApp` spreads `process.env` into the launched app), so a screenshot or
-  trace of a Terminal-focused failure can show the runner's real shell prompt (hostname/account
-  name). This is inherent to testing Caxri's PTY integration against a real shell rather than a
-  newly introduced leak, and sanitizing every E2E PTY environment (e.g. forcing a scripted prompt) is
-  a separate, larger hardening item, accepted here as a known residual, not a blocker for uploading
-  the evidence this issue's acceptance criteria call for. Issue #1461 tracks it; do not fold it into
-  an unrelated change.
+- The Terminal pane hosts a real PTY shell, but `createE2EAgentEnvironment` (used by `launchCaxriApp`
+  for blocked and fake Agent modes) points both `HOME` and `ZDOTDIR` at the isolated fixture home and
+  seeds a fixed `caxri-e2e$` prompt (`.zlogin` for zsh, `.bash_profile`/`.profile` for bash and
+  sh), so no runner dotfile, account name, or hostname reaches the prompt.
+  `e2e/terminal-prompt-isolation.e2e.ts` guards this. Only `agentMode: { mode: 'real' }` keeps the
+  host `HOME` and shell startup; that manual smoke never runs in CI. A spec that seeds its own
+  `.zshrc` under the isolated home still gets the fixed prompt, because `.zlogin` runs last.
 
 ### Diagnosing an error-gate notification
 
