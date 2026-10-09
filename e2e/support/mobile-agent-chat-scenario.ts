@@ -100,8 +100,8 @@ export async function executeMobileAgentChatScenario(
         await waitForNoCheck(serial, 'agent-chat-request');
 
         await sendFromPhone(serial, 'ask');
-        await waitForCheck(serial, 'agent-chat-option-color-Blue');
-        await tapMobileCheckByBounds(serial, 'agent-chat-option-color-Blue');
+        await waitForCheck(serial, 'agent-chat-question-0-option-1');
+        await tapMobileCheckByBounds(serial, 'agent-chat-question-0-option-1');
         await capture(environment, 'question', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-question-submit');
         await waitForMobile(

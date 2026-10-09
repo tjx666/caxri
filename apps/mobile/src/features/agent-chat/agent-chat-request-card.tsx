@@ -109,6 +109,10 @@ const ApprovalBody = ({
     );
 };
 
+/**
+ * Test IDs use positions, not provider question IDs or option labels: Android resource IDs only admit lowercase
+ * identifiers, and a label is free text.
+ */
 const QuestionBody = ({
     other,
     request,
@@ -125,13 +129,13 @@ const QuestionBody = ({
     theme: MobileTheme;
 }) => (
     <>
-        {request.questions.map((question) => (
+        {request.questions.map((question, questionIndex) => (
             <View key={question.id} style={styles.question}>
                 {question.header ? (
                     <Text style={[styles.header, { color: theme.muted }]}>{question.header}</Text>
                 ) : null}
                 <Text style={{ color: theme.text }}>{question.question}</Text>
-                {question.options.map((option) => {
+                {question.options.map((option, optionIndex) => {
                     const isSelected =
                         selected[question.id] === option.label && !other[question.id]?.trim();
                     return (
@@ -148,7 +152,7 @@ const QuestionBody = ({
                                     borderColor: isSelected ? theme.primary : theme.border,
                                 },
                             ]}
-                            testID={`agent-chat-option-${question.id}-${option.label}`}
+                            testID={`agent-chat-question-${questionIndex}-option-${optionIndex}`}
                         >
                             <Text style={{ color: theme.text, fontWeight: '600' }}>
                                 {option.label}
@@ -175,7 +179,7 @@ const QuestionBody = ({
                                 color: theme.text,
                             },
                         ]}
-                        testID={`agent-chat-other-${question.id}`}
+                        testID={`agent-chat-question-${questionIndex}-other`}
                         value={other[question.id] ?? ''}
                     />
                 ) : null}
@@ -283,7 +287,7 @@ export const AgentChatRequestCard = ({
                                 // eslint-disable-next-line no-void -- The card reports a failed answer itself.
                                 void respond({ kind: 'decision', decision: choice.decision });
                             }}
-                            testID={`agent-chat-approval-${choice.decision}`}
+                            testID={`agent-chat-approval-${choice.decision.toLowerCase()}`}
                             theme={theme}
                             tone={
                                 choice.decision === 'accept'
