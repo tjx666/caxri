@@ -317,7 +317,7 @@ accessible names and hover tooltips. A multi-fact status-bar tooltip uses the sh
 layout rather than a newline-joined string: an optional muted kind line, a semibold title, muted
 label/value rows (paths and addresses in monospace), foreground state lines, muted notes, and a final
 muted `Click to …` hint naming what the chip does. Source Control's repository and group rows use the
-same layout, with their modifier gestures as the hint lines. A single-phrase tooltip stays plain text. The notification bell is pinned to the far bottom-right corner,
+same layout, with their modifier gestures as the hint lines. A single-phrase tooltip stays plain text. A status-bar card that lists its own links (the Linear chip's other referenced issues) keeps the same compact look on the PreviewCard surface (`StatusTooltip`), so the pointer can enter it; a link-free card stays a Tooltip. The notification bell is pinned to the far bottom-right corner,
 outside the right-hand chip rail, VS Code style: every chip beside it follows the active tab and
 comes and goes as the user moves around, so an anchor placed among them would slide sideways, and
 the rail's last child is the first thing an overflow hides.

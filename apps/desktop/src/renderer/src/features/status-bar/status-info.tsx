@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
-import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
+import { StatusTooltip } from './status-tooltip';
 
 /**
  * Sized in CSS for the reason given on `statusItemClassName`; a read-only reading sits at the `dense` type tier, one
@@ -23,6 +23,7 @@ export function StatusInfo({
     className,
     focusable = false,
     icon,
+    interactiveTitle,
     title,
 }: {
     announce?: boolean;
@@ -31,10 +32,14 @@ export function StatusInfo({
     className?: string;
     focusable?: boolean;
     icon?: ReactNode;
+    /**
+     * Same contract as `StatusItem`'s `interactiveTitle`.
+     */
+    interactiveTitle?: boolean;
     title: ReactNode;
 }) {
     return (
-        <Tooltip content={title}>
+        <StatusTooltip content={title} interactive={interactiveTitle}>
             <span
                 aria-label={ariaLabel}
                 aria-live={announce ? 'polite' : undefined}
@@ -50,6 +55,6 @@ export function StatusInfo({
                 {icon}
                 <span>{children}</span>
             </span>
-        </Tooltip>
+        </StatusTooltip>
     );
 }

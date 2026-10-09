@@ -1,7 +1,11 @@
 import type { ProjectStatusOverviewLinearIssue } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { linearIssueAriaLabel, linearIssueTooltip } from '../linear-issue-label';
+import {
+    hasOpenableLinearIssue,
+    linearIssueAriaLabel,
+    linearIssueTooltip,
+} from '../linear-issue-label';
 
 const resolved: ProjectStatusOverviewLinearIssue = {
     identifier: 'ABC-42',
@@ -32,13 +36,40 @@ describe('status bar Linear issue labels', () => {
     });
 
     it('stacks the hover card as title, state, source, then the issues it left out', () => {
-        expect(linearIssueTooltip(resolved, [{ identifier: 'XYZ-7', source: 'branch' }])).toEqual({
+        const extra: ProjectStatusOverviewLinearIssue[] = [
+            { identifier: 'XYZ-7', source: 'branch', url: 'https://linear.app/acme/issue/XYZ-7' },
+            { identifier: 'XYZ-8', source: 'conversation' },
+        ];
+        expect(linearIssueTooltip(resolved, extra)).toEqual({
             eyebrow: 'ABC-42',
             title: 'Router monitoring',
             details: ['In Progress'],
-            notes: ['From the pull request description', 'Also referenced: XYZ-7'],
-            hint: 'Click to open in Linear',
+            notes: ['From the pull request description'],
+            links: {
+                label: 'Also referenced',
+                items: [
+                    { label: 'XYZ-7', href: 'https://linear.app/acme/issue/XYZ-7' },
+                    { label: 'XYZ-8', href: undefined },
+                ],
+            },
+            hint: 'Click to open ABC-42 in Linear',
         });
+    });
+
+    it('needs an enterable hover card only when another issue can be opened', () => {
+        expect(hasOpenableLinearIssue([])).toBe(false);
+        expect(hasOpenableLinearIssue([{ identifier: 'XYZ-8', source: 'conversation' }])).toBe(
+            false,
+        );
+        expect(
+            hasOpenableLinearIssue([
+                {
+                    identifier: 'XYZ-7',
+                    source: 'branch',
+                    url: 'https://linear.app/acme/issue/XYZ-7',
+                },
+            ]),
+        ).toBe(true);
     });
 
     it('drops the lines an unresolved issue has nothing to put in', () => {
@@ -47,6 +78,7 @@ describe('status bar Linear issue labels', () => {
             title: 'ABC-42',
             details: [],
             notes: ['From the branch name'],
+            links: undefined,
             hint: undefined,
         });
     });
