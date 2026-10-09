@@ -2,17 +2,18 @@ import { useState } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 
+import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useSessionPullRequest } from './hooks/use-session-pull-request';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
 import { SessionActivityCard } from './session-activity-card';
-import { SessionAgentStatusIcon } from './session-agent-status-icon';
 import { SessionPullRequestIndicator } from './session-pull-request-indicator';
 import { SessionRenameInput } from './session-rename-input';
 import { SessionRowActions } from './session-row-actions';
 import { SessionRowMenu } from './session-row-menu';
 import { SessionRowTrigger } from './session-row-trigger';
+import { SessionStatusIndicator } from './session-status-indicator';
 
 interface ActiveSessionRowProperties {
     sessionOrder: SessionOrderController;
@@ -140,8 +141,8 @@ export function ActiveSessionRow({
             onBeginRename={beginRename}
             onFocusChange={setFocused}
         >
-            {/* The Agent's lifecycle rides on its own icon; the trailing track keeps only delivery state. */}
-            <SessionAgentStatusIcon session={session} terminal={terminal} />
+            {/* A plain brand-color mark: its color is what tells Agents apart; lifecycle lives at the right edge. */}
+            <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={14} />
             {renaming ? (
                 <SessionRenameInput
                     sessionId={session.id}
@@ -190,19 +191,26 @@ export function ActiveSessionRow({
                 </span>
             )}
             {/*
-             * Delivery state only: the pull request and its production deployment. Agent lifecycle lives on the
-             * leading icon, so a running or unread Session no longer hides its pull request. The wrapper follows the
-             * glyph's width, so a Session with no PR gives the empty 14px track back to its title while every visible
-             * glyph lands on the same right edge. Pointer hover collapses the track entirely: Pin/Archive need ~42px,
-             * and a 14px ghost track would still let the title paint through those glyphs.
+             * Lifecycle signals take priority over the PR. The wrapper follows the rendered glyph's width, so an idle
+             * Session with no PR gives the otherwise invisible 14px slot back to its title; every visible glyph still
+             * lands on the same right edge. The PR remains available from the hover card and menu while temporarily
+             * hidden. Pointer hover collapses the slot entirely: Pin/Archive need ~42px, and leaving a 14px ghost
+             * track would still let the title paint through those glyphs.
              */}
             <span className="session-indicators flex flex-none items-center justify-end group-hover/session-row:w-0 group-hover/session-row:min-w-0 group-hover/session-row:overflow-hidden">
-                {!renaming && (
-                    <SessionPullRequestIndicator
-                        className="transition-opacity group-hover/session-row:opacity-0"
-                        pullRequest={pullRequestUnavailable ? undefined : pullRequest}
-                    />
-                )}
+                <SessionStatusIndicator
+                    className="transition-opacity group-hover/session-row:opacity-0"
+                    fallback={
+                        !renaming && (
+                            <SessionPullRequestIndicator
+                                className="transition-opacity group-hover/session-row:opacity-0"
+                                pullRequest={pullRequestUnavailable ? undefined : pullRequest}
+                            />
+                        )
+                    }
+                    session={session}
+                    terminal={terminal}
+                />
             </span>
         </SessionRowTrigger>
     );
