@@ -766,13 +766,13 @@ export class SessionPullRequestService {
     }
 
     /**
-     * Re-resolves one Session past every cache this service and the shared pull-request record hold, then publishes the
-     * result through `sessionPullRequests.changed` like any sweep. Other Sessions ride along on their normal TTLs. A
-     * sweep already in flight may have resolved this Session before the request arrived, so the request also asks that
-     * sweep to run once more.
+     * Re-resolves the given Sessions past every cache this service and the shared pull-request record hold, then
+     * publishes the result through `sessionPullRequests.changed` like any sweep. Other Sessions ride along on their
+     * normal TTLs. A sweep already in flight may have resolved them before the request arrived, so the request also
+     * asks that sweep to run once more.
      */
-    async refreshSession(sessionId: string): Promise<void> {
-        this.forcedSessionIds.add(sessionId);
+    async refreshSession(...sessionIds: string[]): Promise<void> {
+        for (const sessionId of sessionIds) this.forcedSessionIds.add(sessionId);
         this.isRefreshRequested = true;
         await this.refresh();
     }
