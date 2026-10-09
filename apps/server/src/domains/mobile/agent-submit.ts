@@ -7,6 +7,7 @@ import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { CaxriDatabase } from '../db';
 import type { MobileTerminalMutationQueue } from '../mobile-terminal-mutation-queue';
 import type { TerminalManager } from '../terminal';
+import { assertPtyTerminal } from '../terminal';
 import type { MobileImageStore } from './image-store';
 
 type Parameters = ServerOperationParameters<'mobile.agent.submitInternal'>;
@@ -59,6 +60,7 @@ export function createMobileAgentSubmitHandler(options: {
         const terminal = options.database.getTerminal(terminalId);
         if (!terminal || terminal.sessionId !== sessionId)
             throw new CaxriError('NOT_FOUND', 'Terminal not found');
+        assertPtyTerminal(terminal);
         if (
             terminal.kind === 'shell' ||
             session.primaryAgentTerminalId !== terminalId ||

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import type { TerminalKind } from '@caxri/protocol';
+import type { TerminalKind, TerminalSurface } from '@caxri/protocol';
 import { Plus } from 'lucide-react';
 
 import { CommandTooltip } from '../../components/command-tooltip';
@@ -53,9 +53,12 @@ export function NewTerminalButton({
     const defaultAgent = resolveNewTerminalAgent(useSettings()?.['session.defaultAgent']);
     const isIcon = appearance === 'icon';
     const [iconMenuOpen, setIconMenuOpen] = useState(false);
-    const create = (kind: TerminalKind): void => {
+    const create = (kind: TerminalKind, surface: TerminalSurface = 'pty'): void => {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
-        void createTerminal(kind, paneId ? { paneId } : {});
+        void createTerminal(kind, {
+            ...(paneId && { paneId }),
+            ...(surface === 'chat' && { surface }),
+        });
     };
     /**
      * Unlabelled on purpose: Base UI points the popup's `aria-labelledby` at whichever trigger opened it (`MenuRoot`),
@@ -64,10 +67,13 @@ export function NewTerminalButton({
      */
     const menu = (
         <MenuContent align="end">
-            {newTerminalAgentChoices(defaultAgent).map(({ isDefault, kind }) => (
-                <MenuItem key={kind} onClick={() => create(kind)}>
+            {newTerminalAgentChoices(defaultAgent).map(({ isDefault, kind, surface }) => (
+                <MenuItem key={`${kind}:${surface}`} onClick={() => create(kind, surface)}>
                     <AgentIdentityIcon identity={kind} size={14} />
-                    <span className="flex-1 truncate">{resolveAgentIcon(kind).label}</span>
+                    <span className="flex-1 truncate">
+                        {resolveAgentIcon(kind).label}
+                        {surface === 'chat' && ' (Chat)'}
+                    </span>
                     {/* A text twin rather than a color or a check glyph: the marker has to survive a screen reader. */}
                     {isDefault && <span className="text-muted">Default</span>}
                 </MenuItem>

@@ -51,6 +51,12 @@ _Avoid_: Dirty flag, tab content, Client buffer
 One Shell or Agent CLI process surface inside a Session.
 _Avoid_: Session, pane
 
+**Chat**:
+An Agent Terminal created with the chat surface: the same Agent CLI driven through its vendor's
+structured protocol and shown as a conversation instead of a terminal grid. Its surface is fixed
+at creation.
+_Avoid_: Conversation, chat mode, Agent panel
+
 ## Agents and attention
 
 **Agent Session**:

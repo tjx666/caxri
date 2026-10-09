@@ -1,4 +1,4 @@
-import type { PaneSplitSide, TerminalKind } from '@caxri/protocol';
+import type { PaneSplitSide, TerminalKind, TerminalSurface } from '@caxri/protocol';
 
 /**
  * The argument each follow-up needs to run again later, and, through its keys, the closed set of follow-ups a
@@ -34,6 +34,7 @@ export interface ToastActionParameters {
         cwd?: string;
         paneId?: string;
         split?: PaneSplitSide;
+        surface?: TerminalSurface;
     };
     'terminal.refresh': undefined;
     /**

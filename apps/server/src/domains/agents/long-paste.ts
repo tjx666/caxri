@@ -13,6 +13,7 @@ import { CaxriError, MAX_LONG_PASTE_BYTES } from '@caxri/protocol';
 import { AsyncSemaphore } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
+import { assertPtyTerminal } from '../terminal/pty-guard';
 
 const LONG_PASTE_DIRECTORY_NAME = 'pastes';
 const LONG_PASTE_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
@@ -136,6 +137,7 @@ export class LongPasteService {
         if (this.isClosed) throw new CaxriError('CONFLICT', 'Long paste service is closed');
         const terminal = this.database.getTerminal(parameters.terminalId);
         if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');
+        assertPtyTerminal(terminal);
         if (
             terminal.kind === 'shell' ||
             terminal.lastProcessState !== 'running' ||

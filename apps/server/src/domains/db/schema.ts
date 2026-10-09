@@ -278,6 +278,14 @@ export const terminals = sqliteTable(
         failureDetail: text('failure_detail'),
         createdAt: integer('created_at').notNull(),
         updatedAt: integer('updated_at').notNull(),
+        /**
+         * Fixed at creation: `pty` for a real pseudo-terminal, `chat` for an Agent Chat driven through the provider's
+         * structured protocol (ADR 0012). Chat rows never own a PTY, snapshot, or Shell process. Deliberately left
+         * without a `CHECK`: adding one forces drizzle-kit to rebuild `terminals`, and a rebuild would cascade-delete
+         * Terminal snapshots and null Primary Agent references. `mapTerminal` treats any value other than `chat` as a
+         * PTY.
+         */
+        surface: text('surface').notNull().default('pty'),
     },
     (table) => [
         /**

@@ -1,6 +1,8 @@
 import type { AppSettings, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 
+import { isPtyTerminal } from './pty-guard';
+
 export type TerminalSuspensionReason = 'idle' | 'untouched';
 
 export interface TerminalSuspensionDecision {
@@ -68,6 +70,8 @@ function decideTerminal(
     input: TerminalSuspensionPolicyInput,
 ): TerminalSuspensionReason | undefined {
     if (!terminal.provider || terminal.lastProcessState !== 'running') return undefined;
+    // A Chat has no PTY to park; its idle provider process is stopped by the Chat service instead.
+    if (!isPtyTerminal(terminal)) return undefined;
     if (!agentProviderCatalog[terminal.provider].capabilities.automaticSuspension) return undefined;
     if (!LIVE_AGENT_STATES.has(terminal.lastAgentProcessState)) return undefined;
     if (terminal.sessionId === input.selectedSessionId) return undefined;

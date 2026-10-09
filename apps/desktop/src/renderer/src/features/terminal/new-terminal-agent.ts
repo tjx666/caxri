@@ -1,5 +1,5 @@
-import type { AppSettings, TerminalKind, TerminalRecord } from '@caxri/protocol';
-import { terminalKindSchema } from '@caxri/protocol';
+import type { AppSettings, TerminalKind, TerminalRecord, TerminalSurface } from '@caxri/protocol';
+import { agentProviderCatalog, terminalKindSchema } from '@caxri/protocol';
 
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 
@@ -31,6 +31,14 @@ export interface NewTerminalAgentChoice {
      */
     isDefault: boolean;
     kind: TerminalKind;
+    /**
+     * `chat` offers the same Agent as a structured Agent Chat (ADR 0012). The surface is fixed at creation.
+     */
+    surface: TerminalSurface;
+}
+
+function isChatCapable(kind: TerminalKind): boolean {
+    return kind !== 'shell' && agentProviderCatalog[kind].capabilities.chat;
 }
 
 /**
@@ -90,12 +98,22 @@ export function newTerminalCommandKind(defaultAgent: ConfiguredDefaultAgent): Te
 }
 
 /**
- * Every kind the split button's dropdown offers, in catalog order, with the configured default marked. Nothing here
- * depends on what was picked last, so the list a user learns once stays where they learned it.
+ * Every kind the split button's dropdown offers, in catalog order, with the configured default marked. An Agent that
+ * supports Agent Chat is followed directly by its Chat entry, so both ways to run it sit together. Nothing here depends
+ * on what was picked last, so the list a user learns once stays where they learned it.
  */
 export function newTerminalAgentChoices(
     defaultAgent: ConfiguredDefaultAgent,
 ): NewTerminalAgentChoice[] {
     const configured = resolveNewTerminalAgent(defaultAgent);
-    return NEW_TERMINAL_KIND_CATALOG.map((kind) => ({ isDefault: kind === configured, kind }));
+    return NEW_TERMINAL_KIND_CATALOG.flatMap((kind): NewTerminalAgentChoice[] => {
+        const terminal: NewTerminalAgentChoice = {
+            isDefault: kind === configured,
+            kind,
+            surface: 'pty',
+        };
+        return isChatCapable(kind)
+            ? [terminal, { isDefault: false, kind, surface: 'chat' }]
+            : [terminal];
+    });
 }

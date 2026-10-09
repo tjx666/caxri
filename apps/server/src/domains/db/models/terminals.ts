@@ -6,6 +6,7 @@ import type {
     TerminalFailureReason,
     TerminalKind,
     TerminalRecord,
+    TerminalSurface,
 } from '@caxri/protocol';
 import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 
@@ -34,6 +35,7 @@ interface TerminalRow {
     failureDetail: string | null;
     createdAt: number;
     updatedAt: number;
+    surface: string;
 }
 
 function mapTerminal(row: TerminalRow): TerminalRecord {
@@ -41,6 +43,7 @@ function mapTerminal(row: TerminalRow): TerminalRecord {
         id: row.id,
         sessionId: row.sessionId,
         kind: row.kind as TerminalKind,
+        ...(row.surface === 'chat' && { surface: 'chat' as const }),
         provider: (row.provider as AgentProvider | null) ?? undefined,
         cwd: row.cwd,
         agentCwd: row.agentCwd ?? undefined,
@@ -63,6 +66,7 @@ export interface NewTerminalInput {
     kind: TerminalKind;
     cwd: string;
     title: string;
+    surface?: TerminalSurface;
 }
 
 /**
@@ -139,6 +143,7 @@ export class TerminalsModel {
                 id,
                 sessionId: input.sessionId,
                 kind: input.kind,
+                surface: input.surface ?? 'pty',
                 provider: input.kind === 'shell' ? null : input.kind,
                 cwd: input.cwd,
                 title: input.title,

@@ -11,6 +11,7 @@ function makeOptions(overrides: Partial<Parameters<typeof createGitReviewSendHan
     return {
         database: {
             getSession: vi.fn(() => ({ projectId: 'project-1' })),
+            getTerminal: vi.fn(() => ({ surface: 'pty' })),
             getProject: vi.fn(() => ({ rootPath: '/project' })),
         } as never,
         git: {

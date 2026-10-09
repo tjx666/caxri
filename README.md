@@ -10,8 +10,10 @@ one Electron app.
 - **Projects and Sessions.** A Project is a user-authorized folder. Sessions are durable
   units of work beneath it, each owning its Terminals, layout, and workbench state. The shared
   vocabulary lives in [GLOSSARY.md](GLOSSARY.md).
-- **Real PTYs, no wrappers.** Shell and Agent CLIs (Claude Code, Codex, …) run in genuine
-  pseudo-terminals. Caxri observes them; it never proxies or rewrites their I/O.
+- **Unmodified CLIs, no wrappers.** Shell and Agent CLIs (Claude Code, Codex, …) run in genuine
+  pseudo-terminals, and Caxri never proxies or rewrites their I/O. An Agent Terminal can instead
+  be created as a Chat, which drives the same installed CLI through its vendor's own structured
+  protocol and renders a readable conversation; see [docs/agent-chat.md](docs/agent-chat.md).
 - **Attention you can trust.** Each Session's Primary Agent reports waiting / completed / failed
   states, so a wall of parallel agent sessions never stalls silently.
 - **A focused workbench.** A narrow editor, file tree, search, and an inspection-first Source
@@ -106,6 +108,6 @@ architecture contracts live in the owning `.agents/skills/` entries. Bundle budg
 ## Product boundaries
 
 Caxri treats a user-selected folder as a Project and groups durable Sessions beneath it. It is
-not an agent wrapper, a VS Code fork, or an orchestration platform. Agent CLIs always run in a
-real PTY. Source Control is an inspection surface: the only Git mutation is switching to an
+not an agent wrapper, a VS Code fork, or an orchestration platform. Agent CLIs run unmodified, in
+a real PTY or through their vendor's structured protocol (a Chat). Source Control is an inspection surface: the only Git mutation is switching to an
 existing local branch. The editor intentionally stays narrow.
