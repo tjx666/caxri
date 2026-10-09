@@ -1,7 +1,6 @@
 import type { SessionRecord } from '@caxri/protocol';
 import { Unplug } from 'lucide-react';
 
-import type { AgentIconTone } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import type { SessionStatusTerminal } from './session-status';
@@ -23,7 +22,6 @@ export function SessionAgentStatusIcon({
     session,
     size = 14,
     terminal,
-    tone = 'state',
 }: {
     session: SessionRecord;
     /**
@@ -31,11 +29,6 @@ export function SessionAgentStatusIcon({
      */
     size?: number;
     terminal?: SessionStatusTerminal & { kind?: string };
-    /**
-     * Defaults to `'state'` for PrimarySidebar Session rows, the one surface that tints Agent icons by row state. Other
-     * surfaces reusing this status decoration pass `'brand'`.
-     */
-    tone?: AgentIconTone;
 }) {
     const status = sessionStatus(session, terminal);
     const isDecorated = status.kind === 'running' || status.kind === 'attention';
@@ -43,7 +36,6 @@ export function SessionAgentStatusIcon({
         <AgentIdentityIcon
             identity={terminal?.kind ?? 'shell'}
             size={isDecorated ? size - 3 : size}
-            tone={tone}
         />
     );
     if (status.kind === 'default')

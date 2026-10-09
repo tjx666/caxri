@@ -25,7 +25,6 @@ export * from './project-status.js';
 export * from './session.js';
 export * from './session-compaction.js';
 export * from './session-content-search.js';
-export * from './session-diff-stat.js';
 export * from './session-pull-request.js';
 export * from './settings-tab.js';
 export * from './settings-target.js';

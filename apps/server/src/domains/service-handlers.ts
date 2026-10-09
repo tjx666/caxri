@@ -99,7 +99,6 @@ type ServiceHandlerMethods =
     | 'projectStatus.summary'
     | 'projectStatus.overview'
     | 'session.pullRequests'
-    | 'session.diffStats'
     | 'commander.ensure'
     | 'commander.snapshot'
     | 'commander.board'
@@ -451,12 +450,6 @@ export function createServiceHandlers(services: {
             projectStatus.summary(sessionId, refreshToken),
         'projectStatus.overview': ({ sessionId }) => projectStatus.overview(sessionId),
         'session.pullRequests': () => sessionPullRequests.snapshot(),
-        'session.diffStats': () =>
-            git.sessionDiffStats(
-                database
-                    .listVisibleSessions()
-                    .filter((session) => session.archivedAt === undefined),
-            ),
         'commander.ensure': () => commander.ensure(),
         'commander.snapshot': () => commander.snapshot(),
         'commander.status': () => commander.status(),

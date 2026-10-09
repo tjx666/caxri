@@ -12,7 +12,6 @@ import type {
     GitSummary,
     ServerEvent,
     ServerOperationParameters,
-    SessionDiffStats,
     TerminalCommitLinkResolution,
     TerminalReferenceContext,
     TerminalReferencePreview,
@@ -45,7 +44,6 @@ import { loadTerminalReferencePreview } from './reference-preview';
 import { parseGitRemoteHost } from './remote-host';
 import { computeRepoId, GitRepoService } from './repo';
 import { sharedGitRequest } from './request-signal';
-import { SessionDiffStatStore } from './session-diff-stats';
 import type { GitSummaryRequester } from './summary-trace';
 import { RepoTopologyRegistry } from './topology';
 import { GitWorkingTreeService } from './working-tree';
@@ -89,7 +87,6 @@ interface GitServiceOptions {
 
 export class GitService {
     private readonly commands = new AsyncSemaphore(MAX_CONCURRENT_GIT_COMMANDS);
-    private readonly diffStats: SessionDiffStatStore;
     private readonly histories = new SingleFlight<string, GitCommitPage>();
     private readonly repositoryService: GitRepoService;
     private readonly blameService: GitBlameService;
@@ -136,9 +133,6 @@ export class GitService {
             watchHub: options.watchHub,
         });
         this.repositoryService.attachMetadataWatcher(this.metadataWatcher);
-        this.diffStats = new SessionDiffStatStore({
-            git: (cwd, arguments_, options_) => this.git(cwd, arguments_, options_),
-        });
         this.pullRequestService = new GitPullRequestService({
             git: (cwd, arguments_, options) => this.git(cwd, arguments_, options),
             pullRequestView: (repo, isForced) =>
@@ -359,12 +353,6 @@ export class GitService {
                 ({ files: _files, ...projection }) => projection,
             ),
         };
-    }
-
-    sessionDiffStats(
-        sessions: ReadonlyArray<{ id: string; rootPath: string }>,
-    ): Promise<SessionDiffStats> {
-        return this.diffStats.forSessions(sessions, (id) => this.summary(id, 0, 'diffStats'));
     }
 
     async mobileChangesList(sessionId: string, shouldRefresh = false) {
