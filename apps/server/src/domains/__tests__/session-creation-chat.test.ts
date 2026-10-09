@@ -45,7 +45,7 @@ describe('session.create with the chat surface', () => {
         );
     });
 
-    it.each<TerminalKind | null>(['claude', 'shell', null])(
+    it.each<TerminalKind | null>(['grok', 'shell', null])(
         'refuses a Chat for %s without leaving an empty Session behind',
         async (kind) => {
             const { create, database, project, startChat } = await fixture();

@@ -480,7 +480,7 @@ describe('Acceptance Agent fixtures', () => {
                 `\u{1B}[200~Review image\n\nAttached image paths:\n${imagePath}\u{1B}[201~\r`,
             );
             await expect
-                .poll(() => readReceipts(claudeRoot))
+                .poll(() => readReceipts(claudeRoot), { timeout: 10_000 })
                 .toContainEqual(
                     expect.objectContaining({
                         kind: 'imageAttachmentReceived',

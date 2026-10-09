@@ -1,13 +1,8 @@
 import { MAX_AGENT_CHAT_DIFF_LENGTH, MAX_AGENT_CHAT_FILE_CHANGE_DIFF_TOTAL } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import {
-    answeredNotice,
-    closeDanglingItem,
-    codexRequestKey,
-    mapCodexItem,
-    mapCodexRequest,
-} from '../codex-items';
+import { answeredNotice, closeDanglingItem } from '../chat-items';
+import { codexRequestKey, mapCodexItem, mapCodexRequest } from '../codex-items';
 
 describe('Codex item mapping', () => {
     it('maps conversation and tool items into bounded Chat items', () => {

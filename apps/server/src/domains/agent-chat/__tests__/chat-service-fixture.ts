@@ -1,0 +1,125 @@
+import type { SpawnOptionsWithoutStdio } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import process from 'node:process';
+
+import type { AgentChatSnapshot, ServerEvent } from '@caxri/protocol';
+import { applyAgentChatPatch, defaultAgentProviderSettings } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
+import { expect, onTestFinished, vi } from 'vitest';
+
+import type { AgentLifecycleSignal } from '../../agents';
+import { CaxriDatabase } from '../../db';
+import { AgentChatService } from '../service';
+
+const FAKE_APP_SERVER = join(import.meta.dirname, 'fixtures', 'fake-codex-app-server.ts');
+const FAKE_CLAUDE = join(import.meta.dirname, 'fixtures', 'fake-claude-cli.ts');
+
+/**
+ * Builds an AgentChatService over a temporary database that spawns the fake Codex app-server or fake Claude Code CLI.
+ */
+export async function fixture(
+    options: { launchArgs?: string[]; provider?: 'claude' | 'codex' } = {},
+) {
+    const provider = options.provider ?? 'codex';
+    const directory = await realpath(await mkdtemp(`${tmpdir()}/caxri-agent-chat-`));
+    const database = new CaxriDatabase(join(directory, 'state.db'));
+    const projectRoot = join(directory, 'project');
+    const stateDirectory = join(directory, 'codex');
+    const claudeConfigDirectory = join(directory, 'claude');
+    await mkdir(projectRoot);
+    const project = database.createProject(projectRoot);
+    const { session } = database.createSession(project.id, null);
+    const terminal = database.createTerminal(session.id, provider, projectRoot, 'chat');
+    const events: ServerEvent[] = [];
+    const signals: AgentLifecycleSignal[] = [];
+    const coordinator = {
+        beginTerminalLaunch: vi.fn<() => void>(),
+        endTerminalLaunch: vi.fn<() => void>(),
+        probeTerminal: vi.fn<() => void>(),
+    };
+    const logger = { write: vi.fn() } as unknown as StructuredLogger;
+    const spawnProcess = vi.fn(
+        (_executable: string, arguments_: string[], spawnOptions: SpawnOptionsWithoutStdio) =>
+            spawn(
+                process.execPath,
+                [provider === 'claude' ? FAKE_CLAUDE : FAKE_APP_SERVER, ...arguments_],
+                spawnOptions,
+            ),
+    );
+    const service = new AgentChatService({
+        database,
+        logger,
+        send: (event) => events.push(event),
+        environment: () =>
+            Promise.resolve({
+                ...process.env,
+                FAKE_CODEX_STATE_DIR: stateDirectory,
+                CLAUDE_CONFIG_DIR: claudeConfigDirectory,
+            }),
+        launchSettings: () => ({
+            ...defaultAgentProviderSettings[provider].launch,
+            args: options.launchArgs ?? [],
+        }),
+        resolveExecutable: () => Promise.resolve(`/fake/${provider}`),
+        coordinator,
+        observeLifecycleSignal: (signal) => {
+            signals.push(signal);
+            return Promise.resolve('accepted');
+        },
+        clientVersion: '0.0.0-test',
+        agentEnvironment: {
+            homeDirectory: directory,
+            variables: { CLAUDE_CONFIG_DIR: claudeConfigDirectory },
+        },
+        spawnProcess,
+    });
+    onTestFinished(async () => {
+        await service.shutdown();
+        database.close();
+        await rm(directory, { recursive: true, force: true });
+    });
+    /**
+     * Mirrors a Client: one read, then every patch applied with the shared reducer, re-reading on a revision gap.
+     */
+    let mirror: AgentChatSnapshot | undefined;
+    function client(): AgentChatSnapshot {
+        mirror ??= service.read(terminal.id);
+        const pending = [...events];
+        events.length = 0;
+        for (const event of pending) {
+            if (event.event !== 'agentChat.patch') continue;
+            const patch = event.payload;
+            if (patch.revision <= mirror.revision) continue;
+            mirror = applyAgentChatPatch(mirror, patch) ?? service.read(terminal.id);
+        }
+        return mirror;
+    }
+    async function until(isReached: (snapshot: AgentChatSnapshot) => boolean) {
+        await vi.waitFor(
+            () => {
+                expect(isReached(client())).toBe(true);
+            },
+            { timeout: 5_000, interval: 10 },
+        );
+        return client();
+    }
+    const threadOpens = async () =>
+        (await readFile(join(stateDirectory, 'thread-opens.jsonl'), 'utf8'))
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line) as Record<string, unknown>);
+    return {
+        database,
+        service,
+        terminal,
+        signals,
+        coordinator,
+        spawnProcess,
+        client,
+        until,
+        threadOpens,
+    };
+}

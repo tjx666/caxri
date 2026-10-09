@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -26,6 +26,15 @@ const FAKE_APP_SERVER = join(
     import.meta.dirname,
     '..',
     'apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts',
+);
+
+/**
+ * The deterministic Claude Code CLI the Server unit tests drive through the Claude Agent SDK.
+ */
+const FAKE_CLAUDE = join(
+    import.meta.dirname,
+    '..',
+    'apps/server/src/domains/agent-chat/__tests__/fixtures/fake-claude-cli.ts',
 );
 
 /**
@@ -102,7 +111,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await openInChat.click();
         await expect(openInChat).toBeChecked();
         await expect(terminalMenu.getByRole('menuitem')).toHaveText([
-            'Claude Code',
+            'Claude CodeChat',
             'CodexChat',
             'Grok Build',
             'Shell',
@@ -182,6 +191,9 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await chat.getByRole('button', { name: 'New Terminal (Codex Chat)' }).click();
         await expect(chat.getByText('You chose Blue.')).toHaveCount(0);
         await expect(message).toHaveAttribute('placeholder', 'Message Codex');
+        // The `+` opens its Agent menu on hover; leave it so only the New Session menu below offers "Codex Chat".
+        await page.mouse.move(0, 0);
+        await expect(page.getByRole('menu', { name: 'New Terminal (Codex Chat)' })).toHaveCount(0);
 
         // The sidebar's New Session menu shares the preference, so a whole Session can start as a Chat.
         const previous = await pageRequest<{ selectedSessionId?: string }>(page, 'app.bootstrap');
@@ -344,6 +356,84 @@ test('closing the window with only a Chat running asks first and Terminate stops
                     ),
             )
             .toBe(true);
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Claude Code Chat streams a reply, answers an approval and a question, and resumes after a crash', async ({}, testInfo) => {
+    /**
+     * Claude Code keys its transcript directory by its real working directory, so the Project root must already be the
+     * resolved path for Caxri to find the transcript it resumes from.
+     */
+    const created = await mkdtemp(join(tmpdir(), 'caxri-claude-chat-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            claude: {
+                executableSource: `#!${process.execPath}
+import(${JSON.stringify(pathToFileURL(FAKE_CLAUDE).href)});
+`,
+            },
+        },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
+        const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
+        await terminalMenu.getByRole('menuitemcheckbox', { name: 'Open in Chat' }).click();
+        await chooseTerminalFromCreateMenu(page, 'Claude Code Chat');
+
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        await expect(message).toHaveAttribute('placeholder', 'Message Claude Code');
+        await message.fill('hi there');
+        await message.press('Enter');
+        await expect(chat.getByText('Hello from fake Claude. You said: hi there')).toBeVisible();
+        await expect(chat.getByText(/^fake-claude-model · \d+% context left$/u)).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('claude-chat-reply.png') });
+
+        await message.fill('please approve this');
+        await message.press('Enter');
+        const approval = chat.getByRole('region', { name: 'Run this command?' });
+        await expect(approval).toContainText('echo approved');
+        await expect(approval).toContainText('Fake Bash approval');
+        await page.screenshot({ path: testInfo.outputPath('claude-chat-approval.png') });
+        await approval.getByRole('button', { name: 'Accept', exact: true }).click();
+        await expect(approval).toHaveCount(0);
+        await expect(chat.getByText('The command ran.')).toBeVisible();
+
+        await message.fill('ask me');
+        await message.press('Enter');
+        const question = chat.getByRole('region', { name: 'The Agent has a question' });
+        await question.getByRole('button', { name: /^Blue/u }).click();
+        await question.getByRole('button', { name: 'Submit' }).click();
+        await expect(chat.getByText('You chose Blue.')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('claude-chat-question.png') });
+
+        // A crash fails the Chat; Retry resumes the same Claude Code session and reloads its history from the transcript.
+        await message.fill('crash now');
+        await message.press('Enter');
+        const failure = chat
+            .getByRole('alert')
+            .filter({ hasText: 'Claude Code stopped unexpectedly' });
+        await expect(failure).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('claude-chat-crashed.png') });
+        await failure.getByRole('button', { name: 'Retry' }).click();
+        await expect(failure).toHaveCount(0);
+        await expect(chat.getByText('You chose Blue.')).toBeVisible();
+        await message.fill('back again');
+        await message.press('Enter');
+        await expect(chat.getByText('Hello from fake Claude. You said: back again')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('claude-chat-resumed.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

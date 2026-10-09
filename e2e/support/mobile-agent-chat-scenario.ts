@@ -55,7 +55,7 @@ async function sendFromPhone(serial: string, word: string): Promise<void> {
  * `MOB-CHAT-01`: a phone reads and drives a Codex Chat end to end. Each phone action is proven against the Server's own
  * Chat projection, and the screenshots cover the empty, streamed, approval, question, failed, and offline states.
  */
-export async function executeMobileAgentChatScenario(
+async function executeMobileAgentChatScenario(
     environment: MobileAgentScenarioEnvironment,
     artifacts: string[],
 ): Promise<void> {
@@ -149,4 +149,55 @@ export async function executeMobileAgentChatScenario(
         }
         await fixture.stop();
     }
+}
+
+/**
+ * `MOB-CHAT-02`: a Claude Code Chat asks to approve a plan, a tool request that is neither a command nor a file edit,
+ * and the phone shows the tool name and plan and accepts it.
+ */
+async function executeMobileClaudeToolApprovalScenario(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> {
+    const { serial } = environment;
+    const fixture = await createMobileAcceptanceFixture({
+        chatProvider: 'claude',
+        mode: 'agent-chat',
+        serial,
+    });
+    try {
+        await fixture.pair();
+        const chat = fixture.agentChat;
+        if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
+        await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
+        await waitForCheck(serial, 'agent-chat-status-empty');
+
+        await sendFromPhone(serial, 'planmode');
+        await waitForCheck(serial, 'agent-chat-request-tool');
+        await waitForCheck(serial, 'agent-chat-approval-accept');
+        await capture(environment, 'tool-approval', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-approval-accept');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => agentText(snapshot).includes('Plan approved.') && !snapshot.activeTurnId,
+        );
+        await waitForNoCheck(serial, 'agent-chat-request');
+        await capture(environment, 'tool-approved', artifacts);
+
+        await finish(environment, artifacts, { approval: 'accepted', status: 'passed' });
+    } finally {
+        await fixture.stop();
+    }
+}
+
+/**
+ * Runs the Agent Chat Acceptance case `environment.caseId` names.
+ */
+export async function executeMobileAgentChatCase(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> {
+    await (environment.caseId === 'MOB-CHAT-02'
+        ? executeMobileClaudeToolApprovalScenario(environment, artifacts)
+        : executeMobileAgentChatScenario(environment, artifacts));
 }

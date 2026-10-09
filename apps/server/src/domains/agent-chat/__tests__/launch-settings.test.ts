@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { codexChatSettings } from '../launch-settings';
+import { claudeChatSettings, codexChatSettings } from '../launch-settings';
 
 const launch = (arguments_: string[]) => ({ executable: 'codex', args: arguments_ });
 
@@ -42,6 +42,47 @@ describe('codexChatSettings', () => {
             sandbox: 'read-only',
             model: 'gpt-x',
             rootArgs: ['-c', 'model_reasoning_effort=high', '--profile', 'work'],
+        });
+    });
+});
+
+describe('claudeChatSettings', () => {
+    it('keeps manual approvals by default', () => {
+        expect(claudeChatSettings(launch([]))).toEqual({
+            permissionMode: 'default',
+            additionalDirectories: [],
+            allowedTools: [],
+            disallowedTools: [],
+        });
+    });
+
+    it('keeps the autonomy flag meaning: every tool runs without asking', () => {
+        expect(claudeChatSettings(launch(['--dangerously-skip-permissions']))).toMatchObject({
+            permissionMode: 'bypassPermissions',
+        });
+    });
+
+    it('carries structured options and drops TUI-only flags', () => {
+        expect(
+            claudeChatSettings(
+                launch([
+                    '--model=opus',
+                    '--permission-mode',
+                    'acceptEdits',
+                    '--add-dir',
+                    '../shared',
+                    '--allowedTools',
+                    'Bash(git:*) Read',
+                    '--disallowed-tools=WebFetch',
+                    '--verbose',
+                ]),
+            ),
+        ).toEqual({
+            permissionMode: 'acceptEdits',
+            model: 'opus',
+            additionalDirectories: ['../shared'],
+            allowedTools: ['Bash(git:*)', 'Read'],
+            disallowedTools: ['WebFetch'],
         });
     });
 });

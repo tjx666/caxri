@@ -40,14 +40,16 @@ function AgentChatFailureBanner({
     snapshot,
     isError,
     onRetry,
+    providerName,
 }: {
     snapshot: AgentChatSnapshot | undefined;
     isError: boolean;
     onRetry: () => void;
+    providerName: string;
 }) {
     if (!isError && snapshot?.status !== 'failed') return null;
     const message = snapshot?.failure
-        ? agentChatFailureMessage(snapshot.failure.reason)
+        ? agentChatFailureMessage(snapshot.failure.reason, providerName)
         : 'The conversation could not be loaded.';
     return (
         <div
@@ -73,8 +75,14 @@ function AgentChatFailureBanner({
  * The one-line activity indicator under the timeline. It is the Chat's polite status region: transitions between
  * starting, working, and waiting are announced, while streamed reply text never is.
  */
-function AgentChatActivity({ snapshot }: { snapshot: AgentChatSnapshot | undefined }) {
-    const label = agentChatActivityLabel(snapshot);
+function AgentChatActivity({
+    snapshot,
+    providerName,
+}: {
+    snapshot: AgentChatSnapshot | undefined;
+    providerName: string;
+}) {
+    const label = agentChatActivityLabel(snapshot, providerName);
     return (
         <div aria-live="polite" className="text-[12px] text-muted" role="status">
             {label && (
@@ -95,9 +103,14 @@ function AgentChatActivity({ snapshot }: { snapshot: AgentChatSnapshot | undefin
  */
 export function AgentChatPane({
     ariaLabel,
+    providerName,
     terminalId,
 }: {
     ariaLabel: string;
+    /**
+     * The provider catalog's display name, for copy that names the Agent.
+     */
+    providerName: string;
     terminalId: string;
 }) {
     const query = useCaxriQuery('agentChat.read', { terminalId }, { staleTime: Infinity });
@@ -163,10 +176,10 @@ export function AgentChatPane({
                         ))}
                         {isEmpty && (
                             <p className="m-0 py-8 text-center text-[13px] text-muted">
-                                Send a message to start working with Codex.
+                                Send a message to start working with {providerName}.
                             </p>
                         )}
-                        <AgentChatActivity snapshot={snapshot} />
+                        <AgentChatActivity providerName={providerName} snapshot={snapshot} />
                     </div>
                 </div>
                 {!isFollowing && (
@@ -184,6 +197,7 @@ export function AgentChatPane({
             <div className="mx-auto flex max-h-[45%] w-full max-w-3xl shrink-0 flex-col gap-2 overflow-y-auto px-4 empty:hidden">
                 <AgentChatFailureBanner
                     isError={query.isError}
+                    providerName={providerName}
                     snapshot={snapshot}
                     onRetry={retry}
                 />
@@ -221,6 +235,7 @@ export function AgentChatPane({
                 canSend={canSendAgentChatMessage(snapshot)}
                 contextSummary={agentChatContextSummary(snapshot)}
                 inputReference={inputReference}
+                providerName={providerName}
                 terminalId={terminalId}
             />
         </section>

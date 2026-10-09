@@ -175,6 +175,12 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'agent-chat',
     },
+    'MOB-CHAT-02': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-tool-approval',
+    },
     'MOB-CONV-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

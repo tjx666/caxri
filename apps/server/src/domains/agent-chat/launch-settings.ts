@@ -83,3 +83,99 @@ export const REAL_E2E_CODEX_CHAT_SETTINGS: Readonly<CodexThreadSettings> = Objec
     sandbox: 'read-only',
     rootArgs: [],
 });
+
+/**
+ * Claude Agent SDK query options derived from the provider's TUI launch settings. See `claudeChatSettings`.
+ */
+export interface ClaudeChatSettings {
+    permissionMode: 'acceptEdits' | 'auto' | 'bypassPermissions' | 'default' | 'dontAsk' | 'plan';
+    model?: string;
+    additionalDirectories: string[];
+    allowedTools: string[];
+    disallowedTools: string[];
+    /**
+     * A `--settings` file path or JSON string, passed through unchanged.
+     */
+    settings?: string;
+}
+
+const CLAUDE_PERMISSION_MODES = new Set<string>([
+    'acceptEdits',
+    'auto',
+    'bypassPermissions',
+    'default',
+    'dontAsk',
+    'plan',
+]);
+
+type ParsedClaudeSettings = Partial<ClaudeChatSettings> &
+    Pick<ClaudeChatSettings, 'additionalDirectories' | 'allowedTools' | 'disallowedTools'>;
+
+/**
+ * Claude Code takes tool lists either as one comma- or space-separated value or as repeated values.
+ */
+function toolList(value: string): string[] {
+    return value.split(/[\s,]+/u).filter(Boolean);
+}
+
+const CLAUDE_VALUE_OPTIONS = new Map<
+    string,
+    (settings: ParsedClaudeSettings, value: string) => void
+>([
+    ['--model', (settings, value) => (settings.model = value)],
+    [
+        '--permission-mode',
+        (settings, value) => {
+            if (CLAUDE_PERMISSION_MODES.has(value))
+                settings.permissionMode = value as ClaudeChatSettings['permissionMode'];
+        },
+    ],
+    ['--add-dir', (settings, value) => settings.additionalDirectories.push(value)],
+    ['--settings', (settings, value) => (settings.settings = value)],
+    ['--allowedTools', (settings, value) => settings.allowedTools.push(...toolList(value))],
+    ['--allowed-tools', (settings, value) => settings.allowedTools.push(...toolList(value))],
+    ['--disallowedTools', (settings, value) => settings.disallowedTools.push(...toolList(value))],
+    ['--disallowed-tools', (settings, value) => settings.disallowedTools.push(...toolList(value))],
+]);
+
+/**
+ * Translates the Claude Code launch settings the user configured for the TUI into Agent SDK options, the same way
+ * {@link codexChatSettings} does for Codex: only options with a structured equivalent carry over.
+ *
+ * - The autonomy flag keeps its meaning: every tool runs without asking.
+ * - `--permission-mode`, `--model`, `--add-dir`, `--settings`, and the tool allow and deny lists map to the SDK option of
+ *   the same meaning.
+ * - Without either, approvals stay manual (`default`) instead of whatever mode the SDK would pick on its own, so a Chat
+ *   never runs tools more freely than the user chose.
+ */
+export function claudeChatSettings(launch: AgentLaunchSettings): ClaudeChatSettings {
+    const arguments_ = expandLaunchArguments(launch.args);
+    const autonomy = new Set<string>(agentProviderCatalog.claude.autonomyArgs);
+    let isAutonomous = false;
+    const parsed: ParsedClaudeSettings = {
+        additionalDirectories: [],
+        allowedTools: [],
+        disallowedTools: [],
+    };
+    for (let index = 0; index < arguments_.length; index += 1) {
+        const argument = arguments_[index];
+        if (autonomy.has(argument)) {
+            isAutonomous = true;
+            continue;
+        }
+        const equals = argument.indexOf('=');
+        const name = argument.startsWith('--') && equals > 0 ? argument.slice(0, equals) : argument;
+        const apply = CLAUDE_VALUE_OPTIONS.get(name);
+        if (!apply) continue;
+        const value = name === argument ? arguments_.at(++index) : argument.slice(equals + 1);
+        if (value !== undefined) apply(parsed, value);
+    }
+    return {
+        permissionMode: isAutonomous ? 'bypassPermissions' : (parsed.permissionMode ?? 'default'),
+        ...(parsed.model && { model: parsed.model }),
+        ...(parsed.settings && { settings: parsed.settings }),
+        additionalDirectories: parsed.additionalDirectories,
+        allowedTools: parsed.allowedTools,
+        disallowedTools: parsed.disallowedTools,
+    };
+}

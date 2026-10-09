@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 
 import type { PaneLayout, PaneLayoutNode, PaneNode, PaneSplitNode } from '@caxri/protocol';
 import {
+    agentProviderCatalog,
     isChatTerminal,
     listPanes,
     listPaneTabs,
@@ -118,6 +119,11 @@ function PaneContent({
                 <AgentChatPane
                     ariaLabel={terminal.title}
                     key={terminal.id}
+                    providerName={
+                        terminal.provider
+                            ? agentProviderCatalog[terminal.provider].displayName
+                            : 'the Agent'
+                    }
                     terminalId={terminal.id}
                 />
             );

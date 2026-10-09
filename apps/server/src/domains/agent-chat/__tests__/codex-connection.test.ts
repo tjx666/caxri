@@ -5,7 +5,7 @@ import { PassThrough, Writable } from 'node:stream';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CodexConnectionEnd } from '../codex-connection';
+import type { ChatProcessEnd } from '../chat-provider';
 import { CodexConnection } from '../codex-connection';
 
 /**
@@ -27,7 +27,7 @@ function fakeChild(stdin: Writable = new PassThrough()) {
 
 function connect(child: ChildProcessWithoutNullStreams) {
     const notifications: Array<[string, Record<string, unknown>]> = [];
-    const ends: CodexConnectionEnd[] = [];
+    const ends: ChatProcessEnd[] = [];
     const connection = new CodexConnection({
         executable: 'codex',
         args: ['app-server'],

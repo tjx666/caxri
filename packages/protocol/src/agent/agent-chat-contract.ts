@@ -177,6 +177,22 @@ export const agentChatRequestSchema = z.discriminatedUnion('kind', [
         ...approvalBase,
         kind: z.literal('fileChange'),
     }),
+    /**
+     * Any other tool the provider asks before running (a web fetch, an MCP tool), for providers that gate tools rather
+     * than only commands and file changes.
+     */
+    z.strictObject({
+        ...approvalBase,
+        kind: z.literal('tool'),
+        /**
+         * Provider tool name, such as `WebFetch` or an MCP `server__tool` pair.
+         */
+        name: z.string().max(200),
+        /**
+         * What the tool would act on: a URL, a query, or a bounded preview of its arguments.
+         */
+        summary: z.string().max(4_096).optional(),
+    }),
     z.strictObject({
         id: z.string().min(1).max(200),
         kind: z.literal('question'),

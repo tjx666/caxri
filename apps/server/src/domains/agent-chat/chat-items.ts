@@ -1,0 +1,119 @@
+import type {
+    AgentChatItem,
+    AgentChatPatchOperation,
+    AgentChatRequest,
+    AgentChatSnapshot,
+} from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
+
+import type { AgentChatResponse } from './chat-provider';
+
+/**
+ * Provider-neutral helpers every Chat provider uses to build projection operations. Provider inputs are untrusted JSON,
+ * so readers are defensive and every string is bounded.
+ */
+
+type Json = Record<string, unknown>;
+
+/**
+ * Turns a projection keeps; older ones are dropped while their items stay until the item budget evicts them.
+ */
+export const MAX_TRACKED_TURNS = 200;
+
+export function isRecord(value: unknown): value is Json {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function stringField(value: unknown): string | undefined {
+    return typeof value === 'string' && value ? value : undefined;
+}
+
+export function clip(value: string, limit: number): string {
+    return value.length <= limit ? value : value.slice(0, limit);
+}
+
+export function tail(value: string, limit: number): string {
+    return value.length <= limit ? value : value.slice(value.length - limit);
+}
+
+/**
+ * Closes an item the provider left open when its turn ended.
+ */
+export function closeDanglingItem(item: AgentChatItem): AgentChatItem | undefined {
+    switch (item.type) {
+        case 'agentMessage':
+        case 'reasoning': {
+            return item.streaming ? { ...item, streaming: false } : undefined;
+        }
+        case 'command':
+        case 'fileChange':
+        case 'toolCall': {
+            return item.status === 'running' ? { ...item, status: 'interrupted' } : undefined;
+        }
+        default: {
+            return undefined;
+        }
+    }
+}
+
+/**
+ * Operations for a provider process that ended: open items close as interrupted, the running turn is interrupted, and
+ * every pending request goes away with the process that asked it.
+ */
+export function endedSessionOperations(snapshot: AgentChatSnapshot): AgentChatPatchOperation[] {
+    const operations: AgentChatPatchOperation[] = [];
+    for (const item of snapshot.items) {
+        const closed = closeDanglingItem(item);
+        if (closed) operations.push({ op: 'upsertItem', item: closed });
+    }
+    const { activeTurnId } = snapshot;
+    operations.push({
+        op: 'state',
+        state: {
+            requests: [],
+            activeTurnId: null,
+            ...(activeTurnId && {
+                turns: snapshot.turns.map((turn) =>
+                    turn.id === activeTurnId ? { ...turn, status: 'interrupted' as const } : turn,
+                ),
+            }),
+        },
+    });
+    return operations;
+}
+
+/**
+ * Answers for a question request. Skipping is a `cancel` decision from the Client; an empty `answers` map is the
+ * provider-neutral "no answer", so the turn continues instead of blocking on the user.
+ */
+export function questionAnswers(response: AgentChatResponse): Record<string, string[]> {
+    if (response.kind === 'answers') return response.answers;
+    if (response.decision === 'cancel') return {};
+    throw new CaxriError('VALIDATION', 'A question needs answers');
+}
+
+/**
+ * Timeline record of the answers given to a question request. The request card disappears once answered, and without
+ * this record the conversation would show the Agent acting on a choice the transcript never mentions.
+ */
+export function answeredNotice(
+    request: AgentChatRequest | undefined,
+    turnId: string | undefined,
+    answers: Readonly<Record<string, readonly string[]>>,
+): AgentChatItem | undefined {
+    if (request?.kind !== 'question') return undefined;
+    const lines = request.questions.flatMap((question) => {
+        if (!Object.hasOwn(answers, question.id)) return [];
+        const chosen = answers[question.id];
+        if (chosen.length === 0) return [];
+        return [`${question.header || question.question}: ${chosen.join(', ')}`];
+    });
+    if (lines.length === 0) return undefined;
+    return {
+        id: clip(`answer:${request.id}`, 200),
+        ...(turnId && { turnId }),
+        type: 'notice',
+        kind: 'answered',
+        message: clip(lines.join('\n'), 2_000),
+    };
+}
