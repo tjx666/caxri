@@ -7,7 +7,6 @@ import type { GitSummaryWireRequester } from '@caxri/protocol';
  */
 export type GitSummaryRequester =
     | GitSummaryWireRequester
-    | 'diffStats'
     | 'discard'
     | 'overview'
     | 'projectStatus'

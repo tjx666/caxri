@@ -14,7 +14,7 @@ export function AgentIdentityIcon({
     size?: number;
     /**
      * See {@link AgentIconTone}. Defaults to `'brand'`: a `color-asset` identity (Claude Code, Codex) keeps its
-     * full-color mark. Only PrimarySidebar Session rows pass `'state'`.
+     * full-color mark. Only the Agent Commander board's metadata line passes `'state'`.
      */
     tone?: AgentIconTone;
 }) {

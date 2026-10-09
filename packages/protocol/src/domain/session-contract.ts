@@ -22,7 +22,6 @@ import {
     sessionContentSearchParametersSchema,
     sessionContentSearchResultSchema,
 } from './session-content-search.js';
-import { sessionDiffStatsSchema } from './session-diff-stat.js';
 
 const serverWrite = commandPolicy('server', 'write');
 const desktopWrite = commandPolicy('desktop', 'write');
@@ -43,15 +42,6 @@ const sessionAttentionReadResult = z.object({
     hasUnread: z.boolean(),
 });
 export const sessionMethods = {
-    /**
-     * Every visible Session's diff stat in one read, so the PrimarySidebar polls a single method instead of one Git
-     * read per row.
-     */
-    'session.diffStats': {
-        ...commandPolicy('server', 'read'),
-        params: z.object({}).default({}),
-        result: sessionDiffStatsSchema,
-    },
     'session.compactWarm': {
         ...commandPolicy('server', 'control'),
         params: z.object({}),
