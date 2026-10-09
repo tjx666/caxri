@@ -347,30 +347,27 @@ count, and complete root path. The treeitem's accessible name still includes the
 moving the visible digit into the detail card does not make a collapsed Project opaque to assistive
 technology.
 Selection is an `--elevated` fill (radius 6), no border and no accent; the primarySidebar stays
-entirely neutral so the focused pane keeps the screen's one accent. A Session row splits its two
-status questions across its two edges, and each edge has one fixed meaning. The leading Agent icon
-answers "does this Agent need me, or is it working?": running work (including compaction) wraps the
-icon in a thin `--success` arc spinning over a faint neutral track, green because work in progress is
-the healthy state and the track stays neutral so a paused glance does not read it as a finished ring; unacknowledged attention wraps it in a
-pinging warning ring (a mono icon such as Grok's also tints warning); a detached Agent dims the icon under a small
-unplugged badge. A decorated icon shrinks by 3px so its ring stays inside a 3px halo of the 14px
-box, and the title never moves between states. These rows keep Claude Code and Codex in brand
-color, like every other surface (workbench tabs, the Session hover card, the MRU switcher, Activity
-rows, Archived Sessions, Settings, and menus): in a long list the color is what tells one Agent from
-another at a glance, so the attention ring, not an icon tint, carries the warning.
-Attention wins over running; there is deliberately
-no second, static amber state, so reading a Session is the only thing that clears it and nothing can
-bring it back unread. Settled, idle, unknown, failed, and exited Sessions show the plain icon. The
-trailing track answers only "how far has this delivery got?": the pull request and its production
-deployment, never hidden by lifecycle. A visible glyph claims the 14px track and every such glyph
-shares one vertical line; a Session with no PR collapses the empty track to zero so its title gains
-one more character while retaining the 8px separation from the right edge. The MRU switcher uses the
-same leading icon.
+entirely neutral so the focused pane keeps the screen's one accent. A Session row is one 28px line: the Agent
+icon, the title, and one right-edge status slot, the same shape as Codex's thread list. The leading
+icon is a plain brand-color mark (Claude Code and Codex keep their colors, like every other surface:
+workbench tabs, the Session hover card, the MRU switcher, Activity rows, Archived Sessions, Settings,
+and menus) because in a long list the color is what tells one Agent from another at a glance; it
+carries no lifecycle decoration. The right-edge slot answers "does this Agent need me, or is it
+working?" first: running work (including compaction) shows a thin `--success` arc spinning over a
+faint neutral track; unacknowledged attention shows a pinging warning ring around a warning dot; a
+detached Agent shows a static unplugged glyph. Attention wins over running; there is deliberately no
+second, static amber state, so reading a Session is the only thing that clears it and nothing can
+bring it back unread. Lifecycle outranks delivery: only a settled Session (idle, unknown, failed,
+exited, or read) shows its pull request and production deployment glyph in that slot, and while a
+lifecycle glyph holds it the PR stays reachable from the hover card and the row menu. A visible
+glyph claims the 14px slot and every such glyph shares one vertical line; a Session with neither
+collapses the empty slot to zero so its title gains one more character while retaining the 8px
+separation from the right edge. The MRU switcher shows the same lifecycle glyph after its relative
+time, reserving the slot so the time column does not shift.
 
-Each Session row is one 28px line: icon, title, and the delivery track. The row deliberately shows
-no activity label, relative time, or line diff. In daily use those were not read: the icon already
-answers whether the Agent needs the user, and a second line halved how many Sessions fit on screen.
-The hover card still explains the current activity in words. A collapsed Project heading summarizes the rows it hides: a small running arc with
+The row deliberately shows no activity label, relative time, or line diff. In daily use those were
+not read, and a second line halved how many Sessions fit on screen. The hover card still explains
+the current activity in words. A collapsed Project heading summarizes the rows it hides: a small running arc with
 the running count, and one warning dot when any Session is unread; it stays beside the name while the
 heading's hover actions show, and disappears when the Project expands. Thus a failed process is not a persistent
 list alert, while reliable unread attention remains visible
@@ -480,7 +477,7 @@ deleting the owner deletes it, and the confirmation names the ones about to go.
 Pull request lifecycle owns the glyph color: open is `--success`, closed is `--danger`, merged
 is `--merged`, and draft is `--muted`. Checks appear as text in the hover card, with failures in
 `--danger`; never overlay a badge on the small PR glyph or recolor it for CI. The existing animated
-yellow Session attention ring keeps its separate meaning on the leading Agent icon. A production
+yellow Session attention ring keeps its separate meaning in the row's right-edge slot. A production
 deployment that succeeded uses the rocket in `--merged`: shipping is where a merged pull request goes
 next, and a green rocket read as the same state as an open PR.
 
