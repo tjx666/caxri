@@ -352,11 +352,12 @@ status questions across its two edges, and each edge has one fixed meaning. The 
 answers "does this Agent need me, or is it working?": running work (including compaction) wraps the
 icon in a thin `--success` arc spinning over a faint neutral track, green because work in progress is
 the healthy state and the track stays neutral so a paused glance does not read it as a finished ring; unacknowledged attention wraps it in a
-pinging warning ring and tints the icon warning; a detached Agent dims the icon under a small
+pinging warning ring (a mono icon such as Grok's also tints warning); a detached Agent dims the icon under a small
 unplugged badge. A decorated icon shrinks by 3px so its ring stays inside a 3px halo of the 14px
-box, and the title never moves between states. These rows render every Agent icon as a mono mask
-tinted by the row; every other surface (workbench tabs, the Session hover card, the MRU switcher,
-Activity rows, Archived Sessions, Settings, and menus) keeps Claude Code and Codex in brand color.
+box, and the title never moves between states. These rows keep Claude Code and Codex in brand
+color, like every other surface (workbench tabs, the Session hover card, the MRU switcher, Activity
+rows, Archived Sessions, Settings, and menus): in a long list the color is what tells one Agent from
+another at a glance, so the attention ring, not an icon tint, carries the warning.
 Attention wins over running; there is deliberately
 no second, static amber state, so reading a Session is the only thing that clears it and nothing can
 bring it back unread. Settled, idle, unknown, failed, and exited Sessions show the plain icon. The
@@ -366,18 +367,10 @@ shares one vertical line; a Session with no PR collapses the empty track to zero
 one more character while retaining the 8px separation from the right edge. The MRU switcher uses the
 same leading icon.
 
-Each Session row has two lines. The first is the title; the second, at the 11px `--muted` tier, reads
-`<activity> · <time>` with a `+N −M` line diff at its right edge. The activity is the same label the
-hover card explains (`Working`, `Compacting`, `Needs input`, `Detached`, …) and drops out when the
-state is unknown rather than printing a placeholder. The time is the narrow relative form (`5m ago`,
-`2h ago`) of the last Agent activity, not of the row's last focus, so compaction, which records no
-activity, does not reset it. The diff counts the lines the Session's Workbench Root has changed
-since its branch forked off the remote default branch, through to the working tree including new
-files, in `--success` and `--danger` with tabular digits; it falls back to uncommitted work on the
-default branch itself and hides at zero or when the root is not a repository. It names the working
-tree, not the Agent: Sessions sharing one root show the same numbers. The sidebar reads every
-row's count in one `session.diffStats` poll every 30 seconds, plus on `git.changed`, never one Git
-read per row. The leading icon and the trailing track stay aligned with the title line. A collapsed Project heading summarizes the rows it hides: a small running arc with
+Each Session row is one 28px line: icon, title, and the delivery track. The row deliberately shows
+no activity label, relative time, or line diff. In daily use those were not read: the icon already
+answers whether the Agent needs the user, and a second line halved how many Sessions fit on screen.
+The hover card still explains the current activity in words. A collapsed Project heading summarizes the rows it hides: a small running arc with
 the running count, and one warning dot when any Session is unread; it stays beside the name while the
 heading's hover actions show, and disappears when the Project expands. Thus a failed process is not a persistent
 list alert, while reliable unread attention remains visible
@@ -464,9 +457,7 @@ daily use a leading worktree glyph added a column without changing what the user
 worktree name stays in the Session hover card and the row's accessible description.
 
 `Changes` is the one place a Session other than the selected one shows its uncommitted file count:
-the number of working-tree changes across that Session's own Workbench Root repositories. It is a
-different question from the row's `+N −M`, which also counts the branch's commits and is measured in
-lines, so the card keeps both rather than repeating one. The copy names
+the number of working-tree changes across that Session's own Workbench Root repositories. The copy names
 the working tree, never the Session's Agent, because several Sessions can share one root and any of
 them (or the user) may have made the edits. The row is absent when the tree is clean, when the root
 is not a repository, and when the read fails, the same way zero hides the Git tab badge. It is

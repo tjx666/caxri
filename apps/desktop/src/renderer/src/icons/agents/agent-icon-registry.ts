@@ -12,12 +12,12 @@ export type AgentIconIdentity = TerminalKind | 'opencode' | 'unknown';
 /**
  * Which rendering `AgentIdentityIcon` should resolve to (see {@link resolveAgentIconRenderSource}):
  *
- * - `'brand'` (the default) keeps a `color-asset` identity's full-color mark. Every surface except the PrimarySidebar
- *   Session list uses it: workbench tabs, the Session hover card, the MRU switcher, Activity rows, Settings, and
- *   menus.
+ * - `'brand'` (the default) keeps a `color-asset` identity's full-color mark. Almost every surface uses it: the
+ *   PrimarySidebar Session list (where color is what tells Agents apart at a glance), workbench tabs, the Session hover
+ *   card, the MRU switcher, Activity rows, Settings, and menus.
  * - `'state'` renders every identity through the `bg-current` mask, including `color-asset` ones, so it tints with
- *   `currentColor` exactly like `mask-asset` identities already do. Only PrimarySidebar Session rows use it, where the
- *   icon carries the row's selection and lifecycle tint.
+ *   `currentColor` exactly like `mask-asset` identities already do. Only the Agent Commander board's muted metadata
+ *   line uses it, where a brand-color mark would outweigh the row's title.
  */
 export type AgentIconTone = 'brand' | 'state';
 

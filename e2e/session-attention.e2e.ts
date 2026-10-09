@@ -139,15 +139,15 @@ setInterval(() => {
                 .locator('[data-session-status-arc]')
                 .evaluate((element) => element.getAnimations().length),
         ).toBeGreaterThan(0);
-        // The row's second line names what the Agent is doing, in the same success tone as the running arc.
-        const firstStatusLine = firstRow.locator('.session-status-line');
-        await expect(firstStatusLine).toContainText(/^Working·/);
-        await expect(firstStatusLine.locator('.text-success')).toHaveText('Working');
+        // The row keeps the Agent's brand-color mark: color is what tells Claude Code and Codex apart in a long list.
+        await expect(firstStatus.locator('img[data-agent-icon="claude"]')).toBeVisible();
         const [rowBox, statusBox] = await Promise.all([
             firstRow.boundingBox(),
             firstStatus.boundingBox(),
         ]);
         if (!rowBox || !statusBox) throw new Error('Session status layout is unavailable');
+        // One line per Session: the lifecycle rides on the icon, so the row needs no second status line.
+        expect(rowBox.height).toBe(28);
         // The lifecycle rides on the row's leading Agent icon; the trailing edge belongs to delivery state.
         expect(statusBox.x - rowBox.x).toBeLessThanOrEqual(10);
         expect(statusBox.width).toBe(14);
@@ -286,7 +286,6 @@ setInterval(() => {
         await expect(firstStatus).toHaveAccessibleName(
             'Needs attention: Finished. The Agent finished its latest turn.',
         );
-        await expect(firstStatusLine).toContainText(/^Finished·/);
         expect(
             await firstStatus
                 .locator('[data-session-status-ripple]')
