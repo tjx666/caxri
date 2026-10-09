@@ -20,7 +20,8 @@ import { createAgentRuntime } from './agent-runtime';
 import { AgentAttentionRequests, CompactionReadiness, LongPasteService } from './agents';
 import { createBackgroundTasks, refreshWatchSessionInBackground } from './background-tasks';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
-import { CommanderCompletionNotifier, commanderLaunchArguments } from './commander';
+import type { CommanderCompletionNotifier } from './commander';
+import { commanderLaunchArguments, createCommanderCompletionNotifier } from './commander';
 import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
@@ -431,23 +432,19 @@ export async function createDomainServices(
         terminals,
         userDataPath,
         agentEnvironment,
-        onDelegationReceiptChanged: (receipt) =>
-            commanderNotifierState.service?.notifyReceiptChanged(receipt),
+        onDelegationReceiptChanged: (receipt, previous) =>
+            commanderNotifierState.service?.notifyReceiptChanged(receipt, previous),
     });
     agentDispatchState.service = agentCommands.dispatchService;
     delegationState.service = agentCommands.delegationService;
     /**
-     * Constructed only once the exact-launch write path it fences against exists. `write` binds `origin: 'delegation'`
-     * so the injected notice line itself never bumps the input epoch a later notice's own draft fence reads.
+     * Constructed only once the exact-launch write path it fences against exists.
      */
-    commanderNotifierState.service = new CommanderCompletionNotifier({
+    commanderNotifierState.service = createCommanderCompletionNotifier({
+        coordinator,
         database,
-        hasIdleProof: (terminalId, launchId, turnId) =>
-            coordinator.hasIdleProof(terminalId, launchId, turnId),
-        inputEpoch: (terminalId) => terminals.inputEpoch(terminalId),
         logger,
-        write: (terminalId, data, launchId, onDelivered) =>
-            terminals.writeAgentExact(terminalId, data, launchId, 'delegation', onDelivered),
+        terminals,
     });
     const sessionSelections = new SessionSelectionQueue();
     let isClosed = false;
@@ -457,6 +454,7 @@ export async function createDomainServices(
         projectStatus.dispose();
         terminalRestores.close();
         commanderRestores.close();
+        commanderNotifierState.service?.close();
         await terminalSuspension.close();
         await terminalResourceMonitor.close();
         coordinator.close();

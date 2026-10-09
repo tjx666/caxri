@@ -33,7 +33,10 @@ export function createAgentCommandRuntime(
          * Feeds every announced delegation receipt change to the Commander completion notifier. Optional so a unit test
          * can construct this runtime without one; the composed Server always passes it.
          */
-        onDelegationReceiptChanged?(receipt: AgentDelegationReceipt): void;
+        onDelegationReceiptChanged?(
+            receipt: AgentDelegationReceipt,
+            previous?: AgentDelegationReceipt,
+        ): void;
     },
 ) {
     const dispatchService = new AgentDispatchService(options);
@@ -100,12 +103,12 @@ export function createAgentCommandRuntime(
          * A Session-scoped records change instead of a dedicated event: the Agent Commander board already refetches on
          * any `state.changed`, and the Workbench answers a Session-only change with one `app.records` read.
          */
-        onReceiptChanged: (receipt) => {
+        onReceiptChanged: (receipt, previous) => {
             options.emit({
                 event: 'state.changed',
                 payload: { kind: 'records', sessionIds: [receipt.sessionId], terminalIds: [] },
             });
-            options.onDelegationReceiptChanged?.(receipt);
+            options.onDelegationReceiptChanged?.(receipt, previous);
         },
     });
     dispatchService.initialize();

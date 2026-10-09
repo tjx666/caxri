@@ -106,7 +106,7 @@ export class AgentDelegationService {
                 before?.receipt,
                 !isAnnounced,
             );
-            if (isAnnounced) this.options.onReceiptChanged?.(saved.receipt);
+            if (isAnnounced) this.options.onReceiptChanged?.(saved.receipt, before?.receipt);
         }
         return saved;
     }

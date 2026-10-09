@@ -102,6 +102,10 @@ async function fixture() {
             logLine('agent_commander.completion_notice_delivered', { count: 2, waitMs: 100 }),
             logLine('agent_commander.completion_notice_delivered', { count: 1, waitMs: 300 }),
             logLine('agent_commander.completion_notice_delivery_failed', { reason: 'rejected' }),
+            logLine('agent_commander.completion_notice_dropped', {
+                reason: 'server_shutdown',
+                count: 2,
+            }),
             logLine('agent_commander.completion_notice_queued', { text: PROMPT }),
             '{"truncated',
         ].join('\n'),
@@ -154,6 +158,7 @@ describe('Agent Commander diagnostics snapshot', () => {
             completionNotices: {
                 deliveredBatches: 2,
                 deliveredNotices: 3,
+                droppedNotices: 2,
                 averageWaitMs: 200,
                 maximumWaitMs: 300,
                 deliveryFailures: { rejected: 1, unconfirmed: 0 },
@@ -188,6 +193,7 @@ describe('Agent Commander diagnostics snapshot', () => {
             completionNotices: {
                 deliveredBatches: 0,
                 deliveredNotices: 0,
+                droppedNotices: 0,
                 deliveryFailures: { rejected: 0, unconfirmed: 0 },
             },
         });
