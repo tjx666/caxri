@@ -146,6 +146,10 @@ em-dash-check` enforces this in the `guards` job and the pre-commit hook.
   site in the same change. Never leave two coexisting ways of doing the same thing.
 - Reproduce a reported bug before changing code. Demonstrate the failure against the current build
   so the fix targets the verified cause rather than the first plausible suspect.
+- Never use `git stash` to set work aside temporarily, for example to compare a test before and after a
+  fix. Every worktree and sibling session shares one stash stack. A `push` that saves nothing (an
+  untracked path, no changes) leaves someone else's entry on top, and the following `pop` applies
+  that entry to your checkout. Copy the file aside and restore it instead.
 - After a patch adds new files alongside edits, verify each new path exists before treating the patch
   as complete; a reported patch success does not prove every added file was written.
 - If a tool temporarily shows an existing worktree as sparse or missing, verify it from a persistent shell
