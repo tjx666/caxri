@@ -33,16 +33,20 @@ import {
     desktopRootIdentitySchema,
     desktopStatusResultSchema,
 } from '../desktop/desktop-contract.js';
+import {
+    externalDocumentDesktopMethods,
+    externalDocumentServerMethods,
+} from '../desktop/external-document-contract.js';
 import { gpuDesktopMethods } from '../desktop/gpu-contract.js';
 import { pathBrowserContractMethods } from '../desktop/path-browser-contract.js';
 import { shellCommandDesktopMethods } from '../desktop/shell-command-contract.js';
+import { windowStateInternalMethods } from '../desktop/window-state-contract.js';
 import { bootstrapStateSchema } from '../domain/bootstrap.js';
 import { bugReportInternalMethods, bugReportMethods } from '../domain/bug-report-contract.js';
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
 import {
     agentHookHealthMapSchema,
     agentTranscriptSchema,
-    auxiliaryWindowStateSchema,
     canceledResultSchema,
     identifierSchema,
     keybindingConflictSchema,
@@ -50,7 +54,6 @@ import {
     MAX_TERMINAL_INPUT_LENGTH,
     MAX_TERMINAL_INPUT_PAYLOAD_LENGTH,
     pathSchema,
-    persistedWindowStateSchema,
     projectRecordSchema,
     sessionRecordSchema,
     terminalKindSchema,
@@ -261,6 +264,7 @@ export const methods = {
     ...gpuDesktopMethods,
     ...shellCommandDesktopMethods,
     ...contextMenuDesktopMethods,
+    ...externalDocumentDesktopMethods,
     'external.open': {
         ...desktopControl,
         params: z.object({ url: z.string().min(1).max(16_384) }),
@@ -539,29 +543,7 @@ export const internalMethods = {
             workbenchProjectId: identifierSchema.optional(),
         }),
     },
-    'app.windowState.get': {
-        ...serverRead,
-        params: noParameters,
-        result: persistedWindowStateSchema,
-    },
-    'app.windowState.update': {
-        ...serverWrite,
-        params: persistedWindowStateSchema,
-        result: persistedWindowStateSchema,
-    },
-    /**
-     * Cross-restart state for the Agent Commander and Process Explorer windows; only Main ever calls these.
-     */
-    'app.auxiliaryWindowState.get': {
-        ...serverRead,
-        params: noParameters,
-        result: auxiliaryWindowStateSchema,
-    },
-    'app.auxiliaryWindowState.update': {
-        ...serverWrite,
-        params: auxiliaryWindowStateSchema,
-        result: auxiliaryWindowStateSchema,
-    },
+    ...windowStateInternalMethods,
     ...bugReportInternalMethods,
     'config.paths': {
         ...serverRead,
@@ -589,6 +571,7 @@ export const internalMethods = {
     },
     ...fileInternalMethods,
     ...terminalFileLinkInternalMethods,
+    ...externalDocumentServerMethods,
     'terminal.detachAll': { ...serverControl, params: noParameters, result: z.null() },
     'terminal.terminateAll': { ...serverControl, params: noParameters, result: z.null() },
     'theme.importPath': {

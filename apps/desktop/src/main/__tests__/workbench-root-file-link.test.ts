@@ -228,7 +228,6 @@ describe('openTerminalFileLink', () => {
             document: {
                 displayPath: externalFile,
                 content: 'export const outside = true;\n',
-                readOnly: true,
                 name: 'notes.ts',
             },
         });
@@ -322,7 +321,7 @@ describe('openTerminalFileLink', () => {
         ).resolves.toMatchObject({
             opened: true,
             sessionId: 'source-session',
-            document: { displayPath: externalFile, readOnly: true },
+            document: { displayPath: externalFile },
         });
         expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
     });

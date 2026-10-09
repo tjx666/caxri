@@ -3,9 +3,7 @@ import { useRef, useState } from 'react';
 
 import type { PaneNode, PaneTab, TerminalRecord } from '@caxri/protocol';
 import {
-    isVirtualEditorTabPath,
     parseAgentTranscriptTab,
-    parseGitDiffTab,
     partitionPaneTabs,
     terminalDisplayTitle,
     terminalTabLabel,
@@ -29,6 +27,7 @@ import { sessionViewScope, useSessionViewStore } from '../../stores/session-view
 import { closeDocumentTabs, pinDocumentTab } from '../editor/document-commands';
 import {
     documentTabPathMenuState,
+    editorTabActionsPath,
     resolveDocumentTabPath,
 } from '../editor/document-tab-path-actions';
 import { documentTabPathMenu } from '../editor/document-tab-path-menu';
@@ -273,7 +272,7 @@ function DocumentPaneTab({
                         ? documentTabPathMenu({
                               resolution,
                               unavailableReason: pathMenu.unavailableReason,
-                              isExternal: pathMenu.isExternal,
+                              externalDocumentId: pathMenu.externalDocumentId,
                               previewPath: previewSourcePath(path),
                           })
                         : undefined,
@@ -313,13 +312,6 @@ function PaneTabEntry(properties: PaneTabProperties & { isOnlySessionTerminal: b
  * has no file behind it and so offers no actions, except a Git diff, whose target is a real path the actions can
  * reach.
  */
-function activeEditorPath(tab: PaneTab | undefined): string | undefined {
-    if (tab?.resource.kind !== 'file') return undefined;
-    const { path } = tab.resource;
-    if (!isVirtualEditorTabPath(path)) return path;
-    return parseGitDiffTab(path) ? path : undefined;
-}
-
 /**
  * Which fill the scroll cue has to blend into, named in the bar's own precedence order: the drop-target tint covers
  * everything, then the Workbench bar's title-bar fill, then an ordinary pane bar's surface.
@@ -730,7 +722,7 @@ export function PaneTabBar({
     const showActiveAccent = hasTabsToSwitch && activePaneId === pane.id;
     const activeTab = pane.tabs.find((tab) => tab.id === pane.activeTabId) ?? pane.tabs.at(0);
     const activeTabId = activeTab?.id;
-    const editorPath = activeEditorPath(activeTab);
+    const editorPath = editorTabActionsPath(activeTab);
     useActiveTabReveal(listReference, activeTabId, isDropTarget);
     return (
         <div

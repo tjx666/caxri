@@ -159,7 +159,6 @@ describe('pathBrowser', () => {
             document: {
                 displayPath: externalFile,
                 content: 'export const external = true;\n',
-                readOnly: true,
             },
         });
         expect(request).not.toHaveBeenCalledWith('project.create', expect.anything());
