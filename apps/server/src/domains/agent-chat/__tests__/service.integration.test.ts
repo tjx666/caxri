@@ -14,7 +14,7 @@ import type { AgentLifecycleSignal } from '../../agents';
 import { CaxriDatabase } from '../../db';
 import { AgentChatService } from '../service';
 
-const FAKE_APP_SERVER = join(import.meta.dirname, 'fixtures', 'fake-codex-app-server.mjs');
+const FAKE_APP_SERVER = join(import.meta.dirname, 'fixtures', 'fake-codex-app-server.ts');
 
 async function fixture(options: { launchArgs?: string[] } = {}) {
     const directory = await realpath(await mkdtemp(`${tmpdir()}/caxri-agent-chat-`));
@@ -198,6 +198,23 @@ describe('AgentChatService with a fake Codex app-server', () => {
         );
         expect(snapshot.revision).toBeGreaterThan(cachedRevision);
         expect(snapshot).toEqual(service.read(terminal.id));
+    });
+
+    it('ends the turn and its pending attention when a restart stops the process mid-request', async () => {
+        const { service, terminal, signals, until } = await fixture();
+        await service.send(terminal.id, 'please approve this');
+        const pending = await until((snapshot) => snapshot.requests.length === 1);
+        await service.restart(terminal.id);
+        const phases = signals.map((signal) => signal.phase);
+        expect(phases.slice(phases.lastIndexOf('attentionRequested'))).toEqual([
+            'attentionRequested',
+            'attentionResolved',
+            'turnFinished',
+        ]);
+        expect(signals.find((signal) => signal.phase === 'attentionResolved')).toMatchObject({
+            agentToolUseId: pending.requests[0].id,
+        });
+        expect(signals.at(-1)).toMatchObject({ agentTurnId: pending.activeTurnId });
     });
 
     it('fails visibly instead of starting a new thread when a bound conversation cannot be resumed', async () => {

@@ -21,7 +21,7 @@ import {
 const FAKE_APP_SERVER = join(
     import.meta.dirname,
     '..',
-    'apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.mjs',
+    'apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts',
 );
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
@@ -91,6 +91,11 @@ import(${JSON.stringify(pathToFileURL(FAKE_APP_SERVER).href)});
         await message.press('Enter');
         await expect(chat.getByText('Hello from fake Codex. You said: back again')).toBeVisible();
         await expect(chat.getByText('You chose Blue.')).toBeVisible();
+
+        // The tab strip's `+` clones the live primary Agent on its own surface: a Chat, not a PTY.
+        await chat.getByRole('button', { name: 'New Terminal (Codex Chat)' }).click();
+        await expect(chat.getByText('You chose Blue.')).toHaveCount(0);
+        await expect(message).toHaveAttribute('placeholder', 'Message Codex');
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

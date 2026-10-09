@@ -118,7 +118,7 @@ message text, command output, provider stderr, or protocol bodies.
 
 ## Testing
 
-`apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.mjs` is a
+`apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts` is a
 deterministic stand-in for the app-server, selected by keywords in the user's message (approval,
 question, slow stream, failure, crash). Unit and integration tests drive it; no test launches the
 real CLI or calls a model, and real-Agent E2E refuses to start a Chat.

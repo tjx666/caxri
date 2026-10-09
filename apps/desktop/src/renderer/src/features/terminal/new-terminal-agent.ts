@@ -1,5 +1,5 @@
 import type { AppSettings, TerminalKind, TerminalRecord, TerminalSurface } from '@caxri/protocol';
-import { agentProviderCatalog, terminalKindSchema } from '@caxri/protocol';
+import { agentProviderCatalog, isChatTerminal, terminalKindSchema } from '@caxri/protocol';
 
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 
@@ -65,9 +65,17 @@ function isLiveAgentTerminal(terminal: TerminalRecord): boolean {
 }
 
 /**
+ * A Terminal a click can create: which Agent, and whether it runs as a PTY or an Agent Chat.
+ */
+export interface NewTerminalTarget {
+    kind: TerminalKind;
+    surface: TerminalSurface;
+}
+
+/**
  * What a direct click on the tab-strip New Terminal `+` creates: the Agent the Session's primary Terminal is currently
- * running, so the new Terminal joins the same conversation instead of always asking or always following a possibly
- * stale configured default (Fix #1292).
+ * running, on the same surface (a Chat clones as a Chat), so the new Terminal joins the same conversation instead of
+ * always asking or always following a possibly stale configured default (Fix #1292).
  *
  * Falls through to the configured default Agent when the primary Terminal is a shell or has exited, and to `null` when
  * neither resolves: the button opens the Agent list rather than guessing.
@@ -83,9 +91,14 @@ function isLiveAgentTerminal(terminal: TerminalRecord): boolean {
 export function resolveNewTerminalTarget(
     primaryTerminal: TerminalRecord | undefined,
     defaultAgent: ConfiguredDefaultAgent,
-): TerminalKind | null {
-    if (primaryTerminal && isLiveAgentTerminal(primaryTerminal)) return primaryTerminal.kind;
-    return resolveNewTerminalAgent(defaultAgent);
+): NewTerminalTarget | null {
+    if (primaryTerminal && isLiveAgentTerminal(primaryTerminal))
+        return {
+            kind: primaryTerminal.kind,
+            surface: isChatTerminal(primaryTerminal) ? 'chat' : 'pty',
+        };
+    const kind = resolveNewTerminalAgent(defaultAgent);
+    return kind ? { kind, surface: 'pty' } : null;
 }
 
 /**

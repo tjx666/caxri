@@ -18,63 +18,106 @@ import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
 
+/**
+ * Loose JSON-RPC shapes: the fake only reads the fields it answers, and the Server's own schemas validate what it
+ * emits.
+ */
+interface RpcMessage {
+    id?: number;
+    method?: string;
+    params?: Record<string, unknown>;
+    result?: unknown;
+}
+interface FakeItem {
+    id: string;
+    type: string;
+    [key: string]: unknown;
+}
+interface FakeTurn {
+    id: string;
+    items: FakeItem[];
+    status: string;
+    error: { message: string } | null;
+    startedAt: number;
+    durationMs?: number;
+    interrupted?: boolean;
+    finished?: boolean;
+    onFinished?: () => void;
+}
+interface FakeThread {
+    id: string;
+    turns: FakeTurn[];
+}
+interface ApprovalResponse {
+    decision?: string;
+}
+interface QuestionResponse {
+    answers?: Record<string, { answers: string[] } | undefined>;
+}
+
 if (process.argv.includes('--version')) {
     process.stdout.write('codex-cli 0.162.0\n');
     exitProcess(0);
 }
 
 const stateDirectory =
-    process.env.FAKE_CODEX_STATE_DIR || path.join(os.tmpdir(), 'caxri-fake-codex');
+    process.env.FAKE_CODEX_STATE_DIR ?? path.join(os.tmpdir(), 'caxri-fake-codex');
 fs.mkdirSync(stateDirectory, { recursive: true });
 
-const pendingServerRequests = new Map();
+const pendingServerRequests = new Map<number, (result: unknown) => void>();
 
 /**
  * This file stands in for a CLI process, so exiting is part of its contract.
  */
-function exitProcess(code) {
+function exitProcess(code: number): never {
     // eslint-disable-next-line unicorn/no-process-exit -- see above
     process.exit(code);
 }
 /**
  * Mutable process state, kept on one object so handlers update it without reassigning module bindings.
  */
-const state = { nextServerRequestId: 1000, thread: undefined, activeTurn: undefined };
+const state: { nextServerRequestId: number; thread?: FakeThread; activeTurn?: FakeTurn } = {
+    nextServerRequestId: 1000,
+};
 
-function send(message) {
+function currentThread(): FakeThread {
+    if (!state.thread) throw new Error('No thread has been started.');
+    return state.thread;
+}
+function send(message: Record<string, unknown>) {
     process.stdout.write(`${JSON.stringify(message)}\n`);
 }
-function notify(method, parameters) {
-    send({ method, params: { threadId: state.thread && state.thread.id, ...parameters } });
+function notify(method: string, parameters: Record<string, unknown>) {
+    send({ method, params: { threadId: state.thread?.id, ...parameters } });
 }
-function threadPath(id) {
-    return path.join(stateDirectory, `${id.replaceAll(/[^\w-]/g, '_')}.json`);
+function threadPath(id: string) {
+    return path.join(stateDirectory, `${id.replaceAll(/[^\w-]/gu, '_')}.json`);
 }
 function save() {
-    if (state.thread.turns.length > 0)
-        fs.writeFileSync(threadPath(state.thread.id), JSON.stringify(state.thread));
+    const thread = currentThread();
+    if (thread.turns.length > 0) fs.writeFileSync(threadPath(thread.id), JSON.stringify(thread));
 }
-function delay(ms) {
+function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
-function serverRequest(method, parameters) {
+function serverRequest(method: string, parameters: Record<string, unknown>): Promise<unknown> {
     const id = state.nextServerRequestId++;
-    send({ id, method, params: { threadId: state.thread.id, ...parameters } });
+    send({ id, method, params: { threadId: currentThread().id, ...parameters } });
     return new Promise((resolve) => pendingServerRequests.set(id, resolve));
 }
 
-function startItem(turn, item) {
+function startItem(turn: FakeTurn, item: FakeItem) {
     turn.items.push(item);
     notify('item/started', { turnId: turn.id, item });
 }
-function completeItem(turn, item) {
+function completeItem(turn: FakeTurn, item: FakeItem) {
     const index = turn.items.findIndex((candidate) => candidate.id === item.id);
     if (index === -1) turn.items.push(item);
     else turn.items[index] = item;
     notify('item/completed', { turnId: turn.id, item });
 }
 
-async function streamMessage(turn, text, chunkDelayMs) {
+async function streamMessage(turn: FakeTurn, text: string, chunkDelayMs: number) {
     const item = { type: 'agentMessage', id: crypto.randomUUID(), text: '' };
     startItem(turn, { ...item });
     for (const word of text.split(/(?<= )/u)) {
@@ -82,12 +125,12 @@ async function streamMessage(turn, text, chunkDelayMs) {
         item.text += word;
         notify('item/agentMessage/delta', { turnId: turn.id, itemId: item.id, delta: word });
         // eslint-disable-next-line no-await-in-loop -- chunks stream one at a time on purpose
-        if (chunkDelayMs) await delay(chunkDelayMs);
+        if (chunkDelayMs > 0) await delay(chunkDelayMs);
     }
     completeItem(turn, item);
 }
 
-async function runTurn(turn, text) {
+async function runTurn(turn: FakeTurn, text: string) {
     const user = {
         type: 'userMessage',
         id: crypto.randomUUID(),
@@ -109,18 +152,15 @@ async function runTurn(turn, text) {
             durationMs: null,
         };
         startItem(turn, { ...command });
-        const response = await serverRequest('item/commandExecution/requestApproval', {
+        const response = (await serverRequest('item/commandExecution/requestApproval', {
             turnId: turn.id,
             itemId: command.id,
             startedAtMs: Date.now(),
             command: command.command,
             cwd: command.cwd,
             reason: 'Fake approval',
-        });
-        if (
-            response &&
-            (response.decision === 'accept' || response.decision === 'acceptForSession')
-        ) {
+        })) as ApprovalResponse | undefined;
+        if (response?.decision === 'accept' || response?.decision === 'acceptForSession') {
             notify('item/commandExecution/outputDelta', {
                 turnId: turn.id,
                 itemId: command.id,
@@ -140,7 +180,7 @@ async function runTurn(turn, text) {
         }
     } else if (text.includes('ask')) {
         const item = { type: 'dynamicToolCall', id: crypto.randomUUID() };
-        const response = await serverRequest('item/tool/requestUserInput', {
+        const response = (await serverRequest('item/tool/requestUserInput', {
             turnId: turn.id,
             itemId: item.id,
             questions: [
@@ -156,9 +196,9 @@ async function runTurn(turn, text) {
                     ],
                 },
             ],
-        });
-        const answer = response && response.answers && response.answers.color;
-        await streamMessage(turn, `You chose ${(answer && answer.answers[0]) || 'nothing'}.`, 0);
+        })) as QuestionResponse | undefined;
+        const answer = response?.answers?.color?.answers[0];
+        await streamMessage(turn, `You chose ${answer ?? 'nothing'}.`, 0);
     } else if (text.includes('slow')) {
         await streamMessage(turn, 'word '.repeat(200), 50);
     } else if (text.includes('fail')) {
@@ -199,7 +239,7 @@ async function runTurn(turn, text) {
 /**
  * The turn fields Codex sends; the fake's own bookkeeping flags stay private.
  */
-function wireTurn(turn) {
+function wireTurn(turn: FakeTurn) {
     return {
         id: turn.id,
         items: turn.items,
@@ -209,7 +249,7 @@ function wireTurn(turn) {
     };
 }
 
-function finishTurn(turn) {
+function finishTurn(turn: FakeTurn) {
     if (turn.finished) return;
     turn.finished = true;
     if (turn.interrupted) turn.status = 'interrupted';
@@ -218,26 +258,27 @@ function finishTurn(turn) {
     state.activeTurn = undefined;
     save();
     notify('turn/completed', { turn: { ...wireTurn(turn), items: [] } });
-    if (turn.onFinished) turn.onFinished();
+    turn.onFinished?.();
 }
 
 function threadResponse() {
+    const thread = currentThread();
     return {
         thread: {
-            id: state.thread.id,
+            id: thread.id,
             status: { type: 'idle' },
             cwd: process.cwd(),
-            turns: state.thread.turns.map(wireTurn),
+            turns: thread.turns.map((turn) => wireTurn(turn)),
         },
         model: 'fake-codex-model',
     };
 }
 
-function handle(message) {
+function handle(message: RpcMessage) {
     if (message.id !== undefined && message.method === undefined) {
         const resolve = pendingServerRequests.get(message.id);
         pendingServerRequests.delete(message.id);
-        if (resolve) resolve(message.result);
+        resolve?.(message.result);
         return;
     }
     const { id, method, params: parameters = {} } = message;
@@ -255,55 +296,55 @@ function handle(message) {
             return;
         }
         case 'thread/resume': {
-            const file = threadPath(String(parameters.threadId));
+            const threadId = String(parameters.threadId);
+            const file = threadPath(threadId);
             if (!fs.existsSync(file)) {
                 send({
                     id,
-                    error: {
-                        code: -32600,
-                        message: `no rollout found for thread id ${parameters.threadId}`,
-                    },
+                    error: { code: -32600, message: `no rollout found for thread id ${threadId}` },
                 });
                 return;
             }
-            state.thread = JSON.parse(fs.readFileSync(file, 'utf8'));
+            state.thread = JSON.parse(fs.readFileSync(file, 'utf8')) as FakeThread;
             send({ id, result: threadResponse() });
             return;
         }
         case 'turn/start': {
-            const text = (parameters.input || []).map((input) => input.text || '').join('\n');
-            const turn = {
+            const inputs = (parameters.input ?? []) as Array<{ text?: string }>;
+            const text = inputs.map((input) => input.text ?? '').join('\n');
+            const turn: FakeTurn = {
                 id: crypto.randomUUID(),
                 items: [],
                 status: 'inProgress',
                 error: null,
                 startedAt: Date.now(),
             };
-            state.thread.turns.push(turn);
+            currentThread().turns.push(turn);
             state.activeTurn = turn;
             send({ id, result: { turn: { id: turn.id, items: [], status: 'inProgress' } } });
             notify('turn/started', { turn: { id: turn.id, items: [], status: 'inProgress' } });
-            runTurn(turn, text);
+            // eslint-disable-next-line no-void -- the turn streams its own notifications after this response
+            void runTurn(turn, text);
             return;
         }
         case 'turn/steer': {
-            if (!state.activeTurn || state.activeTurn.id !== parameters.expectedTurnId) {
+            if (state.activeTurn?.id !== parameters.expectedTurnId) {
                 send({ id, error: { code: -32600, message: 'no active turn to steer' } });
                 return;
             }
-            send({ id, result: { turnId: state.activeTurn.id } });
+            send({ id, result: { turnId: state.activeTurn?.id } });
             return;
         }
         case 'turn/interrupt': {
-            if (!state.activeTurn || state.activeTurn.id !== parameters.turnId) {
+            const turn = state.activeTurn;
+            if (!turn || turn.id !== parameters.turnId) {
                 send({ id, error: { code: -32600, message: 'no active turn to interrupt' } });
                 return;
             }
-            const turn = state.activeTurn;
             turn.interrupted = true;
             for (const [requestId, resolve] of pendingServerRequests) {
                 pendingServerRequests.delete(requestId);
-                resolve();
+                resolve(undefined);
             }
             turn.onFinished = () => send({ id, result: {} });
             setTimeout(() => finishTurn(turn), 10);
@@ -311,12 +352,15 @@ function handle(message) {
         }
         default: {
             if (id !== undefined)
-                send({ id, error: { code: -32600, message: `unknown variant \`${method}\`` } });
+                send({
+                    id,
+                    error: { code: -32600, message: `unknown variant \`${String(method)}\`` },
+                });
         }
     }
 }
 
 readline.createInterface({ input: process.stdin }).on('line', (line) => {
-    if (line.trim()) handle(JSON.parse(line));
+    if (line.trim()) handle(JSON.parse(line) as RpcMessage);
 });
 process.stdin.on('end', () => exitProcess(0));
