@@ -21,6 +21,7 @@ export function AgentChatComposer({
     canSend,
     contextSummary,
     inputReference,
+    providerName,
     terminalId,
 }: {
     /**
@@ -33,6 +34,10 @@ export function AgentChatComposer({
      */
     contextSummary: string | undefined;
     inputReference: RefObject<HTMLTextAreaElement | null>;
+    /**
+     * The provider catalog's display name, for the placeholder.
+     */
+    providerName: string;
     terminalId: string;
 }) {
     const [draft, setDraftState] = useState(() => readAgentChatDraft(terminalId));
@@ -81,7 +86,9 @@ export function AgentChatComposer({
                     aria-label="Message"
                     className="field-sizing-content max-h-48 min-h-9 flex-1 resize-none"
                     maxLength={MAX_AGENT_CHAT_MESSAGE_LENGTH}
-                    placeholder={isTurnRunning ? 'Steer the current turn' : 'Message Codex'}
+                    placeholder={
+                        isTurnRunning ? 'Steer the current turn' : `Message ${providerName}`
+                    }
                     ref={inputReference}
                     rows={1}
                     value={draft}

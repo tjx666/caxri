@@ -5,12 +5,14 @@ import type {
     AgentChatPatchOperation,
     AgentChatSnapshot,
     AgentLaunchSettings,
+    AgentProvider,
     ServerEvent,
     TerminalFailureReason,
     TerminalRecord,
 } from '@caxri/protocol';
 import {
     agentChatSnapshotSchema,
+    agentProviderCatalog,
     applyAgentChatOperation,
     CaxriError,
     emptyAgentChatSnapshot,
@@ -26,16 +28,24 @@ import {
     readE2EAgentPolicy,
 } from '@caxri/system';
 
-import type { AgentLifecycleSignal } from '../agents';
+import type { AgentEnvironment, AgentLifecycleSignal } from '../agents';
+import { agentCommandEnvironment, readAgentTranscript } from '../agents';
 import type { CaxriDatabase } from '../db';
 import { SingleFlight } from '../single-flight';
 import type { TerminalManagerOptions } from '../terminal';
 import { resolveTerminalExecutable } from '../terminal';
-import type { CodexChatSessionOptions } from './codex-chat-session';
-import { CodexChatSession } from './codex-chat-session';
-import type { ChatLifecycleEvent, CodexChatExit } from './codex-chat-types';
-import { AgentChatStartError } from './codex-chat-types';
-import { codexChatSettings, REAL_E2E_CODEX_CHAT_SETTINGS } from './launch-settings';
+import type {
+    AgentChatDriver,
+    AgentChatExit,
+    AgentChatProviderSession,
+    AgentChatResponse,
+    AgentChatTranscript,
+    ChatLifecycleEvent,
+    SpawnChatProcess,
+} from './chat-provider';
+import { AgentChatStartError } from './chat-provider';
+import { claudeChatDriver } from './claude-chat-session';
+import { codexChatDriver } from './codex-chat-session';
 
 /**
  * Streaming deltas are coalesced into one patch per frame-sized window so a fast provider does not flood every Client
@@ -43,12 +53,29 @@ import { codexChatSettings, REAL_E2E_CODEX_CHAT_SETTINGS } from './launch-settin
  */
 const PATCH_FLUSH_MS = 16;
 
+/**
+ * The Chat implementation for each provider. Exhaustive so a provider added to the catalog fails closed here until it
+ * has a structured driver; `capabilities.chat` in the catalog must agree.
+ */
+const agentChatDrivers: Record<AgentProvider, AgentChatDriver | undefined> = {
+    claude: claudeChatDriver,
+    codex: codexChatDriver,
+    grok: undefined,
+};
+
 export interface AgentChatServiceOptions {
     database: CaxriDatabase;
     logger: StructuredLogger;
     send(event: ServerEvent): void;
-    environment(): Promise<NodeJS.ProcessEnv>;
-    launchSettings(provider: 'codex'): AgentLaunchSettings;
+    /**
+     * Locates provider state such as Claude Code's on-disk transcript, and seeds the provider process environment.
+     */
+    agentEnvironment: AgentEnvironment;
+    /**
+     * Overrides the provider process environment derived from `agentEnvironment`, so tests can point it at fakes.
+     */
+    environment?: () => Promise<NodeJS.ProcessEnv>;
+    launchSettings(provider: AgentProvider): AgentLaunchSettings;
     resolveExecutable?: TerminalManagerOptions['resolveExecutable'];
     coordinator: {
         beginTerminalLaunch(terminalId: string, launchId: string): void;
@@ -57,7 +84,7 @@ export interface AgentChatServiceOptions {
     };
     observeLifecycleSignal(signal: AgentLifecycleSignal): Promise<unknown>;
     clientVersion: string;
-    spawnProcess?: CodexChatSessionOptions['spawnProcess'];
+    spawnProcess?: SpawnChatProcess;
 }
 
 interface ChatState {
@@ -67,7 +94,7 @@ interface ChatState {
      */
     queued: AgentChatPatchOperation[];
     flushTimer?: NodeJS.Timeout;
-    session?: CodexChatSession;
+    session?: AgentChatProviderSession;
     launchId?: string;
     /**
      * Settles after the last accepted send. Serializes sends so two quick messages cannot both start a turn.
@@ -107,6 +134,21 @@ export class AgentChatService {
 
     constructor(private readonly options: AgentChatServiceOptions) {}
 
+    /**
+     * Bounded tail of a bound Chat's on-disk Agent transcript, for providers whose resume does not return history.
+     */
+    private async readTranscript(terminalId: string): Promise<AgentChatTranscript | undefined> {
+        const transcript = await readAgentTranscript(
+            this.options.database,
+            terminalId,
+            true,
+            this.options.agentEnvironment,
+        );
+        return transcript?.content === undefined
+            ? undefined
+            : { content: transcript.content, truncated: transcript.truncated };
+    }
+
     private async stop(terminalId: string): Promise<void> {
         const state = this.states.get(terminalId);
         if (!state) return;
@@ -115,12 +157,13 @@ export class AgentChatService {
         state.session = undefined;
     }
 
-    private requireChatTerminal(terminalId: string): TerminalRecord {
+    private requireChatTerminal(terminalId: string): TerminalRecord & { provider: AgentProvider } {
         const terminal = this.options.database.getTerminal(terminalId);
         if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');
-        if (!isChatTerminal(terminal) || terminal.provider !== 'codex')
+        const { provider } = terminal;
+        if (!provider || !isChatTerminal(terminal) || !agentChatDrivers[provider])
             throw new CaxriError('UNAVAILABLE', 'This Terminal does not use Chat');
-        return terminal;
+        return { ...terminal, provider };
     }
 
     private state(terminalId: string): ChatState {
@@ -199,7 +242,9 @@ export class AgentChatService {
         });
     }
 
-    private async ensureStarted(terminal: TerminalRecord): Promise<CodexChatSession> {
+    private async ensureStarted(
+        terminal: TerminalRecord & { provider: AgentProvider },
+    ): Promise<AgentChatProviderSession> {
         const state = this.state(terminal.id);
         /**
          * `start()` publishes its session as soon as the process spawns, before the thread exists, so an open session
@@ -210,7 +255,8 @@ export class AgentChatService {
         if (!state.session?.isOpen)
             throw new CaxriError(
                 'UNAVAILABLE',
-                state.snapshot.failure?.detail ?? 'Codex Chat is not running',
+                state.snapshot.failure?.detail ??
+                    `${agentProviderCatalog[terminal.provider].displayName} Chat is not running`,
             );
         return state.session;
     }
@@ -219,7 +265,9 @@ export class AgentChatService {
      * Starts the provider for a caller that does not need the session. A failed start is already recorded in the
      * projection, where every Client sees it.
      */
-    private async startQuietly(terminal: TerminalRecord): Promise<void> {
+    private async startQuietly(
+        terminal: TerminalRecord & { provider: AgentProvider },
+    ): Promise<void> {
         try {
             await this.ensureStarted(terminal);
         } catch {
@@ -227,9 +275,14 @@ export class AgentChatService {
         }
     }
 
-    private async start(terminal: TerminalRecord, state: ChatState): Promise<void> {
+    private async start(
+        terminal: TerminalRecord & { provider: AgentProvider },
+        state: ChatState,
+    ): Promise<void> {
         const { database, logger } = this.options;
         const terminalId = terminal.id;
+        const { provider } = terminal;
+        const { displayName } = agentProviderCatalog[provider];
         const launchId = randomUUID();
         const startedAt = Date.now();
         state.launchId = launchId;
@@ -240,16 +293,18 @@ export class AgentChatService {
         this.options.coordinator.beginTerminalLaunch(terminalId, launchId);
         const isCurrent = () =>
             state.launchId === launchId && this.states.get(terminalId) === state;
-        let session: CodexChatSession | undefined;
+        let session: AgentChatProviderSession | undefined;
         try {
-            const launch = this.options.launchSettings('codex');
+            const driver = agentChatDrivers[provider];
+            if (!driver) throw new AgentChatStartError('spawn_failed');
+            const launch = this.options.launchSettings(provider);
             /**
              * Real-Agent E2E may start a Chat only when the run was authorized for the Chat surface; the thread then
              * ignores the user's launch settings for a fixed read-only, approval-free configuration.
              */
             const e2ePolicy = readE2EAgentPolicy();
             try {
-                assertE2EAgentChatLaunch(e2ePolicy, 'codex', launch);
+                assertE2EAgentChatLaunch(e2ePolicy, provider, launch);
             } catch {
                 throw new AgentChatStartError(
                     'spawn_failed',
@@ -259,24 +314,26 @@ export class AgentChatService {
             let executable: string;
             try {
                 executable = await resolveTerminalExecutable(
-                    'codex',
+                    provider,
                     launch,
                     this.options.resolveExecutable,
                 );
             } catch {
-                throw new AgentChatStartError('executable_not_found', 'Codex CLI was not found');
+                throw new AgentChatStartError(
+                    'executable_not_found',
+                    `${displayName} CLI was not found`,
+                );
             }
-            const environment = await this.options.environment();
-            session = new CodexChatSession({
+            const environment = await (this.options.environment?.() ??
+                agentCommandEnvironment(this.options.agentEnvironment));
+            session = driver.create({
                 terminalId,
                 cwd: terminal.cwd,
                 executable,
                 environment,
-                settings:
-                    e2ePolicy?.mode === 'real'
-                        ? REAL_E2E_CODEX_CHAT_SETTINGS
-                        : codexChatSettings(launch),
-                threadId: database.getTerminal(terminalId)?.agentSessionId,
+                launch,
+                isRealAgentE2E: e2ePolicy?.mode === 'real',
+                agentSessionId: database.getTerminal(terminalId)?.agentSessionId,
                 clientVersion: this.options.clientVersion,
                 spawnProcess: this.options.spawnProcess,
                 read: () => state.snapshot,
@@ -284,11 +341,11 @@ export class AgentChatService {
                     if (isCurrent()) this.apply(terminalId, operations);
                 },
                 lifecycle: (event) => {
-                    if (isCurrent()) this.lifecycle(terminalId, launchId, event);
+                    if (isCurrent()) this.lifecycle(terminalId, provider, launchId, event);
                 },
-                onThreadBound: (threadId) => {
+                onSessionBound: (agentSessionId) => {
                     if (!isCurrent()) return;
-                    if (database.rebindAgentSession(terminalId, 'codex', threadId))
+                    if (database.rebindAgentSession(terminalId, provider, agentSessionId))
                         this.sendTerminalChange(terminalId);
                 },
                 onTurnFinished: (status, durationMs) =>
@@ -299,7 +356,8 @@ export class AgentChatService {
                     logger.write('warn', logEventCatalog.agentChat.protocolRejected, {
                         fields: { terminalId, reason, method: method.slice(0, 100) },
                     }),
-                onExit: (exit) => this.onExit(terminalId, state, launchId, exit),
+                onExit: (exit) => this.onExit(terminalId, provider, state, launchId, exit),
+                readTranscript: () => this.readTranscript(terminalId),
             });
             state.session = session;
             const mode = await session.start();
@@ -322,7 +380,10 @@ export class AgentChatService {
             const failure =
                 error instanceof AgentChatStartError
                     ? { reason: error.reason, detail: error.detail }
-                    : { reason: 'spawn_failed' as const, detail: 'Codex Chat could not start' };
+                    : {
+                          reason: 'spawn_failed' as const,
+                          detail: `${displayName} Chat could not start`,
+                      };
             logger.write('warn', logEventCatalog.agentChat.processStarted, {
                 fields: {
                     terminalId,
@@ -350,13 +411,13 @@ export class AgentChatService {
         }
     }
 
-    private lifecycle(terminalId: string, launchId: string, event: ChatLifecycleEvent): void {
-        const signal: AgentLifecycleSignal = {
-            ...event,
-            launchId,
-            provider: 'codex',
-            terminalId,
-        };
+    private lifecycle(
+        terminalId: string,
+        provider: AgentProvider,
+        launchId: string,
+        event: ChatLifecycleEvent,
+    ): void {
+        const signal: AgentLifecycleSignal = { ...event, launchId, provider, terminalId };
         // eslint-disable-next-line no-void -- lifecycle delivery is ordered by the coordinator, not by this caller.
         void this.observeLifecycleSignal(signal);
     }
@@ -377,9 +438,10 @@ export class AgentChatService {
 
     private onExit(
         terminalId: string,
+        provider: AgentProvider,
         state: ChatState,
         launchId: string,
-        exit: CodexChatExit,
+        exit: AgentChatExit,
     ): void {
         const { database, logger } = this.options;
         logger.write(exit.requested ? 'info' : 'warn', logEventCatalog.agentChat.processExited, {
@@ -407,6 +469,7 @@ export class AgentChatService {
         if (exit.activeTurnId)
             this.lifecycle(
                 terminalId,
+                provider,
                 launchId,
                 exit.requested
                     ? { phase: 'turnFinished', agentTurnId: exit.activeTurnId }
@@ -481,11 +544,7 @@ export class AgentChatService {
         await this.states.get(terminalId)?.session?.interrupt();
     }
 
-    respond(
-        terminalId: string,
-        requestId: string,
-        response: Parameters<CodexChatSession['respond']>[1],
-    ): void {
+    respond(terminalId: string, requestId: string, response: AgentChatResponse): void {
         this.requireChatTerminal(terminalId);
         const session = this.states.get(terminalId)?.session;
         if (!session) throw new CaxriError('CONFLICT', 'This request is no longer pending');

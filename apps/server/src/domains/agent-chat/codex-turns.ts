@@ -5,7 +5,8 @@ import type {
     AgentChatTurn,
 } from '@caxri/protocol';
 
-import { clip, closeDanglingItem, isRecord, mapCodexItem } from './codex-items';
+import { clip, closeDanglingItem, isRecord, MAX_TRACKED_TURNS, stringField } from './chat-items';
+import { mapCodexItem } from './codex-items';
 
 /**
  * Pure turn bookkeeping for a Codex Chat: rebuilding the projection from resumed history and closing a finished turn.
@@ -17,11 +18,6 @@ type Json = Record<string, unknown>;
  * History loaded on resume is capped by turns; the shared reducer also enforces the item and byte budgets.
  */
 const MAX_RESUMED_TURNS = 100;
-export const MAX_TRACKED_TURNS = 200;
-
-export function stringField(value: unknown): string | undefined {
-    return typeof value === 'string' && value ? value : undefined;
-}
 
 function turnStatus(value: unknown): AgentChatTurn['status'] {
     switch (value) {

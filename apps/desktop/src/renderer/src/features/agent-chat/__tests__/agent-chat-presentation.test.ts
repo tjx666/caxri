@@ -7,7 +7,9 @@ import {
     agentChatActivityTitle,
     agentChatCommandCwd,
     agentChatContextSummary,
+    agentChatFailureMessage,
     agentChatQuestionAnswers,
+    agentChatRequestTitle,
     canSendAgentChatMessage,
     isAgentChatInterruptKey,
     isAgentChatSubmitKey,
@@ -125,18 +127,24 @@ describe('agentChatContextSummary', () => {
 
 describe('agentChatActivityLabel', () => {
     it('tells starting, working, and waiting on the user apart', () => {
-        expect(agentChatActivityLabel(undefined)).toEqual({
-            text: 'Starting Codex…',
+        expect(agentChatActivityLabel(undefined, 'Claude Code')).toEqual({
+            text: 'Starting Claude Code…',
             isBusy: true,
         });
-        expect(agentChatActivityLabel(snapshot('ready'))).toBeUndefined();
+        expect(agentChatActivityLabel(snapshot('ready'), 'Codex')).toBeUndefined();
         const running = { ...snapshot('ready'), activeTurnId: 'turn-1' };
-        expect(agentChatActivityLabel(running)).toEqual({ text: 'Working…', isBusy: true });
+        expect(agentChatActivityLabel(running, 'Codex')).toEqual({
+            text: 'Working…',
+            isBusy: true,
+        });
         expect(
-            agentChatActivityLabel({
-                ...running,
-                requests: [{ id: 'r', kind: 'fileChange' }],
-            }),
+            agentChatActivityLabel(
+                {
+                    ...running,
+                    requests: [{ id: 'r', kind: 'fileChange' }],
+                },
+                'Codex',
+            ),
         ).toEqual({ text: 'Waiting for your answer', isBusy: false });
     });
 });
@@ -155,5 +163,26 @@ describe('isAgentChatInterruptKey', () => {
         expect(isAgentChatInterruptKey({ key: 'Enter', isComposing: false, repeat: false })).toBe(
             false,
         );
+    });
+});
+
+describe('agentChatFailureMessage', () => {
+    it('names the Chat provider', () => {
+        expect(agentChatFailureMessage('process_exited', 'Claude Code')).toBe(
+            'Claude Code stopped unexpectedly. Retry to resume the conversation.',
+        );
+    });
+});
+
+describe('agentChatRequestTitle', () => {
+    it('asks about a generic tool by name', () => {
+        expect(
+            agentChatRequestTitle({
+                id: 'r',
+                kind: 'tool',
+                name: 'WebFetch',
+                decisions: ['accept'],
+            }),
+        ).toBe('Allow WebFetch?');
     });
 });

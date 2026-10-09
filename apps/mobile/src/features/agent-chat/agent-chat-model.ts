@@ -231,7 +231,7 @@ export const agentChatActivityLabel = (
  * declining already answers the request without stopping the turn.
  */
 export const agentChatApprovalChoices = (
-    request: Extract<AgentChatRequest, { kind: 'command' | 'fileChange' }>,
+    request: Extract<AgentChatRequest, { kind: 'command' | 'fileChange' | 'tool' }>,
 ): Array<{ decision: 'accept' | 'acceptForSession' | 'decline'; label: string }> => {
     const choices = [
         { decision: 'accept', label: 'Accept' },
@@ -251,6 +251,9 @@ export const agentChatRequestTitle = (request: AgentChatRequest): string => {
         }
         case 'fileChange': {
             return 'Apply these file changes?';
+        }
+        case 'tool': {
+            return `Allow ${request.name}?`;
         }
         case 'question': {
             return request.questions.length === 1

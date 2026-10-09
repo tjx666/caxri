@@ -1,9 +1,9 @@
 import { Buffer } from 'node:buffer';
-import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
-import { spawn } from 'node:child_process';
-import process from 'node:process';
 
 import { CaxriError } from '@caxri/protocol';
+
+import type { ChatProcessEnd, SpawnChatProcess } from './chat-provider';
+import { ProviderProcess } from './provider-process';
 
 /**
  * Largest single protocol frame accepted from the provider. A resumed thread returns its whole history in one response,
@@ -15,18 +15,7 @@ const CODEX_MAX_FRAME_BYTES = 32 * 1024 * 1024;
  * provider this far behind has stopped reading and the connection is failed instead of buffering without limit.
  */
 const CODEX_MAX_PENDING_WRITE_BYTES = 8 * 1024 * 1024;
-const TERMINATION_GRACE_MS = 1_000;
 const NEWLINE = 0x0a;
-
-/**
- * Closed reasons for a connection that ended. Each one maps to a Chat failure or an orderly stop.
- */
-export type CodexConnectionEnd =
-    | { reason: 'closed' }
-    | { reason: 'spawnFailed'; code?: string }
-    | { reason: 'exited'; exitCode: number | null; signal: NodeJS.Signals | null }
-    | { reason: 'frameTooLarge' }
-    | { reason: 'writeFailed' };
 
 export interface CodexServerRequest {
     id: number | string;
@@ -37,7 +26,7 @@ export interface CodexServerRequest {
 interface CodexConnectionHandlers {
     onNotification(method: string, parameters: Record<string, unknown>): void;
     onServerRequest(request: CodexServerRequest): void;
-    onEnd(end: CodexConnectionEnd): void;
+    onEnd(end: ChatProcessEnd): void;
 }
 
 export interface CodexConnectionOptions {
@@ -49,11 +38,7 @@ export interface CodexConnectionOptions {
     /**
      * Test seam for a fake child process. Always called with piped stdio.
      */
-    spawnProcess?: (
-        executable: string,
-        arguments_: string[],
-        options: SpawnOptionsWithoutStdio,
-    ) => ChildProcessWithoutNullStreams;
+    spawnProcess?: SpawnChatProcess;
 }
 
 /**
@@ -86,7 +71,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * @see https://github.com/openai/codex/tree/main/codex-rs/app-server
  */
 export class CodexConnection {
-    private readonly child: ChildProcessWithoutNullStreams;
+    private readonly process: ProviderProcess;
 
     private readonly pending = new Map<number, PendingRequest>();
 
@@ -102,86 +87,31 @@ export class CodexConnection {
 
     private hasEnded = false;
 
-    private readonly exited: Promise<void>;
-
     /**
      * Lifetime aggregates reported once when the process exits.
      */
     readonly counters = { droppedFrames: 0, serverRequests: 0, notifications: 0 };
 
     constructor(private readonly options: CodexConnectionOptions) {
-        const spawnProcess = options.spawnProcess ?? spawn;
-        this.child = spawnProcess(options.executable, [...options.args], {
-            cwd: options.cwd,
-            env: options.environment,
-            stdio: ['pipe', 'pipe', 'pipe'],
-            /**
-             * A process group lets termination reach an npm-installed `codex` shim's native child too.
-             */
-            detached: process.platform !== 'win32',
-        });
-        this.exited = new Promise((resolve) => {
-            this.child.once('close', () => resolve());
-            this.child.once('error', () => resolve());
-        });
-        this.child.stdout.on('data', (chunk: Buffer) => this.receive(chunk));
-        /**
-         * Stderr carries provider tracing that may quote conversation content; drain it without retaining it.
-         */
-        this.child.stderr.resume();
-        this.child.stdin.on('error', () => this.end({ reason: 'writeFailed' }));
-        this.child.once('error', (error: NodeJS.ErrnoException) =>
+        this.process = new ProviderProcess(options);
+        const { child } = this.process;
+        child.stdout.on('data', (chunk: Buffer) => this.receive(chunk));
+        child.stdin.on('error', () => this.end({ reason: 'writeFailed' }));
+        child.once('error', (error: NodeJS.ErrnoException) =>
             this.end({ reason: 'spawnFailed', code: error.code }),
         );
-        this.child.once('close', (exitCode, signal) =>
-            this.end({ reason: 'exited', exitCode, signal }),
-        );
-    }
-
-    private async exitsWithin(timeoutMs: number): Promise<boolean> {
-        let timer: NodeJS.Timeout | undefined;
-        const timeout = new Promise<false>((resolve) => {
-            timer = setTimeout(() => resolve(false), timeoutMs);
-        });
-        const exit = (async () => {
-            await this.exited;
-            return true as const;
-        })();
-        try {
-            return await Promise.race([exit, timeout]);
-        } finally {
-            clearTimeout(timer);
-        }
-    }
-
-    private hasExited(): boolean {
-        return this.child.exitCode !== null || this.child.signalCode !== null;
-    }
-
-    private signal(signal: NodeJS.Signals): void {
-        const pid = this.child.pid;
-        if (pid === undefined) return;
-        try {
-            if (process.platform === 'win32') this.child.kill(signal);
-            else process.kill(-pid, signal);
-        } catch {
-            try {
-                this.child.kill(signal);
-            } catch {
-                // Already exited.
-            }
-        }
+        child.once('close', (exitCode, signal) => this.end({ reason: 'exited', exitCode, signal }));
     }
 
     private write(message: Record<string, unknown>): void {
         if (this.hasEnded) return;
-        if (this.child.stdin.writableLength > CODEX_MAX_PENDING_WRITE_BYTES) {
+        if (this.process.child.stdin.writableLength > CODEX_MAX_PENDING_WRITE_BYTES) {
             this.end({ reason: 'writeFailed' });
-            this.signal('SIGKILL');
+            this.process.signal('SIGKILL');
             return;
         }
         try {
-            this.child.stdin.write(`${JSON.stringify(message)}\n`);
+            this.process.child.stdin.write(`${JSON.stringify(message)}\n`);
         } catch {
             this.end({ reason: 'writeFailed' });
         }
@@ -195,7 +125,7 @@ export class CodexConnection {
         this.partial = [];
         this.partialBytes = 0;
         this.end({ reason: 'frameTooLarge' });
-        this.signal('SIGKILL');
+        this.process.signal('SIGKILL');
         return true;
     }
 
@@ -266,7 +196,7 @@ export class CodexConnection {
         } else entry.resolve(frame.result);
     }
 
-    private end(end: CodexConnectionEnd): void {
+    private end(end: ChatProcessEnd): void {
         if (this.hasEnded) return;
         this.hasEnded = true;
         for (const entry of this.pending.values()) {
@@ -278,7 +208,7 @@ export class CodexConnection {
     }
 
     get pid(): number | undefined {
-        return this.child.pid;
+        return this.process.pid;
     }
 
     get isOpen(): boolean {
@@ -323,16 +253,6 @@ export class CodexConnection {
      */
     async close(): Promise<void> {
         this.end({ reason: 'closed' });
-        try {
-            this.child.stdin.end();
-        } catch {
-            // Already closed.
-        }
-        if (this.child.pid === undefined || this.hasExited()) return this.exited;
-        if ((await this.exitsWithin(TERMINATION_GRACE_MS)) || this.hasExited()) return;
-        this.signal('SIGTERM');
-        if (!(await this.exitsWithin(TERMINATION_GRACE_MS)) && !this.hasExited())
-            this.signal('SIGKILL');
-        await this.exited;
+        await this.process.terminate();
     }
 }
