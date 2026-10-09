@@ -10,7 +10,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, redactLogValue, redactSecrets } from '@caxri/system';
 import { ZipArchive } from 'archiver';
 
-import { commanderDiagnostics } from './commander/diagnostics';
+import { commanderDiagnostics } from './commander';
 import type { CaxriDatabase } from './db';
 import type { WatchHubSnapshot } from './watch-hub';
 
