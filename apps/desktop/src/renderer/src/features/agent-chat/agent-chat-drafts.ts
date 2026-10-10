@@ -56,3 +56,22 @@ export function attachmentsAfterSend(
     const sentIds = new Set(sent.map((attachment) => attachment.id));
     return current.filter((attachment) => !sentIds.has(attachment.id));
 }
+
+/**
+ * Inserts `text` over the selection `[start, end)`, padded with a space wherever it would otherwise run into a
+ * neighboring word, and always followed by one so the user can keep typing. Returns the new draft and where the caret
+ * goes.
+ */
+export function draftWithInsertion(
+    draft: string,
+    start: number,
+    end: number,
+    text: string,
+): { draft: string; caret: number } {
+    const before = draft.slice(0, start);
+    const after = draft.slice(end);
+    const leading = before && !/\s$/u.test(before) ? ' ' : '';
+    const trailing = /^\s/u.test(after) ? '' : ' ';
+    const inserted = `${leading}${text}${trailing}`;
+    return { draft: `${before}${inserted}${after}`, caret: before.length + inserted.length };
+}

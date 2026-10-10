@@ -180,4 +180,40 @@ describe('parseMarkdownBlocks', () => {
         });
         expect(JSON.stringify(parseMarkdownBlocks(source))).not.toContain('"file"');
     });
+
+    it('links paths written as prose, outside existing links, only when file links are enabled', () => {
+        const source =
+            '修改了src/a.ts:3，also **/repo/b.md** and [docs/c.md](https://a.dev/docs/c.md).';
+        const [paragraph] = parseMarkdownBlocks(source, { fileLinks: true });
+        expect(paragraph).toEqual({
+            type: 'paragraph',
+            children: [
+                { type: 'text', value: '修改了' },
+                {
+                    type: 'link',
+                    file: 'src/a.ts:3',
+                    children: [{ type: 'text', value: 'src/a.ts:3' }],
+                },
+                { type: 'text', value: '，also ' },
+                {
+                    type: 'strong',
+                    children: [
+                        {
+                            type: 'link',
+                            file: '/repo/b.md',
+                            children: [{ type: 'text', value: '/repo/b.md' }],
+                        },
+                    ],
+                },
+                { type: 'text', value: ' and ' },
+                {
+                    type: 'link',
+                    href: 'https://a.dev/docs/c.md',
+                    children: [{ type: 'text', value: 'docs/c.md' }],
+                },
+                { type: 'text', value: '.' },
+            ],
+        });
+        expect(JSON.stringify(parseMarkdownBlocks(source))).not.toContain('"file"');
+    });
 });

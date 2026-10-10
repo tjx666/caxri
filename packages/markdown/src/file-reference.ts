@@ -114,3 +114,55 @@ export function fileLinkTarget(destination: string): string | undefined {
     }
     return value.length > 0 && value.length <= 1024 && !/[\n\r]/u.test(value) ? value : undefined;
 }
+
+/**
+ * A path-shaped run inside prose. `\w` is ASCII-only, so a path written flush against CJK text (`修改了 src/a.ts，`) still
+ * starts and ends at the path. {@link fileReferenceTarget} still decides whether a run is a file.
+ */
+const PROSE_PATH =
+    /(?:~\/|\.{1,2}\/|\/)?(?:[\w.@+-]+\/)*[\w.@+-]*\w\.[A-Za-z][\w-]{0,15}(?::\d+(?::\d+|-\d+)?|#L\d+(?:-L?\d+)?)?/gu;
+
+/**
+ * Characters that, next to a run, mean it is a fragment of a longer token: a URL (`https://a.dev/x.ts`), an email, or a
+ * dotted identifier. A trailing `.` is allowed only when nothing word-like follows it, so a sentence may end on a
+ * path.
+ */
+const INNER_BEFORE = /[\w./@+:~-]/u;
+const INNER_AFTER = /^(?:[\w/@+-]|\.\w|:\/)/u;
+
+/**
+ * One file reference found in prose, as {@link fileReferenceTarget} reads it.
+ */
+export interface ProseFileReference {
+    /**
+     * Offset of the reference in the scanned text.
+     */
+    index: number;
+    /**
+     * The reference exactly as written.
+     */
+    text: string;
+    /**
+     * The target to open, with a `:10-20` range rewritten to `#L10-L20`.
+     */
+    file: string;
+}
+
+/**
+ * Finds file references in plain prose such as `see src/app.ts:12` or `/repo/a.md`. Prose is stricter than inline code:
+ * a run needs a directory or a location suffix, because `Node.js` and `index.ts` written as words are names, not
+ * citations.
+ */
+export function proseFileReferences(text: string): ProseFileReference[] {
+    const references: ProseFileReference[] = [];
+    for (const match of text.matchAll(PROSE_PATH)) {
+        const value = match[0];
+        const index = match.index;
+        if (index > 0 && INNER_BEFORE.test(text[index - 1] ?? '')) continue;
+        if (INNER_AFTER.test(text.slice(index + value.length))) continue;
+        if (!value.includes('/') && !/[:#]/u.test(value)) continue;
+        const file = fileReferenceTarget(value);
+        if (file) references.push({ index, text: value, file });
+    }
+    return references;
+}

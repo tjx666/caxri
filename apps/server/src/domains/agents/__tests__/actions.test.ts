@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConfigService } from '../../config';
 import type { CaxriDatabase } from '../../db';
-import { listAgentActions, recordRecentAgentAction } from '../actions';
+import { listAgentActions, readAgentAction, recordRecentAgentAction } from '../actions';
 
 const temporaryDirectories: string[] = [];
 
@@ -37,6 +37,40 @@ function settings(): AppSettings {
     };
     return value;
 }
+
+describe('readAgentAction', () => {
+    it('reads a discovered skill body by invocation, even after the Agent stopped', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-actions-read-'));
+        temporaryDirectories.push(root);
+        const skillDirectory = join(root, '.agents', 'skills', 'status-report');
+        await mkdir(skillDirectory, { recursive: true });
+        await writeFile(
+            join(skillDirectory, 'SKILL.md'),
+            '---\nname: status-report\ndescription: Report delivery status\n---\n\n# Status report\n\nList every open PR.\n',
+        );
+        const database = databaseWith({
+            id: 'terminal-1',
+            sessionId: 'session-1',
+            cwd: root,
+            provider: 'codex',
+            lastProcessState: 'stopped',
+        });
+        const environment = { homeDirectory: join(root, 'home'), variables: {} };
+
+        const result = await readAgentAction(database, environment, 'terminal-1', '$status-report');
+
+        expect(result).toEqual({
+            invocation: '$status-report',
+            kind: 'skill',
+            description: 'Report delivery status',
+            markdown: '# Status report\n\nList every open PR.',
+        });
+        expect(JSON.stringify(result)).not.toContain(root);
+        await expect(
+            readAgentAction(database, environment, 'terminal-1', '$missing'),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    });
+});
 
 describe('listAgentActions', () => {
     it('binds discovery and overrides to the durable running Agent Terminal', async () => {

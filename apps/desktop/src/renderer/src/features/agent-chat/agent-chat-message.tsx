@@ -11,7 +11,6 @@ import { MarkdownBlocks } from '../../components/markdown/markdown-blocks';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
-import { AgentChatMessageImages } from './agent-chat-message-images';
 import { agentChatNoticeMessage } from './agent-chat-presentation';
 
 function openChatLink(url: string): void {
@@ -20,38 +19,6 @@ function openChatLink(url: string): void {
 }
 
 const CHAT_PARSE_OPTIONS: MarkdownBlockOptions = { tables: true, fileLinks: true };
-
-/**
- * The user's message, right-aligned. A message sent while a turn ran says how it reached the Agent (`Steered` into that
- * turn, or `Queued` until it ended) in a quiet caption under the bubble.
- */
-export function AgentChatUserMessage({
-    delivery,
-    images,
-    text,
-}: {
-    delivery?: 'queued' | 'steered';
-    images?: ReadonlyArray<{ thumbnail?: string }>;
-    text: string;
-}) {
-    return (
-        <div className="flex flex-col items-end gap-1.5">
-            {images && images.length > 0 && (
-                <AgentChatMessageImages className="max-w-[85%]" images={images} />
-            )}
-            {text && (
-                <div className="max-w-[85%] rounded-lg bg-elevated px-3 py-2 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground">
-                    {text}
-                </div>
-            )}
-            {delivery && (
-                <span className="-mt-0.5 text-[11px] leading-4 text-muted">
-                    {delivery === 'steered' ? 'Steered' : 'Queued'}
-                </span>
-            )}
-        </div>
-    );
-}
 
 /**
  * Agent text rendered as Markdown. A streaming reply re-parses as it grows; the projection bounds every message, so the

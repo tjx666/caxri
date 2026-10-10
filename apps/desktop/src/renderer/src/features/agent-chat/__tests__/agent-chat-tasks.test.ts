@@ -15,6 +15,7 @@ import {
     findAgentChatTask,
     formatAgentChatTaskElapsed,
     isAgentChatSubagentItem,
+    isAgentChatTaskTitleCommand,
 } from '../agent-chat-tasks';
 
 function task(overrides: Partial<AgentChatTask> & Pick<AgentChatTask, 'id'>): AgentChatTask {
@@ -163,6 +164,13 @@ describe('task presentation', () => {
         expect(canStopAgentChatTask({ canStop: true, status: 'running' })).toBe(true);
         expect(canStopAgentChatTask({ canStop: false, status: 'running' })).toBe(false);
         expect(canStopAgentChatTask({ canStop: true, status: 'completed' })).toBe(false);
+    });
+
+    it('sets a shell title in monospace only while it is the command line', () => {
+        expect(isAgentChatTaskTitleCommand({ kind: 'shell' })).toBe(true);
+        expect(isAgentChatTaskTitleCommand({ kind: 'shell', command: 'bun run dev' })).toBe(false);
+        expect(isAgentChatTaskTitleCommand({ kind: 'agent' })).toBe(false);
+        expect(isAgentChatTaskTitleCommand(undefined, 'shell')).toBe(true);
     });
 });
 
