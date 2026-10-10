@@ -2,6 +2,7 @@ import type { AgentAction } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    agentChatLeadingInvocation,
     agentChatMenuActions,
     agentChatSlashQuery,
     completeAgentChatAction,
@@ -80,5 +81,28 @@ describe('Agent Chat slash commands', () => {
             '/security-review',
         ]);
         expect(completeAgentChatAction(skill('$commit'))).toBe('$commit ');
+    });
+});
+
+describe('agentChatLeadingInvocation', () => {
+    it('splits the skill or command a message starts with from what follows', () => {
+        expect(agentChatLeadingInvocation('$status-report')).toEqual({
+            invocation: '$status-report',
+            rest: '',
+        });
+        expect(agentChatLeadingInvocation('/review the open PR')).toEqual({
+            invocation: '/review',
+            rest: ' the open PR',
+        });
+        expect(agentChatLeadingInvocation('/plugin:skill\nnext line')).toEqual({
+            invocation: '/plugin:skill',
+            rest: '\nnext line',
+        });
+    });
+
+    it('leaves prices, paths, and mid-sentence names as plain text', () => {
+        expect(agentChatLeadingInvocation('$5 is the price')).toBeUndefined();
+        expect(agentChatLeadingInvocation('/usr/bin is missing')).toBeUndefined();
+        expect(agentChatLeadingInvocation('run $status-report')).toBeUndefined();
     });
 });

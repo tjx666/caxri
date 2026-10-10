@@ -84,3 +84,15 @@ export function completeAgentChatAction(action: AgentAction): string {
 export function agentChatCommandOptionId(listId: string, invocation: string): string {
     return `${listId}-${invocation}`;
 }
+
+/**
+ * The `/name` or `$name` a sent message starts with, the only place the composer puts an invocation, split from what
+ * follows it. A name starts with a letter, so `$5` or a path such as `/usr/bin` stays plain text.
+ */
+export function agentChatLeadingInvocation(
+    text: string,
+): { invocation: string; rest: string } | undefined {
+    const match = /^([/$][A-Za-z][\w:.-]*)(?=\s|$)/u.exec(text);
+    const invocation = match?.[1];
+    return invocation ? { invocation, rest: text.slice(invocation.length) } : undefined;
+}

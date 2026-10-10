@@ -20,9 +20,14 @@ describe('Agent Chat image attachments', () => {
         ).toBe('count');
     });
 
-    it('fits thumbnails inside the edge while keeping the aspect ratio', () => {
-        expect(agentChatThumbnailSize(1600, 800)).toEqual({ width: 160, height: 80 });
-        expect(agentChatThumbnailSize(300, 3000)).toEqual({ width: 16, height: 160 });
+    it('sizes thumbnails to cover their previews at 2x while keeping the aspect ratio', () => {
+        // A screenshot keeps the 192 device pixels of height its 96 CSS pixel preview shows at 2x.
+        expect(agentChatThumbnailSize(1600, 800)).toEqual({ width: 384, height: 192 });
+        // A tall image keeps the 128 pixel width the square composer chip crops to.
+        expect(agentChatThumbnailSize(600, 1200)).toEqual({ width: 128, height: 256 });
+        // An extreme aspect ratio stops at the long-edge cap, and a small image is never upscaled.
+        expect(agentChatThumbnailSize(8000, 500)).toEqual({ width: 768, height: 48 });
+        expect(agentChatThumbnailSize(300, 3000)).toEqual({ width: 77, height: 768 });
         expect(agentChatThumbnailSize(40, 20)).toEqual({ width: 40, height: 20 });
     });
 

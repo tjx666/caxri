@@ -21,6 +21,7 @@ import {
     agentChatTaskKind,
     agentChatTaskUsageSummary,
     canStopAgentChatTask,
+    isAgentChatTaskTitleCommand,
 } from './agent-chat-tasks';
 import { buildAgentChatTimeline } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
@@ -56,7 +57,8 @@ function TaskHeader({
                 <h2
                     className={cn(
                         'm-0 truncate text-[13px] leading-5 font-semibold text-foreground',
-                        kind === 'shell' && 'font-mono text-[12px] font-normal',
+                        isAgentChatTaskTitleCommand(task, kind) &&
+                            'font-mono text-[12px] font-normal',
                     )}
                 >
                     {title}
@@ -206,6 +208,7 @@ export function AgentChatTaskTab({ tab }: { tab: AgentTaskTab }) {
     ) : snapshot ? (
         kind === 'shell' ? (
             <AgentChatTaskOutput
+                command={task?.command}
                 isOutputCapped={snapshot.isOutputCapped ?? false}
                 isRunning={isRunning}
                 isTruncated={snapshot.truncated}

@@ -14,9 +14,20 @@ import {
 export const AGENT_CHAT_IMAGE_ACCEPT = agentChatImageMediaTypeSchema.options.join(',');
 
 /**
- * Longest edge of a thumbnail, in CSS pixels at 2x, sized for the composer chip and the sent message preview.
+ * Device pixels a thumbnail must cover at 2x: the sent message preview is 96 CSS pixels tall, and the composer chip
+ * crops it to a 64 CSS pixel square, so its short side needs 128. A thumbnail fitted only to its long edge is upscaled
+ * in the preview and blurs screenshot text.
  */
-const THUMBNAIL_EDGE = 160;
+const THUMBNAIL_MIN_HEIGHT = 192;
+const THUMBNAIL_MIN_WIDTH = 128;
+/**
+ * Caps the long edge of an extreme aspect ratio, which the preview crops anyway, so the thumbnail stays bounded.
+ */
+const THUMBNAIL_MAX_EDGE = 768;
+/**
+ * JPEG qualities tried in order until the thumbnail fits the projection's bound; a dense screenshot needs a lower one.
+ */
+const THUMBNAIL_QUALITIES = [0.9, 0.8, 0.65, 0.5];
 
 export type AgentChatImageRejection = 'count' | 'size' | 'type';
 
@@ -52,14 +63,18 @@ export function agentChatImageRejectionMessage(rejection: AgentChatImageRejectio
 }
 
 /**
- * Thumbnail dimensions that fit `edge` while keeping the aspect ratio; an image already smaller keeps its size.
+ * Thumbnail dimensions that keep the aspect ratio and cover every place the thumbnail is shown at 2x; an image already
+ * smaller keeps its size.
  */
 export function agentChatThumbnailSize(
     width: number,
     height: number,
-    edge = THUMBNAIL_EDGE,
 ): { width: number; height: number } {
-    const scale = Math.min(1, edge / Math.max(width, height, 1));
+    const cover = Math.max(
+        THUMBNAIL_MIN_HEIGHT / Math.max(height, 1),
+        THUMBNAIL_MIN_WIDTH / Math.max(width, 1),
+    );
+    const scale = Math.min(1, cover, THUMBNAIL_MAX_EDGE / Math.max(width, height, 1));
     return {
         width: Math.max(1, Math.round(width * scale)),
         height: Math.max(1, Math.round(height * scale)),
@@ -87,13 +102,19 @@ async function thumbnailDataUrl(file: File): Promise<string> {
     try {
         const size = agentChatThumbnailSize(bitmap.width, bitmap.height);
         const canvas = new OffscreenCanvas(size.width, size.height);
-        canvas.getContext('2d')?.drawImage(bitmap, 0, 0, size.width, size.height);
-        // JPEG keeps a photo-sized preview well under the projection's thumbnail bound.
-        const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
-        const dataUrl = `data:image/jpeg;base64,${await blobToBase64(blob)}`;
-        if (dataUrl.length > MAX_AGENT_CHAT_THUMBNAIL_LENGTH)
-            throw new Error('Thumbnail is too large');
-        return dataUrl;
+        const context = canvas.getContext('2d');
+        if (context) context.imageSmoothingQuality = 'high';
+        context?.drawImage(bitmap, 0, 0, size.width, size.height);
+        // JPEG keeps a photo-sized preview under the projection's thumbnail bound.
+        for (const quality of THUMBNAIL_QUALITIES) {
+            // Encoded one at a time on purpose: most images fit at the first quality.
+            // eslint-disable-next-line no-await-in-loop -- each lower quality runs only when the previous one is too large
+            const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality });
+            // eslint-disable-next-line no-await-in-loop -- see above
+            const dataUrl = `data:image/jpeg;base64,${await blobToBase64(blob)}`;
+            if (dataUrl.length <= MAX_AGENT_CHAT_THUMBNAIL_LENGTH) return dataUrl;
+        }
+        throw new Error('Thumbnail is too large');
     } finally {
         bitmap.close();
     }

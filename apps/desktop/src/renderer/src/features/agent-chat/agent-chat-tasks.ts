@@ -132,6 +132,17 @@ export function agentChatTaskActivity(
     return undefined;
 }
 
+/**
+ * Whether a task's title is a shell command line, set in monospace. A shell the Agent described is titled in words, and
+ * its command line moves into the task tab.
+ */
+export function isAgentChatTaskTitleCommand(
+    task: Pick<AgentChatTask, 'command' | 'kind'> | undefined,
+    kind: AgentChatTask['kind'] = task?.kind ?? 'agent',
+): boolean {
+    return kind === 'shell' && !task?.command;
+}
+
 export function canStopAgentChatTask(task: Pick<AgentChatTask, 'canStop' | 'status'>): boolean {
     return task.canStop && task.status === 'running';
 }

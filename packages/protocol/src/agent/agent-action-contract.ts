@@ -135,11 +135,34 @@ export const agentActionListResultSchema = z.strictObject({
     discovery: z.enum(['complete', 'partial']),
 });
 
+/**
+ * Discovered action files are read at most 64 KiB, so their Markdown stays inside that bound.
+ */
+export const MAX_AGENT_ACTION_MARKDOWN_LENGTH = 64 * 1024;
+
+export const agentActionReadResultSchema = z.strictObject({
+    invocation: agentActionInvocationSchema,
+    kind: agentActionKindSchema,
+    description: z.string().max(MAX_AGENT_ACTION_DESCRIPTION_LENGTH).optional(),
+    /**
+     * The file's Markdown without its frontmatter.
+     */
+    markdown: z.string().max(MAX_AGENT_ACTION_MARKDOWN_LENGTH),
+});
+
 export const agentActionMethods = {
     'agentActions.list': {
         ...commandPolicy('server', 'read'),
         params: z.strictObject({ terminalId: identifierSchema }),
         result: agentActionListResultSchema,
+    },
+    'agentActions.read': {
+        ...commandPolicy('server', 'read'),
+        params: z.strictObject({
+            terminalId: identifierSchema,
+            invocation: agentActionInvocationSchema,
+        }),
+        result: agentActionReadResultSchema,
     },
     'agentActions.recordRecent': {
         ...commandPolicy('server', 'write'),
@@ -152,3 +175,4 @@ export const agentActionMethods = {
 } as const satisfies Record<string, MethodSpec>;
 
 export type AgentActionListResult = z.infer<typeof agentActionListResultSchema>;
+export type AgentActionReadResult = z.infer<typeof agentActionReadResultSchema>;

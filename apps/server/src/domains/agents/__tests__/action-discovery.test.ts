@@ -57,9 +57,11 @@ describe('discoverAgentActions', () => {
                     source: 'project',
                 },
             ],
+            // Only the Server keeps where each action came from; the wire result is the actions alone.
+            files: new Map([['$commit', expect.stringMatching(/commit\/SKILL\.md$/u)]]),
             partial: false,
         });
-        expect(JSON.stringify(result)).not.toContain(root);
+        expect(JSON.stringify(result.actions)).not.toContain(root);
         expect(JSON.stringify(result)).not.toContain('Private instructions');
     });
 
@@ -105,7 +107,7 @@ describe('discoverAgentActions', () => {
             { directory: root, kind: 'skills', scope: 'global' },
         ]);
 
-        expect(result).toEqual({ actions: [], partial: true });
+        expect(result).toEqual({ actions: [], files: new Map(), partial: true });
     });
 
     it('refuses a Project discovery root whose own symlink escapes the Project', async () => {
@@ -128,7 +130,7 @@ describe('discoverAgentActions', () => {
             },
         ]);
 
-        expect(result).toEqual({ actions: [], partial: true });
+        expect(result).toEqual({ actions: [], files: new Map(), partial: true });
     });
 
     it('follows a skill symlink that stays inside the Project boundary but escapes the discovery root', async () => {
@@ -161,6 +163,7 @@ describe('discoverAgentActions', () => {
                     source: 'project',
                 },
             ],
+            files: new Map([['/shared', expect.stringMatching(/shared\/SKILL\.md$/u)]]),
             partial: false,
         });
     });
@@ -178,7 +181,7 @@ describe('discoverAgentActions', () => {
             { directory: root, kind: 'skills', scope: 'project' },
         ]);
 
-        expect(result).toEqual({ actions: [], partial: false });
+        expect(result).toEqual({ actions: [], files: new Map(), partial: false });
     });
 
     it('bounds astral metadata by the wire schema length without dropping a valid skill', async () => {

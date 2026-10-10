@@ -159,7 +159,10 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
         await message.press('Enter');
         const strip = chat.getByRole('region', { name: 'Background work' });
         await strip.getByRole('button', { name: /^Open / }).click();
-        const shell = page.getByRole('region', { name: /while true/u });
+        // The Bash call's description names the shell; its tab still shows the command line above the output.
+        await expect(strip.getByRole('button', { name: 'Open Print ticks' })).toBeVisible();
+        const shell = page.getByRole('region', { name: 'Print ticks' });
+        await expect(shell.getByText(/^\$ while true/u)).toBeVisible();
         await expect(shell.getByText(/tick \d+/u).first()).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-shell-tab.png') });
         await strip.getByRole('button', { name: /^Stop / }).click();

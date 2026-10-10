@@ -567,7 +567,8 @@ muted is what stops a crowded rail from reading as a row of X's. A dirty tab sho
 slot instead and swaps to the close button on hover/focus, active or not.
 Tabs fill the full 44px rail height. Document tabs fit their full labels; Terminal tabs divide the
 remaining width with their full displayed content as the minimum. Crowded bars scroll rather than
-truncating Terminal labels or imposing a fixed filename cap.
+truncating Terminal labels or imposing a fixed filename cap; the one exception is a single document
+label longer than the whole bar, which truncates 6rem short of it so its own close button stays in view.
 While the whole workbench holds exactly one tab across every
 pane, that tab drops the accent top border: an "active" marker distinguishes nothing when there is
 nothing to distinguish it from, and the pane ring still carries focus. The New Terminal + reserves
@@ -955,11 +956,13 @@ selects the standard themed fill, workbench canvas, inline surface, or an embedd
 search/path fields use `InputGroup`, never feature-local field chrome.
 
 **Agent Chat composer**: one radius-8 `--surface` card with a 1px `--border` that turns `--muted`
-while focused (the pane ring already carries the accent focus) and `--accent` while an image is
-dragged over it. Inside, top to bottom: the attached-image strip (64px radius-6 thumbnails, each
-with its remove control inset in the top-right corner), a borderless auto-growing textarea, and one
-action row: Attach images on the left, then right-aligned in `--muted` the context meter (a 14px
-ring that fills with the share of the window in use, its percentage beside it, `--warning` from 80%
+while focused (the pane ring already carries the accent focus) and `--accent` while a file is
+dragged over it. A dropped image attaches; any other file, Files entry, or Editor tab is inserted at
+the caret as its path, spelled relative to the Agent's directory the way a Terminal drop is. Inside, top to bottom: the attached-image strip (64px radius-6 thumbnails, drawn
+from a preview that covers the 96px sent-message tile at 2x, each with its remove control inset in
+the top-right corner), a borderless auto-growing textarea, and one action row, right-aligned in
+`--muted`: Attach images (pasting or dropping is the common path, so the picker does not claim the
+leading corner), the context meter (a 14px ring that fills with the share of the window in use, its percentage beside it, `--warning` from 80%
 and `--danger` from 95%, the token counts in its tooltip) and the model picker (the model's name and
 the next turn's effort, opening a menu of models with their descriptions and the current model's
 efforts, which stays open after a choice), and a single primary action slot: a 28px `--foreground`
@@ -970,7 +973,9 @@ the message and the placeholder says so; Cmd+Enter steers it into the running tu
 messages sit above the card as 12px `--surface` cards, each with Edit (back into the composer),
 Delete, and Send now (Steer while a turn runs); after a stopped turn a `Queue paused` row with
 Resume heads them. Running subagents and background shells list in a strip above the composer with
-elapsed time and their own Stop; clicking one, or the Open action on its timeline row, opens it as
+elapsed time and their own Stop; a shell is named by the Agent's description of it (Claude Code's
+`Bash` description) when there is one, with its command line atop its tab's output, and by the
+command line in monospace otherwise; clicking one, or the Open action on its timeline row, opens it as
 a read-only tab split to the right of the Chat, reusing that side pane for later tasks. A user
 message that was steered or queued carries an 11px `--muted` `Steered` or `Queued` caption. Escape
 interrupts a running turn regardless. While the Chat starts, works, or waits on an answer, a 32px
@@ -982,7 +987,15 @@ Code's spinner verbs, and the Codex app's round Send and Stop, context ring, and
 picker. In the transcript, inline code sits in a lifted `--elevated` chip and links take
 `--accent`; a code block is one radius-8 `--elevated` panel whose header (a code glyph, Monaco's
 language name such as `TypeScript`, wrap and copy) shares its fill; a table is set open, with row
-hairlines and no frame or header tint. All follow the Codex app's Dracula transcript.
+hairlines and no frame or header tint. All follow the Codex app's Dracula transcript. A path the
+Agent writes as plain prose (`src/app.ts:12`, an absolute path) is a file link like a cited one;
+in the user's bubble a path keeps the text color with a dotted underline that turns `--accent` on
+hover, so the user's words still read as theirs. A web link leads with the site's favicon (the
+GitHub mark for GitHub, a globe when there is none, fading in only on first load) and a dotted
+underline; hovering it opens a 320px card naming the host with an Open action, then where the
+link leads (`owner/repo · #N` beside a pull request, issue, or discussion glyph for GitHub). A user
+message that starts with a skill (`$name`) or command (`/name`) shows it as an `--accent` chip;
+clicking the chip opens a popover with that skill's rendered Markdown.
 
 **Agent Chat plan**: the latest plan docks above the composer as one 32px radius-8 `--surface`
 row with a 1px `--border`: a list glyph, `Plan`, the step the Agent is on truncated in `--muted`,

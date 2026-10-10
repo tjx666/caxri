@@ -39,6 +39,7 @@ import {
     externalDocumentServerMethods,
 } from '../desktop/external-document-contract.js';
 import { gpuDesktopMethods } from '../desktop/gpu-contract.js';
+import { linkFaviconDesktopMethods } from '../desktop/link-favicon-contract.js';
 import { pathBrowserContractMethods } from '../desktop/path-browser-contract.js';
 import { shellCommandDesktopMethods } from '../desktop/shell-command-contract.js';
 import { windowStateInternalMethods } from '../desktop/window-state-contract.js';
@@ -269,6 +270,7 @@ export const methods = {
     ...shellCommandDesktopMethods,
     ...contextMenuDesktopMethods,
     ...externalDocumentDesktopMethods,
+    ...linkFaviconDesktopMethods,
     'external.open': {
         ...desktopControl,
         params: z.object({ url: z.string().min(1).max(16_384) }),
