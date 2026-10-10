@@ -157,6 +157,8 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
         await service.restart(terminal.id);
         const resumed = service.read(terminal.id);
         expect(resumed.status).toBe('ready');
+        // The history replay resets the Chat after the handshake listed the models; the picker still has them.
+        expect(resumed.models).toHaveLength(3);
         expect(resumed.items.map((item) => item.type)).toEqual([
             'userMessage',
             'reasoning',
