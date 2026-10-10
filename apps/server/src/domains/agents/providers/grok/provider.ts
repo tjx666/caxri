@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { CaxriError } from '@caxri/protocol';
+import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
 import { expandLaunchArguments } from '@caxri/utils';
 
 import type { AgentProviderDescriptor } from '../../contract';
@@ -24,7 +24,7 @@ export const grokProvider: AgentProviderDescriptor = {
      * hook-bound session, because directory recency cannot distinguish simultaneous same-directory sessions.
      */
     readState: readGrokState,
-    resumeArguments: (sessionId) => ['--resume', sessionId],
+    resumeArguments: (sessionId) => [...agentProviderCatalog.grok.resumeArgs, sessionId],
     /**
      * Caxri owns Session identity and process lifetime, not Grok's sandbox. `--sandbox` is optional user confinement:
      * omit it (Grok's default is `off`, unrestricted) or pass any documented mode, including `off`. Do not reintroduce

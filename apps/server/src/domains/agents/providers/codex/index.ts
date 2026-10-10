@@ -1,6 +1,7 @@
 import { realpath } from 'node:fs/promises';
 import { basename, isAbsolute, join, relative, sep } from 'node:path';
 
+import { agentProviderCatalog } from '@caxri/protocol';
 import Database from 'better-sqlite3';
 
 import type {
@@ -429,7 +430,7 @@ export const codexProvider: AgentProviderDescriptor = {
     renameSession: renameCodexSession,
     locateTranscript: (context, environment, signal) =>
         locateCodexTranscript(context, environment, signal),
-    resumeArguments: (agentSessionId) => ['resume', agentSessionId],
+    resumeArguments: (agentSessionId) => [...agentProviderCatalog.codex.resumeArgs, agentSessionId],
     timelineProjector: appendCodexTimelineRecord,
     createThroughputScanner: createCodexThroughputScanner,
 };

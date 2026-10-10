@@ -39,3 +39,11 @@ _Researched 2026-09-24 from source `fd85637d` (2026-09-20)._
 - Structurally closest to Caxri: the Agent runs in a Terminal shown in a WebView, and a native `TerminalComposer` submits text into it, routing the submit key through the host's Enter path so the TUI does not treat it as a paste (`apps/mobile/screens/(authenticated)/workspace/[id]/WorkspaceScreen/WorkspaceScreen.tsx`).
 - New Session picks Project, environment, branch, Agent, and model. Diff review with line comments; a finish-review sheet turns the comments into one Agent prompt. Commits, PRs, checks.
 - Lock Screen Live Activity lists up to four Agents. No structured approval UI.
+
+## Chat and Terminal switching
+
+_Researched 2026-10-10._
+
+- A persistent `CLI | Chat` segmented control sits in the pane header of both Terminal and Chat panes. Switching stops one process and resumes the same Agent session id on the other surface.
+- Switching back to CLI creates a new terminalId, so an unsent draft is lost. Caxri keeps the Terminal row (and its draft) across a switch.
+- Caxri adopted the always-visible segmented entry as the tab rail's `Terminal | Chat` toggle.

@@ -28,6 +28,7 @@ import {
     setSessionPinned,
 } from '../session/session-commands';
 import { agentReloadMenuEntry } from '../terminal/terminal-reload-commands';
+import { agentResumeCommandMenuEntry } from '../terminal/terminal-surface-commands';
 
 /**
  * Right-click menu for one Session row. Every entry acts on the clicked row (not the selected Session), so the handlers
@@ -225,6 +226,7 @@ async function sessionRowMenu({
                 boundAgentSessionId &&
                 copyAgentTranscriptPath(primaryTerminal.id),
         },
+        agentResumeCommandMenuEntry(primaryTerminal, UNBOUND_AGENT_REASON),
         CONTEXT_MENU_SEPARATOR,
         {
             label: 'Delete Session…',

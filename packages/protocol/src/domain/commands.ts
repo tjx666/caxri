@@ -38,6 +38,7 @@ export const commandIds = [
     'workbench.action.terminal.sendSequence',
     'terminal.restart',
     'terminal.startNewAgentSession',
+    'terminal.switchAgentSurface',
     'terminal.close',
     'workbench.closeActiveTab',
     'workbench.nextTab',

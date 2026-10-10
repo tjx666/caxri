@@ -1,5 +1,5 @@
 import type { ServerEvent, TerminalRecord, TerminalSurface } from '@caxri/protocol';
-import { agentProviderCatalog, canUseAgentChat, CaxriError, isChatTerminal } from '@caxri/protocol';
+import { canUseAgentChat, CaxriError, isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -27,7 +27,10 @@ export interface TerminalSurfaceSwitchOptions {
     };
 }
 
-type SwitchOutcome = 'switched' | 'turnRunning' | 'unbound' | 'failed';
+/**
+ * `startedNew` is a switch of an Agent with no conversation to carry over yet: the other surface opens a new one.
+ */
+type SwitchOutcome = 'switched' | 'startedNew' | 'turnRunning' | 'failed';
 
 /**
  * A PTY Agent's turn is only observable through the Session's validated lifecycle state, which follows the Primary
@@ -45,8 +48,9 @@ function isPtyTurnRunning(database: CaxriDatabase, terminal: TerminalRecord): bo
 /**
  * Reopens a bound Agent Terminal on the other surface: stop the current process, flip `surface`, and resume the same
  * Agent Session there (Codex `thread/resume` and `codex resume` share one thread; Claude Code's SDK `resume` and
- * `claude --resume` share one session). The Terminal row, its tab, Primary Agent election, and title stay. See ADR
- * 0012.
+ * `claude --resume` share one session). The Terminal row, its tab, Primary Agent election, and title stay. An Agent
+ * that has not written a conversation yet has nothing to lose, so it switches too and starts a new conversation there,
+ * as a fresh restart would. See ADR 0012.
  */
 export function createTerminalSurfaceSwitchHandler(
     options: TerminalSurfaceSwitchOptions,
@@ -78,13 +82,6 @@ export function createTerminalSurfaceSwitchHandler(
             );
 
         const agentSessionId = await resumableAgentSessionId(options, current, 'surfaceSwitch');
-        if (!agentSessionId) {
-            log('unbound');
-            throw new CaxriError(
-                'CONFLICT',
-                `${agentProviderCatalog[provider].displayName} has no conversation to continue yet. Send a message first.`,
-            );
-        }
         const isTurnRunning =
             from === 'chat'
                 ? options.chat.hasActiveTurn(terminalId)
@@ -100,7 +97,9 @@ export function createTerminalSurfaceSwitchHandler(
             if (!options.database.getTerminal(terminalId))
                 throw new CaxriError('CONFLICT', 'Terminal was closed while switching');
             options.database.updateTerminalSurface(terminalId, surface);
-            options.coordinator.prepareTerminalResume(terminalId);
+            // Starting fresh drops a binding whose conversation was never written, so neither surface tries to resume it.
+            if (agentSessionId) options.coordinator.prepareTerminalResume(terminalId);
+            else options.coordinator.prepareTerminalStart(terminalId);
             let terminal: TerminalRecord;
             if (surface === 'chat') terminal = await options.chat.restart(terminalId);
             else {
@@ -109,6 +108,8 @@ export function createTerminalSurfaceSwitchHandler(
                 );
                 terminal = await options.terminals.restart(terminalId, {
                     expectedWorkingDirectory,
+                    // The Chat's orderly stop left the Agent `stopped`, which on its own reads as "start only a Shell".
+                    launchAgent: true,
                     resumeAgentSessionId: agentSessionId,
                 });
                 options.coordinator.probeTerminal(terminal.id);
@@ -121,7 +122,7 @@ export function createTerminalSurfaceSwitchHandler(
                     terminalIds: [terminal.id],
                 },
             });
-            log('switched');
+            log(agentSessionId ? 'switched' : 'startedNew');
             return { status: 'switched', terminal };
         } catch (error) {
             log('failed');

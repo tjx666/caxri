@@ -24,3 +24,9 @@ Codex hook follow-up, 2026-09-13: [current injection implementation](https://git
 - Vertical tabs showing git branch, PR status, ports, and notification text.
 - `cmux claude-teams` spawns Claude teammates as native panes without tmux.
 - SSH workspaces with scp drag-drop upload; browser cookie/session import from 20+ browsers; iOS companion app.
+
+## Chat and Terminal switching
+
+_Researched 2026-10-10._
+
+- Chat opens beside the TUI rather than replacing it; a permission prompt hands control back to the TUI. There is no in-place switch between surfaces.

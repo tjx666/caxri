@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -20,7 +20,6 @@ import {
     chooseContextMenuItem,
     contextMenuItemDisabledReason,
     dismissContextMenu,
-    isContextMenuItemEnabled,
 } from './support/native-context-menu.ts';
 
 const FAKE_APP_SERVER = join(
@@ -76,7 +75,12 @@ if (process.argv.includes('app-server')) {
             },
         },
     });
-    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        agentMode,
+        clipboard: true,
+        userDataDir: userData,
+        testRootPath: root,
+    });
     try {
         const { app, page } = running;
         await createProjectSession(page, 'shell');
@@ -92,13 +96,42 @@ if (process.argv.includes('app-server')) {
         const { id: terminalId } = await codexTerminal(page);
         const tab = session.locator(`.work-tab:not([inert])[data-terminal-id="${terminalId}"]`);
 
-        // Nothing to carry over before the first turn binds a thread.
+        const terminalRows = session.locator(
+            `.terminal-pane[data-terminal-id="${terminalId}"] .xterm-rows`,
+        );
+        // The tab rail's Terminal | Chat switch shows which view the active Agent is in.
+        const surfaceSwitch = session.getByRole('group', { name: 'Agent view' });
+        await expect(surfaceSwitch.getByRole('button', { name: 'Chat' })).toHaveAttribute(
+            'aria-pressed',
+            'true',
+        );
+        await surfaceSwitch.screenshot({
+            path: testInfo.outputPath('surface-switch-toggle-chat.png'),
+        });
+
+        // Before the first turn binds a thread there is nothing to resume, so there is no command to copy yet.
         await tab.click({ button: 'right' });
-        expect(await isContextMenuItemEnabled(app, 'Open as Terminal')).toBe(false);
-        expect(await contextMenuItemDisabledReason(app, 'Open as Terminal')).toBe(
-            'Send a message first; there is no conversation to continue yet',
+        expect(await contextMenuItemDisabledReason(app, 'Copy Resume Command')).toBe(
+            'Send a message first; there is no conversation to resume yet',
         );
         await dismissContextMenu(app);
+        // ...but the Agent still switches: the other surface starts a new conversation.
+        await surfaceSwitch.getByRole('button', { name: 'Terminal' }).click();
+        await expect(terminalRows).toContainText('Fake Codex TUI on thread new');
+        await expect(surfaceSwitch.getByRole('button', { name: 'Terminal' })).toHaveAttribute(
+            'aria-pressed',
+            'true',
+        );
+        await page.screenshot({ path: testInfo.outputPath('surface-switch-unbound-terminal.png') });
+        // Cmd+Shift+J switches back from the focused grid.
+        const terminalInput = session.locator(
+            `.terminal-pane[data-terminal-id="${terminalId}"] .xterm-helper-textarea`,
+        );
+        await terminalInput.focus();
+        await expect(terminalInput).toBeFocused();
+        await page.keyboard.press('Meta+Shift+J');
+        await expect(message).toBeVisible();
+        expect((await codexTerminal(page)).surface).toBe('chat');
 
         await message.fill('hi there');
         await message.press('Enter');
@@ -137,18 +170,21 @@ if (process.argv.includes('app-server')) {
         // Chat to Terminal: the TUI resumes the thread the Chat started.
         await tab.click({ button: 'right' });
         await chooseContextMenuItem(app, 'Open as Terminal');
-        const terminalRows = session.locator(
-            `.terminal-pane[data-terminal-id="${terminalId}"] .xterm-rows`,
-        );
         await expect(terminalRows).toContainText(`Fake Codex TUI on thread ${thread}`);
         await expect(message).toHaveCount(0);
         expect(await codexTerminal(page)).toMatchObject({ agentSessionId: thread });
         expect((await codexTerminal(page)).surface).toBeUndefined();
         await page.screenshot({ path: testInfo.outputPath('surface-switch-terminal.png') });
 
-        // Terminal to Chat: the history comes back from the same thread.
+        // The resume command continues the same thread in the user's own terminal.
         await tab.click({ button: 'right' });
-        await chooseContextMenuItem(app, 'Open as Chat');
+        await chooseContextMenuItem(app, 'Copy Resume Command');
+        const resumeCommand = `cd ${await realpath(root)} && codex resume ${thread}`;
+        await expect.poll(() => running.clipboard.textEquals(resumeCommand)).toBe(true);
+        await running.clipboard.claimText(resumeCommand);
+
+        // Terminal to Chat through the tab rail switch: the history comes back from the same thread.
+        await surfaceSwitch.getByRole('button', { name: 'Chat' }).click();
         await expect(session.getByText('Hello from fake Codex. You said: hi there')).toBeVisible();
         expect(await codexTerminal(page)).toMatchObject({
             agentSessionId: thread,

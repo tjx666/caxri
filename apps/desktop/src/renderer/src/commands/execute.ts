@@ -88,6 +88,11 @@ import {
     startNewAgentSession,
 } from '../features/terminal/terminal-commands';
 import { openTerminalLinkPicker } from '../features/terminal/terminal-link-actions';
+import {
+    canSwitchTerminalSurface,
+    otherTerminalSurface,
+    switchTerminalSurfaceTo,
+} from '../features/terminal/terminal-surface-commands';
 import { checkForUpdates } from '../features/updates/update-commands';
 import {
     executeEditableViewCatalogShortcut,
@@ -121,10 +126,14 @@ function activeTerminalId(): string | undefined {
     return resource?.kind === 'terminal' ? resource.terminalId : undefined;
 }
 
-function activeAgentTerminal() {
+function activeTerminalRecord() {
     const terminalId = activeTerminalId();
     if (!terminalId) return;
-    const terminal = getBootstrap()?.terminals.find((candidate) => candidate.id === terminalId);
+    return getBootstrap()?.terminals.find((candidate) => candidate.id === terminalId);
+}
+
+function activeAgentTerminal() {
+    const terminal = activeTerminalRecord();
     return terminal?.provider && isAgentProcessRunning(terminal.lastAgentProcessState)
         ? terminal
         : undefined;
@@ -268,6 +277,12 @@ const commandContext: CommandContext = {
         startNewAgentSession: () => {
             const terminalId = activeTerminalId();
             if (terminalId) startNewAgentSession(terminalId);
+        },
+        canSwitchActiveSurface: () => canSwitchTerminalSurface(activeTerminalRecord()),
+        switchActiveSurface: () => {
+            const terminal = activeTerminalRecord();
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, switchTerminalSurfaceTo reports its own errors
+            if (terminal) void switchTerminalSurfaceTo(terminal, otherTerminalSurface(terminal));
         },
         closeActive: () => {
             const terminalId = activeTerminalId();
