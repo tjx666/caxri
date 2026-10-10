@@ -226,7 +226,9 @@ several callbacks can share one item, so the transport id is never the key.
   latest returns to the end.
 - The composer keeps an unsent draft per Chat across tab switches, clears only the text that was
   actually sent, and treats Escape as Stop while a turn runs. Its footer shows the model and the
-  remaining context window.
+  remaining context window. Activating a Chat's tab puts the cursor in the composer, as activating
+  a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another
+  text field, and not when arrow-key tab navigation activated it, which keeps focus on the tab.
   A status tab on top of the composer says whether the Chat is starting, working, or waiting on an
   answer; a working turn shows one verb chosen per turn from its id, its elapsed time, and `Esc to
 stop`. Only the label is the polite live region, so the ticking time is never announced.

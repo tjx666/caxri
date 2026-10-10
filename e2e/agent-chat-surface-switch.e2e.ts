@@ -106,6 +106,34 @@ if (process.argv.includes('app-server')) {
         await expect.poll(async () => (await codexTerminal(page)).agentSessionId).toBeTruthy();
         const { agentSessionId: thread } = await codexTerminal(page);
 
+        // Coming back to the Chat's tab puts the cursor in the composer, as a Terminal tab focuses its grid.
+        const shellTab = session.locator(
+            `.work-tab:not([inert])[data-terminal-id]:not([data-terminal-id="${terminalId}"])`,
+        );
+        await shellTab.click();
+        await expect(message).toHaveCount(0);
+        await tab.click();
+        await expect(message).toBeFocused();
+        await message.locator('xpath=ancestor::form[1]').screenshot({
+            path: testInfo.outputPath('surface-switch-focused-composer.png'),
+        });
+        // Roving tab navigation keeps the keyboard on the tab bar, again as it does for a Terminal.
+        const chatTabButton = tab.getByRole('tab');
+        await chatTabButton.focus();
+        await chatTabButton.press('ArrowLeft');
+        await expect(message).toHaveCount(0);
+        await shellTab.getByRole('tab').press('ArrowRight');
+        await expect(message).toBeVisible();
+        await page.evaluate(
+            () =>
+                new Promise((resolve) => {
+                    requestAnimationFrame(() =>
+                        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+                    );
+                }),
+        );
+        await expect(chatTabButton).toBeFocused();
+
         // Chat to Terminal: the TUI resumes the thread the Chat started.
         await tab.click({ button: 'right' });
         await chooseContextMenuItem(app, 'Open as Terminal');

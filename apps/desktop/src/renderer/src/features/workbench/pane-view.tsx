@@ -1,7 +1,13 @@
 import type { CSSProperties, DragEvent } from 'react';
 import { useRef, useState } from 'react';
 
-import type { PaneLayout, PaneLayoutNode, PaneNode, PaneSplitNode } from '@caxri/protocol';
+import type {
+    PaneLayout,
+    PaneLayoutNode,
+    PaneNode,
+    PaneSplitNode,
+    TerminalRecord,
+} from '@caxri/protocol';
 import {
     agentProviderCatalog,
     isChatTerminal,
@@ -96,6 +102,28 @@ function EmptyPane() {
 }
 
 /**
+ * A Terminal opened as Chat, named and capability-gated by its provider's catalog entry.
+ */
+function ChatTerminalContent({
+    isShown,
+    terminal,
+}: {
+    isShown: boolean;
+    terminal: TerminalRecord;
+}) {
+    const provider = terminal.provider ? agentProviderCatalog[terminal.provider] : undefined;
+    return (
+        <AgentChatPane
+            ariaLabel={terminal.title}
+            isShown={isShown}
+            providerName={provider?.displayName ?? 'the Agent'}
+            supportsImages={provider?.capabilities.chatImages ?? false}
+            terminalId={terminal.id}
+        />
+    );
+}
+
+/**
  * The active tab's content. A Terminal and a document reach the same slot through the same path; the tab's kind decides
  * only which component renders here, never how the pane behaves.
  */
@@ -116,20 +144,10 @@ function PaneContent({
         if (!terminal) return null;
         if (isChatTerminal(terminal))
             return (
-                <AgentChatPane
-                    ariaLabel={terminal.title}
+                <ChatTerminalContent
+                    isShown={isActivePane && isVisible}
                     key={terminal.id}
-                    providerName={
-                        terminal.provider
-                            ? agentProviderCatalog[terminal.provider].displayName
-                            : 'the Agent'
-                    }
-                    supportsImages={
-                        terminal.provider
-                            ? agentProviderCatalog[terminal.provider].capabilities.chatImages
-                            : false
-                    }
-                    terminalId={terminal.id}
+                    terminal={terminal}
                 />
             );
         return (

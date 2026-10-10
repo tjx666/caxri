@@ -11,6 +11,30 @@ interface TerminalProcessFocusOptions {
     terminalId: string;
 }
 
+interface TerminalFocusOwnership {
+    focusedElement: HTMLElement | null;
+    isModalOpen: boolean;
+    terminalId: string;
+}
+
+/**
+ * Whether a Terminal's view (xterm, or the composer of a Terminal opened as Chat) may take keyboard focus without being
+ * asked: not from behind a modal, not out of another editable control, and not away from a work tab that roving
+ * navigation deliberately left focused while activating this very Terminal.
+ */
+export function canClaimTerminalFocus({
+    focusedElement,
+    isModalOpen,
+    terminalId,
+}: TerminalFocusOwnership): boolean {
+    if (isModalOpen) return false;
+    if (isEditableEventTarget(focusedElement)) return false;
+    return !(
+        focusedElement?.dataset.preserveTerminalFocus === 'true' &&
+        focusedElement.closest<HTMLElement>('.work-tab')?.dataset.terminalId === terminalId
+    );
+}
+
 /**
  * Work tab roving navigation deliberately leaves focus on the tab while activating its Terminal. Both the initial
  * attach completion and later process-state transitions use this gate so either asynchronous path respects that
@@ -18,23 +42,10 @@ interface TerminalProcessFocusOptions {
  */
 export function shouldAutoFocusTerminal({
     active,
-    focusedElement,
-    isModalOpen,
     isRunning,
-    terminalId,
-}: {
-    active: boolean;
-    focusedElement: HTMLElement | null;
-    isModalOpen: boolean;
-    isRunning: boolean;
-    terminalId: string;
-}): boolean {
-    if (!active || !isRunning || isModalOpen) return false;
-    if (isEditableEventTarget(focusedElement)) return false;
-    return !(
-        focusedElement?.dataset.preserveTerminalFocus === 'true' &&
-        focusedElement.closest<HTMLElement>('.work-tab')?.dataset.terminalId === terminalId
-    );
+    ...ownership
+}: TerminalFocusOwnership & { active: boolean; isRunning: boolean }): boolean {
+    return active && isRunning && canClaimTerminalFocus(ownership);
 }
 
 /**
