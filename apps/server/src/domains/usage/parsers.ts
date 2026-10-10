@@ -275,12 +275,23 @@ export function grokUsageParser(accumulator: UsageAccumulator): UsageLineParser 
     };
 }
 
+/**
+ * Exhaustive on purpose: a newly catalogued provider fails to compile until it declares how its transcript records
+ * usage, instead of silently streaming its transcript through another provider's parser.
+ */
+const usageParsers: Record<
+    AgentProvider,
+    (accumulator: UsageAccumulator, options?: UsageParserOptions) => UsageLineParser
+> = {
+    claude: claudeUsageParser,
+    codex: codexUsageParser,
+    grok: grokUsageParser,
+};
+
 export function usageParserFor(
     provider: AgentProvider,
     accumulator: UsageAccumulator,
     options?: UsageParserOptions,
 ): UsageLineParser {
-    if (provider === 'claude') return claudeUsageParser(accumulator, options);
-    if (provider === 'codex') return codexUsageParser(accumulator);
-    return grokUsageParser(accumulator);
+    return usageParsers[provider](accumulator, options);
 }

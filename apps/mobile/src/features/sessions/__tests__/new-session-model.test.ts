@@ -1,3 +1,4 @@
+import { agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -5,12 +6,18 @@ import {
     availableNewSessionAgent,
     canCreateNewSession,
     markUncertainSessionsChecked,
+    NEW_SESSION_AGENT_ORDER,
     newSessionAgentReason,
     selectedNewSessionProject,
     sortNewSessionProjects,
 } from '../new-session-model';
 
 describe('New Session choices', () => {
+    it('offers every Agent provider as a choice', () => {
+        for (const provider of agentProviderIds)
+            expect(NEW_SESSION_AGENT_ORDER).toContain(provider);
+    });
+
     it('sorts granted Projects by server-projected recent use, then title', () => {
         const projects = [
             { id: 'older', displayTitle: 'Older', lastActivityAt: 100 },

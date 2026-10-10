@@ -68,6 +68,12 @@ One Agent CLI process lifecycle inside a Terminal. Resuming the same Agent Sessi
 starts a new Agent Run.
 _Avoid_: Conversation, Terminal, generation
 
+**Conversation**:
+A read view of one Agent Session's prompts, replies, and tool activity, such as the Conversation
+segment of a mobile Session screen. It presents an Agent Session; it is never a Session, Chat, or
+Agent Run.
+_Avoid_: Chat history, Agent log
+
 **Primary Agent**:
 The first Agent Terminal in a Session, which owns that Session's generated title, activity, and
 attention signals.

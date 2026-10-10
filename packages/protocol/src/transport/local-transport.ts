@@ -183,11 +183,6 @@ export const localServerDesktopOperationReplySchema = z.object({
     reply: commandReplyEnvelopeSchema,
 });
 
-const desktopFileTrashItemSchema = z.object({
-    name: z.string().min(1).max(1_024),
-    path: pathSchema,
-    hasUnsavedChanges: z.boolean().optional(),
-});
 const desktopGitDiscardAllScopeSchema = z.object({
     kind: z.literal('all'),
     fileCount: z.number().int().positive().max(100_000),
@@ -205,6 +200,11 @@ const desktopGitDiscardTargetSchema = z.object({
     ]),
 });
 
+/**
+ * Native operations Server Core may ask Desktop Main to perform. Trash is deliberately absent: `files.trash` is a
+ * Desktop-owned method that Main handles end to end (prompt, reauthorization, `shell.trashItem`), so a second
+ * Server-routed Trash flow would only duplicate that authorization contract.
+ */
 export const desktopOperationSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('status') }),
     z.object({ kind: z.literal('focus') }),
@@ -222,11 +222,6 @@ export const desktopOperationSchema = z.discriminatedUnion('kind', [
         targetId: identifierSchema,
         editorCommand: z.string().min(1).max(1_024).optional(),
     }),
-    z.object({
-        kind: z.literal('confirmFilesTrash'),
-        item: desktopFileTrashItemSchema,
-    }),
-    z.object({ kind: z.literal('trash'), targetId: identifierSchema }),
     z.object({
         kind: z.literal('confirmGitDiscard'),
         target: desktopGitDiscardTargetSchema,
@@ -260,7 +255,7 @@ export const localClientDesktopTargetConsumeSchema = z.object({
 
 const sessionDesktopTargetPayloadSchema = z.object({
     targetId: identifierSchema,
-    operation: z.enum(['open', 'reveal', 'openWithDefaultApp', 'openInEditor', 'trash']),
+    operation: z.enum(['open', 'reveal', 'openWithDefaultApp', 'openInEditor']),
     kind: z.enum(['file', 'directory']),
     sessionId: identifierSchema,
     path: pathSchema,

@@ -35,6 +35,13 @@ Keep these compatibility exceptions:
   whole Renderer falls through to the "Something went wrong" boundary, so the pin stays.
   Re-evaluate it only after that regression passes on a newer release.
 - `typescript` / `@typescript/native` npm aliases: exact TypeScript 6 API and TypeScript 7 CLI pair.
+- `apps/mobile` `typescript`: the plain TypeScript 6 package, held on major 6. Expo tooling resolves
+  `typescript` from the app and expects its JavaScript API: the Expo CLI TypeScript prerequisite checks
+  for it, and `@expo/require-utils` looks for `transpileModule` to load `app.config.ts`, rejecting
+  TypeScript 7, which does not ship it. Unlike the root `@typescript/typescript6` alias (bin
+  `tsc6`), this package installs its own `tsc`, which shadows the root TypeScript 7 CLI, so
+  `apps/mobile` typechecks with the TypeScript 6 compiler.
+  `scripts/__tests__/toolchain-contract.test.ts` asserts that major.
 - Expo-managed mobile runtime dependencies and React types: SDK-recommended exact or tilde ranges.
   This includes React, React Native, Metro, FlashList, Reanimated, Worklets, and native addons.
 - Corrective `overrides`: exact known-good versions, with the compatibility reason documented next
@@ -58,7 +65,8 @@ above or another explicitly documented compatibility constraint.
 
 Never change the `typescript` / `@typescript/native` dependency aliases or run
 `npm i typescript@latest`. The repository pins TypeScript 6 for typescript-eslint while compiling
-with TypeScript 7; see [electron-toolchain.md](electron-toolchain.md).
+with TypeScript 7; see [electron-toolchain.md](electron-toolchain.md). `apps/mobile` is the one
+workspace that compiles with TypeScript 6, for the Expo reason above.
 
 | Package / area       | Official source                                                                                                 | Compatibility and selection notes                                                                                                                                                                                                                                                                                                         |
 | -------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -80,7 +88,7 @@ with TypeScript 7; see [electron-toolchain.md](electron-toolchain.md).
 | better-sqlite3       | <https://github.com/WiseLibs/better-sqlite3>                                                                    | Selected for transactions, WAL, and predictable synchronous calls isolated in the Runtime. It loads through the Server artifact runtime; the native spike verifies the real ABI.                                                                                                                                                          |
 | Drizzle ORM          | <https://orm.drizzle.team/docs/get-started-sqlite>                                                              | Declarative schema (`apps/server/src/domains/db/schema.ts`) over the better-sqlite3 driver. drizzle-kit generates checked-in migration SQL that the Runtime bundles via `?raw`; the raw handle stays for pragmas and transactions.                                                                                                        |
 | Vitest               | <https://vitest.dev/guide/>                                                                                     | Stable unit/integration runner compatible with the selected Vite and current Node.                                                                                                                                                                                                                                                        |
-| TypeScript           | <https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6-0> | TypeScript 7 is the current compiler. The official side-by-side layout exposes its native `tsc` through `@typescript/native`, while the `typescript` package name resolves to the TypeScript 6 compatibility API required by `typescript-eslint`.                                                                                         |
+| TypeScript           | <https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6-0> | TypeScript 7 is the current compiler. The official side-by-side layout exposes its native `tsc` through `@typescript/native`, while the `typescript` package name resolves to the TypeScript 6 compatibility API required by `typescript-eslint`. `apps/mobile` alone compiles with TypeScript 6; see the exceptions above.               |
 | Playwright Electron  | <https://playwright.dev/docs/api/class-electron>                                                                | Electron automation remains marked experimental but is the maintained E2E API. Native dialogs are stubbed through main-process evaluation in deterministic tests.                                                                                                                                                                         |
 | Dracula              | <https://github.com/dracula/dracula-theme>                                                                      | Official OSS palette and MIT attribution are vendored. UI, terminal, and editor map from one semantic source.                                                                                                                                                                                                                             |
 | VS Code theme import | <https://code.visualstudio.com/api/references/theme-color>                                                      | Import only supported workbench/editor and token colors from a single JSON file; do not install extensions.                                                                                                                                                                                                                               |

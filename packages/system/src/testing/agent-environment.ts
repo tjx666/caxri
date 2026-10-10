@@ -2,7 +2,7 @@ import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 
 import type { AgentProvider } from '@caxri/protocol';
-import { agentProviderIds } from '@caxri/protocol';
+import { AGENT_STATE_ENVIRONMENT_KEYS, agentProviderIds } from '@caxri/protocol';
 
 import type { E2EAgentPolicy, E2ERealAgentSurface } from './agent-policy';
 import {
@@ -10,11 +10,6 @@ import {
     e2eAgentShellShims,
     e2eFakeExecutableEnvironmentKeys,
 } from './agent-policy';
-
-interface E2EAgentStatePolicy {
-    directoryName: string;
-    environmentKeys: readonly string[];
-}
 
 export type E2EAgentEnvironmentMode =
     | { mode: 'blocked' }
@@ -26,20 +21,18 @@ export type E2EAgentEnvironmentMode =
     | { mode: 'real'; provider: AgentProvider; surface?: E2ERealAgentSurface };
 
 /**
- * Provider-owned state paths are an explicit isolation decision. A new provider must name every environment override
- * that could otherwise expose a developer's real local Agent state to an Electron test or Acceptance run.
+ * Fixture directory each provider's isolated state lives under. Which environment overrides that directory must cover
+ * is the shared `AGENT_STATE_ENVIRONMENT_KEYS` table, so an Electron test or Acceptance run isolates exactly the keys
+ * the launchers forward and cannot miss one that would expose a developer's real local Agent state.
  */
-const E2E_AGENT_STATE_POLICIES: Record<AgentProvider, E2EAgentStatePolicy> = {
-    grok: { directoryName: 'grok', environmentKeys: ['GROK_HOME'] },
-    claude: { directoryName: 'claude', environmentKeys: ['CLAUDE_CONFIG_DIR'] },
-    codex: {
-        directoryName: 'codex',
-        environmentKeys: ['CODEX_HOME', 'CODEX_SQLITE_HOME'],
-    },
+const E2E_AGENT_STATE_DIRECTORY_NAMES: Record<AgentProvider, string> = {
+    grok: 'grok',
+    claude: 'claude',
+    codex: 'codex',
 };
 
 export const e2eAgentStateEnvironmentKeys = agentProviderIds.flatMap(
-    (provider) => E2E_AGENT_STATE_POLICIES[provider].environmentKeys,
+    (provider) => AGENT_STATE_ENVIRONMENT_KEYS[provider],
 );
 
 /**
@@ -51,7 +44,7 @@ export function selectE2ERealAgentStateEnvironment(
     source: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv {
     return Object.fromEntries(
-        E2E_AGENT_STATE_POLICIES[provider].environmentKeys.flatMap((key) => {
+        AGENT_STATE_ENVIRONMENT_KEYS[provider].flatMap((key) => {
             const value = source[key];
             if (value === undefined) return [];
             if (!isAbsolute(value))
@@ -69,7 +62,7 @@ export async function createE2EAgentIsolationEnvironment(
     const providerDirectories = Object.fromEntries(
         agentProviderIds.map((provider) => [
             provider,
-            join(fixtureRoot, E2E_AGENT_STATE_POLICIES[provider].directoryName),
+            join(fixtureRoot, E2E_AGENT_STATE_DIRECTORY_NAMES[provider]),
         ]),
     ) as Record<AgentProvider, string>;
     await Promise.all([
@@ -84,7 +77,7 @@ export async function createE2EAgentIsolationEnvironment(
         HOME: home,
         ...Object.fromEntries(
             agentProviderIds.flatMap((provider) =>
-                E2E_AGENT_STATE_POLICIES[provider].environmentKeys.map((key) => [
+                AGENT_STATE_ENVIRONMENT_KEYS[provider].map((key) => [
                     key,
                     providerDirectories[provider],
                 ]),

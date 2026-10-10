@@ -1,5 +1,6 @@
 import type { TerminalProcessEntry } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
+import { redactCommandLine } from '@caxri/utils';
 
 import type { ProcessExplorerEntry, ProcessExplorerSnapshot } from '../shared/process-explorer';
 
@@ -70,15 +71,12 @@ export function kilobytesToMegabytes(kilobytes: number): number {
 }
 
 /**
- * Hides common credential flag values without removing the useful executable and argv context.
+ * Hides credential flag values without removing the useful executable and argv context. The flag rule is the shared
+ * `redactCommandLine` so the Process Explorer and the diagnostics export cannot disagree about what counts as a
+ * secret.
  */
 export function redactProcessName(command: string): string {
-    return command
-        .replaceAll(
-            /(-[\w-]*(?:api[-_]?key|authorization|password|secret|token)[\w-]*)(?:=|\s+)(?:"[^"]*"|'[^']*'|\S+)/giu,
-            '$1=<redacted>',
-        )
-        .slice(0, MAX_PROCESS_NAME_LENGTH);
+    return redactCommandLine(command, '<redacted>').slice(0, MAX_PROCESS_NAME_LENGTH);
 }
 
 export function parseProcessList(output: string): RawProcessEntry[] {

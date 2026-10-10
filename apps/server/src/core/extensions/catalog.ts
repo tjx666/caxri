@@ -1,6 +1,5 @@
-import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { open, realpath } from 'node:fs/promises';
+import { realpath } from 'node:fs/promises';
 import { extname, isAbsolute, relative, resolve } from 'node:path';
 
 import type {
@@ -22,6 +21,7 @@ import {
     workbenchCoreContributions,
 } from '@caxri/protocol';
 
+import { readBoundedRegularFile } from '../../domains/bounded-file-reader';
 import type { DiscoveredExtension, RejectedExtension } from './discovery';
 
 const builtinContainers: ViewContainerDescriptor[] = [
@@ -84,25 +84,12 @@ async function iconDataUrl(extension: DiscoveredExtension, icon: string): Promis
         throw new Error(`Extension icon escapes its root: ${icon}`);
     const prefix = `data:${dataMime(icon)};base64,`;
     const maxSourceBytes = Math.floor((MAX_VIEW_ICON_DATA_URL_LENGTH - prefix.length) / 4) * 3;
-    const file = await open(iconPath, 'r');
-    try {
-        const metadata = await file.stat();
-        if (!metadata.isFile()) throw new Error(`Extension icon is not a regular file: ${icon}`);
-        if (metadata.size > maxSourceBytes) throw new Error(`Extension icon is too large: ${icon}`);
-        const buffer = Buffer.allocUnsafe(maxSourceBytes + 1);
-        let bytesRead = 0;
-        while (bytesRead < buffer.length) {
-            // The bounded sequential read prevents a file-growth race from allocating an unbounded Core buffer.
-            // eslint-disable-next-line no-await-in-loop
-            const result = await file.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead);
-            if (result.bytesRead === 0) break;
-            bytesRead += result.bytesRead;
-        }
-        if (bytesRead > maxSourceBytes) throw new Error(`Extension icon is too large: ${icon}`);
-        return `${prefix}${buffer.subarray(0, bytesRead).toString('base64')}`;
-    } finally {
-        await file.close();
-    }
+    // The shared bounded reader refuses a FIFO at the icon path instead of blocking the catalog build on its writer.
+    const source = await readBoundedRegularFile(iconPath, maxSourceBytes, {
+        capacityMessage: `Extension icon is too large: ${icon}`,
+        notRegularFileMessage: `Extension icon is not a regular file: ${icon}`,
+    });
+    return `${prefix}${source.toString('base64')}`;
 }
 
 async function resourceIconEntry(

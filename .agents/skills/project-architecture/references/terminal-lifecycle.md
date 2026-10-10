@@ -80,8 +80,8 @@ registered, so closing a Terminal or deleting its Session cannot create an orpha
 
 Interrupted-Terminal recovery is supervised by one Server Core-wide four-spawn budget. Selecting a Session invalidates queued restore work from the previous selection, and the selected generation is revalidated after executable discovery immediately before PTY spawn. A visible interrupted Terminal retains the receiving Renderer grid before restore, starts its PTY and parsed screen at that grid when possible, and performs one ordered live-screen reattach after the record becomes `running`; this removes any remaining attach/spawn race without relying on a later ResizeObserver event. Startup Agent metadata probes are limited to the selected Session; another Session is probed when selected rather than during boot.
 The visible-grid wait resolves as stale work when its restore generation is canceled across both in-process and private
-Terminal Host execution adapters; it must leave the durable Terminal `interrupted`, never convert an ordinary Session
-switch into `failed` / `spawn_failed`.
+Terminal Host execution adapters, and so does a generation that goes stale during launch preparation; both must leave
+the durable Terminal `interrupted`, never convert an ordinary Session switch into `failed` / `spawn_failed`.
 
 Background Agent suspension is Server Core's only automatic PTY teardown. A `TerminalSuspensionService` sweep
 (`WatchHub` poller) parks Agent Terminals of unselected, unarchived Sessions by killing the PTY behind the restart
@@ -93,7 +93,9 @@ input and started no turn since launch is suspended shortly after its Session is
 (`terminal.suspendUntouchedAgents`), and an Agent idle at its prompt in a background Session is suspended after the
 configured delay (`terminal.suspendIdleAgents`, off by default). The selected Session is never touched, an Agent
 mid-turn or awaiting the user's approval is never suspended, and Shell tabs are not eligible. Archiving a Session
-suspends all of its live Terminals. Terminal capacity counts only `starting` and `running` records so dormant tabs do
+or hiding its Project suspends all of its live Terminals once restores already past their spawn fence settle; a PTY
+whose Terminal Host start answers after that is parked as soon as it lands (`TerminalSuspensionService.parkLaunch`), so
+no launch outlives its Session leaving the Workbench. Terminal capacity counts only `starting` and `running` records so dormant tabs do
 not consume the limit.
 
 `detached` is the user-driven sibling of `suspended`: `session.detach` parks a Session's live Agent Terminals (never

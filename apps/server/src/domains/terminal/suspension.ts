@@ -39,6 +39,11 @@ interface TerminalSuspensionServiceOptions {
  */
 export class TerminalSuspensionService {
     private readonly deselectedAt = new Map<string, number>();
+    /**
+     * `parkLaunch` teardowns in flight. A Session park that reaches the same Terminal joins one instead of sending a
+     * second Host stop for a process whose first stop is still pending.
+     */
+    private readonly launchParkings = new Map<string, Promise<boolean>>();
     private readonly samples = new Map<string, TerminalActivitySample>();
     private readonly startedAt: number;
     private lastSelectedSessionId: string | undefined;
@@ -166,15 +171,13 @@ export class TerminalSuspensionService {
     ): Promise<string[]> {
         const parked: string[] = [];
         for (const terminal of this.options.database.listTerminals(sessionId)) {
-            if (
-                !isEligible(terminal) ||
-                !isPtyTerminal(terminal) ||
-                this.options.terminals.processId(terminal.id) === undefined
-            )
+            if (!isEligible(terminal) || !isPtyTerminal(terminal)) continue;
+            const launchParking = this.launchParkings.get(terminal.id);
+            if (!launchParking && this.options.terminals.processId(terminal.id) === undefined)
                 continue;
             // Sequential teardown, same as the sweep: each restart barrier and snapshot capture finishes first.
             // oxlint-disable-next-line react-doctor/async-await-in-loop
-            const suspended = await this.suspendTerminal(terminal.id, reason); // eslint-disable-line no-await-in-loop -- see above
+            const suspended = await (launchParking ?? this.suspendTerminal(terminal.id, reason)); // eslint-disable-line no-await-in-loop -- see above
             if (suspended) parked.push(terminal.id);
         }
         this.publish(parked);
@@ -277,6 +280,30 @@ export class TerminalSuspensionService {
         const suspended = await this.suspendTerminal(terminalId, 'requested');
         if (suspended) this.publish([terminalId]);
         return suspended;
+    }
+
+    /**
+     * Parks a PTY whose launch completed after its Session left the Workbench (archived, or its Project hidden). Those
+     * actions park only Terminals that already have a process, and a Host start still in flight had none, so without
+     * this the PTY keeps running unseen, counted by the close prompt, with nothing left that would ever suspend it.
+     */
+    async parkLaunch(record: TerminalRecord): Promise<void> {
+        const { database } = this.options;
+        const session = database.getSession(record.sessionId);
+        if (
+            !session ||
+            (session.archivedAt === undefined &&
+                database.getProject(session.projectId)?.hiddenAt === undefined)
+        )
+            return;
+        const parking = this.suspendTerminal(record.id, 'archived');
+        this.launchParkings.set(record.id, parking);
+        try {
+            if (await parking) this.publish([record.id]);
+        } finally {
+            if (this.launchParkings.get(record.id) === parking)
+                this.launchParkings.delete(record.id);
+        }
     }
 
     /**

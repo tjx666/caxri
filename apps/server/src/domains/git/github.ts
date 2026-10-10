@@ -1,10 +1,11 @@
 import type { GitRepositorySummary as GitRepoSummary } from '@caxri/protocol';
-import { CaxriError, errorMessage } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { parseGitHubRemote } from '@caxri/utils';
 
 import type { GitHubPullRequestStore } from '../external-status';
+import { ExternalStatusCliError } from '../external-status';
 
 export interface GitHubPullRequestReadOptions {
     github: GitHubPullRequestStore;
@@ -55,9 +56,17 @@ export async function readGitHubPullRequestView(
             // but `error` is `unknown` at this catch boundary and a thrown value is not guaranteed to be an `Error`
             // instance with a `message` at runtime.
             const failure = error as { code?: string; kind?: string };
+            /**
+             * Closed fields only: `gh` stderr and exec faults name the repository, the branch, and the argv, which the
+             * Git log contract keeps out of diagnostics.
+             */
             options.logger.write('warn', logEventCatalog.git.githubCommandFailed, {
                 durationMs: performance.now() - startedAt,
-                fields: { operation: 'pr.view', error: errorMessage(error, 'unknown') },
+                fields: {
+                    operation: 'pr.view',
+                    reason: error instanceof ExternalStatusCliError ? error.kind : 'unknown',
+                    exitCode: error instanceof ExternalStatusCliError ? error.exitCode : null,
+                },
             });
             if (failure.kind === 'not-found' || failure.code === 'ENOENT')
                 throw new CaxriError('UNAVAILABLE', 'GitHub CLI is not available on PATH');

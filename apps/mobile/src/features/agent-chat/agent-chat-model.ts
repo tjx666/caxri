@@ -23,7 +23,8 @@ export const isAgentChatTerminal = (
 
 /**
  * The provider's display name for Chat copy. Taken from the Terminal, never written into a message, so a second
- * Chat-capable provider reads correctly.
+ * Chat-capable provider reads correctly. The name is the protocol catalog's `displayName`, the one Desktop's Chat pane
+ * shows; only the providerless fallback is local copy.
  */
 export const agentChatProviderName = (
     terminal: Pick<MobileTerminal, 'kind' | 'provider'> | undefined,
@@ -323,20 +324,61 @@ export const agentChatQuestionAnswers = (
 };
 
 /**
+ * Whether the Chat was handed to another client with `session.detach`. The Chat snapshot cannot say so: a detached Chat
+ * reads `stopped`, like one that merely idled, but the Server refuses its input with `UNAVAILABLE` until
+ * `session.resume` clears the `detached` marker on the Terminal record, which the dashboard projects.
+ */
+export const isAgentChatHandedOff = (
+    terminal: Pick<MobileTerminal, 'lastProcessState'> | undefined,
+): boolean => terminal?.lastProcessState === 'detached';
+
+/**
+ * The phone's notice for a handed-off Chat. It mirrors the detached PTY chip ("Terminal was handed off on your
+ * computer", `terminal-exit-presentation.ts`) with the surface the phone's tab names. The phone has no Resume action
+ * for either: the Session resumes on the computer.
+ */
+export const AGENT_CHAT_HANDED_OFF_NOTICE = 'Chat was handed off on your computer';
+
+/**
+ * The body copy for a Chat with no items. Neither a handed-off Chat (whose history returns only when it resumes) nor a
+ * device that cannot message the Chat is invited to send one.
+ */
+export const agentChatEmptyMessage = ({
+    canSend,
+    isHandedOff,
+    provider,
+}: {
+    canSend: boolean;
+    isHandedOff: boolean;
+    provider: string;
+}): string => {
+    if (isHandedOff) return 'Messages appear here once the Chat resumes.';
+    return canSend
+        ? `No messages yet. Send a message to start working with ${provider}.`
+        : 'No messages yet.';
+};
+
+/**
  * Why this device cannot type into the Chat right now, or `undefined` when it can.
  */
 export const agentChatComposerDisabledReason = ({
     deviceRole,
     isConnected,
+    isHandedOff,
     snapshot,
 }: {
     deviceRole: 'view' | 'reply' | 'control' | null;
     isConnected: boolean;
+    /**
+     * See {@link isAgentChatHandedOff}.
+     */
+    isHandedOff: boolean;
     snapshot: AgentChatSnapshot | undefined;
 }): string | undefined => {
     if (deviceRole !== 'reply' && deviceRole !== 'control')
         return 'Reply access is required to message this Chat.';
     if (!isConnected) return 'Reconnect to send messages.';
+    if (isHandedOff) return 'Resume the Agent on your computer to send messages.';
     if (!snapshot) return undefined;
     if (snapshot.status === 'failed') return 'Retry the Chat before sending a message.';
     return undefined;

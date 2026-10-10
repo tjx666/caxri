@@ -2,16 +2,19 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { emptyAgentChatSnapshot } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { getTerminalExitPresentation } from '../../terminal/terminal-exit-presentation';
 import {
     agentChatActivity,
     agentChatCommandCwd,
     agentChatContextUsage,
     agentChatDeliveryCaption,
     agentChatEffortLabel,
+    agentChatEmptyMessage,
     agentChatFailureMessage,
     agentChatModelLabel,
     agentChatPlanProgress,
     agentChatQuestionAnswers,
+    agentChatRecoveryNotice,
     agentChatRequestTitle,
     agentChatSendAction,
     agentChatSubmitDelivery,
@@ -28,14 +31,105 @@ function snapshot(status: AgentChatSnapshot['status']): AgentChatSnapshot {
 
 describe('canSendAgentChatMessage', () => {
     it('accepts a message while ready, stopped (which resumes), or still starting (which queues)', () => {
-        expect(canSendAgentChatMessage(snapshot('ready'))).toBe(true);
-        expect(canSendAgentChatMessage(snapshot('stopped'))).toBe(true);
-        expect(canSendAgentChatMessage(snapshot('starting'))).toBe(true);
+        expect(canSendAgentChatMessage(snapshot('ready'), 'running')).toBe(true);
+        expect(canSendAgentChatMessage(snapshot('stopped'), 'stopped')).toBe(true);
+        expect(canSendAgentChatMessage(snapshot('starting'), 'starting')).toBe(true);
+        expect(canSendAgentChatMessage(snapshot('stopped'), undefined)).toBe(true);
     });
 
     it('refuses once the provider has failed or before anything is loaded', () => {
-        expect(canSendAgentChatMessage(snapshot('failed'))).toBe(false);
-        expect(canSendAgentChatMessage(undefined)).toBe(false);
+        expect(canSendAgentChatMessage(snapshot('failed'), 'failed')).toBe(false);
+        expect(canSendAgentChatMessage(undefined, 'running')).toBe(false);
+    });
+
+    it('refuses a Chat handed to another client even though its projection reads stopped', () => {
+        expect(canSendAgentChatMessage(snapshot('stopped'), 'detached')).toBe(false);
+    });
+});
+
+describe('agentChatEmptyMessage', () => {
+    it('invites the first message only once an empty Chat is ready', () => {
+        expect(agentChatEmptyMessage(snapshot('ready'), 'running', 'Codex')).toBe(
+            'Send a message to start working with Codex.',
+        );
+        expect(agentChatEmptyMessage(snapshot('starting'), 'starting', 'Codex')).toBeUndefined();
+        expect(agentChatEmptyMessage(undefined, 'running', 'Codex')).toBeUndefined();
+    });
+
+    it('explains the blank transcript of a Chat handed to another client', () => {
+        expect(agentChatEmptyMessage(snapshot('stopped'), 'detached', 'Codex')).toBe(
+            'Messages appear here once the Chat resumes.',
+        );
+    });
+
+    it('stays out of a transcript that has messages', () => {
+        const withItem: AgentChatSnapshot = {
+            ...snapshot('stopped'),
+            items: [{ id: 'item-1', type: 'userMessage', text: 'hello' }],
+        };
+        expect(agentChatEmptyMessage(withItem, 'detached', 'Codex')).toBeUndefined();
+    });
+});
+
+describe('agentChatRecoveryNotice', () => {
+    const settled = { isLoadError: false, processState: 'stopped' } as const;
+
+    it('shows nothing while the Chat can continue', () => {
+        expect(agentChatRecoveryNotice(snapshot('stopped'), settled, 'Codex')).toBeUndefined();
+        expect(agentChatRecoveryNotice(undefined, settled, 'Codex')).toBeUndefined();
+    });
+
+    it('names a hand-over with the PTY copy and resumes it by restarting the Terminal', () => {
+        expect(
+            agentChatRecoveryNotice(
+                snapshot('stopped'),
+                { isLoadError: false, processState: 'detached' },
+                'Codex',
+            ),
+        ).toEqual({
+            kind: 'detached',
+            message: getTerminalExitPresentation('detached')?.label,
+            recovery: 'restart',
+        });
+    });
+
+    it('prefers the hand-over to an older provider failure', () => {
+        expect(
+            agentChatRecoveryNotice(
+                { status: 'failed', failure: { reason: 'process_exited' } },
+                { isLoadError: false, processState: 'detached' },
+                'Codex',
+            )?.kind,
+        ).toBe('detached');
+    });
+
+    it('restarts a failed provider and keeps its detail beside the closed message', () => {
+        expect(
+            agentChatRecoveryNotice(
+                { status: 'failed', failure: { reason: 'spawn_failed', detail: 'EACCES' } },
+                { isLoadError: false, processState: 'failed' },
+                'Codex',
+            ),
+        ).toEqual({
+            kind: 'failed',
+            message: agentChatFailureMessage('spawn_failed', 'Codex'),
+            detail: 'EACCES',
+            recovery: 'restart',
+        });
+    });
+
+    it('reloads a projection that could not be read', () => {
+        expect(
+            agentChatRecoveryNotice(
+                undefined,
+                { isLoadError: true, processState: 'running' },
+                'Codex',
+            ),
+        ).toEqual({
+            kind: 'failed',
+            message: 'The conversation could not be loaded.',
+            recovery: 'reload',
+        });
     });
 });
 

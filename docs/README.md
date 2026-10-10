@@ -81,6 +81,7 @@ rewritten, only superseded.
 | [0010](adr/0010-server-core-idle-exit.md)                     | Server Core idle-exit policy                               |
 | [0011](adr/0011-required-merge-guards.md)                     | A required `guards` check replaces direct pushes to `main` |
 | [0012](adr/0012-agent-chat-surface.md)                        | Agent Chat: a structured Terminal surface beside the PTY   |
+| [0013](adr/0013-editable-external-documents.md)               | Editable external documents through a Main-issued registry |
 
 ## Historical
 

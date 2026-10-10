@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
-import type { AgentChatSnapshot } from '@caxri/protocol';
-import { CircleAlert, RotateCcw } from 'lucide-react';
+import { CircleAlert, RotateCcw, Unplug } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
+import { useTerminal } from '../../stores/selectors';
 import { useTerminalLinkPicker } from '../terminal/hooks/use-terminal-link-picker';
 import { registerTerminalFocusHandler, restartTerminal } from '../terminal/terminal-commands';
 import { openTerminalFileTarget } from '../terminal/terminal-file-link-open';
@@ -15,9 +16,11 @@ import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatComposer } from './agent-chat-composer';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { AgentChatPlanCard } from './agent-chat-plan-card';
+import type { AgentChatRecoveryNotice } from './agent-chat-presentation';
 import {
     agentChatActivity,
-    agentChatFailureMessage,
+    agentChatEmptyMessage,
+    agentChatRecoveryNotice,
     canSendAgentChatMessage,
     isAgentChatBusy,
     isAgentChatTurnRunning,
@@ -36,38 +39,41 @@ import { AgentChatTerminalContext } from './hooks/use-agent-chat-terminal';
 
 /**
  * Why the Chat cannot continue, with the one action that recovers it. It sits in the dock, outside the scrolling
- * timeline, so reading history never hides the Retry button.
+ * timeline, so reading history never hides the action. A failure reads in the danger tone with Retry; a hand-over to
+ * another client is not a fault, so it takes the neutral border and the PTY recovery bar's unplugged glyph and Resume.
  */
-function AgentChatFailureBanner({
-    snapshot,
-    isError,
-    onRetry,
-    providerName,
+function AgentChatRecoveryBanner({
+    notice,
+    onRecover,
 }: {
-    snapshot: AgentChatSnapshot | undefined;
-    isError: boolean;
-    onRetry: () => void;
-    providerName: string;
+    notice: AgentChatRecoveryNotice | undefined;
+    onRecover: () => void;
 }) {
-    if (!isError && snapshot?.status !== 'failed') return null;
-    const message = snapshot?.failure
-        ? agentChatFailureMessage(snapshot.failure.reason, providerName)
-        : 'The conversation could not be loaded.';
+    if (!notice) return null;
+    const isDetached = notice.kind === 'detached';
+    const Icon = isDetached ? Unplug : CircleAlert;
     return (
         <div
-            className="flex items-start gap-2 rounded-lg border border-danger bg-surface px-3 py-2 text-[12px] leading-5"
-            role="alert"
+            className={cn(
+                'flex items-start gap-2 rounded-lg border bg-surface px-3 py-2 text-[12px] leading-5',
+                isDetached ? 'border-border' : 'border-danger',
+            )}
+            data-agent-chat-recovery={notice.kind}
+            role={isDetached ? 'status' : 'alert'}
         >
-            <CircleAlert className="mt-0.5 size-3.5 shrink-0 text-danger" />
-            <div className="min-w-0 flex-1">
-                <p className="m-0 text-foreground">{message}</p>
-                {snapshot?.failure?.detail && (
-                    <p className="m-0 wrap-anywhere text-muted">{snapshot.failure.detail}</p>
+            <Icon
+                className={cn(
+                    'mt-0.5 size-3.5 shrink-0',
+                    isDetached ? 'text-muted' : 'text-danger',
                 )}
+            />
+            <div className="min-w-0 flex-1">
+                <p className="m-0 text-foreground">{notice.message}</p>
+                {notice.detail && <p className="m-0 wrap-anywhere text-muted">{notice.detail}</p>}
             </div>
-            <Button size="sm" variant="secondary" onClick={onRetry}>
+            <Button size="sm" variant="secondary" onClick={onRecover}>
                 <RotateCcw className="size-3.5" />
-                Retry
+                {isDetached ? 'Resume' : 'Retry'}
             </Button>
         </div>
     );
@@ -152,13 +158,25 @@ export function AgentChatPane({
         }),
         [tasks, terminalId],
     );
-    const isEmpty = snapshot?.status === 'ready' && snapshot.items.length === 0;
-    const retry = (): void => {
+    /**
+     * Read from the Terminal record like the PTY pane does: a hand-over to another client is recorded there as
+     * `detached`, while the projection only reads `stopped`.
+     */
+    const processState = useTerminal(terminalId)?.lastProcessState;
+    const emptyMessage = agentChatEmptyMessage(snapshot, processState, providerName);
+    const recoveryNotice = agentChatRecoveryNotice(
+        snapshot,
+        { isLoadError: query.isError, processState },
+        providerName,
+    );
+    const recover = (): void => {
         /**
-         * A failed provider stays failed on read so a broken CLI is not relaunched by every render; only a restart
-         * clears the failure and resumes the bound conversation.
+         * The banner, and the button that was just clicked, unmount once the Chat restarts. Handing focus to the
+         * composer keeps a draft written while the Chat could not send one key away instead of dropping focus on the
+         * document body.
          */
-        if (snapshot?.status === 'failed') restartTerminal(terminalId);
+        focusComposer();
+        if (recoveryNotice?.recovery === 'restart') restartTerminal(terminalId);
         // eslint-disable-next-line no-void -- the query owns the refetch result and error state
         else void query.refetch();
     };
@@ -186,9 +204,9 @@ export function AgentChatPane({
                                 ))}
                             </AgentChatTerminalContext>
                         </AgentChatTaskLinksContext>
-                        {isEmpty && (
+                        {emptyMessage && (
                             <p className="m-0 py-8 text-center text-[13px] text-muted">
-                                Send a message to start working with {providerName}.
+                                {emptyMessage}
                             </p>
                         )}
                     </div>
@@ -200,12 +218,7 @@ export function AgentChatPane({
                 />
             </div>
             <div className="mx-auto flex max-h-[45%] w-full max-w-3xl shrink-0 flex-col gap-2 overflow-y-auto px-4 empty:hidden">
-                <AgentChatFailureBanner
-                    isError={query.isError}
-                    providerName={providerName}
-                    snapshot={snapshot}
-                    onRetry={retry}
-                />
+                <AgentChatRecoveryBanner notice={recoveryNotice} onRecover={recover} />
                 {snapshot?.plan && (
                     <AgentChatPlanCard
                         isTurnRunning={isAgentChatTurnRunning(snapshot)}
@@ -241,7 +254,7 @@ export function AgentChatPane({
             <AgentChatComposer
                 activeTurnId={snapshot?.activeTurnId}
                 activity={agentChatActivity(snapshot, providerName)}
-                canSend={canSendAgentChatMessage(snapshot)}
+                canSend={canSendAgentChatMessage(snapshot, processState)}
                 commands={snapshot?.commands}
                 inputReference={inputReference}
                 isBusy={isAgentChatBusy(snapshot)}

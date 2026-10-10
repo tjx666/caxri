@@ -33,7 +33,8 @@ contract and never call Electron, Finder, or a shell directly.
 Project-level Finder/editor actions use `project.openRoot` with a Project ID and no caller-provided
 path or Session. Server Core resolves the stored root and revalidates Project existence and filesystem
 identity when Main consumes the one-use target. These targets can only reveal a directory or open it
-in the configured editor; document opens and trash operations still require Session authority.
+in the configured editor; document opens still require Session authority, and Trash runs only
+through Main's `files.trash`.
 For a directly managed Agent PTY, Server Core creates a separate Endpoint credential immediately before
 the Terminal Host spawn request. Server Core stores only its digest and fences every command by Server,
 Endpoint, generation, and launch identity; restart, exit, close, deletion, Server Core crash, and
@@ -49,11 +50,12 @@ validates its executable examples, inline command mentions, and capability marke
 command registry, then embeds the exact skill files in the standalone artifact with CLI/protocol
 compatibility metadata and a content hash. Offline `skills list|get|status` never opens the Server transport or emits local paths.
 Explicit install/update operations target only the documented Project-local or user-global skill
-directory for the selected Codex or Claude provider. A complete immutable release is written beside
+directory for the selected provider that declares a reviewed skill layout in
+`packages/agent-skills/src/provider-policy.ts` (today Codex, Claude, and Grok Build). A complete immutable release is written beside
 the Provider-visible entry before one relative directory symlink publishes it; update atomically
 switches that symlink, so a loader sees either complete version. Mutations anchor themselves to the
 verified parent inode, mark and bound the managed release tree, preserve sibling and unmarked
 entries, and fail closed for modified, unknown-schema, or newer installations; removal applies only
-to intact current or older marked entries. Neither provider exposes a stable, documented per-Session
+to intact current or older marked entries. No provider exposes a stable, documented per-Session
 skill injection boundary in the controlled version matrix, so Caxri reports local installation
 instead of altering Provider launch flags or private state.
