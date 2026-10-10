@@ -23,7 +23,11 @@ export function AgentChatStopButton({
                 variant="secondary"
                 onClick={onStop}
             >
-                {isStopping ? <Spinner className="size-3.5" /> : <Square className="size-3.5" />}
+                {isStopping ? (
+                    <Spinner className="size-3.5" />
+                ) : (
+                    <Square className="size-3 fill-current" />
+                )}
             </Button>
         </Tooltip>
     );

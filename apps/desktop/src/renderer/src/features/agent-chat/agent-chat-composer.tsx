@@ -23,9 +23,11 @@ import { useAgentChatImageInput } from './hooks/use-agent-chat-image-input';
 import { useAgentChatSubmit } from './hooks/use-agent-chat-submit';
 
 /**
- * Message input. Enter sends, Shift+Enter adds a line. While a turn runs, a message steers it and Stop or Escape
- * interrupts it. Images can be pasted, dropped, or picked when the provider accepts them, and a leading `/` offers the
- * provider's slash commands. It shares the timeline's centered column so the input lines up with the conversation.
+ * Message input. Enter sends, Shift+Enter adds a line. While a turn runs, a message steers it, and Escape or the Stop
+ * button that replaces Send while the input is empty interrupts it. Images can be pasted, dropped, or picked when the
+ * provider accepts them, and a leading `/` offers the provider's slash commands. It shares the timeline's centered
+ * column so the input lines up with the conversation, and keeps attachments, the input, and its actions inside one card
+ * so they read as a single control.
  */
 export function AgentChatComposer({
     activeTurnId,
@@ -109,11 +111,11 @@ export function AgentChatComposer({
         interruptAgentChat(terminalId);
     };
     return (
-        <div className="mx-auto w-full max-w-3xl px-4 pt-1 pb-2">
+        <div className="mx-auto w-full max-w-3xl px-4 pt-1 pb-3">
             <form
                 className={cn(
-                    'relative flex items-end gap-2 rounded-md',
-                    imageInput.isDragOver && 'outline-2 outline-offset-4 outline-accent',
+                    'relative flex flex-col rounded-lg border border-border bg-surface transition-[border-color] duration-150 ease-out focus-within:border-muted',
+                    imageInput.isDragOver && 'border-accent focus-within:border-accent',
                 )}
                 {...imageInput.dropHandlers}
                 onSubmit={(event) => {
@@ -131,67 +133,74 @@ export function AgentChatComposer({
                         onHover={menu.highlight}
                     />
                 )}
-                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                    {images.attachments.length > 0 && (
-                        <AgentChatAttachmentList
-                            attachments={images.attachments}
-                            onRemove={images.remove}
-                        />
-                    )}
-                    <Textarea
-                        {...menu.inputAria}
-                        aria-label="Message"
-                        className="field-sizing-content max-h-48 min-h-9 resize-none"
-                        maxLength={MAX_AGENT_CHAT_MESSAGE_LENGTH}
-                        placeholder={
-                            isTurnRunning ? 'Steer the current turn' : `Message ${providerName}`
-                        }
-                        ref={inputReference}
-                        rows={1}
-                        value={draft}
-                        onChange={(event) => {
-                            const { value } = event.target;
-                            setDraft(() => value);
-                        }}
-                        onKeyDown={(event) => {
-                            if (menu.didHandleKey(event, choose)) return;
-                            const key = {
-                                key: event.key,
-                                shiftKey: event.shiftKey,
-                                isComposing: event.nativeEvent.isComposing,
-                                repeat: event.repeat,
-                            };
-                            if (isTurnRunning && isAgentChatInterruptKey(key)) {
-                                event.preventDefault();
-                                stop();
-                                return;
-                            }
-                            if (!isAgentChatSubmitKey(key)) return;
-                            event.preventDefault();
-                            // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
-                            void submit();
-                        }}
-                        onPaste={imageInput.onPaste}
-                    />
-                </div>
-                {supportsImages && (
-                    <AgentChatAttachButton
-                        isReading={images.isReading}
-                        onPick={imageInput.attach}
+                {images.attachments.length > 0 && (
+                    <AgentChatAttachmentList
+                        attachments={images.attachments}
+                        onRemove={images.remove}
                     />
                 )}
-                {isTurnRunning && <AgentChatStopButton isStopping={isStopping} onStop={stop} />}
-                <Tooltip content="Send">
-                    <Button aria-label="Send" disabled={!isSendable} size="icon" type="submit">
-                        <ArrowUp className="size-4" />
-                    </Button>
-                </Tooltip>
+                <Textarea
+                    {...menu.inputAria}
+                    aria-label="Message"
+                    className="field-sizing-content max-h-48 min-h-10 resize-none rounded-none border-0 bg-transparent px-3 pt-2.5 pb-1 leading-5 focus-visible:shadow-none"
+                    maxLength={MAX_AGENT_CHAT_MESSAGE_LENGTH}
+                    placeholder={
+                        isTurnRunning ? 'Steer the current turn' : `Message ${providerName}`
+                    }
+                    ref={inputReference}
+                    rows={1}
+                    value={draft}
+                    onChange={(event) => {
+                        const { value } = event.target;
+                        setDraft(() => value);
+                    }}
+                    onKeyDown={(event) => {
+                        if (menu.didHandleKey(event, choose)) return;
+                        const key = {
+                            key: event.key,
+                            shiftKey: event.shiftKey,
+                            isComposing: event.nativeEvent.isComposing,
+                            repeat: event.repeat,
+                        };
+                        if (isTurnRunning && isAgentChatInterruptKey(key)) {
+                            event.preventDefault();
+                            stop();
+                            return;
+                        }
+                        if (!isAgentChatSubmitKey(key)) return;
+                        event.preventDefault();
+                        // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
+                        void submit();
+                    }}
+                    onPaste={imageInput.onPaste}
+                />
+                <div className="flex items-center gap-1 px-2 pb-2">
+                    {supportsImages && (
+                        <AgentChatAttachButton
+                            isReading={images.isReading}
+                            onPick={imageInput.attach}
+                        />
+                    )}
+                    <p className="m-0 min-w-0 flex-1 truncate px-1 text-right text-[11px] leading-4 text-muted">
+                        {contextSummary}
+                    </p>
+                    {/* One primary action slot: Stop while a turn runs and nothing is typed, Send otherwise. */}
+                    {isTurnRunning && !hasContent ? (
+                        <AgentChatStopButton isStopping={isStopping} onStop={stop} />
+                    ) : (
+                        <Tooltip content="Send">
+                            <Button
+                                aria-label="Send"
+                                disabled={!isSendable}
+                                size="icon"
+                                type="submit"
+                            >
+                                <ArrowUp className="size-4" />
+                            </Button>
+                        </Tooltip>
+                    )}
+                </div>
             </form>
-            {contextSummary && (
-                <p className="m-0 mt-1 truncate px-0.5 text-[11px] leading-4 text-muted">
-                    {contextSummary}
-                </p>
-            )}
         </div>
     );
 }
