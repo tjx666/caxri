@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
+import type { AgentToolKind } from '@caxri/protocol';
 import type { LucideProps } from 'lucide-react-native';
 import {
     Bot,
@@ -24,9 +25,8 @@ import {
 
 import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles as styles } from './conversation-styles';
-import type { ToolKind } from './tool-presentation';
 
-const TOOL_ICONS: Record<ToolKind, ComponentType<LucideProps>> = {
+const TOOL_ICONS: Record<AgentToolKind, ComponentType<LucideProps>> = {
     agent: Bot,
     command: SquareTerminal,
     edit: FilePenLine,
@@ -57,7 +57,7 @@ export const ConversationToolIcon = ({
     /**
      * `null` marks a group mixing several kinds.
      */
-    kind: ToolKind | null;
+    kind: AgentToolKind | null;
     status: 'failed' | 'running' | 'succeeded';
     theme: MobileTheme;
 }) => {

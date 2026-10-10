@@ -1,8 +1,13 @@
-import type { AgentTimelineItem } from '@caxri/protocol';
+/**
+ * The two fields every surface knows about a tool call: Agent Chat `toolCall` items and the mobile timeline both carry
+ * them.
+ */
+interface ToolCall {
+    name: string;
+    summary?: string;
+}
 
-type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
-
-export type ToolKind =
+export type AgentToolKind =
     | 'agent'
     | 'command'
     | 'edit'
@@ -20,8 +25,8 @@ export type ToolKind =
     | 'web'
     | 'write';
 
-export interface ToolPresentation {
-    kind: ToolKind;
+export interface AgentToolPresentation {
+    kind: AgentToolKind;
     /**
      * Past-tense action shown before the subject, such as `Ran` or `Edited`.
      */
@@ -40,7 +45,7 @@ export interface ToolPresentation {
  * Provider tool names from Claude Code and Codex transcripts. Lookup is case-insensitive because Codex names are
  * snake_case while Claude Code names are PascalCase, and a few overlap in meaning.
  */
-const TOOL_KINDS: Partial<Record<string, { kind: ToolKind; label: string }>> = {
+const TOOL_KINDS: Partial<Record<string, { kind: AgentToolKind; label: string }>> = {
     bash: { kind: 'command', label: 'Ran' },
     shell: { kind: 'command', label: 'Ran' },
     exec_command: { kind: 'command', label: 'Ran' },
@@ -77,8 +82,8 @@ const TOOL_KINDS: Partial<Record<string, { kind: ToolKind; label: string }>> = {
     reasoning: { kind: 'thought', label: 'Thought' },
 };
 
-const FILE_KINDS = new Set<ToolKind>(['edit', 'list', 'read', 'write']);
-const PROSE_KINDS = new Set<ToolKind>(['agent', 'question', 'thought', 'web']);
+const FILE_KINDS = new Set<AgentToolKind>(['edit', 'list', 'read', 'write']);
+const PROSE_KINDS = new Set<AgentToolKind>(['agent', 'question', 'thought', 'web']);
 
 const basename = (path: string): string => {
     const trimmed = path.replace(/[\\/]+$/u, '');
@@ -87,17 +92,38 @@ const basename = (path: string): string => {
 };
 
 /**
- * MCP tools arrive as `mcp__<server>__<tool>`; the server name reads better than the raw identifier.
+ * MCP tools arrive as `mcp__<server>__<tool>` from Claude Code and as `<server>/<tool>` from Codex; the server name
+ * reads better than the raw identifier.
  */
 const parseMcpName = (name: string): { server: string; tool: string } | null => {
-    if (!name.startsWith('mcp__')) return null;
+    if (!name.startsWith('mcp__')) {
+        const slash = name.indexOf('/');
+        if (slash <= 0 || slash === name.length - 1) return null;
+        return { server: name.slice(0, slash), tool: name.slice(slash + 1) };
+    }
     const rest = name.slice('mcp__'.length);
     const separator = rest.indexOf('__', 1);
     if (separator === -1 || separator + 2 >= rest.length) return null;
     return { server: rest.slice(0, separator), tool: rest.slice(separator + 2) };
 };
 
-export const describeTool = (tool: Pick<ToolCall, 'name' | 'summary'>): ToolPresentation => {
+/**
+ * Codex reports every command as the login-shell invocation that ran it (`/bin/zsh -lc "git status"`). The wrapper is
+ * the same on every row, so only the inner command is worth reading. Anything that is not exactly one quoted script
+ * passed to `sh`, `bash`, or `zsh` is returned unchanged.
+ */
+export const unwrapShellCommand = (command: string): string => {
+    const match = /^(?:\S*\/)?(?:ba|z)?sh -l?c (["'])([\s\S]*)\1$/u.exec(command.trim());
+    if (!match) return command;
+    const [, quote, script = ''] = match;
+    return quote === '"'
+        ? script.replaceAll(String.raw`\"`, '"').replaceAll(String.raw`\\`, '\\')
+        : script;
+};
+
+export const describeAgentTool = (
+    tool: Pick<ToolCall, 'name' | 'summary'>,
+): AgentToolPresentation => {
     /**
      * The Server falls back to the tool name when an input carries no recognizable subject, so an equal summary means
      * "nothing more to show", not a subject that happens to match.
@@ -117,14 +143,40 @@ export const describeTool = (tool: Pick<ToolCall, 'name' | 'summary'>): ToolPres
     const subject =
         rawSubject && FILE_KINDS.has(known.kind) && /[\\/]/u.test(rawSubject)
             ? basename(rawSubject)
-            : rawSubject;
+            : rawSubject && known.kind === 'command'
+              ? unwrapShellCommand(rawSubject)
+              : rawSubject;
     return { ...known, subject, isCodeSubject: !PROSE_KINDS.has(known.kind) };
 };
+
+/**
+ * Present-tense verbs for work still in progress (`Running git status`), per kind. MCP and unknown tools keep their
+ * label, which names the server or tool rather than an action.
+ */
+const ACTIVE_LABELS: Partial<Record<AgentToolKind, string>> = {
+    agent: 'Running agent',
+    command: 'Running',
+    edit: 'Editing',
+    image: 'Viewing image',
+    list: 'Listing',
+    plan: 'Updating plan',
+    question: 'Asking',
+    read: 'Reading',
+    search: 'Searching',
+    skill: 'Using skill',
+    stop: 'Stopping',
+    thought: 'Thinking',
+    web: 'Browsing',
+    write: 'Writing',
+};
+
+export const agentToolActiveLabel = (presentation: Pick<AgentToolPresentation, 'kind' | 'label'>) =>
+    ACTIVE_LABELS[presentation.kind] ?? presentation.label;
 
 const plural = (count: number, singular: string, pluralForm = `${singular}s`): string =>
     `${count} ${count === 1 ? singular : pluralForm}`;
 
-const GROUP_PHRASES: Record<ToolKind, (count: number) => string> = {
+const GROUP_PHRASES: Record<AgentToolKind, (count: number) => string> = {
     command: (count) => `ran ${plural(count, 'command')}`,
     read: (count) => `read ${plural(count, 'file')}`,
     list: (count) => `listed ${plural(count, 'folder')}`,
@@ -146,20 +198,33 @@ const GROUP_PHRASES: Record<ToolKind, (count: number) => string> = {
 /**
  * Counts tools per kind in first-seen order, so the phrase leads with what the Agent did first.
  */
-export const toolKindCounts = (tools: ReadonlyArray<Pick<ToolCall, 'name' | 'summary'>>) => {
-    const counts = new Map<ToolKind, number>();
+export const agentToolKindCounts = (tools: ReadonlyArray<Pick<ToolCall, 'name' | 'summary'>>) => {
+    const counts = new Map<AgentToolKind, number>();
     for (const tool of tools) {
-        const { kind } = describeTool(tool);
+        const { kind } = describeAgentTool(tool);
         counts.set(kind, (counts.get(kind) ?? 0) + 1);
     }
     return [...counts].map(([kind, count]) => ({ kind, count }));
 };
 
-export const summarizeToolGroup = (
+export const summarizeAgentToolGroup = (
     tools: ReadonlyArray<Pick<ToolCall, 'name' | 'summary'>>,
 ): string => {
-    const phrase = toolKindCounts(tools)
+    const phrase = agentToolKindCounts(tools)
         .map(({ kind, count }) => GROUP_PHRASES[kind](count))
         .join(', ');
     return phrase.charAt(0).toUpperCase() + phrase.slice(1);
 };
+
+/**
+ * A short elapsed time for a finished Agent turn or tool call: `<1s`, `45s`, `2m`, `2m 1s`. Rounds to whole seconds
+ * because the reader compares turns, not milliseconds. Returns `null` when no duration was recorded.
+ */
+export function formatShortDuration(durationMs: number | undefined): string | null {
+    if (durationMs === undefined) return null;
+    const seconds = Math.round(durationMs / 1000);
+    if (seconds < 1) return '<1s';
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    return seconds % 60 === 0 ? `${minutes}m` : `${minutes}m ${seconds % 60}s`;
+}

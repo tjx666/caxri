@@ -1,6 +1,5 @@
 import type { AgentTimelineItem, MobileTimelineReadResult } from '@caxri/protocol';
-
-import { summarizeToolGroup } from './tool-presentation';
+import { summarizeAgentToolGroup } from '@caxri/protocol';
 
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
 
@@ -27,7 +26,7 @@ const toolGroup = (tools: ToolCall[]): ConversationEntry => {
         id: `tools:${tools[0].id}`,
         type: 'toolGroup',
         tools,
-        summary: summarizeToolGroup(tools),
+        summary: summarizeAgentToolGroup(tools),
         durationMs,
     };
 };
@@ -151,11 +150,3 @@ export const shouldFollowConversation = (
 
 export const shouldShowConversationJump = (isAtBottom: boolean, hasNewContent: boolean): boolean =>
     !isAtBottom && hasNewContent;
-
-export const formatConversationDuration = (durationMs: number | undefined): string | null => {
-    if (durationMs === undefined) return null;
-    const seconds = Math.round(durationMs / 1_000);
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    return seconds % 60 === 0 ? `${minutes}m` : `${minutes}m ${seconds % 60}s`;
-};

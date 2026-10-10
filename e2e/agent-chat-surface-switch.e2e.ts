@@ -106,6 +106,34 @@ if (process.argv.includes('app-server')) {
         await expect.poll(async () => (await codexTerminal(page)).agentSessionId).toBeTruthy();
         const { agentSessionId: thread } = await codexTerminal(page);
 
+        // Coming back to the Chat's tab puts the cursor in the composer, as a Terminal tab focuses its grid.
+        const shellTab = session.locator(
+            `.work-tab:not([inert])[data-terminal-id]:not([data-terminal-id="${terminalId}"])`,
+        );
+        await shellTab.click();
+        await expect(message).toHaveCount(0);
+        await tab.click();
+        await expect(message).toBeFocused();
+        await message.locator('xpath=ancestor::form[1]').screenshot({
+            path: testInfo.outputPath('surface-switch-focused-composer.png'),
+        });
+        // Roving tab navigation keeps the keyboard on the tab bar, again as it does for a Terminal.
+        const chatTabButton = tab.getByRole('tab');
+        await chatTabButton.focus();
+        await chatTabButton.press('ArrowLeft');
+        await expect(message).toHaveCount(0);
+        await shellTab.getByRole('tab').press('ArrowRight');
+        await expect(message).toBeVisible();
+        await page.evaluate(
+            () =>
+                new Promise((resolve) => {
+                    requestAnimationFrame(() =>
+                        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+                    );
+                }),
+        );
+        await expect(chatTabButton).toBeFocused();
+
         // Chat to Terminal: the TUI resumes the thread the Chat started.
         await tab.click({ button: 'right' });
         await chooseContextMenuItem(app, 'Open as Terminal');
@@ -131,6 +159,31 @@ if (process.argv.includes('app-server')) {
         // A running turn is never ended silently: Cancel keeps it, Stop and Switch ends it.
         await message.fill('slow please');
         await message.press('Enter');
+        await expect(session.getByRole('button', { name: 'Stop' })).toBeVisible();
+        // The status tab on the composer names the turn under a moving highlight and counts its time.
+        await expect(
+            session.getByRole('status').filter({ hasText: /^[A-Z][\w -]+…$/u }),
+        ).toHaveCount(1);
+        await expect(session.locator('.activity-shimmer').first()).toHaveCSS(
+            'animation-name',
+            'activity-shimmer',
+        );
+        await expect(session.getByText('Esc to stop')).toBeVisible();
+        await expect(session.getByText(/^\d+s$/u)).toBeVisible();
+        // Live work reads in the present tense with its subject, and a thought shows its Codex title.
+        await expect(
+            session.getByRole('button', { name: /^Running rg -n slow src/u }),
+        ).toBeVisible();
+        await expect(
+            session.getByRole('button', { name: /^Thought Planning the reply/u }),
+        ).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('surface-switch-running-turn.png') });
+        // Stop and Send share one slot: typed content turns it into Send, which steers the turn.
+        await message.fill('steer');
+        await expect(session.getByRole('button', { name: 'Send' })).toBeEnabled();
+        await expect(session.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('surface-switch-steer-draft.png') });
+        await message.fill('');
         await expect(session.getByRole('button', { name: 'Stop' })).toBeVisible();
         await tab.click({ button: 'right' });
         await chooseContextMenuItem(app, 'Open as Terminal');

@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -51,7 +51,12 @@ test('a Codex Chat sends pasted and picked images and runs /compact', async ({},
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-input-'));
     const userData = join(directory, 'user-data');
     const root = join(directory, 'project');
-    await mkdir(root, { recursive: true });
+    const skillDirectory = join(root, '.agents', 'skills', 'review-pr');
+    await mkdir(skillDirectory, { recursive: true });
+    await writeFile(
+        join(skillDirectory, 'SKILL.md'),
+        '---\nname: review-pr\ndescription: Review the open pull request\n---\n\nReview it.\n',
+    );
     const agentMode = await fakeCodexChatAgentMode(directory, userData);
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
@@ -81,10 +86,22 @@ test('a Codex Chat sends pasted and picked images and runs /compact', async ({},
         await expect(chat.getByRole('img', { name: 'Attachment 2' })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-chat-sent-images.png') });
 
+        // The `/` menu reuses the Agent Commands & Skills discovery, so a Project skill sits beside the commands.
         await message.fill('/');
-        const commands = chat.getByRole('listbox', { name: 'Commands' });
-        await expect(commands.getByRole('option')).toHaveText([/^\/compact/u]);
+        const commands = chat.getByRole('listbox', { name: 'Commands and skills' });
+        await expect(commands.getByRole('option')).toHaveText([
+            /^\/compact/u,
+            /^\$review-pr\s*Review the open pull request$/u,
+        ]);
         await page.screenshot({ path: testInfo.outputPath('codex-chat-commands.png') });
+        await message.fill('$rev');
+        await expect(commands.getByRole('option').first()).toHaveText(/^\$review-pr/u);
+        await message.press('Enter');
+        await expect(message).toHaveValue('$review-pr ');
+        await expect(commands).toHaveCount(0);
+
+        await message.fill('/');
+        await expect(commands.getByRole('option').first()).toHaveText(/^\/compact/u);
         await message.press('Enter');
         await expect(commands).toHaveCount(0);
         await expect(chat.getByText('Context compacted')).toBeVisible();
@@ -123,7 +140,7 @@ test("a Claude Code Chat sends an image and offers Claude Code's slash commands"
         await expect(chat.getByRole('img', { name: 'Attachment 1' })).toBeVisible();
 
         await message.fill('/');
-        const commands = chat.getByRole('listbox', { name: 'Commands' });
+        const commands = chat.getByRole('listbox', { name: 'Commands and skills' });
         // Commands that only make sense in Claude Code's own terminal UI (here /exit) are not offered.
         await expect(commands.getByRole('option')).toHaveText([/^\/compact/u, /^\/review/u]);
         await message.press('ArrowDown');

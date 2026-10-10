@@ -12,6 +12,7 @@ export * from './agent-inbox-contract.js';
 export * from './agent-notification-contract.js';
 export * from './agent-skill-contract.js';
 export * from './agent-throughput-contract.js';
+export * from './agent-tool-presentation.js';
 export * from './agents.js';
 export * from './delegation-access-contract.js';
 export * from './provider-autonomy.js';

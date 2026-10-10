@@ -1,10 +1,9 @@
-import { memo, useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
 import { ArrowDown, CircleAlert, RotateCcw } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
-import { Spinner } from '../../components/ui/spinner';
 import { useCaxriQuery } from '../../queries/client';
 import { useTerminalLinkPicker } from '../terminal/hooks/use-terminal-link-picker';
 import { registerTerminalFocusHandler, restartTerminal } from '../terminal/terminal-commands';
@@ -15,7 +14,7 @@ import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatComposer } from './agent-chat-composer';
 import {
-    agentChatActivityLabel,
+    agentChatActivity,
     agentChatContextSummary,
     agentChatFailureMessage,
     canSendAgentChatMessage,
@@ -23,14 +22,10 @@ import {
 } from './agent-chat-presentation';
 import { AgentChatRequestCard } from './agent-chat-request-card';
 import { AgentChatPlanCard } from './agent-chat-status-glyph';
-import { AgentChatTimelineItem } from './agent-chat-timeline-item';
+import { buildAgentChatTimeline } from './agent-chat-timeline';
+import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
+import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
-
-/**
- * A streamed delta replaces only the item it appends to (`applyAgentChatPatch` keeps every other item's identity), so
- * the rest of the transcript skips rendering entirely.
- */
-const MemoizedAgentChatTimelineItem = memo(AgentChatTimelineItem);
 
 /**
  * Why the Chat cannot continue, with the one action that recovers it. It sits in the dock, outside the scrolling
@@ -72,30 +67,6 @@ function AgentChatFailureBanner({
 }
 
 /**
- * The one-line activity indicator under the timeline. It is the Chat's polite status region: transitions between
- * starting, working, and waiting are announced, while streamed reply text never is.
- */
-function AgentChatActivity({
-    snapshot,
-    providerName,
-}: {
-    snapshot: AgentChatSnapshot | undefined;
-    providerName: string;
-}) {
-    const label = agentChatActivityLabel(snapshot, providerName);
-    return (
-        <div aria-live="polite" className="text-[12px] text-muted" role="status">
-            {label && (
-                <span className="flex items-center gap-2">
-                    {label.isBusy && <Spinner className="size-3.5" />}
-                    {label.text}
-                </span>
-            )}
-        </div>
-    );
-}
-
-/**
  * The structured surface of a Chat Terminal (ADR 0012): the conversation Server Core projects from the provider's own
  * protocol, rendered in place of a terminal grid. The projection lives in the shared query cache and is kept current by
  * `agentChat.patch` (see `agent-chat-client.ts`), so this view only reads it. Mounted per Terminal (keyed by its id),
@@ -103,11 +74,16 @@ function AgentChatActivity({
  */
 export function AgentChatPane({
     ariaLabel,
+    isShown,
     providerName,
     supportsImages,
     terminalId,
 }: {
     ariaLabel: string;
+    /**
+     * Whether the Chat is on screen in the active pane, so mounting it is the user activating it.
+     */
+    isShown: boolean;
     /**
      * The provider catalog's display name, for copy that names the Agent.
      */
@@ -149,6 +125,14 @@ export function AgentChatPane({
             ),
         [terminalId],
     );
+    useAgentChatActivationFocus(inputReference, { isShown, terminalId });
+    const items = snapshot?.items;
+    const turns = snapshot?.turns;
+    const activeTurnId = snapshot?.activeTurnId;
+    const timeline = useMemo(
+        () => (items && turns ? buildAgentChatTimeline(items, turns, activeTurnId) : []),
+        [items, turns, activeTurnId],
+    );
     const isEmpty = snapshot?.status === 'ready' && snapshot.items.length === 0;
     const retry = (): void => {
         /**
@@ -172,10 +156,10 @@ export function AgentChatPane({
                                 Earlier messages are not shown
                             </p>
                         )}
-                        {snapshot?.items.map((item) => (
-                            <MemoizedAgentChatTimelineItem
-                                item={item}
-                                key={item.id}
+                        {timeline.map((entry) => (
+                            <AgentChatTimelineEntryView
+                                entry={entry}
+                                key={entry.kind === 'item' ? entry.item.id : entry.id}
                                 onOpenFile={openFile}
                             />
                         ))}
@@ -184,7 +168,6 @@ export function AgentChatPane({
                                 Send a message to start working with {providerName}.
                             </p>
                         )}
-                        <AgentChatActivity providerName={providerName} snapshot={snapshot} />
                     </div>
                 </div>
                 {!isFollowing && (
@@ -237,6 +220,7 @@ export function AgentChatPane({
             />
             <AgentChatComposer
                 activeTurnId={snapshot?.activeTurnId}
+                activity={agentChatActivity(snapshot, providerName)}
                 canSend={canSendAgentChatMessage(snapshot)}
                 commands={snapshot?.commands}
                 contextSummary={agentChatContextSummary(snapshot)}
