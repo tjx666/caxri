@@ -38,7 +38,7 @@ export interface PrimarySidebarTreeModel {
     /**
      * Moves DOM focus to a row by id. Used by the paths that have to hand focus over before their own row unmounts.
      */
-    focusRow: (rowId: string) => void;
+    focusRow: (rowId: string, options?: FocusOptions) => void;
     handleTreeFocus: (event: FocusEvent<HTMLDivElement>) => void;
     /**
      * Expanded state for any group heading the tree walks, Pinned included: the Project collapse record knows nothing
@@ -109,10 +109,10 @@ export function usePrimarySidebarTree({
     );
 
     const focusRow = useCallback(
-        (rowId: string): void => {
+        (rowId: string, options?: FocusOptions): void => {
             treeReference.current
                 ?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(rowId)}"]`)
-                ?.focus();
+                ?.focus(options);
         },
         [treeReference],
     );
@@ -132,7 +132,7 @@ export function usePrimarySidebarTree({
             const rowId = target.closest<HTMLElement>('[data-row-id]')?.dataset.rowId;
             if (!rowId) return;
             setFocusedRowId(rowId);
-            noteFocusedRow(rowId);
+            noteFocusedRow(rowId, target.matches(':focus-visible'));
         },
         [noteFocusedRow],
     );
