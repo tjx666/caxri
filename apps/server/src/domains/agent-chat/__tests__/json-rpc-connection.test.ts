@@ -6,7 +6,7 @@ import { PassThrough, Writable } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ChatProcessEnd } from '../chat-provider';
-import { CodexConnection } from '../codex-connection';
+import { JsonRpcConnection } from '../json-rpc-connection';
 
 /**
  * A child process whose stdout the test writes chunk by chunk and whose stdin can stop draining.
@@ -25,10 +25,11 @@ function fakeChild(stdin: Writable = new PassThrough()) {
     return child as unknown as ChildProcessWithoutNullStreams & { stdout: PassThrough };
 }
 
-function connect(child: ChildProcessWithoutNullStreams) {
+function connect(child: ChildProcessWithoutNullStreams, isAcp?: boolean) {
     const notifications: Array<[string, Record<string, unknown>]> = [];
     const ends: ChatProcessEnd[] = [];
-    const connection = new CodexConnection({
+    const connection = new JsonRpcConnection({
+        label: 'Codex app-server',
         executable: 'codex',
         args: ['app-server'],
         cwd: '/',
@@ -39,11 +40,12 @@ function connect(child: ChildProcessWithoutNullStreams) {
             onEnd: (end) => ends.push(end),
         },
         spawnProcess: () => child,
+        jsonrpc: isAcp,
     });
     return { connection, notifications, ends };
 }
 
-describe('CodexConnection framing', () => {
+describe('JsonRpcConnection framing', () => {
     it('reassembles frames split mid-character and reads several frames from one chunk', () => {
         const child = fakeChild();
         const { notifications } = connect(child);
@@ -81,5 +83,29 @@ describe('CodexConnection framing', () => {
         for (let index = 0; index < 10 && connection.isOpen; index += 1)
             connection.notify('turn/steer', { text });
         expect(ends).toEqual([{ reason: 'writeFailed' }]);
+    });
+
+    it('tags outgoing frames for ACP and ignores responses to requests it never sent', async () => {
+        const stdin = new PassThrough();
+        const child = fakeChild(stdin);
+        const { connection, ends } = connect(child, true);
+        const written: string[] = [];
+        stdin.on('data', (chunk: Buffer) => written.push(chunk.toString('utf8')));
+        const response = connection.request('initialize', { protocolVersion: 1 });
+        await vi.waitFor(() => expect(written).toHaveLength(1));
+        expect(JSON.parse(written[0] ?? '')).toEqual({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'initialize',
+            params: { protocolVersion: 1 },
+        });
+        child.stdout.emit(
+            'data',
+            Buffer.from('{"jsonrpc":"2.0","id":"skills-reload","result":{}}\n'),
+        );
+        child.stdout.emit('data', Buffer.from('{"jsonrpc":"2.0","id":1,"result":{"ok":true}}\n'));
+        await expect(response).resolves.toEqual({ ok: true });
+        expect(connection.counters.droppedFrames).toBe(0);
+        expect(ends).toEqual([]);
     });
 });

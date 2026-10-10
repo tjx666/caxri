@@ -39,13 +39,6 @@ function claudeChatCommands(commands: unknown, hidden: ReadonlySet<string>): Age
 }
 
 /**
- * The prompt text that runs a slash command; Claude Code expands it exactly as if the user had typed it.
- */
-export function claudeCommandPrompt(name: string, arguments_: string | undefined): string {
-    return arguments_ ? `/${name} ${arguments_}` : `/${name}`;
-}
-
-/**
  * Whether a prompt runs `/compact`. The Chat shows the compaction itself (its progress and the compacted notice), so
  * this command's own user message is never shown.
  */
