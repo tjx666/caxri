@@ -138,13 +138,13 @@ describe('commanderRowPresentation', () => {
                     kind: 'claude',
                     processState: 'dead',
                     terminalId: 'terminal-1',
-                    title: 'Claude Code',
+                    title: 'Claude',
                 },
                 group: 'finished',
             }),
         );
 
-        expect(presentation).toMatchObject({ agentLabel: 'Claude Code', statePhrase: 'Exited' });
+        expect(presentation).toMatchObject({ agentLabel: 'Claude', statePhrase: 'Exited' });
     });
 
     it.each(['dead', 'stopped', 'interrupted'] as const)(

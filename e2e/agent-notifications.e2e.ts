@@ -231,7 +231,7 @@ setInterval(() => {
                     body: REPLY_SUMMARY,
                     groupId: 'caxri-agent-sessions',
                     id: `caxri-agent-session-${sourceSessionId}`,
-                    title: `Claude Code · ${SESSION_TITLE}`,
+                    title: `Claude · ${SESSION_TITLE}`,
                 },
             ]);
         expect(

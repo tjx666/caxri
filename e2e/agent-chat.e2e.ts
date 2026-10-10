@@ -61,7 +61,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         const openInChat = terminalMenu.getByRole('menuitemcheckbox', { name: 'Open in Chat' });
         await expect(openInChat).not.toBeChecked();
         await expect(terminalMenu.getByRole('menuitem')).toHaveText([
-            'Claude Code',
+            'Claude',
             'Codex',
             'Grok Build',
             'Shell',
@@ -69,7 +69,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await openInChat.click();
         await expect(openInChat).toBeChecked();
         await expect(terminalMenu.getByRole('menuitem')).toHaveText([
-            'Claude CodeChat',
+            'ClaudeChat',
             'CodexChat',
             'Grok Build',
             'Shell',
@@ -370,11 +370,11 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
         const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
         await terminalMenu.getByRole('menuitemcheckbox', { name: 'Open in Chat' }).click();
-        await chooseTerminalFromCreateMenu(page, 'Claude Code Chat');
+        await chooseTerminalFromCreateMenu(page, 'Claude Chat');
 
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
-        await expect(message).toHaveAttribute('placeholder', 'Message Claude Code');
+        await expect(message).toHaveAttribute('placeholder', 'Message Claude');
         await message.fill('hi there');
         await message.press('Enter');
         await expect(chat.getByText('Hello from fake Claude. You said: hi there')).toBeVisible();
@@ -402,9 +402,7 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         // A crash fails the Chat; Retry resumes the same Claude Code session and reloads its history from the transcript.
         await message.fill('crash now');
         await message.press('Enter');
-        const failure = chat
-            .getByRole('alert')
-            .filter({ hasText: 'Claude Code stopped unexpectedly' });
+        const failure = chat.getByRole('alert').filter({ hasText: 'Claude stopped unexpectedly' });
         await expect(failure).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-crashed.png') });
         await failure.getByRole('button', { name: 'Retry' }).click();

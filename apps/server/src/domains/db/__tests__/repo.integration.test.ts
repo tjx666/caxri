@@ -47,7 +47,7 @@ function splitTerminalIntoOwnPane(layout: PaneLayout, terminalId: string): PaneL
 describe('CaxriDatabase', () => {
     it.each([
         ['shell', 'Shell'],
-        ['claude', 'Claude Code'],
+        ['claude', 'Claude'],
         ['codex', 'Codex'],
     ] as const)(
         'starts a new %s Session as Untitled with a provider-specific Terminal title',
@@ -158,7 +158,7 @@ describe('CaxriDatabase', () => {
         expect(database.getTerminal(terminalId)).toMatchObject({
             kind: 'claude',
             ptyTitle: undefined,
-            title: 'Claude Code',
+            title: 'Claude',
         });
         database.close();
     });

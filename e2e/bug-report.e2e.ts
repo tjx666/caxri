@@ -99,7 +99,7 @@ test('Bug report preview sends one redacted multiline prompt to the selected liv
         await expect(preview).toContainText('caxri-bug-reports/caxri-bug-report-');
         await expect(preview).toContainText('1. [box x=');
         await expect(preview).toContainText('This button is misaligned');
-        await expect(dialog.getByLabel('Target Agent')).toContainText('Claude Code');
+        await expect(dialog.getByLabel('Target Agent')).toContainText('Claude');
 
         await dialog.getByRole('button', { name: 'Send to Agent' }).click();
         await expect(dialog).toHaveCount(0);

@@ -45,7 +45,7 @@ export async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Pr
     let timer: NodeJS.Timeout | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {
         timer = setTimeout(
-            () => reject(new CaxriError('TIMEOUT', 'Claude Code did not respond')),
+            () => reject(new CaxriError('TIMEOUT', 'Claude did not respond')),
             timeoutMs,
         );
     });

@@ -70,7 +70,7 @@ describe('TerminalLaunchPlanner managed Agent launch', () => {
         expect(resolved).toMatchObject({
             ok: false,
             failureReason: 'executable_not_found',
-            failureDetail: 'Claude Code CLI was not found',
+            failureDetail: 'Claude CLI was not found',
         });
     });
 

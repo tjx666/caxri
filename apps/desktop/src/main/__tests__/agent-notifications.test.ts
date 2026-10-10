@@ -51,7 +51,7 @@ describe('Agent notification coordinator', () => {
             {
                 id: 'caxri-agent-session-session-1',
                 groupId: 'caxri-agent-sessions',
-                title: 'Claude Code · Investigate hooks',
+                title: 'Claude · Investigate hooks',
                 subtitle: 'caxri',
                 body: 'Waiting for your input',
             },
@@ -73,7 +73,7 @@ describe('Agent notification coordinator', () => {
         );
         test.coordinator.observe(recordsChanged);
         await test.coordinator.flush();
-        expect(test.shown.map((shown) => shown.title)).toEqual(['Claude Code']);
+        expect(test.shown.map((shown) => shown.title)).toEqual(['Claude']);
     });
 
     it('only notifies for a completed turn after the configured duration', async () => {
@@ -141,7 +141,7 @@ describe('Agent notification coordinator', () => {
         test.coordinator.observe(recordsChanged);
         await test.coordinator.flush();
         expect(test.shown.at(-1)).toMatchObject({
-            title: 'Claude Code · Investigate hooks',
+            title: 'Claude · Investigate hooks',
             subtitle: 'caxri',
             body: 'Fixed the flaky test and pushed the branch.',
         });
