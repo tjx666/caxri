@@ -5,7 +5,7 @@ import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
 import type { AgentChatSessionHost, ChatTaskHistory } from './chat-provider';
 import { ChatTaskList } from './chat-tasks';
 import { CodexBackgroundTerminals } from './codex-background-terminals';
-import { CodexRequestError } from './codex-connection';
+import { JsonRpcRequestError } from './json-rpc-connection';
 import { mapCodexItem } from './codex-items';
 import { historyItems } from './codex-turns';
 
@@ -477,7 +477,7 @@ export class CodexTasks {
             }
             await this.terminals.stop(taskId);
         } catch (error) {
-            if (error instanceof CodexRequestError)
+            if (error instanceof JsonRpcRequestError)
                 throw new CaxriError('CONFLICT', 'This task is no longer running');
             throw error;
         }

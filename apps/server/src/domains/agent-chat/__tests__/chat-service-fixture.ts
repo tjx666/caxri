@@ -16,9 +16,12 @@ import { AgentChatService } from '../service';
 
 const FAKE_APP_SERVER = join(import.meta.dirname, 'fixtures', 'fake-codex-app-server.ts');
 const FAKE_CLAUDE = join(import.meta.dirname, 'fixtures', 'fake-claude-cli.ts');
+const FAKE_GROK = join(import.meta.dirname, 'fixtures', 'fake-grok-acp.ts');
+const FAKE_CLIS = { claude: FAKE_CLAUDE, codex: FAKE_APP_SERVER, grok: FAKE_GROK } as const;
 
 /**
- * Builds an AgentChatService over a temporary database that spawns the fake Codex app-server or fake Claude Code CLI.
+ * Builds an AgentChatService over a temporary database that spawns the fake Codex app-server, Claude Code CLI, or Grok
+ * Build ACP agent.
  */
 export async function fixture(
     options: {
@@ -26,7 +29,7 @@ export async function fixture(
          * A function is read at every provider start, so a test can change Settings between starts.
          */
         launchArgs?: string[] | (() => string[]);
-        provider?: 'claude' | 'codex';
+        provider?: keyof typeof FAKE_CLIS;
     } = {},
 ) {
     const provider = options.provider ?? 'codex';
@@ -35,6 +38,7 @@ export async function fixture(
     const projectRoot = join(directory, 'project');
     const stateDirectory = join(directory, 'codex');
     const claudeConfigDirectory = join(directory, 'claude');
+    const grokStateDirectory = join(directory, 'grok');
     await mkdir(projectRoot);
     const project = database.createProject(projectRoot);
     const { session } = database.createSession(project.id, null);
@@ -49,11 +53,7 @@ export async function fixture(
     const logger = { write: vi.fn() } as unknown as StructuredLogger;
     const spawnProcess = vi.fn(
         (_executable: string, arguments_: string[], spawnOptions: SpawnOptionsWithoutStdio) =>
-            spawn(
-                process.execPath,
-                [provider === 'claude' ? FAKE_CLAUDE : FAKE_APP_SERVER, ...arguments_],
-                spawnOptions,
-            ),
+            spawn(process.execPath, [FAKE_CLIS[provider], ...arguments_], spawnOptions),
     );
     const service = new AgentChatService({
         database,
@@ -63,6 +63,7 @@ export async function fixture(
             Promise.resolve({
                 ...process.env,
                 FAKE_CODEX_STATE_DIR: stateDirectory,
+                FAKE_GROK_STATE_DIR: grokStateDirectory,
                 CLAUDE_CONFIG_DIR: claudeConfigDirectory,
             }),
         launchSettings: () => ({
@@ -120,6 +121,11 @@ export async function fixture(
             .trim()
             .split('\n')
             .map((line) => JSON.parse(line) as Record<string, unknown>);
+    const sessionOpens = async () =>
+        (await readFile(join(grokStateDirectory, 'session-opens.jsonl'), 'utf8'))
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line) as { method: string; args: string[] });
     return {
         database,
         service,
@@ -130,5 +136,6 @@ export async function fixture(
         client,
         until,
         threadOpens,
+        sessionOpens,
     };
 }

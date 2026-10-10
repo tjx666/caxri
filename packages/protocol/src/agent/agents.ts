@@ -172,7 +172,10 @@ export const agentProviderCatalog = {
         capabilities: {
             actions: false,
             automaticSuspension: false,
-            chat: false,
+            chat: true,
+            /**
+             * Grok Build's ACP agent advertises `promptCapabilities.image: false`.
+             */
             chatImages: false,
             messaging: false,
             nativeRename: false,

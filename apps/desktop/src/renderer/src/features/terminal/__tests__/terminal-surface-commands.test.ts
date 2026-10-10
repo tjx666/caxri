@@ -78,9 +78,8 @@ describe('terminalSurfaceMenuEntry', () => {
         expect(entry).not.toHaveProperty('disabled', true);
     });
 
-    it('has no entry for a Shell or an Agent without Chat', () => {
+    it('has no entry for a Shell', () => {
         expect(terminalSurfaceMenuEntry(agentTerminal('shell'))).toBeUndefined();
-        expect(terminalSurfaceMenuEntry(agentTerminal('grok'))).toBeUndefined();
     });
 });
 

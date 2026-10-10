@@ -179,3 +179,56 @@ export function claudeChatSettings(launch: AgentLaunchSettings): ClaudeChatSetti
         disallowedTools: parsed.disallowedTools,
     };
 }
+
+/**
+ * `grok` process arguments derived from the provider's TUI launch settings. `rootArgs` go before the `agent` subcommand
+ * and `agentArgs` after it, matching where Grok Build's CLI accepts each option.
+ */
+export interface GrokChatSettings {
+    rootArgs: string[];
+    agentArgs: string[];
+}
+
+const GROK_ROOT_OPTIONS = new Set<string>(['--permission-mode', '--sandbox']);
+const GROK_AGENT_OPTIONS = new Map<string, string>([
+    ['-m', '--model'],
+    ['--model', '--model'],
+    ['--reasoning-effort', '--reasoning-effort'],
+    ['--effort', '--reasoning-effort'],
+]);
+
+/**
+ * Translates the Grok Build launch settings the user configured for the TUI into `grok agent stdio` arguments, the same
+ * way {@link codexChatSettings} does for Codex: only options the agent subcommand understands carry over.
+ *
+ * - The autonomy flag (`--yolo`, or its long form `--always-approve`) keeps its meaning: every tool runs without asking.
+ * - `--permission-mode` and `--sandbox` are root options; `--model` and `--reasoning-effort` are agent options.
+ * - Without any of them, Grok Build's own defaults apply, which ask before running a tool.
+ */
+export function grokChatSettings(launch: AgentLaunchSettings): GrokChatSettings {
+    const arguments_ = expandLaunchArguments(launch.args);
+    const autonomy = new Set<string>([
+        ...agentProviderCatalog.grok.autonomyArgs,
+        '--always-approve',
+    ]);
+    let isAutonomous = false;
+    const rootArguments: string[] = [];
+    const agentArguments: string[] = [];
+    for (let index = 0; index < arguments_.length; index += 1) {
+        const argument = arguments_[index];
+        if (autonomy.has(argument)) {
+            isAutonomous = true;
+            continue;
+        }
+        const equals = argument.indexOf('=');
+        const name = argument.startsWith('--') && equals > 0 ? argument.slice(0, equals) : argument;
+        const agentOption = GROK_AGENT_OPTIONS.get(name);
+        if (!agentOption && !GROK_ROOT_OPTIONS.has(name)) continue;
+        const value = name === argument ? arguments_.at(++index) : argument.slice(equals + 1);
+        if (value === undefined) continue;
+        if (agentOption) agentArguments.push(agentOption, value);
+        else rootArguments.push(name, value);
+    }
+    if (isAutonomous) agentArguments.unshift('--always-approve');
+    return { rootArgs: rootArguments, agentArgs: agentArguments };
+}

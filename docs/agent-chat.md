@@ -10,8 +10,8 @@ Agent CLI through the vendor's structured protocol and renders a conversation (s
 collapsible tool rows, approval and question cards) instead of a terminal grid. The decision and
 its trade-offs are in [ADR 0012](adr/0012-agent-chat-surface.md).
 
-Codex and Claude Code are Chat-capable (`capabilities.chat` in the provider catalog,
-`packages/protocol/src/agent/agents.ts`); Grok Build stays PTY-only. Copy that names the Agent
+Codex, Claude Code, and Grok Build are Chat-capable (`capabilities.chat` in the provider catalog,
+`packages/protocol/src/agent/agents.ts`). Copy that names the Agent
 (failure banners, "Starting ...", the composer placeholder) reads the catalog's `displayName`.
 Claude Code's `displayName` is "Claude": the Chat is built on the Claude Agent SDK, whose
 [branding guidelines](https://code.claude.com/docs/en/agent-sdk/overview#branding-guidelines) do not
@@ -30,12 +30,17 @@ replaced session's late reports are dropped. Shared pieces:
 - `ProviderProcess` (`provider-process.ts`): the child in its own process group, stderr drained
   without being retained, and the stdin EOF, SIGTERM, SIGKILL stop escalation.
 - `chat-items.ts`: bounded string helpers, closing dangling items, the operations for a process
-  that ended, and the `answered` notice.
+  that ended, the `answered` notice, the replacement diff for a file edit, and the prompt text of a
+  slash command that runs as a message.
+- `JsonRpcConnection` (`json-rpc-connection.ts`): newline-delimited JSON-RPC over the child's
+  stdio, shared by Codex (which omits the `jsonrpc` field) and Grok Build's ACP (which requires it).
+  It bounds frame size and pending writes and ignores responses to requests it never sent.
 
-| Provider    | Driver                   | Protocol                                                          |
-| ----------- | ------------------------ | ----------------------------------------------------------------- |
-| Codex       | `codex-chat-session.ts`  | `codex app-server --listen stdio://` JSON-RPC                     |
-| Claude Code | `claude-chat-session.ts` | Claude Agent SDK streaming input over the user's own `claude` CLI |
+| Provider    | Driver                   | Protocol                                                           |
+| ----------- | ------------------------ | ------------------------------------------------------------------ |
+| Codex       | `codex-chat-session.ts`  | `codex app-server --listen stdio://` JSON-RPC                      |
+| Claude Code | `claude-chat-session.ts` | Claude Agent SDK streaming input over the user's own `claude` CLI  |
+| Grok Build  | `grok-chat-session.ts`   | ACP (Agent Client Protocol) v1 over `grok agent --no-leader stdio` |
 
 Adding a provider means a driver, its item mapping, its launch-settings translation, and a fake
 CLI fixture; the service, reducer, and pane do not change.
@@ -55,10 +60,11 @@ CLI fixture; the service, reducer, and pane do not change.
   while a click on the tab strip's `+` clones the primary Agent Terminal on its own surface.
 - A Chat keeps everything else a Terminal owns: its Session, Primary Agent election, naming, pane
   placement, and the `terminal` pane resource.
-- The Agent Session (the Codex thread id, or the Claude Code session id) is bound to the Terminal
+- The Agent Session (the Codex thread id, the Claude Code session id, or the Grok Build session id) is bound to the Terminal
   only when the first turn starts. Neither provider writes its record before that, so an earlier
   binding could never be resumed. An unbound Chat simply opens a new conversation on its next
-  start. Claude Code is started with a preset `--session-id`, so the id is known before the turn.
+  start. Claude Code is started with a preset `--session-id`, and Grok Build's `session/new` with a
+  preset `_meta.sessionId`, so the id is known before the turn.
 - PTY-only operations (Terminal input from other Clients, Agent dispatch, compaction, Git review
   sends, long pastes, mobile submits, suspension, restore) reject or skip a Chat through
   `apps/server/src/domains/pty-guard.ts` before any side effect. A phone drives a Chat through
@@ -96,7 +102,8 @@ command> <id>` (`agentResumeCommandLine`, from the provider catalog's `resumeArg
 ## Process lifecycle
 
 `AgentChatService` (`apps/server/src/domains/agent-chat/service.ts`) owns one provider child per
-live Chat (`codex app-server --listen stdio://`, or `claude` in stream-json mode), spawned by Server Core with the same
+live Chat (`codex app-server --listen stdio://`, `claude` in stream-json mode, or
+`grok agent --no-leader stdio`), spawned by Server Core with the same
 allowlisted environment as other Agent launches and no lifecycle-hook environment (the Chat
 synthesizes its own lifecycle signals, so hooks would double-report).
 
@@ -112,6 +119,9 @@ synthesizes its own lifecycle signals, so hooks would double-report).
   skipped, a visible user prompt opens a turn, and every resumed turn is finished. A missing
   transcript or a `--resume` that fails its handshake is `resume_failed`. The `answered` notices
   Caxri synthesized are not in the transcript, so they do not survive a resume.
+- **Grok Build resume.** `session/load` replays the conversation as `session/update` frames before
+  it answers, with `turn_completed` marking where each turn ended; the Chat folds them into one
+  reset. An unknown session id fails `session/load`, which is `resume_failed`.
 - **Stop.** Closing, deleting, archiving, or detaching the Session stops the child (stdin EOF, then
   SIGTERM and SIGKILL on its process group). `terminal.restart` restarts it; a fresh restart drops
   the thread binding first. A failed Chat stays failed on read; the pane's Retry restarts it, which
@@ -148,6 +158,19 @@ Claude Code:
 | `--allowedTools`, `--disallowedTools` (either spelling)   | `allowedTools`, `disallowedTools`            |
 | Anything else (UI flags)                                  | Dropped: it has no meaning outside the TUI   |
 
+Grok Build (root options go before `agent`, agent options after it):
+
+| TUI argument                                    | Chat equivalent                                       |
+| ----------------------------------------------- | ----------------------------------------------------- |
+| `--yolo`, `--always-approve`                    | `agent --always-approve`                              |
+| (absent)                                        | Manual approvals through `session/request_permission` |
+| `--model`/`-m`, `--reasoning-effort`/`--effort` | `agent --model`, `agent --reasoning-effort`           |
+| `--sandbox`, `--permission-mode`                | Kept as root options before `agent`                   |
+| Anything else (UI flags)                        | Dropped: it has no meaning outside the TUI            |
+
+`--no-leader` is always passed: otherwise a configured `[cli] use_leader` turns `agent stdio` into a
+bridge to a shared leader process that Caxri cannot own.
+
 The Claude Code Chat uses the `claude_code` system prompt and tool presets and loads the user's,
 Project's, and local settings, so it behaves like the TUI in the same folder.
 
@@ -178,6 +201,22 @@ pending permission prompts and questions until the user answers:
   [Background work](#background-work).
 - Usage is the latest model request's input plus cache plus output tokens; the context window
   comes from the result's per-model usage.
+
+## Grok Build mapping
+
+`grok-chat-session.ts` speaks ACP and `grok-items.ts` holds the pure mapping:
+
+- A turn is one `session/prompt`, named by the `promptId` Caxri sends in its `_meta`; the prompt's
+  result carries the stop reason (`end_turn`, `cancelled`, `max_tokens`, `refusal`) and the
+  conversation's token count. Grok Build does not echo the prompt, so it is recorded locally. A
+  message sent mid-turn goes to the running turn through `_x.ai/interject`.
+- `agent_message_chunk` and `agent_thought_chunk` stream text and reasoning. `tool_call` and
+  `tool_call_update` are merged per call id, the update's present fields replacing earlier ones: an
+  `execute` call is a command row, a call carrying `diff` content a file change, and anything else
+  a generic tool row. `plan` replaces the plan.
+- The model and its context window come from the `session/new` or `session/load` result; slash
+  commands from `initialize`'s `_meta.availableCommands` and `available_commands_update`, run as
+  prompt text. Interrupt sends `session/cancel` and waits for the prompt to return `cancelled`.
 
 ## Projection and streaming
 
@@ -274,6 +313,12 @@ Claude Code asks through the SDK's `canUseTool` callback, keyed by the tool use 
 request (`Allow WebFetch?` with its URL or arguments). "Accept for this Chat" is offered only when
 Claude Code suggests a session rule and applies those suggestions; decline denies the tool and
 marks its row declined.
+
+Grok Build asks through `session/request_permission`, keyed by the tool call id; its permission
+options (`allow_once`, `allow_always`, `reject_once`, `reject_always`) set the offered decisions,
+and Skip or a decision with no matching option answers `cancelled`. Caxri turns off
+`_x.ai/ask_user_question` when it opens the session, so Grok Build never asks a question the Chat
+cannot render.
 
 Codex server requests become pending `requests` keyed by the approval callback id when present,
 else the item id. Codex re-sends pending requests with fresh transport ids after a resume, and
@@ -420,12 +465,13 @@ message text, command output, provider stderr, or protocol bodies.
 ## Testing
 
 `apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts` and
-`fake-claude-cli.ts` are deterministic stand-ins for each provider, selected by keywords in the
+`fake-claude-cli.ts`, and `fake-grok-acp.ts` are deterministic stand-ins for each provider, selected by keywords in the
 user's message (approval, file-change approval, edit, oversized diff, question, plan approval,
 table, slow stream, subagent, background shell, failure, crash). The Claude fake speaks the stream-json control protocol the
 SDK drives and writes a real transcript, so resume is exercised end to end. Both answer a message
 with images by counting them and implement compaction, so the E2E covers paste, file pick, and the
-slash list for each provider. Unit, integration, and fake-mode E2E tests drive them; no test launches the
+slash list for each provider. The Grok fake persists its frames so `session/load` replays them,
+and takes no images. Unit, integration, and fake-mode E2E tests drive them; no test launches the
 real CLI or calls a model.
 
 `bun run test:e2e:real-agent` is the manual, never-CI smoke against the real CLI (see the `e2e-testing` skill). Its
@@ -438,7 +484,9 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 
 ## Not yet supported
 
-Claude Code's model and agent pickers (its `initialize` response already lists both). On mobile, a
+Claude Code's model and agent pickers (its `initialize` response already lists both). Grok Build's
+model picker, images (its ACP agent advertises `image: false`), and questions
+(`_x.ai/ask_user_question`, turned off for now). Grok Build stays out of the real-Agent smoke. On mobile, a
 Chat shows no plan, model, or context usage yet, shows an image as its count (`[1 image]`) instead of
 a thumbnail, cannot attach images or run slash commands, does not show background tasks or the
 follow-up queue, older history beyond the window stays on
