@@ -264,14 +264,20 @@ acceptance (which has only an opaque id) spends its width on the passed-check ta
 of the current verdict, and keeps the subject, round, and provenance on the hover card. A link Caxri
 recognized but could not read is `unknown`: `--muted` and not clickable, because it has no
 destination and must not look like it does. When the window is too narrow for all of them they drop
-one at a time, lowest first: child-process count, memory, Linear issue, acceptance, pull request.
+one at a time, lowest first: child-process count, memory, Agent output speed, Linear issue,
+acceptance, pull request.
 Acceptance outranks Linear because it reports whether the current work passed, which changes what
 the reviewer does next; the pull request survives longest because it is the branch's identity.
 The right side follows the active tab: a normal file shows
 current-line blame, selection, cursor position, and language; a Terminal shows Terminal progress,
 process-tree memory, and child count. The memory chip turns `--danger` while that Terminal's tree is
 above the shared resource-alert thresholds (see `docs/process-explorer.md`), and its tooltip names
-the CPU reading and the threshold, so a runaway Agent is visible before its alert toast fires. Blame lives here and nowhere else. The editor header once
+the CPU reading and the threshold, so a runaway Agent is visible before its alert toast fires.
+An Agent Terminal also shows its Agent's output speed (`62 tok/s`) once the Agent's transcript has a
+measured response. It is a persistent gauge, not a transient Agent operation, so it lives here. It
+carries no threshold colour: the number is measured, and what counts as slow is the reader's call.
+The hover card breaks it down by last response, turn, and Session, charts the recent responses, and
+states the method (see `docs/agent-throughput.md`). Blame lives here and nowhere else. The editor header once
 carried the file's last commit too, and on any line belonging to that commit the two read
 word-for-word the same; the status bar's is the finer answer, it follows the cursor, and it does not
 take width from the breadcrumbs. Transient Agent operations stay with the owning work tab

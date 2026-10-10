@@ -15,6 +15,7 @@ import { agentEndpointMethods } from '../agent/agent-endpoint-contract.js';
 import { agentInboxMethods } from '../agent/agent-inbox-contract.js';
 import { agentNotificationInternalMethods } from '../agent/agent-notification-contract.js';
 import { agentSkillHealthSchema } from '../agent/agent-skill-contract.js';
+import { agentThroughputSchema } from '../agent/agent-throughput-contract.js';
 import {
     delegationAccessInternalMethods,
     delegationAccessMethods,
@@ -466,6 +467,15 @@ export const methods = {
             withContent: z.boolean().default(false),
         }),
         result: agentTranscriptSchema.nullable(),
+    },
+    /**
+     * Null when the Terminal has no bound Agent session, its provider records no per-response usage, or no response has
+     * been measured yet. Like `terminal.agentTranscript`, the Runtime resolves the transcript itself.
+     */
+    'terminal.agentThroughput': {
+        ...serverRead,
+        params: z.object({ terminalId: identifierSchema }),
+        result: agentThroughputSchema.nullable(),
     },
     ...fileMethods,
     ...gitMethods,

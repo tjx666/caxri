@@ -31,6 +31,7 @@ import {
     claudeTranscriptRoot,
     resolveClaudeConfigDirectory,
 } from './paths';
+import { createClaudeThroughputScanner } from './throughput';
 import { appendClaudeTimelineRecord } from './timeline';
 
 const MAX_TRANSCRIPT_TITLE_CACHES = 64;
@@ -390,6 +391,7 @@ export const claudeProvider: AgentProviderDescriptor = {
     renameSession: renameClaudeSession,
     resumeArguments: (agentSessionId) => ['--resume', agentSessionId],
     timelineProjector: appendClaudeTimelineRecord,
+    createThroughputScanner: createClaudeThroughputScanner,
     transcriptBaseRoot: (environment) =>
         claudeTranscriptBaseRoot(resolveClaudeConfigDirectory(environment)),
     transcriptPath: ({ agentSessionId, cwd }, environment) =>

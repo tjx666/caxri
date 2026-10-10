@@ -8,6 +8,8 @@
  *
  * - The child-process count and memory chips duplicate a live reading already available in Process Explorer
  *   (`processExplorer.open`), so they are the cheapest to hide first.
+ * - The active Agent's output speed goes next. Nothing else on screen shows it, but it is a gauge the user glances at,
+ *   not something they act on, so it yields before the chips that point at the branch's delivery state.
  * - The Linear issue chip goes next: it is a pointer to a tracker outside Caxri, and the same issue is reachable from the
  *   Status panel's own Linear rows.
  * - The acceptance chip survives one step longer than Linear. Both point outside Caxri and both repeat a Status panel
@@ -26,6 +28,7 @@
  */
 export interface ChipVisibility {
     acceptance: boolean;
+    agentThroughput: boolean;
     childProcessCount: boolean;
     linearIssue: boolean;
     memory: boolean;
@@ -34,12 +37,13 @@ export interface ChipVisibility {
 
 /**
  * Width thresholds (px) below which a chip is dropped, ordered lowest-priority-first. Spaced ~60-90px apart, roughly
- * one chip's rendered width, so a single resize step only ever changes one chip's visibility. 752px is the original
- * raw-scrollbar-fallback threshold this replaces.
+ * one chip's rendered width, so a single resize step only ever changes one chip's visibility. The raw-scrollbar
+ * fallback this replaced started at 752px, before the output speed chip widened the bar.
  */
 export const CHIP_PRIORITY_BREAKPOINTS = {
-    childProcessCount: 752,
-    memory: 680,
+    childProcessCount: 830,
+    memory: 752,
+    agentThroughput: 680,
     linearIssue: 610,
     acceptance: 545,
     pullRequest: 480,
@@ -47,6 +51,7 @@ export const CHIP_PRIORITY_BREAKPOINTS = {
 
 const ALL_VISIBLE: ChipVisibility = {
     acceptance: true,
+    agentThroughput: true,
     childProcessCount: true,
     linearIssue: true,
     memory: true,
@@ -62,6 +67,7 @@ export function resolveChipVisibility(width: number): ChipVisibility {
     if (width <= 0) return ALL_VISIBLE;
     return {
         acceptance: width >= CHIP_PRIORITY_BREAKPOINTS.acceptance,
+        agentThroughput: width >= CHIP_PRIORITY_BREAKPOINTS.agentThroughput,
         childProcessCount: width >= CHIP_PRIORITY_BREAKPOINTS.childProcessCount,
         linearIssue: width >= CHIP_PRIORITY_BREAKPOINTS.linearIssue,
         memory: width >= CHIP_PRIORITY_BREAKPOINTS.memory,
