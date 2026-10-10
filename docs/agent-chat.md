@@ -232,7 +232,8 @@ several callbacks can share one item, so the transport id is never the key.
 
 - The transcript and the composer share one centered column. Pending approvals, questions, the
   plan, and the failure banner sit in a dock above the composer, outside the scroller, so reading
-  history never hides them. The timeline follows new output until the user scrolls up; Jump to
+  history never hides them. The plan stays one collapsed row (the current step and `done/total`)
+  until the user expands it, so a long plan never pushes the transcript out of view. The timeline follows new output until the user scrolls up; Jump to
   latest returns to the end.
 - The composer keeps an unsent draft per Chat across tab switches, clears only the text that was
   actually sent, and treats Escape as Stop while a turn runs. Its action row shows how much of the

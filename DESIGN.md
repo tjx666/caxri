@@ -975,6 +975,13 @@ effort picker. In the transcript, inline code sits in a lifted `--elevated` chip
 language name such as `TypeScript`, wrap and copy) shares its fill; a table is set open, with row
 hairlines and no frame or header tint. All follow the Codex app's Dracula transcript.
 
+**Agent Chat plan**: the latest plan docks above the composer as one 32px radius-8 `--surface`
+row with a 1px `--border`: a list glyph, `Plan`, the step the Agent is on truncated in `--muted`,
+then right-aligned a 4px segment per step (`--success` done, `--muted` in progress, `--border`
+pending; omitted past ten steps), the `done/total` count (`--success` once complete), and a
+chevron. It starts collapsed and expands in place to the explanation and the step list (scrolling
+past 240px), keeping that choice while the plan updates. Reference: T3 Code's composer task badge.
+
 **Agent Chat timeline**: work is secondary to the conversation. Every command, tool call, file
 change, and thought is one 12px `--muted` disclosure row: the tool kind's glyph (the same table the
 mobile timeline uses), a past-tense verb, the subject in a mono `--surface` chip, and trailing facts
