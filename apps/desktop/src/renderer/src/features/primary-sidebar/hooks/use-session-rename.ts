@@ -67,6 +67,11 @@ export function useSessionRename(
      * Session's current title, so an automatic name landing mid-edit is not reverted by an untouched draft.
      */
     const renameBaselineReference = useRef('');
+    /**
+     * Whether the user typed into the open editor. An untouched draft follows automatic naming; an edited one never
+     * does.
+     */
+    const isRenameDraftEditedReference = useRef(false);
     const restoreFocusRowIdReference = useRef<string | undefined>(undefined);
     const restoreFocusVisibleReference = useRef(false);
     /**
@@ -98,14 +103,14 @@ export function useSessionRename(
         if (!sessionId) return;
         const currentTitle = sessions.find((session) => session.id === sessionId)?.displayTitle;
         const next = syncUntouchedRenameDraft(
-            renameValue,
+            isRenameDraftEditedReference.current,
             renameBaselineReference.current,
             currentTitle,
         );
         if (next === undefined) return;
         renameBaselineReference.current = next;
         setRenameValue(next);
-    }, [sessions, renameValue]);
+    }, [sessions]);
 
     const beginRename = useCallback(
         (sessionId: string, displayTitle: string, rowId: string): void => {
@@ -119,6 +124,7 @@ export function useSessionRename(
             renamingSessionIdReference.current = sessionId;
             renamingRowIdReference.current = rowId;
             renameBaselineReference.current = displayTitle;
+            isRenameDraftEditedReference.current = false;
             setRenamingRowId(rowId);
             setRenameValue(displayTitle);
             setRenameError(undefined);
@@ -216,6 +222,7 @@ export function useSessionRename(
     );
 
     const onRenameValueChange = useCallback((value: string): void => {
+        isRenameDraftEditedReference.current = true;
         setRenameValue(value);
         setRenameError(undefined);
     }, []);

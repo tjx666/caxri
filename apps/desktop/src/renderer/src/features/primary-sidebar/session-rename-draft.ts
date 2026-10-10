@@ -24,18 +24,19 @@ export function decideSessionRename(draft: string, baseline: string): SessionRen
 }
 
 /**
- * The new draft and baseline when the Session's title changes under an open editor whose draft the user has not touched
- * (draft still equals baseline), so the editor shows the name that just arrived instead of a stale one. Returns
- * `undefined` when nothing should change: the title is the same, or the user already edited the draft and their text
- * must win.
+ * The new draft and baseline when the Session's title changes under an open editor whose draft the user has not
+ * touched, so the editor shows the name that just arrived instead of a stale one. Returns `undefined` when nothing
+ * should change: the title is the same, or the user already edited the draft and their text must win. "Touched" is
+ * whether the user typed at all, not whether the draft still equals the baseline: someone who deletes a word and types
+ * it back has written that text themselves, and replacing it would erase a choice they just made.
  */
 export function syncUntouchedRenameDraft(
-    draft: string,
+    isDraftEdited: boolean,
     baseline: string,
     currentTitle: string | undefined,
 ): string | undefined {
     if (currentTitle === undefined || currentTitle === baseline) return undefined;
-    if (draft !== baseline) return undefined;
+    if (isDraftEdited) return undefined;
     return currentTitle;
 }
 
