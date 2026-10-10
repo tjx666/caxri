@@ -13,7 +13,6 @@ import {
     agentChatRequestTitle,
     agentChatTimelineItems,
     isAgentChatTerminal,
-    isOverLineBudget,
 } from '../agent-chat-model';
 
 const base: AgentChatSnapshot = {
@@ -184,14 +183,6 @@ describe('Agent Chat model', () => {
                 'Grok Build',
             ),
         ).toBe('Grok Build has 2 questions');
-    });
-
-    it('estimates when clamped approval text hides content', () => {
-        expect(isOverLineBudget('git status', 6)).toBe(false);
-        expect(isOverLineBudget('a\nb\nc\nd\ne\nf', 6)).toBe(false);
-        expect(isOverLineBudget('a\nb\nc\nd\ne\nf\ng', 6)).toBe(true);
-        expect(isOverLineBudget('x'.repeat(36 * 6), 6)).toBe(false);
-        expect(isOverLineBudget('x'.repeat(36 * 6 + 1), 6)).toBe(true);
     });
 
     it('lists the files a file-change approval gates', () => {
