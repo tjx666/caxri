@@ -228,6 +228,9 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await streamMessage(turn, 'Looking around the project.', 0);
         ran('cat src/app.ts', 'export const answer: number = 42;\n');
         ran('git status --short', ' M src/app.ts\n');
+        // Enough reads that the expanded group scrolls, each shown as the file it read rather than its command line.
+        for (let start = 1; start <= 81; start += 10)
+            ran(`sed -n '${start},${start + 9}p' src/app.ts`, '');
         completeItem(turn, {
             type: 'mcpToolCall',
             id: crypto.randomUUID(),

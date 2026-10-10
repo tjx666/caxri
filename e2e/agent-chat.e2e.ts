@@ -148,11 +148,25 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(
             reply('Explored the project.').getByRole('button', { name: 'Copy message' }),
         ).toHaveCount(1);
-        const workGroup = chat.getByRole('button', { name: 'Ran 2 commands, called 1 MCP tool' });
+        // A shell read reads as the file it read, the way the Codex app names exploration.
+        const workGroup = chat.getByRole('button', {
+            name: 'Read 10 files, ran 1 command, called 1 MCP tool',
+        });
         await expect(workGroup).toHaveAttribute('aria-expanded', 'false');
         await workGroup.click();
         await expect(chat.getByRole('button', { name: 'docs search' })).toBeVisible();
-        await chat.getByRole('button', { name: 'Ran cat src/app.ts' }).click();
+        // A long group scrolls, fading the edge that hides rows.
+        const workList = chat.locator('[data-scroll-fade-end]');
+        await expect(workList).toHaveCount(1);
+        await expectDisclosuresSettled(chat, 'agent-chat-work-group');
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-work-list-scroll.png') });
+        await workList.evaluate((element) => element.scrollTo({ top: element.scrollHeight }));
+        await expect(chat.locator('[data-scroll-fade-start]')).toHaveCount(1);
+        await expect(chat.locator('[data-scroll-fade-end]')).toHaveCount(0);
+        await chat
+            .locator('[data-scroll-fade-start]')
+            .evaluate((element) => element.scrollTo({ top: 0 }));
+        await chat.getByRole('button', { name: 'Read app.ts' }).first().click();
         // A printed file's output is painted in that file's language.
         await expect(chat.locator('pre code span[class*="mtk"]').first()).toBeVisible();
         await expectDisclosuresSettled(chat, 'agent-chat-item');
@@ -431,7 +445,8 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
             .last()
             .click();
         const commandRow = chat.getByRole('button', { name: /^Ran Print a confirmation/u });
-        await expect(commandRow).toContainText(/\d+s$/u);
+        // The toggle is stretched over its row, which holds the visible title and facts.
+        await expect(commandRow.locator('xpath=..')).toContainText(/\d+s$/u);
         await commandRow.click();
         await expect(chat.getByText('Exit code 0')).toBeVisible();
         await expect(chat.locator('pre').filter({ hasText: 'echo approved' })).toBeVisible();

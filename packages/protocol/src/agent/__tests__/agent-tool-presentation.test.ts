@@ -16,7 +16,7 @@ describe('describeAgentTool', () => {
             subject: 'git status',
             isCodeSubject: true,
         });
-        expect(describeAgentTool({ name: 'exec_command', summary: 'ls' })).toMatchObject({
+        expect(describeAgentTool({ name: 'exec_command', summary: 'make' })).toMatchObject({
             kind: 'command',
         });
         expect(describeAgentTool({ name: 'apply_patch', summary: 'apply_patch' })).toEqual({
@@ -31,6 +31,60 @@ describe('describeAgentTool', () => {
             kind: 'web',
             isCodeSubject: false,
         });
+    });
+
+    it('reads a shell read, search, or listing as that action', () => {
+        const describe = (summary: string) => describeAgentTool({ name: 'Bash', summary });
+        expect(describe("sed -n '1,40p' src/app.ts")).toEqual({
+            kind: 'read',
+            label: 'Read',
+            subject: 'app.ts',
+            isCodeSubject: true,
+            path: 'src/app.ts',
+        });
+        expect(describe('/bin/zsh -lc "cat docs/a.md docs/b.md"')).toMatchObject({
+            kind: 'read',
+            subject: 'a.md, b.md',
+        });
+        expect(describe('head -n 40 src/app.ts')).toMatchObject({ subject: 'app.ts' });
+        expect(describe('cd apps && nl -ba src/app.ts | sed -n 1,20p')).toMatchObject({
+            kind: 'read',
+            path: 'src/app.ts',
+        });
+        expect(describe("rg -n -g '*.ts' POLICY_VERSION src/hooks")).toMatchObject({
+            kind: 'search',
+            label: 'Searched',
+            subject: 'POLICY_VERSION in hooks',
+        });
+        expect(describe('grep -rn "foo bar"')).toMatchObject({
+            kind: 'search',
+            subject: 'foo bar',
+        });
+        expect(describe('rg --files src')).toMatchObject({ kind: 'list', subject: 'src' });
+        expect(describe('ls')).toMatchObject({ kind: 'list', label: 'Listed files' });
+        expect(describe('find . -name "*.ts"')).toMatchObject({
+            kind: 'list',
+            label: 'Listed files',
+        });
+    });
+
+    it('keeps any other command a command', () => {
+        const describe = (summary: string) => describeAgentTool({ name: 'Bash', summary });
+        for (const command of [
+            'bun run test',
+            'cat a.ts > b.ts',
+            "sed -i 's/a/b/' app.ts",
+            'sed s/a/b/ app.ts',
+            'cat app.ts | bun run format',
+            'ls && rm -rf build',
+            'cat $FILE',
+            'cat',
+        ])
+            expect(describe(command)).toMatchObject({
+                kind: 'command',
+                label: 'Ran',
+                subject: command,
+            });
     });
 
     it('shortens file paths to their name', () => {
@@ -86,7 +140,7 @@ describe('summarizeAgentToolGroup', () => {
     it('counts kinds in first-seen order', () => {
         expect(
             summarizeAgentToolGroup([
-                { name: 'Bash', summary: 'ls' },
+                { name: 'Bash', summary: 'make' },
                 { name: 'Read', summary: '/a.ts' },
                 { name: 'Bash', summary: 'pwd' },
                 { name: 'Grep', summary: 'x' },
@@ -127,7 +181,7 @@ describe('formatShortDuration', () => {
 
 describe('agentToolActiveLabel', () => {
     it('uses a present-tense verb while the work runs', () => {
-        expect(agentToolActiveLabel(describeAgentTool({ name: 'Bash', summary: 'ls' }))).toBe(
+        expect(agentToolActiveLabel(describeAgentTool({ name: 'Bash', summary: 'make' }))).toBe(
             'Running',
         );
         expect(agentToolActiveLabel(describeAgentTool({ name: 'Read', summary: '/a.ts' }))).toBe(

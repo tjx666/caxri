@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { memo, useContext, useId, useMemo, useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
+import { memo, useContext, useId, useMemo, useRef, useState } from 'react';
 
 import type { AgentChatTask, AgentToolKind } from '@caxri/protocol';
 import { agentToolActiveLabel, unwrapShellCommand } from '@caxri/protocol';
@@ -31,6 +31,7 @@ import { DisclosureMotion } from '../../components/disclosure-motion';
 import { CodeView } from '../../components/markdown/code-view';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useScrollEdges } from '../../hooks/use-scroll-edges';
 import { diffStatLabel } from '../../lib/diff-stat-label';
 import { cn } from '../../lib/utilities';
 import { agentChatFileChangesStat } from './agent-chat-diff';
@@ -87,14 +88,38 @@ const TIMELINE_EXPANDED_FILE_LIMIT = 3;
 const OUTPUT_CLASS_NAME = 'max-h-80 overflow-y-auto';
 
 /**
+ * Work still running keeps its tool glyph and sweeps a highlight across its whole title instead of swapping in a
+ * spinner, so a column of rows does not flicker as each one starts and ends. The sweep clips to the title's text, so a
+ * running title renders plain text only (no file control).
+ */
+const RUNNING_TITLE_CLASS_NAME = 'activity-shimmer';
+
+/**
+ * An expanded work group taller than this scrolls, fading whichever edge hides rows, so a turn that ran dozens of tools
+ * does not push the conversation away.
+ */
+const WORK_LIST_CLASS_NAME = 'max-h-60 overflow-y-auto';
+
+/**
+ * How far the scroll edge fade reaches into the list, about one row.
+ */
+const WORK_LIST_FADE = '24px';
+
+/**
  * A one-line disclosure row: a glyph, the title, and trailing facts, with the detail mounted only while expanded. Work
  * is secondary to the conversation, so every row starts collapsed and the reply stays what the eye lands on.
+ *
+ * The toggle is a transparent button stretched over the whole row rather than the row's wrapper, so the title can hold
+ * a control of its own (a file the row names) without nesting a button inside another; that control sits above the
+ * toggle, and the rest of the row still toggles. The toggle takes its accessible name from the title and trailing facts
+ * (`aria-labelledby`), since its visible text is a sibling now.
  */
 function DisclosureRow({
     action,
     children,
     disclosureKind,
     glyph,
+    isRunning = false,
     title,
     trailing,
 }: {
@@ -105,40 +130,59 @@ function DisclosureRow({
     children: ReactNode;
     disclosureKind: string;
     glyph: ReactNode;
+    /**
+     * Sweeps the activity highlight across the whole title while the work runs, the way the Codex app marks its live
+     * row.
+     */
+    isRunning?: boolean;
     title: ReactNode;
     trailing?: ReactNode;
 }) {
     const [isExpanded, setExpanded] = useState(false);
     const detailId = useId();
-    const toggle = (
-        <button
-            aria-controls={detailId}
-            aria-expanded={isExpanded}
-            className="group/row flex w-full min-w-0 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-1 py-0.5 text-left text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent"
-            type="button"
-            onClick={() => setExpanded((value) => !value)}
-        >
+    const titleId = useId();
+    const trailingId = useId();
+    const row = (
+        <div className="group/row relative flex w-full min-w-0 items-center gap-2 rounded px-1 py-0.5 text-muted hover:bg-[var(--selection)] hover:text-foreground has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-accent">
+            <button
+                aria-controls={detailId}
+                aria-expanded={isExpanded}
+                aria-labelledby={`${titleId} ${trailingId}`}
+                className="absolute inset-0 cursor-pointer rounded border-0 bg-transparent outline-none"
+                type="button"
+                onClick={() => setExpanded((value) => !value)}
+            />
             <span className="flex size-4 shrink-0 items-center justify-center">{glyph}</span>
-            <span className="flex min-w-0 flex-1 items-center gap-1.5">{title}</span>
-            {trailing}
+            <span
+                className={cn(
+                    'flex min-w-0 flex-1 items-center gap-1.5',
+                    isRunning && RUNNING_TITLE_CLASS_NAME,
+                )}
+                id={titleId}
+            >
+                {title}
+            </span>
+            <span className="flex shrink-0 items-center gap-2" id={trailingId}>
+                {trailing}
+            </span>
             <ChevronRight
                 aria-hidden="true"
                 className={cn(
-                    'size-3.5 shrink-0 opacity-0 transition-[transform,opacity] duration-100 group-hover/row:opacity-100 group-focus-visible/row:opacity-100',
+                    'size-3.5 shrink-0 opacity-0 transition-[transform,opacity] duration-100 group-hover/row:opacity-100 group-has-[>button:focus-visible]/row:opacity-100',
                     isExpanded && 'rotate-90 opacity-100',
                 )}
             />
-        </button>
+        </div>
     );
     return (
         <div className="text-[12px] leading-5">
             {action ? (
                 <div className="flex min-w-0 items-center gap-1">
-                    {toggle}
+                    {row}
                     {action}
                 </div>
             ) : (
-                toggle
+                row
             )}
             <DisclosureMotion animate expanded={isExpanded} id={detailId} kind={disclosureKind}>
                 <div className="mt-1 mb-2 ml-7 space-y-2">{children}</div>
@@ -151,12 +195,6 @@ function WorkGlyph({ kind }: { kind: AgentToolKind | undefined }) {
     const Icon = kind ? WORK_ICONS[kind] : Layers;
     return <Icon aria-hidden="true" className="size-3.5" />;
 }
-
-/**
- * Work still running keeps its tool glyph and sweeps a highlight across its verb instead of swapping in a spinner, so a
- * column of rows does not flicker as each one starts and ends.
- */
-const RUNNING_LABEL_CLASS_NAME = 'activity-shimmer';
 
 /**
  * A command the row title can show in full is not repeated as its own block; a long or multi-line one is.
@@ -194,6 +232,7 @@ function WorkDetail({
             return (
                 <>
                     {(item.description !== undefined ||
+                        describeAgentChatWork(item).kind !== 'command' ||
                         command.length > COMMAND_TITLE_LENGTH ||
                         command.includes('\n')) && (
                         <CodeView
@@ -348,30 +387,28 @@ const AgentChatWorkRow = memo(
         const link = useAgentChatTaskLink(item);
         const task = link?.task;
         const taskActivity = task && agentChatTaskActivity(task);
+        const verb = isRunning ? agentToolActiveLabel(presentation) : presentation.label;
+        const { path, subject } = presentation;
         return (
             <DisclosureRow
                 action={link && <AgentChatTaskOpenButton link={link} />}
                 disclosureKind="agent-chat-item"
                 glyph={<WorkGlyph kind={presentation.kind} />}
+                isRunning={isRunning}
                 title={
                     <>
-                        <span className={cn('shrink-0', isRunning && RUNNING_LABEL_CLASS_NAME)}>
-                            {isRunning ? agentToolActiveLabel(presentation) : presentation.label}
-                        </span>
-                        {presentation.subject && (
-                            <span
-                                className={cn(
-                                    'min-w-0 truncate text-foreground',
-                                    presentation.isCodeSubject &&
-                                        'rounded bg-surface px-1 font-mono text-[11px]',
-                                )}
-                            >
-                                {presentation.subject}
-                            </span>
-                        )}
-                        {taskActivity && (
-                            <span className="min-w-0 truncate text-muted">{taskActivity}</span>
-                        )}
+                        <span className="shrink-0">{verb}</span>
+                        {subject &&
+                            (path && onOpenFile && !isRunning ? (
+                                <WorkFileLink
+                                    path={path}
+                                    subject={subject}
+                                    onOpenFile={onOpenFile}
+                                />
+                            ) : (
+                                <span className="min-w-0 truncate">{subject}</span>
+                            ))}
+                        {taskActivity && <span className="min-w-0 truncate">{taskActivity}</span>}
                     </>
                 }
                 trailing={<AgentChatWorkTrailing item={item} task={task} />}
@@ -381,6 +418,63 @@ const AgentChatWorkRow = memo(
         );
     },
 );
+
+/**
+ * The file a work row names, underlined like a link and opening in the editor. It sits above the row's stretched
+ * toggle, so clicking the name opens the file while the rest of the row still expands it.
+ */
+function WorkFileLink({
+    path,
+    subject,
+    onOpenFile,
+}: {
+    path: string;
+    subject: string;
+    onOpenFile: (target: string) => void;
+}) {
+    return (
+        <button
+            className="relative min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-inherit underline decoration-current/40 underline-offset-2 opacity-80 hover:opacity-100 focus-visible:outline focus-visible:outline-accent"
+            title={path}
+            type="button"
+            onClick={() => onOpenFile(path)}
+        >
+            {subject}
+        </button>
+    );
+}
+
+/**
+ * The rows of an expanded work group, scrolling past `WORK_LIST_CLASS_NAME`'s height with a fade on whichever edge
+ * hides rows, the way the Codex app lists a long run of tool calls. The fade is a mask, so it dissolves the rows into
+ * whatever the transcript sits on instead of painting a color over them.
+ */
+function WorkList({ children }: { children: ReactNode }) {
+    const scrollReference = useRef<HTMLDivElement>(null);
+    const startSentinel = useRef<HTMLSpanElement>(null);
+    const endSentinel = useRef<HTMLSpanElement>(null);
+    const { canScrollEnd, canScrollStart } = useScrollEdges(
+        scrollReference,
+        startSentinel,
+        endSentinel,
+    );
+    const mask = `linear-gradient(to bottom, ${canScrollStart ? 'transparent' : 'black'}, black ${WORK_LIST_FADE}, black calc(100% - ${WORK_LIST_FADE}), ${canScrollEnd ? 'transparent' : 'black'})`;
+    const style: CSSProperties | undefined =
+        canScrollStart || canScrollEnd ? { maskImage: mask } : undefined;
+    return (
+        <div
+            className={cn('-ml-7 flex flex-col', WORK_LIST_CLASS_NAME)}
+            data-scroll-fade-start={canScrollStart || undefined}
+            data-scroll-fade-end={canScrollEnd || undefined}
+            ref={scrollReference}
+            style={style}
+        >
+            <span aria-hidden="true" className="h-px flex-none" ref={startSentinel} />
+            {children}
+            <span aria-hidden="true" className="h-px flex-none" ref={endSentinel} />
+        </div>
+    );
+}
 
 /**
  * Settled work as one summary row (`Ran 3 commands, read 2 files`) that lists each piece when expanded.
@@ -393,18 +487,19 @@ function AgentChatWorkSummary({
     onOpenFile?: (target: string) => void;
 }) {
     const hasFailure = items.some((item) => item.type !== 'reasoning' && item.status === 'failed');
+    const summary = summarizeAgentChatWork(items);
     return (
         <DisclosureRow
             disclosureKind="agent-chat-work-group"
             glyph={<WorkGlyph kind={agentChatWorkKind(items)} />}
-            title={<span className="min-w-0 truncate">{summarizeAgentChatWork(items)}</span>}
+            title={<span className="min-w-0 truncate">{summary}</span>}
             trailing={hasFailure && <AgentChatStatusGlyph status="failed" />}
         >
-            <div className="-ml-7 flex flex-col">
+            <WorkList>
                 {items.map((item) => (
                     <AgentChatWorkRow item={item} key={item.id} onOpenFile={onOpenFile} />
                 ))}
-            </div>
+            </WorkList>
         </DisclosureRow>
     );
 }

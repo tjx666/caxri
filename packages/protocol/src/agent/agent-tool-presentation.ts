@@ -1,3 +1,5 @@
+import { describeShellCommand } from './agent-shell-command.js';
+
 /**
  * The two fields every surface knows about a tool call: Agent Chat `toolCall` items and the mobile timeline both carry
  * them.
@@ -39,6 +41,11 @@ export interface AgentToolPresentation {
      * Commands, paths, and patterns render in a monospace chip; prose subjects stay in the body font.
      */
     isCodeSubject: boolean;
+    /**
+     * The one file the subject names, as the tool reported it, so a surface can open it. Absent for anything else,
+     * including a read of several files.
+     */
+    path?: string;
 }
 
 /**
@@ -142,14 +149,58 @@ export const describeAgentTool = (
     const known = TOOL_KINDS[tool.name.toLowerCase()];
     if (!known)
         return { kind: 'other', label: tool.name, subject: rawSubject, isCodeSubject: true };
-    const subject =
-        rawSubject && FILE_KINDS.has(known.kind) && /[\\/]/u.test(rawSubject)
-            ? basename(rawSubject)
-            : rawSubject && known.kind === 'command'
-              ? unwrapShellCommand(rawSubject)
-              : rawSubject;
-    return { ...known, subject, isCodeSubject: !PROSE_KINDS.has(known.kind) };
+    if (rawSubject && known.kind === 'command' && known.label === 'Ran') {
+        const command = unwrapShellCommand(rawSubject);
+        return describeShellAction(command) ?? { ...known, subject: command, isCodeSubject: true };
+    }
+    const isPath =
+        rawSubject !== undefined && FILE_KINDS.has(known.kind) && /[\\/]/u.test(rawSubject);
+    return {
+        ...known,
+        subject: isPath ? basename(rawSubject) : rawSubject,
+        isCodeSubject: !PROSE_KINDS.has(known.kind),
+        ...(isPath && { path: rawSubject }),
+    };
 };
+
+/**
+ * A shell command that reads, searches, or lists files reads as that action (`Read app.ts`), the way the Codex app
+ * shows exploration; see `describeShellCommand`.
+ */
+function describeShellAction(command: string): AgentToolPresentation | null {
+    const action = describeShellCommand(command);
+    switch (action?.kind) {
+        case 'read': {
+            const [only] = action.paths;
+            return {
+                kind: 'read',
+                label: 'Read',
+                subject: action.paths.map((path) => basename(path)).join(', '),
+                isCodeSubject: true,
+                ...(action.paths.length === 1 && only && { path: only }),
+            };
+        }
+        case 'search': {
+            return {
+                kind: 'search',
+                label: 'Searched',
+                subject: action.path
+                    ? `${action.pattern} in ${basename(action.path)}`
+                    : action.pattern,
+                isCodeSubject: true,
+            };
+        }
+        case 'list': {
+            const path = action.path === '.' ? undefined : action.path;
+            return path
+                ? { kind: 'list', label: 'Listed', subject: basename(path), isCodeSubject: true }
+                : { kind: 'list', label: 'Listed files', isCodeSubject: true };
+        }
+        case undefined: {
+            return null;
+        }
+    }
+}
 
 /**
  * Present-tense verbs for work still in progress (`Running git status`), per kind. MCP and unknown tools keep their
