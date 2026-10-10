@@ -90,10 +90,22 @@ export const DEFAULT_PERFORMANCE_ABSOLUTE_MARGIN_MS = 1;
  * false failures without any exclusion, so those two stay gated. Add another name here only with the same kind of
  * per-metric backtest evidence; this is a documented, narrow exception, not a place to route every noisy metric or
  * every variant of a noisy metric's family.
+ *
+ * `frames.sampleCount` is excluded for a structural reason instead: it counts requestAnimationFrame intervals inside
+ * the exact window `durationMs` times (the Renderer performance controller starts sampling at `begin()` and cancels it
+ * at `end()`), so it is `durationMs` rounded down to whole vsyncs, carrying no information of its own. In the
+ * 98-receipt corpus it equals `floor(durationMs / 16.67ms)` in 97 receipts and is one less in the remaining one. Its
+ * own backtest finds nothing (0/98 leave-one-out, 0/49 time-split false failures), but as a discrete metric its
+ * threshold is the bare historical maximum of 13 intervals, which rejects every window of roughly 233.3ms or more while
+ * `durationMs`'s backtested threshold accepts up to 248.104ms. Replaying the 48 runner receipts gated after arming
+ * against the committed baseline produced 13 failures, 3 of them on `frames.sampleCount` alone; all 6 receipts with 14
+ * intervals had `durationMs` between 242.7ms and 247.5ms, within its own threshold. The frame metrics that carry their
+ * own signal (`frames.missedFrameCount`, the interval percentiles) stay gated.
  */
 const EXCLUDED_PERFORMANCE_METRIC_NAMES = new Set([
     'react.baseDurationMaxMs',
     'react.surfaces.primary-sidebar.baseDurationMaxMs',
+    'frames.sampleCount',
 ]);
 
 export function isExcludedPerformanceMetric(metric: string): boolean {
