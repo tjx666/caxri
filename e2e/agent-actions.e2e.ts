@@ -520,7 +520,7 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         await claudeInput.focus();
         await running.page.keyboard.press('Meta+Shift+A');
         picker = running.page.locator('[data-agent-actions-picker]');
-        await expect(picker).toContainText('Claude Code');
+        await expect(picker).toContainText('Claude');
         await expect(picker.locator('[data-agent-action-group="recent"]')).toHaveCount(0);
         await picker.getByPlaceholder('Search skills and slash commands…').fill('context');
         await picker.locator('[data-agent-action="/context"]').click();

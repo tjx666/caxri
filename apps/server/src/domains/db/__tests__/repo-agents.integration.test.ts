@@ -338,7 +338,7 @@ describe('CaxriDatabase Agent metadata', () => {
         });
         expect(database.getTerminal(primary.id)?.title).toBe('Trace the router logs');
         // A secondary Agent's tab is the only thing naming that conversation, so the Session's name is not its own.
-        expect(database.getTerminal(secondary.id)?.title).toBe('Claude Code');
+        expect(database.getTerminal(secondary.id)?.title).toBe('Claude');
         database.close();
     });
 

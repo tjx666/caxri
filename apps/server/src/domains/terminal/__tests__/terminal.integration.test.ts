@@ -100,7 +100,7 @@ describe('TerminalManager', () => {
             expect(database.getTerminal(created.terminal!.id)).toMatchObject({
                 lastProcessState: 'failed',
                 failureReason: 'executable_not_found',
-                failureDetail: 'Claude Code CLI was not found',
+                failureDetail: 'Claude CLI was not found',
             });
         } finally {
             manager.close(created.terminal!.id);

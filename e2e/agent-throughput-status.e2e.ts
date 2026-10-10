@@ -124,7 +124,7 @@ test('the status bar shows the active Agent Terminal output speed from its trans
 
         await chip.hover();
         const tooltip = running.page.locator('.tooltip-popup');
-        await expect(tooltip).toContainText('Claude Code output speed');
+        await expect(tooltip).toContainText('Claude output speed');
         await expect(tooltip).toContainText('90 tok/s over the last 3 responses');
         await expect(tooltip).toContainText('300 tokens in 2.0 s · 150 tok/s');
         await expect(tooltip).toContainText('Includes waiting for the first token');

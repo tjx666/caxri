@@ -42,7 +42,7 @@ export const acknowledgeCheckedUncertainCreate = (
     state.kind === 'uncertain' && state.checkedSessions ? { kind: 'idle' } : state;
 
 export const NEW_SESSION_AGENT_LABELS: Record<TerminalKind, string> = {
-    claude: 'Claude Code',
+    claude: 'Claude',
     codex: 'Codex',
     grok: 'Grok',
     shell: 'Shell',

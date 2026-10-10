@@ -66,7 +66,7 @@ import(${JSON.stringify(pathToFileURL(FAKE_CLAUDE).href)});
 /**
  * Creates an Agent Chat from the visible Session's New Terminal menu, with the menu's Open in Chat toggle on.
  */
-export async function openAgentChat(page: Page, label: 'Claude Code Chat' | 'Codex Chat') {
+export async function openAgentChat(page: Page, label: 'Claude Chat' | 'Codex Chat') {
     await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
     const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
     const openInChat = terminalMenu.getByRole('menuitemcheckbox', { name: 'Open in Chat' });
