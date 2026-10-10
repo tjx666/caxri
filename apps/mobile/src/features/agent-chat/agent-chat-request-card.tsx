@@ -1,6 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useState } from 'react';
-import type { StyleProp, TextLayoutEvent, TextStyle } from 'react-native';
+import type { StyleProp, TextStyle } from 'react-native';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { AgentChatItem, AgentChatRequest } from '@caxri/protocol';
@@ -11,7 +11,6 @@ import {
     agentChatApprovalFiles,
     agentChatQuestionAnswers,
     agentChatRequestTitle,
-    isOverLineBudget,
 } from './agent-chat-model';
 import type { AgentChatResponse } from './use-agent-chat';
 
@@ -73,8 +72,7 @@ const ActionButton = ({
 
 /**
  * Approval text clamped to `maxLines`, with a Show all / Show less toggle when the clamp hides content, so a long
- * command or plan can still be read before it is accepted. Whether the clamp hides anything comes from a wrap estimate
- * first and from native layout once it reports more lines than the clamp allows.
+ * command or plan can still be read before it is accepted.
  */
 const ClampedText = ({
     maxLines,
@@ -90,18 +88,23 @@ const ClampedText = ({
     theme: MobileTheme;
 }) => {
     const [isExpanded, setExpanded] = useState(false);
-    const [hasMeasuredOverflow, setMeasuredOverflow] = useState(false);
-    const isTruncatable = hasMeasuredOverflow || isOverLineBudget(text, maxLines);
-    const onTextLayout = (event: TextLayoutEvent): void => {
-        if (event.nativeEvent.lines.length > maxLines) setMeasuredOverflow(true);
-    };
+    const [isTruncatable, setTruncatable] = useState(false);
     return (
         <View>
+            <Text numberOfLines={isExpanded ? undefined : maxLines} style={style} testID={testID}>
+                {text}
+            </Text>
+            {/*
+             * An invisible unclamped copy at the same width reports whether the clamp hides anything; a clamped Text's
+             * own layout does not say so consistently across platforms, as in `conversation-system-event.tsx`.
+             */}
             <Text
-                numberOfLines={isExpanded ? undefined : maxLines}
-                onTextLayout={onTextLayout}
-                style={style}
-                testID={testID}
+                accessible={false}
+                importantForAccessibility="no-hide-descendants"
+                onTextLayout={({ nativeEvent }) =>
+                    setTruncatable(nativeEvent.lines.length > maxLines)
+                }
+                style={[style, styles.probe]}
             >
                 {text}
             </Text>
@@ -391,6 +394,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         padding: 8,
     },
+    probe: { left: 0, opacity: 0, position: 'absolute', right: 0, top: 0 },
     toggle: { alignSelf: 'flex-start', justifyContent: 'center', minHeight: 44, minWidth: 44 },
     toggleLabel: { fontSize: 13, fontWeight: '700' },
     question: { gap: 6 },

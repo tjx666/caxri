@@ -5,6 +5,7 @@ import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scen
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import {
     adbShell,
+    androidBounds,
     mobileSemantics,
     observeMobileNode,
     setMobileNetworkAvailable,
@@ -35,6 +36,33 @@ const agentText = (snapshot: AgentChatSnapshot): string =>
         .filter((item) => item.type === 'agentMessage')
         .map((item) => item.text)
         .join('\n');
+
+/**
+ * The on-screen height of check `id`, or `undefined` while it is not laid out.
+ */
+async function checkHeight(serial: string, id: string): Promise<number | undefined> {
+    const node = (await mobileSemantics(serial)).find(({ checkId }) => checkId === id);
+    const bounds = node && androidBounds(node.bounds);
+    return bounds ? bounds.bottom - bounds.top : undefined;
+}
+
+/**
+ * Taps the approval text's Show all / Show less toggle and waits until the text grows or shrinks past `height`.
+ */
+async function toggleApprovalText(
+    serial: string,
+    id: string,
+    height: number,
+    direction: 'grow' | 'shrink',
+): Promise<number> {
+    await tapMobileCheckByBounds(serial, `${id}-toggle`);
+    const next = await waitForMobile(
+        () => checkHeight(serial, id),
+        (value) => value !== undefined && (direction === 'grow' ? value > height : value < height),
+    );
+    if (next === undefined) throw new Error(`${id} is no longer laid out`);
+    return next;
+}
 
 /**
  * Sends one keyword message from the phone. The fake app-server picks its behavior from the keyword, and a single ASCII
@@ -172,7 +200,7 @@ async function executeMobileAgentChatScenario(
 
 /**
  * `MOB-CHAT-02`: a Claude Code Chat asks to approve a plan, a tool request that is neither a command nor a file edit,
- * and the phone shows the tool name and plan and accepts it.
+ * and the phone shows the tool name and plan, expands the plan past its clamp to read it whole, and accepts it.
  */
 async function executeMobileClaudeToolApprovalScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -194,7 +222,19 @@ async function executeMobileClaudeToolApprovalScenario(
         await sendFromPhone(serial, 'planmode');
         await waitForCheck(serial, 'agent-chat-request-tool');
         await waitForCheck(serial, 'agent-chat-approval-accept');
+        // The eight-step plan runs past the six-line clamp, so the card offers Show all.
+        await waitForCheck(serial, 'agent-chat-request-tool-toggle');
+        const clamped = await checkHeight(serial, 'agent-chat-request-tool');
+        if (clamped === undefined) throw new Error('The plan is not laid out');
         await capture(environment, 'tool-approval', artifacts);
+        const expanded = await toggleApprovalText(
+            serial,
+            'agent-chat-request-tool',
+            clamped,
+            'grow',
+        );
+        await capture(environment, 'tool-approval-expanded', artifacts);
+        await toggleApprovalText(serial, 'agent-chat-request-tool', expanded, 'shrink');
         await tapMobileCheckByBounds(serial, 'agent-chat-approval-accept');
         await waitForMobile(
             () => chat.read(),

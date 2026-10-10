@@ -289,19 +289,6 @@ export const agentChatRequestTitle = (request: AgentChatRequest, provider: strin
 };
 
 /**
- * A rough wrap estimate for monospace approval text on a phone-width card, used to decide whether a clamped block hides
- * content before native layout reports its line count. Each logical line wraps every `charsPerLine` characters.
- */
-export const isOverLineBudget = (text: string, maxLines: number, charsPerLine = 36): boolean => {
-    let lines = 0;
-    for (const line of text.split('\n')) {
-        lines += Math.max(1, Math.ceil(line.length / charsPerLine));
-        if (lines > maxLines) return true;
-    }
-    return false;
-};
-
-/**
  * The files a file-change approval would touch, read from the timeline item it gates.
  */
 export const agentChatApprovalFiles = (
