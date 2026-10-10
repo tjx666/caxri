@@ -272,6 +272,14 @@ export function hasTitleNamingMaterial(context: AgentTitleContext): boolean {
     );
 }
 
+/**
+ * Naming at turn start has only the user's request. A request without a subject of its own (an image, a link, an issue
+ * identifier) makes the model answer `SKIP`, and the completed turn names the Session with the reply instead.
+ */
+export function hasOpeningRequestMaterial(context: AgentTitleContext): boolean {
+    return context.opening.some((message) => message.role === 'user');
+}
+
 function renderTitleMessages(tag: string, messages: readonly TitleMessage[]): string {
     const body = messages
         .map(
