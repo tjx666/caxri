@@ -155,6 +155,31 @@ describe('buildAgentChatTimeline', () => {
         ];
         expect(shape(buildAgentChatTimeline(items, [], undefined))).toEqual([['c']]);
     });
+
+    it('drops a reply that ended empty, so a stopped turn ends on the reply before it', () => {
+        const empty: AgentChatItem = {
+            id: 'a2',
+            turnId: 't1',
+            type: 'agentMessage',
+            text: ' ',
+            streaming: false,
+        };
+        const items = [user('u', 't1'), reply('a1', 't1'), command('c', 't1'), empty];
+        const stopped = buildAgentChatTimeline(
+            items,
+            [{ id: 't1', status: 'interrupted', durationMs: 1000 }],
+            undefined,
+        );
+        expect(shape(stopped)).toEqual(['u', 'a1', { 'Stopped after 1s': [['c']] }]);
+        expect(stopped[1]).toMatchObject({ kind: 'item', isFinalReply: true });
+        // While the turn runs, the empty reply is the one about to stream, so it stays.
+        const streaming = buildAgentChatTimeline(
+            [user('u', 't1'), { ...empty, streaming: true }],
+            [{ id: 't1', status: 'running' }],
+            't1',
+        );
+        expect(shape(streaming)).toEqual(['u', 'a2']);
+    });
 });
 
 describe('agentChatTurnLabel', () => {

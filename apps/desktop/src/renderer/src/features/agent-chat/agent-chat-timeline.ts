@@ -60,9 +60,15 @@ const isWorkItem = (item: AgentChatItem): item is AgentChatWorkItem =>
     WORK_ITEM_TYPES.has(item.type);
 
 /**
- * Empty reasoning carries nothing to read (a redacted or not-yet-streamed thought), so it never becomes a row.
+ * Empty reasoning carries nothing to read (a redacted or not-yet-streamed thought), so it never becomes a row. Nor does
+ * a reply that ended empty, such as one a stop cut off before its first word: it would render a Copy action with
+ * nothing to copy. A reply still streaming stays, because its first words are on the way.
  */
-const isVisible = (item: AgentChatItem): boolean => item.type !== 'reasoning' || item.text !== '';
+const isVisible = (item: AgentChatItem): boolean => {
+    if (item.type === 'reasoning') return item.text !== '';
+    if (item.type === 'agentMessage') return item.streaming || item.text.trim() !== '';
+    return true;
+};
 
 function groupWork(items: readonly AgentChatItem[], finalReplyId?: string): FlatEntry[] {
     const entries: FlatEntry[] = [];
@@ -188,7 +194,7 @@ export function buildAgentChatTimeline(
         const finalReplyId =
             turnId !== undefined && running.has(turnId)
                 ? undefined
-                : segment.findLast((item) => item.type === 'agentMessage')?.id;
+                : segment.findLast((item) => item.type === 'agentMessage' && isVisible(item))?.id;
         entries.push(
             ...(turn ? foldTurn(segment, turn, finalReplyId) : groupWork(segment, finalReplyId)),
         );
