@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 
-import { errorMessage } from '@caxri/protocol';
 import type { AsyncSemaphore, StructuredLogger } from '@caxri/system';
 import { execFileAsync, logEventCatalog } from '@caxri/system';
 
@@ -43,8 +42,39 @@ function hashRepoPath(path: string): string {
 }
 
 /**
+ * Content-free facts about a failed Git child for `git.command_failed`, read from the fault's structured properties and
+ * never from its message: Node's promisified `execFile` formats that message as `Command failed: git <argv>` plus Git's
+ * stderr, so it carries refs, `rev:path` specs, remote URLs, and repository paths. `errorCode` admits only an uppercase
+ * constant (`EMFILE`, `ABORT_ERR`, `ERR_CHILD_PROCESS_STDIO_MAXBUFFER`), which is what still separates a spawn fault or
+ * a cancellation from Git's own non-zero exit once the message is gone.
+ */
+function gitFailureFields(error: unknown): {
+    errorCode: string | null;
+    exitCode: number | null;
+    signal: string | null;
+} {
+    const fault =
+        error !== null && typeof error === 'object'
+            ? (error as { code?: unknown; signal?: unknown })
+            : {};
+    return {
+        errorCode:
+            typeof fault.code === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/u.test(fault.code)
+                ? fault.code
+                : null,
+        exitCode:
+            typeof fault.code === 'number' && Number.isSafeInteger(fault.code) ? fault.code : null,
+        signal:
+            typeof fault.signal === 'string' && /^SIG[A-Z0-9]{1,16}$/u.test(fault.signal)
+                ? fault.signal
+                : null,
+    };
+}
+
+/**
  * Runs one Git command under the shared concurrency budget with a non-interactive, locale-stable environment, and
- * records it as a `git.command` (or `git.commandFailed`) event that never carries a path or ref.
+ * records it as a `git.command` (or `git.commandFailed`) event that never carries a path or ref. A failure is explained
+ * by the closed `GitFailureReason` plus the exit status from {@link gitFailureFields}, never by the fault message.
  */
 export async function runGitCommand(
     commands: AsyncSemaphore,
@@ -102,10 +132,11 @@ export async function runGitCommand(
                     ...timing(),
                     allowFailure: options.allowFailure === true,
                     reason,
-                    error: errorMessage(error, 'unknown'),
+                    ...gitFailureFields(error),
                 },
             });
-            if (options.allowFailure) return '';
+            // A cancellation is not an answer: an empty result would let the abandoned request finish on fake output.
+            if (reason !== 'cancelled' && options.allowFailure) return '';
             throw toGitError(error);
         }
     });

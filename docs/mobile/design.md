@@ -159,7 +159,7 @@ added without moving screens. Query keys include the same host identity.
 ├───────────────────────────────┤
 │              segment body     │
 ├───────────────────────────────┤
-│ Message Claude Code…    (↑)   │  composer; (■) Stop while running
+│ Message Claude…         (↑)   │  composer; (■) Stop while running
 └───────────────────────────────┘
 ```
 
@@ -304,8 +304,8 @@ message.` The user sends it; nothing is sent automatically.
 ┌───────────────────────────────┐
 │ ✕  New Session                │
 │ Agent                         │
-│ [✳ Claude Code] [◎ Codex]     │  brand glyph chips
-│ [𝕏 Grok]        [>_ Shell]    │
+│ [✳ Claude]      [◎ Codex]     │  brand glyph chips; catalog displayName
+│ [𝕏 Grok Build]  [>_ Shell]    │
 │ Project                       │
 │ [🔍 Filter Projects        ]  │  only with more than 6 Projects
 │ 📁 caxri                    ✓ │

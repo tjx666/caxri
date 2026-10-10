@@ -25,9 +25,11 @@ import { useAgentCommanderStore } from './commander-client';
  * The commands this window runs from the keyboard: the Terminal actions its context menu offers, plus the Restart its
  * exited pane shows with this shortcut. The native Edit menu already owns Copy and Paste, and every other command
  * belongs to the Workbench window. `allowInEditable` matches each command's Workbench definition
- * (`commands/definitions.ts`): Restart replaces the PTY, so it does not reach through a focused Terminal or input.
+ * (`commands/definitions.ts`): Restart replaces the PTY, so it does not reach through a focused Terminal or input. This
+ * window deliberately does not load the Workbench registry, so the values are a copy; the parity test in
+ * `__tests__/commander-shortcuts.test.ts` fails when either table changes without the other.
  */
-const COMMANDER_TERMINAL_COMMANDS = {
+export const COMMANDER_TERMINAL_COMMANDS = {
     'terminal.clear': { allowInEditable: true, run: clearActiveTerminal },
     'terminal.find': { allowInEditable: true, run: findInActiveTerminal },
     'terminal.openDetectedLink': { allowInEditable: true, run: openTerminalLinkPicker },

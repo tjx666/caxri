@@ -1,9 +1,10 @@
-import { Buffer } from 'node:buffer';
-import { open, readdir, stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { isCaxriError } from '@caxri/protocol';
 import { fileIdentity, mapWithConcurrency } from '@caxri/system';
 
+import { readBoundedRegularFileText } from '../../../bounded-file-reader';
 import { SingleFlight } from '../../../single-flight';
 import type { AgentProbeCacheCounters } from '../../contract';
 
@@ -148,25 +149,30 @@ function projectMetadata(parsed: ClaudeSessionMetadata): ClaudeSessionMetadata {
     return { cwd, name, nameSource, sessionId, startedAt, status, updatedAt };
 }
 
+/**
+ * The shared bounded reader owns the open, so an entry swapped for a FIFO between the listing and the read is refused
+ * instead of parking the probe on a writer that never comes. An oversized file, including one that grew past the cap
+ * after the identity `stat`, is an answer rather than a fault: it caches as empty like a malformed one. Any other
+ * rejection propagates so the caller drops the entry as `read_failed`.
+ */
 async function parseMetadataFile(
     path: string,
     size: bigint,
 ): Promise<ClaudeSessionMetadata | undefined> {
     if (size > BigInt(MAX_CLAUDE_METADATA_BYTES)) return undefined;
-    const handle = await open(path, 'r');
+    let source: string;
+    try {
+        source = await readBoundedRegularFileText(path, MAX_CLAUDE_METADATA_BYTES);
+    } catch (error) {
+        if (isCaxriError(error) && error.code === 'CAPACITY') return undefined;
+        throw error;
+    }
     let parsed: unknown;
     try {
-        const buffer = Buffer.allocUnsafe(MAX_CLAUDE_METADATA_BYTES + 1);
-        const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-        if (bytesRead > MAX_CLAUDE_METADATA_BYTES) return undefined;
-        try {
-            parsed = JSON.parse(buffer.subarray(0, bytesRead).toString('utf8'));
-        } catch {
-            // A half-written or malformed file stays cached as empty until Claude Code rewrites it.
-            return undefined;
-        }
-    } finally {
-        await handle.close();
+        parsed = JSON.parse(source);
+    } catch {
+        // A half-written or malformed file stays cached as empty until Claude Code rewrites it.
+        return undefined;
     }
     if (typeof parsed !== 'object' || parsed === null) return undefined;
     return projectMetadata(parsed);

@@ -51,6 +51,12 @@ export interface TerminalManagerOptions {
         delegationId?: string,
     ) => NodeJS.ProcessEnv | Promise<NodeJS.ProcessEnv>;
     /**
+     * Runs once a PTY launch is recorded `running`, before the launch resolves to its caller. Archive and Project
+     * hiding park only Terminals that already have a process, so a Host start still in flight when they ran relies on
+     * this to park it rather than leave it running unseen.
+     */
+    onLaunched?: (record: TerminalRecord) => void | Promise<void>;
+    /**
      * Publishes a prepared generation only after its PTY is registered as live.
      */
     onLifecycleStarted?: (record: TerminalRecord, launchId: string) => void | Promise<void>;
@@ -136,13 +142,4 @@ export interface TerminalStartOptions {
      * Gives a visible restored Terminal time to publish its receiving Renderer grid.
      */
     waitForAttachedSizeMs?: number;
-}
-
-/**
- * A pending Agent launch's start signal, keyed by Terminal in `TerminalManager`.
- */
-export interface AgentStartWaiter {
-    launchId: string;
-    promise: Promise<boolean>;
-    resolve(isStarted: boolean): void;
 }

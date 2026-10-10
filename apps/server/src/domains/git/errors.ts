@@ -6,16 +6,24 @@ import { resolveServerExecutable, serverProcessEnvironment } from '../executable
 const GENERIC_GIT_FAILURE_MESSAGE = 'The Git operation failed. Open Logs for details.';
 
 /**
- * Closed cause of a failed Git command for structured logs. `exit` is Git answering with a non-zero status; every other
- * reason means Git could not answer at all.
+ * Closed cause of a failed Git command for structured logs. `exit` is Git answering with a non-zero status; `cancelled`
+ * is the request's own AbortSignal ending the child because its caller left (fast Source Control navigation); every
+ * other reason means Git could not answer at all.
  */
 export type GitFailureReason =
-    'exit' | 'not-found' | 'output-limit' | 'timeout' | 'xcode-license' | 'xcode-tools-missing';
+    | 'cancelled'
+    | 'exit'
+    | 'not-found'
+    | 'output-limit'
+    | 'timeout'
+    | 'xcode-license'
+    | 'xcode-tools-missing';
 
 interface GitFailureShape {
     code?: string;
     killed?: boolean;
     message?: string;
+    name?: string;
     stderr?: string;
 }
 
@@ -28,6 +36,8 @@ const XCODE_TOOLS_MISSING =
 
 export function classifyGitFailure(error: unknown): GitFailureReason {
     const failure = error as GitFailureShape;
+    // Node rejects an `execFile` whose `signal` aborted with an `AbortError` carrying no exit status at all.
+    if (failure.code === 'ABORT_ERR' || failure.name === 'AbortError') return 'cancelled';
     if (failure.code === 'ENOENT') return 'not-found';
     if (failure.killed || failure.message?.toLowerCase().includes('timed out')) return 'timeout';
     if (
@@ -45,13 +55,16 @@ export function classifyGitFailure(error: unknown): GitFailureReason {
 /**
  * `allowFailure` callers treat a non-zero exit as an answer ("no blame yet", "no origin"), so that outcome stays at
  * debug. A missing Git, a timeout, or a blocked toolchain is never an answer: it silently blanks the same features, so
- * it keeps its warn record and cause even when the caller tolerates it.
+ * it keeps its warn record and cause even when the caller tolerates it. A cancellation is the caller leaving on
+ * purpose, routine during fast navigation, so it stays at debug where it is still countable.
  */
 export function gitFailureLogLevel(
     reason: GitFailureReason,
     allowFailure: boolean | undefined,
 ): 'debug' | 'warn' {
-    return allowFailure === true && reason === 'exit' ? 'debug' : 'warn';
+    return reason === 'cancelled' || (allowFailure === true && reason === 'exit')
+        ? 'debug'
+        : 'warn';
 }
 
 /**
@@ -82,6 +95,9 @@ export function describeGitFailure(
     // guaranteed to be an `Error` instance with a `message` at runtime.
     const failure = error as GitFailureShape;
     switch (classifyGitFailure(error)) {
+        case 'cancelled': {
+            return 'The Git operation was cancelled.';
+        }
         case 'not-found': {
             return 'Git is not installed or is unavailable on PATH.';
         }
@@ -129,10 +145,14 @@ export function describeGitFailure(
 }
 
 /**
- * Wraps a raw `execFile` fault as a `GIT` error while keeping the user-facing wording.
+ * Wraps a raw `execFile` fault as a `GIT` error while keeping the user-facing wording. An aborted child becomes
+ * `CANCELLED`, the code every other abandoned request settles with, so no caller reports it as a Git failure.
  */
 export function toGitError(error: unknown, options?: { missingRepoRoot?: boolean }): CaxriError {
-    return isCaxriError(error) ? error : new CaxriError('GIT', describeGitFailure(error, options));
+    if (isCaxriError(error)) return error;
+    if (classifyGitFailure(error) === 'cancelled')
+        return new CaxriError('CANCELLED', 'Runtime request was canceled');
+    return new CaxriError('GIT', describeGitFailure(error, options));
 }
 
 /**

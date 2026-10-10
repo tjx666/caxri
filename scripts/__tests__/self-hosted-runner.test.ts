@@ -3,12 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import { AGENT_STATE_ENVIRONMENT_KEYS } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { execFileAsync } from '../exec';
 import {
     cleanup,
     didRemoveCreatedRunRoot,
+    RUNNER_AGENT_ENVIRONMENT_POLICIES,
     shortTemporaryLinkPath,
     validateRunnerOwner,
 } from '../self-hosted-runner';
@@ -32,6 +34,19 @@ function cleanupFixtureEnvironment(input: {
         RUNNER_TEMP: input.runnerTemp,
     };
 }
+
+describe('self-hosted E2E runner Agent state isolation', () => {
+    it('redirects every provider state key the shared protocol table names', () => {
+        expect(
+            Object.fromEntries(
+                Object.entries(RUNNER_AGENT_ENVIRONMENT_POLICIES).map(([provider, policy]) => [
+                    provider,
+                    policy.environmentKeys,
+                ]),
+            ),
+        ).toEqual(AGENT_STATE_ENVIRONMENT_KEYS);
+    });
+});
 
 describe('self-hosted E2E runner ownership', () => {
     it('accepts only bounded portable run owners', () => {

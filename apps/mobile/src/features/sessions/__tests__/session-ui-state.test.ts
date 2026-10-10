@@ -24,6 +24,13 @@ describe('host Session UI state', () => {
         expect(hasKnownConversationAgent({ kind: 'shell' })).toBe(false);
     });
 
+    it('keeps the Conversation tab closed for a provider without a projected timeline', () => {
+        expect(hasKnownConversationAgent({ kind: 'shell', provider: 'codex' })).toBe(true);
+        expect(hasKnownConversationAgent({ kind: 'grok' })).toBe(false);
+        expect(hasKnownConversationAgent({ kind: 'shell', provider: 'grok' })).toBe(false);
+        expect(hasKnownConversationAgent(undefined)).toBe(false);
+    });
+
     it('defaults to Conversation only when a timeline is available', () => {
         expect(preferredSessionSegment(undefined, true)).toBe('conversation');
         expect(preferredSessionSegment(undefined, false)).toBe('terminal');

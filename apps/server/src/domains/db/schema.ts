@@ -27,7 +27,9 @@ export const CURRENT_SESSION_STATE_VERSION = 2;
 
 /**
  * Pins a `CHECK` value list to the protocol union it mirrors: omitting a member or naming a foreign one fails type
- * checking, so a widened enum cannot ship until `drizzle-kit generate` has rebuilt the constraint.
+ * checking, so widening the union forces this list to change with it. The type check says nothing about the generated
+ * SQL; `__tests__/schema-migration-drift.test.ts` is what fails until `drizzle-kit generate` has emitted the migration
+ * that rebuilds the constraint.
  *
  * Open-ended columns (`terminals.kind`, `terminals.provider`, `agent_dispatch_receipts.provider`) deliberately carry no
  * `CHECK`: every new Agent provider would otherwise force a table rebuild for no integrity gain over the model-boundary

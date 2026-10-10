@@ -1,7 +1,9 @@
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { ACTIVE_GAP_MS, UsageAccumulator } from '../accumulator';
-import { claudeUsageParser, codexUsageParser, grokUsageParser } from '../parsers';
+import { claudeUsageParser, codexUsageParser, grokUsageParser, usageParserFor } from '../parsers';
 
 const T0 = Date.parse('2026-03-01T10:00:00.000Z');
 const HOUR_SECONDS = T0 / 1000;
@@ -122,37 +124,57 @@ describe('codexUsageParser', () => {
     });
 });
 
-describe('grokUsageParser', () => {
-    function turnCompleted(promptId: string) {
-        return JSON.stringify({
-            timestamp: HOUR_SECONDS,
-            params: {
-                update: {
-                    sessionUpdate: 'turn_completed',
-                    prompt_id: promptId,
-                    usage: {
-                        modelUsage: {
-                            'grok-x': {
-                                inputTokens: 100,
-                                cachedReadTokens: 60,
-                                cacheCreationTokens: 10,
-                                outputTokens: 7,
-                                reasoningTokens: 3,
-                            },
+function grokTurnCompleted(promptId: string) {
+    return JSON.stringify({
+        timestamp: HOUR_SECONDS,
+        params: {
+            update: {
+                sessionUpdate: 'turn_completed',
+                prompt_id: promptId,
+                usage: {
+                    modelUsage: {
+                        'grok-x': {
+                            inputTokens: 100,
+                            cachedReadTokens: 60,
+                            cacheCreationTokens: 10,
+                            outputTokens: 7,
+                            reasoningTokens: 3,
                         },
                     },
                 },
             },
-        });
-    }
+        },
+    });
+}
 
+describe('grokUsageParser', () => {
     it('counts each prompt once and separates cache tokens from input', () => {
         const accumulator = new UsageAccumulator();
         const parser = grokUsageParser(accumulator);
-        parser.line(turnCompleted('p1'));
-        parser.line(turnCompleted('p1'));
+        parser.line(grokTurnCompleted('p1'));
+        parser.line(grokTurnCompleted('p1'));
 
         expect(accumulator.toRecord().tokens).toEqual([[HOUR_SECONDS, 0, 30, 7, 60, 10, 0, 3]]);
+    });
+});
+
+describe('usageParserFor', () => {
+    /**
+     * Keyed by `AgentProvider` so a newly catalogued provider fails to compile here until its routing is pinned.
+     */
+    const ownTranscriptLine: Record<AgentProvider, string> = {
+        claude: claudeLine(T0, 'm1', { input_tokens: 10, output_tokens: 5 }),
+        codex: codexTotals(100, 40, 20),
+        grok: grokTurnCompleted('p1'),
+    };
+    it.each(agentProviderIds)('counts usage only from %s transcript records', (provider) => {
+        for (const [source, line] of Object.entries(ownTranscriptLine)) {
+            const accumulator = new UsageAccumulator();
+            const parser = usageParserFor(provider, accumulator);
+            parser.line(line);
+            parser.finish();
+            expect(accumulator.toRecord().tokens.length > 0, source).toBe(source === provider);
+        }
     });
 });
 

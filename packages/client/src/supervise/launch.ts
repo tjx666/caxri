@@ -2,10 +2,9 @@ import { spawn } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import process from 'node:process';
 
-import type { AgentProvider } from '@caxri/protocol';
 import {
-    agentProviderIds,
     CaxriError,
+    INHERITED_PROCESS_ENVIRONMENT_KEYS,
     INSPECT_ENVIRONMENT_KEY,
     inspectExecArgv,
     LOG_LEVEL_ENVIRONMENT_KEY,
@@ -13,30 +12,13 @@ import {
 
 import { resolveServerArtifact } from './artifact.js';
 
-const AGENT_LAUNCH_ENVIRONMENT_KEYS: Record<AgentProvider, readonly string[]> = {
-    grok: ['GROK_HOME'],
-    claude: ['CLAUDE_CONFIG_DIR'],
-    codex: ['CODEX_HOME', 'CODEX_SQLITE_HOME'],
-};
-
+/**
+ * Server Core rebuilds its children's environment from its own (`safeProcessEnvironment` in `@caxri/system`), so a key
+ * missing here never reaches an Agent provider, Git, or a Terminal. The launcher therefore forwards the complete shared
+ * inherited list rather than a narrower copy of it.
+ */
 const LAUNCH_ENVIRONMENT_KEYS = [
-    /**
-     * Keeps detached descendants attributable to their owning CI run during cleanup.
-     */
-    'CAXRI_RUNNER_OWNER',
-    'HOME',
-    'USER',
-    'LOGNAME',
-    'PATH',
-    'SHELL',
-    'LANG',
-    'LC_ALL',
-    'LC_CTYPE',
-    'TMPDIR',
-    'SSH_AUTH_SOCK',
-    'XDG_CONFIG_HOME',
-    'XDG_CACHE_HOME',
-    'XDG_DATA_HOME',
+    ...INHERITED_PROCESS_ENVIRONMENT_KEYS,
     /**
      * Debugging controls the launcher must hand down, or a Host would keep the defaults (debug logging, an open
      * inspector port) while the operator believes their narrowing export took effect. `CAXRI_INSPECT` continues from
@@ -44,8 +26,7 @@ const LAUNCH_ENVIRONMENT_KEYS = [
      */
     LOG_LEVEL_ENVIRONMENT_KEY,
     INSPECT_ENVIRONMENT_KEY,
-    ...agentProviderIds.flatMap((provider) => AGENT_LAUNCH_ENVIRONMENT_KEYS[provider]),
-] as const;
+];
 
 export interface ServerLaunchOptions {
     /**

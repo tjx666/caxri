@@ -1,11 +1,7 @@
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type {
-    FullStateChangeReason,
-    SessionRestorePlacement,
-    TerminalRecord,
-} from '@caxri/protocol';
+import type { FullStateChangeReason, TerminalRecord } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
@@ -33,6 +29,7 @@ import { createIntrospectionServices } from './introspection';
 import { createMobileDomainHandlers } from './mobile';
 import { MobileTerminalMutationQueue } from './mobile-terminal-mutation-queue';
 import { createOrderingHandlers } from './ordering-handlers';
+import { createSessionParkingHandlers } from './parking-handlers';
 import { createProjectHidingHandlers } from './project-hiding-handlers';
 import { ProjectStatusService, VercelDeploymentStore } from './project-status';
 import { createRootServices } from './root-services';
@@ -156,6 +153,7 @@ export async function createDomainServices(
             endpoints: dependencies.agentEndpoints,
             workbenchRoots,
         }),
+        onLaunched: (terminal) => suspensionState.service?.parkLaunch(terminal),
         onLifecycleStarted: (terminal) => {
             suspensionState.service?.observeLaunch(terminal.id);
             return dependencies.agentEndpoints?.activate(terminal.id);
@@ -348,6 +346,16 @@ export async function createDomainServices(
     const sendFullStateChange = (reason: FullStateChangeReason): void => {
         send({ event: 'state.changed', payload: { kind: 'full', reason } });
     };
+    const sessionParking = {
+        agentChat,
+        database,
+        evictSessions: evictSessionCaches,
+        mobileTerminalMutations,
+        restoreSelection: () => observeSelectedSession(selectedSessionId(), true),
+        sendFullStateChange,
+        terminalRestores,
+        terminalSuspension,
+    };
     const createSessionForProject = createSessionCreator({
         coordinator,
         database,
@@ -362,14 +370,6 @@ export async function createDomainServices(
         database,
         createSessionForProject,
     );
-    const unarchiveSessions = (
-        sessionIds: readonly string[],
-        placement: SessionRestorePlacement,
-    ) => {
-        const restored = database.unarchiveSessions(sessionIds, placement);
-        sendFullStateChange('session.unarchive');
-        return restored;
-    };
     const agentCommands = createAgentCommandRuntime({
         logger,
         delegationSettings: () => configuration.getSettings().value['agents.delegation'],
@@ -470,15 +470,7 @@ export async function createDomainServices(
         'project.queryForPrincipal': ({ principal, query }) =>
             introspection.records.project(query, principal),
         ...createOrderingHandlers({ database, sendFullStateChange }),
-        ...createProjectHidingHandlers({
-            database,
-            bootstrapState: snapshots.bootstrap,
-            evictSessions: evictSessionCaches,
-            restoreSelection: () => observeSelectedSession(selectedSessionId(), true),
-            sendFullStateChange,
-            terminalRestores,
-            terminalSuspension,
-        }),
+        ...createProjectHidingHandlers({ ...sessionParking, bootstrapState: snapshots.bootstrap }),
         'session.create': ({ projectId, defaultAgent, surface }) =>
             createSessionForProject(projectId, defaultAgent, 'select', undefined, surface),
         'mobile.session.create': () => {
@@ -527,43 +519,21 @@ export async function createDomainServices(
         },
         'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) =>
             sessionRenames.rename(sessionId, displayTitle, signal, finalizeDurably),
-        'session.archive': ({ sessionId }) =>
-            mobileTerminalMutations.runSessions([sessionId], async () => {
-                terminalRestores.cancel(sessionId);
-                const session = database.archiveSession(sessionId);
-                await terminalSuspension.suspendSession(sessionId);
-                await agentChat.closeSession(sessionId);
-                observeSelectedSession(selectedSessionId(), true);
-                sendFullStateChange('session.archive');
-                return session;
-            }),
-        'session.detach': ({ sessionId }) =>
-            mobileTerminalMutations.runSessions([sessionId], async () => {
-                if (!database.getSession(sessionId))
-                    throw new CaxriError('NOT_FOUND', 'Session not found');
-                // A queued restore could relaunch the Agent right after it was handed over; drop it first.
-                terminalRestores.cancel(sessionId);
-                await terminalSuspension.detachSession(sessionId);
-                await agentChat.closeSession(sessionId);
-                sendFullStateChange('session.detach');
-                return database.getSession(sessionId)!;
-            }),
+        ...createSessionParkingHandlers(sessionParking),
         'session.resume': ({ sessionId }) =>
             sessionSelections.run(async () => {
                 await workbenchRoots.validateSession(sessionId);
                 database.selectSession(sessionId);
                 terminalSuspension.observeSelection();
                 observeSelectedSession(sessionId);
+                // Detached Chats and PTY Agents both relaunch here, on the Agent Sessions they handed over.
+                agentChat.resumeSession(sessionId);
                 restoreInterruptedTerminalsInBackground(sessionId, { includeDetached: true });
                 coordinator.probeSessionPrimaryAgent(sessionId);
                 sendFullStateChange('session.resume');
                 return database.getSession(sessionId)!;
             }),
         ...createSessionAgentRuntimeHandlers(agentRuntime),
-        'session.unarchive': ({ placement, sessionId }) =>
-            unarchiveSessions([sessionId], placement)[0],
-        'session.unarchiveMany': ({ placement, sessionIds }) =>
-            unarchiveSessions([...new Set(sessionIds)], placement),
         ...createDeletionHandlers({
             database,
             delegations: agentCommands.delegationService,

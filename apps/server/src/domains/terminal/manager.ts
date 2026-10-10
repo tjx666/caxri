@@ -7,7 +7,7 @@ import type {
     TerminalResourceUsage,
     TerminalSnapshot,
 } from '@caxri/protocol';
-import { CaxriError, errorMessage, toWireError } from '@caxri/protocol';
+import { CaxriError, errorMessage, isCaxriError, toWireError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { disposeAllThenRethrow } from '@caxri/utils';
@@ -16,6 +16,7 @@ import { assertPtyTerminal, isPtyTerminal } from '../pty-guard';
 import type { ShutdownReason } from '../session-policy';
 import { shutdownOutcome } from '../session-policy';
 import { SingleFlight } from '../single-flight';
+import { AgentStartWaiters } from './agent-start-waiters';
 import { logTerminalAttach } from './attach-log';
 import type {
     TerminalExecutionEvent,
@@ -25,7 +26,6 @@ import type {
 import { isTerminalMouseReport, isTerminalProtocolResponse } from './input-origin';
 import { TerminalLaunchPlanner } from './launch-plan';
 import type {
-    AgentStartWaiter,
     TerminalLifecycleCause,
     TerminalManagerOptions,
     TerminalStartOptions,
@@ -44,7 +44,7 @@ type TerminalTitleListener = ReturnType<typeof createTerminalTitleListener>;
  */
 export class TerminalManager {
     private readonly agentLaunches = new Map<string, string>();
-    private readonly agentStartWaiters = new Map<string, AgentStartWaiter>();
+    private readonly agentStarts = new AgentStartWaiters();
     private readonly agentOutputRecoverySettings?: TerminalManagerOptions['agentOutputRecoverySettings'];
     private readonly execution: TerminalExecutionPort;
     private readonly executionListeners: Array<() => void>;
@@ -53,6 +53,7 @@ export class TerminalManager {
     private readonly starts = new SingleFlight<string, TerminalRecord>();
     private readonly titleListeners = new Map<string, TerminalTitleListener>();
     private readonly viewSizes = new Map<string, { cols: number; rows: number }>();
+    private readonly onLaunched?: TerminalManagerOptions['onLaunched'];
     private readonly onLifecycleStarted?: TerminalManagerOptions['onLifecycleStarted'];
     private readonly onLifecycleRetired?: TerminalManagerOptions['onLifecycleRetired'];
     private readonly onShellRetired?: TerminalManagerOptions['onShellRetired'];
@@ -79,6 +80,7 @@ export class TerminalManager {
             resolveExecutable: options.resolveExecutable,
             shellIntegration: options.shellIntegration,
         });
+        this.onLaunched = options.onLaunched;
         this.onLifecycleStarted = options.onLifecycleStarted;
         this.onLifecycleRetired = options.onLifecycleRetired;
         this.onShellRetired = options.onShellRetired;
@@ -212,19 +214,6 @@ export class TerminalManager {
         });
     }
 
-    private prepareAgentStartWaiter(terminalId: string, launchId: string): void {
-        this.agentStartWaiters.get(terminalId)?.resolve(false);
-        const { promise, resolve } = Promise.withResolvers<boolean>();
-        this.agentStartWaiters.set(terminalId, { launchId, promise, resolve });
-    }
-
-    private settleAgentStart(terminalId: string, launchId: string, isStarted: boolean): void {
-        const waiter = this.agentStartWaiters.get(terminalId);
-        if (!waiter || waiter.launchId !== launchId) return;
-        this.agentStartWaiters.delete(terminalId);
-        waiter.resolve(isStarted);
-    }
-
     private async onAgentStarted(terminalId: string, launchId: string): Promise<void> {
         if (this.agentLaunches.get(terminalId) !== launchId) return;
         try {
@@ -240,14 +229,14 @@ export class TerminalManager {
                     : undefined,
             );
             this.emitAgentState(terminalId, 'running');
-            this.settleAgentStart(terminalId, launchId, true);
+            this.agentStarts.settle(terminalId, launchId, true);
         } catch (error) {
             this.execution.signalAgentExact(terminalId, launchId, 'SIGHUP');
             if (this.agentLaunches.get(terminalId) === launchId) {
                 this.agentLaunches.delete(terminalId);
                 this.emitAgentState(terminalId, 'failed');
             }
-            this.settleAgentStart(terminalId, launchId, false);
+            this.agentStarts.settle(terminalId, launchId, false);
             await this.retireCoreLifecycle(terminalId, launchId);
             this.logger.write('warn', ptyLogEvents.lifecycleRetireFailed, {
                 fields: { terminalId, error: errorMessage(error, 'unknown') },
@@ -260,7 +249,7 @@ export class TerminalManager {
     ): Promise<void> {
         if (this.agentLaunches.get(event.terminalId) !== event.launchId) return;
         this.agentLaunches.delete(event.terminalId);
-        this.settleAgentStart(event.terminalId, event.launchId, false);
+        this.agentStarts.settle(event.terminalId, event.launchId, false);
         this.execution.configureOutputRecovery(event.terminalId, undefined);
         const state = event.exitCode === 0 && !event.signal ? 'stopped' : 'dead';
         this.emitAgentExitState(event.terminalId, state);
@@ -327,7 +316,7 @@ export class TerminalManager {
         const launchId = this.agentLaunches.get(terminalId);
         if (launchId) {
             this.agentLaunches.delete(terminalId);
-            this.settleAgentStart(terminalId, launchId, false);
+            this.agentStarts.settle(terminalId, launchId, false);
             this.execution.configureOutputRecovery(terminalId, undefined);
         }
         /**
@@ -408,7 +397,7 @@ export class TerminalManager {
             if (prepared.value.agent)
                 this.agentLaunches.set(record.id, prepared.value.agent.launchId);
             if (prepared.value.agent)
-                this.prepareAgentStartWaiter(record.id, prepared.value.agent.launchId);
+                this.agentStarts.prepare(record.id, prepared.value.agent.launchId);
             await this.execution.start({
                 args: prepared.value.args,
                 ...(prepared.value.agent && { agent: prepared.value.agent }),
@@ -425,7 +414,8 @@ export class TerminalManager {
                 durationMs: performance.now() - startedAt,
                 fields: { terminalId: record.id, kind: record.kind },
             });
-            return this.database.getTerminal(record.id)!;
+            await this.onLaunched?.(record);
+            return this.database.getTerminal(record.id) ?? record;
         } catch (error) {
             this.cancelTitleListener(record.id);
             this.onShellRetired?.(record.id);
@@ -433,7 +423,7 @@ export class TerminalManager {
             try {
                 const launchId = this.agentLaunches.get(record.id);
                 this.agentLaunches.delete(record.id);
-                if (launchId) this.settleAgentStart(record.id, launchId, false);
+                if (launchId) this.agentStarts.settle(record.id, launchId, false);
                 await this.retireCoreLifecycle(record.id, launchId);
             } catch (retirementError) {
                 this.logger.write('warn', ptyLogEvents.lifecycleRetireFailed, {
@@ -442,6 +432,18 @@ export class TerminalManager {
                         error: errorMessage(retirementError, 'unknown'),
                     },
                 });
+            }
+            /**
+             * The `shouldStart` fence turning stale during preparation is a superseded restore, not a launch failure:
+             * stay restorable exactly like the stale exit before preparation, or the next selection never relaunches.
+             */
+            if (
+                isCaxriError(error) &&
+                error.code === 'CANCELLED' &&
+                options?.shouldStart?.() === false
+            ) {
+                this.database.updateTerminalState(record.id, 'interrupted');
+                return this.database.getTerminal(record.id) ?? record;
             }
             if (this.database.getTerminal(record.id))
                 this.database.updateTerminalState(
@@ -720,18 +722,8 @@ export class TerminalManager {
             this.execution.agentProcessId(terminalId) !== undefined
         )
             return;
-        const waiter = this.agentStartWaiters.get(terminalId);
-        if (!waiter) throw new CaxriError('UNAVAILABLE', 'Managed Agent did not start');
-        let timeout: NodeJS.Timeout | undefined;
-        const didStart = await Promise.race([
-            waiter.promise,
-            new Promise<false>((resolve) => {
-                timeout = setTimeout(resolve, timeoutMs, false);
-                timeout.unref();
-            }),
-        ]);
-        if (timeout) clearTimeout(timeout);
-        if (!didStart) throw new CaxriError('UNAVAILABLE', 'Managed Agent did not start');
+        if (!(await this.agentStarts.wait(terminalId, timeoutMs)))
+            throw new CaxriError('UNAVAILABLE', 'Managed Agent did not start');
     }
 
     resources(terminalId: string): Promise<TerminalResourceUsage | null> {

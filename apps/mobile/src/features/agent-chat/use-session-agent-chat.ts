@@ -1,11 +1,19 @@
 import type { MobileTerminal } from '../sessions/session-model';
-import { agentChatProviderName, isAgentChatTerminal } from './agent-chat-model';
+import {
+    agentChatProviderName,
+    isAgentChatHandedOff,
+    isAgentChatTerminal,
+} from './agent-chat-model';
 import type { AgentChatController } from './use-agent-chat';
 import { useAgentChat } from './use-agent-chat';
 
 export interface SessionAgentChat {
     controller: AgentChatController;
     hasItems: boolean;
+    /**
+     * The Chat was detached for another client; see `isAgentChatHandedOff`.
+     */
+    isHandedOff: boolean;
     provider: string;
 }
 
@@ -29,6 +37,7 @@ export const useSessionAgentChat = ({
     return {
         controller,
         hasItems: (controller.snapshot?.items.length ?? 0) > 0,
+        isHandedOff: isAgentChatHandedOff(terminal),
         provider: agentChatProviderName(terminal),
     };
 };

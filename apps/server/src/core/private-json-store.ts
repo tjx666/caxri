@@ -1,12 +1,12 @@
 import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
-import { constants } from 'node:fs';
-import type { FileHandle } from 'node:fs/promises';
 import { open, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, isCaxriError } from '@caxri/protocol';
+
+import { readBoundedRegularFile } from '../domains/bounded-file-reader';
 
 export interface PrivateJsonMessages {
     malformed: string;
@@ -23,46 +23,39 @@ export function fileSystemCode(error: unknown): string | undefined {
 
 /**
  * Reads a bounded owner-only regular JSON file without following a final symlink.
+ *
+ * The shared bounded reader owns the open (`O_NOFOLLOW` plus `O_NONBLOCK`, so a FIFO planted at the store path is
+ * refused rather than blocking Server Core on its writer). Owner and permission policy runs on the opened handle's
+ * metadata before any byte is read, and the reader's oversize rejection, including growth after the open, keeps this
+ * store's own `VALIDATION` wording.
  */
 export async function readPrivateJsonFile(options: {
     maxBytes: number;
     messages: PrivateJsonMessages;
     path: string;
 }): Promise<unknown> {
-    let handle: FileHandle;
+    let source: Buffer;
     try {
-        handle = await open(options.path, constants.O_RDONLY | constants.O_NOFOLLOW);
+        source = await readBoundedRegularFile(options.path, options.maxBytes, {
+            inspect: (metadata) => {
+                if (!metadata.isFile() || (metadata.mode & 0o077) !== 0)
+                    throw new CaxriError('PATH_DENIED', options.messages.notPrivate);
+                if (typeof process.getuid === 'function' && metadata.uid !== process.getuid())
+                    throw new CaxriError('PATH_DENIED', options.messages.wrongOwner);
+            },
+            symlinks: 'nofollow',
+        });
     } catch (error) {
         if (fileSystemCode(error) === 'ELOOP')
             throw new CaxriError('PATH_DENIED', options.messages.notPrivate);
+        if (isCaxriError(error) && error.code === 'CAPACITY')
+            throw new CaxriError('VALIDATION', options.messages.oversized);
         throw error;
     }
     try {
-        const metadata = await handle.stat();
-        if (!metadata.isFile() || (metadata.mode & 0o077) !== 0)
-            throw new CaxriError('PATH_DENIED', options.messages.notPrivate);
-        if (typeof process.getuid === 'function' && metadata.uid !== process.getuid())
-            throw new CaxriError('PATH_DENIED', options.messages.wrongOwner);
-        if (metadata.size > options.maxBytes)
-            throw new CaxriError('VALIDATION', options.messages.oversized);
-
-        const source = Buffer.allocUnsafe(options.maxBytes + 1);
-        let offset = 0;
-        while (offset < source.length) {
-            // eslint-disable-next-line no-await-in-loop -- One file descriptor must fill one bounded buffer sequentially.
-            const { bytesRead } = await handle.read(source, offset, source.length - offset, offset);
-            if (bytesRead === 0) break;
-            offset += bytesRead;
-        }
-        if (offset > options.maxBytes)
-            throw new CaxriError('VALIDATION', options.messages.oversized);
-        try {
-            return JSON.parse(source.subarray(0, offset).toString('utf8')) as unknown;
-        } catch {
-            throw new CaxriError('VALIDATION', options.messages.malformed);
-        }
-    } finally {
-        await handle.close();
+        return JSON.parse(source.toString('utf8')) as unknown;
+    } catch {
+        throw new CaxriError('VALIDATION', options.messages.malformed);
     }
 }
 

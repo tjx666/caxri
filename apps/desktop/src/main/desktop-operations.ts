@@ -2,11 +2,6 @@ import type { DesktopOperation, DesktopTargetPayload } from '@caxri/protocol';
 import { assertNever } from '@caxri/protocol';
 
 export interface DesktopOperationHandlers {
-    confirmFilesTrash(item: {
-        name: string;
-        path: string;
-        hasUnsavedChanges?: boolean;
-    }): Promise<boolean>;
     confirmGitDiscard(target: {
         repositoryName: string;
         scope:
@@ -18,7 +13,6 @@ export interface DesktopOperationHandlers {
     openWithDefaultApp(path: string): Promise<void>;
     reveal(path: string): void;
     status(): 'background' | 'window';
-    trash(path: string): Promise<void>;
 }
 
 /**
@@ -55,13 +49,6 @@ async function handleDesktopOperation(
         case 'openInEditor': {
             const target = await consumeTarget();
             await handlers.openInEditor(target.path, operation.editorCommand);
-            return null;
-        }
-        case 'confirmFilesTrash':
-            return { confirmed: await handlers.confirmFilesTrash(operation.item) };
-        case 'trash': {
-            const target = await consumeTarget();
-            await handlers.trash(target.path);
             return null;
         }
         case 'confirmGitDiscard':

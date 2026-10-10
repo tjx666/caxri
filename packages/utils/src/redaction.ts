@@ -1,6 +1,30 @@
-const SECRET_KEY = /token|password|secret|credential|api[_-]?key|authorization|cookie/i;
-const SECRET_ASSIGNMENT =
-    /((?:"(?:token|password|secret|credential|api[_-]?key|authorization|cookie)"|'(?:token|password|secret|credential|api[_-]?key|authorization|cookie)'|\b(?:token|password|secret|credential|api[_-]?key|authorization|cookie))\s*[=:]\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;}\]]+)/gi;
+/**
+ * The one credential-name vocabulary shared by object keys, `key=value` text, and command-line flags, so a name added
+ * here is redacted in every shape at once.
+ */
+const SECRET_NAME = 'token|password|secret|credential|api[_-]?key|authorization|cookie';
+const SECRET_KEY = new RegExp(SECRET_NAME, 'i');
+const SECRET_ASSIGNMENT = new RegExp(
+    String.raw`((?:"(?:${SECRET_NAME})"|'(?:${SECRET_NAME})'|\b(?:${SECRET_NAME}))\s*[=:]\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;}\]]+)`,
+    'gi',
+);
+/**
+ * A whole flag token whose name carries the credential vocabulary (`--api-key`, `--github-token`, `-password`).
+ */
+const SECRET_FLAG = String.raw`-[\w-]*(?:${SECRET_NAME})[\w-]*`;
+/**
+ * A secret flag at the start of a token plus its `=value`, whitespace-separated value, or quoted value. A separated
+ * value that is itself a secret flag is not consumed: `--skip-password-prompt --password value` must leave the second
+ * flag to match on its own, otherwise its real value would stay visible.
+ */
+const SECRET_FLAG_IN_COMMAND = new RegExp(
+    String.raw`(?<!\S)(${SECRET_FLAG})(?:=|\s+(?!${SECRET_FLAG}(?:[=\s]|$)))(?:"[^"]*"|'[^']*'|\S+)`,
+    'giu',
+);
+const SECRET_FLAG_ONLY = new RegExp(`^${SECRET_FLAG}$`, 'iu');
+const SECRET_FLAG_START = new RegExp(String.raw`^${SECRET_FLAG}(?:[=\s]|$)`, 'iu');
+const SECRET_FLAG_ASSIGNMENT = new RegExp(`^(${SECRET_FLAG})=`, 'iu');
+const REDACTED = '[REDACTED]';
 const SECRET_VALUE =
     /sk-[\w-]{12,}|Bearer\s+[\w.-]+|gh[pousr]_[a-zA-Z0-9]{20,}|github_pat_\w{10,}|xox[baprs]-[a-zA-Z0-9-]{10,}/g;
 /**
@@ -46,4 +70,33 @@ export function redactSecretText(value: string): string {
  */
 export function isSecretKey(key: string): boolean {
     return SECRET_KEY.test(key);
+}
+
+/**
+ * Hides the value of every credential-named flag in a flattened command line (`ps` output, a configured command) while
+ * keeping the executable and the remaining argv readable. Each match is rewritten as `--flag=<replacement>`.
+ */
+export function redactCommandLine(command: string, replacement = REDACTED): string {
+    return command.replaceAll(SECRET_FLAG_IN_COMMAND, (_match, flag: string) => {
+        return `${flag}=${replacement}`;
+    });
+}
+
+/**
+ * Argv counterpart of {@link redactCommandLine}. Array elements carry no key for `redactSecrets` to recognize, so a
+ * value stored as the element after `--api-key` would otherwise survive verbatim. The element following a bare secret
+ * flag is replaced whole (it may legitimately contain spaces), an inline `--flag=value` loses its entire value, and an
+ * element that is itself a persisted command-line fragment (`--token abc`) goes through the command-line rule.
+ */
+export function redactArgv(arguments_: readonly string[], replacement = REDACTED): string[] {
+    let isValueExpected = false;
+    return arguments_.map((argument) => {
+        const isValue = isValueExpected && !SECRET_FLAG_START.test(argument);
+        isValueExpected = SECRET_FLAG_ONLY.test(argument.trim().split(/\s+/u).at(-1) ?? '');
+        if (isValue) return replacement;
+        const assignment = SECRET_FLAG_ASSIGNMENT.exec(argument);
+        return assignment
+            ? `${assignment[1]}=${replacement}`
+            : redactCommandLine(argument, replacement);
+    });
 }

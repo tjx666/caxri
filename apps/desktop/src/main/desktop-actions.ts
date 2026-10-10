@@ -2,7 +2,7 @@ import type { ServerEvent } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
 import { dialog, shell } from 'electron';
 
-import { discardGitChangesPrompt, trashPrompt } from './confirmations';
+import { discardGitChangesPrompt } from './confirmations';
 import type { DesktopOperationHandlers } from './desktop-operations';
 import { launchExternalEditor } from './external-editor';
 
@@ -24,10 +24,6 @@ export function createDesktopActions({
     sendEvent,
 }: DesktopActionDependencies): DesktopOperationHandlers {
     return {
-        confirmFilesTrash: async (item) => {
-            const result = await dialog.showMessageBox(getMainWindow()!, trashPrompt(item));
-            return result.response === 0;
-        },
         confirmGitDiscard: async (target) => {
             const result = await dialog.showMessageBox(
                 getMainWindow()!,
@@ -64,6 +60,5 @@ export function createDesktopActions({
             const window = getMainWindow();
             return window && !window.isDestroyed() ? 'window' : 'background';
         },
-        trash: (path) => shell.trashItem(path),
     };
 }
