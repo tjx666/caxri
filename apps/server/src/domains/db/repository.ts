@@ -48,13 +48,14 @@ import type {
 } from './models/agent-dispatch-receipts';
 import type { AppStateKey, AppStateValue } from './models/app-state';
 import type { SessionWorkbenchBinding } from './models/sessions';
+import type { ProjectDeletionScope } from './project-deletion';
+import { deleteProjectMetadata, projectDeletionScope } from './project-deletion';
 import { reorderProject } from './project-ordering';
 import {
     hideProject,
     isRestorableProjectRoot,
     listVisibleProjects,
     listVisibleSessions,
-    moveSelectionOffProjects,
 } from './project-visibility';
 import { archiveOneSession, restoreArchivedSessions } from './session-archive';
 import {
@@ -78,6 +79,7 @@ export class CaxriDatabase {
     readonly protocolState: CaxriDatabase_['protocolState'];
     readonly mobileAgentSubmitReceipts: CaxriDatabase_['mobileAgentSubmitReceipts'];
     readonly agentDelegations: CaxriDatabase_['agentDelegations'];
+    readonly agentSessionUsage: CaxriDatabase_['agentSessionUsage'];
 
     constructor(path: string, options?: CaxriDatabaseOptions) {
         this.db = new CaxriDatabase_(path, options);
@@ -85,6 +87,7 @@ export class CaxriDatabase {
         this.protocolState = this.db.protocolState;
         this.mobileAgentSubmitReceipts = this.db.mobileAgentSubmitReceipts;
         this.agentDelegations = this.db.agentDelegations;
+        this.agentSessionUsage = this.db.agentSessionUsage;
     }
 
     private insertTerminal(
@@ -127,14 +130,6 @@ export class CaxriDatabase {
     }
 
     /**
-     * Every Project id a deletion of `projectId` removes: the Project itself plus the worktree Projects registered on
-     * its behalf.
-     */
-    private deletedProjectIds(projectId: string): string[] {
-        return [projectId, ...this.db.projects.listOwnedBy(projectId).map((owned) => owned.id)];
-    }
-
-    /**
      * Raw better-sqlite3 handle; integration tests inspect pragmas and `table_info` directly.
      */
     get database(): Database.Database {
@@ -172,24 +167,10 @@ export class CaxriDatabase {
     }
 
     /**
-     * The Sessions a {@link deleteProject} call will affect, resolved before the deletion so runtime, Git, and status
-     * caches can be evicted for exactly those Sessions.
-     *
-     * `owned` lists the Sessions belonging to the Project or to a worktree Project registered on its behalf; every one
-     * of them is deleted. `workbench` lists the Sessions bound to any of those roots as their Workbench Root. The two
-     * overlap: a Session in the deleted Project that had adopted one of its worktrees appears in both and is deleted.
-     * Only a `workbench` Session owned by a Project that survives keeps existing, with its Workbench Root reset to its
-     * own Project root.
+     * The Sessions a {@link deleteProject} call will affect; see {@link projectDeletionScope}.
      */
-    projectDeletionScope(projectId: string): {
-        owned: SessionRecord[];
-        workbench: SessionRecord[];
-    } {
-        const projectIds = this.deletedProjectIds(projectId);
-        return {
-            owned: projectIds.flatMap((id) => this.db.sessions.list(id)),
-            workbench: projectIds.flatMap((id) => this.db.sessions.listUsingWorkbenchProject(id)),
-        };
+    projectDeletionScope(projectId: string): ProjectDeletionScope {
+        return projectDeletionScope(this.db, projectId);
     }
 
     setProjectIcon(projectId: string, icon: ProjectIcon | null): ProjectRecord {
@@ -211,25 +192,10 @@ export class CaxriDatabase {
     }
 
     /**
-     * Metadata only: no Project folder or user file is ever touched. Worktree Projects auto-registered on this
-     * Project's behalf are removed first, through the same per-Project routine, because the PrimarySidebar hides them
-     * and no other path could ever delete them; their Sessions and Terminals cascade by foreign key exactly as the
-     * owner's own do.
+     * Metadata only: no Project folder or user file is ever touched; see {@link deleteProjectMetadata}.
      */
     deleteProject(projectId: string): void {
-        this.db.transaction(() => {
-            const cascadedProjectIds = this.deletedProjectIds(projectId);
-            /**
-             * Foreign keys cascade the owned worktree Projects and every Session they own, and null
-             * `sessions.workbench_project_id`. The Workbench root identity columns and the per-root JSON state are
-             * beyond any foreign key, so each deleted root is cleared from them first.
-             */
-            for (const cascadedProjectId of cascadedProjectIds)
-                this.db.sessions.resetWorkbenchProject(cascadedProjectId);
-            if (!this.db.projects.remove(projectId))
-                throw new CaxriError('NOT_FOUND', 'Project not found');
-            moveSelectionOffProjects(this.db, cascadedProjectIds);
-        });
+        this.db.transaction(() => deleteProjectMetadata(this.db, projectId));
     }
 
     /**

@@ -172,6 +172,8 @@ test('Extension tree inline actions are reachable and runnable from the keyboard
         const dialog = running.page.getByRole('dialog', { name: 'Merge fixture pull request?' });
         await expect(dialog).toBeVisible();
         await expect(merge).toHaveAttribute('aria-busy', 'true');
+        // Shift+Tab must also wait for the modal's initial focus; pressed earlier it moves focus from the busy action.
+        await expect(dialog.getByRole('button', { name: 'Merge', exact: true })).toBeFocused();
         await running.page.keyboard.press('Shift+Tab');
         await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
         await running.page.keyboard.press('Enter');

@@ -355,6 +355,11 @@ export const logEventCatalog = {
         providerSyncSkipped: 'session_rename.provider_sync_skipped',
         providerTitleMismatch: 'session_rename.provider_title_mismatch',
     },
+    usage: {
+        pricing: 'usage.pricing',
+        pullRequests: 'usage.pull_requests',
+        scan: 'usage.scan',
+    },
     sessionPullRequests: {
         cli: 'session_pull_requests.cli',
         cliSummary: 'session_pull_requests.cli_summary',

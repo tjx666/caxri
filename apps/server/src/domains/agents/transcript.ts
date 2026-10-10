@@ -97,7 +97,7 @@ async function readDelegationTranscriptFile(
     }
 }
 
-interface BoundAgentIdentity {
+export interface AgentTranscriptIdentity {
     agentSessionId: string;
     cwd: string;
     provider: AgentProvider;
@@ -106,7 +106,7 @@ interface BoundAgentIdentity {
 function boundAgentIdentity(
     database: CaxriDatabase,
     terminalId: string,
-): BoundAgentIdentity | undefined {
+): AgentTranscriptIdentity | undefined {
     const terminal = database.getTerminal(terminalId);
     if (
         !terminal?.provider ||
@@ -132,12 +132,35 @@ export function resolveAgentTranscriptLocation(
     environment: AgentEnvironment = defaultAgentEnvironment(),
 ): AgentTranscriptLocation | undefined {
     const identity = boundAgentIdentity(database, terminalId);
-    if (!identity) return;
+    return identity && deriveAgentTranscriptLocation(identity, environment);
+}
+
+function deriveAgentTranscriptLocation(
+    identity: AgentTranscriptIdentity,
+    environment: AgentEnvironment,
+): AgentTranscriptLocation | undefined {
     const provider = agentProviders[identity.provider];
     const path = provider.transcriptPath?.(identity, environment);
     const baseRoot = provider.transcriptBaseRoot?.(environment);
     const root = provider.transcriptRoot?.({ cwd: identity.cwd }, environment);
     return path && root && baseRoot ? { baseRoot, path, root } : undefined;
+}
+
+/**
+ * Locates the transcript of an Agent Session that may no longer be bound to any Terminal, such as a usage ledger row.
+ * The caller supplies the provider state root recorded at binding time.
+ */
+export async function locateAgentTranscriptForIdentity(
+    identity: AgentTranscriptIdentity,
+    environment: AgentEnvironment = defaultAgentEnvironment(),
+    signal?: AbortSignal,
+): Promise<AgentTranscriptLocation | undefined> {
+    signal?.throwIfAborted();
+    if (!isOpaqueAgentSessionId(identity.agentSessionId)) return;
+    return (
+        deriveAgentTranscriptLocation(identity, environment) ??
+        agentProviders[identity.provider].locateTranscript?.(identity, environment, signal)
+    );
 }
 
 /**
@@ -151,11 +174,9 @@ export async function locateAgentTranscript(
     signal?: AbortSignal,
 ): Promise<AgentTranscriptLocation | undefined> {
     signal?.throwIfAborted();
-    const derived = resolveAgentTranscriptLocation(database, terminalId, environment);
-    if (derived) return derived;
     const identity = boundAgentIdentity(database, terminalId);
     if (!identity) return;
-    return agentProviders[identity.provider].locateTranscript?.(identity, environment, signal);
+    return locateAgentTranscriptForIdentity(identity, environment, signal);
 }
 
 async function readTranscriptTail(

@@ -73,6 +73,7 @@ export const commandIds = [
     'view.zoomOut',
     'view.resetZoom',
     'settings.open',
+    'usage.open',
     'settings.openSource',
     'settings.openKeybindings',
     'settings.openNotifications',

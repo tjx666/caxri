@@ -69,6 +69,8 @@ function initializeSchema(database: Database.Database): void {
              * Project folders and user files are never touched.
              */
             database.exec(`
+                DROP TABLE IF EXISTS agent_session_usage;
+                DROP TABLE IF EXISTS pull_request_outcomes;
                 DROP TABLE IF EXISTS protocol_changefeed;
                 DROP TABLE IF EXISTS protocol_command_receipts;
                 DROP TABLE IF EXISTS protocol_identity;
