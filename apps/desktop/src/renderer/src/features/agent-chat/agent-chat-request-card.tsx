@@ -1,10 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import type { AgentChatDecision, AgentChatItem, AgentChatRequest } from '@caxri/protocol';
 
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { didAnswerAgentChatRequest } from './agent-chat-commands';
 import { AgentChatFileChanges } from './agent-chat-file-changes';
@@ -48,34 +47,44 @@ function QuestionForm({
                         )}
                         {question.question}
                     </legend>
-                    <div className="flex flex-wrap gap-1.5">
+                    {/* Options that explain themselves stack, so each description reads under its label. */}
+                    <div
+                        className={cn(
+                            'gap-1.5',
+                            question.options.some((option) => option.description)
+                                ? 'flex flex-col items-stretch'
+                                : 'flex flex-wrap',
+                        )}
+                    >
                         {question.options.map((option) => {
                             const isSelected =
                                 selected[question.id] === option.label && !other[question.id];
                             return (
-                                <Tooltip
-                                    content={option.description}
-                                    disabled={!option.description}
+                                <Button
+                                    aria-pressed={isSelected}
+                                    className={cn(
+                                        option.description &&
+                                            'flex-col items-start justify-center gap-0 py-1 text-left',
+                                        isSelected && 'bg-[var(--selection)] text-foreground',
+                                    )}
                                     key={option.label}
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => {
+                                        setSelected((value) => ({
+                                            ...value,
+                                            [question.id]: option.label,
+                                        }));
+                                        setOther((value) => ({ ...value, [question.id]: '' }));
+                                    }}
                                 >
-                                    <Button
-                                        aria-pressed={isSelected}
-                                        className={cn(
-                                            isSelected && 'bg-[var(--selection)] text-foreground',
-                                        )}
-                                        size="sm"
-                                        variant="secondary"
-                                        onClick={() => {
-                                            setSelected((value) => ({
-                                                ...value,
-                                                [question.id]: option.label,
-                                            }));
-                                            setOther((value) => ({ ...value, [question.id]: '' }));
-                                        }}
-                                    >
-                                        {option.label}
-                                    </Button>
-                                </Tooltip>
+                                    <span>{option.label}</span>
+                                    {option.description && (
+                                        <span className="text-[11px] leading-4 text-muted">
+                                            {option.description}
+                                        </span>
+                                    )}
+                                </Button>
                             );
                         })}
                     </div>
@@ -128,7 +137,9 @@ function ApprovalFiles({ item }: { item: AgentChatItem | undefined }) {
  */
 export function AgentChatRequestCard({
     linkedItem,
+    onAnswered,
     projectRoot,
+    providerName,
     request,
     terminalId,
 }: {
@@ -136,30 +147,46 @@ export function AgentChatRequestCard({
      * Timeline item the request gates, when the provider linked one.
      */
     linkedItem: AgentChatItem | undefined;
+    /**
+     * Runs once the answer lands and this card is about to leave, so a keyboard user who answered from the card is not
+     * dropped onto the document body when its focused button unmounts.
+     */
+    onAnswered: () => void;
     projectRoot: string | undefined;
+    /**
+     * The provider catalog's display name, which a question names as the one asking.
+     */
+    providerName: string;
     request: AgentChatRequest;
     terminalId: string;
 }) {
     const [isAnswering, setAnswering] = useState(false);
+    const cardReference = useRef<HTMLElement>(null);
     const respond = (response: AgentChatResponse): void => {
         if (isAnswering) return;
         setAnswering(true);
         // eslint-disable-next-line no-void -- the command reports its own failure through tryCommand
         void didAnswerAgentChatRequest(terminalId, request.id, response).then((isAnswered) => {
-            if (!isAnswered) setAnswering(false);
+            if (!isAnswered) {
+                setAnswering(false);
+                return;
+            }
+            // Focus that already moved elsewhere while the answer was in flight stays where the user put it.
+            const focused = document.activeElement;
+            if (focused === document.body || cardReference.current?.contains(focused)) onAnswered();
         });
     };
     const cwd =
         request.kind === 'command' ? agentChatCommandCwd(request.cwd, projectRoot) : undefined;
+    const title = agentChatRequestTitle(request, providerName);
     return (
         <section
+            ref={cardReference}
             aria-busy={isAnswering}
-            aria-label={agentChatRequestTitle(request)}
+            aria-label={title}
             className="space-y-2 rounded-lg border border-warning bg-surface px-3 py-2.5 text-[12px] leading-5"
         >
-            <h3 className="m-0 text-[12px] font-semibold text-foreground">
-                {agentChatRequestTitle(request)}
-            </h3>
+            <h3 className="m-0 text-[12px] font-semibold text-foreground">{title}</h3>
             {request.kind === 'question' ? (
                 <QuestionForm isAnswering={isAnswering} request={request} respond={respond} />
             ) : (

@@ -37,7 +37,12 @@ describe('status bar Linear issue labels', () => {
 
     it('stacks the hover card as title, state, source, then the issues it left out', () => {
         const extra: ProjectStatusOverviewLinearIssue[] = [
-            { identifier: 'XYZ-7', source: 'branch', url: 'https://linear.app/acme/issue/XYZ-7' },
+            {
+                identifier: 'XYZ-7',
+                title: 'Retry sync',
+                source: 'branch',
+                url: 'https://linear.app/acme/issue/XYZ-7',
+            },
             { identifier: 'XYZ-8', source: 'conversation' },
         ];
         expect(linearIssueTooltip(resolved, extra)).toEqual({
@@ -48,7 +53,7 @@ describe('status bar Linear issue labels', () => {
             links: {
                 label: 'Also referenced',
                 items: [
-                    { label: 'XYZ-7', href: 'https://linear.app/acme/issue/XYZ-7' },
+                    { label: 'XYZ-7: Retry sync', href: 'https://linear.app/acme/issue/XYZ-7' },
                     { label: 'XYZ-8', href: undefined },
                 ],
             },

@@ -5,6 +5,7 @@ import { Check, ChevronDown, Circle, CircleDot, ListTodo } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
 import { cn } from '../../lib/utilities';
+import { agentChatChevronMotion } from './agent-chat-disclosure';
 import { agentChatPlanProgress, withOccurrenceKeys } from './agent-chat-presentation';
 
 /**
@@ -58,7 +59,7 @@ export function AgentChatPlanCard({
             <button
                 aria-expanded={isExpanded}
                 aria-label={`Plan: ${completed} of ${total} steps done${current ? `. Current step: ${current}` : ''}`}
-                className="flex h-8 w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-3 text-left text-muted transition-colors duration-150 hover:text-foreground focus-visible:outline focus-visible:outline-accent"
+                className="flex h-8 w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-3 text-left text-muted hover:text-foreground focus-visible:outline focus-visible:outline-accent"
                 type="button"
                 onClick={() => setExpanded((expanded) => !expanded)}
             >
@@ -89,7 +90,8 @@ export function AgentChatPlanCard({
                     <ChevronDown
                         aria-hidden
                         className={cn(
-                            'size-3.5 transition-transform duration-150',
+                            'size-3.5',
+                            agentChatChevronMotion(isExpanded),
                             isExpanded && 'rotate-180',
                         )}
                     />

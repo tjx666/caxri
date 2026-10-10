@@ -1,0 +1,50 @@
+import type { SessionRecord } from '@caxri/protocol';
+
+/**
+ * What ending a rename editor should do with its draft.
+ *
+ * - `rename`: the user typed a different name; commit it through `session.rename`.
+ * - `unchanged`: the draft still equals the title the editor opened with, so ending the edit is a cancel.
+ * - `empty`: the draft is blank; Enter reports it as an error and blur discards it.
+ */
+export type SessionRenameDecision =
+    { kind: 'empty' } | { kind: 'unchanged' } | { kind: 'rename'; displayTitle: string };
+
+/**
+ * Decides whether a rename draft is a real rename. The draft is compared with the `baseline` (the title the editor was
+ * showing when it opened or last synced), not with the Session's current title: automatic naming can replace `Untitled`
+ * while the editor is open, and comparing an untouched `Untitled` draft with the new title read as a deliberate rename
+ * back to `Untitled`, which `session.rename` then pinned as a manual title forever.
+ */
+export function decideSessionRename(draft: string, baseline: string): SessionRenameDecision {
+    const displayTitle = draft.trim();
+    if (!displayTitle) return { kind: 'empty' };
+    if (displayTitle === baseline.trim()) return { kind: 'unchanged' };
+    return { kind: 'rename', displayTitle };
+}
+
+/**
+ * The new draft and baseline when the Session's title changes under an open editor whose draft the user has not touched
+ * (draft still equals baseline), so the editor shows the name that just arrived instead of a stale one. Returns
+ * `undefined` when nothing should change: the title is the same, or the user already edited the draft and their text
+ * must win.
+ */
+export function syncUntouchedRenameDraft(
+    draft: string,
+    baseline: string,
+    currentTitle: string | undefined,
+): string | undefined {
+    if (currentTitle === undefined || currentTitle === baseline) return undefined;
+    if (draft !== baseline) return undefined;
+    return currentTitle;
+}
+
+/**
+ * Whether the Server can generate a name for this Session: `session.suggestTitle` reads the primary Agent's
+ * conversation, and a Shell-only Session has none, so offering the action there only produces a failure toast.
+ */
+export function canSuggestSessionTitle(
+    session: Pick<SessionRecord, 'primaryAgentTerminalId'>,
+): boolean {
+    return session.primaryAgentTerminalId !== undefined;
+}

@@ -6,6 +6,7 @@ import {
     agentChatActivity,
     agentChatCommandCwd,
     agentChatContextUsage,
+    agentChatDeliveryCaption,
     agentChatEffortLabel,
     agentChatFailureMessage,
     agentChatModelLabel,
@@ -256,24 +257,73 @@ describe('agentChatFailureMessage', () => {
 describe('agentChatRequestTitle', () => {
     it('asks about a generic tool by name', () => {
         expect(
-            agentChatRequestTitle({
-                id: 'r',
-                kind: 'tool',
-                name: 'WebFetch',
-                decisions: ['accept'],
-            }),
+            agentChatRequestTitle(
+                {
+                    id: 'r',
+                    kind: 'tool',
+                    name: 'WebFetch',
+                    decisions: ['accept'],
+                },
+                'Claude Code',
+            ),
         ).toBe('Allow WebFetch?');
+    });
+
+    it("asks in the timeline's words instead of the raw tool identifier", () => {
+        const tool = (name: string, summary?: string) =>
+            agentChatRequestTitle(
+                { id: 'r', kind: 'tool', name, ...(summary && { summary }), decisions: ['accept'] },
+                'Claude Code',
+            );
+        expect(tool('mcp__github__create_issue', '{"title":"x"}')).toBe(
+            'Allow create_issue from github?',
+        );
+        expect(tool('Edit', '/work/src/app.ts')).toBe('Allow editing app.ts?');
+        expect(tool('WebFetch', `https://example.com/${'a'.repeat(80)}`)).toBe('Allow browsing?');
+    });
+
+    it('names the provider that asks a question', () => {
+        const question = {
+            id: 'q',
+            header: '',
+            question: 'Which?',
+            options: [],
+            allowsOther: true,
+        };
+        expect(
+            agentChatRequestTitle(
+                { id: 'r', kind: 'question', questions: [question] },
+                'Claude Code',
+            ),
+        ).toBe('Claude Code has a question');
+        expect(
+            agentChatRequestTitle(
+                { id: 'r', kind: 'question', questions: [question, { ...question, id: 'q2' }] },
+                'Codex',
+            ),
+        ).toBe('Codex has 2 questions');
     });
 
     it('asks to start with the plan Claude Code proposes', () => {
         expect(
-            agentChatRequestTitle({
-                id: 'r',
-                kind: 'tool',
-                name: 'ExitPlanMode',
-                decisions: ['accept'],
-            }),
+            agentChatRequestTitle(
+                {
+                    id: 'r',
+                    kind: 'tool',
+                    name: 'ExitPlanMode',
+                    decisions: ['accept'],
+                },
+                'Claude Code',
+            ),
         ).toBe('Start with this plan?');
+    });
+});
+
+describe('agentChatDeliveryCaption', () => {
+    it('captions a steered message and drops the caption once a queued one was delivered', () => {
+        expect(agentChatDeliveryCaption('steered')).toBe('Steered');
+        expect(agentChatDeliveryCaption('queued')).toBeUndefined();
+        expect(agentChatDeliveryCaption(undefined)).toBeUndefined();
     });
 });
 

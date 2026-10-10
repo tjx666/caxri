@@ -13,6 +13,11 @@ export interface AgentChatAttachment {
      */
     id: string;
     image: AgentChatImageInput;
+    /**
+     * The picked or dropped file's name, for the chip's alt text. A pasted screenshot often has only a generic name
+     * (`image.png`); an empty one falls back to the chip's position.
+     */
+    name?: string;
 }
 
 const attachments = new Map<string, AgentChatAttachment[]>();
@@ -74,4 +79,33 @@ export function draftWithInsertion(
     const trailing = /^\s/u.test(after) ? '' : ' ';
     const inserted = `${leading}${text}${trailing}`;
     return { draft: `${before}${inserted}${after}`, caret: before.length + inserted.length };
+}
+
+/**
+ * The chip's alt text: the file name when the attachment has one, otherwise its position.
+ */
+export function agentChatAttachmentLabel(
+    attachment: Pick<AgentChatAttachment, 'name'>,
+    index: number,
+): string {
+    if (attachment.name) return attachment.name;
+    return `Attachment ${index + 1}`;
+}
+
+/**
+ * The warning for a paste that would push the draft past `maxLength`, or `undefined` when it fits. Pasting
+ * `pastedLength` characters replaces a selection of `selectedLength` in a draft of `currentLength`; past the limit the
+ * textarea's `maxLength` cuts the paste silently, so the composer says so.
+ */
+export function agentChatPasteTruncationWarning(
+    {
+        currentLength,
+        pastedLength,
+        selectedLength,
+    }: { currentLength: number; pastedLength: number; selectedLength: number },
+    maxLength: number,
+): string | undefined {
+    if (pastedLength === 0 || currentLength - selectedLength + pastedLength <= maxLength)
+        return undefined;
+    return `Pasted text was cut off at the ${maxLength.toLocaleString('en-US')}-character message limit`;
 }

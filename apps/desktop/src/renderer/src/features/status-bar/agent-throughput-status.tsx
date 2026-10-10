@@ -83,6 +83,8 @@ export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
         <StatusInfo
             ariaLabel={`${agentName} output speed: ${label} over ${recentLabel}`}
             className="statusbar-agent-throughput"
+            // Keyboard-reachable like the Linear chip: the tooltip card is the only place the breakdown is shown.
+            focusable
             icon={<Timer />}
             title={
                 <StructuredTooltip
@@ -91,7 +93,17 @@ export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
                     rows={[
                         {
                             label: 'Last response',
-                            value: `${describeThroughputSample(latest)}${lastResponseAgo ? `, ${lastResponseAgo}` : ''}`,
+                            value: (
+                                <>
+                                    {describeThroughputSample(latest)}
+                                    {/* Kept on one line: `1 minute ago` split across two lines read as two facts. */}
+                                    {lastResponseAgo && (
+                                        <span className="whitespace-nowrap">
+                                            , {lastResponseAgo}
+                                        </span>
+                                    )}
+                                </>
+                            ),
                         },
                         ...(throughput.turn.responseCount > 0
                             ? [

@@ -120,7 +120,8 @@ test('a Codex Chat queues follow-ups during a turn and steers on request', async
             chat.getByText('Hello from fake Codex. You said: hello after this'),
         ).toBeVisible();
         await expect(queue).toHaveCount(0);
-        await expect(chat.getByText('Queued', { exact: true })).toBeVisible();
+        // A queued message reads as an ordinary one once delivered; only a steered message keeps a caption.
+        await expect(chat.getByText('Queued', { exact: true })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-queue-drained.png') });
     } finally {
         await closeAppQuietly(running.app);

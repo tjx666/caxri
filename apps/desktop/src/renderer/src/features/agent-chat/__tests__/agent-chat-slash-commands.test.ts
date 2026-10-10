@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
     agentChatLeadingInvocation,
     agentChatMenuActions,
+    agentChatMenuKeyAction,
     agentChatSlashQuery,
     completeAgentChatAction,
     filterAgentChatActions,
@@ -81,6 +82,16 @@ describe('Agent Chat slash commands', () => {
             '/security-review',
         ]);
         expect(completeAgentChatAction(skill('$commit'))).toBe('$commit ');
+    });
+
+    it('completes on Tab and runs only on Enter', () => {
+        expect(agentChatMenuKeyAction({ key: 'Tab', shiftKey: false })).toBe('complete');
+        expect(agentChatMenuKeyAction({ key: 'Enter', shiftKey: false })).toBe('choose');
+        expect(agentChatMenuKeyAction({ key: 'Enter', shiftKey: true })).toBeUndefined();
+        expect(agentChatMenuKeyAction({ key: 'ArrowDown', shiftKey: false })).toBe('next');
+        expect(agentChatMenuKeyAction({ key: 'ArrowUp', shiftKey: false })).toBe('previous');
+        expect(agentChatMenuKeyAction({ key: 'Escape', shiftKey: false })).toBe('dismiss');
+        expect(agentChatMenuKeyAction({ key: 'a', shiftKey: false })).toBeUndefined();
     });
 });
 

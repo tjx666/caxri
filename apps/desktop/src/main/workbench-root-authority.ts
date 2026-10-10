@@ -126,8 +126,9 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
 
     /**
      * A Project-contained link opens through Server Core's authorized editable path. Anything else is an "external"
-     * file: Main confirms once (or silently when a Trusted Folder already contains it), reads one bounded read-only
-     * snapshot, and hands it to the Terminal's own Session as an ephemeral tab. No Project or Session is created.
+     * file: Main confirms once (or silently when a Trusted Folder already contains it), reads one bounded snapshot, and
+     * hands it to the Terminal's own Session as an ephemeral, editable tab whose saves go back through Main's
+     * `externalDocument.write`. No Project or Session is created.
      */
     async function openTerminalFileLink(parameters: OpenTerminalFileLinkParameters) {
         const server = options.getServer();
@@ -171,7 +172,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
 
     /**
      * The first non-archived Session in `state`, preferring whichever one the Workbench currently has selected. Used
-     * only to host an external (outside every Project) file's read-only tab for the Agent Commander: such a file has no
+     * only to host an external (outside every Project) file's ephemeral tab for the Agent Commander: such a file has no
      * owning Project to search for a covering Session, so any live Session is as good as another. `undefined` means the
      * Workbench has no Session at all to attach the tab to, which the caller treats as a cancellation.
      */

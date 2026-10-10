@@ -37,7 +37,7 @@ export function AgentChatModelMenu({
     const text = (
         <>
             <span className="truncate">{label.model}</span>
-            {label.effort && <span className="shrink-0 text-muted/80">{label.effort}</span>}
+            {label.effort && <span className="shrink-0 text-muted">{label.effort}</span>}
         </>
     );
     const models = snapshot?.models;
@@ -47,7 +47,7 @@ export function AgentChatModelMenu({
         <Menu open={isOpen} onOpenChange={setOpen}>
             <MenuTrigger
                 aria-label={`Model: ${label.model}${label.effort ? `, ${label.effort} effort` : ''}`}
-                className={`${LABEL_CLASS_NAME} h-7 shrink cursor-pointer rounded-md border-0 bg-transparent px-1.5 transition-colors duration-150 hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent data-popup-open:bg-elevated data-popup-open:text-foreground`}
+                className={`${LABEL_CLASS_NAME} h-7 shrink cursor-pointer rounded-md border-0 bg-transparent px-1.5 transition-colors duration-(--motion-overlay-enter) ease-(--motion-ease-enter) hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent data-popup-open:bg-elevated data-popup-open:text-foreground`}
             >
                 {text}
                 <ChevronDown className="size-3 shrink-0" />

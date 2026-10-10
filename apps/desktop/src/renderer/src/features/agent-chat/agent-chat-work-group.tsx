@@ -35,6 +35,7 @@ import { useScrollEdges } from '../../hooks/use-scroll-edges';
 import { diffStatLabel } from '../../lib/diff-stat-label';
 import { cn } from '../../lib/utilities';
 import { agentChatFileChangesStat } from './agent-chat-diff';
+import { agentChatChevronMotion } from './agent-chat-disclosure';
 import { AgentChatFileChanges } from './agent-chat-file-changes';
 import { AgentChatMessage } from './agent-chat-message';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
@@ -45,6 +46,7 @@ import {
     agentChatOutputLanguage,
     agentChatReasoningTitle,
     agentChatWorkDuration,
+    agentChatWorkGroupFailure,
     agentChatWorkKind,
     describeAgentChatWork,
     isAgentChatWorkRunning,
@@ -143,7 +145,7 @@ function DisclosureRow({
     const titleId = useId();
     const trailingId = useId();
     const row = (
-        <div className="group/row relative flex w-full min-w-0 items-center gap-2 rounded px-1 py-0.5 text-muted hover:bg-[var(--selection)] hover:text-foreground has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-accent">
+        <div className="group/row relative flex w-full min-w-0 items-center gap-2 rounded px-1 py-0.5 text-muted hover:bg-list-hover-background hover:text-list-hover-foreground has-[>button:focus-visible]:outline has-[>button:focus-visible]:outline-accent">
             <button
                 aria-controls={detailId}
                 aria-expanded={isExpanded}
@@ -168,7 +170,8 @@ function DisclosureRow({
             <ChevronRight
                 aria-hidden="true"
                 className={cn(
-                    'size-3.5 shrink-0 opacity-0 transition-[transform,opacity] duration-100 group-hover/row:opacity-100 group-has-[>button:focus-visible]/row:opacity-100',
+                    'size-3.5 shrink-0 opacity-0 group-hover/row:opacity-100 group-has-[>button:focus-visible]/row:opacity-100',
+                    agentChatChevronMotion(isExpanded),
                     isExpanded && 'rotate-90 opacity-100',
                 )}
             />
@@ -486,14 +489,14 @@ function AgentChatWorkSummary({
     items: readonly AgentChatWorkItem[];
     onOpenFile?: (target: string) => void;
 }) {
-    const hasFailure = items.some((item) => item.type !== 'reasoning' && item.status === 'failed');
+    const failureStatus = agentChatWorkGroupFailure(items);
     const summary = summarizeAgentChatWork(items);
     return (
         <DisclosureRow
             disclosureKind="agent-chat-work-group"
             glyph={<WorkGlyph kind={agentChatWorkKind(items)} />}
             title={<span className="min-w-0 truncate">{summary}</span>}
-            trailing={hasFailure && <AgentChatStatusGlyph status="failed" />}
+            trailing={failureStatus && <AgentChatStatusGlyph status={failureStatus} />}
         >
             <WorkList>
                 {items.map((item) => (

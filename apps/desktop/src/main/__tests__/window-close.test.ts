@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createWindowCloseHandler, resolveWindowClose } from '../window-close';
+import { createWindowCloseHandler, resolveWindowClose, windowClosePrompt } from '../window-close';
 
 describe('resolveWindowClose', () => {
     it.each([
@@ -65,5 +65,18 @@ describe('resolveWindowClose', () => {
         count.resolve(0);
         await Promise.all([first, second]);
         expect(close).toHaveBeenCalledOnce();
+    });
+});
+
+describe('windowClosePrompt', () => {
+    it('counts running tasks, not Terminals, and avoids naming the Server', () => {
+        expect(windowClosePrompt(1)).toMatchObject({
+            title: 'Tasks are still running',
+            message: '1 task is still running.',
+        });
+        const prompt = windowClosePrompt(3);
+        expect(prompt.message).toBe('3 tasks are still running.');
+        expect(prompt.detail).toContain('keeps them running in the background');
+        expect(prompt.detail).not.toContain('Server');
     });
 });

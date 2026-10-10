@@ -63,7 +63,9 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
         // One row per Agent. The footer toggle keeps the menu open and turns the Chat-capable rows into Chats.
         const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
-        const openInChat = terminalMenu.getByRole('menuitemcheckbox', { name: 'Open in Chat' });
+        const openInChat = terminalMenu.getByRole('menuitemcheckbox', {
+            name: 'Open Agents in Chat',
+        });
         await expect(openInChat).not.toBeChecked();
         await expect(terminalMenu.getByRole('menuitem')).toHaveText([
             'Claude',
@@ -92,7 +94,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(message).toHaveAttribute('placeholder', 'Message Codex');
         // The composer keeps the model and the context used in view, as the Codex app does.
         await expect(chat.getByRole('button', { name: /^Model: Fake Codex, / })).toBeVisible();
-        await expect(chat.getByRole('img', { name: /^\d+% of context used$/u })).toBeVisible();
+        await expect(chat.getByRole('img', { name: /^\d+% of context used, /u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-reply.png') });
         const planRow = chat.getByRole('button', {
             name: 'Plan: 1 of 2 steps done. Current step: Reply',
@@ -121,7 +123,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
 
         await message.fill('ask me');
         await message.press('Enter');
-        const question = chat.getByRole('region', { name: 'The Agent has a question' });
+        const question = chat.getByRole('region', { name: 'Codex has a question' });
         await question.getByRole('button', { name: /^Blue/u }).click();
         await question.getByRole('button', { name: 'Submit' }).click();
         await expect(chat.getByText('You chose Blue.')).toBeVisible();
@@ -140,7 +142,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
          * Only the reply that ends each turn carries Copy, so commentary between tool calls reserves no action row.
          */
         const reply = (text: string) =>
-            chat.locator(String.raw`.group\/reply`).filter({ hasText: text });
+            chat.locator('[data-agent-chat-reply]').filter({ hasText: text });
         await expect(reply('Looking around the project.')).toBeVisible();
         await expect(
             reply('Looking around the project.').getByRole('button', { name: 'Copy message' }),
@@ -196,7 +198,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await chat.getByRole('button', { name: 'app.ts', exact: true }).click();
         await expect(page.getByRole('tab', { name: 'app.ts' })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-file-link.png') });
-        await page.getByRole('tab', { name: 'Codex', exact: true }).click();
+        await page.getByRole('tab', { name: 'Codex (Chat)', exact: true }).click();
         await expect(message).toBeVisible();
 
         // A Files entry dropped on the composer is inserted as its path, relative to where the Agent runs.
@@ -246,7 +248,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await newSession.press('Enter');
         const sessionMenu = page.getByRole('menu', { name: /^New Session in / });
         await expect(
-            sessionMenu.getByRole('menuitemcheckbox', { name: 'Open in Chat' }),
+            sessionMenu.getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' }),
         ).toBeChecked();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-new-session-menu.png') });
         await chooseTerminalFromCreateMenu(page, 'Codex Chat');
@@ -349,7 +351,7 @@ test('closing the window with only a Chat running asks first and Terminate stops
         await createProjectSession(page, 'shell');
         await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
         const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
-        await terminalMenu.getByRole('menuitemcheckbox', { name: 'Open in Chat' }).click();
+        await terminalMenu.getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' }).click();
         await chooseTerminalFromCreateMenu(page, 'Codex Chat');
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
@@ -387,7 +389,7 @@ test('closing the window with only a Chat running asks first and Terminate stops
                 const value: unknown = Reflect.get(globalThis, '__caxriCloseConfirmMessage');
                 return typeof value === 'string' ? value : undefined;
             }),
-        ).toBe('1 Terminal is still running.');
+        ).toBe('1 task is still running.');
         const log = join(userData, 'logs', 'server-core.jsonl');
         await expect
             .poll(async () =>
@@ -432,7 +434,7 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await createProjectSession(page, 'shell');
         await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
         const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
-        await terminalMenu.getByRole('menuitemcheckbox', { name: 'Open in Chat' }).click();
+        await terminalMenu.getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' }).click();
         await chooseTerminalFromCreateMenu(page, 'Claude Chat');
 
         const chat = page.locator(VISIBLE_SESSION);
@@ -444,7 +446,7 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await message.press('Enter');
         await expect(chat.getByText('Hello from fake Claude. You said: hi there')).toBeVisible();
         await expect(chat.getByRole('button', { name: 'Model: Fake' })).toBeVisible();
-        await expect(chat.getByRole('img', { name: /^\d+% of context used$/u })).toBeVisible();
+        await expect(chat.getByRole('img', { name: /^\d+% of context used, /u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-reply.png') });
 
         await message.fill('please approve this');
@@ -472,7 +474,7 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
 
         await message.fill('ask me');
         await message.press('Enter');
-        const question = chat.getByRole('region', { name: 'The Agent has a question' });
+        const question = chat.getByRole('region', { name: 'Claude has a question' });
         await question.getByRole('button', { name: /^Blue/u }).click();
         await question.getByRole('button', { name: 'Submit' }).click();
         await expect(chat.getByText('You chose Blue.')).toBeVisible();
@@ -521,7 +523,7 @@ test('a Grok Build Chat streams a reply, answers an approval, and resumes after 
         await expect(chat.getByText('You said: hi there')).toBeVisible();
         // Grok Build lists no models, so the composer names the one in use as plain text beside the context ring.
         await expect(chat.getByText('grok-fake', { exact: true })).toBeVisible();
-        await expect(chat.getByRole('img', { name: /^\d+% of context used$/u })).toBeVisible();
+        await expect(chat.getByRole('img', { name: /^\d+% of context used, /u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('grok-chat-reply.png') });
 
         await message.fill('please approve this');

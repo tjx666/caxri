@@ -252,8 +252,9 @@ remain visible below the field while the user types; Tab completes one unambiguo
 through results, and Enter opens the selected result. This flow never opens a native folder picker.
 Project-anchored mode retains Project-local create actions. Free-path mode is browse-and-open only: a
 file inside the current Project still uses its normal editable Editor path, while an external file becomes
-a read-only virtual Editor tab in the current Session, survives only for the Renderer lifetime, and never
-creates a Project or Session or enters durable Session state.
+an editable virtual Editor tab in the current Session whose saves write back to that file through Main. The
+tab survives only for the Renderer lifetime and never creates a Project or Session or enters durable Session
+state.
 
 **Status bar**: `--surface` background, top hairline, `meta` text in `--muted`. The left side
 shows Project and Git context, plus the delivery chips the current branch resolves to: its pull
@@ -576,13 +577,15 @@ no slot then: it floats over that tab's trailing end, revealed on bar hover or k
 tab's fill reaches the bar's edge instead of leaving a block of bar color beside it. Hovering + still
 opens the Agent list. Pressing it (pointer click or keyboard activation) instead creates a Terminal
 running whichever Agent the Session's own primary Terminal is currently running, so the press clones
-the conversation already in front of the user instead of asking again; a `CommandTooltip` on that icon
-state names the Agent it will create and shows ⌘T, `terminal.new`'s own shortcut, since both create
-another Terminal in this same Session from this same slot. It falls back to `session.defaultAgent`
+the conversation already in front of the user instead of asking again; that icon's tooltip names the
+Agent and surface it will create ("New Codex Chat", "New Claude Code Terminal") and shows ⌘T,
+`terminal.new`'s own shortcut, since both create another Terminal in this same Session from this
+same slot. It falls back to `session.defaultAgent`
 when that primary Terminal is a plain shell or has exited, and to opening the Agent list (with no
 tooltip, since there is nothing yet to name) when neither resolves. Either way the chosen Agent
 starts as another Terminal in the same Session. With two or more tabs, + stays visible and keeps the
-same behavior. An empty pane uses its own labelled New Terminal action.
+same behavior. An empty pane uses its own labelled action, reading New Chat when it will create a
+Chat and New Terminal otherwise.
 A clean preview Editor owns one transient, Session-scoped motion identity: replacing its path
 updates the same DOM tab instantly, pinning preserves that identity, and only the next real tab
 receives the existing enter animation.
@@ -977,7 +980,8 @@ elapsed time and their own Stop; a shell is named by the Agent's description of 
 `Bash` description) when there is one, with its command line atop its tab's output, and by the
 command line in monospace otherwise; clicking one, or the Open action on its timeline row, opens it as
 a read-only tab split to the right of the Chat, reusing that side pane for later tasks. A user
-message that was steered or queued carries an 11px `--muted` `Steered` or `Queued` caption. Escape
+message steered into a running turn carries an 11px `--muted` `Steered` caption; a queued one is an
+ordinary message once delivered and carries none, since `Queued` would read as pending. Escape
 interrupts a running turn regardless. While the Chat starts, works, or waits on an answer, a 32px
 status row opens the card above a hairline, so the card keeps one rounded outline: a spinner (or a `--warning`
 question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
@@ -1003,23 +1007,32 @@ then right-aligned a 4px segment per step (`--success` done, `--muted` in progre
 pending; omitted past ten steps), the `done/total` count (`--success` once complete), and a
 chevron. It starts collapsed and expands in place to the explanation and the step list (scrolling
 past 240px), keeping that choice while the plan updates. Reference: T3 Code's composer task badge.
+A pending approval titles the tool in the timeline's words (`Allow editing app.ts?`, `Allow
+create_issue from github?`), never its raw identifier; a question names the provider (`Codex has a
+question`), and each option's description sits under its label in `meta` `--muted`, not in a
+tooltip. While the reader follows the end, the transcript stays pinned when a dock grows and
+shrinks the view.
 
 **Agent Chat timeline**: work is secondary to the conversation. Every command, tool call, file
 change, and thought is one 12px `--muted` disclosure row: the tool kind's glyph (the same table the
-mobile timeline uses), a past-tense verb, the subject in the body font (a single file it read or changed is an underlined link that opens
-it), and trailing facts
+mobile timeline uses), a past-tense verb that names a non-success outcome in words (`Failed to
+edit`, `Not allowed to run`, `Stopped editing`), the subject in the body font (a single file it read
+or changed is an underlined link that opens it), and trailing facts
 (a `+N -M` diff stat, a non-success status glyph, a duration of at least one second; a command
 always shows its duration, plus a `--danger` `Exit N` when non-zero and a `--surface` `Background`
 tag once handed off). A command the Agent described is titled by the description in the body font,
 and its command line moves into the expanded view. Consecutive
-work collapses into one summary row (`Ran 3 commands, read 2 files`) whose expanded list scrolls
-past 240px and fades its clipped edge over 24px. A shell command that only reads, searches, or
-lists files reads as that action (`sed -n '1,40p' src/app.ts` is `Read app.ts`, `rg foo src` is
-`Searched foo in src`), keeping its command line in the expanded view. A finished turn folds
-everything except the prompt, the final reply, and notices behind one `Worked for 2m 1s` row with a
-bottom hairline. Expanded output renders in the shared code view, painted in the language inferred
-from what produced it (a printed file's extension, a Git diff, JSON), any other command output as
-shell, and capped in height. A new
+work collapses into one summary row (`Ran 3 commands, read 2 files`), ending `, N failed` when items
+failed or were declined, whose expanded list scrolls past 240px and fades its clipped edge over
+24px. A shell command that only reads, searches, or lists files reads as that action (`sed -n
+'1,40p' src/app.ts` is `Read app.ts`, `rg foo src` is `Searched foo in src`), keeping its command
+line in the expanded view. A finished turn folds everything except the prompt, the final reply, and
+notices behind one `Worked for 2m 1s` row with a bottom hairline; a failed or stopped turn's row
+(`Failed after 40s`, `Stopped after 3s`) takes `--danger` or `--warning` with its glyph. The final
+reply's Copy stays visible in `--muted` and rises to `--foreground` on hover. `Jump to latest`
+returns focus to the composer (to the scroll view in a read-only task tab). Expanded output renders
+in the shared code view, painted in the language inferred from what produced it (a printed file's
+extension, a Git diff, JSON), any other command output as shell, and capped in height. A new
 tool kind gets its glyph in one table, not a new component. References: the Codex app and T3 Code's
 work log.
 

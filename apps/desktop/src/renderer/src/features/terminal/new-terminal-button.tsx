@@ -3,7 +3,6 @@ import { useState } from 'react';
 import type { TerminalKind, TerminalSurface } from '@caxri/protocol';
 import { Plus } from 'lucide-react';
 
-import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/menu';
 import {
@@ -11,15 +10,19 @@ import {
     SplitButtonAction,
     SplitButtonTrigger,
 } from '../../components/ui/split-button';
+import { Tooltip } from '../../components/ui/tooltip';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { useCommandShortcut } from '../../lib/keybindings';
 import { useSettings, useTerminals } from '../../stores/selectors';
 import { ChatSurfaceMarker, OpenInChatMenuItem } from '../session/open-in-chat-menu-item';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import {
     newAgentSurface,
+    newTerminalActionLabel,
     newTerminalAgentChoices,
+    newTerminalButtonText,
     resolveNewTerminalAgent,
     resolveNewTerminalTarget,
 } from './new-terminal-agent';
@@ -57,6 +60,7 @@ export function NewTerminalButton({
     const openInChat = settings?.['session.openAgentsInChat'];
     const isIcon = appearance === 'icon';
     const [iconMenuOpen, setIconMenuOpen] = useState(false);
+    const newTerminalShortcut = useCommandShortcut('terminal.new');
     const create = (kind: TerminalKind, surface: TerminalSurface): void => {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
         void createTerminal(kind, {
@@ -101,7 +105,8 @@ export function NewTerminalButton({
                     render={
                         /**
                          * Names what a click will actually create, for the screen reader that never sees the hover
-                         * preview. `CommandTooltip` below covers the sighted hint plus the ⌘T shortcut it shares.
+                         * preview. The `Tooltip` below names the same Agent for sighted users, plus the ⌘T shortcut it
+                         * shares with `terminal.new`.
                          */
                         <Button
                             aria-label={`New Terminal (${resolveAgentIcon(target.kind).label}${target.surface === 'chat' ? ' Chat' : ''})`}
@@ -132,14 +137,22 @@ export function NewTerminalButton({
                         setIconMenuOpen(open);
                     }}
                 >
-                    <CommandTooltip commandId="terminal.new">{icon}</CommandTooltip>
+                    <Tooltip
+                        content={newTerminalActionLabel(
+                            target,
+                            resolveAgentIcon(target.kind).label,
+                        )}
+                        shortcut={newTerminalShortcut}
+                    >
+                        {icon}
+                    </Tooltip>
                     {menu}
                 </Menu>
             );
         }
         /**
-         * No `CommandTooltip` here: with no live primary Agent and no configured default, the button asks which Agent
-         * to start, while `terminal.new` has no menu to open from a shortcut and falls back to a shell.
+         * No tooltip here: with no live primary Agent and no configured default, the button asks which Agent to start,
+         * while `terminal.new` has no menu to open from a shortcut and falls back to a shell.
          */
         return (
             <Menu open={iconMenuOpen} onOpenChange={setIconMenuOpen}>
@@ -177,15 +190,16 @@ export function NewTerminalButton({
      * configured, so "New Terminal" alone would leave a screen reader user guessing which Agent starts.
      */
     const defaultSurface = newAgentSurface(defaultAgent, openInChat);
+    const buttonText = newTerminalButtonText(defaultSurface);
     const action = (
         <SplitButtonAction
-            aria-label={`New Terminal (${resolveAgentIcon(defaultAgent).label}${defaultSurface === 'chat' ? ' Chat' : ''})`}
+            aria-label={`${buttonText} (${resolveAgentIcon(defaultAgent).label})`}
             onClick={() => create(defaultAgent, defaultSurface)}
             size="default"
             variant="default"
         >
             <AgentIdentityIcon identity={defaultAgent} size={15} />
-            New Terminal
+            {buttonText}
         </SplitButtonAction>
     );
     return (

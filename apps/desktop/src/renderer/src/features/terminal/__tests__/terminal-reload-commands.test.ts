@@ -1,31 +1,83 @@
-import type { TerminalRecord } from '@caxri/protocol';
-import { describe, expect, it, vi } from 'vitest';
+import type { BootstrapState, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ restartTerminal: vi.fn<(terminalId: string) => void>() }));
+const mocks = vi.hoisted(() => ({
+    restartTerminalWithRecovery: vi.fn<(terminalId: string, failureTitle?: string) => void>(),
+    showConfirm: vi.fn<(...parameters: unknown[]) => Promise<boolean>>(() =>
+        Promise.resolve(false),
+    ),
+    getBootstrap: vi.fn<() => BootstrapState | undefined>(),
+    tryCommand: vi.fn(async (...[, run]: [string, () => Promise<unknown>]): Promise<unknown> => {
+        try {
+            return await run();
+        } catch {
+            return undefined;
+        }
+    }),
+}));
 
-vi.mock('../terminal-commands', () => ({ restartTerminal: mocks.restartTerminal }));
+vi.mock('../terminal-commands', () => ({
+    restartTerminalWithRecovery: mocks.restartTerminalWithRecovery,
+}));
+vi.mock('../../../lib/caxri', () => ({ caxri: { window: { showConfirm: mocks.showConfirm } } }));
+vi.mock('../../../stores/selectors', () => ({ getBootstrap: mocks.getBootstrap }));
+vi.mock('../../../stores/toasts', () => ({ tryCommand: mocks.tryCommand }));
+vi.mock('../../../lib/keybindings', () => ({ readCommandShortcut: () => {} }));
+vi.mock('../../../stores/workbench', () => ({ refreshWorkbench: vi.fn() }));
+vi.mock('../../session/session-commands', () => ({ moveTerminalToNewSession: vi.fn() }));
 
-import { agentReloadMenuEntry } from '../terminal-reload-commands';
+import { serializeContextMenu } from '../../../lib/context-menu';
+import { agentReloadMenuEntry, isAgentTurnRunning, reloadAgent } from '../terminal-reload-commands';
 import { terminalTabMenuEntries } from '../terminal-tab-menu';
 
 function agentTerminal(overrides: Partial<TerminalRecord> = {}): TerminalRecord {
     return {
         id: 'terminal-1',
+        sessionId: 'session-1',
         kind: 'claude',
         provider: 'claude',
         agentSessionId: 'claude-session-1',
         lastProcessState: 'running',
+        lastAgentProcessState: 'running',
         ...overrides,
     } as TerminalRecord;
 }
 
+function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
+    return {
+        id: 'session-1',
+        primaryAgentTerminalId: 'terminal-1',
+        lastActivityState: 'running',
+        ...overrides,
+    } as SessionRecord;
+}
+
+function bootstrapWith(terminal: TerminalRecord, sessionRecord: SessionRecord): BootstrapState {
+    return { terminals: [terminal], sessions: [sessionRecord] } as unknown as BootstrapState;
+}
+
+beforeEach(() => {
+    mocks.restartTerminalWithRecovery.mockClear();
+    mocks.showConfirm.mockClear();
+    mocks.getBootstrap.mockReset();
+});
+
 describe('agentReloadMenuEntry', () => {
-    it('resumes the clicked Agent Terminal through the Terminal restart', () => {
+    it('reloads the clicked Agent Terminal without asking when no turn is running', async () => {
+        mocks.getBootstrap.mockReturnValue(
+            bootstrapWith(agentTerminal(), session({ lastActivityState: 'idle' })),
+        );
         const entry = agentReloadMenuEntry(agentTerminal());
         expect(entry).toMatchObject({ label: 'Reload Agent', disabled: false });
         if (entry.type === 'separator' || entry.type === 'submenu') throw new Error('not an item');
         entry.onSelect();
-        expect(mocks.restartTerminal).toHaveBeenCalledWith('terminal-1');
+        await vi.waitFor(() =>
+            expect(mocks.restartTerminalWithRecovery).toHaveBeenCalledWith(
+                'terminal-1',
+                'Reload Agent failed',
+            ),
+        );
+        expect(mocks.showConfirm).not.toHaveBeenCalled();
     });
 
     it('still reloads an Agent whose process already exited', () => {
@@ -53,19 +105,115 @@ describe('agentReloadMenuEntry', () => {
             disabledReason: reason,
         });
     });
+
+    it("reuses the caller's sentence for a missing Agent or conversation, not for a detached one", () => {
+        const reason = 'This Session has no Agent conversation yet';
+        expect(agentReloadMenuEntry(undefined, reason)).toMatchObject({ disabledReason: reason });
+        expect(
+            agentReloadMenuEntry(agentTerminal({ agentSessionId: undefined }), reason),
+        ).toMatchObject({ disabledReason: reason });
+        expect(
+            agentReloadMenuEntry(agentTerminal({ lastProcessState: 'detached' }), reason),
+        ).toMatchObject({ disabledReason: 'Resume the detached Agent first' });
+    });
+});
+
+describe('isAgentTurnRunning', () => {
+    it.each(['running', 'waiting'] as const)(
+        'reads a %s Primary Agent with a live process as mid-turn',
+        (lastActivityState) => {
+            expect(isAgentTurnRunning(agentTerminal(), session({ lastActivityState }))).toBe(true);
+        },
+    );
+
+    it.each([
+        {
+            name: 'an idle Session',
+            terminal: agentTerminal(),
+            state: session({ lastActivityState: 'completed' }),
+        },
+        {
+            name: 'a secondary Agent',
+            terminal: agentTerminal(),
+            state: session({ primaryAgentTerminalId: 'terminal-2' }),
+        },
+        {
+            name: 'a PTY Agent whose process exited',
+            terminal: agentTerminal({ lastAgentProcessState: 'stopped' }),
+            state: session(),
+        },
+        { name: 'a missing Session', terminal: agentTerminal(), state: undefined },
+    ])('does not read $name as mid-turn', ({ terminal, state }) => {
+        expect(isAgentTurnRunning(terminal, state)).toBe(false);
+    });
+
+    it('trusts Session Activity alone for a Chat, which has no PTY process', () => {
+        expect(
+            isAgentTurnRunning(
+                agentTerminal({ surface: 'chat', lastAgentProcessState: undefined }),
+                session(),
+            ),
+        ).toBe(true);
+    });
+});
+
+describe('reloadAgent', () => {
+    it('asks before stopping a running turn and reloads only after confirmation', async () => {
+        mocks.getBootstrap.mockReturnValue(bootstrapWith(agentTerminal(), session()));
+        mocks.showConfirm.mockResolvedValueOnce(true);
+        await reloadAgent(agentTerminal());
+        expect(mocks.showConfirm).toHaveBeenCalledWith({
+            title: 'Stop the running turn?',
+            message:
+                'Claude is still working. Reloading stops the current turn and resumes the same conversation.',
+            confirmLabel: 'Stop and Reload',
+        });
+        expect(mocks.restartTerminalWithRecovery).toHaveBeenCalledWith(
+            'terminal-1',
+            'Reload Agent failed',
+        );
+    });
+
+    it('leaves the running turn alone when the user cancels', async () => {
+        mocks.getBootstrap.mockReturnValue(bootstrapWith(agentTerminal(), session()));
+        await reloadAgent(agentTerminal());
+        expect(mocks.showConfirm).toHaveBeenCalledTimes(1);
+        expect(mocks.restartTerminalWithRecovery).not.toHaveBeenCalled();
+    });
+
+    it('reads the latest state, not the snapshot the menu was built from', async () => {
+        mocks.getBootstrap.mockReturnValue(
+            bootstrapWith(agentTerminal(), session({ lastActivityState: 'completed' })),
+        );
+        await reloadAgent(agentTerminal());
+        expect(mocks.showConfirm).not.toHaveBeenCalled();
+        expect(mocks.restartTerminalWithRecovery).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe('terminalTabMenuEntries', () => {
-    it('offers Reload Agent on an Agent tab only', () => {
-        const labels = (terminal: TerminalRecord) =>
-            terminalTabMenuEntries(terminal, false).flatMap((entry) =>
-                entry && entry.type !== 'separator' ? [entry.label] : [],
-            );
-        expect(labels(agentTerminal())).toContain('Reload Agent');
+    function labels(terminal: TerminalRecord): Array<string | undefined> {
+        return serializeContextMenu(terminalTabMenuEntries(terminal, false)).items.map((item) =>
+            item.type === 'separator' ? undefined : item.label,
+        );
+    }
+
+    it('groups the Agent actions, the move, and the copy with separators', () => {
+        expect(labels(agentTerminal({ kind: 'codex', provider: 'codex' }))).toEqual([
+            'Open as Chat',
+            'Reload Agent',
+            undefined,
+            'Move to New Session',
+            undefined,
+            'Copy Resume Command',
+        ]);
+    });
+
+    it('leaves a Shell tab only its move, with no stray separators', () => {
         expect(
             labels(
                 agentTerminal({ kind: 'shell', provider: undefined, agentSessionId: undefined }),
             ),
-        ).not.toContain('Reload Agent');
+        ).toEqual(['Move to New Session']);
     });
 });

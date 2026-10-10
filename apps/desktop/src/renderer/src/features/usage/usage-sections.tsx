@@ -14,12 +14,11 @@ import { ProviderLabel, ShareBar, StatTile, UsageCard } from './usage-card';
 import { UsageDetailCards } from './usage-detail-cards';
 import type { UsageMetric } from './usage-metrics';
 import {
-    activityHighlights,
+    buildUsageInsights,
+    burnRateCaption,
     computeStreaks,
-    formatDate,
     formatHour,
     peakHour,
-    weekdayName,
 } from './usage-metrics';
 
 function KpiTiles({ report }: { report: UsageReport }) {
@@ -29,9 +28,9 @@ function KpiTiles({ report }: { report: UsageReport }) {
     return (
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
             <StatTile
-                label="Estimated cost"
+                label="Est. API cost"
                 value={formatUsd(totals.costUsd)}
-                detail={`${formatUsd(totals.cacheSavingsUsd)} saved by caching`}
+                detail={`${formatUsd(totals.cacheSavingsUsd)} cache savings`}
             />
             <StatTile
                 label="Tokens"
@@ -53,8 +52,9 @@ function KpiTiles({ report }: { report: UsageReport }) {
                 value={`${totals.pullRequestsMerged} merged`}
                 detail={`+${formatLineCount(totals.linesAdded)} -${formatLineCount(totals.linesDeleted)} lines · ${totals.pullRequestsCreated} opened`}
             />
+            {/* Read from the trailing-year activity, like the Activity card, so the range selector does not move it. */}
             <StatTile
-                label="Streak"
+                label="Streak (last 12 months)"
                 value={`${streaks.current} ${streaks.current === 1 ? 'day' : 'days'}`}
                 detail={`Longest ${streaks.longest} ${streaks.longest === 1 ? 'day' : 'days'}`}
             />
@@ -63,35 +63,7 @@ function KpiTiles({ report }: { report: UsageReport }) {
 }
 
 function InsightsCard({ report }: { report: UsageReport }) {
-    const highlights = activityHighlights(report.activity);
-    const { totals } = report;
-    const topProject = report.projects.at(0);
-    const topModel = report.models.at(0);
-    const output = totals.tokens.output;
-    const insights: string[] = [];
-    if (highlights.busiestDay)
-        insights.push(
-            `Busiest day: ${formatDate(highlights.busiestDay.date)} with ${formatTokens(highlights.busiestDay.tokens)} tokens (${formatUsd(highlights.busiestDay.costUsd)}).`,
-        );
-    if (highlights.busiestWeekday !== undefined)
-        insights.push(`${weekdayName(highlights.busiestWeekday)} is your heaviest weekday.`);
-    if (topProject && totals.costUsd > 0)
-        insights.push(
-            `${topProject.title} accounts for ${formatPercent(topProject.costUsd / totals.costUsd)} of the spend.`,
-        );
-    if (topModel) insights.push(`Most spend goes to ${topModel.model}.`);
-    if (totals.cacheSavingsUsd > 0)
-        insights.push(
-            `Prompt caching saved ${formatUsd(totals.cacheSavingsUsd)}, ${formatPercent(totals.cacheSavingsUsd / (totals.cacheSavingsUsd + totals.costUsd))} of what the same tokens would cost uncached.`,
-        );
-    if (output > 0 && totals.activeMs > 0)
-        insights.push(
-            `Agents wrote ${formatTokens(Math.round(output / (totals.activeMs / 3_600_000)))} output tokens per active hour.`,
-        );
-    if (totals.pullRequestsMerged > 0)
-        insights.push(
-            `Each merged pull request took ${formatDuration(totals.activeMs / totals.pullRequestsMerged)} of Agent time on average.`,
-        );
+    const insights = buildUsageInsights(report);
     return (
         <UsageCard title="Highlights">
             {insights.length === 0 ? (
@@ -142,10 +114,7 @@ function BurnCard({ report }: { report: UsageReport }) {
         { label: 'Last 30 days', window: last30Days, perDay: last30Days.costUsd / 30 },
     ];
     return (
-        <UsageCard
-            title="Burn rate"
-            caption={`${formatUsd((last30Days.costUsd / 30) * 30.4)} / month pace`}
-        >
+        <UsageCard title="Burn rate" caption={burnRateCaption(last30Days.costUsd)}>
             <div className="grid gap-2">
                 {rows.map(({ label, window, perDay }) => (
                     <div
@@ -185,7 +154,10 @@ function formatReset(at: number, now: number): string {
 function LimitsCard({ report }: { report: UsageReport }) {
     if (report.limits.length === 0) return null;
     return (
-        <UsageCard title="Plan limits" caption="Account-wide, as last reported by the Agent">
+        <UsageCard
+            title="Plan limits"
+            caption="Current windows, account-wide, as last reported by the Agent"
+        >
             <div className="grid gap-3">
                 {report.limits.map((limit) => (
                     <div key={limit.provider} className="grid gap-2">
@@ -296,7 +268,7 @@ function HourOfDayCard({ report }: { report: UsageReport }) {
                     />
                 ))}
             </div>
-            <div aria-hidden="true" className="mt-1 grid grid-cols-4 text-[10px] text-muted">
+            <div aria-hidden="true" className="mt-1 grid grid-cols-4 text-[11px] text-muted">
                 <span>00</span>
                 <span>06</span>
                 <span>12</span>

@@ -114,6 +114,12 @@ test('Reload Agent resumes the same conversation in the approval mode it launche
         const rowLabels = await contextMenuLabels(app);
         expect(rowLabels.indexOf('Reload Agent')).toBe(rowLabels.indexOf('Detach Agent') + 1);
         await chooseContextMenuItem(app, 'Reload Agent');
+        // The fake's turn started (`UserPromptSubmit`) and never stopped, so reloading would end it: the user confirms.
+        const confirm = page.getByRole('dialog', { name: 'Stop the running turn?' });
+        await expect(confirm).toContainText(
+            'Claude is still working. Reloading stops the current turn and resumes the same conversation.',
+        );
+        await confirm.getByRole('button', { name: 'Stop and Reload' }).click();
         await expectResumedInYolo(1);
 
         const tab = page.locator(

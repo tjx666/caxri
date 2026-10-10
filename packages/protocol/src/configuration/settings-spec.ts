@@ -141,9 +141,9 @@ export const settingsSpec = [
         key: 'session.openAgentsInChat',
         title: 'Open Agents in Chat',
         description:
-            'Starts new Sessions and Terminals for Agents that support Chat (currently Codex) as an Agent Chat instead of a terminal. Other Agents and Shell still open in a terminal. The New Session and New Terminal menus toggle this too.',
+            'Starts new Agents as a Chat instead of a terminal. Shell always opens in a terminal. The New Session and New Terminal menus toggle this too.',
         category: 'general',
-        keywords: ['chat', 'surface', 'terminal', 'codex', 'conversation', 'tui'],
+        keywords: ['chat', 'surface', 'terminal', 'claude', 'codex', 'grok', 'conversation', 'tui'],
         default: false,
     },
     {
@@ -407,7 +407,7 @@ export const settingsSpec = [
         key: 'security.trustedFolders',
         title: 'Trusted folders',
         description:
-            'Terminal file links under these folders open read-only without a confirmation prompt',
+            'Terminal file links under these folders open in the editor without a confirmation prompt; saving writes back to the file',
         category: 'security',
         keywords: ['path', 'folder', 'directory', 'link', 'terminal', 'allowlist', 'external'],
     },
@@ -474,9 +474,9 @@ export const settingsSpec = [
     {
         kind: 'boolean',
         key: 'projectStatus.notifyAgentOnMerge',
-        title: 'Tell the Agent when a pull request merges',
+        title: 'Tell the Agent after you merge from Status',
         description:
-            "After Caxri merges a pull request, send its link to the Session's primary Agent",
+            "Sends 'Pull request <link> has been merged.' to this Session's Agent as a new message. Merges made on GitHub are not reported.",
         category: 'projectStatus',
         keywords: ['merge', 'pull request', 'pr', 'agent', 'message', 'notify', 'github'],
         default: false,

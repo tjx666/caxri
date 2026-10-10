@@ -12,6 +12,33 @@ interface WindowCloseOptions {
     terminateAll: () => Promise<unknown>;
 }
 
+export interface WindowClosePrompt {
+    buttons: [string, string, string];
+    cancelId: number;
+    defaultId: number;
+    detail: string;
+    message: string;
+    title: string;
+    type: 'warning';
+}
+
+/**
+ * The close-window confirmation. The running count covers every live Terminal and Agent Chat, so the copy says "tasks"
+ * like the Quit dialog (`appQuitPrompt`) instead of "Terminals", and it names the outcome rather than the Server
+ * process that keeps them alive.
+ */
+export function windowClosePrompt(runningCount: number): WindowClosePrompt {
+    return {
+        type: 'warning',
+        title: 'Tasks are still running',
+        message: `${runningCount} ${runningCount === 1 ? 'task is' : 'tasks are'} still running.`,
+        detail: 'Keep Running closes this window and keeps them running in the background. To exit the app, use Quit Caxri and choose whether running tasks should stop.',
+        buttons: ['Keep Running', 'Terminate and Close', 'Cancel'],
+        defaultId: 2,
+        cancelId: 2,
+    };
+}
+
 /**
  * Completes window closure even when the Server is unavailable during shutdown.
  */
