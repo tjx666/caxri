@@ -1,5 +1,6 @@
 export * from './agent-action-contract.js';
 export * from './agent-chat-contract.js';
+export * from './agent-chat-methods.js';
 export * from './agent-chat-reducer.js';
 export * from './agent-commander-contract.js';
 export * from './agent-delegation-contract.js';

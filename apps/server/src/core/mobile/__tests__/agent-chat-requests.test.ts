@@ -128,7 +128,10 @@ describe('mobile Agent Chat requests', () => {
             forward,
         );
         expect(forward.mock.calls.map(([operation]) => operation)).toEqual([
-            { method: 'agentChat.send', params: { terminalId: 'terminal-1', text: 'hi' } },
+            {
+                method: 'agentChat.send',
+                params: { terminalId: 'terminal-1', text: 'hi', delivery: 'steer' },
+            },
             {
                 method: 'agentChat.respond',
                 params: {

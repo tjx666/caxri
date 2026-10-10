@@ -6,7 +6,8 @@ import type {
     AgentChatPatchOperation,
     AgentChatSnapshot,
 } from '../agent/agent-chat-contract.js';
-import { agentChatMethods, agentChatSnapshotSchema } from '../agent/agent-chat-contract.js';
+import { agentChatSnapshotSchema } from '../agent/agent-chat-contract.js';
+import { agentChatMethods } from '../agent/agent-chat-methods.js';
 import { identifierSchema } from '../domain/domain.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
@@ -91,7 +92,8 @@ const byteLength = (value: unknown): number =>
  * The newest part of a Chat projection that fits one mobile frame. Older items are dropped first and `truncated` is
  * set, the same signal the Desktop projection uses for history it no longer holds.
  */
-export function windowAgentChatSnapshotForMobile(snapshot: AgentChatSnapshot): AgentChatSnapshot {
+export function windowAgentChatSnapshotForMobile(full: AgentChatSnapshot): AgentChatSnapshot {
+    const snapshot = withoutDesktopOnlyState(full);
     const items = snapshot.items.map((item) => clipAgentChatItemForMobile(item));
     const activeTurnIds = (kept: readonly AgentChatItem[]) =>
         new Set([
@@ -124,10 +126,35 @@ export function windowAgentChatSnapshotForMobile(snapshot: AgentChatSnapshot): A
     return windowed;
 }
 
+/**
+ * Background tasks and the follow-up queue are Desktop surfaces the phone does not render yet; a queue alone may hold
+ * far more text than one frame, so neither travels to the phone.
+ */
+function withoutDesktopOnlyState(snapshot: AgentChatSnapshot): AgentChatSnapshot {
+    if (!snapshot.tasks && !snapshot.queue && snapshot.queuePaused === undefined) return snapshot;
+    const rest = { ...snapshot };
+    delete rest.tasks;
+    delete rest.queue;
+    delete rest.queuePaused;
+    return rest;
+}
+
 function clipOperation(operation: AgentChatPatchOperation): AgentChatPatchOperation {
-    return operation.op === 'upsertItem'
-        ? { op: 'upsertItem', item: clipAgentChatItemForMobile(operation.item) }
-        : operation;
+    switch (operation.op) {
+        case 'upsertItem': {
+            return { op: 'upsertItem', item: clipAgentChatItemForMobile(operation.item) };
+        }
+        case 'state': {
+            const state = { ...operation.state };
+            delete state.tasks;
+            delete state.queue;
+            delete state.queuePaused;
+            return { op: 'state', state };
+        }
+        default: {
+            return operation;
+        }
+    }
 }
 
 /**

@@ -1,7 +1,7 @@
 import type { RefObject } from 'react';
 import { useState } from 'react';
 
-import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
+import type { AgentAction, AgentChatCommand, AgentChatQueuedMessage } from '@caxri/protocol';
 import { MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
 import { ArrowUp } from 'lucide-react';
 
@@ -16,7 +16,13 @@ import { AgentChatCommandMenu } from './agent-chat-command-menu';
 import { interruptAgentChat } from './agent-chat-commands';
 import { readAgentChatDraft, writeAgentChatDraft } from './agent-chat-drafts';
 import type { AgentChatActivity } from './agent-chat-presentation';
-import { isAgentChatInterruptKey, isAgentChatSubmitKey } from './agent-chat-presentation';
+import {
+    agentChatSendAction,
+    agentChatSubmitDelivery,
+    isAgentChatInterruptKey,
+} from './agent-chat-presentation';
+import { draftAfterQueueEdit } from './agent-chat-queue';
+import { AgentChatQueueList } from './agent-chat-queue-list';
 import { completeAgentChatAction } from './agent-chat-slash-commands';
 import { AgentChatStopButton } from './agent-chat-stop-button';
 import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
@@ -25,11 +31,12 @@ import { useAgentChatImageInput } from './hooks/use-agent-chat-image-input';
 import { useAgentChatSubmit } from './hooks/use-agent-chat-submit';
 
 /**
- * Message input. Enter sends, Shift+Enter adds a line. While a turn runs, a message steers it, and Escape or the Stop
- * button that replaces Send while the input is empty interrupts it. Images can be pasted, dropped, or picked when the
- * provider accepts them, and a leading `/` or `$` offers the provider's commands and the discovered skills. It shares
- * the timeline's centered column so the input lines up with the conversation, and keeps attachments, the input, and its
- * actions inside one card so they read as a single control.
+ * Message input. Enter sends, Shift+Enter adds a line. While a turn runs (or the context compacts), Enter queues the
+ * message for after the turn and Cmd+Enter steers it into the running turn; queued messages wait as cards above the
+ * input. Escape or the Stop button that replaces Send while the input is empty interrupts the turn. Images can be
+ * pasted, dropped, or picked when the provider accepts them, and a leading `/` or `$` offers the provider's commands
+ * and the discovered skills. It shares the timeline's centered column so the input lines up with the conversation, and
+ * keeps attachments, the input, and its actions inside one card so they read as a single control.
  */
 export function AgentChatComposer({
     activeTurnId,
@@ -38,7 +45,10 @@ export function AgentChatComposer({
     commands,
     contextSummary,
     inputReference,
+    isBusy,
+    isQueuePaused,
     providerName,
+    queue,
     supportsImages,
     terminalId,
 }: {
@@ -61,9 +71,15 @@ export function AgentChatComposer({
     contextSummary: string | undefined;
     inputReference: RefObject<HTMLTextAreaElement | null>;
     /**
+     * Whether a message sent now waits in the queue (`isAgentChatBusy`).
+     */
+    isBusy: boolean;
+    isQueuePaused: boolean;
+    /**
      * The provider catalog's display name, for the placeholder.
      */
     providerName: string;
+    queue: readonly AgentChatQueuedMessage[] | undefined;
     /**
      * Whether the provider's Chat accepts image input (`capabilities.chatImages`).
      */
@@ -104,8 +120,13 @@ export function AgentChatComposer({
         terminalId,
     });
     const isSendable = canSend && !isSending && !images.isReading && hasContent;
-    const submit = async (): Promise<void> => {
-        if (isSendable) await submitDraft(draft);
+    const sendAction = agentChatSendAction({ isTurnRunning, isBusy }, providerName);
+    const submit = async (delivery?: 'steer'): Promise<void> => {
+        if (isSendable) await submitDraft(draft, delivery);
+    };
+    const restoreQueued = (text: string): void => {
+        setDraft((current) => draftAfterQueueEdit(current, text));
+        inputReference.current?.focus();
     };
     const choose = (action: AgentAction): void => {
         const completed = completeAgentChatAction(action);
@@ -123,6 +144,13 @@ export function AgentChatComposer({
     };
     return (
         <div className="mx-auto w-full max-w-3xl px-4 pt-1 pb-3">
+            <AgentChatQueueList
+                isPaused={isQueuePaused}
+                isTurnRunning={isTurnRunning}
+                queue={queue}
+                terminalId={terminalId}
+                onEdit={restoreQueued}
+            />
             <AgentChatActivityBar activity={activity} />
             <form
                 className={cn(
@@ -156,9 +184,7 @@ export function AgentChatComposer({
                     aria-label="Message"
                     className="field-sizing-content max-h-48 min-h-10 resize-none rounded-none border-0 bg-transparent px-3 pt-2.5 pb-1 leading-5 focus-visible:shadow-none"
                     maxLength={MAX_AGENT_CHAT_MESSAGE_LENGTH}
-                    placeholder={
-                        isTurnRunning ? 'Steer the current turn' : `Message ${providerName}`
-                    }
+                    placeholder={sendAction.placeholder}
                     ref={inputReference}
                     rows={1}
                     value={draft}
@@ -179,10 +205,18 @@ export function AgentChatComposer({
                             stop();
                             return;
                         }
-                        if (!isAgentChatSubmitKey(key)) return;
+                        const delivery = agentChatSubmitDelivery(
+                            {
+                                ...key,
+                                metaKey: event.metaKey,
+                                ctrlKey: event.ctrlKey,
+                            },
+                            { isTurnRunning, isBusy },
+                        );
+                        if (!delivery) return;
                         event.preventDefault();
                         // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
-                        void submit();
+                        void submit(delivery === 'steer' ? 'steer' : undefined);
                     }}
                     onPaste={imageInput.onPaste}
                 />
@@ -200,9 +234,9 @@ export function AgentChatComposer({
                     {isTurnRunning && !hasContent ? (
                         <AgentChatStopButton isStopping={isStopping} onStop={stop} />
                     ) : (
-                        <Tooltip content="Send">
+                        <Tooltip content={sendAction.tooltip}>
                             <Button
-                                aria-label="Send"
+                                aria-label={sendAction.label}
                                 disabled={!isSendable}
                                 size="icon"
                                 type="submit"

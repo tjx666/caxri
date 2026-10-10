@@ -1,0 +1,172 @@
+import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import {
+    fakeClaudeChatAgentMode,
+    fakeCodexChatAgentMode,
+    openAgentChat,
+} from './support/agent-chat-fixture.ts';
+import { expect, test } from './support/fixtures.ts';
+import {
+    closeAppQuietly,
+    createProjectSession,
+    launchCaxri,
+    VISIBLE_SESSION,
+} from './support/helpers.ts';
+
+/**
+ * A temporary Project root and profile with the chosen fake Agent provider.
+ */
+async function fixture(prefix: string, provider: 'claude' | 'codex') {
+    const temporary = await mkdtemp(join(tmpdir(), prefix));
+    const directory = await realpath(temporary);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode =
+        provider === 'codex'
+            ? await fakeCodexChatAgentMode(directory, userData)
+            : await fakeClaudeChatAgentMode(userData);
+    return { directory, agentMode, userData, root };
+}
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Codex Chat opens a subagent and a background shell beside the Chat', async ({}, testInfo) => {
+    const { directory, agentMode, userData, root } = await fixture(
+        'caxri-agent-chat-tasks-',
+        'codex',
+    );
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+
+        await message.fill('start a subagent hold');
+        await message.press('Enter');
+        const strip = chat.getByRole('region', { name: 'Background work' });
+        const openSubagent = strip.getByRole('button', { name: /^Open Inspect the fixtures/u });
+        await expect(openSubagent).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('codex-subagent-strip.png') });
+
+        await openSubagent.click();
+        const subagent = page.getByRole('region', { name: /Inspect the fixtures/u });
+        await expect(subagent).toBeVisible();
+        await expect(subagent.getByText('ls fixtures')).toBeVisible();
+        await expect(subagent.getByText(/still working/u).first()).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('codex-subagent-tab.png') });
+        await subagent.getByRole('button', { name: 'Stop' }).click();
+        await expect(subagent.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+
+        await message.fill('run it in the background');
+        await message.press('Enter');
+        await expect(chat.getByText('The dev server is running in the background.')).toBeVisible();
+        await strip.getByRole('button', { name: /^Open .*bun run dev/u }).click();
+        const shell = page.getByRole('region', { name: /bun run dev/u });
+        await expect(shell.getByText(/tick \d+/u).first()).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('codex-shell-tab.png') });
+        await shell.getByRole('button', { name: 'Stop' }).click();
+        await expect(shell.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('codex-shell-stopped.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Codex Chat queues follow-ups during a turn and steers on request', async ({}, testInfo) => {
+    const { directory, agentMode, userData, root } = await fixture(
+        'caxri-agent-chat-queue-',
+        'codex',
+    );
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+
+        await message.fill('slow please');
+        await message.press('Enter');
+        await expect(chat.getByRole('button', { name: 'Stop' })).toBeVisible();
+        await message.fill('hello after this');
+        await expect(chat.getByRole('button', { name: 'Queue message' })).toBeVisible();
+        await message.press('Enter');
+        const queue = chat.getByRole('region', { name: 'Queued messages' });
+        await expect(queue.getByText('hello after this')).toBeVisible();
+        await message.fill('hello second');
+        await message.press('Enter');
+        await expect(queue.getByText('hello second')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('codex-queue.png') });
+
+        await message.fill('hello steer');
+        await message.press('ControlOrMeta+Enter');
+        await expect(chat.getByText('Steered')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('codex-steered.png') });
+
+        await chat.getByRole('button', { name: 'Stop' }).click();
+        await expect(chat.getByText('Queue paused')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('codex-queue-paused.png') });
+        await queue.getByRole('button', { name: 'Delete queued message' }).last().click();
+        await expect(queue.getByText('hello second')).toHaveCount(0);
+        await chat.getByRole('button', { name: 'Resume' }).click();
+        await expect(
+            chat.getByText('Hello from fake Codex. You said: hello after this'),
+        ).toBeVisible();
+        await expect(queue).toHaveCount(0);
+        await expect(chat.getByText('Queued', { exact: true })).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('codex-queue-drained.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Claude Chat reopens a finished subagent and stops a background shell', async ({}, testInfo) => {
+    const { directory, agentMode, userData, root } = await fixture(
+        'caxri-claude-chat-tasks-',
+        'claude',
+    );
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Claude Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+
+        await message.fill('use a subagent');
+        await message.press('Enter');
+        await expect(chat.getByText('The subagent finished.')).toBeVisible();
+        // A finished subagent leaves the strip; its timeline row still opens it.
+        await chat
+            .getByRole('button', { name: /^Worked for/u })
+            .first()
+            .click();
+        await chat.getByRole('button', { name: 'Open subagent' }).first().click();
+        const subagent = page.getByRole('region', { name: 'Survey the project' });
+        await expect(subagent.getByText('Found a README.').first()).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('claude-subagent-tab.png') });
+
+        await message.fill('run in background');
+        await message.press('Enter');
+        const strip = chat.getByRole('region', { name: 'Background work' });
+        await strip.getByRole('button', { name: /^Open / }).click();
+        const shell = page.getByRole('region', { name: /while true/u });
+        await expect(shell.getByText(/tick \d+/u).first()).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('claude-shell-tab.png') });
+        await strip.getByRole('button', { name: /^Stop / }).click();
+        await expect(strip).toHaveCount(0);
+        await expect(shell.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('claude-shell-stopped.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});

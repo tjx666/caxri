@@ -733,6 +733,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 return;
             case 'agent.dispatch.changed':
             case 'agentChat.patch':
+            case 'agentChat.taskPatch':
             case 'viewContainers.catalogChanged':
             case 'viewContainers.treeChanged':
             case 'viewContainers.viewChanged':
@@ -752,12 +753,11 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             case 'terminal.output':
             case 'terminal.sizeOwnership':
             case 'updates.state':
-                // `agent.permissionAutoAllowChanged` (issue caxri#1295) is handled by
-                // `subscribeRuntimeQueryInvalidation` in `queries/invalidation.ts`, which refreshes the Session row
-                // menu's `session.permissionAutoAllowStatus` read; this store has no bootstrap state to update for it.
-                // `gitReview.changed` (issue caxri#1294) is handled the same way, refreshing `gitReview.list` and
-                // `gitReview.pending` reads instead. `agentChat.patch` updates the cached `agentChat.read` snapshot through
-                // `subscribeAgentChatPatches` in `features/agent-chat/agent-chat-client.ts`.
+                // `agent.permissionAutoAllowChanged` (issue caxri#1295) goes to `subscribeRuntimeQueryInvalidation` in
+                // `queries/invalidation.ts`, which refreshes the Session row menu's `session.permissionAutoAllowStatus`
+                // read; nothing here to update. `gitReview.changed` (issue caxri#1294) likewise refreshes
+                // `gitReview.list` and `gitReview.pending`. `agentChat.patch` and `agentChat.taskPatch` update cached
+                // snapshots through `subscribeAgentChatPatches`.
                 return;
             default:
                 return assertNever(event, 'Unhandled workbench Runtime event');

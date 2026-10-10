@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { memo, useId, useMemo, useState } from 'react';
+import { memo, useContext, useId, useMemo, useState } from 'react';
 
-import type { AgentToolKind } from '@caxri/protocol';
+import type { AgentChatTask, AgentToolKind } from '@caxri/protocol';
 import { agentToolActiveLabel, formatShortDuration, unwrapShellCommand } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -18,6 +18,7 @@ import {
     Layers,
     ListTodo,
     MessageCircleQuestionMark,
+    PanelRight,
     Plug,
     Search,
     Sparkles,
@@ -28,12 +29,16 @@ import {
 import { DiffStat } from '../../components/diff-stat';
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { CodeView } from '../../components/markdown/code-view';
+import { Button } from '../../components/ui/button';
+import { Tooltip } from '../../components/ui/tooltip';
 import { diffStatLabel } from '../../lib/diff-stat-label';
 import { cn } from '../../lib/utilities';
 import { agentChatFileChangesStat } from './agent-chat-diff';
 import { AgentChatFileChanges } from './agent-chat-file-changes';
 import { AgentChatMessage } from './agent-chat-message';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
+import { AgentChatTaskElapsed } from './agent-chat-task-glyph';
+import { agentChatTaskActivity, agentChatTaskGlyphStatus } from './agent-chat-tasks';
 import type { AgentChatWorkItem } from './agent-chat-timeline';
 import {
     agentChatOutputLanguage,
@@ -45,6 +50,7 @@ import {
     stripLineNumberGutter,
     summarizeAgentChatWork,
 } from './agent-chat-timeline';
+import { AgentChatTaskLinksContext, useAgentChatTaskLink } from './hooks/use-agent-chat-task-link';
 
 /**
  * One glyph per tool kind, matching the mobile timeline so a tool reads the same on both clients. A new tool kind is
@@ -84,12 +90,17 @@ const OUTPUT_CLASS_NAME = 'max-h-80 overflow-y-auto';
  * is secondary to the conversation, so every row starts collapsed and the reply stays what the eye lands on.
  */
 function DisclosureRow({
+    action,
     children,
     disclosureKind,
     glyph,
     title,
     trailing,
 }: {
+    /**
+     * A control beside the row, outside its toggle button (a button cannot nest inside another).
+     */
+    action?: ReactNode;
     children: ReactNode;
     disclosureKind: string;
     glyph: ReactNode;
@@ -98,26 +109,36 @@ function DisclosureRow({
 }) {
     const [isExpanded, setExpanded] = useState(false);
     const detailId = useId();
+    const toggle = (
+        <button
+            aria-controls={detailId}
+            aria-expanded={isExpanded}
+            className="group/row flex w-full min-w-0 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-1 py-0.5 text-left text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent"
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+        >
+            <span className="flex size-4 shrink-0 items-center justify-center">{glyph}</span>
+            <span className="flex min-w-0 flex-1 items-center gap-1.5">{title}</span>
+            {trailing}
+            <ChevronRight
+                aria-hidden="true"
+                className={cn(
+                    'size-3.5 shrink-0 opacity-0 transition-[transform,opacity] duration-100 group-hover/row:opacity-100 group-focus-visible/row:opacity-100',
+                    isExpanded && 'rotate-90 opacity-100',
+                )}
+            />
+        </button>
+    );
     return (
         <div className="text-[12px] leading-5">
-            <button
-                aria-controls={detailId}
-                aria-expanded={isExpanded}
-                className="group/row flex w-full min-w-0 cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-1 py-0.5 text-left text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent"
-                type="button"
-                onClick={() => setExpanded((value) => !value)}
-            >
-                <span className="flex size-4 shrink-0 items-center justify-center">{glyph}</span>
-                <span className="flex min-w-0 flex-1 items-center gap-1.5">{title}</span>
-                {trailing}
-                <ChevronRight
-                    aria-hidden="true"
-                    className={cn(
-                        'size-3.5 shrink-0 opacity-0 transition-[transform,opacity] duration-100 group-hover/row:opacity-100 group-focus-visible/row:opacity-100',
-                        isExpanded && 'rotate-90 opacity-100',
-                    )}
-                />
-            </button>
+            {action ? (
+                <div className="flex min-w-0 items-center gap-1">
+                    {toggle}
+                    {action}
+                </div>
+            ) : (
+                toggle
+            )}
             <DisclosureMotion animate expanded={isExpanded} id={detailId} kind={disclosureKind}>
                 <div className="mt-1 mb-2 ml-7 space-y-2">{children}</div>
             </DisclosureMotion>
@@ -230,6 +251,62 @@ function FileChangeStat({ item }: { item: Extract<AgentChatWorkItem, { type: 'fi
 }
 
 /**
+ * Opens a work row's subagent or background shell in the side split.
+ */
+function AgentChatTaskOpenButton({
+    link,
+}: {
+    link: NonNullable<ReturnType<typeof useAgentChatTaskLink>>;
+}) {
+    const { task } = link;
+    return (
+        <Tooltip content={task ? `Open ${task.title || 'task'}` : 'Open subagent'}>
+            <Button
+                aria-label={task?.kind === 'shell' ? 'Open shell' : 'Open subagent'}
+                className="min-h-6 shrink-0 gap-1 px-1.5 text-muted"
+                size="sm"
+                variant="ghost"
+                onClick={link.open}
+            >
+                <PanelRight aria-hidden="true" className="size-3.5" />
+                Open
+            </Button>
+        </Tooltip>
+    );
+}
+
+/**
+ * A work row's trailing state: the diff stat, a task's elapsed time and status, or the item's own outcome and duration.
+ */
+function AgentChatWorkTrailing({ item, task }: { item: AgentChatWorkItem; task?: AgentChatTask }) {
+    const status = item.type === 'reasoning' ? undefined : item.status;
+    const duration =
+        !task &&
+        (item.type === 'command' || item.type === 'toolCall') &&
+        (item.durationMs ?? 0) >= 1000
+            ? formatShortDuration(item.durationMs)
+            : null;
+    return (
+        <>
+            {item.type === 'fileChange' && <FileChangeStat item={item} />}
+            {task ? (
+                <>
+                    <AgentChatTaskElapsed task={task} />
+                    {task.status !== 'completed' && (
+                        <AgentChatStatusGlyph status={agentChatTaskGlyphStatus(task.status)} />
+                    )}
+                </>
+            ) : (
+                status &&
+                status !== 'running' &&
+                status !== 'completed' && <AgentChatStatusGlyph status={status} />
+            )}
+            {duration && <span className="shrink-0 tabular-nums">{duration}</span>}
+        </>
+    );
+}
+
+/**
  * One piece of work: the tool's glyph, its past-tense verb, and what it acted on (`Ran git status`, `Read app.ts`).
  * Expanded, it shows the full command and its output painted in the output's language, the reasoning text, or the
  * diff.
@@ -237,14 +314,13 @@ function FileChangeStat({ item }: { item: Extract<AgentChatWorkItem, { type: 'fi
 const AgentChatWorkRow = memo(
     ({ item, onOpenFile }: { item: AgentChatWorkItem; onOpenFile?: (target: string) => void }) => {
         const presentation = describeAgentChatWork(item);
-        const status = item.type === 'reasoning' ? undefined : item.status;
         const isRunning = isAgentChatWorkRunning(item);
-        const duration =
-            (item.type === 'command' || item.type === 'toolCall') && (item.durationMs ?? 0) >= 1000
-                ? formatShortDuration(item.durationMs)
-                : null;
+        const link = useAgentChatTaskLink(item);
+        const task = link?.task;
+        const taskActivity = task && agentChatTaskActivity(task);
         return (
             <DisclosureRow
+                action={link && <AgentChatTaskOpenButton link={link} />}
                 disclosureKind="agent-chat-item"
                 glyph={<WorkGlyph kind={presentation.kind} />}
                 title={
@@ -263,17 +339,12 @@ const AgentChatWorkRow = memo(
                                 {presentation.subject}
                             </span>
                         )}
-                    </>
-                }
-                trailing={
-                    <>
-                        {item.type === 'fileChange' && <FileChangeStat item={item} />}
-                        {status && status !== 'running' && status !== 'completed' && (
-                            <AgentChatStatusGlyph status={status} />
+                        {taskActivity && (
+                            <span className="min-w-0 truncate text-muted">{taskActivity}</span>
                         )}
-                        {duration && <span className="shrink-0 tabular-nums">{duration}</span>}
                     </>
                 }
+                trailing={<AgentChatWorkTrailing item={item} task={task} />}
             >
                 <WorkDetail item={item} onOpenFile={onOpenFile} />
             </DisclosureRow>
@@ -310,7 +381,8 @@ function AgentChatWorkSummary({
 
 /**
  * A run of consecutive work. Settled tool calls collapse into a summary row; a lone call, a thought, and anything still
- * running render as their own rows (see `splitAgentChatWork`).
+ * running render as their own rows (see `splitAgentChatWork`). A row whose subagent or background shell still runs
+ * counts as running even after its tool call returned, so its live status and Open button stay in view.
  */
 export function AgentChatWorkGroup({
     items,
@@ -319,7 +391,11 @@ export function AgentChatWorkGroup({
     items: readonly AgentChatWorkItem[];
     onOpenFile?: (target: string) => void;
 }) {
-    const { summarized, rows } = splitAgentChatWork(items);
+    const links = useContext(AgentChatTaskLinksContext);
+    const { summarized, rows } = splitAgentChatWork(
+        items,
+        (item) => links?.tasksByItem.get(item.id)?.status === 'running',
+    );
     return (
         <div className="flex flex-col">
             {summarized.length > 0 && (

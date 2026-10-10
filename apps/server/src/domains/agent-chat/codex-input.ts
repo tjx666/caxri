@@ -1,6 +1,7 @@
 import type { AgentChatCommand, AgentChatItem, AgentChatMessageInput } from '@caxri/protocol';
 
 import { isRecord, stringField } from './chat-items';
+import type { CodexRequestError } from './codex-connection';
 
 /**
  * Slash commands Caxri maps to app-server methods. The Codex TUI's other commands drive its own screen (`/model`
@@ -61,4 +62,50 @@ export class CodexThumbnails {
             ),
         };
     }
+}
+
+/**
+ * Sent messages whose Codex echo has not arrived yet, kept only to mark how they were delivered.
+ */
+const MAX_PENDING_DELIVERIES = 20;
+
+/**
+ * How each sent message reached Codex (`steered` into the running turn or `queued` by Server Core), keyed by the
+ * `clientUserMessageId` its user message item echoes back as `clientId`.
+ */
+export class CodexDeliveries {
+    private readonly pending = new Map<string, 'queued' | 'steered'>();
+
+    remember(clientUserMessageId: string, delivery: 'queued' | 'steered'): void {
+        this.pending.set(clientUserMessageId, delivery);
+        for (const key of this.pending.keys()) {
+            if (this.pending.size <= MAX_PENDING_DELIVERIES) break;
+            this.pending.delete(key);
+        }
+    }
+
+    /**
+     * Drops the marker of a message that was not delivered the way it was sent, such as a steer that started a turn.
+     */
+    forget(clientUserMessageId: string): void {
+        this.pending.delete(clientUserMessageId);
+    }
+
+    apply(item: AgentChatItem, raw: unknown): AgentChatItem {
+        if (item.type !== 'userMessage' || !isRecord(raw)) return item;
+        const clientId = stringField(raw.clientId);
+        const delivery = clientId ? this.pending.get(clientId) : undefined;
+        return delivery ? { ...item, delivery } : item;
+    }
+}
+
+/**
+ * Whether a rejected `turn/steer` means the turn it targeted already ended, so the message should start the next turn.
+ * App-server answers `no active turn to steer` or `expected active turn id ... but found ...`; a turn that cannot be
+ * steered (review, compaction) or a malformed input is a real failure.
+ *
+ * @see https://github.com/openai/codex/blob/main/codex-rs/app-server/src/request_processors/turn_processor.rs
+ */
+export function isSteerTargetGone(error: CodexRequestError): boolean {
+    return /^(?:no active turn to steer|expected active turn id)/u.test(error.message);
 }
