@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import type { AgentChatMessageInput, AgentChatRequest } from '@caxri/protocol';
+import type {
+    AgentChatMessageInput,
+    AgentChatModelChange,
+    AgentChatRequest,
+} from '@caxri/protocol';
 import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
 import {
@@ -34,6 +38,7 @@ import {
     mapCodexRequest,
     mapCodexUsage,
 } from './codex-items';
+import { CodexModelSettings } from './codex-models';
 import { finishedTurnOperations, historyOperations } from './codex-turns';
 import { codexChatSettings, REAL_E2E_CODEX_CHAT_SETTINGS } from './launch-settings';
 
@@ -78,12 +83,15 @@ class CodexChatSession implements AgentChatProviderSession {
 
     private readonly thumbnails = new CodexThumbnails();
 
+    private readonly models: CodexModelSettings;
+
     constructor(private readonly options: AgentChatSessionHost) {
         this.settings = options.isRealAgentE2E
             ? REAL_E2E_CODEX_CHAT_SETTINGS
             : codexChatSettings(options.launch);
         this.threadId = options.agentSessionId;
         this.isThreadBound = Boolean(options.agentSessionId);
+        this.models = new CodexModelSettings(options);
     }
 
     private requireConnection(): CodexConnection {
@@ -415,6 +423,7 @@ class CodexChatSession implements AgentChatProviderSession {
                 );
             }
             this.loadHistory(thread, isRecord(result) ? stringField(result.model) : undefined);
+            this.models.reportOpened(result);
             return 'resumed';
         }
         let result: unknown;
@@ -446,6 +455,7 @@ class CodexChatSession implements AgentChatProviderSession {
         this.threadId = threadId;
         const model = isRecord(result) ? stringField(result.model) : undefined;
         if (model) this.options.apply([{ op: 'state', state: { model: clip(model, 200) } }]);
+        this.models.reportOpened(result);
         return 'started';
     }
 
@@ -453,16 +463,18 @@ class CodexChatSession implements AgentChatProviderSession {
         return this.connection?.isOpen ?? false;
     }
 
-    /**
-     * Spawns the provider, completes the handshake, and opens the thread. Resolves once the Chat can accept input.
-     */
     get pid(): number | undefined {
         return this.connection?.pid;
     }
 
+    /**
+     * Spawns the provider, completes the handshake, and opens the thread. Resolves once the Chat can accept input.
+     */
     async start(): Promise<'resumed' | 'started'> {
         const outcome = await this.open();
-        this.options.apply([{ op: 'state', state: { commands: CODEX_COMMANDS } }]);
+        // react-doctor-disable-next-line react-doctor/server-sequential-independent-await -- Listing needs the connection `open` creates, and the default effort reads the thread it reported.
+        const modelState = await this.models.load(this.requireConnection());
+        this.options.apply([{ op: 'state', state: { commands: CODEX_COMMANDS, ...modelState } }]);
         return outcome;
     }
 
@@ -493,10 +505,14 @@ class CodexChatSession implements AgentChatProviderSession {
                 if (!(error instanceof CodexRequestError)) throw error;
             }
         }
-        const result = await connection.request(
-            'turn/start',
-            { threadId: this.threadId, input, summary: 'detailed', clientUserMessageId },
-            TURN_REQUEST_TIMEOUT_MS,
+        const request = {
+            threadId: this.threadId,
+            input,
+            summary: 'detailed',
+            clientUserMessageId,
+        };
+        const result = await this.models.startTurn((nextTurn) =>
+            connection.request('turn/start', { ...request, ...nextTurn }, TURN_REQUEST_TIMEOUT_MS),
         );
         const turn = isRecord(result) && isRecord(result.turn) ? result.turn : undefined;
         const turnId = stringField(turn?.id);
@@ -519,6 +535,12 @@ class CodexChatSession implements AgentChatProviderSession {
             { threadId: this.threadId },
             TURN_REQUEST_TIMEOUT_MS,
         );
+    }
+
+    configure(change: AgentChatModelChange): Promise<void> {
+        this.requireConnection();
+        this.models.configure(change);
+        return Promise.resolve();
     }
 
     async interrupt(): Promise<void> {

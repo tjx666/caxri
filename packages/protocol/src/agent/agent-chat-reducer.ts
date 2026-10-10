@@ -174,9 +174,18 @@ export function applyAgentChatOperation(
                 next.activeTurnId = state.activeTurnId ?? undefined;
             if (state.plan !== undefined) next.plan = state.plan ?? undefined;
             if (state.model !== undefined) next.model = state.model ?? undefined;
+            if (state.effort !== undefined) next.effort = state.effort ?? undefined;
+            if (state.models !== undefined) next.models = state.models;
             if (state.usage !== undefined) next.usage = state.usage ?? undefined;
             if (state.commands !== undefined) next.commands = state.commands;
-            for (const key of ['failure', 'activeTurnId', 'plan', 'model', 'usage'] as const)
+            for (const key of [
+                'failure',
+                'activeTurnId',
+                'plan',
+                'model',
+                'effort',
+                'usage',
+            ] as const)
                 if (next[key] === undefined) delete next[key];
             return next;
         }

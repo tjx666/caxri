@@ -1,4 +1,8 @@
-import type { AgentChatDecision, AgentChatMessageInput } from '@caxri/protocol';
+import type {
+    AgentChatDecision,
+    AgentChatMessageInput,
+    AgentChatModelRequest,
+} from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import { tryCommand } from '../../stores/toasts';
@@ -58,4 +62,15 @@ export async function didAnswerAgentChatRequest(
         isAnswered = true;
     });
     return isAnswered;
+}
+
+/**
+ * Switches the model or effort for the next turn onward. The picker reflects the change once the projection reports it,
+ * so a failed switch leaves the old choice visible.
+ */
+export function configureAgentChat(terminalId: string, change: AgentChatModelRequest): void {
+    // eslint-disable-next-line no-void -- tryCommand reports a failed switch through the toast
+    void tryCommand('Unable to switch the model', () =>
+        caxri.request('agentChat.configure', { terminalId, ...change }),
+    );
 }

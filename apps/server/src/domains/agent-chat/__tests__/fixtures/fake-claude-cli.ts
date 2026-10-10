@@ -15,7 +15,8 @@
  * - Anything else: thinking, a todo list, and a streamed reply quoting the message.
  *
  * A message with images is answered with how many it received. `/compact` compacts the conversation; the CLI reports
- * `/compact`, `/review`, and the terminal-bound `/exit` as its commands.
+ * `/compact`, `/review`, and the terminal-bound `/exit` as its commands. It lists an `opus` alias and a model without
+ * effort control; `set_model` and an `effortLevel` flag setting change what the next init message reports.
  *
  * Every turn is appended to a JSONL transcript at Claude Code's own location under `CLAUDE_CONFIG_DIR`, so `--resume`
  * and Caxri's transcript-based history read real records.
@@ -72,7 +73,34 @@ const state: {
     interrupted: boolean;
     turnRunning: boolean;
     queued: Array<{ text: string; content: unknown }>;
-} = { nextRequestId: 1, lastUuid: null, interrupted: false, turnRunning: false, queued: [] };
+    model: string;
+    effort?: string;
+} = {
+    nextRequestId: 1,
+    lastUuid: null,
+    interrupted: false,
+    turnRunning: false,
+    queued: [],
+    model: MODEL,
+};
+const MODELS = [
+    {
+        value: MODEL,
+        displayName: 'Fake',
+        description: 'Fake model',
+        supportsEffort: true,
+        supportedEffortLevels: ['low', 'medium', 'high'],
+    },
+    {
+        value: 'opus',
+        resolvedModel: 'fake-claude-opus',
+        displayName: 'Fake Opus',
+        description: 'Fake alias',
+        supportsEffort: true,
+        supportedEffortLevels: ['low', 'high', 'max'],
+    },
+    { value: 'fake-claude-haiku', displayName: 'Fake Haiku', description: 'No effort control' },
+];
 const COMMANDS = [
     {
         name: 'compact',
@@ -253,7 +281,8 @@ async function runTurn(text: string, content: unknown) {
             type: 'system',
             subtype: 'init',
             cwd: process.cwd(),
-            model: MODEL,
+            model: state.model,
+            ...(state.effort && { effort: state.effort }),
             tools: [],
             permissionMode: 'default',
             slash_commands: COMMANDS.map((command) => command.name),
@@ -480,6 +509,12 @@ lines.on('line', (line) => {
     if (message.type === 'control_request') {
         const request = message.request as Json;
         if (request.subtype === 'interrupt') state.interrupted = true;
+        if (request.subtype === 'set_model' && typeof request.model === 'string')
+            state.model =
+                MODELS.find((model) => model.value === request.model)?.resolvedModel ??
+                request.model;
+        const flags = request.subtype === 'apply_flag_settings' ? (request.settings as Json) : {};
+        if (typeof flags.effortLevel === 'string') state.effort = flags.effortLevel;
         send({
             type: 'control_response',
             response: {
@@ -490,9 +525,7 @@ lines.on('line', (line) => {
                         ? {
                               commands: COMMANDS,
                               agents: [],
-                              models: [
-                                  { value: MODEL, displayName: 'Fake', description: 'Fake model' },
-                              ],
+                              models: MODELS,
                               account: {},
                               output_style: 'default',
                               available_output_styles: ['default'],

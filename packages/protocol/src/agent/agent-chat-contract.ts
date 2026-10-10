@@ -38,6 +38,7 @@ export const MAX_AGENT_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
  */
 export const MAX_AGENT_CHAT_THUMBNAIL_LENGTH = 48 * 1024;
 export const MAX_AGENT_CHAT_COMMANDS = 200;
+export const MAX_AGENT_CHAT_MODELS = 50;
 
 const boundedText = z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH);
 const boundedOutput = z.string().max(MAX_AGENT_CHAT_OUTPUT_LENGTH);
@@ -81,6 +82,38 @@ export const agentChatCommandSchema = z.strictObject({
      * Placeholder for the command's arguments, such as `<file>`. A command without one runs as soon as it is chosen.
      */
     argumentHint: z.string().max(200).optional(),
+});
+
+/**
+ * A reasoning effort level, as the provider names it (`low`, `high`, `xhigh`, ...). Kept open because each provider and
+ * model offers its own set.
+ */
+const agentChatEffortSchema = z
+    .string()
+    .min(1)
+    .max(40)
+    .regex(/^[\w-]+$/u);
+
+/**
+ * A model the provider lets this Chat switch to, with the reasoning efforts it accepts.
+ */
+export const agentChatModelSchema = z.strictObject({
+    /**
+     * The identifier the provider takes when switching, and reports as the snapshot's `model` once it is in use.
+     */
+    id: z.string().min(1).max(200),
+    displayName: z.string().max(200),
+    description: z.string().max(500).optional(),
+    /**
+     * Another identifier the provider reports for this model, such as the full model a Claude Code alias resolves to,
+     * so the snapshot's `model` still matches the row it was chosen from.
+     */
+    resolvedId: z.string().max(200).optional(),
+    /**
+     * Efforts the model accepts, lowest first. Empty for a model without effort control.
+     */
+    efforts: z.array(agentChatEffortSchema).max(10),
+    defaultEffort: agentChatEffortSchema.optional(),
 });
 
 /**
@@ -320,6 +353,14 @@ export const agentChatSnapshotSchema = z.strictObject({
     plan: agentChatPlanSchema.optional(),
     model: z.string().max(200).optional(),
     /**
+     * The reasoning effort the next turn uses, when the provider reports it.
+     */
+    effort: agentChatEffortSchema.optional(),
+    /**
+     * Models `agentChat.configure` can switch to. Absent until the provider has listed them.
+     */
+    models: z.array(agentChatModelSchema).max(MAX_AGENT_CHAT_MODELS).optional(),
+    /**
      * Slash commands the provider currently offers. Absent until the provider has started.
      */
     commands: z.array(agentChatCommandSchema).max(MAX_AGENT_CHAT_COMMANDS).optional(),
@@ -356,6 +397,8 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 requests: agentChatSnapshotSchema.shape.requests,
                 plan: agentChatSnapshotSchema.shape.plan.unwrap().nullable(),
                 model: agentChatSnapshotSchema.shape.model.unwrap().nullable(),
+                effort: agentChatSnapshotSchema.shape.effort.unwrap().nullable(),
+                models: agentChatSnapshotSchema.shape.models.unwrap(),
                 commands: agentChatSnapshotSchema.shape.commands.unwrap(),
                 usage: agentChatSnapshotSchema.shape.usage.unwrap().nullable(),
                 truncated: agentChatSnapshotSchema.shape.truncated,
@@ -384,6 +427,7 @@ export type AgentChatPatchOperation = z.infer<typeof agentChatPatchOperationSche
 export type AgentChatPatch = z.infer<typeof agentChatPatchSchema>;
 export type AgentChatDecision = z.infer<typeof agentChatDecisionSchema>;
 export type AgentChatCommand = z.infer<typeof agentChatCommandSchema>;
+export type AgentChatModel = z.infer<typeof agentChatModelSchema>;
 export type AgentChatImageMediaType = z.infer<typeof agentChatImageMediaTypeSchema>;
 export type AgentChatImageInput = z.infer<typeof agentChatImageInputSchema>;
 export type AgentChatMessageInput = Omit<
@@ -453,6 +497,23 @@ export const agentChatMethods = {
             name: agentChatCommandSchema.shape.name,
             arguments: z.string().trim().max(MAX_AGENT_CHAT_MESSAGE_LENGTH).optional(),
         }),
+        result: z.null(),
+    },
+    /**
+     * Switches the model or reasoning effort for the next turn and the ones after it; a running turn keeps its own. A
+     * model the snapshot's `models` does not list, or an effort that model does not accept, fails with `VALIDATION`.
+     */
+    'agentChat.configure': {
+        ...commandPolicy('server', 'control'),
+        params: z
+            .strictObject({
+                ...terminalTarget,
+                model: agentChatModelSchema.shape.id.optional(),
+                effort: agentChatEffortSchema.optional(),
+            })
+            .refine((change) => change.model !== undefined || change.effort !== undefined, {
+                message: 'Choose a model or an effort',
+            }),
         result: z.null(),
     },
     'agentChat.interrupt': {

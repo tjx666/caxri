@@ -30,10 +30,11 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
 }
 
 /**
- * The status tab on top of the composer while the Chat starts, works, or waits on the user. A working turn shows its
- * verb under a sweeping highlight and how long it has run, so a long turn reads as progress rather than a stall. The
- * polite live region stays mounted so transitions between starting, working, and waiting are announced, while the
- * ticking time never is.
+ * The composer's first row while the Chat starts, works, or waits on the user. It sits inside the card, above a
+ * hairline, so the composer keeps one rounded outline instead of growing a tab on top. A working turn shows its verb
+ * under a sweeping highlight and how long it has run, so a long turn reads as progress rather than a stall. The polite
+ * live region stays mounted so transitions between starting, working, and waiting are announced, while the ticking time
+ * never is.
  */
 export function AgentChatActivityBar({ activity }: { activity: AgentChatActivity | undefined }) {
     return (
@@ -44,7 +45,7 @@ export function AgentChatActivityBar({ activity }: { activity: AgentChatActivity
             {activity && (
                 <div
                     aria-hidden="true"
-                    className="mx-3 flex h-7 items-center gap-2 rounded-t-md border border-b-0 border-border bg-surface px-3 text-[12px] text-muted"
+                    className="flex h-8 items-center gap-2 border-0 border-b border-solid border-border px-3 text-[12px] text-muted"
                 >
                     {activity.kind === 'waiting' ? (
                         <MessageCircleQuestionMark className="size-3.5 shrink-0 text-warning" />

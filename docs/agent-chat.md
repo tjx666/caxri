@@ -229,11 +229,12 @@ several callbacks can share one item, so the transport id is never the key.
   history never hides them. The timeline follows new output until the user scrolls up; Jump to
   latest returns to the end.
 - The composer keeps an unsent draft per Chat across tab switches, clears only the text that was
-  actually sent, and treats Escape as Stop while a turn runs. Its footer shows the model and the
-  remaining context window. Activating a Chat's tab puts the cursor in the composer, as activating
+  actually sent, and treats Escape as Stop while a turn runs. Its action row shows how much of the
+  context window is used, as a filling ring and a percentage with the token counts in its tooltip,
+  and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
   a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another
   text field, and not when arrow-key tab navigation activated it, which keeps focus on the tab.
-  A status tab on top of the composer says whether the Chat is starting, working, or waiting on an
+  A status row at the top of the composer card says whether the Chat is starting, working, or waiting on an
   answer; a working turn shows one verb chosen per turn from its id, its elapsed time, and `Esc to
 stop`. Only the label is the polite live region, so the ticking time is never announced.
 - Work renders as one-line rows (`Ran git status`, `Read <file>`, `Edited <file> +2 more`),
@@ -323,6 +324,28 @@ stop`. Only the label is the polite live region, so the ticking time is never an
   chosen; one that does is completed so its arguments can be typed.
 - Image bytes, thumbnails, and command arguments never reach logs.
 
+## Model and effort
+
+The snapshot's `models` lists the models the provider lets this Chat switch to, each with the
+reasoning efforts it accepts (`efforts`, lowest first) and its `defaultEffort`; `model` and
+`effort` report what the next turn uses. `agentChat.configure` switches either one. Server Core
+validates the change against `models` first (`resolveAgentChatModelChange` in
+`packages/protocol`), so a stale Client cannot send a model or effort the provider never listed;
+switching to a model that does not accept the current effort falls back to that model's default.
+A running turn keeps the model it started with.
+
+- **Codex** lists models with `model/list` after the thread opens; a Codex that cannot list them
+  still chats, and the composer then shows the model as plain text. `thread/start` and
+  `thread/resume` report the thread's `reasoningEffort`, and a thread that never chose one runs at
+  its model's default. App-server has no request that changes the model in place, so a switch
+  rides on the next `turn/start` (`model`, `effort`), which Codex saves on the thread for later
+  turns and for the next resume.
+- **Claude Code** lists models in the SDK's `initialize` response. `value` (often an alias such as
+  `opus`) is the identifier and `resolvedModel` the full model the init message then reports, kept
+  as `resolvedId` so the two match. A switch applies in place: `setModel`, and `effortLevel`
+  through `applyFlagSettings`, which outranks the user's settings files without writing to them.
+  The effort is known only when the CLI publishes it in its init message or after a switch.
+
 ## Lifecycle signals
 
 A Chat begins its own launch generation with the Agent coordinator and synthesizes
@@ -362,7 +385,7 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 
 ## Not yet supported
 
-Claude Code's model and agent pickers (its `initialize` response already lists both). On mobile, a
+Claude Code's agent picker (its `initialize` response already lists the agents). On mobile, a
 Chat shows no plan, model, or context usage yet, shows an image as its count (`[1 image]`) instead of
 a thumbnail, cannot attach images or run slash commands, older history beyond the window stays on
 the computer, and switching surface is Desktop-only.

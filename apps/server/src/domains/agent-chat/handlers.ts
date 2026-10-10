@@ -8,6 +8,7 @@ export function createAgentChatHandlers(
     agentChat: AgentChatService,
 ): Pick<
     DomainHandlers,
+    | 'agentChat.configure'
     | 'agentChat.interrupt'
     | 'agentChat.read'
     | 'agentChat.respond'
@@ -22,6 +23,13 @@ export function createAgentChatHandlers(
         },
         'agentChat.runCommand': async ({ terminalId, name, arguments: arguments_ }) => {
             await agentChat.runCommand(terminalId, name, arguments_);
+            return null;
+        },
+        'agentChat.configure': async ({ terminalId, model, effort }) => {
+            await agentChat.configure(terminalId, {
+                ...(model !== undefined && { model }),
+                ...(effort !== undefined && { effort }),
+            });
             return null;
         },
         'agentChat.interrupt': async ({ terminalId }) => {

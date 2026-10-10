@@ -958,15 +958,20 @@ search/path fields use `InputGroup`, never feature-local field chrome.
 while focused (the pane ring already carries the accent focus) and `--accent` while an image is
 dragged over it. Inside, top to bottom: the attached-image strip (64px radius-6 thumbnails, each
 with its remove control inset in the top-right corner), a borderless auto-growing textarea, and one
-action row: Attach images on the left, the model and context summary right-aligned in `--muted`, and
-a single primary action slot. That slot shows Stop while a turn runs and the input is empty, and
+action row: Attach images on the left, then right-aligned in `--muted` the context meter (a 14px
+ring that fills with the share of the window in use, its percentage beside it, `--warning` from 80%
+and `--danger` from 95%, the token counts in its tooltip) and the model picker (the model's name and
+the next turn's effort, opening a menu of models with their descriptions and the current model's
+efforts, which stays open after a choice), and a single primary action slot. That slot shows Stop while a turn runs and the input is empty, and
 Send (steering the running turn) as soon as there is content; the two never sit side by side.
 Escape interrupts a running turn regardless. While the Chat starts, works, or waits on an answer, a
-28px status tab sits on top of the card, inset 12px on each side: a spinner (or a `--warning`
+32px status row opens the card above a hairline, so the card keeps one rounded outline: a spinner (or a `--warning`
 question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
 stop` right-aligned. A working turn's label is one playful verb chosen per turn (`Pondering…`),
 so a long turn reads as progress rather than a stall. References: T3 Code's Chat composer, Claude
-Code's spinner verbs, and LobeHub's status tab and ringed Stop button.
+Code's spinner verbs, LobeHub's ringed Stop button, and the Codex app's context ring and model and
+effort picker. In the transcript, inline code sits in a lifted `--elevated` chip and links take
+`--accent`, as the Codex app sets them in Dracula.
 
 **Agent Chat timeline**: work is secondary to the conversation. Every command, tool call, file
 change, and thought is one 12px `--muted` disclosure row: the tool kind's glyph (the same table the

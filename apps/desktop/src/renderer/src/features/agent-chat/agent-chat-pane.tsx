@@ -15,7 +15,6 @@ import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatComposer } from './agent-chat-composer';
 import {
     agentChatActivity,
-    agentChatContextSummary,
     agentChatFailureMessage,
     canSendAgentChatMessage,
     isAgentChatTurnRunning,
@@ -223,9 +222,9 @@ export function AgentChatPane({
                 activity={agentChatActivity(snapshot, providerName)}
                 canSend={canSendAgentChatMessage(snapshot)}
                 commands={snapshot?.commands}
-                contextSummary={agentChatContextSummary(snapshot)}
                 inputReference={inputReference}
                 providerName={providerName}
+                snapshot={snapshot}
                 supportsImages={supportsImages}
                 terminalId={terminalId}
             />

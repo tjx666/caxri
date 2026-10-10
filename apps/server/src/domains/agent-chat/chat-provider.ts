@@ -4,6 +4,7 @@ import type {
     AgentChatDecision,
     AgentChatFailureReason,
     AgentChatMessageInput,
+    AgentChatModelChange,
     AgentChatPatchOperation,
     AgentChatSnapshot,
     AgentChatTurn,
@@ -157,6 +158,11 @@ export interface AgentChatProviderSession {
      * `name` is listed.
      */
     runCommand(name: string, arguments_: string | undefined): Promise<void>;
+    /**
+     * Switches the model or effort for the next turn onward. The service has already validated the change against the
+     * snapshot's `models`; the session reports the new `model` and `effort` once the provider accepts them.
+     */
+    configure(config: AgentChatModelChange): Promise<void>;
     interrupt(): Promise<void>;
     respond(requestId: string, response: AgentChatResponse): void;
     /**
