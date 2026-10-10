@@ -24,6 +24,7 @@ import { AgentChatRequestCard } from './agent-chat-request-card';
 import { AgentChatPlanCard } from './agent-chat-status-glyph';
 import { buildAgentChatTimeline } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
+import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 
 /**
@@ -73,11 +74,16 @@ function AgentChatFailureBanner({
  */
 export function AgentChatPane({
     ariaLabel,
+    isShown,
     providerName,
     supportsImages,
     terminalId,
 }: {
     ariaLabel: string;
+    /**
+     * Whether the Chat is on screen in the active pane, so mounting it is the user activating it.
+     */
+    isShown: boolean;
     /**
      * The provider catalog's display name, for copy that names the Agent.
      */
@@ -119,6 +125,7 @@ export function AgentChatPane({
             ),
         [terminalId],
     );
+    useAgentChatActivationFocus(inputReference, { isShown, terminalId });
     const items = snapshot?.items;
     const turns = snapshot?.turns;
     const activeTurnId = snapshot?.activeTurnId;
