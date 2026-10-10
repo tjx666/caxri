@@ -81,7 +81,7 @@ No OPEN entries as of 2026-10-10 @ `daf68990` plus the [issue caxri#1620](https:
 ### AD-persist-hook-config-symlink-replace: [RESOLVED · Confirmed defect · S]
 
 - **Summary:** Installing or repairing Agent hooks replaced a symlinked provider settings file (for example one managed by a dotfiles repository) with a standalone copy, silently detaching it from its source.
-- **Evidence:** `apps/server/src/domains/atomic-file.ts:48` `atomicWriteUserConfig` writes through a final symlink and keeps the target's mode; `apps/server/src/domains/agents/hooks/manager.ts:450` uses it. `apps/server/src/domains/agents/hooks/__tests__/manager-symlink.integration.test.ts` and `apps/server/src/domains/__tests__/atomic-file-user-config.test.ts` cover the link, dangling link, and non-regular target.
+- **Evidence:** `apps/server/src/domains/atomic-file.ts:49` `atomicWriteUserConfig` writes through a final symlink and keeps the target's mode; `apps/server/src/domains/agents/hooks/manager.ts:467` uses it. `apps/server/src/domains/agents/hooks/__tests__/manager-symlink.integration.test.ts` and `apps/server/src/domains/__tests__/atomic-file-user-config.test.ts` cover the link, dangling link, and non-regular target.
 - **First seen:** 2026-10-10 @ daf68990 · **Last verified:** 2026-10-10 @ c0046f78c with the fix batch
 - **Resolved:** 2026-10-10 via [issue caxri#1620](https://github.com/tjx666/caxri/issues/1620).
 - **Remediation target / Acceptance:** Hook installation edits the link target in place; a dangling link fails with CONFLICT instead of creating a file.
