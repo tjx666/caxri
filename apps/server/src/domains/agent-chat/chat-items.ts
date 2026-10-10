@@ -57,8 +57,8 @@ export function closeDanglingItem(item: AgentChatItem): AgentChatItem | undefine
 }
 
 /**
- * Operations for a provider process that ended: open items close as interrupted, the running turn is interrupted, and
- * every pending request goes away with the process that asked it.
+ * Operations for a provider process that ended: open items close as interrupted, the running turn is interrupted, a
+ * compaction stops, and every pending request goes away with the process that asked it.
  */
 export function endedSessionOperations(snapshot: AgentChatSnapshot): AgentChatPatchOperation[] {
     const operations: AgentChatPatchOperation[] = [];
@@ -72,6 +72,8 @@ export function endedSessionOperations(snapshot: AgentChatSnapshot): AgentChatPa
         state: {
             requests: [],
             activeTurnId: null,
+            // A process that died mid-compaction never reports its end; a stale flag would hold the queue forever.
+            ...(snapshot.operation === 'compacting' && { operation: null }),
             ...(activeTurnId && {
                 turns: snapshot.turns.map((turn) =>
                     turn.id === activeTurnId ? { ...turn, status: 'interrupted' as const } : turn,

@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatItemSchema,
-    agentChatMethods,
     MAX_AGENT_CHAT_IMAGE_BYTES,
     MAX_AGENT_CHAT_IMAGES,
 } from '../agent-chat-contract';
+import { agentChatMethods } from '../agent-chat-methods';
 import { applyAgentChatOperation, emptyAgentChatSnapshot } from '../agent-chat-reducer';
 
 const sendParameters = agentChatMethods['agentChat.send'].params;

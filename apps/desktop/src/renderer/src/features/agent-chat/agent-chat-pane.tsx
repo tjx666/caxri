@@ -18,14 +18,20 @@ import {
     agentChatContextSummary,
     agentChatFailureMessage,
     canSendAgentChatMessage,
+    isAgentChatBusy,
     isAgentChatTurnRunning,
 } from './agent-chat-presentation';
 import { AgentChatRequestCard } from './agent-chat-request-card';
 import { AgentChatPlanCard } from './agent-chat-status-glyph';
+import { openAgentChatTaskTab } from './agent-chat-task-opener';
+import { AgentChatTaskStrip } from './agent-chat-task-strip';
+import { agentChatTasksByItem } from './agent-chat-tasks';
 import { buildAgentChatTimeline } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
+import type { AgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
+import { AgentChatTaskLinksContext } from './hooks/use-agent-chat-task-link';
 
 /**
  * Why the Chat cannot continue, with the one action that recovers it. It sits in the dock, outside the scrolling
@@ -133,6 +139,18 @@ export function AgentChatPane({
         () => (items && turns ? buildAgentChatTimeline(items, turns, activeTurnId) : []),
         [items, turns, activeTurnId],
     );
+    const tasks = snapshot?.tasks;
+    /**
+     * Rows that started a subagent or background shell open its tab beside this Chat. Memoized on the task list so a
+     * streamed delta that leaves tasks alone does not re-render every memoized work row.
+     */
+    const taskLinks = useMemo<AgentChatTaskLinks>(
+        () => ({
+            tasksByItem: agentChatTasksByItem(tasks),
+            openTask: (taskId) => openAgentChatTaskTab(terminalId, taskId),
+        }),
+        [tasks, terminalId],
+    );
     const isEmpty = snapshot?.status === 'ready' && snapshot.items.length === 0;
     const retry = (): void => {
         /**
@@ -156,13 +174,15 @@ export function AgentChatPane({
                                 Earlier messages are not shown
                             </p>
                         )}
-                        {timeline.map((entry) => (
-                            <AgentChatTimelineEntryView
-                                entry={entry}
-                                key={entry.kind === 'item' ? entry.item.id : entry.id}
-                                onOpenFile={openFile}
-                            />
-                        ))}
+                        <AgentChatTaskLinksContext value={taskLinks}>
+                            {timeline.map((entry) => (
+                                <AgentChatTimelineEntryView
+                                    entry={entry}
+                                    key={entry.kind === 'item' ? entry.item.id : entry.id}
+                                    onOpenFile={openFile}
+                                />
+                            ))}
+                        </AgentChatTaskLinksContext>
                         {isEmpty && (
                             <p className="m-0 py-8 text-center text-[13px] text-muted">
                                 Send a message to start working with {providerName}.
@@ -208,6 +228,7 @@ export function AgentChatPane({
                         terminalId={terminalId}
                     />
                 ))}
+                <AgentChatTaskStrip tasks={tasks} terminalId={terminalId} />
             </div>
             <TerminalLinkPicker
                 isOpen={linkPicker.isOpen}
@@ -225,7 +246,10 @@ export function AgentChatPane({
                 commands={snapshot?.commands}
                 contextSummary={agentChatContextSummary(snapshot)}
                 inputReference={inputReference}
+                isBusy={isAgentChatBusy(snapshot)}
+                isQueuePaused={snapshot?.queuePaused ?? false}
                 providerName={providerName}
+                queue={snapshot?.queue}
                 supportsImages={supportsImages}
                 terminalId={terminalId}
             />

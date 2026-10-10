@@ -2,12 +2,7 @@ import type { ReactNode, RefObject } from 'react';
 import { useRef, useState } from 'react';
 
 import type { PaneNode, PaneTab, TerminalRecord } from '@caxri/protocol';
-import {
-    parseAgentTranscriptTab,
-    partitionPaneTabs,
-    terminalDisplayTitle,
-    terminalTabLabel,
-} from '@caxri/protocol';
+import { partitionPaneTabs, terminalDisplayTitle, terminalTabLabel } from '@caxri/protocol';
 import { CircleAlert, Pause } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 
@@ -31,8 +26,8 @@ import {
     resolveDocumentTabPath,
 } from '../editor/document-tab-path-actions';
 import { documentTabPathMenu } from '../editor/document-tab-path-menu';
-import { documentTabPresentation } from '../editor/document-tab-presentation';
 import { GitReviewTabBadge } from '../editor/git-review-tab-badge';
+import { useDocumentTabPresentation } from '../editor/hooks/use-document-tab-presentation';
 import { previewSourcePath } from '../preview/preview-commands';
 import { WorkTab } from '../tabs/work-tab';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
@@ -184,15 +179,12 @@ function DocumentPaneTab({
      * Keep context-menu close actions in sync when other tabs open or close.
      */
     const paneLayout = useSessionState(usePaneViewSessionId())?.paneLayout;
-    const transcriptTab = parseAgentTranscriptTab(path);
     const project = useProjectById(session?.workbenchProjectId);
     const overviewQuery = useCaxriQuery(
         'git.overview',
         { sessionId: session?.id ?? '' },
         { enabled: Boolean(session), staleTime: 60_000 },
     );
-    // Tab identity is the terminal ID alone; the label follows its stable semantic title, never a PTY window title.
-    const transcriptTerminal = useTerminal(transcriptTab?.terminalId ?? '');
     const document = useSessionViewStore((state) =>
         session
             ? state.documents[sessionViewScope(session.id, session.workbenchProjectId)]?.[path]
@@ -209,10 +201,7 @@ function DocumentPaneTab({
      */
     const gitDecoration = useGitDecoration(resolution?.absolutePath);
     const pathMenu = documentTabPathMenuState(path, overviewQuery);
-    const presentation = documentTabPresentation(path, {
-        displayPath: document?.displayPath,
-        transcriptTitle: transcriptTerminal?.title,
-    });
+    const presentation = useDocumentTabPresentation(path, document?.displayPath);
     return (
         <WorkTab
             active={active}

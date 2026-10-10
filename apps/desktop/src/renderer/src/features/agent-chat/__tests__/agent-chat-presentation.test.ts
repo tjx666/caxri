@@ -9,10 +9,11 @@ import {
     agentChatFailureMessage,
     agentChatQuestionAnswers,
     agentChatRequestTitle,
+    agentChatSubmitDelivery,
     agentChatWorkingVerb,
     canSendAgentChatMessage,
+    isAgentChatBusy,
     isAgentChatInterruptKey,
-    isAgentChatSubmitKey,
     withOccurrenceKeys,
 } from '../agent-chat-presentation';
 
@@ -33,20 +34,39 @@ describe('canSendAgentChatMessage', () => {
     });
 });
 
-describe('isAgentChatSubmitKey', () => {
-    it('sends on Enter only', () => {
-        expect(isAgentChatSubmitKey({ key: 'Enter', shiftKey: false, isComposing: false })).toBe(
-            true,
-        );
-        expect(isAgentChatSubmitKey({ key: 'Enter', shiftKey: true, isComposing: false })).toBe(
-            false,
-        );
+describe('agentChatSubmitDelivery', () => {
+    const key = (overrides: Partial<Parameters<typeof agentChatSubmitDelivery>[0]> = {}) => ({
+        key: 'Enter',
+        shiftKey: false,
+        metaKey: false,
+        ctrlKey: false,
+        isComposing: false,
+        ...overrides,
+    });
+    const idle = { isTurnRunning: false, isBusy: false };
+    const running = { isTurnRunning: true, isBusy: true };
+
+    it('sends on Enter when idle, with or without Cmd', () => {
+        expect(agentChatSubmitDelivery(key(), idle)).toBe('send');
+        expect(agentChatSubmitDelivery(key({ metaKey: true }), idle)).toBe('send');
     });
 
-    it('leaves Enter to an IME composition', () => {
-        expect(isAgentChatSubmitKey({ key: 'Enter', shiftKey: false, isComposing: true })).toBe(
-            false,
-        );
+    it('queues on Enter and steers on Cmd+Enter or Ctrl+Enter while a turn runs', () => {
+        expect(agentChatSubmitDelivery(key(), running)).toBe('queue');
+        expect(agentChatSubmitDelivery(key({ metaKey: true }), running)).toBe('steer');
+        expect(agentChatSubmitDelivery(key({ ctrlKey: true }), running)).toBe('steer');
+    });
+
+    it('queues while compacting even with Cmd, since there is no turn to steer', () => {
+        expect(
+            agentChatSubmitDelivery(key({ metaKey: true }), { isTurnRunning: false, isBusy: true }),
+        ).toBe('queue');
+    });
+
+    it('leaves Shift+Enter, other keys, and an IME composition alone', () => {
+        expect(agentChatSubmitDelivery(key({ shiftKey: true }), idle)).toBeUndefined();
+        expect(agentChatSubmitDelivery(key({ isComposing: true }), running)).toBeUndefined();
+        expect(agentChatSubmitDelivery(key({ key: 'a' }), idle)).toBeUndefined();
     });
 });
 
@@ -94,6 +114,36 @@ describe('agentChatContextSummary', () => {
         expect(
             agentChatContextSummary({ usage: { totalTokens: 200_000, contextWindow: 100_000 } }),
         ).toBe('0% context left');
+    });
+});
+
+describe('agentChatActivity while compacting', () => {
+    it('names compaction instead of a working verb, stoppable only inside a turn', () => {
+        expect(
+            agentChatActivity({ ...snapshot('ready'), operation: 'compacting' }, 'Claude'),
+        ).toEqual({
+            kind: 'compacting',
+            text: 'Compacting context…',
+            isStoppable: false,
+        });
+        expect(
+            agentChatActivity(
+                { ...snapshot('ready'), operation: 'compacting', activeTurnId: 'turn-1' },
+                'Claude',
+            ),
+        ).toMatchObject({ kind: 'compacting', isStoppable: true });
+    });
+});
+
+describe('isAgentChatBusy', () => {
+    it('queues behind a running turn, a compaction, or an unpaused queue', () => {
+        expect(isAgentChatBusy(snapshot('ready'))).toBe(false);
+        expect(isAgentChatBusy({ ...snapshot('ready'), activeTurnId: 'turn-1' })).toBe(true);
+        expect(isAgentChatBusy({ ...snapshot('ready'), operation: 'compacting' })).toBe(true);
+        const queued = { ...snapshot('ready'), queue: [{ id: 'q1', text: 'next' }] };
+        expect(isAgentChatBusy(queued)).toBe(true);
+        expect(isAgentChatBusy({ ...queued, queuePaused: true })).toBe(false);
+        expect(isAgentChatBusy(undefined)).toBe(false);
     });
 });
 
