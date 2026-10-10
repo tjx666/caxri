@@ -227,6 +227,17 @@ several callbacks can share one item, so the transport id is never the key.
 - The composer keeps an unsent draft per Chat across tab switches, clears only the text that was
   actually sent, and treats Escape as Stop while a turn runs. Its footer shows the model and the
   remaining context window.
+- Work renders as one-line rows (`Ran git status`, `Read <file>`, `Edited <file> +2 more`),
+  each with the tool kind's glyph from the provider tool table shared with mobile
+  (`packages/protocol/src/agent/agent-tool-presentation.ts`). Codex's login-shell wrapper
+  (`/bin/zsh -lc "..."`) is unwrapped so a row shows the script that ran. Consecutive work collapses
+  into one summary row, and once a turn ends its work and commentary fold behind `Worked for X`
+  (`Stopped after X`, `Failed after X`), keeping the prompt, the final reply, and notices other than
+  a transient retry in view. A running turn stays expanded. Expanded command and tool output is
+  painted in the language inferred from what produced it: the extension of a file a `cat`/`sed`/
+  `head` printed or a Read tool returned (with Claude Code's line-number gutter removed), `diff` for
+  `git diff`/`git show`, or JSON; anything else stays plain text. Grouping and inference live in
+  `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-timeline.ts`.
 - Replies render Markdown through the shared `@caxri/markdown` block tree
   ([`components/markdown/`](../apps/desktop/src/renderer/src/components/markdown/markdown-blocks.tsx)):
   leveled headings, nested and task lists, quotes, tables with Copy table (Markdown plus HTML), and

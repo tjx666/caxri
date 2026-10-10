@@ -1,7 +1,7 @@
 import type { AgentChatRequest, AgentChatSnapshot } from '@caxri/protocol';
+import { describeAgentTool } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { describeTool } from '../../conversation/tool-presentation';
 import {
     agentChatActivityLabel,
     agentChatApprovalChoices,
@@ -86,7 +86,7 @@ describe('Agent Chat model', () => {
         ]);
         const thought = timeline[1] as Extract<(typeof timeline)[number], { type: 'toolCall' }>;
         expect(thought).toMatchObject({ summary: 'Inspecting tests', status: 'succeeded' });
-        expect(describeTool(thought)).toMatchObject({ kind: 'thought', label: 'Thought' });
+        expect(describeAgentTool(thought)).toMatchObject({ kind: 'thought', label: 'Thought' });
         expect(timeline[2]).toMatchObject({
             name: 'exec_command',
             summary: 'pnpm test',

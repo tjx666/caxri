@@ -7,7 +7,6 @@ import type {
 } from '@caxri/protocol';
 
 import { projectRelativePath } from '../../lib/file-path';
-import { agentChatFilesChangedLabel } from './agent-chat-diff';
 
 /**
  * User-facing copy for each closed failure reason. Provider text never selects the message; `detail` is shown beside it
@@ -145,25 +144,6 @@ export function agentChatItemStatusLabel(status: AgentChatItemStatus): string {
         }
         case 'interrupted': {
             return 'Interrupted';
-        }
-    }
-}
-
-/**
- * One-line heading of a collapsible activity row.
- */
-export function agentChatActivityTitle(
-    item: Extract<AgentChatItem, { type: 'command' | 'fileChange' | 'toolCall' }>,
-): string {
-    switch (item.type) {
-        case 'command': {
-            return item.command;
-        }
-        case 'fileChange': {
-            return agentChatFilesChangedLabel(item.changes.length);
-        }
-        case 'toolCall': {
-            return item.summary ? `${item.name}: ${item.summary}` : item.name;
         }
     }
 }

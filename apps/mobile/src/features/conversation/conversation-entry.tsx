@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
+import { formatShortDuration } from '@caxri/protocol';
 
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationMarkdown } from './conversation-markdown';
 import type { ConversationEntry as Entry } from './conversation-model';
-import { formatConversationDuration } from './conversation-model';
 import { conversationStyles as styles } from './conversation-styles';
 import { ConversationSystemEvent } from './conversation-system-event';
 import { ConversationToolDetail } from './conversation-tool-detail';
@@ -25,7 +25,7 @@ export const ConversationEntry = ({ entry, theme }: { entry: Entry; theme: Mobil
             >
                 <View style={[styles.turnPill, { backgroundColor: theme.surface }]}>
                     <Text style={[styles.turnText, { color: theme.muted }]}>
-                        {formatConversationDuration(entry.durationMs) ?? 'Turn complete'}
+                        {formatShortDuration(entry.durationMs) ?? 'Turn complete'}
                     </Text>
                 </View>
             </View>

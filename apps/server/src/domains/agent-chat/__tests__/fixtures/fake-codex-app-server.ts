@@ -262,6 +262,34 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
             ],
         });
         await streamMessage(turn, 'Generated a large file.', 0);
+    } else if (text.includes('explore')) {
+        /**
+         * Consecutive tool calls the Chat groups into one summary row, with output it can paint.
+         */
+        const ran = (command: string, output: string) =>
+            completeItem(turn, {
+                type: 'commandExecution',
+                id: crypto.randomUUID(),
+                command: `/bin/zsh -lc "${command}"`,
+                cwd: process.cwd(),
+                status: 'completed',
+                aggregatedOutput: output,
+                exitCode: 0,
+                durationMs: 5,
+            });
+        ran('cat src/app.ts', 'export const answer: number = 42;\n');
+        ran('git status --short', ' M src/app.ts\n');
+        completeItem(turn, {
+            type: 'mcpToolCall',
+            id: crypto.randomUUID(),
+            server: 'docs',
+            tool: 'search',
+            status: 'completed',
+            arguments: { query: 'greet' },
+            result: { content: [{ type: 'text', text: '{"hits": 1}' }] },
+            durationMs: 5,
+        });
+        await streamMessage(turn, 'Explored the project.', 0);
     } else if (text.includes('ask')) {
         const item = { type: 'dynamicToolCall', id: crypto.randomUUID() };
         const response = (await serverRequest('item/tool/requestUserInput', {
