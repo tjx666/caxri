@@ -54,7 +54,7 @@ function KpiTiles({ report }: { report: UsageReport }) {
             />
             {/* Read from the trailing-year activity, like the Activity card, so the range selector does not move it. */}
             <StatTile
-                label="Streak (last 12 months)"
+                label="Streak (past year)"
                 value={`${streaks.current} ${streaks.current === 1 ? 'day' : 'days'}`}
                 detail={`Longest ${streaks.longest} ${streaks.longest === 1 ? 'day' : 'days'}`}
             />
