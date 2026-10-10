@@ -12,6 +12,7 @@ import {
     isExternalEditorTabPath,
     isSettingsTabPath,
     isUsageTabPath,
+    parseAgentTaskTab,
     parseAgentTranscriptTab,
     parseFilePreviewTab,
     parseGitDiffTab,
@@ -44,6 +45,14 @@ const GitDiffEditor = lazy(async () => {
 const AgentTranscriptEditor = lazy(async () => {
     const module = await import('./agent-transcript-editor');
     return { default: module.AgentTranscriptEditor };
+});
+
+/**
+ * Lazy so a Session that never opens a subagent or background shell tab does not load the Chat timeline for it.
+ */
+const AgentChatTaskTab = lazy(async () => {
+    const module = await import('../agent-chat/agent-chat-task-tab');
+    return { default: module.AgentChatTaskTab };
 });
 
 /**
@@ -208,6 +217,13 @@ function EditorSurfaceContent({ paneId, path }: { paneId: string; path: string }
         return (
             <Suspense fallback={<div className={emptyWorkClassName}>Loading transcript…</div>}>
                 <AgentTranscriptEditor key={transcriptTab.terminalId} tab={transcriptTab} />
+            </Suspense>
+        );
+    const agentTaskTab = parseAgentTaskTab(path);
+    if (agentTaskTab)
+        return (
+            <Suspense fallback={<div className={emptyWorkClassName}>Loading task…</div>}>
+                <AgentChatTaskTab key={path} tab={agentTaskTab} />
             </Suspense>
         );
     const previewTab = parseFilePreviewTab(path);

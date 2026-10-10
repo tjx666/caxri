@@ -49,6 +49,15 @@ export const logEventCatalog = {
          * A provider request or response Caxri could not honor, with a closed `reason`.
          */
         protocolRejected: 'agent_chat.protocol_rejected',
+        /**
+         * A follow-up message queue transition with a closed `reason` (`queued`, `steered`, `dispatched`, `removed`,
+         * `sentNow`, `paused`, `resumed`, `dispatchFailed`) and the queue depth after it. Never carries message text.
+         */
+        queueChanged: 'agent_chat.queue_changed',
+        /**
+         * A subagent or background shell reached a final status, with its `kind`, closed `status`, and duration.
+         */
+        taskFinished: 'agent_chat.task_finished',
     },
     agent: {
         automaticNamingFinished: 'agent.automatic_naming_finished',
@@ -454,8 +463,9 @@ export const logEventCatalog = {
         suspendFailed: 'terminal.suspend_failed',
         suspended: 'terminal.suspended',
         /**
-         * One `terminal.switchSurface` request: the closed `outcome` (`switched`, `turnRunning`, `unbound`, `failed`),
-         * both surfaces, the provider, whether a running turn was interrupted, and the duration.
+         * One `terminal.switchSurface` request: the closed `outcome` (`switched`, `startedNew` for an Agent with no
+         * conversation to carry over, `turnRunning`, `failed`), both surfaces, the provider, whether a running turn was
+         * interrupted, and the duration.
          */
         surfaceSwitched: 'terminal.surface_switched',
     },

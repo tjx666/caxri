@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type {
     AgentChatMessageInput,
     AgentChatModelChange,
+    AgentChatPatchOperation,
     AgentChatRequest,
 } from '@caxri/protocol';
 import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
@@ -21,13 +22,20 @@ import type {
     AgentChatProviderSession,
     AgentChatResponse,
     AgentChatSessionHost,
+    ChatInputOptions,
     ChatProcessEnd,
+    ChatTaskHistory,
 } from './chat-provider';
-import { AgentChatStartError } from './chat-provider';
 import type { CodexThreadSettings } from './codex-chat-types';
 import type { CodexServerRequest } from './codex-connection';
 import { CodexConnection, CodexRequestError } from './codex-connection';
-import { CODEX_COMMANDS, CodexThumbnails, codexUserInput } from './codex-input';
+import {
+    CODEX_COMMANDS,
+    CodexDeliveries,
+    CodexThumbnails,
+    codexUserInput,
+    isSteerTargetGone,
+} from './codex-input';
 import type { CodexRequestKind } from './codex-items';
 import {
     codexRequestKey,
@@ -39,11 +47,11 @@ import {
     mapCodexUsage,
 } from './codex-items';
 import { CodexModelSettings } from './codex-models';
+import { CodexTasks } from './codex-tasks';
+import { initializeCodexConnection, openCodexThread } from './codex-thread-open';
 import { finishedTurnOperations, historyOperations } from './codex-turns';
 import { codexChatSettings, REAL_E2E_CODEX_CHAT_SETTINGS } from './launch-settings';
 
-const HANDSHAKE_TIMEOUT_MS = 15_000;
-const THREAD_OPEN_TIMEOUT_MS = 30_000;
 const TURN_REQUEST_TIMEOUT_MS = 30_000;
 
 /**
@@ -83,6 +91,10 @@ class CodexChatSession implements AgentChatProviderSession {
 
     private readonly thumbnails = new CodexThumbnails();
 
+    private readonly deliveries = new CodexDeliveries();
+
+    private readonly tasks: CodexTasks;
+
     private readonly models: CodexModelSettings;
 
     constructor(private readonly options: AgentChatSessionHost) {
@@ -91,6 +103,11 @@ class CodexChatSession implements AgentChatProviderSession {
             : codexChatSettings(options.launch);
         this.threadId = options.agentSessionId;
         this.isThreadBound = Boolean(options.agentSessionId);
+        this.tasks = new CodexTasks(options, {
+            request: (method, parameters, timeoutMs) =>
+                this.requireConnection().request(method, parameters, timeoutMs),
+            threadId: () => this.threadId,
+        });
         this.models = new CodexModelSettings(options);
     }
 
@@ -102,6 +119,7 @@ class CodexChatSession implements AgentChatProviderSession {
 
     private loadHistory(thread: Json, model: string | undefined): void {
         this.options.apply(historyOperations(thread, model));
+        this.tasks.replay(thread);
     }
 
     private beginTurn(turnId: string): void {
@@ -135,14 +153,29 @@ class CodexChatSession implements AgentChatProviderSession {
     }
 
     private finishTurn(turn: Json): void {
-        const finished = finishedTurnOperations(this.options.read(), turn, (requestId, turnId) => {
-            const pending = this.pending.get(requestId);
-            if (pending?.turnId !== undefined && pending.turnId !== turnId) return true;
-            this.pending.delete(requestId);
-            return false;
-        });
+        const turnId = stringField(turn.id);
+        const backgrounded = turnId
+            ? this.tasks.onTurnFinished(clip(turnId, 200))
+            : new Set<string>();
+        const snapshot = this.options.read();
+        const finished = finishedTurnOperations(
+            snapshot,
+            turn,
+            (requestId, finishedTurnId) => {
+                const pending = this.pending.get(requestId);
+                if (pending?.turnId !== undefined && pending.turnId !== finishedTurnId) return true;
+                this.pending.delete(requestId);
+                return false;
+            },
+            backgrounded,
+        );
         if (!finished) return;
         const { id, status, durationMs, operations } = finished;
+        /**
+         * Compaction runs as its own turn; a turn that ended without completing it must not leave the Chat compacting.
+         */
+        if (snapshot.operation === 'compacting')
+            operations.push({ op: 'state', state: { operation: null } });
         this.options.apply(operations);
         this.options.onTurnFinished(status, durationMs);
         this.options.lifecycle(
@@ -158,9 +191,20 @@ class CodexChatSession implements AgentChatProviderSession {
     }
 
     private onNotification(method: string, parameters: Json): void {
-        if (stringField(parameters.threadId) && parameters.threadId !== this.threadId) return;
+        const threadId = stringField(parameters.threadId);
+        /**
+         * Server requests of a subagent are answered through the Chat like its own, so their resolution is too.
+         */
+        if (method !== 'serverRequest/resolved' && this.tasks.isOtherThread(threadId)) {
+            this.tasks.onChildNotification(threadId, method, parameters);
+            return;
+        }
         const turnId = stringField(parameters.turnId);
         switch (method) {
+            case 'thread/started': {
+                this.tasks.onThreadStarted(parameters.thread);
+                return;
+            }
             case 'turn/started': {
                 const turn = isRecord(parameters.turn) ? parameters.turn : undefined;
                 const id = stringField(turn?.id);
@@ -173,21 +217,17 @@ class CodexChatSession implements AgentChatProviderSession {
             }
             case 'item/started':
             case 'item/completed': {
-                const mapped = mapCodexItem(parameters.item, turnId, method === 'item/started');
-                const item = mapped && this.thumbnails.apply(mapped, parameters.item);
-                if (item) this.options.apply([{ op: 'upsertItem', item }]);
-                if (
-                    method === 'item/completed' &&
-                    isRecord(parameters.item) &&
-                    parameters.item.type === 'contextCompaction'
-                )
-                    this.options.lifecycle({ phase: 'compactionFinished' });
+                this.onItem(parameters.item, turnId, method === 'item/started');
                 return;
             }
             case 'item/agentMessage/delta':
-            case 'item/reasoning/summaryTextDelta':
+            case 'item/reasoning/summaryTextDelta': {
+                this.appendDelta(parameters.itemId, parameters.delta);
+                return;
+            }
             case 'item/commandExecution/outputDelta': {
                 this.appendDelta(parameters.itemId, parameters.delta);
+                this.tasks.onCommandOutput(parameters.itemId, parameters.delta);
                 return;
             }
             case 'item/reasoning/summaryPartAdded': {
@@ -220,6 +260,38 @@ class CodexChatSession implements AgentChatProviderSession {
             }
             default: {
                 // Account, MCP startup, and warning notifications are not conversation content.
+            }
+        }
+    }
+
+    private onItem(raw: unknown, turnId: string | undefined, isStarted: boolean): void {
+        const mapped = mapCodexItem(raw, turnId, isStarted);
+        const item = mapped && this.deliveries.apply(this.thumbnails.apply(mapped, raw), raw);
+        const operations: AgentChatPatchOperation[] = item ? [{ op: 'upsertItem', item }] : [];
+        const type = isRecord(raw) ? raw.type : undefined;
+        if (type === 'contextCompaction')
+            operations.push({
+                op: 'state',
+                state: { operation: isStarted ? 'compacting' : null },
+            });
+        if (operations.length > 0) this.options.apply(operations);
+        if (!isRecord(raw)) return;
+        switch (type) {
+            case 'contextCompaction': {
+                this.options.lifecycle({
+                    phase: isStarted ? 'compactionStarted' : 'compactionFinished',
+                });
+                break;
+            }
+            case 'commandExecution': {
+                this.tasks.onCommandItem(raw, turnId, isStarted);
+                break;
+            }
+            case 'collabAgentToolCall':
+            case 'subAgentActivity': {
+                this.tasks.onAgentItem(raw);
+                // No default
+                break;
             }
         }
     }
@@ -311,6 +383,7 @@ class CodexChatSession implements AgentChatProviderSession {
         const unanswered = this.pending.keys().toArray();
         this.pending.clear();
         this.options.apply(operations);
+        this.tasks.end();
         /**
          * The process took its requests with it; resolve their attention so the Session stops waiting on them.
          */
@@ -333,11 +406,10 @@ class CodexChatSession implements AgentChatProviderSession {
     }
 
     private async open(): Promise<'resumed' | 'started'> {
-        const { settings } = this;
         let spawnFailure: ChatProcessEnd | undefined;
         const connection = new CodexConnection({
             executable: this.options.executable,
-            args: [...settings.rootArgs, 'app-server', '--listen', 'stdio://'],
+            args: [...this.settings.rootArgs, 'app-server', '--listen', 'stdio://'],
             cwd: this.options.cwd,
             environment: this.options.environment,
             spawnProcess: this.options.spawnProcess,
@@ -351,111 +423,21 @@ class CodexChatSession implements AgentChatProviderSession {
             },
         });
         this.connection = connection;
-        try {
-            await connection.request(
-                'initialize',
-                {
-                    clientInfo: {
-                        name: 'caxri',
-                        title: 'Caxri',
-                        version: this.options.clientVersion,
-                    },
-                    capabilities: {
-                        experimentalApi: false,
-                        optOutNotificationMethods: [
-                            'turn/diff/updated',
-                            'item/reasoning/textDelta',
-                            'item/fileChange/outputDelta',
-                            'item/plan/delta',
-                        ],
-                    },
-                },
-                HANDSHAKE_TIMEOUT_MS,
-            );
-            connection.notify('initialized');
-        } catch (error) {
-            await connection.close();
-            if (spawnFailure?.reason === 'spawnFailed')
-                throw spawnFailure.code === 'ENOENT'
-                    ? new AgentChatStartError('executable_not_found', 'Codex CLI was not found')
-                    : new AgentChatStartError('spawn_failed', 'Codex could not be started');
-            if (error instanceof CodexRequestError && /unknown variant/u.test(error.message))
-                throw new AgentChatStartError(
-                    'unsupported_version',
-                    'This Codex CLI version does not support Chat',
-                );
-            throw new AgentChatStartError(
-                'handshake_failed',
-                'Codex app-server did not complete its handshake',
-            );
-        }
-        const threadParameters = {
+        await initializeCodexConnection(connection, this.options.clientVersion, () => spawnFailure);
+        const opened = await openCodexThread(connection, {
             cwd: this.options.cwd,
-            approvalPolicy: settings.approvalPolicy,
-            approvalsReviewer: 'user',
-            sandbox: settings.sandbox,
-            config: { 'tools.update_plan.enabled': true },
-        };
-        if (this.threadId) {
-            let result: unknown;
-            try {
-                /**
-                 * `model` is omitted on purpose: naming one would override the thread's own saved model and effort.
-                 */
-                result = await connection.request(
-                    'thread/resume',
-                    { ...threadParameters, threadId: this.threadId },
-                    THREAD_OPEN_TIMEOUT_MS,
-                );
-            } catch {
-                await connection.close();
-                throw new AgentChatStartError(
-                    'resume_failed',
-                    'Codex could not resume this conversation',
-                );
-            }
-            const thread = isRecord(result) && isRecord(result.thread) ? result.thread : undefined;
-            if (thread?.id !== this.threadId) {
-                await connection.close();
-                throw new AgentChatStartError(
-                    'resume_failed',
-                    'Codex resumed a different conversation',
-                );
-            }
-            this.loadHistory(thread, isRecord(result) ? stringField(result.model) : undefined);
-            this.models.reportOpened(result);
+            settings: this.settings,
+            ...(this.threadId && { threadId: this.threadId }),
+        });
+        if (opened.outcome === 'resumed') {
+            this.loadHistory(opened.thread, opened.model);
+            this.models.reportOpened(opened.effort);
             return 'resumed';
         }
-        let result: unknown;
-        try {
-            result = await connection.request(
-                'thread/start',
-                {
-                    ...threadParameters,
-                    ...(settings.model && { model: settings.model }),
-                },
-                THREAD_OPEN_TIMEOUT_MS,
-            );
-        } catch {
-            await connection.close();
-            throw new AgentChatStartError(
-                'handshake_failed',
-                'Codex could not start a conversation',
-            );
-        }
-        const thread = isRecord(result) && isRecord(result.thread) ? result.thread : undefined;
-        const threadId = stringField(thread?.id);
-        if (!threadId) {
-            await connection.close();
-            throw new AgentChatStartError(
-                'handshake_failed',
-                'Codex did not return a conversation',
-            );
-        }
-        this.threadId = threadId;
-        const model = isRecord(result) ? stringField(result.model) : undefined;
-        if (model) this.options.apply([{ op: 'state', state: { model: clip(model, 200) } }]);
-        this.models.reportOpened(result);
+        this.threadId = opened.threadId;
+        if (opened.model)
+            this.options.apply([{ op: 'state', state: { model: clip(opened.model, 200) } }]);
+        this.models.reportOpened(opened.effort);
         return 'started';
     }
 
@@ -478,13 +460,17 @@ class CodexChatSession implements AgentChatProviderSession {
         return outcome;
     }
 
-    async send(message: AgentChatMessageInput): Promise<void> {
+    async send(
+        message: Omit<AgentChatMessageInput, 'delivery'>,
+        options: ChatInputOptions = {},
+    ): Promise<void> {
         const connection = this.requireConnection();
         const clientUserMessageId = randomUUID();
         const input = codexUserInput(message);
         this.thumbnails.remember(clientUserMessageId, message);
+        if (options.delivery) this.deliveries.remember(clientUserMessageId, options.delivery);
         const { activeTurnId } = this.options.read();
-        if (activeTurnId) {
+        if (activeTurnId && options.delivery === 'steered') {
             try {
                 await connection.request(
                     'turn/steer',
@@ -500,19 +486,22 @@ class CodexChatSession implements AgentChatProviderSession {
             } catch (error) {
                 /**
                  * The turn can finish between reading `activeTurnId` and the steer arriving; Codex then rejects the
-                 * precondition and the message starts the next turn instead of being lost.
+                 * precondition and the message starts the next turn instead of being lost. It was not steered after
+                 * all, so its echo carries no marker.
                  */
                 if (!(error instanceof CodexRequestError)) throw error;
+                if (!isSteerTargetGone(error))
+                    throw new CaxriError(
+                        'CONFLICT',
+                        'Codex cannot add this message to the running turn',
+                    );
+                this.deliveries.forget(clientUserMessageId);
             }
         }
-        const request = {
-            threadId: this.threadId,
-            input,
-            summary: 'detailed',
-            clientUserMessageId,
-        };
-        const result = await this.models.startTurn((nextTurn) =>
-            connection.request('turn/start', { ...request, ...nextTurn }, TURN_REQUEST_TIMEOUT_MS),
+        const result = await this.models.startTurn(
+            connection,
+            { threadId: this.threadId, input, summary: 'detailed', clientUserMessageId },
+            TURN_REQUEST_TIMEOUT_MS,
         );
         const turn = isRecord(result) && isRecord(result.turn) ? result.turn : undefined;
         const turnId = stringField(turn?.id);
@@ -560,6 +549,16 @@ class CodexChatSession implements AgentChatProviderSession {
             }
             // The turn already ended between the read and the request; `turn/completed` settles the projection.
         }
+    }
+
+    async stopTask(taskId: string): Promise<void> {
+        this.requireConnection();
+        await this.tasks.stopTask(taskId);
+    }
+
+    async readTaskHistory(taskId: string): Promise<ChatTaskHistory | undefined> {
+        if (!this.connection?.isOpen || !this.threadId) return undefined;
+        return this.tasks.readTaskHistory(taskId);
     }
 
     respond(requestId: string, response: AgentChatResponse): void {

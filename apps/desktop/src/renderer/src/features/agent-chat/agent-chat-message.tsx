@@ -21,10 +21,16 @@ function openChatLink(url: string): void {
 
 const CHAT_PARSE_OPTIONS: MarkdownBlockOptions = { tables: true, fileLinks: true };
 
+/**
+ * The user's message, right-aligned. A message sent while a turn ran says how it reached the Agent (`Steered` into that
+ * turn, or `Queued` until it ended) in a quiet caption under the bubble.
+ */
 export function AgentChatUserMessage({
+    delivery,
     images,
     text,
 }: {
+    delivery?: 'queued' | 'steered';
     images?: ReadonlyArray<{ thumbnail?: string }>;
     text: string;
 }) {
@@ -37,6 +43,11 @@ export function AgentChatUserMessage({
                 <div className="max-w-[85%] rounded-lg bg-elevated px-3 py-2 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground">
                     {text}
                 </div>
+            )}
+            {delivery && (
+                <span className="-mt-0.5 text-[11px] leading-4 text-muted">
+                    {delivery === 'steered' ? 'Steered' : 'Queued'}
+                </span>
             )}
         </div>
     );

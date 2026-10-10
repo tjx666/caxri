@@ -1,4 +1,5 @@
 import {
+    agentTaskTabPath,
     agentTranscriptTabPath,
     externalEditorTabPath,
     gitChangesDiffTabPath,
@@ -54,6 +55,21 @@ describe('documentTabPresentation', () => {
             icon: 'settings',
             label: 'Settings',
             labelTooltip: 'Settings',
+        });
+    });
+    it('labels Agent Chat task tabs by their task, with the glyph of its kind', () => {
+        const path = agentTaskTabPath('terminal-1', 'task-1');
+        expect(
+            documentTabPresentation(path, { task: { kind: 'shell', title: 'bun run dev' } }),
+        ).toEqual({
+            fileIconName: undefined,
+            icon: 'shell-task',
+            label: 'bun run dev',
+            labelTooltip: 'bun run dev',
+        });
+        expect(documentTabPresentation(path, {})).toMatchObject({
+            icon: 'agent-task',
+            label: 'Subagent',
         });
     });
 });

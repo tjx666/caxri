@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import type {
     Query,
     SDKMessage,
-    SDKResultMessage,
     SDKUserMessage,
     SpawnedProcess,
     SpawnOptions,
@@ -14,36 +13,36 @@ import type {
     AgentChatModelChange,
     AgentChatPatchOperation,
 } from '@caxri/protocol';
-import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 
-import {
-    clip,
-    endedSessionOperations,
-    isRecord,
-    MAX_TRACKED_TURNS,
-    stringField,
-} from './chat-items';
+import { clip, endedSessionOperations, isRecord, stringField } from './chat-items';
 import type {
     AgentChatDriver,
     AgentChatProviderSession,
     AgentChatResponse,
     AgentChatSessionHost,
+    ChatInputOptions,
     ChatProcessEnd,
+    ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
-import { claudeHistoryOperations } from './claude-history';
-import { ClaudeCommandList, claudeCommandPrompt, claudeUserPrompt } from './claude-input';
+import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
 import {
-    claudeAssistantItems,
-    ClaudeBlockIds,
-    claudeContextWindow,
-    claudeUsageTokens,
-    finishedClaudeTurn,
-} from './claude-items';
+    ClaudeCommandList,
+    claudeCommandPrompt,
+    claudeUserPrompt,
+    isClaudeCompactCommand,
+} from './claude-input';
+import { claudeAssistantItems, claudeUsageTokens } from './claude-items';
 import { claudeChatModels, claudeInitEffort, configureClaudeModel } from './claude-models';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
+import { ClaudeStream } from './claude-stream';
+import { readClaudeSubagentTranscript } from './claude-subagent-transcript';
+import { onClaudeApiRetry, onClaudeCompactBoundary, onClaudeStatus } from './claude-system-notices';
+import { ClaudeTasks } from './claude-tasks';
 import { ClaudeToolClock, settleClaudeToolResults } from './claude-tool-results';
+import { ClaudeTurns } from './claude-turns';
 import type { ClaudeChatSettings } from './launch-settings';
 import { claudeChatSettings } from './launch-settings';
 import { ProviderProcess } from './provider-process';
@@ -67,8 +66,7 @@ type Json = Record<string, unknown>;
  * The SDK speaks Claude Code's stream-json control protocol; Caxri still spawns the user's own `claude` executable
  * through {@link ProviderProcess}, so the process group, exit status, and stop escalation match every other provider.
  *
- * Claude Code has no turn ids: a turn is identified by the uuid of the user message that started it, and ends with the
- * `result` message once no queued message is left to fold in.
+ * Turn boundaries live in {@link ClaudeTurns}; subagents and background shells in {@link ClaudeTasks}.
  *
  * @see https://code.claude.com/docs/en/agent-sdk/streaming-vs-single-mode
  */
@@ -79,17 +77,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
 
     private readonly requests: ClaudeRequestBroker;
 
-    private readonly ids = new ClaudeBlockIds();
+    private readonly stream: ClaudeStream;
 
-    /**
-     * Streamed block index to item id for the model message being streamed, and which of those items exist yet.
-     */
-    private readonly streamingBlocks = new Map<number, string>();
-
-    private readonly streamedItems = new Set<string>();
+    private readonly tasks: ClaudeTasks;
     private readonly toolClock = new ClaudeToolClock();
-
-    private streamingMessageId: string | undefined;
 
     private query: Query | undefined;
 
@@ -105,11 +96,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
 
     private requested = false;
 
-    private isInterruptRequested = false;
-
-    private contextWindow: number | undefined;
-
-    private turnCount = 0;
+    private readonly turns: ClaudeTurns;
 
     private readonly commands = new ClaudeCommandList();
 
@@ -122,8 +109,27 @@ class ClaudeChatSession implements AgentChatProviderSession {
             sessionId: () => this.sessionId,
             isEnded: () => this.isEnded,
             onInterruptRequested: () => {
-                this.isInterruptRequested = true;
+                this.turns.isInterruptRequested = true;
             },
+        });
+        this.turns = new ClaudeTurns({
+            host: options,
+            bindSession: () => this.bindSession(),
+            sessionId: () => this.sessionId,
+            settleRequests: () => {
+                this.requests.settleAll('Turn ended');
+                this.toolClock.clear();
+            },
+        });
+        this.stream = new ClaudeStream(
+            (operations) => options.apply(operations),
+            () => options.read().activeTurnId,
+        );
+        this.tasks = new ClaudeTasks({
+            host: options,
+            query: () => (this.isOpen ? this.query : undefined),
+            takeDeclined: (toolUseId) => this.requests.takeDeclined(toolUseId),
+            isInterruptRequested: () => this.turns.isInterruptRequested,
         });
     }
 
@@ -148,146 +154,24 @@ class ClaudeChatSession implements AgentChatProviderSession {
         return providerProcess.child;
     }
 
-    private beginTurn(id: string): void {
-        const snapshot = this.options.read();
+    /**
+     * Binds the Agent Session when its first turn starts; Claude Code has durably recorded it by then.
+     */
+    private bindSession(): string {
         if (!this.isSessionBound) {
             this.isSessionBound = true;
             this.options.onSessionBound(this.sessionId);
             this.options.lifecycle({ phase: 'sessionIdentified', agentSessionId: this.sessionId });
         }
-        this.turnCount += 1;
-        this.isInterruptRequested = false;
-        this.options.apply([
-            {
-                op: 'state',
-                state: {
-                    turns: [
-                        ...snapshot.turns,
-                        { id, status: 'running' as const, startedAt: Date.now() },
-                    ].slice(-MAX_TRACKED_TURNS),
-                    activeTurnId: id,
-                    plan: null,
-                },
-            },
-        ]);
-        this.options.lifecycle({
-            phase: 'turnStarted',
-            agentSessionId: this.sessionId,
-            agentTurnId: id,
-        });
-    }
-
-    private finishTurn(result: SDKResultMessage): void {
-        const usageWindow = claudeContextWindow(result.modelUsage);
-        if (usageWindow) this.contextWindow = usageWindow;
-        // A message sent during the turn is folded into it; the turn ends with the last result.
-        if ((result.queued_turn_count ?? 0) > 0) return;
-        const snapshot = this.options.read();
-        const id = snapshot.activeTurnId;
-        if (!id) return;
-        const isSuccess = result.subtype === 'success' && !result.is_error;
-        const status = this.isInterruptRequested
-            ? 'interrupted'
-            : isSuccess
-              ? 'completed'
-              : 'failed';
-        const error =
-            result.subtype === 'success' ? result.result : result.errors.filter(Boolean).join('\n');
-        this.isInterruptRequested = false;
-        this.requests.settleAll('Turn ended');
-        const finished = finishedClaudeTurn(
-            this.options.read(),
-            id,
-            status,
-            error || 'Claude could not finish this turn',
-        );
-        this.options.apply(finished.operations);
-        this.toolClock.clear();
-        if (this.contextWindow && snapshot.usage)
-            this.options.apply([
-                {
-                    op: 'state',
-                    state: { usage: { ...snapshot.usage, contextWindow: this.contextWindow } },
-                },
-            ]);
-        this.options.onTurnFinished(status, finished.durationMs);
-        this.options.lifecycle(
-            status === 'failed'
-                ? {
-                      phase: 'turnFailed',
-                      agentSessionId: this.sessionId,
-                      agentTurnId: id,
-                      agentFailure: 'provider_failed',
-                  }
-                : { phase: 'turnFinished', agentSessionId: this.sessionId, agentTurnId: id },
-        );
-    }
-
-    private onStreamEvent(event: unknown): void {
-        if (!isRecord(event)) return;
-        switch (event.type) {
-            case 'message_start': {
-                const message = isRecord(event.message) ? event.message : undefined;
-                this.streamingMessageId = stringField(message?.id);
-                this.streamingBlocks.clear();
-                return;
-            }
-            case 'content_block_start': {
-                const block = isRecord(event.content_block) ? event.content_block : undefined;
-                const kind =
-                    block?.type === 'text'
-                        ? 'text'
-                        : block?.type === 'thinking'
-                          ? 'thinking'
-                          : undefined;
-                if (!kind || !this.streamingMessageId || typeof event.index !== 'number') return;
-                this.streamingBlocks.set(event.index, this.ids.open(this.streamingMessageId, kind));
-                return;
-            }
-            case 'content_block_delta': {
-                const delta = isRecord(event.delta) ? event.delta : undefined;
-                const itemId =
-                    typeof event.index === 'number'
-                        ? this.streamingBlocks.get(event.index)
-                        : undefined;
-                if (!delta || !itemId) return;
-                if (delta.type === 'text_delta')
-                    this.appendDelta(itemId, 'agentMessage', delta.text);
-                else if (delta.type === 'thinking_delta')
-                    this.appendDelta(itemId, 'reasoning', delta.thinking);
-                return;
-            }
-            default: {
-                // Stop and usage events carry nothing the complete assistant frame does not repeat.
-            }
-        }
-    }
-
-    /**
-     * Streams a delta into a text or thinking block. The item is created by its first delta rather than its block
-     * start, so a thinking block whose content is withheld never shows as an empty row.
-     */
-    private appendDelta(itemId: string, type: 'agentMessage' | 'reasoning', delta: unknown): void {
-        if (typeof delta !== 'string' || !delta) return;
-        const text = clip(delta, MAX_AGENT_CHAT_TEXT_LENGTH);
-        if (this.streamedItems.has(itemId)) {
-            this.options.apply([{ op: 'appendText', itemId, delta: text }]);
-            return;
-        }
-        this.streamedItems.add(itemId);
-        const turnId = this.options.read().activeTurnId;
-        this.options.apply([
-            {
-                op: 'upsertItem',
-                item: { id: itemId, ...(turnId && { turnId }), type, text, streaming: true },
-            },
-        ]);
+        return this.sessionId;
     }
 
     private onAssistant(message: unknown): void {
         if (!isRecord(message)) return;
+        this.turns.ensure();
+        this.tasks.onAssistant(message);
         const turnId = this.options.read().activeTurnId;
-        const mapped = claudeAssistantItems(message, turnId, this.ids);
+        const mapped = claudeAssistantItems(message, turnId, this.stream.ids);
         const operations: AgentChatPatchOperation[] = mapped.items.map((item) => ({
             op: 'upsertItem',
             item,
@@ -302,17 +186,20 @@ class ClaudeChatSession implements AgentChatProviderSession {
                     state: {
                         usage: {
                             totalTokens,
-                            ...(this.contextWindow && { contextWindow: this.contextWindow }),
+                            ...(this.turns.contextWindow && {
+                                contextWindow: this.turns.contextWindow,
+                            }),
                         },
                     },
                 },
             ]);
-        for (const item of mapped.items) this.streamedItems.delete(item.id);
+        this.stream.settle(mapped.items);
         this.toolClock.start(mapped.items);
     }
 
     private onToolResults(message: SDKUserMessage): void {
         const content = isRecord(message.message) ? message.message.content : undefined;
+        if (!Array.isArray(content)) return;
         const operations = settleClaudeToolResults(
             content,
             this.options.read().items,
@@ -323,9 +210,11 @@ class ClaudeChatSession implements AgentChatProviderSession {
             }),
         );
         if (operations.length > 0) this.options.apply(operations);
+        this.tasks.onToolResults(content);
     }
 
     private onSystem(message: Json): void {
+        if (this.tasks.onSystem(message)) return;
         switch (message.subtype) {
             case 'init': {
                 const sessionId = stringField(message.session_id);
@@ -345,49 +234,40 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 this.reportCommands(message.commands);
                 return;
             }
+            case 'session_state_changed': {
+                this.turns.onSessionState(message.state);
+                return;
+            }
+            case 'status': {
+                onClaudeStatus(this.options, message);
+                return;
+            }
             case 'compact_boundary': {
-                const turnId = this.options.read().activeTurnId;
-                const id = clip(`compact:${stringField(message.uuid) ?? randomUUID()}`, 200);
-                this.options.apply([
-                    {
-                        op: 'upsertItem',
-                        item: { id, ...(turnId && { turnId }), type: 'notice', kind: 'compacted' },
-                    },
-                ]);
-                this.options.lifecycle({ phase: 'compactionFinished' });
+                onClaudeCompactBoundary(this.options, message);
                 return;
             }
             case 'api_retry': {
-                const turnId = this.options.read().activeTurnId;
-                if (!turnId) return;
-                const attempt = typeof message.attempt === 'number' ? message.attempt : undefined;
-                this.options.apply([
-                    {
-                        op: 'upsertItem',
-                        item: {
-                            id: clip(`${turnId}:retry`, 200),
-                            turnId,
-                            type: 'notice',
-                            kind: 'retrying',
-                            ...(attempt !== undefined && { message: `Attempt ${attempt}` }),
-                        },
-                    },
-                ]);
+                onClaudeApiRetry(this.options, message);
                 return;
             }
             default: {
-                // Hook, status, and task notifications are not conversation content.
+                // Hook and other notifications are not conversation content.
             }
         }
     }
 
     private onMessage(message: SDKMessage): void {
         if (this.isEnded) return;
-        // Subagent output stays inside its parent tool call, like the TUI.
-        if ('parent_tool_use_id' in message && message.parent_tool_use_id) return;
+        // A subagent's own conversation goes to its task tab, not the parent timeline.
+        if ('parent_tool_use_id' in message && message.parent_tool_use_id) {
+            this.tasks.onChildMessage(message);
+            return;
+        }
         switch (message.type) {
             case 'stream_event': {
-                this.onStreamEvent(message.event);
+                if (isRecord(message.event) && message.event.type === 'message_start')
+                    this.turns.ensure();
+                this.stream.onEvent(message.event);
                 return;
             }
             case 'assistant': {
@@ -399,7 +279,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 return;
             }
             case 'result': {
-                this.finishTurn(message);
+                this.turns.finish(message);
                 return;
             }
             case 'system': {
@@ -416,6 +296,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
         if (this.isEnded) return;
         this.isEnded = true;
         this.prompts.end();
+        this.tasks.close();
         const snapshot = this.options.read();
         const { activeTurnId } = snapshot;
         const keys = this.requests.drain();
@@ -436,7 +317,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             end,
             requested: this.requested,
             ...(activeTurnId && { activeTurnId }),
-            turns: this.turnCount,
+            turns: this.turns.count,
             serverRequests: this.requests.count,
             rejectedRequests: 0,
             droppedFrames: 0,
@@ -457,14 +338,30 @@ class ClaudeChatSession implements AgentChatProviderSession {
         this.options.apply([{ op: 'state', state: { commands: this.commands.report(commands) } }]);
     }
 
-    private submit(text: string, images: readonly AgentChatImageInput[]): void {
+    /**
+     * Sends a prompt: it starts a turn, or joins the running one when the service steers it there. A steered prompt
+     * goes out with `priority: 'next'` so Claude Code folds it in at its next model request.
+     */
+    private submit(
+        text: string,
+        images: readonly AgentChatImageInput[],
+        options: ChatInputOptions & { isHidden?: boolean } = {},
+    ): void {
         this.requireOpen();
         const uuid = randomUUID();
         const activeTurnId = this.options.read().activeTurnId;
         const turnId = activeTurnId ?? uuid;
-        if (!activeTurnId) this.beginTurn(turnId);
-        const prompt = claudeUserPrompt({ uuid, turnId, sessionId: this.sessionId, text, images });
-        this.options.apply([{ op: 'upsertItem', item: prompt.item }]);
+        if (!activeTurnId) this.turns.begin(turnId, { isOwnPrompt: true });
+        const prompt = claudeUserPrompt({
+            uuid,
+            turnId,
+            sessionId: this.sessionId,
+            text,
+            images,
+            ...(options.delivery && { delivery: options.delivery }),
+            ...(activeTurnId && options.delivery === 'steered' && { priority: 'next' as const }),
+        });
+        if (!options.isHidden) this.options.apply([{ op: 'upsertItem', item: prompt.item }]);
         this.prompts.push(prompt.message);
     }
 
@@ -498,9 +395,15 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 env: {
                     ...this.options.environment,
                     CLAUDE_AGENT_SDK_CLIENT_APP: `caxri/${this.options.clientVersion}`,
+                    // Reports `system/session_state_changed`, the authoritative turn boundary.
+                    CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
                 },
                 ...(resumeId ? { resume: resumeId } : { sessionId: this.sessionId }),
                 includePartialMessages: true,
+                // Subagent text and thinking reach the task tab, not only their tool calls.
+                forwardSubagentText: true,
+                // The Chat stops tasks one at a time, so an interrupt ends only the turn and spares background work.
+                perTaskStopAffordance: true,
                 systemPrompt: { type: 'preset', preset: 'claude_code' },
                 tools: { type: 'preset', preset: 'claude_code' },
                 permissionMode: settings.permissionMode,
@@ -552,13 +455,21 @@ class ClaudeChatSession implements AgentChatProviderSession {
         return resumeId ? 'resumed' : 'started';
     }
 
-    send({ text, images = [] }: AgentChatMessageInput): Promise<void> {
-        this.submit(text, images);
+    send(
+        { text, images = [] }: Omit<AgentChatMessageInput, 'delivery'>,
+        options?: ChatInputOptions,
+    ): Promise<void> {
+        this.submit(text, images, options);
         return Promise.resolve();
     }
 
-    runCommand(name: string, arguments_: string | undefined): Promise<void> {
-        this.submit(claudeCommandPrompt(name, arguments_), []);
+    runCommand(
+        name: string,
+        arguments_: string | undefined,
+        options?: ChatInputOptions,
+    ): Promise<void> {
+        const prompt = claudeCommandPrompt(name, arguments_);
+        this.submit(prompt, [], { ...options, isHidden: isClaudeCompactCommand(prompt) });
         return Promise.resolve();
     }
 
@@ -571,13 +482,36 @@ class ClaudeChatSession implements AgentChatProviderSession {
     async interrupt(): Promise<void> {
         if (!this.options.read().activeTurnId) return;
         const stream = this.requireOpen();
-        this.isInterruptRequested = true;
+        this.turns.isInterruptRequested = true;
         try {
             await withTimeout(stream.interrupt(), INTERRUPT_TIMEOUT_MS);
         } catch (error) {
             if (error instanceof CaxriError && error.code === 'TIMEOUT') await this.close();
             // Otherwise the turn already ended; its `result` settles the projection.
         }
+    }
+
+    async stopTask(taskId: string): Promise<void> {
+        this.requireOpen();
+        await this.tasks.stop(taskId);
+    }
+
+    /**
+     * Rebuilds a subagent this process never streamed (an earlier process, a resumed conversation) from the transcript
+     * Claude Code wrote for it. A background shell keeps no record once its process is gone.
+     */
+    async readTaskHistory(taskId: string): Promise<ChatTaskHistory | undefined> {
+        const transcript = await readClaudeSubagentTranscript({
+            environment: this.options.environment,
+            cwd: this.options.cwd,
+            sessionId: this.sessionId,
+            toolUseId: taskId,
+        });
+        if (!transcript) return undefined;
+        return {
+            taskId: clip(transcript.toolUseId, 200),
+            operations: claudeTaskHistoryOperations(transcript.content, transcript.truncated),
+        };
     }
 
     respond(requestId: string, response: AgentChatResponse): void {
@@ -587,6 +521,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
 
     async close(): Promise<void> {
         this.requested = true;
+        this.tasks.close();
         this.prompts.end();
         await this.process?.terminate();
         this.query?.close();

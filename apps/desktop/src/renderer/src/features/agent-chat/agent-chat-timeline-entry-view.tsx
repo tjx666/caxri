@@ -16,7 +16,13 @@ const AgentChatMessageItem = memo(
     ({ item, onOpenFile }: { item: MessageItem; onOpenFile?: (target: string) => void }) => {
         switch (item.type) {
             case 'userMessage': {
-                return <AgentChatUserMessage images={item.images} text={item.text} />;
+                return (
+                    <AgentChatUserMessage
+                        delivery={item.delivery}
+                        images={item.images}
+                        text={item.text}
+                    />
+                );
             }
             case 'agentMessage': {
                 return <AgentChatReply item={item} onOpenFile={onOpenFile} />;

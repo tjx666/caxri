@@ -2,13 +2,14 @@ import type {
     AgentChatItem,
     AgentChatPatchOperation,
     AgentChatPlan,
+    AgentChatTaskPatchOperation,
     AgentChatTurn,
 } from '@caxri/protocol';
-import { MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
+import { MAX_AGENT_CHAT_TASK_ITEMS, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
 import { extractVisibleTranscriptMessage } from '../agents';
 import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
-import { claudeUserImageCount } from './claude-input';
+import { claudeUserImageCount, isClaudeCompactCommand } from './claude-input';
 import { claudeAssistantItems, ClaudeBlockIds, text } from './claude-items';
 import { settleClaudeToolItem } from './claude-tool-results';
 
@@ -25,6 +26,10 @@ type Json = Record<string, unknown>;
 const MAX_RESUMED_TURNS = 100;
 
 interface HistoryState {
+    /**
+     * Reads a subagent's own transcript, whose records are all sidechain records.
+     */
+    isSidechain: boolean;
     ids: ClaudeBlockIds;
     turns: AgentChatTurn[];
     items: Map<string, AgentChatItem>;
@@ -66,7 +71,10 @@ function applyUserRecord(state: HistoryState, record: Json, message: Json): void
         if (settled) state.items.set(settled.id, settled);
     }
     if (record.isCompactSummary === true) return;
-    const visible = extractVisibleTranscriptMessage(record);
+    // The shared extractor ignores sidechain records; a subagent transcript consists of nothing else.
+    const visible = extractVisibleTranscriptMessage(
+        state.isSidechain ? { ...record, isSidechain: false } : record,
+    );
     const uuid = stringField(record.uuid);
     // An image-only message has no visible text but is still the user's turn.
     const imageCount = claudeUserImageCount(message.content);
@@ -74,6 +82,8 @@ function applyUserRecord(state: HistoryState, record: Json, message: Json): void
     const turnId = clip(uuid, 200);
     state.turnId = turnId;
     state.turns.push({ id: turnId, status: 'completed' });
+    // The compaction notice already stands for `/compact`; the live Chat hides its bubble too.
+    if (imageCount === 0 && visible && isClaudeCompactCommand(visible.text)) return;
     state.items.set(turnId, {
         id: turnId,
         turnId,
@@ -84,7 +94,7 @@ function applyUserRecord(state: HistoryState, record: Json, message: Json): void
 }
 
 function applyHistoryRecord(state: HistoryState, record: Json): void {
-    if (record.isSidechain === true || record.isMeta === true) return;
+    if (record.isMeta === true || (record.isSidechain === true && !state.isSidechain)) return;
     if (record.type === 'system') {
         applySystemRecord(state, record);
         return;
@@ -98,6 +108,20 @@ function applyHistoryRecord(state: HistoryState, record: Json): void {
     } else if (record.type === 'user') applyUserRecord(state, record, message);
 }
 
+function readHistory(transcript: string, isSidechain: boolean): HistoryState {
+    const state: HistoryState = {
+        isSidechain,
+        ids: new ClaudeBlockIds(),
+        turns: [],
+        items: new Map(),
+    };
+    for (const line of transcript.split('\n')) {
+        const record = parseRecord(line);
+        if (record) applyHistoryRecord(state, record);
+    }
+    return state;
+}
+
 /**
  * Operations that replace the projection with a resumed Claude Code session, read from the tail of its JSONL
  * transcript. Sidechains (subagents) and injected harness records are skipped; a visible user prompt opens a turn.
@@ -107,11 +131,7 @@ export function claudeHistoryOperations(
     transcript: string,
     isTailTruncated: boolean,
 ): AgentChatPatchOperation[] {
-    const state: HistoryState = { ids: new ClaudeBlockIds(), turns: [], items: new Map() };
-    for (const line of transcript.split('\n')) {
-        const record = parseRecord(line);
-        if (record) applyHistoryRecord(state, record);
-    }
+    const state = readHistory(transcript, false);
     const { turns, items, plan } = state;
     const keptTurns = turns.slice(-MAX_RESUMED_TURNS);
     const droppedTurns = new Set(
@@ -132,4 +152,33 @@ export function claudeHistoryOperations(
         },
     });
     return operations;
+}
+
+/**
+ * Operations that rebuild one subagent's task projection from its own JSONL transcript (Claude Code writes it beside
+ * the session transcript). The subagent's prompt opens it as a user message; turn ids are dropped because a task
+ * projection has no turns. Only the newest {@link MAX_AGENT_CHAT_TASK_ITEMS} items are kept.
+ */
+export function claudeTaskHistoryOperations(
+    transcript: string,
+    isTailTruncated: boolean,
+): AgentChatTaskPatchOperation[] {
+    const { items } = readHistory(transcript, true);
+    const all = items
+        .values()
+        .map((item): AgentChatItem => {
+            const settled = closeDanglingItem(item) ?? item;
+            return Object.fromEntries(
+                Object.entries(settled).filter(([key]) => key !== 'turnId'),
+            ) as AgentChatItem;
+        })
+        .toArray();
+    const kept = all.slice(-MAX_AGENT_CHAT_TASK_ITEMS);
+    return [
+        { op: 'reset' },
+        ...kept.map((item) => ({ op: 'upsertItem' as const, item })),
+        ...(isTailTruncated || kept.length < all.length
+            ? [{ op: 'state' as const, state: { truncated: true } }]
+            : []),
+    ];
 }

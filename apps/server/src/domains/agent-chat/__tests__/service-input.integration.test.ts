@@ -40,7 +40,7 @@ describe('Agent Chat images and slash commands with a fake Codex app-server', ()
         expect(snapshot.items).toEqual([expect.objectContaining({ kind: 'compacted' })]);
     });
 
-    it('rejects a command the provider does not list, and compaction during a turn', async () => {
+    it('rejects a command the provider does not list, and queues compaction during a turn', async () => {
         const { service, terminal, until } = await fixture();
         await until((snapshot) => snapshot.status === 'ready');
         await expect(service.runCommand(terminal.id, 'model')).rejects.toMatchObject({
@@ -48,10 +48,13 @@ describe('Agent Chat images and slash commands with a fake Codex app-server', ()
         });
         await service.send(terminal.id, { text: 'slow please' });
         await until((snapshot) => snapshot.activeTurnId !== undefined);
-        await expect(service.runCommand(terminal.id, 'compact')).rejects.toMatchObject({
-            code: 'CONFLICT',
-        });
+        await service.runCommand(terminal.id, 'compact');
+        expect(service.read(terminal.id).queue).toMatchObject([
+            { text: '/compact', command: { name: 'compact' } },
+        ]);
         await service.interrupt(terminal.id);
+        const paused = await until((snapshot) => !snapshot.activeTurnId);
+        expect(paused).toMatchObject({ queuePaused: true, queue: [{ text: '/compact' }] });
     });
 });
 
@@ -88,8 +91,21 @@ describe('Agent Chat images and slash commands with a fake Claude Code CLI', () 
 
         await service.runCommand(terminal.id, 'compact');
         const snapshot = await until((current) => current.turns.at(-1)?.status === 'completed');
-        expect(snapshot.items.map((item) => item.type)).toEqual(['userMessage', 'notice']);
-        expect(snapshot.items[0]).toMatchObject({ text: '/compact' });
+        // The compaction notice stands for the command; `/compact` never shows as a user message.
+        expect(snapshot.items.map((item) => item.type)).toEqual(['notice']);
+        expect(snapshot.items[0]).toMatchObject({ kind: 'compacted' });
         expect(snapshot.commands?.map((command) => command.name)).toEqual(['compact', 'review']);
+    });
+
+    it('clears compaction when Claude Code exits mid-compaction, so later messages are not held', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await until((snapshot) => snapshot.status === 'ready');
+        await service.runCommand(terminal.id, 'compact', 'crash');
+        const exited = await until((snapshot) => snapshot.status === 'failed');
+        expect(exited.operation).toBeUndefined();
+
+        await service.send(terminal.id, { text: 'hello again' });
+        const answered = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(answered.queue ?? []).toEqual([]);
     });
 });

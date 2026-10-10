@@ -3,7 +3,7 @@ import type { TerminalRecord } from '@caxri/protocol';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import { moveTerminalToNewSession } from '../session/session-commands';
 import { agentReloadMenuEntry } from './terminal-reload-commands';
-import { terminalSurfaceMenuEntry } from './terminal-surface-commands';
+import { agentResumeCommandMenuEntry, terminalSurfaceMenuEntry } from './terminal-surface-commands';
 
 /**
  * The Terminal-specific entries appended to a Terminal tab's context menu (see `paneTabMenu`).
@@ -23,5 +23,6 @@ export function terminalTabMenuEntries(
             onSelect: () => moveTerminalToNewSession(terminal.id, isOnlySessionTerminal),
         },
         ...(surfaceEntry ? [surfaceEntry] : []),
+        terminal.provider && agentResumeCommandMenuEntry(terminal),
     ];
 }

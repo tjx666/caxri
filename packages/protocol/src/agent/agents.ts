@@ -122,6 +122,12 @@ export interface AgentProviderCatalogEntry {
         kind: 'systemClipboardPaste';
         terminalInput: string;
     };
+    /**
+     * The argv tokens that, followed by the Agent Session id, resume one conversation in the provider's TUI. Server
+     * Core launches a resumed PTY with them, and the Renderer shows the same tokens in a copyable resume command, so
+     * the two cannot disagree.
+     */
+    resumeArgs: readonly [string, ...string[]];
 }
 
 export const agentProviderCatalog = {
@@ -139,6 +145,7 @@ export const agentProviderCatalog = {
         displayName: 'Claude',
         executableName: 'claude',
         imageInput: undefined,
+        resumeArgs: ['--resume'],
     },
     codex: {
         autonomyArgs: ['--dangerously-bypass-approvals-and-sandbox'],
@@ -154,6 +161,7 @@ export const agentProviderCatalog = {
         displayName: 'Codex',
         executableName: 'codex',
         imageInput: { kind: 'systemClipboardPaste', terminalInput: '\u{16}' },
+        resumeArgs: ['resume'],
     },
     grok: {
         /**
@@ -173,8 +181,33 @@ export const agentProviderCatalog = {
         displayName: 'Grok Build',
         executableName: 'grok',
         imageInput: undefined,
+        resumeArgs: ['--resume'],
     },
 } satisfies Record<AgentProvider, AgentProviderCatalogEntry>;
+
+/**
+ * POSIX shell words that need no quoting; anything else is single-quoted.
+ */
+const SHELL_SAFE_WORD = /^[\w%+,./:=@-]+$/u;
+
+function shellWord(value: string): string {
+    return SHELL_SAFE_WORD.test(value) ? value : `'${value.replaceAll("'", String.raw`'\''`)}'`;
+}
+
+/**
+ * A command a person pastes into their own terminal to continue one Agent Session in the provider's TUI, outside Caxri.
+ * It starts with `cd` into the Terminal's folder because Claude Code only finds a session under the folder it was
+ * started in. It uses the bare executable name and none of the user's launch arguments: it is a hand-off, not a
+ * reproduction of Caxri's launch.
+ */
+export function agentResumeCommandLine(
+    provider: AgentProvider,
+    agentSessionId: string,
+    cwd: string,
+): string {
+    const { executableName, resumeArgs } = agentProviderCatalog[provider];
+    return `cd ${shellWord(cwd)} && ${[executableName, ...resumeArgs, agentSessionId].map(shellWord).join(' ')}`;
+}
 
 /**
  * Provider-scoped defaults keep future CLI-specific settings under the provider they configure.

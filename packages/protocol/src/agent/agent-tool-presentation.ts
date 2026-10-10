@@ -70,6 +70,8 @@ const TOOL_KINDS: Partial<Record<string, { kind: AgentToolKind; label: string }>
     web_search: { kind: 'web', label: 'Searched the web' },
     task: { kind: 'agent', label: 'Ran agent' },
     agent: { kind: 'agent', label: 'Ran agent' },
+    // Codex's collab tool that starts a subagent thread.
+    spawnagent: { kind: 'agent', label: 'Started agent' },
     todowrite: { kind: 'plan', label: 'Updated plan' },
     update_plan: { kind: 'plan', label: 'Updated plan' },
     exitplanmode: { kind: 'plan', label: 'Proposed plan' },

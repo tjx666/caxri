@@ -40,3 +40,11 @@ _Researched 2026-09-24 from source `963da57c` (2026-09-21)._
 - Wide layout requires width ≥ 700 and short side ≥ 600, so landscape phones stay in the phone layout; the host list is a resizable sidebar and Source Control / Files / PR dock beside the Terminal.
 - Also: worktree creation and Agent launch, source control with commit, diff review with comments sent to the Agent, PR screen, push via a vendor gateway, dictation transcribed on Desktop, cached home snapshot for cold start, protocol version gate.
 - Public sentiment (X, Sept 2026): most praised for connection reliability and multi-device pairing over Tailscale; criticized for a less complete, less native-feeling mobile UI than Paseo.
+
+## Chat and Terminal switching
+
+_Researched 2026-10-10._
+
+- Chat is an overlay on the live PTY rather than a second process: a pane header icon button, `⌘⇧J`, and a Terminal context menu entry toggle it with no restart.
+- The overlay's content is derived from the transcript and approvals are answered by synthesizing `1` or arrow keys into the PTY, which is fragile. Caxri's ADR 0012 rejected this overlay model.
+- Caxri reused the `⌘⇧J` chord for `terminal.switchAgentSurface`.

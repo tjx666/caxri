@@ -1,31 +1,14 @@
-import { useSyncExternalStore } from 'react';
-
 import { formatShortDuration } from '@caxri/protocol';
 import { MessageCircleQuestionMark } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
 import type { AgentChatActivity } from './agent-chat-presentation';
-
-const TICK_MS = 1000;
-
-function subscribeToSecondTick(onTick: () => void): () => void {
-    const timer = setInterval(onTick, TICK_MS);
-    return () => clearInterval(timer);
-}
-
-/**
- * `now` quantized to whole seconds, so the snapshot is stable between ticks and only this line re-renders each second.
- * The clock runs only while a turn is working, because nothing else mounts it.
- */
-function getSecondSnapshot(): number {
-    return Math.floor(Date.now() / TICK_MS) * TICK_MS;
-}
+import { useSecondTick } from './hooks/use-second-tick';
 
 function ElapsedTime({ startedAt }: { startedAt: number }) {
-    const now = useSyncExternalStore(subscribeToSecondTick, getSecondSnapshot);
-    const elapsed = now - startedAt;
+    const elapsed = useSecondTick() - startedAt;
     // Below a second the count would read `<1s` and jump straight to `1s`, which looks like a glitch.
-    if (elapsed < TICK_MS) return null;
+    if (elapsed < 1000) return null;
     return <span className="shrink-0 tabular-nums">{formatShortDuration(elapsed)}</span>;
 }
 
@@ -62,7 +45,8 @@ export function AgentChatActivityBar({ activity }: { activity: AgentChatActivity
                     {activity.kind === 'working' && activity.startedAt !== undefined && (
                         <ElapsedTime startedAt={activity.startedAt} />
                     )}
-                    {activity.kind === 'working' && (
+                    {(activity.kind === 'working' ||
+                        (activity.kind === 'compacting' && activity.isStoppable)) && (
                         <span className="ml-auto shrink-0 text-[11px]">
                             <kbd className="font-sans">Esc</kbd> to stop
                         </span>

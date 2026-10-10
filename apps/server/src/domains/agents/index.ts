@@ -29,6 +29,7 @@ export { lowCostSandboxFailureReason } from './low-cost-sandbox';
 export { reconcilePrimaryTurnFailure } from './primary-turn-failure';
 export { agentProviders } from './providers';
 export { extractClaudeDelegationAnswer } from './providers/claude/delegation';
+export { claudeTranscriptRoot, resolveClaudeConfigDirectory } from './providers/claude/paths';
 export { agentCommandEnvironment } from './rename';
 export { readAgentReplySummary, summarizeLatestAgentReply } from './reply-summary';
 export { type AgentAdapter, AgentService, createLocalAgentAdapters } from './service';

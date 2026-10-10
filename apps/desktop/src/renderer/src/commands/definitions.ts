@@ -185,6 +185,17 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('terminal.startNewAgentSession', (context) =>
         context.terminal.startNewAgentSession(),
     ),
+    /**
+     * Fires from a focused Terminal grid or Chat composer, the two surfaces it switches between.
+     */
+    fromCatalog(
+        'terminal.switchAgentSurface',
+        (context) => context.terminal.switchActiveSurface(),
+        {
+            allowInEditable: true,
+            when: (context) => context.terminal.canSwitchActiveSurface(),
+        },
+    ),
     fromCatalog('terminal.close', (context) => context.terminal.closeActive(), {
         allowInEditable: true,
     }),

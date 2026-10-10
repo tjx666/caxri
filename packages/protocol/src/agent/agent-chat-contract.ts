@@ -2,7 +2,6 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/domain.js';
-import { commandPolicy } from '../transport/method-spec.js';
 
 /**
  * Bounds for one Agent Chat projection. Server Core keeps only the current conversation window in memory; the
@@ -39,6 +38,21 @@ export const MAX_AGENT_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
 export const MAX_AGENT_CHAT_THUMBNAIL_LENGTH = 48 * 1024;
 export const MAX_AGENT_CHAT_COMMANDS = 200;
 export const MAX_AGENT_CHAT_MODELS = 50;
+/**
+ * Background work a Chat lists at once (subagents and background shells). Older ended tasks drop first.
+ */
+export const MAX_AGENT_CHAT_TASKS = 50;
+/**
+ * Items one task projection keeps, and its aggregate text budget. A chatty subagent evicts only its own history, never
+ * the parent conversation's.
+ */
+export const MAX_AGENT_CHAT_TASK_ITEMS = 500;
+export const MAX_AGENT_CHAT_TASK_TOTAL_TEXT_LENGTH = 512 * 1024;
+/**
+ * Follow-up messages a Chat holds while a turn runs, and their combined text, so the queue cannot grow without bound.
+ */
+export const MAX_AGENT_CHAT_QUEUE = 20;
+export const MAX_AGENT_CHAT_QUEUE_TEXT_LENGTH = 256 * 1024;
 
 const boundedText = z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH);
 const boundedOutput = z.string().max(MAX_AGENT_CHAT_OUTPUT_LENGTH);
@@ -54,7 +68,7 @@ export const agentChatImageMediaTypeSchema = z.enum([
  * Only an inline base64 raster image may be rendered, so a provider or Client cannot make the Renderer load a remote
  * URL through a thumbnail.
  */
-const thumbnailSchema = z
+export const agentChatThumbnailSchema = z
     .string()
     .max(MAX_AGENT_CHAT_THUMBNAIL_LENGTH)
     .regex(/^data:image\/(?:png|jpeg|gif|webp);base64,[\d+/A-Za-z]+={0,2}$/u);
@@ -64,7 +78,7 @@ const thumbnailSchema = z
  * preview Caxri made, such as a resumed conversation; the Chat then shows a placeholder.
  */
 export const agentChatImageReferenceSchema = z.strictObject({
-    thumbnail: thumbnailSchema.optional(),
+    thumbnail: agentChatThumbnailSchema.optional(),
 });
 
 /**
@@ -88,7 +102,7 @@ export const agentChatCommandSchema = z.strictObject({
  * A reasoning effort level, as the provider names it (`low`, `high`, `xhigh`, ...). Kept open because each provider and
  * model offers its own set.
  */
-const agentChatEffortSchema = z
+export const agentChatEffortSchema = z
     .string()
     .min(1)
     .max(40)
@@ -139,6 +153,11 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
         type: z.literal('userMessage'),
         text: boundedText,
         images: z.array(agentChatImageReferenceSchema).max(MAX_AGENT_CHAT_IMAGES).optional(),
+        /**
+         * How a message sent while a turn ran reached the Agent: `steered` into the running turn, or `queued` and sent
+         * once the turn ended. Absent for a message that started a turn directly.
+         */
+        delivery: z.enum(['steered', 'queued']).optional(),
     }),
     z.strictObject({
         ...itemBase,
@@ -223,6 +242,68 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
         message: z.string().max(2_000).optional(),
     }),
 ]);
+
+/**
+ * One piece of background work the Agent started: a subagent or a background shell. The Chat lists it so the user can
+ * open its own tab (`agentChat.readTask`) and stop it (`agentChat.stopTask`). `id` is Caxri's stable key; `itemId`
+ * links the timeline row that started it.
+ */
+export const agentChatTaskSchema = z.strictObject({
+    id: z.string().min(1).max(200),
+    kind: z.enum(['agent', 'shell']),
+    /**
+     * The subagent's description or the shell's command line.
+     */
+    title: z.string().max(1_000),
+    status: z.enum(['running', 'completed', 'failed', 'stopped']),
+    itemId: z.string().min(1).max(200).optional(),
+    /**
+     * Provider agent type, such as `general-purpose` or a custom agent's name.
+     */
+    agentType: z.string().max(200).optional(),
+    model: z.string().max(200).optional(),
+    /**
+     * False while a foreground subagent blocks the turn that started it; true once it runs in the background.
+     */
+    isBackground: z.boolean(),
+    startedAt: z.number().optional(),
+    endedAt: z.number().optional(),
+    /**
+     * The provider's one-line progress or final summary.
+     */
+    summary: z.string().max(2_000).optional(),
+    usage: z
+        .strictObject({
+            totalTokens: z.number().int().nonnegative().optional(),
+            toolUses: z.number().int().nonnegative().optional(),
+            durationMs: z.number().nonnegative().optional(),
+        })
+        .optional(),
+    lastToolName: z.string().max(200).optional(),
+    /**
+     * Whether the provider can stop this task on its own, without ending the turn or the Chat.
+     */
+    canStop: z.boolean(),
+});
+
+/**
+ * A follow-up message held by Server Core until the running turn ends. Image data stays on Server Core; the Client sees
+ * the count.
+ */
+export const agentChatQueuedMessageSchema = z.strictObject({
+    id: z.string().min(1).max(200),
+    text: z.string().max(MAX_AGENT_CHAT_MESSAGE_LENGTH),
+    imageCount: z.number().int().min(1).max(MAX_AGENT_CHAT_IMAGES).optional(),
+    /**
+     * Set when the queued input runs a slash command rather than sending a message.
+     */
+    command: z
+        .strictObject({
+            name: agentChatCommandSchema.shape.name,
+            arguments: z.string().max(MAX_AGENT_CHAT_MESSAGE_LENGTH).optional(),
+        })
+        .optional(),
+});
 
 export const agentChatTurnSchema = z.strictObject({
     id: z.string().min(1).max(200),
@@ -379,6 +460,16 @@ export const agentChatSnapshotSchema = z.strictObject({
             contextWindow: z.number().int().nonnegative().optional(),
         })
         .optional(),
+    /**
+     * Provider-wide work in progress that is not a turn, such as compacting the context.
+     */
+    operation: z.enum(['compacting']).optional(),
+    tasks: z.array(agentChatTaskSchema).max(MAX_AGENT_CHAT_TASKS).optional(),
+    queue: z.array(agentChatQueuedMessageSchema).max(MAX_AGENT_CHAT_QUEUE).optional(),
+    /**
+     * True after the user stopped a turn with messages still queued; nothing is sent until they resume the queue.
+     */
+    queuePaused: z.boolean().optional(),
 });
 
 /**
@@ -411,6 +502,10 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 commands: agentChatSnapshotSchema.shape.commands.unwrap(),
                 usage: agentChatSnapshotSchema.shape.usage.unwrap().nullable(),
                 truncated: agentChatSnapshotSchema.shape.truncated,
+                operation: agentChatSnapshotSchema.shape.operation.unwrap().nullable(),
+                tasks: agentChatSnapshotSchema.shape.tasks.unwrap(),
+                queue: agentChatSnapshotSchema.shape.queue.unwrap(),
+                queuePaused: agentChatSnapshotSchema.shape.queuePaused.unwrap(),
             })
             .partial(),
     }),
@@ -424,7 +519,68 @@ export const agentChatPatchSchema = z.strictObject({
     operations: z.array(agentChatPatchOperationSchema).min(1).max(MAX_AGENT_CHAT_PATCH_OPERATIONS),
 });
 
+/**
+ * The conversation of one task: a subagent's own messages and tool rows, or a background shell's output tail. Kept
+ * apart from the parent projection with its own revisions and budget.
+ */
+export const agentChatTaskSnapshotSchema = z.strictObject({
+    terminalId: identifierSchema,
+    taskId: agentChatTaskSchema.shape.id,
+    revision: z.number().int().nonnegative(),
+    truncated: z.boolean(),
+    items: z.array(agentChatItemSchema).max(MAX_AGENT_CHAT_TASK_ITEMS),
+    /**
+     * Tail of a background shell's output.
+     */
+    output: boundedOutput.optional(),
+    /**
+     * Set when the provider stopped streaming this shell's output (Codex caps the deltas of one command), so the tab
+     * says the output is no longer live instead of looking idle.
+     */
+    isOutputCapped: z.boolean().optional(),
+});
+
+export const agentChatTaskPatchOperationSchema = z.discriminatedUnion('op', [
+    z.strictObject({ op: z.literal('upsertItem'), item: agentChatItemSchema }),
+    z.strictObject({
+        op: z.literal('appendText'),
+        itemId: z.string().min(1).max(200),
+        delta: z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH),
+    }),
+    z.strictObject({
+        op: z.literal('appendOutput'),
+        delta: z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH),
+    }),
+    z.strictObject({
+        op: z.literal('state'),
+        state: z
+            .strictObject({
+                output: boundedOutput,
+                isOutputCapped: z.boolean(),
+                truncated: z.boolean(),
+            })
+            .partial(),
+    }),
+    z.strictObject({ op: z.literal('reset') }),
+]);
+
+export const agentChatTaskPatchSchema = z.strictObject({
+    terminalId: identifierSchema,
+    taskId: agentChatTaskSchema.shape.id,
+    baseRevision: z.number().int().nonnegative(),
+    revision: z.number().int().positive(),
+    operations: z
+        .array(agentChatTaskPatchOperationSchema)
+        .min(1)
+        .max(MAX_AGENT_CHAT_PATCH_OPERATIONS),
+});
+
 export type AgentChatItem = z.infer<typeof agentChatItemSchema>;
+export type AgentChatTask = z.infer<typeof agentChatTaskSchema>;
+export type AgentChatQueuedMessage = z.infer<typeof agentChatQueuedMessageSchema>;
+export type AgentChatTaskSnapshot = z.infer<typeof agentChatTaskSnapshotSchema>;
+export type AgentChatTaskPatchOperation = z.infer<typeof agentChatTaskPatchOperationSchema>;
+export type AgentChatTaskPatch = z.infer<typeof agentChatTaskPatchSchema>;
 export type AgentChatItemStatus = z.infer<typeof agentChatItemStatusSchema>;
 export type AgentChatTurn = z.infer<typeof agentChatTurnSchema>;
 export type AgentChatPlan = z.infer<typeof agentChatPlanSchema>;
@@ -438,115 +594,4 @@ export type AgentChatDecision = z.infer<typeof agentChatDecisionSchema>;
 export type AgentChatCommand = z.infer<typeof agentChatCommandSchema>;
 export type AgentChatModel = z.infer<typeof agentChatModelSchema>;
 export type AgentChatImageMediaType = z.infer<typeof agentChatImageMediaTypeSchema>;
-export type AgentChatImageInput = z.infer<typeof agentChatImageInputSchema>;
-export type AgentChatMessageInput = Omit<
-    z.infer<typeof agentChatSendParametersSchema>,
-    'terminalId'
->;
-
-/**
- * Upper bound of an image's base64 length, from its byte limit.
- */
-const MAX_IMAGE_BASE64_LENGTH = Math.ceil(MAX_AGENT_CHAT_IMAGE_BYTES / 3) * 4;
-
-/**
- * An image a message sends. `data` is the full image, delivered to the provider and never stored in the projection or
- * logs; `thumbnail` is the preview the user message shows.
- */
-export const agentChatImageInputSchema = z.strictObject({
-    mediaType: agentChatImageMediaTypeSchema,
-    data: z
-        .string()
-        .min(1)
-        .max(MAX_IMAGE_BASE64_LENGTH)
-        .regex(/^[\d+/A-Za-z]+={0,2}$/u),
-    thumbnail: thumbnailSchema,
-});
-
-const terminalTarget = { terminalId: identifierSchema };
-
-const agentChatSendParametersSchema = z
-    .strictObject({
-        ...terminalTarget,
-        text: z.string().trim().max(MAX_AGENT_CHAT_MESSAGE_LENGTH),
-        images: z.array(agentChatImageInputSchema).max(MAX_AGENT_CHAT_IMAGES).optional(),
-    })
-    .refine((message) => message.text.length > 0 || (message.images?.length ?? 0) > 0, {
-        message: 'A message needs text or an image',
-    });
-
-/**
- * Agent Chat methods: the structured surface of a Chat Terminal. See `docs/agent-chat.md`.
- */
-export const agentChatMethods = {
-    /**
-     * Returns the current conversation projection, starting or resuming the provider process when none is running.
-     */
-    'agentChat.read': {
-        ...commandPolicy('server', 'read'),
-        params: z.strictObject(terminalTarget),
-        result: agentChatSnapshotSchema,
-    },
-    /**
-     * Starts a turn, or steers the running one, with the user's message and any attached images.
-     */
-    'agentChat.send': {
-        ...commandPolicy('server', 'control'),
-        params: agentChatSendParametersSchema,
-        result: z.null(),
-    },
-    /**
-     * Runs one of the snapshot's `commands`. A command the provider does not offer fails with `VALIDATION`; one that
-     * cannot run during a turn fails with `CONFLICT`.
-     */
-    'agentChat.runCommand': {
-        ...commandPolicy('server', 'control'),
-        params: z.strictObject({
-            ...terminalTarget,
-            name: agentChatCommandSchema.shape.name,
-            arguments: z.string().trim().max(MAX_AGENT_CHAT_MESSAGE_LENGTH).optional(),
-        }),
-        result: z.null(),
-    },
-    /**
-     * Switches the model or reasoning effort for the next turn and the ones after it; a running turn keeps its own. A
-     * model the snapshot's `models` does not list, or an effort that model does not accept, fails with `VALIDATION`.
-     */
-    'agentChat.configure': {
-        ...commandPolicy('server', 'control'),
-        params: z
-            .strictObject({
-                ...terminalTarget,
-                model: agentChatModelSchema.shape.id.optional(),
-                effort: agentChatEffortSchema.optional(),
-            })
-            .refine((change) => change.model !== undefined || change.effort !== undefined, {
-                message: 'Choose a model or an effort',
-            }),
-        result: z.null(),
-    },
-    'agentChat.interrupt': {
-        ...commandPolicy('server', 'control'),
-        params: z.strictObject(terminalTarget),
-        result: z.null(),
-    },
-    /**
-     * Answers one pending approval or question. A request that is no longer pending fails with `CONFLICT`.
-     */
-    'agentChat.respond': {
-        ...commandPolicy('server', 'control'),
-        params: z.strictObject({
-            ...terminalTarget,
-            requestId: z.string().min(1).max(200),
-            response: z.discriminatedUnion('kind', [
-                z.strictObject({ kind: z.literal('decision'), decision: agentChatDecisionSchema }),
-                z.strictObject({
-                    kind: z.literal('answers'),
-                    answers: z.record(z.string().max(200), z.array(z.string().max(2_000)).max(10)),
-                }),
-            ]),
-        }),
-        result: z.null(),
-    },
-};
 /* eslint-enable unicorn/max-nested-calls */

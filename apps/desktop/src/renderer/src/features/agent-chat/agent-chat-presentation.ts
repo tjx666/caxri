@@ -43,8 +43,8 @@ export function agentChatFailureMessage(
 /**
  * Whether the composer accepts a message. A stopped Chat resumes its Agent Session on the next message, a starting one
  * queues the message on Server Core until the provider is ready (opening a Chat and typing at once must not drop the
- * first Enter), and a running turn accepts a message as steering. Only a failed provider, or a Chat not loaded yet,
- * refuses input.
+ * first Enter), and a running turn accepts a message into its queue or as steering. Only a failed provider, or a Chat
+ * not loaded yet, refuses input.
  */
 export function canSendAgentChatMessage(snapshot: AgentChatSnapshot | undefined): boolean {
     return snapshot !== undefined && snapshot.status !== 'failed';
@@ -152,21 +152,29 @@ export function agentChatWorkingVerb(turnId: string): string {
 export type AgentChatActivity =
     | { kind: 'starting'; text: string }
     | { kind: 'working'; text: string; startedAt: number | undefined }
+    | { kind: 'compacting'; text: string; isStoppable: boolean }
     | { kind: 'waiting'; text: string };
 
 /**
  * What the Chat is doing right now, for the status line on the composer. A pending request means the turn is blocked on
- * the user, not working, so it says so instead of animating.
+ * the user, not working, so it says so instead of animating. Compacting the context names itself instead of a playful
+ * verb, so a `/compact` the user asked for visibly runs; it can happen inside a turn (automatic compaction), which Esc
+ * still stops.
  */
 export function agentChatActivity(
-    snapshot: Pick<AgentChatSnapshot, 'status' | 'activeTurnId' | 'requests' | 'turns'> | undefined,
+    snapshot:
+        | Pick<AgentChatSnapshot, 'status' | 'activeTurnId' | 'operation' | 'requests' | 'turns'>
+        | undefined,
     providerName: string,
 ): AgentChatActivity | undefined {
     if (!snapshot || snapshot.status === 'starting')
         return { kind: 'starting', text: `Starting ${providerName}…` };
     const turnId = snapshot.activeTurnId;
+    if (turnId && snapshot.requests.length > 0)
+        return { kind: 'waiting', text: 'Waiting for your answer' };
+    if (snapshot.operation === 'compacting')
+        return { kind: 'compacting', text: 'Compacting context…', isStoppable: Boolean(turnId) };
     if (!turnId) return undefined;
-    if (snapshot.requests.length > 0) return { kind: 'waiting', text: 'Waiting for your answer' };
     return {
         kind: 'working',
         text: `${agentChatWorkingVerb(turnId)}…`,
@@ -197,20 +205,65 @@ export function agentChatPlanProgress(plan: Pick<AgentChatPlan, 'steps'>): Agent
     };
 }
 
+/**
+ * Whether a message sent now would wait in the queue rather than start a turn: a turn is running, the context is
+ * compacting, or earlier messages are still queued and not paused (Server Core keeps the queue in order).
+ */
+export function isAgentChatBusy(
+    snapshot:
+        Pick<AgentChatSnapshot, 'activeTurnId' | 'operation' | 'queue' | 'queuePaused'> | undefined,
+): boolean {
+    if (!snapshot) return false;
+    return (
+        Boolean(snapshot.activeTurnId) ||
+        snapshot.operation === 'compacting' ||
+        ((snapshot.queue?.length ?? 0) > 0 && !snapshot.queuePaused)
+    );
+}
+
 export function isAgentChatTurnRunning(snapshot: AgentChatSnapshot | undefined): boolean {
     return Boolean(snapshot?.activeTurnId);
 }
 
 /**
- * Enter sends and Shift+Enter inserts a newline, matching the mobile Conversation composer. An IME composition owns
- * Enter until it commits, otherwise confirming a candidate would send a half-typed message.
+ * What submitting the composer does. Enter sends when the Chat is idle and queues while a turn runs or the context is
+ * compacting; Cmd+Enter (Ctrl+Enter off macOS) steers the running turn instead. Shift+Enter adds a line, and an IME
+ * composition owns Enter until it commits, otherwise confirming a candidate would send a half-typed message.
+ * `undefined` means the key is not a submit.
  */
-export function isAgentChatSubmitKey(event: {
-    key: string;
-    shiftKey: boolean;
-    isComposing: boolean;
-}): boolean {
-    return event.key === 'Enter' && !event.shiftKey && !event.isComposing;
+export function agentChatSubmitDelivery(
+    event: {
+        key: string;
+        shiftKey: boolean;
+        metaKey: boolean;
+        ctrlKey: boolean;
+        isComposing: boolean;
+    },
+    state: { isTurnRunning: boolean; isBusy: boolean },
+): 'send' | 'queue' | 'steer' | undefined {
+    if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return undefined;
+    const isSteerChord = event.metaKey || event.ctrlKey;
+    if (isSteerChord && state.isTurnRunning) return 'steer';
+    return state.isBusy ? 'queue' : 'send';
+}
+
+/**
+ * The composer's send affordance for the Chat's state: while a turn runs, Enter queues and Cmd+Enter steers; while the
+ * Chat is otherwise busy (compacting, or draining the queue) a message waits its turn.
+ */
+export function agentChatSendAction(
+    state: { isTurnRunning: boolean; isBusy: boolean },
+    providerName: string,
+): { label: 'Send' | 'Queue message'; tooltip: string; placeholder: string } {
+    if (state.isTurnRunning)
+        return {
+            label: 'Queue message',
+            tooltip: 'Queue (Enter) · Steer (⌘Enter)',
+            placeholder: 'Queue a follow-up (⌘Enter to steer)',
+        };
+    if (state.isBusy)
+        return { label: 'Queue message', tooltip: 'Queue', placeholder: 'Queue a follow-up' };
+    return { label: 'Send', tooltip: 'Send', placeholder: `Message ${providerName}` };
 }
 
 /**

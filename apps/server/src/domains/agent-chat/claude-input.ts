@@ -46,6 +46,14 @@ export function claudeCommandPrompt(name: string, arguments_: string | undefined
 }
 
 /**
+ * Whether a prompt runs `/compact`. The Chat shows the compaction itself (its progress and the compacted notice), so
+ * this command's own user message is never shown.
+ */
+export function isClaudeCompactCommand(text: string): boolean {
+    return /^\/compact(?:\s|$)/u.test(text.trim());
+}
+
+/**
  * User message content for a prompt with images: the images first, as the Claude Code TUI sends a pasted image, then
  * the text when there is any.
  */
@@ -108,8 +116,16 @@ export function claudeUserPrompt(prompt: {
     sessionId: string;
     text: string;
     images: readonly AgentChatImageInput[];
+    /**
+     * How the message reached the Agent when it did not simply start a turn; recorded on the user message.
+     */
+    delivery?: 'queued' | 'steered';
+    /**
+     * `next` folds a steered message into the running turn at its next model request, instead of after the turn.
+     */
+    priority?: 'next';
 }): { item: AgentChatItem; message: SDKUserMessage } {
-    const { uuid, turnId, sessionId, text, images } = prompt;
+    const { uuid, turnId, sessionId, text, images, delivery, priority } = prompt;
     return {
         item: {
             id: uuid,
@@ -119,6 +135,7 @@ export function claudeUserPrompt(prompt: {
             ...(images.length > 0 && {
                 images: images.map((image) => ({ thumbnail: image.thumbnail })),
             }),
+            ...(delivery && { delivery }),
         },
         message: {
             type: 'user',
@@ -129,6 +146,7 @@ export function claudeUserPrompt(prompt: {
             parent_tool_use_id: null,
             uuid,
             session_id: sessionId,
+            ...(priority && { priority }),
         },
     };
 }

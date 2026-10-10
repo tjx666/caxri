@@ -247,8 +247,8 @@ export interface AgentProviderDescriptor {
      */
     renameSession?(context: AgentProviderSessionRenameContext): Promise<AgentSessionRenameResult>;
     /**
-     * Structured argv for restoring one provider conversation. This is Server launch behavior, not a browser-safe
-     * identity or capability contract.
+     * Structured argv for restoring one provider conversation, built from the catalog's `resumeArgs`. Only Server Core
+     * launches with it; the Renderer reads the same catalog tokens solely to show a copyable command.
      */
     resumeArguments(agentSessionId: string): string[];
     /**

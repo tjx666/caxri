@@ -1,0 +1,115 @@
+import type { AgentChatSnapshot } from '@caxri/protocol';
+import { MAX_AGENT_CHAT_QUEUE } from '@caxri/protocol';
+import { describe, expect, it } from 'vitest';
+
+import { fixture } from './chat-service-fixture';
+
+function userTexts(snapshot: AgentChatSnapshot): string[] {
+    return snapshot.items.flatMap((item) => (item.type === 'userMessage' ? [item.text] : []));
+}
+
+describe('Agent Chat follow-up queue with a fake Codex app-server', () => {
+    it('holds messages sent during a turn and sends them one turn at a time, in order', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'slow please' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await service.send(terminal.id, { text: 'hello first' });
+        await service.send(terminal.id, { text: 'hello second' });
+        const queued = await until((snapshot) => snapshot.queue?.length === 2);
+        expect(queued.queue?.map((entry) => entry.text)).toEqual(['hello first', 'hello second']);
+        expect(userTexts(queued)).toEqual(['slow please']);
+
+        // Stopping the turn pauses the queue instead of firing the next message.
+        await service.interrupt(terminal.id);
+        const paused = await until((snapshot) => !snapshot.activeTurnId);
+        expect(paused.queuePaused).toBe(true);
+        expect(userTexts(paused)).toEqual(['slow please']);
+
+        service.resumeQueue(terminal.id);
+        const drained = await until(
+            (snapshot) =>
+                snapshot.queue?.length === 0 &&
+                !snapshot.activeTurnId &&
+                snapshot.turns.length === 3,
+        );
+        expect(userTexts(drained)).toEqual(['slow please', 'hello first', 'hello second']);
+        expect(drained.queuePaused).toBe(false);
+        expect(drained.turns.map((turn) => turn.status)).toEqual([
+            'interrupted',
+            'completed',
+            'completed',
+        ]);
+    });
+
+    it('removes a queued message, and sends another ahead of the queue', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'slow please' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await service.send(terminal.id, { text: 'hello drop' });
+        await service.send(terminal.id, { text: 'hello keep' });
+        const queued = await until((snapshot) => snapshot.queue?.length === 2);
+        const [dropId = '', keepId = ''] = queued.queue?.map((entry) => entry.id) ?? [];
+
+        service.removeQueued(terminal.id, dropId);
+        expect(() => service.removeQueued(terminal.id, dropId)).toThrow(
+            expect.objectContaining({ code: 'CONFLICT' }),
+        );
+        await service.sendQueuedNow(terminal.id, keepId);
+        const steered = await until((snapshot) => snapshot.queue?.length === 0);
+        expect(userTexts(steered)).toEqual(['slow please', 'hello keep']);
+        await expect(service.sendQueuedNow(terminal.id, keepId)).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+        await service.interrupt(terminal.id);
+    });
+
+    it('keeps a queued message in place when sending it now fails', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'slow please' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await service.send(terminal.id, { text: 'hello refuse' });
+        await service.send(terminal.id, { text: 'hello after' });
+        const queued = await until((snapshot) => snapshot.queue?.length === 2);
+        await expect(
+            service.sendQueuedNow(terminal.id, queued.queue?.[0]?.id ?? ''),
+        ).rejects.toThrow();
+        expect(service.read(terminal.id).queue?.map((entry) => entry.text)).toEqual([
+            'hello refuse',
+            'hello after',
+        ]);
+        await service.interrupt(terminal.id);
+    });
+
+    it('steers the running turn when asked to, without queueing', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'slow please' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await service.send(terminal.id, { text: 'hello steer' }, 'steer');
+        const steered = await until((snapshot) => userTexts(snapshot).length === 2);
+        expect(steered.queue ?? []).toEqual([]);
+        expect(steered.turns).toHaveLength(1);
+        await service.interrupt(terminal.id);
+    });
+
+    it('bounds the queue and keeps it across a restart', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'slow please' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await Promise.all(
+            Array.from({ length: MAX_AGENT_CHAT_QUEUE }, (_, index) =>
+                service.send(terminal.id, { text: `hello ${index}` }),
+            ),
+        );
+        await expect(service.send(terminal.id, { text: 'one too many' })).rejects.toMatchObject({
+            code: 'VALIDATION',
+        });
+        await service.interrupt(terminal.id);
+        await until((snapshot) => snapshot.queuePaused === true);
+
+        await service.restart(terminal.id);
+        const restarted = service.read(terminal.id);
+        expect(restarted.status).toBe('ready');
+        expect(restarted.queue).toHaveLength(MAX_AGENT_CHAT_QUEUE);
+        expect(restarted.queuePaused).toBe(true);
+    });
+});

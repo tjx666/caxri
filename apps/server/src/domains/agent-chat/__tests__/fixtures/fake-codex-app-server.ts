@@ -11,11 +11,18 @@
  * - `crash`: the process exits mid-turn.
  * - `table`: a reply exercising the transcript's Markdown: headings, nested and task lists, cited files, a quote, a
  *   table, and a fenced code block, streamed in small chunks.
+ * - `subagent`: a `spawnAgent` collab call whose child thread runs its own turn (notifications with the child's
+ *   `threadId`, some before the spawn completes, as real Codex sends them), then a `wait` call reporting its result.
+ *   With `hold`, the child keeps streaming until `turn/interrupt` stops it and the parent turn ends right away.
+ * - `background`: a unified-exec command (with a `processId`) that outlives its turn, streaming output until
+ *   `thread/backgroundTerminals/terminate` stops it. With `flood`, it emits Codex's 10,000 output deltas at once.
  * - Anything else: reasoning, a plan, and a streamed reply quoting the message.
  *
- * A message with images is answered with how many it received, and `thread/compact/start` runs a compaction turn.
- * `model/list` offers two models, and a `turn/start` that names a model or effort saves it on the thread, as Codex
- * does, so a resumed thread reports the last choice.
+ * A message with images is answered with how many it received, and `thread/compact/start` runs a compaction turn that
+ * stays in progress briefly and cannot be steered. `turn/steer` echoes the steered message into the running turn; a
+ * steered message containing `late` ends the turn first, so the steer loses that race, and one containing `refuse` is
+ * rejected outright. `model/list` offers two models, and a `turn/start` that names a model or effort saves it on the
+ * thread, as Codex does, so a resumed thread reports the last choice.
  *
  * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history. Each
  * thread open also appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert
@@ -28,7 +35,10 @@ import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
 
+import { runApprovalCommand, runApprovalPatch, runQuestion } from './fake-codex-approvals.ts';
+import type { FakeCodexIo, FakeItem, FakeThread, FakeTurn } from './fake-codex-io.ts';
 import { FAKE_MODELS } from './fake-codex-models.ts';
+import { didHandleTaskRequest, runBackgroundCommand, runSubagent } from './fake-codex-tasks.ts';
 
 /**
  * Loose JSON-RPC shapes: the fake only reads the fields it answers, and the Server's own schemas validate what it
@@ -40,41 +50,11 @@ interface RpcMessage {
     params?: Record<string, unknown>;
     result?: unknown;
 }
-interface FakeItem {
-    id: string;
-    type: string;
-    [key: string]: unknown;
-}
-interface FakeTurn {
-    id: string;
-    items: FakeItem[];
-    status: string;
-    error: { message: string } | null;
-    startedAt: number;
-    durationMs?: number;
-    interrupted?: boolean;
-    finished?: boolean;
-    onFinished?: () => void;
-}
-interface FakeThread {
-    id: string;
-    turns: FakeTurn[];
-    model?: string;
-    effort?: string;
-}
-
 interface FakeInput {
     type: string;
     text?: string;
     url?: string;
 }
-interface ApprovalResponse {
-    decision?: string;
-}
-interface QuestionResponse {
-    answers?: Record<string, { answers: string[] } | undefined>;
-}
-
 if (process.argv.includes('--version')) {
     process.stdout.write('codex-cli 0.162.0\n');
     exitProcess(0);
@@ -96,7 +76,11 @@ function exitProcess(code: number): never {
 /**
  * Mutable process state, kept on one object so handlers update it without reassigning module bindings.
  */
-const state: { nextServerRequestId: number; thread?: FakeThread; activeTurn?: FakeTurn } = {
+const state: {
+    nextServerRequestId: number;
+    thread?: FakeThread;
+    activeTurn?: FakeTurn;
+} = {
     nextServerRequestId: 1000,
 };
 
@@ -110,11 +94,17 @@ function send(message: Record<string, unknown>) {
 function notify(method: string, parameters: Record<string, unknown>) {
     send({ method, params: { threadId: state.thread?.id, ...parameters } });
 }
+/**
+ * A notification of the thread `turn` belongs to: a child thread's carry the child's id, as app-server sends them on
+ * the same connection.
+ */
+function notifyTurn(turn: FakeTurn, method: string, parameters: Record<string, unknown>) {
+    send({ method, params: { threadId: turn.threadId ?? state.thread?.id, ...parameters } });
+}
 function threadPath(id: string) {
     return path.join(stateDirectory, `${id.replaceAll(/[^\w-]/gu, '_')}.json`);
 }
-function save() {
-    const thread = currentThread();
+function save(thread = currentThread()) {
     if (thread.turns.length > 0) fs.writeFileSync(threadPath(thread.id), JSON.stringify(thread));
 }
 function recordThreadOpen(method: string, parameters: Record<string, unknown>) {
@@ -134,13 +124,13 @@ function serverRequest(method: string, parameters: Record<string, unknown>): Pro
 
 function startItem(turn: FakeTurn, item: FakeItem) {
     turn.items.push(item);
-    notify('item/started', { turnId: turn.id, item, startedAtMs: Date.now() });
+    notifyTurn(turn, 'item/started', { turnId: turn.id, item, startedAtMs: Date.now() });
 }
 function completeItem(turn: FakeTurn, item: FakeItem) {
     const index = turn.items.findIndex((candidate) => candidate.id === item.id);
     if (index === -1) turn.items.push(item);
     else turn.items[index] = item;
-    notify('item/completed', { turnId: turn.id, item, completedAtMs: Date.now() });
+    notifyTurn(turn, 'item/completed', { turnId: turn.id, item, completedAtMs: Date.now() });
 }
 
 async function streamMessage(turn: FakeTurn, text: string, chunkDelayMs: number) {
@@ -149,12 +139,39 @@ async function streamMessage(turn: FakeTurn, text: string, chunkDelayMs: number)
     for (const word of text.split(/(?<= )/u)) {
         if (turn.interrupted) return;
         item.text += word;
-        notify('item/agentMessage/delta', { turnId: turn.id, itemId: item.id, delta: word });
+        notifyTurn(turn, 'item/agentMessage/delta', {
+            turnId: turn.id,
+            itemId: item.id,
+            delta: word,
+        });
         // eslint-disable-next-line no-await-in-loop -- chunks stream one at a time on purpose
         if (chunkDelayMs > 0) await delay(chunkDelayMs);
     }
     completeItem(turn, item);
 }
+
+function loadThread(id: string): FakeThread | undefined {
+    if (state.thread?.id === id) return state.thread;
+    const file = threadPath(id);
+    return fs.existsSync(file)
+        ? (JSON.parse(fs.readFileSync(file, 'utf8')) as FakeThread)
+        : undefined;
+}
+
+const io: FakeCodexIo = {
+    send,
+    notifyTurn,
+    startItem,
+    completeItem,
+    streamMessage,
+    save,
+    currentThread,
+    loadThread,
+    wireTurn,
+    beginTurn: beginFakeTurn,
+    finishTurn,
+    serverRequest,
+};
 
 async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | null) {
     const text = input.map((entry) => entry.text ?? '').join('\n');
@@ -165,91 +182,14 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     if (text.includes('crash')) exitProcess(1);
     if (imageCount > 0) {
         await streamMessage(turn, `Received ${imageCount} image${imageCount === 1 ? '' : 's'}.`, 0);
+    } else if (text.includes('subagent')) {
+        await runSubagent(io, turn, text.includes('hold'));
+    } else if (text.includes('background')) {
+        await runBackgroundCommand(io, turn, text.includes('flood'));
     } else if (text.includes('approve')) {
-        const command = {
-            type: 'commandExecution',
-            id: crypto.randomUUID(),
-            command: 'echo approved',
-            cwd: process.cwd(),
-            status: 'inProgress',
-            aggregatedOutput: null,
-            exitCode: null,
-            durationMs: null,
-        };
-        startItem(turn, { ...command });
-        const response = (await serverRequest('item/commandExecution/requestApproval', {
-            turnId: turn.id,
-            itemId: command.id,
-            startedAtMs: Date.now(),
-            command: command.command,
-            cwd: command.cwd,
-            reason: 'Fake approval',
-        })) as ApprovalResponse | undefined;
-        if (response?.decision === 'accept' || response?.decision === 'acceptForSession') {
-            notify('item/commandExecution/outputDelta', {
-                turnId: turn.id,
-                itemId: command.id,
-                delta: 'approved\n',
-            });
-            completeItem(turn, {
-                ...command,
-                status: 'completed',
-                aggregatedOutput: 'approved\n',
-                exitCode: 0,
-                durationMs: 5,
-            });
-            await streamMessage(turn, 'The command ran.', 0);
-        } else {
-            completeItem(turn, { ...command, status: 'declined' });
-            await streamMessage(turn, 'The command was declined.', 0);
-        }
+        await runApprovalCommand(io, turn);
     } else if (text.includes('patch')) {
-        const change = {
-            type: 'fileChange',
-            id: crypto.randomUUID(),
-            status: 'inProgress',
-            changes: [
-                {
-                    path: path.join(process.cwd(), 'src', 'greeting.ts'),
-                    kind: { type: 'update', move_path: null },
-                    diff: [
-                        '@@ -1,3 +1,4 @@',
-                        ' export function greet(name: string) {',
-                        "-    return 'Hello ' + name;",
-                        '+    const greeting = `Hello, ${name}!`;',
-                        '+    return greeting;',
-                        ' }',
-                        '',
-                    ].join('\n'),
-                },
-                {
-                    path: path.join(process.cwd(), 'docs', 'greeting.md'),
-                    kind: { type: 'add' },
-                    diff: '# Greeting\n\nCall `greet(name)`.\n',
-                },
-                {
-                    path: path.join(process.cwd(), 'legacy.txt'),
-                    kind: { type: 'delete' },
-                    diff: 'unused\n',
-                },
-            ],
-        };
-        startItem(turn, { ...change });
-        const response = (await serverRequest('item/fileChange/requestApproval', {
-            turnId: turn.id,
-            itemId: change.id,
-            startedAtMs: Date.now(),
-            reason: 'Fake file change',
-            grantRoot: null,
-        })) as ApprovalResponse | undefined;
-        const isAccepted =
-            response?.decision === 'accept' || response?.decision === 'acceptForSession';
-        completeItem(turn, { ...change, status: isAccepted ? 'completed' : 'declined' });
-        await streamMessage(
-            turn,
-            isAccepted ? 'The files were changed.' : 'The change was declined.',
-            0,
-        );
+        await runApprovalPatch(io, turn);
     } else if (text.includes('bigdiff')) {
         const lineCount = 6000;
         const lines = Array.from(
@@ -298,26 +238,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         });
         await streamMessage(turn, 'Explored the project.', 0);
     } else if (text.includes('ask')) {
-        const item = { type: 'dynamicToolCall', id: crypto.randomUUID() };
-        const response = (await serverRequest('item/tool/requestUserInput', {
-            turnId: turn.id,
-            itemId: item.id,
-            questions: [
-                {
-                    id: 'color',
-                    header: 'Color',
-                    question: 'Which color?',
-                    isOther: true,
-                    isSecret: false,
-                    options: [
-                        { label: 'Red', description: 'Warm' },
-                        { label: 'Blue', description: 'Cool' },
-                    ],
-                },
-            ],
-        })) as QuestionResponse | undefined;
-        const answer = response?.answers?.color?.answers[0];
-        await streamMessage(turn, `You chose ${answer ?? 'nothing'}.`, 0);
+        await runQuestion(io, turn);
     } else if (text.includes('slow')) {
         // A titled thought and a command still running while the reply streams, so live work is on screen.
         completeItem(turn, {
@@ -483,6 +404,7 @@ function handle(message: RpcMessage) {
         return;
     }
     const { id, method, params: parameters = {} } = message;
+    if (didHandleTaskRequest(io, id, method, parameters)) return;
     switch (method) {
         case 'initialize': {
             send({ id, result: { userAgent: 'caxri/0.162.0 (fake)', platformOs: 'macos' } });
@@ -516,15 +438,6 @@ function handle(message: RpcMessage) {
             send({ id, result: { data: FAKE_MODELS, nextCursor: null } });
             return;
         }
-        case 'thread/compact/start': {
-            const turn = beginFakeTurn();
-            send({ id, result: {} });
-            const compaction = { type: 'contextCompaction', id: crypto.randomUUID() };
-            startItem(turn, compaction);
-            completeItem(turn, compaction);
-            finishTurn(turn);
-            return;
-        }
         case 'turn/start': {
             const input = (parameters.input ?? []) as FakeInput[];
             const clientId =
@@ -550,11 +463,40 @@ function handle(message: RpcMessage) {
             return;
         }
         case 'turn/steer': {
-            if (state.activeTurn?.id !== parameters.expectedTurnId) {
+            const input = (parameters.input ?? []) as FakeInput[];
+            const text = input.map((entry) => entry.text ?? '').join('\n');
+            const active = state.activeTurn;
+            if (active && text.includes('late')) {
+                // The turn ends between Caxri reading it as running and the steer arriving.
+                active.interrupted = true;
+                finishTurn(active);
+            }
+            if (text.includes('refuse')) {
+                send({ id, error: { code: -32600, message: 'steering is not available' } });
+                return;
+            }
+            const turn = state.activeTurn;
+            if (!turn || turn.id !== parameters.expectedTurnId) {
                 send({ id, error: { code: -32600, message: 'no active turn to steer' } });
                 return;
             }
-            send({ id, result: { turnId: state.activeTurn?.id } });
+            if (turn.isCompaction) {
+                send({ id, error: { code: -32600, message: 'cannot steer a compact turn' } });
+                return;
+            }
+            send({ id, result: { turnId: turn.id } });
+            // Codex records steered input as a user message of the running turn, echoing its client id.
+            const user = {
+                type: 'userMessage',
+                id: crypto.randomUUID(),
+                clientId:
+                    typeof parameters.clientUserMessageId === 'string'
+                        ? parameters.clientUserMessageId
+                        : null,
+                content: input,
+            };
+            startItem(turn, user);
+            completeItem(turn, user);
             return;
         }
         case 'turn/interrupt': {

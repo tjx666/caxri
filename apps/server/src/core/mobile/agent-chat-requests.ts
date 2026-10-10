@@ -65,9 +65,13 @@ export async function invokeMobileAgentChatRequest(
             return windowAgentChatSnapshotForMobile(snapshot);
         }
         case 'mobile.agentChat.send': {
+            /**
+             * Paired devices do not see Desktop's message queue, so a message sent during a turn steers it, as it did
+             * before the queue existed, instead of waiting somewhere the sender cannot see.
+             */
             await forward({
                 method: 'agentChat.send',
-                params: { terminalId, text: request.params.text },
+                params: { terminalId, text: request.params.text, delivery: 'steer' },
             });
             return null;
         }
