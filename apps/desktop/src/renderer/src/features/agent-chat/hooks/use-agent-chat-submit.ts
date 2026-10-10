@@ -38,18 +38,26 @@ export function useAgentChatSubmit({
             () => didRunAgentChatCommand(terminalId, command),
             () => setDraft((current) => draftAfterSend(current, sent)),
         );
-    const submit = (sent: string): Promise<void> => {
+    /**
+     * `delivery` applies only while a turn runs (see `agentChat.send`); a slash command issued during a turn always
+     * waits in the queue, because a command cannot join a running turn.
+     */
+    const submit = (sent: string, delivery?: 'queue' | 'steer'): Promise<void> => {
         const command = parseAgentChatCommand(sent, commands);
         if (command) return runCommand(sent, command);
         const sentAttachments = attachments;
         return send(
             () =>
-                didSendAgentChatMessage(terminalId, {
-                    text: sent,
-                    ...(sentAttachments.length > 0 && {
-                        images: sentAttachments.map((attachment) => attachment.image),
-                    }),
-                }),
+                didSendAgentChatMessage(
+                    terminalId,
+                    {
+                        text: sent,
+                        ...(sentAttachments.length > 0 && {
+                            images: sentAttachments.map((attachment) => attachment.image),
+                        }),
+                    },
+                    delivery,
+                ),
             () => {
                 setDraft((current) => draftAfterSend(current, sent));
                 clearSent(sentAttachments);

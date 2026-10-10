@@ -85,6 +85,82 @@ describe('Codex item mapping', () => {
         expect(mapCodexItem('nope', 't', false)).toBeUndefined();
     });
 
+    it('shows a compaction notice only once compaction completed', () => {
+        const compaction = { type: 'contextCompaction', id: 'k' };
+        expect(mapCodexItem(compaction, 't', true)).toBeUndefined();
+        expect(mapCodexItem(compaction, 't', false)).toEqual({
+            id: 'k',
+            turnId: 't',
+            type: 'notice',
+            kind: 'compacted',
+        });
+    });
+
+    it('maps subagent tool calls into readable tool rows', () => {
+        expect(
+            mapCodexItem(
+                {
+                    type: 'collabAgentToolCall',
+                    id: 's',
+                    tool: 'spawnAgent',
+                    status: 'inProgress',
+                    senderThreadId: 'parent',
+                    receiverThreadIds: [],
+                    prompt: 'Find the bug',
+                    model: null,
+                    agentsStates: {},
+                },
+                't',
+                true,
+            ),
+        ).toEqual({
+            id: 's',
+            turnId: 't',
+            type: 'toolCall',
+            name: 'spawnAgent',
+            status: 'running',
+            summary: 'Find the bug',
+        });
+        expect(
+            mapCodexItem(
+                {
+                    type: 'collabAgentToolCall',
+                    id: 'w',
+                    tool: 'wait',
+                    status: 'interrupted',
+                    senderThreadId: 'parent',
+                    receiverThreadIds: ['a', 'b'],
+                    prompt: null,
+                    agentsStates: {
+                        a: { status: 'completed', message: 'Done.' },
+                        b: { status: 'running', message: null },
+                    },
+                },
+                't',
+                false,
+            ),
+        ).toMatchObject({
+            name: 'wait',
+            status: 'interrupted',
+            summary: '2 agents',
+            output: 'Done.',
+        });
+        expect(
+            mapCodexItem(
+                {
+                    type: 'subAgentActivity',
+                    id: 'v',
+                    kind: 'started',
+                    agentThreadId: 'child',
+                    agentPath: '/root/reviewer',
+                    model: null,
+                },
+                't',
+                false,
+            ),
+        ).toMatchObject({ type: 'toolCall', name: 'spawnAgent', summary: '/root/reviewer' });
+    });
+
     it('closes items a turn left open', () => {
         expect(
             closeDanglingItem({

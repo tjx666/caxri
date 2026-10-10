@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { agentActionMethods } from '../agent/agent-action-contract.js';
-import { agentChatMethods } from '../agent/agent-chat-contract.js';
+import { agentChatMethods } from '../agent/agent-chat-methods.js';
 import { commanderMethods } from '../agent/agent-commander-contract.js';
 import {
     agentDelegationInternalMethods,

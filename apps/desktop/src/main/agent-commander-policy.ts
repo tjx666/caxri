@@ -140,6 +140,7 @@ const SHARED_TRANSIENT_EVENTS = new Set<string>([
 
 const TERMINAL_SCOPED_TRANSIENT_EVENTS = new Set<string>([
     'agentChat.patch',
+    'agentChat.taskPatch',
     'terminal.output',
     'terminal.outputRecovery',
     'terminal.sizeOwnership',

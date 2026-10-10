@@ -204,7 +204,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
 
     it('opens a turn when Claude Code continues on its own after a background task', async () => {
         const { service, terminal, until, signals } = await fixture({ provider: 'claude' });
-        await service.send(terminal.id, { text: 'start a background job' });
+        await service.send(terminal.id, { text: 'start a background job and continue on its own' });
         await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
 
         const working = await until((snapshot) =>
@@ -221,11 +221,11 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
         expect(signals.filter((signal) => signal.phase === 'turnStarted')).toHaveLength(2);
     });
 
-    it('folds a message sent mid-turn into the running turn', async () => {
+    it('folds a steered message into the running turn', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
         await service.send(terminal.id, { text: 'pause first' });
         await until((snapshot) => snapshot.activeTurnId !== undefined);
-        await service.send(terminal.id, { text: 'and then' });
+        await service.send(terminal.id, { text: 'and then' }, 'steer');
         const done = await until(
             (snapshot) =>
                 !snapshot.activeTurnId &&

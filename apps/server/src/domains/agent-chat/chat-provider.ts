@@ -6,6 +6,8 @@ import type {
     AgentChatMessageInput,
     AgentChatPatchOperation,
     AgentChatSnapshot,
+    AgentChatTaskPatchOperation,
+    AgentChatTaskSnapshot,
     AgentChatTurn,
     AgentLaunchSettings,
 } from '@caxri/protocol';
@@ -24,6 +26,7 @@ type ChatLifecyclePhase = Extract<
     | 'attentionRequested'
     | 'attentionResolved'
     | 'compactionFinished'
+    | 'compactionStarted'
     | 'sessionIdentified'
     | 'turnFailed'
     | 'turnFinished'
@@ -122,6 +125,15 @@ export interface AgentChatSessionHost {
     spawnProcess?: SpawnChatProcess;
     read(): AgentChatSnapshot;
     apply(operations: AgentChatPatchOperation[]): void;
+    /**
+     * Changes one task's own projection (a subagent's conversation or a shell's output). Task metadata itself lives in
+     * the parent snapshot's `tasks` and changes through `apply`.
+     */
+    applyTask(taskId: string, operations: AgentChatTaskPatchOperation[]): void;
+    /**
+     * The task projection Server Core holds, or `undefined` when none was created yet.
+     */
+    readTask(taskId: string): AgentChatTaskSnapshot | undefined;
     lifecycle(event: ChatLifecycleEvent): void;
     /**
      * Binds an Agent Session to the Terminal. Called only once the provider has durably recorded it (its first turn
@@ -139,6 +151,25 @@ export interface AgentChatSessionHost {
 }
 
 /**
+ * How an input reached the provider when it did not simply start a turn: `steered` into the running turn, or `queued`
+ * by Server Core and sent once the previous turn ended. The provider records it on the user message.
+ */
+export interface ChatInputOptions {
+    delivery?: 'queued' | 'steered';
+}
+
+/**
+ * History of a task the live session no longer holds (a previous process, a resumed conversation).
+ */
+export interface ChatTaskHistory {
+    /**
+     * The task's stable id, which may differ from the id the Client asked for (a timeline item id).
+     */
+    taskId: string;
+    operations: AgentChatTaskPatchOperation[];
+}
+
+/**
  * One live provider process bound to one Chat Terminal.
  */
 export interface AgentChatProviderSession {
@@ -150,14 +181,34 @@ export interface AgentChatProviderSession {
     start(): Promise<'resumed' | 'started'>;
     /**
      * Starts a turn, or steers the running one. Image data goes only to the provider; the projection keeps thumbnails.
+     * The service decides between queueing and steering; a session never queues on its own.
      */
-    send(message: AgentChatMessageInput): Promise<void>;
+    send(
+        message: Omit<AgentChatMessageInput, 'delivery'>,
+        options?: ChatInputOptions,
+    ): Promise<void>;
     /**
      * Runs one of the commands this session reported in the snapshot's `commands`; the service has already checked that
-     * `name` is listed.
+     * `name` is listed and that no turn is running.
      */
-    runCommand(name: string, arguments_: string | undefined): Promise<void>;
+    runCommand(
+        name: string,
+        arguments_: string | undefined,
+        options?: ChatInputOptions,
+    ): Promise<void>;
+    /**
+     * Stops the running turn. Background tasks keep running.
+     */
     interrupt(): Promise<void>;
+    /**
+     * Stops one task listed in the snapshot's `tasks`. Fails with `CONFLICT` when the task is no longer running.
+     */
+    stopTask(taskId: string): Promise<void>;
+    /**
+     * Rebuilds a task the session holds no projection for from the provider's own record. `taskId` is a task id or the
+     * id of the timeline item that started the task. Resolves `undefined` when the provider does not know it.
+     */
+    readTaskHistory(taskId: string): Promise<ChatTaskHistory | undefined>;
     respond(requestId: string, response: AgentChatResponse): void;
     /**
      * Orderly stop requested by Caxri. The provider's record is already durable, so nothing is lost.

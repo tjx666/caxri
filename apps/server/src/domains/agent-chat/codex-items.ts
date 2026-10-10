@@ -115,8 +115,53 @@ function userMessageText(content: unknown): string {
 }
 
 /**
+ * Collab tool statuses are `inProgress | completed | failed | interrupted`.
+ */
+function collabStatus(value: unknown): AgentChatItemStatus {
+    return value === 'interrupted' ? 'interrupted' : itemStatus(value);
+}
+
+/**
+ * Multi-agent v2 reports a subagent interaction as a `subAgentActivity` item instead of a collab tool call; its kind
+ * names the matching tool.
+ */
+const SUB_AGENT_ACTIVITY_NAMES: Partial<Record<string, string>> = {
+    started: 'spawnAgent',
+    interacted: 'sendMessage',
+    interrupted: 'interruptAgent',
+    completed: 'agentCompleted',
+};
+
+/**
+ * A subagent tool call (`spawnAgent`, `sendInput`, `wait`, `closeAgent`, ...). The summary is the prompt it sent, or
+ * how many agents it addressed; the output is the final messages the target agents reported, such as a `wait` result.
+ */
+function mapCollabAgentToolCall(raw: Json, base: { id: string; turnId?: string }): AgentChatItem {
+    const receivers = Array.isArray(raw.receiverThreadIds) ? raw.receiverThreadIds.length : 0;
+    const summary =
+        optionalText(raw.prompt, 1_000) ??
+        (receivers > 0 ? `${receivers} agent${receivers === 1 ? '' : 's'}` : undefined);
+    const states = isRecord(raw.agentsStates) ? Object.values(raw.agentsStates) : [];
+    const messages = states.flatMap((state) =>
+        isRecord(state) && typeof state.message === 'string' && state.message
+            ? [state.message]
+            : [],
+    );
+    const output =
+        messages.length > 0 ? tail(messages.join('\n\n'), MAX_AGENT_CHAT_OUTPUT_LENGTH) : undefined;
+    return {
+        ...base,
+        type: 'toolCall',
+        name: clip(text(raw.tool) || 'agent', 200),
+        status: collabStatus(raw.status),
+        ...(summary && { summary }),
+        ...(output && { output }),
+    };
+}
+
+/**
  * Maps one `ThreadItem`. Returns `undefined` for item kinds the Chat does not render (plans arrive through
- * `turn/plan/updated`; review markers, hook prompts, and sub-agent bookkeeping are not conversation content).
+ * `turn/plan/updated`; review markers and hook prompts are not conversation content).
  */
 export function mapCodexItem(
     raw: unknown,
@@ -234,7 +279,26 @@ export function mapCodexItem(
             };
         }
         case 'contextCompaction': {
-            return { ...base, type: 'notice', kind: 'compacted' };
+            /**
+             * The notice says the context was compacted, so it appears only once compaction completed; while it runs
+             * the snapshot's `operation` says so instead.
+             */
+            return isStreaming ? undefined : { ...base, type: 'notice', kind: 'compacted' };
+        }
+        case 'collabAgentToolCall': {
+            return mapCollabAgentToolCall(raw, base);
+        }
+        case 'subAgentActivity': {
+            const name = SUB_AGENT_ACTIVITY_NAMES[text(raw.kind)];
+            if (!name) return undefined;
+            const summary = optionalText(raw.agentPath, 1_000);
+            return {
+                ...base,
+                type: 'toolCall',
+                name,
+                status: 'completed',
+                ...(summary && { summary }),
+            };
         }
         default: {
             return undefined;

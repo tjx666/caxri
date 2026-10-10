@@ -226,13 +226,13 @@ export function didOpenEditorTabForSession(
 }
 
 /**
- * Opens an editor tab in the currently selected Session.
+ * Opens an editor tab in the currently selected Session, in `paneId` when given, else the active pane.
  *
  * The tab activates synchronously, so it supersedes any file open still awaiting `files.read`: otherwise a Settings
  * shortcut pressed right after a File Explorer click opens Settings, then the late read re-activates the file on top of
  * it.
  */
-export function openEditorTab(path: string, options: { preview?: boolean } = {}): void {
+export function openEditorTab(path: string, options: { paneId?: string; preview?: boolean } = {}) {
     const session = getSelectedSession();
     if (!session) return;
     supersedePendingFileOpens();

@@ -257,6 +257,14 @@ describe('splitAgentChatWork', () => {
         rows: split.rows.map((item) => item.id),
     });
 
+    it('keeps work marked live out of the summary', () => {
+        const split = splitAgentChatWork(
+            [ran('a', 'completed'), ran('b', 'completed'), ran('c', 'completed')],
+            (item) => item.id === 'b',
+        );
+        expect(ids(split)).toEqual({ summarized: ['a', 'c'], rows: ['b'] });
+    });
+
     it('keeps a thought and a lone call as rows', () => {
         const split = splitAgentChatWork([thought, ran('a', 'completed')]);
         expect(ids(split)).toEqual({ summarized: [], rows: ['t', 'a'] });
