@@ -85,8 +85,9 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await message.press('Enter');
         await expect(chat.getByText('Hello from fake Codex. You said: hi there')).toBeVisible();
         await expect(message).toHaveAttribute('placeholder', 'Message Codex');
-        // The footer keeps the model and remaining context in view, as the Codex TUI does.
-        await expect(chat.getByText(/^fake-codex-model · \d+% context left$/u)).toBeVisible();
+        // The composer keeps the model and the context used in view, as the Codex app does.
+        await expect(chat.getByRole('button', { name: /^Model: Fake Codex, / })).toBeVisible();
+        await expect(chat.getByRole('img', { name: /^\d+% of context used$/u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-reply.png') });
 
         await message.fill('please approve this');
@@ -378,7 +379,8 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await message.fill('hi there');
         await message.press('Enter');
         await expect(chat.getByText('Hello from fake Claude. You said: hi there')).toBeVisible();
-        await expect(chat.getByText(/^fake-claude-model · \d+% context left$/u)).toBeVisible();
+        await expect(chat.getByRole('button', { name: 'Model: Fake' })).toBeVisible();
+        await expect(chat.getByRole('img', { name: /^\d+% of context used$/u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-reply.png') });
 
         await message.fill('please approve this');

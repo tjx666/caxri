@@ -5,6 +5,7 @@ import type {
     AgentChatRequest,
     AgentChatSnapshot,
 } from '@caxri/protocol';
+import { findAgentChatModel } from '@caxri/protocol';
 
 import { projectRelativePath } from '../../lib/file-path';
 
@@ -49,20 +50,60 @@ export function canSendAgentChatMessage(snapshot: AgentChatSnapshot | undefined)
 }
 
 /**
- * The composer's footer: the model the provider reported and how much of its context window remains, the two facts the
- * Codex TUI keeps visible. Omitted until the provider reports them.
+ * How full the context window is, for the composer's meter. Omitted until the provider reports a window size.
  */
-export function agentChatContextSummary(
-    snapshot: Pick<AgentChatSnapshot, 'model' | 'usage'> | undefined,
-): string | undefined {
-    const parts: string[] = [];
-    if (snapshot?.model) parts.push(snapshot.model);
+export interface AgentChatContextUsage {
+    /**
+     * Share of the window in use, from 0 to 1.
+     */
+    used: number;
+    totalTokens: number;
+    contextWindow: number;
+}
+
+export function agentChatContextUsage(
+    snapshot: Pick<AgentChatSnapshot, 'usage'> | undefined,
+): AgentChatContextUsage | undefined {
     const usage = snapshot?.usage;
-    if (usage?.contextWindow) {
-        const used = Math.min(usage.totalTokens / usage.contextWindow, 1);
-        parts.push(`${Math.round((1 - used) * 100)}% context left`);
-    }
-    return parts.length > 0 ? parts.join(' · ') : undefined;
+    if (!usage?.contextWindow) return undefined;
+    return {
+        used: Math.min(usage.totalTokens / usage.contextWindow, 1),
+        totalTokens: usage.totalTokens,
+        contextWindow: usage.contextWindow,
+    };
+}
+
+/**
+ * Display names for the effort levels the providers use; an unknown level is shown capitalized.
+ */
+const EFFORT_LABELS: Record<string, string> = {
+    none: 'None',
+    minimal: 'Minimal',
+    low: 'Low',
+    medium: 'Medium',
+    high: 'High',
+    xhigh: 'Extra high',
+    max: 'Max',
+};
+
+export function agentChatEffortLabel(effort: string): string {
+    return EFFORT_LABELS[effort] ?? `${effort.charAt(0).toUpperCase()}${effort.slice(1)}`;
+}
+
+/**
+ * The model picker's trigger: the model's listed name and the effort the next turn uses, as Codex shows `GPT-5.6 Sol
+ * Extra high`. A model the provider did not list keeps its raw identifier.
+ */
+export function agentChatModelLabel(
+    snapshot: Pick<AgentChatSnapshot, 'effort' | 'model' | 'models'> | undefined,
+): { model: string; effort?: string } | undefined {
+    if (!snapshot?.model) return undefined;
+    const listed = findAgentChatModel(snapshot.models, snapshot.model);
+    const effort =
+        snapshot.effort && (listed?.efforts.length ?? 1) > 0
+            ? agentChatEffortLabel(snapshot.effort)
+            : undefined;
+    return { model: listed?.displayName ?? snapshot.model, ...(effort && { effort }) };
 }
 
 /**

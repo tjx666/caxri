@@ -11,6 +11,7 @@ import type {
 import type {
     AgentChatImageInput,
     AgentChatMessageInput,
+    AgentChatModelChange,
     AgentChatPatchOperation,
 } from '@caxri/protocol';
 import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
@@ -40,6 +41,7 @@ import {
     finishedClaudeTurn,
     settleClaudeToolItem,
 } from './claude-items';
+import { claudeChatModels, claudeInitEffort, configureClaudeModel } from './claude-models';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
 import type { ClaudeChatSettings } from './launch-settings';
@@ -334,6 +336,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 const model = stringField(message.model);
                 if (model)
                     this.options.apply([{ op: 'state', state: { model: clip(model, 200) } }]);
+                this.options.apply(claudeInitEffort(message));
                 const commands = this.commands.hideTerminalBound(message.terminal_slash_commands);
                 if (commands) this.options.apply([{ op: 'state', state: { commands } }]);
                 return;
@@ -525,6 +528,8 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 INITIALIZE_TIMEOUT_MS,
             );
             this.reportCommands(initialized.commands);
+            const models = claudeChatModels(initialized.models);
+            if (models.length > 0) this.options.apply([{ op: 'state', state: { models } }]);
         } catch {
             const spawnErrorCode = this.spawnErrorCode;
             await this.close();
@@ -555,6 +560,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
     runCommand(name: string, arguments_: string | undefined): Promise<void> {
         this.submit(claudeCommandPrompt(name, arguments_), []);
         return Promise.resolve();
+    }
+
+    async configure(change: AgentChatModelChange): Promise<void> {
+        this.options.apply(await configureClaudeModel(this.requireOpen(), change));
     }
 
     async interrupt(): Promise<void> {

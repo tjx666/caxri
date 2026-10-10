@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type {
     AgentChatFailureReason,
     AgentChatMessageInput,
+    AgentChatModelRequest,
     AgentChatPatchOperation,
     AgentChatSnapshot,
     AgentProvider,
@@ -18,6 +19,7 @@ import {
     errorMessage,
     isChatTerminal,
     MAX_AGENT_CHAT_PATCH_OPERATIONS,
+    resolveAgentChatModelChange,
 } from '@caxri/protocol';
 import {
     assertE2EAgentChatInput,
@@ -534,6 +536,13 @@ export class AgentChatService {
             if (!isAgentChatCommandListed(this.state(terminalId).snapshot, name))
                 throw new CaxriError('VALIDATION', `/${name} is not available in this Chat`);
             await session.runCommand(name, arguments_?.trim() ? arguments_ : undefined);
+        });
+    }
+
+    async configure(terminalId: string, change: AgentChatModelRequest): Promise<void> {
+        await this.enqueue(terminalId, async (session) => {
+            const config = resolveAgentChatModelChange(this.state(terminalId).snapshot, change);
+            if (config.model || config.effort) await session.configure(config);
         });
     }
 
