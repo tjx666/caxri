@@ -359,8 +359,9 @@ icon is a plain brand-color mark (Claude Code and Codex keep their colors, like 
 workbench tabs, the Session hover card, the MRU switcher, Activity rows, Archived Sessions, Settings,
 and menus) because in a long list the color is what tells one Agent from another at a glance; it
 carries no lifecycle decoration. The right-edge slot answers "does this Agent need me, or is it
-working?" first: running work (including compaction) shows a thin `--success` arc spinning over a
-faint neutral track; unacknowledged attention shows a pinging warning ring around a warning dot; a
+working?" first: running work (including compaction) shows a thin open ring spinning in `--muted`,
+as Codex's thread list does, with no color so several working Agents never turn the list into a
+wall of green; unacknowledged attention shows a pinging warning ring around a warning dot; a
 detached Agent shows a static unplugged glyph. Attention wins over running; there is deliberately no
 second, static amber state, so reading a Session is the only thing that clears it and nothing can
 bring it back unread. Lifecycle outranks delivery: only a settled Session (idle, unknown, failed,
@@ -610,7 +611,7 @@ Terminal title and replace generic progress text while active. `Compacting` is t
 exception: it uses `--foreground` and a slow opacity pulse so long-running context compression
 remains noticeable without animating the Agent icon or Session title. Work tabs carry no separate
 process-state dot; process liveness remains available through diagnostics rather than duplicate
-chrome. This does not govern the Session list's running arc around the Agent icon.
+chrome. This does not govern the Session list's running ring.
 
 **Git decorations**: a file with working-tree changes reads the same wherever its name appears.
 The name takes the `--git-*` color of its change, and a single status letter (`M`, `A`, `D`, `U`…)
@@ -699,7 +700,7 @@ enter `--motion-tab-enter` (140ms, ease-out) and exit `--motion-tab-exit` (110ms
 shared chrome tab indicator moves with `--motion-chrome-switch` (160ms,
 `--motion-ease-emphasized`); overlays enter `--motion-overlay-enter` (150ms) and exit
 `--motion-overlay-exit` (100ms); `Compacting` pulses on `--motion-compaction-pulse` (1800ms,
-ease-in-out). JS resolves tokens through `lib/motion.ts` (`motionDurationMs`);
+ease-in-out); live Agent Chat text sweeps on `--motion-activity-shimmer` (2200ms, linear). JS resolves tokens through `lib/motion.ts` (`motionDurationMs`);
 settlement fallbacks are token plus a safety margin (`motionSettleTimeoutMs`), never an independent
 literal.
 
@@ -716,14 +717,17 @@ motion belongs to the ring, never the Agent mark itself; swapping among the thre
 remains instant.
 
 The work-tab `Compacting` accessory is the other state-motion exception: only that word pulses,
-while the Agent icon, Session title, focus accent, and neighboring tabs remain still. Hovered or
+while the Agent icon, Session title, focus accent, and neighboring tabs remain still. Live Agent Chat work is the third: a highlight sweeps across the text of what is still running
+(a running tool's verb, `Thinking`, the composer's working line) through the `.activity-shimmer`
+class, and the Stop button's arc circles while the turn works. The row's tool glyph never swaps
+for a spinner, so a column of rows does not flicker as each starts and ends. Hovered or
 keyboard-focused clipped sidebar titles may scroll solely to reveal their text, as described above.
 
 `prefers-reduced-motion: reduce` completes every layer instantly: overlay keyframes are gated
 behind `motion-safe:` variants (the library ships no media query of its own, and a
 `motion-reduce:animate-none` override would lose the specificity fight against the `data-open:`
 attribute variant), disclosure CSS zeroes its durations, Session status icons keep their base shape
-but stop moving, the `Compacting` word stays high-contrast and static, and Motion durations come
+but stop moving, the `Compacting` word stays high-contrast and static, Chat shimmer text and the Stop arc stay still, and Motion durations come
 from the shared `useShouldReduceMotion` hook
 (`hooks/use-should-reduce-motion.ts`, the only sanctioned way to read the preference in JS),
 without changing focus, selection, command, query, or lifecycle behavior.
@@ -949,6 +953,31 @@ base), `dense` (28px, dense), `compact` (24px, dense), or `palette` (44px, base)
 selects the standard themed fill, workbench canvas, inline surface, or an embedded field owned by
 `InputGroup`; all variants share one border, focus ring, invalid, and disabled contract. Adorned
 search/path fields use `InputGroup`, never feature-local field chrome.
+
+**Agent Chat composer**: one radius-8 `--surface` card with a 1px `--border` that turns `--muted`
+while focused (the pane ring already carries the accent focus) and `--accent` while an image is
+dragged over it. Inside, top to bottom: the attached-image strip (64px radius-6 thumbnails, each
+with its remove control inset in the top-right corner), a borderless auto-growing textarea, and one
+action row: Attach images on the left, the model and context summary right-aligned in `--muted`, and
+a single primary action slot. That slot shows Stop while a turn runs and the input is empty, and
+Send (steering the running turn) as soon as there is content; the two never sit side by side.
+Escape interrupts a running turn regardless. While the Chat starts, works, or waits on an answer, a
+28px status tab sits on top of the card, inset 12px on each side: a spinner (or a `--warning`
+question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
+stop` right-aligned. A working turn's label is one playful verb chosen per turn (`Pondering…`),
+so a long turn reads as progress rather than a stall. References: T3 Code's Chat composer, Claude
+Code's spinner verbs, and LobeHub's status tab and ringed Stop button.
+
+**Agent Chat timeline**: work is secondary to the conversation. Every command, tool call, file
+change, and thought is one 12px `--muted` disclosure row: the tool kind's glyph (the same table the
+mobile timeline uses), a past-tense verb, the subject in a mono `--surface` chip, and trailing facts
+(a `+N -M` diff stat, a non-success status glyph, a duration of at least one second). Consecutive
+work collapses into one summary row (`Ran 3 commands, read 2 files`). A finished turn folds
+everything except the prompt, the final reply, and notices behind one `Worked for 2m 1s` row with a
+bottom hairline. Expanded output renders in the shared code view, painted in the language inferred
+from what produced it (a printed file's extension, a Git diff, JSON) and capped in height. A new
+tool kind gets its glyph in one table, not a new component. References: the Codex app and T3 Code's
+work log.
 
 **Settings**: a Workbench tab, not a modal: `Cmd+,`, the menu, and the palette all open or focus
 this one tab instead of raising a dialog, so it composes with every other document (the Archived

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { reconcileTerminalProcessFocus, shouldAutoFocusTerminal } from '../terminal-process-focus';
+import {
+    canClaimTerminalFocus,
+    reconcileTerminalProcessFocus,
+    shouldAutoFocusTerminal,
+} from '../terminal-process-focus';
 
 const focusedElement = (): HTMLElement | null => null;
 
@@ -185,5 +189,48 @@ describe('reconcileTerminalProcessFocus', () => {
                 terminalId: 'terminal-1',
             }),
         ).toBe(true);
+    });
+});
+
+describe('canClaimTerminalFocus', () => {
+    it('lets a Chat composer claim focus from nothing or a clicked tab', () => {
+        expect(
+            canClaimTerminalFocus({
+                focusedElement: focusedElement(),
+                isModalOpen: false,
+                terminalId: 'terminal-1',
+            }),
+        ).toBe(true);
+        expect(
+            canClaimTerminalFocus({
+                focusedElement: keyboardFocusedWorkTab('terminal-2'),
+                isModalOpen: false,
+                terminalId: 'terminal-1',
+            }),
+        ).toBe(true);
+    });
+
+    it('defers to a modal, an editable control, and roving tab navigation', () => {
+        expect(
+            canClaimTerminalFocus({
+                focusedElement: focusedElement(),
+                isModalOpen: true,
+                terminalId: 'terminal-1',
+            }),
+        ).toBe(false);
+        expect(
+            canClaimTerminalFocus({
+                focusedElement: editableFocusedElement(),
+                isModalOpen: false,
+                terminalId: 'terminal-1',
+            }),
+        ).toBe(false);
+        expect(
+            canClaimTerminalFocus({
+                focusedElement: keyboardFocusedWorkTab('terminal-1'),
+                isModalOpen: false,
+                terminalId: 'terminal-1',
+            }),
+        ).toBe(false);
     });
 });

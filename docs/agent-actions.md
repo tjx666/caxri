@@ -10,6 +10,9 @@ opens it for the active running Agent Terminal; Shell, stopped, and missing Term
 the surface. The picker captures and displays its provider, Session, and Terminal target so a later
 selection cannot drift to another Terminal.
 
+An Agent Chat reuses the same discovery and search for the skills its composer offers after `/` or
+`$`; see [Agent Chat](agent-chat.md#images-and-slash-commands).
+
 ## Interaction
 
 - Search matches the exact invocation, its prefix-free name, and its description. Exact, prefix,

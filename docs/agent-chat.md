@@ -226,7 +226,25 @@ several callbacks can share one item, so the transport id is never the key.
   latest returns to the end.
 - The composer keeps an unsent draft per Chat across tab switches, clears only the text that was
   actually sent, and treats Escape as Stop while a turn runs. Its footer shows the model and the
-  remaining context window.
+  remaining context window. Activating a Chat's tab puts the cursor in the composer, as activating
+  a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another
+  text field, and not when arrow-key tab navigation activated it, which keeps focus on the tab.
+  A status tab on top of the composer says whether the Chat is starting, working, or waiting on an
+  answer; a working turn shows one verb chosen per turn from its id, its elapsed time, and `Esc to
+stop`. Only the label is the polite live region, so the ticking time is never announced.
+- Work renders as one-line rows (`Ran git status`, `Read <file>`, `Edited <file> +2 more`),
+  each with the tool kind's glyph from the provider tool table shared with mobile
+  (`packages/protocol/src/agent/agent-tool-presentation.ts`). Codex's login-shell wrapper
+  (`/bin/zsh -lc "..."`) is unwrapped so a row shows the script that ran. Consecutive work collapses
+  into one summary row, and once a turn ends its work and commentary fold behind `Worked for X`
+  (`Stopped after X`, `Failed after X`), keeping the prompt, the final reply, and notices other than
+  a transient retry in view. A running turn stays expanded, and running work sweeps a highlight across its verb instead of
+  swapping its glyph for a spinner. A thought shows the latest bold title Codex opens a reasoning
+  summary part with (`Thinking Planning the fix`). Expanded command and tool output is
+  painted in the language inferred from what produced it: the extension of a file a `cat`/`sed`/
+  `head` printed or a Read tool returned (with Claude Code's line-number gutter removed), `diff` for
+  `git diff`/`git show`, or JSON; anything else stays plain text. Grouping and inference live in
+  `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-timeline.ts`.
 - Replies render Markdown through the shared `@caxri/markdown` block tree
   ([`components/markdown/`](../apps/desktop/src/renderer/src/components/markdown/markdown-blocks.tsx)):
   leveled headings, nested and task lists, quotes, tables with Copy table (Markdown plus HTML), and
@@ -288,6 +306,13 @@ several callbacks can share one item, so the transport id is never the key.
   Claude Code reports its own list (built-in commands, skills, and custom commands) from the SDK's
   `initialize` response and `commands_changed`, minus the `terminal_slash_commands` that only make
   sense in its terminal UI; the command runs as prompt text, as in Claude Code itself.
+- **Skills.** A leading `/` or `$` also lists the skills the
+  [Agent Commands & Skills](agent-actions.md) picker discovers for this Terminal (`agentActions.list`,
+  after the user's Settings overrides), ranked by the picker's search. Picker-only commands are
+  left out because a Chat runs only what its provider reported, and a skill Claude Code already
+  lists keeps its command row. Choosing a skill inserts its invocation and a space instead of
+  sending: a Codex `$skill` travels as ordinary text, which Codex resolves to the skill the same way
+  its own composer does.
 - `agentChat.runCommand` runs a listed command with optional arguments and rejects anything the
   Chat does not list with `VALIDATION`. In the composer, Arrow keys move through matches, Tab or
   Enter chooses one, and Escape dismisses the list. A command that takes no arguments runs when

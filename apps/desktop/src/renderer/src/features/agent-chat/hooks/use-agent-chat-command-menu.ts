@@ -1,30 +1,57 @@
 import type { KeyboardEvent } from 'react';
-import { useId, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 
-import type { AgentChatCommand } from '@caxri/protocol';
+import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
 
+import { isAgentProcessRunning } from '../../../lib/terminal-agent-runtime';
+import { useCaxriQuery } from '../../../queries/client';
+import { useTerminal } from '../../../stores/selectors';
 import {
     agentChatCommandOptionId,
+    agentChatMenuActions,
     agentChatSlashQuery,
-    filterAgentChatCommands,
+    filterAgentChatActions,
 } from '../agent-chat-slash-commands';
 
 /**
- * Suggestion state for a draft that is a bare `/name`. Escape dismisses the list for the current draft only, so typing
- * another character brings it back.
+ * Discovered skills stay fresh enough while the user types a run of invocations, and a new search after a pause
+ * re-reads the skill folders the way the picker does on open.
  */
-export function useAgentChatCommandMenu(
-    draft: string,
-    commands: readonly AgentChatCommand[] | undefined,
-) {
+const DISCOVERY_STALE_MS = 30_000;
+
+/**
+ * Suggestion state for a draft that is a bare `/name` or `$name`. Escape dismisses the list for the current draft only,
+ * so typing another character brings it back. Skills are discovered only once the user starts an invocation, and the
+ * provider's commands show while discovery runs or when it fails.
+ */
+export function useAgentChatCommandMenu({
+    commands,
+    draft,
+    terminalId,
+}: {
+    commands: readonly AgentChatCommand[] | undefined;
+    draft: string;
+    terminalId: string;
+}) {
     const listId = useId();
     const query = agentChatSlashQuery(draft);
+    // Discovery answers only for a running Agent, the same gate as the picker.
+    const isAgentRunning = isAgentProcessRunning(useTerminal(terminalId)?.lastAgentProcessState);
+    const discovery = useCaxriQuery(
+        'agentActions.list',
+        { terminalId },
+        { enabled: isAgentRunning && query !== undefined, staleTime: DISCOVERY_STALE_MS },
+    );
+    const actions = useMemo(
+        () => agentChatMenuActions(commands, discovery.data?.actions),
+        [commands, discovery.data?.actions],
+    );
     const [dismissedDraft, setDismissedDraft] = useState<string>();
     /**
      * Keyed by query so a new search starts at the first match.
      */
     const [active, setActive] = useState({ query, index: 0 });
-    const matches = query === undefined ? [] : filterAgentChatCommands(commands ?? [], query);
+    const matches = query === undefined ? [] : filterAgentChatActions(actions, query);
     const isOpen = matches.length > 0 && dismissedDraft !== draft;
     const activeIndex = active.query === query ? Math.min(active.index, matches.length - 1) : 0;
     const activeCommand = isOpen ? matches[activeIndex] : undefined;
@@ -42,9 +69,9 @@ export function useAgentChatCommandMenu(
          */
         inputAria: {
             'aria-activedescendant': activeCommand
-                ? agentChatCommandOptionId(listId, activeCommand.name)
+                ? agentChatCommandOptionId(listId, activeCommand.invocation)
                 : undefined,
-            'aria-autocomplete': commands?.length ? ('list' as const) : undefined,
+            'aria-autocomplete': actions.length > 0 ? ('list' as const) : undefined,
             'aria-controls': isOpen ? listId : undefined,
         },
         highlight: (index: number) => setActive({ query, index }),
@@ -54,7 +81,7 @@ export function useAgentChatCommandMenu(
          */
         didHandleKey: (
             event: KeyboardEvent<HTMLTextAreaElement>,
-            choose: (command: AgentChatCommand) => void,
+            choose: (action: AgentAction) => void,
         ): boolean => {
             if (!activeCommand || event.nativeEvent.isComposing) return false;
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp')
