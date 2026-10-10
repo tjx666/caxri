@@ -1,35 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import * as drizzleKitApi from 'drizzle-kit/api';
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { describe, expect, it } from 'vitest';
 
 import { migrationManifest } from '../migrations/manifest';
 import * as schema from '../schema';
-
-/**
- * The parts of a drizzle-kit SQLite snapshot this guard reads. drizzle-kit 0.31 declares `DrizzleSQLiteSnapshotJSON`
- * through zod 3 generics while the workspace resolves zod 4, so the published types collapse to error types.
- */
-interface SqliteSnapshot {
-    id: string;
-    tables: Record<string, { columns: Record<string, unknown> }>;
-    views: Record<string, unknown>;
-}
-
-/**
- * Re-typed view of the two `drizzle-kit/api` functions the guard calls; see {@link SqliteSnapshot} for why.
- */
-interface SqliteMigrationApi {
-    generateSQLiteDrizzleJson(
-        imports: Record<string, unknown>,
-        previousId?: string,
-    ): Promise<SqliteSnapshot>;
-    generateSQLiteMigration(previous: SqliteSnapshot, current: SqliteSnapshot): Promise<string[]>;
-}
-
-const drizzleKit = drizzleKitApi as unknown as SqliteMigrationApi;
+import type { SqliteSnapshot } from './drizzle-kit.fixture';
+import { drizzleKit } from './drizzle-kit.fixture';
 
 /**
  * `drizzle-kit generate` diffs the schema against the newest snapshot in `migrations/meta/`, which it wrote together
