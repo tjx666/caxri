@@ -376,6 +376,8 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
         await expect(message).toHaveAttribute('placeholder', 'Message Claude');
+        // Claude Code names its model only in a turn's init, so the picker reads as the default until then.
+        await expect(chat.getByRole('button', { name: 'Model: Default' })).toBeVisible();
         await message.fill('hi there');
         await message.press('Enter');
         await expect(chat.getByText('Hello from fake Claude. You said: hi there')).toBeVisible();

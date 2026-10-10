@@ -103,6 +103,8 @@ describe('agentChatModelLabel', () => {
 
     it('names the listed model and the effort the next turn uses', () => {
         expect(agentChatModelLabel(undefined)).toBeUndefined();
+        // Claude Code lists its models before its first turn names the one in use.
+        expect(agentChatModelLabel({ models })).toEqual({ model: 'Default' });
         expect(agentChatModelLabel({ model: 'claude-opus-5-5', effort: 'xhigh', models })).toEqual({
             model: 'Opus',
             effort: 'Extra high',

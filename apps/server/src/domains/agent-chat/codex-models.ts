@@ -53,11 +53,13 @@ export class CodexModelSettings {
     constructor(private readonly host: Pick<AgentChatSessionHost, 'apply' | 'read'>) {}
 
     /**
-     * Records the effort `thread/start` or `thread/resume` reported for the thread.
+     * Records the effort `thread/start` or `thread/resume` reported for the thread. A thread that reports none uses its
+     * model's default, which `load` fills in; clearing it here drops a choice shown before a restart that never reached
+     * a turn, so the composer does not claim an effort Codex is not using.
      */
     reportOpened(result: unknown): void {
         const effort = isRecord(result) ? stringField(result.reasoningEffort) : undefined;
-        if (effort) this.host.apply([{ op: 'state', state: { effort: clip(effort, 40) } }]);
+        this.host.apply([{ op: 'state', state: { effort: effort ? clip(effort, 40) : null } }]);
     }
 
     /**

@@ -61,8 +61,29 @@ export function resolveAgentChatModelChange(
         snapshot.effort === undefined ||
         model.efforts.length === 0 ||
         model.efforts.includes(snapshot.effort);
-    return {
-        model,
-        ...(!keepsEffort && model.defaultEffort && { effort: model.defaultEffort }),
-    };
+    if (keepsEffort) return { model };
+    const effort = model.defaultEffort ?? closestEffort(model.efforts, snapshot.effort);
+    return { model, ...(effort && { effort }) };
+}
+
+/**
+ * The provider-neutral order of the effort names Codex and Claude Code use, lowest first.
+ */
+const EFFORT_LADDER = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+
+/**
+ * For a model that names no default effort (Claude Code lists none), the strongest effort it accepts that does not
+ * exceed the current one, so switching models never raises the cost unasked. An effort outside the known ladder falls
+ * back to the model's lowest.
+ */
+function closestEffort(
+    efforts: readonly string[],
+    current: string | undefined,
+): string | undefined {
+    const rank = current === undefined ? -1 : EFFORT_LADDER.indexOf(current);
+    const lower = efforts.filter((effort) => {
+        const candidate = EFFORT_LADDER.indexOf(effort);
+        return candidate !== -1 && candidate <= rank;
+    });
+    return lower.at(-1) ?? efforts[0];
 }
