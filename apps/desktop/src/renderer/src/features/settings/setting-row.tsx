@@ -10,6 +10,7 @@ import type {
 import {
     agentProviderCatalog,
     DEFAULT_DELEGATION_DEPTH,
+    hasProviderAutonomy,
     MAX_DELEGATION_DEPTH,
     MIN_DELEGATION_DEPTH,
     settingsSpecByKey,
@@ -36,14 +37,18 @@ import { IgnoredChecksForm } from './ignored-checks-form';
 import { IntegerControl } from './integer-control';
 import { LaunchArgumentsField } from './launch-arguments-field';
 import { MobileAccessForm } from './mobile-access-form';
-import { hasProviderAutonomy, withProviderAutonomy } from './provider-autonomy';
 import { hookHealthLabel, hookHealthTone, isHookAdapterAvailable } from './provider-health';
 import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
 import { isFullWidthRow } from './setting-row-layout';
 import type { SettingRowDescriptor } from './settings-registry';
 import type { SettingsValueContext } from './settings-values';
-import { isRowModified, isRowResettable, withProviderField } from './settings-values';
+import {
+    isRowModified,
+    isRowResettable,
+    withProviderAutonomyField,
+    withProviderField,
+} from './settings-values';
 import { StringControl } from './string-control';
 import { TerminalReferenceLinksForm } from './terminal-reference-links-form';
 import { TrustedDomainsForm } from './trusted-domains-form';
@@ -353,16 +358,7 @@ function rowControl(properties: SettingRowProperties): {
                         onCheckedChange={(checked) =>
                             onFieldChange(
                                 'agents.providers',
-                                withProviderField(settings, binding.provider, {
-                                    launch: {
-                                        ...launch,
-                                        args: withProviderAutonomy(
-                                            launch.args,
-                                            binding.provider,
-                                            checked,
-                                        ),
-                                    },
-                                }),
+                                withProviderAutonomyField(settings, binding.provider, checked),
                             )
                         }
                     />

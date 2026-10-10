@@ -1,11 +1,15 @@
-import type { AgentProvider } from '@caxri/protocol';
-import { agentProviderCatalog, defaultAgentProviderSettings } from '@caxri/protocol';
 import { expandLaunchArguments } from '@caxri/utils';
+
+import type { AgentProvider } from './agents.js';
+import { agentProviderCatalog, defaultAgentProviderSettings } from './agents.js';
 
 /**
  * Whether the Agent acts without asking is not a stored preference: it is exactly whether the provider's autonomy
  * tokens sit in its launch arguments. Keeping the Settings switch derived over the same list the user can hand-edit
  * means one source of truth, so a raw edit and the switch can never disagree.
+ *
+ * Server Core reads the same tokens to keep a resumed Agent Run on the autonomy its replaced run launched with, so the
+ * Settings switch and that carry-over can never classify one argument list two different ways.
  */
 
 /**

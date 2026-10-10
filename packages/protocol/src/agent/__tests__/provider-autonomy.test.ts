@@ -1,15 +1,11 @@
-import {
-    agentProviderCatalog,
-    agentProviderIds,
-    defaultAgentProviderSettings,
-} from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { agentProviderCatalog, agentProviderIds, defaultAgentProviderSettings } from '../agents.js';
 import {
     hasDefaultProviderAutonomy,
     hasProviderAutonomy,
     withProviderAutonomy,
-} from '../provider-autonomy';
+} from '../provider-autonomy.js';
 
 describe('hasProviderAutonomy', () => {
     it('reads every shipped provider as launching without per-action approval', () => {
