@@ -187,7 +187,7 @@ setInterval(() => {
         const activityCard = running.page.locator('.session-activity-card');
         await expect(activityCard).toBeVisible();
         await expect(activityCard.locator('h3')).toHaveText(longTitle);
-        await expect(activityCard).toContainText('project · Claude Code');
+        await expect(activityCard).toContainText('project · Claude');
         await expect(activityCard).toContainText('Working');
         await expect(activityCard).toContainText('The Agent is running.');
         await expect(activityCard).toContainText('Last opened');

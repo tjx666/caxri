@@ -46,7 +46,7 @@ describe('throwAgentRenameError', () => {
         expect(thrown(() => throwAgentRenameError('claude', error))).toMatchObject({
             code: 'UNAVAILABLE',
             message:
-                'Claude Code could not rename the Agent session: Error: Not logged in. Run `claude login` to authenticate.',
+                'Claude could not rename the Agent session: Error: Not logged in. Run `claude login` to authenticate.',
         });
     });
 
@@ -55,7 +55,7 @@ describe('throwAgentRenameError', () => {
 
         expect(thrown(() => throwAgentRenameError('claude', error))).toMatchObject({
             code: 'UNAVAILABLE',
-            message: 'Claude Code could not rename the Agent session: spawn claude ENOENT',
+            message: 'Claude could not rename the Agent session: spawn claude ENOENT',
         });
     });
 
@@ -66,7 +66,7 @@ describe('throwAgentRenameError', () => {
 
         expect(thrown(() => throwAgentRenameError('claude', error))).toMatchObject({
             code: 'UNAVAILABLE',
-            message: 'Claude Code could not rename the Agent session',
+            message: 'Claude could not rename the Agent session',
         });
     });
 
@@ -76,7 +76,7 @@ describe('throwAgentRenameError', () => {
 
         expect(thrown(() => throwAgentRenameError('claude', error))).toMatchObject({
             code: 'UNAVAILABLE',
-            message: `Claude Code could not rename the Agent session: ${'x'.repeat(300)}…`,
+            message: `Claude could not rename the Agent session: ${'x'.repeat(300)}…`,
         });
     });
 

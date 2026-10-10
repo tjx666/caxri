@@ -32,7 +32,7 @@ const terminal: TerminalProcessEntry = {
     sessionTitle: 'Tune the timeline',
     kind: 'claude',
     provider: 'claude',
-    title: 'Claude Code',
+    title: 'Claude',
     processId: 40,
 };
 
@@ -63,7 +63,7 @@ describe('buildProcessTree', () => {
         const [terminalNode] = session.children;
         expect(terminalNode).toMatchObject({
             kind: 'terminal',
-            name: 'Claude Code',
+            name: 'Claude',
             tag: '3 processes',
             terminalId: 'terminal-1',
             cpuPercent: 252,

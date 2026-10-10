@@ -136,7 +136,7 @@ export const agentProviderCatalog = {
             nativeRename: true,
         },
         defaultLaunchArgs: ['--dangerously-skip-permissions'],
-        displayName: 'Claude Code',
+        displayName: 'Claude',
         executableName: 'claude',
         imageInput: undefined,
     },

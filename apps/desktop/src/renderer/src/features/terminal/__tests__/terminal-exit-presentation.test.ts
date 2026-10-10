@@ -71,11 +71,11 @@ describe('getTerminalExitPresentation', () => {
             getTerminalExitPresentation(
                 'failed',
                 'executable_not_found',
-                'Claude Code CLI was not found',
+                'Claude CLI was not found',
             ),
         ).toEqual({
             icon: 'failed',
-            label: 'Claude Code CLI was not found',
+            label: 'Claude CLI was not found',
             tone: 'danger',
         });
     });

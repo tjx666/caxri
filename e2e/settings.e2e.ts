@@ -88,7 +88,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await Promise.all(
             (
                 [
-                    ['Claude Code', 'claude'],
+                    ['Claude', 'claude'],
                     ['Codex', 'codex'],
                     ['Shell', 'shell'],
                 ] as const
@@ -106,21 +106,21 @@ test('Settings keeps actions visible and provides highlighted editors and live T
 
         // Rows outside the viewport are not in the DOM (virtual rendering): reveal each provider
         // through the table of contents before asserting on its rows.
-        await revealSettingsSection(settingsTab, 'Claude Code');
-        await expect(settingsTab.getByLabel('Claude Code executable')).toHaveValue('claude');
+        await revealSettingsSection(settingsTab, 'Claude');
+        await expect(settingsTab.getByLabel('Claude executable')).toHaveValue('claude');
         // Lifecycle hooks default to enabled. E2E launches with Agent discovery `blocked`, so the
         // CLI is deliberately absent: the hook waits instead of installing, and the caption appends
         // the Server's own reason once instead of restating a generic install hint.
         await expect(
-            settingsTab.getByRole('switch', { name: 'Claude Code lifecycle hooks' }),
+            settingsTab.getByRole('switch', { name: 'Claude lifecycle hooks' }),
         ).toBeChecked();
         await expect(
-            settingsTab.getByRole('switch', { name: 'Claude Code peer messaging' }),
+            settingsTab.getByRole('switch', { name: 'Claude peer messaging' }),
         ).toBeChecked();
         await expect(
             settingsTab.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
         ).toContainText('Not in effect — Lifecycle hook installation is unavailable in this mode.');
-        await expect(settingsTab.getByLabel('Claude Code initial arguments')).toBeVisible();
+        await expect(settingsTab.getByLabel('Claude initial arguments')).toBeVisible();
         await expect(
             settingsTab.locator('[data-agent-provider="claude"] [data-agent-icon="claude"]'),
         ).toBeVisible();
@@ -152,14 +152,14 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         expect(workingDirectoryWidth).toBeGreaterThan(scalarWidth + 100);
 
         await settingsTab.getByRole('spinbutton', { name: 'Terminal Font size' }).fill('14');
-        await revealSettingsSection(settingsTab, 'Claude Code');
+        await revealSettingsSection(settingsTab, 'Claude');
         // The toggle starts enabled, so round-trip it off and back on to exercise the write path
         // in each direction.
-        await settingsTab.getByRole('switch', { name: 'Claude Code lifecycle hooks' }).uncheck();
+        await settingsTab.getByRole('switch', { name: 'Claude lifecycle hooks' }).uncheck();
         await expect(
             settingsTab.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
         ).toHaveText('Disabled');
-        await settingsTab.getByRole('switch', { name: 'Claude Code lifecycle hooks' }).check();
+        await settingsTab.getByRole('switch', { name: 'Claude lifecycle hooks' }).check();
         await expect(settingsTab.locator('[data-setting-row="agents.claude.hooks"]')).toContainText(
             'Restart Agent Terminals opened before lifecycle hooks were enabled.',
         );

@@ -3,7 +3,7 @@ import type { MobileSessionItem } from './session-model';
 export const sessionAgentLabel = (session: MobileSessionItem): string => {
     switch (session.primaryTerminal?.kind) {
         case 'claude':
-            return 'Claude Code';
+            return 'Claude';
         case 'codex':
             return 'Codex';
         case 'grok':

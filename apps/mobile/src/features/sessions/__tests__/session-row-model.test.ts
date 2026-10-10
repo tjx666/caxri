@@ -7,7 +7,7 @@ describe('Session row labels', () => {
     it('shows human Agent names without provider jargon', () => {
         expect(
             sessionAgentLabel({ primaryTerminal: { kind: 'claude' } } as MobileSessionItem),
-        ).toBe('Claude Code');
+        ).toBe('Claude');
         expect(sessionAgentLabel({ primaryTerminal: { kind: 'shell' } } as MobileSessionItem)).toBe(
             'Shell',
         );

@@ -57,7 +57,7 @@ process.stdin.resume();
             })
             .toBe('active');
         const settingsTab = await openSettingsTab(running.page);
-        await revealSettingsSection(settingsTab, 'Claude Code');
+        await revealSettingsSection(settingsTab, 'Claude');
         const caption = settingsTab
             .locator('[data-setting-row="agents.claude.hooks"]')
             .getByRole('status');

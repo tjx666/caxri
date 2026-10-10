@@ -328,7 +328,7 @@ test('Info secondarySidebar lists only the current Session Terminals', async () 
         const terminalCards = running.page.locator('.terminal-info-card');
         await expect(terminalCards).toHaveCount(1);
         await expect(terminalCards.filter({ hasText: 'Codex' })).toBeVisible();
-        await expect(terminalCards.filter({ hasText: 'Claude Code' })).toHaveCount(0);
+        await expect(terminalCards.filter({ hasText: 'Claude' })).toHaveCount(0);
 
         await pressNewTerminal(running.page);
         await expect(terminalCards).toHaveCount(2);

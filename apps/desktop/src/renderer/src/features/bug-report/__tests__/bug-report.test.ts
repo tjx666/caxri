@@ -86,7 +86,7 @@ describe('bug report content', () => {
         expect(report).toContain('- Caxri: 0.0.6 (abcdef1)');
         expect(report).toContain('- Project ID: `project-1`');
         expect(report).toContain('- Session ID: `session-1`');
-        expect(report).toContain('- Visible work: Claude Code Terminal (`terminal-1`)');
+        expect(report).toContain('- Visible work: Claude Terminal (`terminal-1`)');
         expect(report).not.toContain('Bug fix');
         expect(report).not.toContain('Terminal: Agent');
         expect(report).not.toContain('private-value');

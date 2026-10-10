@@ -127,10 +127,10 @@ test("a Claude Code Chat sends an image and offers Claude Code's slash commands"
     try {
         const { page } = running;
         await createProjectSession(page, 'shell');
-        await openAgentChat(page, 'Claude Code Chat');
+        await openAgentChat(page, 'Claude Chat');
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
-        await expect(message).toHaveAttribute('placeholder', 'Message Claude Code');
+        await expect(message).toHaveAttribute('placeholder', 'Message Claude');
 
         await pasteImage(message);
         await expect(chat.getByRole('button', { name: 'Remove image 1' })).toBeVisible();

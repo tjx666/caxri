@@ -126,7 +126,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
 
     private requireOpen(): Query {
         if (!this.query || !this.isOpen)
-            throw new CaxriError('UNAVAILABLE', 'Claude Code Chat is not running');
+            throw new CaxriError('UNAVAILABLE', 'Claude Chat is not running');
         return this.query;
     }
 
@@ -196,7 +196,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             this.options.read(),
             id,
             status,
-            error || 'Claude Code could not finish this turn',
+            error || 'Claude could not finish this turn',
         );
         this.options.apply(finished.operations);
         if (this.contextWindow && snapshot.usage)
@@ -479,7 +479,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
         if (resumeId && !transcript)
             throw new AgentChatStartError(
                 'resume_failed',
-                'Claude Code could not find this conversation',
+                'Claude could not find this conversation',
             );
         const { settings } = this;
         /**
@@ -530,19 +530,16 @@ class ClaudeChatSession implements AgentChatProviderSession {
             await this.close();
             if (spawnErrorCode !== undefined)
                 throw spawnErrorCode === 'ENOENT'
-                    ? new AgentChatStartError(
-                          'executable_not_found',
-                          'Claude Code CLI was not found',
-                      )
-                    : new AgentChatStartError('spawn_failed', 'Claude Code could not be started');
+                    ? new AgentChatStartError('executable_not_found', 'Claude CLI was not found')
+                    : new AgentChatStartError('spawn_failed', 'Claude could not be started');
             if (resumeId)
                 throw new AgentChatStartError(
                     'resume_failed',
-                    'Claude Code could not resume this conversation',
+                    'Claude could not resume this conversation',
                 );
             throw new AgentChatStartError(
                 'handshake_failed',
-                'Claude Code did not complete its handshake',
+                'Claude did not complete its handshake',
             );
         }
         if (transcript)
