@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { disposeAllThenRethrow } from '@caxri/utils';
 import type { OnMount } from '@monaco-editor/react';
 
-import { isTranscriptAtLatest } from './transcript-follow';
+import { isTranscriptAtLatest } from '../transcript-follow';
 
 type TranscriptEditor = Parameters<OnMount>[0];
 
