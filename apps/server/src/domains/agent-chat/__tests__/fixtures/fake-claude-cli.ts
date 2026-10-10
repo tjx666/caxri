@@ -12,11 +12,23 @@
  * - `fail`: a failed turn with an error result.
  * - `crash`: the process exits mid-turn.
  * - `table`: a reply with a Markdown table and a fenced code block.
+ * - `subagent`: a foreground `Agent` subagent whose own frames carry `parent_tool_use_id`, with `task_*` frames and a
+ *   subagent transcript (`subagents/agent-<id>.jsonl` plus `.meta.json`) beside the session transcript.
+ * - `background agent`: a background subagent that keeps running until `stop_task`.
+ * - `quick background`: a background Bash command that finishes on its own and then wakes the main thread, which starts a
+ *   turn without a user message.
+ * - `background`: a background Bash command that prints a tick every 100 ms until `stop_task`.
  * - Anything else: thinking, a todo list, and a streamed reply quoting the message.
  *
- * A message with images is answered with how many it received. `/compact` compacts the conversation; the CLI reports
- * `/compact`, `/review`, and the terminal-bound `/exit` as its commands. It lists an `opus` alias and a model without
- * effort control; `set_model` and an `effortLevel` flag setting change what the next init message reports.
+ * A message with images is answered with how many it received. `/compact` compacts the conversation, reporting `status:
+ * compacting` first; `/compact break` fails with a compaction error and `/compact crash` exits mid-compaction. The CLI
+ * reports `/compact`, `/review`, and the terminal-bound `/exit` as its commands. A message steered with `priority:
+ * 'next'` is quoted with `[next]`. It lists an `opus` alias and a model without effort control; `set_model` and an
+ * `effortLevel` flag setting change what the next init message reports.
+ *
+ * Like the real CLI, `session_state_changed` is reported only under `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1`, subagent
+ * text only when `initialize` asked for `forwardSubagentText`, and an interrupt kills background tasks unless
+ * `initialize` declared `perTaskStopAffordance`.
  *
  * Every turn is appended to a JSONL transcript at Claude Code's own location under `CLAUDE_CONFIG_DIR`, so `--resume`
  * and Caxri's transcript-based history read real records.
@@ -27,6 +39,15 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
+
+import { didRunApprovalScenario } from './fake-claude-approvals.ts';
+import type { FakeClaudeIo } from './fake-claude-io.ts';
+import {
+    runSubagent,
+    startBackgroundAgent,
+    startBackgroundShell,
+    taskControl,
+} from './fake-claude-tasks.ts';
 
 type Json = Record<string, unknown>;
 
@@ -67,12 +88,22 @@ if (resumeId && !fs.existsSync(transcriptPath)) {
     exitProcess(1);
 }
 
+interface QueuedTurn {
+    text: string;
+    content: unknown;
+    priority?: unknown;
+    /**
+     * A turn the CLI starts on its own, such as after a background task finished.
+     */
+    isAuto?: boolean;
+}
+
 const state: {
     nextRequestId: number;
     lastUuid: string | null;
     interrupted: boolean;
     turnRunning: boolean;
-    queued: Array<{ text: string; content: unknown }>;
+    queued: QueuedTurn[];
     model: string;
     effort?: string;
 } = {
@@ -101,6 +132,7 @@ const MODELS = [
     },
     { value: 'fake-claude-haiku', displayName: 'Fake Haiku', description: 'No effort control' },
 ];
+const isEmittingSessionState = process.env.CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS === '1';
 const COMMANDS = [
     {
         name: 'compact',
@@ -140,6 +172,14 @@ function delay(ms: number) {
 
 function frame(entry: Json): Json {
     return { parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: sessionId, ...entry };
+}
+
+function system(subtype: string, fields: Json = {}) {
+    send(frame({ type: 'system', subtype, ...fields }));
+}
+
+function sessionState(value: 'idle' | 'running') {
+    if (isEmittingSessionState) system('session_state_changed', { state: value });
 }
 
 function assistant(messageId: string, block: Json) {
@@ -201,56 +241,6 @@ function controlRequest(request: Json): Promise<Json> {
     return new Promise((resolve) => pendingControl.set(requestId, resolve));
 }
 
-async function wasToolAllowed(
-    name: string,
-    input: Json,
-    run: (input: Json) => { content: string; structured?: Json },
-): Promise<boolean> {
-    const toolUseId = `toolu_${crypto.randomUUID()}`;
-    assistant(`msg_${crypto.randomUUID()}`, { type: 'tool_use', id: toolUseId, name, input });
-    const decision = await controlRequest({
-        subtype: 'can_use_tool',
-        tool_name: name,
-        input,
-        tool_use_id: toolUseId,
-        permission_suggestions: [
-            {
-                type: 'addRules',
-                rules: [{ toolName: name }],
-                behavior: 'allow',
-                destination: 'session',
-            },
-        ],
-        decision_reason: `Fake ${name} approval`,
-    });
-    const isAllowed = decision.behavior === 'allow';
-    const updatedInput = (decision.updatedInput as Json | undefined) ?? input;
-    const result = isAllowed
-        ? run(updatedInput)
-        : { content: typeof decision.message === 'string' ? decision.message : 'Denied' };
-    const block = {
-        type: 'tool_result',
-        tool_use_id: toolUseId,
-        content: result.content,
-        ...(!isAllowed && { is_error: true }),
-    };
-    const message = { role: 'user', content: [block] };
-    send(
-        frame({
-            type: 'user',
-            message,
-            ...(result.structured && { tool_use_result: result.structured }),
-        }),
-    );
-    record({
-        type: 'user',
-        message,
-        ...(result.structured && { toolUseResult: result.structured }),
-    });
-    if (decision.interrupt === true) state.interrupted = true;
-    return isAllowed;
-}
-
 function result(startedAt: number, text: string, isError = false) {
     send(
         frame({
@@ -272,10 +262,44 @@ function result(startedAt: number, text: string, isError = false) {
     record({ type: 'system', subtype: 'turn_duration', durationMs: Date.now() - startedAt });
 }
 
-async function runTurn(text: string, content: unknown) {
+function toolResult(toolUseId: string, content: string) {
+    const message = {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: toolUseId, content }],
+    };
+    send(frame({ type: 'user', message }));
+    record({ type: 'user', message });
+}
+
+/**
+ * What the scenario modules need from this process.
+ */
+const scenarioIo: FakeClaudeIo = {
+    send,
+    record,
+    frame,
+    system,
+    assistant,
+    toolResult,
+    result: (startedAt, text) => result(startedAt, text),
+    didStreamFully,
+    controlRequest,
+    isInterrupted,
+    markInterrupted: () => {
+        state.interrupted = true;
+    },
+    subagentDirectory: path.join(path.dirname(transcriptPath), sessionId, 'subagents'),
+    startAutoTurn: () => {
+        state.queued.push({ text: '', content: undefined, isAuto: true });
+        // eslint-disable-next-line no-void -- the turn loop reports through stdout
+        void drain();
+    },
+};
+
+async function runTurn(text: string, content: unknown, priority?: unknown, isAuto = false) {
     const startedAt = Date.now();
     state.interrupted = false;
-    record({ type: 'user', message: { role: 'user', content: content ?? text } });
+    if (!isAuto) record({ type: 'user', message: { role: 'user', content: content ?? text } });
     send(
         frame({
             type: 'system',
@@ -289,9 +313,27 @@ async function runTurn(text: string, content: unknown) {
             terminal_slash_commands: ['exit'],
         }),
     );
-    if (text.trim() === '/compact') {
-        send(frame({ type: 'system', subtype: 'compact_boundary' }));
+    if (isAuto) {
+        await didStreamFully('The background command finished.', 0);
+        result(startedAt, 'done');
+        return;
+    }
+    if (text.trimStart().startsWith('/compact')) {
+        system('status', { status: 'compacting' });
+        if (text.includes('crash')) exitProcess(1);
+        await delay(300);
+        if (text.includes('break')) {
+            system('status', {
+                status: null,
+                compact_result: 'failed',
+                compact_error: 'Not enough messages to compact.',
+            });
+            result(startedAt, 'Compaction failed.', true);
+            return;
+        }
+        system('compact_boundary');
         record({ type: 'system', subtype: 'compact_boundary' });
+        system('status', { status: null, compact_result: 'success' });
         result(startedAt, 'Compacted.');
         return;
     }
@@ -304,85 +346,36 @@ async function runTurn(text: string, content: unknown) {
         return;
     }
     if (text.includes('crash')) exitProcess(1);
+    if (text.includes('subagent')) {
+        await runSubagent(scenarioIo, startedAt);
+        return;
+    }
+    if (text.includes('continue on its own')) {
+        await didStreamFully('Started the job in the background.', 0);
+        result(startedAt, 'done');
+        setTimeout(() => {
+            // eslint-disable-next-line no-void -- the follow-up turn reports through stdout
+            void continueAfterBackgroundTask();
+        }, 100);
+        return;
+    }
+    if (text.includes('background agent')) {
+        startBackgroundAgent(scenarioIo, startedAt);
+        return;
+    }
+    if (text.includes('quick background')) {
+        startBackgroundShell(scenarioIo, startedAt, 300);
+        return;
+    }
+    if (text.includes('background')) {
+        startBackgroundShell(scenarioIo, startedAt);
+        return;
+    }
     if (text.includes('fail')) {
         result(startedAt, 'The fake model is overloaded.', true);
         return;
     }
-    if (text.includes('approve')) {
-        const isAllowed = await wasToolAllowed(
-            'Bash',
-            { command: 'echo approved', description: 'Print a confirmation' },
-            () => ({ content: 'approved' }),
-        );
-        if (!isInterrupted())
-            await didStreamFully(isAllowed ? 'The command ran.' : 'Skipped the command.', 0);
-        result(startedAt, 'done');
-        return;
-    }
-    if (text.includes('edit')) {
-        const filePath = path.join(process.cwd(), 'notes.txt');
-        const isAllowed = await wasToolAllowed(
-            'Edit',
-            { file_path: filePath, old_string: 'old line', new_string: 'new line' },
-            () => ({
-                content: 'The file has been updated.',
-                structured: {
-                    filePath,
-                    structuredPatch: [
-                        {
-                            oldStart: 3,
-                            oldLines: 1,
-                            newStart: 3,
-                            newLines: 1,
-                            lines: ['-old line', '+new line'],
-                        },
-                    ],
-                },
-            }),
-        );
-        if (!isInterrupted())
-            await didStreamFully(isAllowed ? 'Edited notes.txt.' : 'Left notes.txt alone.', 0);
-        result(startedAt, 'done');
-        return;
-    }
-    if (text.includes('planmode')) {
-        const isAllowed = await wasToolAllowed(
-            'ExitPlanMode',
-            { plan: '1. Read the notes.\n2. Summarize them in one paragraph.' },
-            () => ({ content: 'User has approved your plan.' }),
-        );
-        if (!isInterrupted())
-            await didStreamFully(isAllowed ? 'Plan approved.' : 'Kept planning.', 0);
-        result(startedAt, 'done');
-        return;
-    }
-    if (text.includes('ask')) {
-        let answer = 'nothing';
-        await wasToolAllowed(
-            'AskUserQuestion',
-            {
-                questions: [
-                    {
-                        header: 'Color',
-                        question: 'Which color?',
-                        multiSelect: false,
-                        options: [
-                            { label: 'Blue', description: 'Calm' },
-                            { label: 'Red', description: 'Bold' },
-                        ],
-                    },
-                ],
-            },
-            (input) => {
-                const answers = (input.answers as Record<string, string> | undefined) ?? {};
-                answer = answers['Which color?'] ?? 'nothing';
-                return { content: `User has answered your questions: "Which color?"="${answer}".` };
-            },
-        );
-        if (!isInterrupted()) await didStreamFully(`You chose ${answer}.`, 0);
-        result(startedAt, 'done');
-        return;
-    }
+    if (await didRunApprovalScenario(scenarioIo, startedAt, text)) return;
     if (text.includes('table')) {
         await didStreamFully(
             [
@@ -458,19 +451,62 @@ async function runTurn(text: string, content: unknown) {
             ],
         },
     });
-    await didStreamFully(`Hello from fake Claude. You said: ${text}`, 5);
+    await didStreamFully(
+        `Hello from fake Claude. You said: ${text}${priority === 'next' ? ' [next]' : ''}`,
+        5,
+    );
     result(startedAt, 'done');
 }
 
-async function drain() {
-    if (state.turnRunning) return;
+/**
+ * What Claude Code does when a background task finishes after the turn that started it ended: it reports the task and
+ * continues the conversation on its own, with no user message opening the turn.
+ */
+async function continueAfterBackgroundTask() {
     state.turnRunning = true;
+    const startedAt = Date.now();
+    const outputFile = path.join(process.cwd(), 'job.log');
+    send(
+        frame({
+            type: 'system',
+            subtype: 'task_notification',
+            task_id: 'fake-task',
+            status: 'completed',
+            output_file: outputFile,
+            summary: 'Background job finished',
+        }),
+    );
+    const toolUseId = `toolu_${crypto.randomUUID()}`;
+    assistant(`msg_${crypto.randomUUID()}`, {
+        type: 'tool_use',
+        id: toolUseId,
+        name: 'Bash',
+        input: { command: 'cat job.log', description: 'Read the job output' },
+    });
+    await delay(300);
+    const message = {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: toolUseId, content: 'ok' }],
+    };
+    send(frame({ type: 'user', message }));
+    record({ type: 'user', message });
+    await didStreamFully('The background job finished.', 0);
+    result(startedAt, 'done');
+    state.turnRunning = false;
+    await drain();
+}
+
+async function drain() {
+    if (state.turnRunning || state.queued.length === 0) return;
+    state.turnRunning = true;
+    sessionState('running');
     while (state.queued.length > 0) {
         const next = state.queued.shift();
         // eslint-disable-next-line no-await-in-loop -- turns run one at a time, like the real CLI
-        if (next) await runTurn(next.text, next.content);
+        if (next) await runTurn(next.text, next.content, next.priority, next.isAuto);
     }
     state.turnRunning = false;
+    sessionState('idle');
 }
 
 /**
@@ -515,6 +551,14 @@ lines.on('line', (line) => {
                 request.model;
         const flags = request.subtype === 'apply_flag_settings' ? (request.settings as Json) : {};
         if (typeof flags.effortLevel === 'string') state.effort = flags.effortLevel;
+        const answer = taskControl(scenarioIo, request);
+        if (answer.error !== undefined) {
+            send({
+                type: 'control_response',
+                response: { subtype: 'error', request_id: message.request_id, error: answer.error },
+            });
+            return;
+        }
         send({
             type: 'control_response',
             response: {
@@ -530,7 +574,7 @@ lines.on('line', (line) => {
                               output_style: 'default',
                               available_output_styles: ['default'],
                           }
-                        : {},
+                        : (answer.response ?? {}),
             },
         });
         return;
@@ -539,6 +583,7 @@ lines.on('line', (line) => {
         state.queued.push({
             text: userText(message.message),
             content: (message.message as { content?: unknown } | undefined)?.content,
+            priority: message.priority,
         });
         // eslint-disable-next-line no-void -- the turn loop reports through stdout
         void drain();

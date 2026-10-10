@@ -770,7 +770,7 @@ the round spelled out on the hover and in the accessible name.
 **Project Status hover**: every row in the tree wears the same card, so one panel never mixes a
 structured card with a multi-line grey string. The card follows the VS Code reference hierarchy:
 the row's subject plus its semantic status in the heading, then prose that explains that heading,
-then compact `label: value` rows. A repository names its branch and remote, a branch carries a
+then compact `label: value` rows. A repository names its branch and remote, a branch carries an
 `default` badge, and a deployment keeps its `alias`, `inspect: details`, and optional
 `created`; the row itself opens those details for every deployment state. Canceled deployments use
 explicit `canceled` text and a muted circle-slash, while a branch deployment's decorative trailing
@@ -962,10 +962,18 @@ action row: Attach images on the left, then right-aligned in `--muted` the conte
 ring that fills with the share of the window in use, its percentage beside it, `--warning` from 80%
 and `--danger` from 95%, the token counts in its tooltip) and the model picker (the model's name and
 the next turn's effort, opening a menu of models with their descriptions and the current model's
-efforts, which stays open after a choice), and a single primary action slot. That slot shows Stop while a turn runs and the input is empty, and
-Send (steering the running turn) as soon as there is content; the two never sit side by side.
-Escape interrupts a running turn regardless. While the Chat starts, works, or waits on an answer, a
-32px status row opens the card above a hairline, so the card keeps one rounded outline: a spinner (or a `--warning`
+efforts, which stays open after a choice), and a single primary action slot. That slot shows Stop
+while a turn runs and the input is empty, and Send as soon as there is content; the two never sit
+side by side. While the Chat is busy (a turn runs or context is compacting), Enter and Send queue
+the message and the placeholder says so; Cmd+Enter steers it into the running turn instead. Queued
+messages sit above the card as 12px `--surface` cards, each with Edit (back into the composer),
+Delete, and Send now (Steer while a turn runs); after a stopped turn a `Queue paused` row with
+Resume heads them. Running subagents and background shells list in a strip above the composer with
+elapsed time and their own Stop; clicking one, or the Open action on its timeline row, opens it as
+a read-only tab split to the right of the Chat, reusing that side pane for later tasks. A user
+message that was steered or queued carries an 11px `--muted` `Steered` or `Queued` caption. Escape
+interrupts a running turn regardless. While the Chat starts, works, or waits on an answer, a 32px
+status row opens the card above a hairline, so the card keeps one rounded outline: a spinner (or a `--warning`
 question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
 stop` right-aligned. A working turn's label is one playful verb chosen per turn (`Pondering…`),
 so a long turn reads as progress rather than a stall. References: T3 Code's Chat composer, Claude

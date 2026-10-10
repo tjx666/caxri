@@ -135,6 +135,39 @@ describe('mobile Agent Chat projection', () => {
         expect(next?.revision).toBe(8);
     });
 
+    it('keeps Desktop-only tasks and queue out of the phone projection', () => {
+        const desktopOnly = {
+            tasks: [
+                {
+                    id: 'task-1',
+                    kind: 'agent' as const,
+                    title: 'Explore',
+                    status: 'running' as const,
+                    isBackground: false,
+                    canStop: false,
+                },
+            ],
+            queue: [{ id: 'q-1', text: 'next' }],
+            queuePaused: true,
+        };
+        const windowed = windowAgentChatSnapshotForMobile({
+            ...snapshot([message('item-1', 'Hi')]),
+            ...desktopOnly,
+            operation: 'compacting',
+        });
+        expect(windowed).not.toHaveProperty('tasks');
+        expect(windowed).not.toHaveProperty('queue');
+        expect(windowed).not.toHaveProperty('queuePaused');
+        expect(windowed.operation).toBe('compacting');
+        const patch = clipAgentChatPatchForMobile({
+            terminalId: 'terminal-1',
+            baseRevision: 7,
+            revision: 8,
+            operations: [{ op: 'state', state: { ...desktopOnly, status: 'ready' } }],
+        });
+        expect(patch?.operations).toEqual([{ op: 'state', state: { status: 'ready' } }]);
+    });
+
     it('refuses a patch that cannot fit one frame', () => {
         expect(
             clipAgentChatPatchForMobile({

@@ -74,6 +74,11 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+shift+arrowdown', command: 'terminal.nextCommand' },
     { key: 'cmd+shift+r', command: 'terminal.restart' },
     /**
+     * `Cmd+Shift+J` is the chord Orca spends on the same switch between an Agent's terminal and chat views. `Cmd+J`
+     * already toggles the Panel, and the shifted letter keeps the two "view" toggles next to each other.
+     */
+    { key: 'cmd+shift+j', command: 'terminal.switchAgentSurface' },
+    /**
      * `Cmd+\` provides the requested iTerm2-style split-terminal behavior: preserve the active Terminal and open a
      * fresh Shell in a new pane to its right. The generic Split Right command remains available in the command palette
      * for moving an existing tab.
@@ -253,6 +258,10 @@ export const defaultKeybindingChanges = [
     {
         type: 'add',
         binding: { key: 'cmd+alt+u', command: 'primarySidebar.toggleActivity' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+shift+j', command: 'terminal.switchAgentSurface' },
     },
     /**
      * Terminal Clear has to vacate `Cmd+K` before the two chord bindings below can be added:

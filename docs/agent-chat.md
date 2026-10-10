@@ -66,10 +66,11 @@ CLI fixture; the service, reducer, and pane do not change.
 
 ## Switching surface
 
-A bound Agent Terminal reopens on the other surface from its tab's context menu: "Open as Chat" on a
-PTY Agent, "Open as Terminal" on a Chat (`terminal.switchSurface`,
-`apps/server/src/domains/terminal-surface-switch.ts`). The Terminal row, tab, title, and Primary
-Agent election stay; only the process is replaced.
+A Chat-capable Agent Terminal reopens on the other surface from the `Terminal | Chat` toggle on the
+tab rail (shown for the active tab), its tab's context menu ("Open as Chat" / "Open as Terminal"),
+or `terminal.switchAgentSurface` (`cmd+shift+j`, also in the command palette), all through
+`terminal.switchSurface` (`apps/server/src/domains/terminal-surface-switch.ts`). The Terminal row,
+tab, title, and Primary Agent election stay; only the process is replaced.
 
 - The current process stops first: the PTY through the same barrier a suspension uses (cause
   `surfaceSwitched`), or the Chat provider through its orderly stop. Then `surface` flips and the
@@ -77,15 +78,20 @@ Agent election stay; only the process is replaced.
   `codex resume <thread>` or `claude --resume <session>` for a PTY. A failed Chat resume is the
   usual visible `resume_failed`; it never starts a new conversation.
 - An unbound Agent (no Agent Session yet, or a Claude Code session whose transcript was never
-  written) has nothing to carry over. The menu entry is disabled with "Send a message first", and
-  Server Core answers `CONFLICT` without touching the process.
+  written) has nothing to carry over, so the other surface starts a new conversation (outcome
+  `startedNew`). A PTY restart passes `launchAgent`, because the Chat's orderly stop left the Agent
+  `stopped`, which on its own restarts only a Shell.
 - A running turn is never ended silently. Server Core answers `turnRunning` instead of switching;
   the Renderer asks "Stop the running turn?" and only Stop and Switch repeats the request with
   `interruptTurn`. A Chat's turn is its projection's active turn; a PTY's is the Session's
   `running` or `waiting` activity while it is the Primary Agent (a secondary PTY Agent has no
   per-Terminal turn state, so it switches like a restart).
-- Each request logs `terminal.surface_switched` with a closed outcome (`switched`, `turnRunning`,
-  `unbound`, `failed`), both surfaces, the provider, and the duration.
+- Each request logs `terminal.surface_switched` with a closed outcome (`switched`, `startedNew`,
+  `turnRunning`, `failed`), both surfaces, the provider, and the duration.
+- "Copy Resume Command" in the tab and Session row menus copies `cd <cwd> && <provider resume
+command> <id>` (`agentResumeCommandLine`, from the provider catalog's `resumeArgs`) to continue
+  the bound conversation in the provider's own TUI outside Caxri. It is disabled until the Agent
+  has a conversation.
 
 ## Process lifecycle
 
@@ -156,8 +162,13 @@ inside Server Core without one. `claude-items.ts` holds the pure message mapping
 pending permission prompts and questions until the user answers:
 
 - Claude Code has no turn ids. A turn is named by the uuid of the user message that started it and
-  ends with the `result` message once `queued_turn_count` is zero, so a message sent mid-turn is
-  folded into the running turn. The prompt is recorded locally because Claude Code does not echo it.
+  ends with the `result` message once `queued_turn_count` is zero. Caxri also sets
+  `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1`, and `session_state_changed` bounds turns
+  authoritatively: Claude Code starts turns on its own (for example once a background task
+  finishes), which open under a synthetic `auto:` id, so the queue waits for them, the composer
+  offers Stop, and a surface switch asks before ending that work. Output that arrives with no turn
+  open also opens one. A steered message is sent with `priority: 'next'`. The prompt is recorded
+  locally because Claude Code does not echo it.
 - Text and thinking stream from `stream_event` deltas and are finalized by the complete
   `assistant` frame under the same id (model message id plus the block's per-kind ordinal).
 - `Bash` is a command row that keeps the tool's `description`. Its result settles the exit code
@@ -168,8 +179,9 @@ pending permission prompts and questions until the user answers:
   carries neither, since it finishes after the hand-off. Settling lives in `claude-tool-results.ts`.
 - `Edit`/`MultiEdit`/`Write`/`NotebookEdit` is a file change whose diff is
   replaced by Claude Code's `structuredPatch` when the result arrives, `TodoWrite` the plan, and
-  every other tool a generic tool row. Subagent frames (`parent_tool_use_id`) stay inside their
-  parent tool call.
+  every other tool a generic tool row. Subagent frames (`parent_tool_use_id`, with
+  `forwardSubagentText`) go to the subagent's own task projection, never the parent timeline; see
+  [Background work](#background-work).
 - Usage is the latest model request's input plus cache plus output tokens; the context window
   comes from the result's per-model usage.
 
@@ -198,6 +210,67 @@ record is the source of truth.
   it, and stops a provider whose stdin backlog passes 8 MiB rather than buffering without bound.
 - Items a turn left open (an interrupted command, a cut-off message) are closed as `interrupted`
   when the turn ends or the process exits.
+
+## Background work
+
+Subagents and background shells are tasks: the snapshot's `tasks` lists each one (kind, title,
+status, agent type, model, usage, the timeline item that started it, and whether it can be stopped),
+and each task has its own projection (`AgentChatTaskSnapshot`) with its own revisions, patched by the
+transient `agentChat.taskPatch` event exactly like the parent projection. A task projection holds a
+subagent's conversation (500 items, 512 KiB of text) or a shell's output tail, so a chatty subagent
+evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended ones drop first) and
+20 task projections in memory (ended ones are evicted first and rebuilt on the next read).
+
+- `agentChat.readTask` returns the live projection, or rebuilds one from the provider's record for a
+  task this process never saw (a resumed Chat, an evicted projection); `taskId` may also be the id of
+  the timeline row that started the task, so a subagent row stays openable after a restart.
+  `agentChat.stopTask` stops one task without ending the turn. A provider exit marks every running
+  task stopped.
+- **Claude Code.** A subagent's task id is its `Agent`/`Task` tool use id. Metadata comes from the
+  tool call and the `task_started`, `task_progress`, `task_notification`, `task_updated`, and
+  `background_tasks_changed` system messages. A background shell uses Claude's `task_id` and links
+  its Bash row; its output tail comes from polling the SDK's `getTaskOutput` about once a second.
+  `perTaskStopAffordance` keeps background tasks alive across an interrupt, and `stopTask` maps to
+  the SDK's `stop_task`. History is rebuilt from
+  `<session>/subagents/agent-<id>.meta.json` (matched by `toolUseId`) and its `.jsonl`.
+- **Codex.** A subagent is a child thread; its task id is the child thread id and its row is the
+  `collabAgentToolCall` (or `subAgentActivity`) item. App-server sends no `thread/started` for a
+  spawned child, so notifications from an unknown thread are held briefly (8 threads, 500 each) until
+  a spawn item names it. Stopping interrupts the child's turn; history comes from `thread/read`. A
+  `commandExecution` with a `processId` still running when its turn ends becomes a shell task;
+  Caxri initializes with `experimentalApi: true` so `thread/backgroundTerminals/terminate` can stop
+  it. Codex stops streaming a command after 10,000 deltas, which sets `isOutputCapped`.
+- **Pane.** A subagent or background row opens its task in a Workbench tab
+  (`caxri-agent-task://<terminalId>/<taskId>`, `packages/protocol/src/domain/agent-task-tab.ts`) in a
+  split beside the Chat, reusing that side pane for later tasks. A subagent tab is a read-only
+  timeline with its title, type, model, status, and Stop; a shell tab shows the command and its
+  live output, titled by the command without Codex's login-shell wrapper. Running tasks also appear
+  in a Background work list above the composer, where each opens or stops on its own; a finished
+  task stays reachable from its timeline row.
+
+## Follow-up queue
+
+A message sent while a turn runs waits in Server Core's queue by default and goes out as its own
+turn once the Chat is idle, one turn at a time and in order; a message also waits behind earlier
+queued ones. `agentChat.send` with `delivery: 'steer'` instead adds it to the running turn (Codex
+`turn/steer`, Claude Code `priority: 'next'`). A slash command issued during a turn is queued.
+User messages record how they arrived (`delivery: 'queued' | 'steered'`), in memory only.
+
+- The snapshot's `queue` lists each entry's text, image count, and command; image data stays on
+  Server Core. At most 20 entries and 256 KiB of text.
+- `agentChat.interrupt` pauses a non-empty queue (`queuePaused`) so stopping a turn never fires the
+  next message by surprise; `agentChat.resumeQueue` continues it. `agentChat.removeQueued` drops an
+  entry and `agentChat.sendQueuedNow` sends one ahead of the rest (steering a running turn; a
+  command cannot steer). A failed dispatch puts the entry back and pauses the queue.
+- The queue survives a restart of the Chat and goes out once the new process is ready; it is never
+  persisted across Server Core restarts.
+- In the composer, Enter queues during a turn and Cmd+Enter steers. Queued entries form one list
+  above the composer, each with Edit (back into the composer), Delete, and Steer or Send now; a
+  paused queue says so in the list header with Resume. Phones do not see the queue, so
+  a message sent from a phone during a turn steers it, as before.
+- Compaction (Codex `contextCompaction`, Claude Code `status: 'compacting'`) sets the snapshot's
+  `operation` to `compacting` and raises `compactionStarted`; input sent meanwhile is queued. The
+  `/compact` user bubble is hidden because the compaction notice already represents it.
 
 ## Approvals and questions
 
@@ -318,7 +391,8 @@ stop`. Only the label is the polite live region, so the ticking time is never an
   through `clientUserMessageId`. A resumed Chat knows how many images a message had, but their
   previews were the sending Client's, so it shows placeholders.
 - **Slash commands.** The snapshot's `commands` is the list the composer offers after a leading
-  `/`. Codex lists `/compact`, which runs `thread/compact/start` and is refused while a turn runs.
+  `/`. Codex lists `/compact`, which runs `thread/compact/start`; issued during a turn it waits in the
+  queue.
   Claude Code reports its own list (built-in commands, skills, and custom commands) from the SDK's
   `initialize` response and `commands_changed`, minus the `terminal_slash_commands` that only make
   sense in its terminal UI; the command runs as prompt text, as in Claude Code itself.
@@ -374,7 +448,9 @@ conversation.
 `agent_chat.process_exited` (closed end reason with lifetime aggregates of turns, server
 requests, rejected requests, and dropped frames), `agent_chat.turn_finished` (status, duration),
 `agent_chat.protocol_rejected` (closed reason, protocol method name), and
-`terminal.surface_switched` (closed outcome, both surfaces, duration). None of them carries
+`terminal.surface_switched` (closed outcome, both surfaces, duration), `agent_chat.queue_changed`
+(closed reason and queue depth), and `agent_chat.task_finished` (task kind, final status,
+background flag, duration). None of them carries
 message text, command output, provider stderr, or protocol bodies.
 
 ## Testing
@@ -382,7 +458,7 @@ message text, command output, provider stderr, or protocol bodies.
 `apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts` and
 `fake-claude-cli.ts` are deterministic stand-ins for each provider, selected by keywords in the
 user's message (approval, file-change approval, edit, oversized diff, question, plan approval,
-table, slow stream, failure, crash). The Claude fake speaks the stream-json control protocol the
+table, slow stream, subagent, background shell, failure, crash). The Claude fake speaks the stream-json control protocol the
 SDK drives and writes a real transcript, so resume is exercised end to end. Both answer a message
 with images by counting them and implement compaction, so the E2E covers paste, file pick, and the
 slash list for each provider. Unit, integration, and fake-mode E2E tests drive them; no test launches the
@@ -400,5 +476,6 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 
 Claude Code's agent picker (its `initialize` response already lists the agents). On mobile, a
 Chat shows no plan, model, or context usage yet, shows an image as its count (`[1 image]`) instead of
-a thumbnail, cannot attach images or run slash commands, older history beyond the window stays on
+a thumbnail, cannot attach images or run slash commands, does not show background tasks or the
+follow-up queue, older history beyond the window stays on
 the computer, and switching surface is Desktop-only.

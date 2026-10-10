@@ -25,3 +25,9 @@ _Researched 2026-08-06._
 
 - Open-sourcing (2026-04-28) was received positively as reducing "closed-source moat" risk, but criticized (e.g. by Kilo Code) for routing contributions toward the proprietary single-vendor Oz platform.
 - Pricing consolidated into a $20/mo "Build" plan + BYOK (2025-10 → 2025-12); seat limits and per-user credit metering added 2026-05-21.
+
+## Chat and Terminal switching
+
+_Researched 2026-10-10._
+
+- A rich input box overlays the running TUI (toggled with `ctrl-g`) and collapses on permission prompts, returning input to the TUI. It is an input aid over the PTY, not a structured Chat surface.

@@ -57,8 +57,7 @@ export class CodexModelSettings {
      * model's default, which `load` fills in; clearing it here drops a choice shown before a restart that never reached
      * a turn, so the composer does not claim an effort Codex is not using.
      */
-    reportOpened(result: unknown): void {
-        const effort = isRecord(result) ? stringField(result.reasoningEffort) : undefined;
+    reportOpened(effort: string | undefined): void {
         this.host.apply([{ op: 'state', state: { effort: effort ? clip(effort, 40) : null } }]);
     }
 
@@ -94,12 +93,20 @@ export class CodexModelSettings {
     }
 
     /**
-     * Starts a turn with the pending switch. Codex holds the choice once the request succeeds; a choice made while it
-     * was in flight stays pending for the turn after.
+     * Sends `turn/start` with the pending switch. Codex holds the choice once the request succeeds; a choice made while
+     * it was in flight stays pending for the turn after.
      */
-    async startTurn<T>(start: (parameters: AgentChatModelRequest) => Promise<T>) {
+    async startTurn(
+        connection: CodexConnection,
+        parameters: Record<string, unknown>,
+        timeoutMs: number,
+    ): Promise<unknown> {
         const pending = this.nextTurn;
-        const result = await start(pending);
+        const result = await connection.request(
+            'turn/start',
+            { ...parameters, ...pending },
+            timeoutMs,
+        );
         if (this.nextTurn === pending) this.nextTurn = {};
         return result;
     }

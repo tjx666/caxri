@@ -4,15 +4,20 @@ import type { AgentChatSnapshot } from '../agent-chat-contract';
 import {
     agentChatPatchSchema,
     agentChatSnapshotSchema,
+    agentChatTaskSnapshotSchema,
     MAX_AGENT_CHAT_ITEMS,
     MAX_AGENT_CHAT_OUTPUT_LENGTH,
+    MAX_AGENT_CHAT_TASK_ITEMS,
     MAX_AGENT_CHAT_TEXT_LENGTH,
     MAX_AGENT_CHAT_TOTAL_TEXT_LENGTH,
 } from '../agent-chat-contract';
 import {
     applyAgentChatOperation,
     applyAgentChatPatch,
+    applyAgentChatTaskOperation,
+    applyAgentChatTaskPatch,
     emptyAgentChatSnapshot,
+    emptyAgentChatTaskSnapshot,
 } from '../agent-chat-reducer';
 
 const empty = (): AgentChatSnapshot => emptyAgentChatSnapshot('terminal-1');
@@ -168,5 +173,94 @@ describe('Agent Chat reducer', () => {
             status: 'starting',
         });
         expect(applyAgentChatPatch({ ...empty(), revision: 3 }, patch)).toBeUndefined();
+    });
+});
+
+describe('Agent Chat reducer: tasks, queue, and operation state', () => {
+    it('keeps the follow-up queue across a conversation reset, but not the tasks', () => {
+        let snapshot = applyAgentChatOperation(empty(), {
+            op: 'state',
+            state: {
+                operation: 'compacting',
+                tasks: [
+                    {
+                        id: 'task-1',
+                        kind: 'shell',
+                        title: 'npm test',
+                        status: 'running',
+                        isBackground: true,
+                        canStop: true,
+                    },
+                ],
+                queue: [{ id: 'q-1', text: 'next' }],
+                queuePaused: true,
+            },
+        });
+        expect(agentChatSnapshotSchema.parse(snapshot)).toMatchObject({
+            operation: 'compacting',
+            queuePaused: true,
+        });
+        snapshot = applyAgentChatOperation(snapshot, { op: 'state', state: { operation: null } });
+        expect(snapshot).not.toHaveProperty('operation');
+        snapshot = applyAgentChatOperation(snapshot, { op: 'reset' });
+        expect(snapshot.queue).toEqual([{ id: 'q-1', text: 'next' }]);
+        expect(snapshot.queuePaused).toBe(true);
+        expect(snapshot.tasks).toBeUndefined();
+    });
+});
+
+describe('Agent Chat task reducer', () => {
+    const emptyTask = () => emptyAgentChatTaskSnapshot('terminal-1', 'task-1');
+
+    it('streams items and keeps the tail of shell output', () => {
+        let snapshot = applyAgentChatTaskOperation(emptyTask(), {
+            op: 'upsertItem',
+            item: { id: 'a', type: 'agentMessage', text: 'Hel', streaming: true },
+        });
+        snapshot = applyAgentChatTaskOperation(snapshot, {
+            op: 'appendText',
+            itemId: 'a',
+            delta: 'lo',
+        });
+        expect(snapshot.items).toEqual([
+            { id: 'a', type: 'agentMessage', text: 'Hello', streaming: true },
+        ]);
+        snapshot = applyAgentChatTaskOperation(snapshot, {
+            op: 'appendOutput',
+            delta: 'x'.repeat(MAX_AGENT_CHAT_OUTPUT_LENGTH),
+        });
+        snapshot = applyAgentChatTaskOperation(snapshot, { op: 'appendOutput', delta: 'end' });
+        expect(snapshot.output).toHaveLength(MAX_AGENT_CHAT_OUTPUT_LENGTH);
+        expect(snapshot.output?.endsWith('end')).toBe(true);
+        snapshot = applyAgentChatTaskOperation(snapshot, {
+            op: 'state',
+            state: { isOutputCapped: true },
+        });
+        expect(agentChatTaskSnapshotSchema.parse(snapshot).isOutputCapped).toBe(true);
+    });
+
+    it('evicts its own oldest items past the task budget and marks it truncated', () => {
+        let snapshot = emptyTask();
+        for (let index = 0; index <= MAX_AGENT_CHAT_TASK_ITEMS; index += 1)
+            snapshot = applyAgentChatTaskOperation(snapshot, {
+                op: 'upsertItem',
+                item: { id: `m${index}`, type: 'agentMessage', text: 'hi', streaming: false },
+            });
+        expect(snapshot.items).toHaveLength(MAX_AGENT_CHAT_TASK_ITEMS);
+        expect(snapshot.items[0]?.id).toBe('m1');
+        expect(snapshot.truncated).toBe(true);
+    });
+
+    it('applies only a patch that continues the cached revision', () => {
+        const patch = {
+            baseRevision: 0,
+            revision: 1,
+            operations: [{ op: 'appendOutput' as const, delta: 'ok' }],
+        };
+        expect(applyAgentChatTaskPatch(emptyTask(), patch)).toMatchObject({
+            revision: 1,
+            output: 'ok',
+        });
+        expect(applyAgentChatTaskPatch({ ...emptyTask(), revision: 2 }, patch)).toBeUndefined();
     });
 });
