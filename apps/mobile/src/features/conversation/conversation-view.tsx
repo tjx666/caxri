@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import { Pressable, Text, View } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
@@ -82,10 +82,12 @@ const ConversationHistory = ({
 
 const ConversationStatus = ({
     historyExpired,
+    canSend,
     onRetry,
     status,
     theme,
 }: {
+    canSend: boolean;
     historyExpired: boolean;
     onRetry: () => void;
     status: ConversationTimelineState['status'] | 'empty';
@@ -96,7 +98,9 @@ const ConversationStatus = ({
         available: '',
         unsupported: '',
         missing: '',
-        empty: 'No messages yet. Send a message to start the Conversation.',
+        empty: canSend
+            ? 'No messages yet. Send a message to start the Conversation.'
+            : 'No messages yet.',
         error: 'Unable to load Conversation.',
         stale: 'Reconnect to update Conversation.',
     }[status];
@@ -213,6 +217,12 @@ const ConversationList = ({
                 <FlashList
                     contentContainerStyle={styles.listContent}
                     data={entries}
+                    /**
+                     * Dragging the timeline dismisses the composer keyboard (following the finger on iOS), and a tap on
+                     * a row's button lands on the first touch instead of only closing the keyboard.
+                     */
+                    keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                    keyboardShouldPersistTaps="handled"
                     keyExtractor={(entry) => entry.id}
                     ListHeaderComponent={
                         <ConversationHistory
@@ -282,11 +292,16 @@ const ConversationList = ({
 };
 
 export const ConversationView = ({
+    canSend = true,
     enterFrom = null,
     onRetry,
     theme,
     timeline,
 }: {
+    /**
+     * Whether this device may message the Agent. A view-only device's empty state does not invite it to send.
+     */
+    canSend?: boolean;
     /**
      * The side a tab switch opened this Conversation from, or `null` when no tab switch motion should play.
      */
@@ -299,6 +314,7 @@ export const ConversationView = ({
         const status = timeline.status === 'available' ? 'empty' : timeline.status;
         return (
             <ConversationStatus
+                canSend={canSend}
                 historyExpired={timeline.historyExpired}
                 onRetry={onRetry}
                 status={status}

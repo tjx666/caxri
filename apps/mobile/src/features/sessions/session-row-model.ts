@@ -1,18 +1,9 @@
+import { mobileAgentDisplayName } from './agent-display-name';
 import type { MobileSessionItem } from './session-model';
 
 export const sessionAgentLabel = (session: MobileSessionItem): string => {
-    switch (session.primaryTerminal?.kind) {
-        case 'claude':
-            return 'Claude';
-        case 'codex':
-            return 'Codex';
-        case 'grok':
-            return 'Grok';
-        case 'shell':
-            return 'Shell';
-        default:
-            return 'No Agent';
-    }
+    const kind = session.primaryTerminal?.kind;
+    return kind ? mobileAgentDisplayName(kind) : 'No Agent';
 };
 
 export const sessionAgeLabel = (lastOpenedAt: number, now: number): string => {

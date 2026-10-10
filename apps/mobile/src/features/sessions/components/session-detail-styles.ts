@@ -30,11 +30,11 @@ export const sessionDetailStyles = StyleSheet.create({
     },
     tab: {
         alignItems: 'center',
-        borderRadius: 18,
+        borderRadius: 22,
         flexDirection: 'row',
         gap: 6,
         justifyContent: 'center',
-        minHeight: 40,
+        minHeight: 44,
         minWidth: 48,
         paddingHorizontal: 12,
     },
