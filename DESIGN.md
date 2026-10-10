@@ -359,8 +359,9 @@ icon is a plain brand-color mark (Claude Code and Codex keep their colors, like 
 workbench tabs, the Session hover card, the MRU switcher, Activity rows, Archived Sessions, Settings,
 and menus) because in a long list the color is what tells one Agent from another at a glance; it
 carries no lifecycle decoration. The right-edge slot answers "does this Agent need me, or is it
-working?" first: running work (including compaction) shows a thin `--success` arc spinning over a
-faint neutral track; unacknowledged attention shows a pinging warning ring around a warning dot; a
+working?" first: running work (including compaction) shows a thin open ring spinning in `--muted`,
+as Codex's thread list does, with no color so several working Agents never turn the list into a
+wall of green; unacknowledged attention shows a pinging warning ring around a warning dot; a
 detached Agent shows a static unplugged glyph. Attention wins over running; there is deliberately no
 second, static amber state, so reading a Session is the only thing that clears it and nothing can
 bring it back unread. Lifecycle outranks delivery: only a settled Session (idle, unknown, failed,
@@ -610,7 +611,7 @@ Terminal title and replace generic progress text while active. `Compacting` is t
 exception: it uses `--foreground` and a slow opacity pulse so long-running context compression
 remains noticeable without animating the Agent icon or Session title. Work tabs carry no separate
 process-state dot; process liveness remains available through diagnostics rather than duplicate
-chrome. This does not govern the Session list's running arc around the Agent icon.
+chrome. This does not govern the Session list's running ring.
 
 **Git decorations**: a file with working-tree changes reads the same wherever its name appears.
 The name takes the `--git-*` color of its change, and a single status letter (`M`, `A`, `D`, `U`…)

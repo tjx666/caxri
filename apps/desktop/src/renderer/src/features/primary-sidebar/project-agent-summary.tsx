@@ -21,7 +21,7 @@ export function ProjectAgentSummary({ summary }: { summary: SessionStatusSummary
         >
             {summary.running > 0 && (
                 <span className="flex items-center gap-1">
-                    <RunningArc className="size-3 text-foreground" strokeWidth={2.5} />
+                    <RunningArc />
                     {summary.running}
                 </span>
             )}

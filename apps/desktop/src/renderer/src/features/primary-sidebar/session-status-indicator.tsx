@@ -91,32 +91,25 @@ export function SessionStatusIndicator({
             ) : status.kind === 'detached' ? (
                 <Unplug aria-hidden="true" size={12} />
             ) : (
-                <RunningArc className="size-3.5" strokeWidth={2.25} />
+                <RunningArc />
             )}
         </span>
     );
 }
 
 /**
- * A thin `--success` arc over a faint track in the surrounding text color. The arc is the one colored part so a working
- * Session stands out of a neutral list at a glance, and it borrows the success tone rather than `--accent`, which
- * DESIGN.md reserves for the focused pane. The track stays neutral: a fully green ring on every running row reads as a
- * wall of color once several Agents work at once. Reduced motion leaves the arc still.
+ * A thin open ring that spins in the surrounding text color, the way Codex marks a working thread. It is deliberately
+ * monochrome: a colored arc on every running row reads as a wall of color once several Agents work at once, and the
+ * motion alone already separates a working Session from a settled one. The 10px ring sits centered in the 14px status
+ * slot, so it shares one vertical line with the attention and pull request glyphs. The dash covers three quarters of
+ * the circumference and its round caps eat into the rest, leaving about the opening Codex shows. Reduced motion leaves
+ * it still.
  */
-export function RunningArc({
-    className,
-    strokeWidth = 1.5,
-}: {
-    className?: string;
-    /**
-     * In viewBox units (20). A smaller arc needs a heavier stroke to render at the same on-screen weight.
-     */
-    strokeWidth?: number;
-}) {
+export function RunningArc() {
     return (
         <svg
             aria-hidden="true"
-            className={cn('flex-none motion-safe:animate-spin', className)}
+            className="size-2.5 flex-none motion-safe:animate-spin"
             data-session-status-arc=""
             viewBox="0 0 20 20"
         >
@@ -124,20 +117,11 @@ export function RunningArc({
                 cx="10"
                 cy="10"
                 fill="none"
-                r="9.25"
+                r="8.5"
                 stroke="currentColor"
-                strokeOpacity="0.25"
-                strokeWidth={strokeWidth}
-            />
-            <circle
-                cx="10"
-                cy="10"
-                fill="none"
-                r="9.25"
-                stroke="var(--success)"
-                strokeDasharray="14.5 58.1"
+                strokeDasharray="40 13.4"
                 strokeLinecap="round"
-                strokeWidth={strokeWidth}
+                strokeWidth="3"
             />
         </svg>
     );
