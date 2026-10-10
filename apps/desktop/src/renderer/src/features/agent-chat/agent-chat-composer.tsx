@@ -16,7 +16,11 @@ import { AgentChatCommandMenu } from './agent-chat-command-menu';
 import { interruptAgentChat } from './agent-chat-commands';
 import { readAgentChatDraft, writeAgentChatDraft } from './agent-chat-drafts';
 import type { AgentChatActivity } from './agent-chat-presentation';
-import { agentChatSubmitDelivery, isAgentChatInterruptKey } from './agent-chat-presentation';
+import {
+    agentChatSendAction,
+    agentChatSubmitDelivery,
+    isAgentChatInterruptKey,
+} from './agent-chat-presentation';
 import { draftAfterQueueEdit } from './agent-chat-queue';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { completeAgentChatAction } from './agent-chat-slash-commands';
@@ -116,6 +120,7 @@ export function AgentChatComposer({
         terminalId,
     });
     const isSendable = canSend && !isSending && !images.isReading && hasContent;
+    const sendAction = agentChatSendAction({ isTurnRunning, isBusy }, providerName);
     const submit = async (delivery?: 'steer'): Promise<void> => {
         if (isSendable) await submitDraft(draft, delivery);
     };
@@ -179,13 +184,7 @@ export function AgentChatComposer({
                     aria-label="Message"
                     className="field-sizing-content max-h-48 min-h-10 resize-none rounded-none border-0 bg-transparent px-3 pt-2.5 pb-1 leading-5 focus-visible:shadow-none"
                     maxLength={MAX_AGENT_CHAT_MESSAGE_LENGTH}
-                    placeholder={
-                        isTurnRunning
-                            ? 'Queue a follow-up (⌘Enter to steer)'
-                            : isBusy
-                              ? 'Queue a follow-up'
-                              : `Message ${providerName}`
-                    }
+                    placeholder={sendAction.placeholder}
                     ref={inputReference}
                     rows={1}
                     value={draft}
@@ -235,17 +234,9 @@ export function AgentChatComposer({
                     {isTurnRunning && !hasContent ? (
                         <AgentChatStopButton isStopping={isStopping} onStop={stop} />
                     ) : (
-                        <Tooltip
-                            content={
-                                isTurnRunning
-                                    ? 'Queue (Enter) · Steer (⌘Enter)'
-                                    : isBusy
-                                      ? 'Queue'
-                                      : 'Send'
-                            }
-                        >
+                        <Tooltip content={sendAction.tooltip}>
                             <Button
-                                aria-label={isBusy ? 'Queue message' : 'Send'}
+                                aria-label={sendAction.label}
                                 disabled={!isSendable}
                                 size="icon"
                                 type="submit"

@@ -9,6 +9,7 @@ import {
     agentChatFailureMessage,
     agentChatQuestionAnswers,
     agentChatRequestTitle,
+    agentChatSendAction,
     agentChatSubmitDelivery,
     agentChatWorkingVerb,
     canSendAgentChatMessage,
@@ -31,6 +32,23 @@ describe('canSendAgentChatMessage', () => {
     it('refuses once the provider has failed or before anything is loaded', () => {
         expect(canSendAgentChatMessage(snapshot('failed'))).toBe(false);
         expect(canSendAgentChatMessage(undefined)).toBe(false);
+    });
+});
+
+describe('agentChatSendAction', () => {
+    it('sends when idle, queues while busy, and offers steering only during a turn', () => {
+        expect(agentChatSendAction({ isTurnRunning: false, isBusy: false }, 'Codex')).toEqual({
+            label: 'Send',
+            tooltip: 'Send',
+            placeholder: 'Message Codex',
+        });
+        expect(agentChatSendAction({ isTurnRunning: false, isBusy: true }, 'Codex').label).toBe(
+            'Queue message',
+        );
+        expect(agentChatSendAction({ isTurnRunning: true, isBusy: true }, 'Codex')).toMatchObject({
+            label: 'Queue message',
+            placeholder: 'Queue a follow-up (⌘Enter to steer)',
+        });
     });
 });
 

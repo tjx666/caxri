@@ -181,6 +181,25 @@ export function agentChatSubmitDelivery(
 }
 
 /**
+ * The composer's send affordance for the Chat's state: while a turn runs, Enter queues and Cmd+Enter steers; while the
+ * Chat is otherwise busy (compacting, or draining the queue) a message waits its turn.
+ */
+export function agentChatSendAction(
+    state: { isTurnRunning: boolean; isBusy: boolean },
+    providerName: string,
+): { label: 'Send' | 'Queue message'; tooltip: string; placeholder: string } {
+    if (state.isTurnRunning)
+        return {
+            label: 'Queue message',
+            tooltip: 'Queue (Enter) · Steer (⌘Enter)',
+            placeholder: 'Queue a follow-up (⌘Enter to steer)',
+        };
+    if (state.isBusy)
+        return { label: 'Queue message', tooltip: 'Queue', placeholder: 'Queue a follow-up' };
+    return { label: 'Send', tooltip: 'Send', placeholder: `Message ${providerName}` };
+}
+
+/**
  * Escape interrupts a running turn, as it does in the Codex TUI; the draft is kept for the next message. An IME
  * composition owns Escape (it dismisses the candidate list), and a held key must not fire a stream of interrupts.
  */

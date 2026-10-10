@@ -474,7 +474,7 @@ async function continueAfterBackgroundTask() {
 }
 
 async function drain() {
-    if (state.turnRunning) return;
+    if (state.turnRunning || state.queued.length === 0) return;
     state.turnRunning = true;
     sessionState('running');
     while (state.queued.length > 0) {

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { memo, useContext, useId, useMemo, useState } from 'react';
 
-import type { AgentToolKind } from '@caxri/protocol';
+import type { AgentChatTask, AgentToolKind } from '@caxri/protocol';
 import { agentToolActiveLabel, formatShortDuration, unwrapShellCommand } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -251,6 +251,62 @@ function FileChangeStat({ item }: { item: Extract<AgentChatWorkItem, { type: 'fi
 }
 
 /**
+ * Opens a work row's subagent or background shell in the side split.
+ */
+function AgentChatTaskOpenButton({
+    link,
+}: {
+    link: NonNullable<ReturnType<typeof useAgentChatTaskLink>>;
+}) {
+    const { task } = link;
+    return (
+        <Tooltip content={task ? `Open ${task.title || 'task'}` : 'Open subagent'}>
+            <Button
+                aria-label={task?.kind === 'shell' ? 'Open shell' : 'Open subagent'}
+                className="min-h-6 shrink-0 gap-1 px-1.5 text-muted"
+                size="sm"
+                variant="ghost"
+                onClick={link.open}
+            >
+                <PanelRight aria-hidden="true" className="size-3.5" />
+                Open
+            </Button>
+        </Tooltip>
+    );
+}
+
+/**
+ * A work row's trailing state: the diff stat, a task's elapsed time and status, or the item's own outcome and duration.
+ */
+function AgentChatWorkTrailing({ item, task }: { item: AgentChatWorkItem; task?: AgentChatTask }) {
+    const status = item.type === 'reasoning' ? undefined : item.status;
+    const duration =
+        !task &&
+        (item.type === 'command' || item.type === 'toolCall') &&
+        (item.durationMs ?? 0) >= 1000
+            ? formatShortDuration(item.durationMs)
+            : null;
+    return (
+        <>
+            {item.type === 'fileChange' && <FileChangeStat item={item} />}
+            {task ? (
+                <>
+                    <AgentChatTaskElapsed task={task} />
+                    {task.status !== 'completed' && (
+                        <AgentChatStatusGlyph status={agentChatTaskGlyphStatus(task.status)} />
+                    )}
+                </>
+            ) : (
+                status &&
+                status !== 'running' &&
+                status !== 'completed' && <AgentChatStatusGlyph status={status} />
+            )}
+            {duration && <span className="shrink-0 tabular-nums">{duration}</span>}
+        </>
+    );
+}
+
+/**
  * One piece of work: the tool's glyph, its past-tense verb, and what it acted on (`Ran git status`, `Read app.ts`).
  * Expanded, it shows the full command and its output painted in the output's language, the reasoning text, or the
  * diff.
@@ -258,35 +314,13 @@ function FileChangeStat({ item }: { item: Extract<AgentChatWorkItem, { type: 'fi
 const AgentChatWorkRow = memo(
     ({ item, onOpenFile }: { item: AgentChatWorkItem; onOpenFile?: (target: string) => void }) => {
         const presentation = describeAgentChatWork(item);
-        const status = item.type === 'reasoning' ? undefined : item.status;
         const isRunning = isAgentChatWorkRunning(item);
         const link = useAgentChatTaskLink(item);
         const task = link?.task;
         const taskActivity = task && agentChatTaskActivity(task);
-        const duration =
-            !task &&
-            (item.type === 'command' || item.type === 'toolCall') &&
-            (item.durationMs ?? 0) >= 1000
-                ? formatShortDuration(item.durationMs)
-                : null;
         return (
             <DisclosureRow
-                action={
-                    link && (
-                        <Tooltip content={task ? `Open ${task.title || 'task'}` : 'Open subagent'}>
-                            <Button
-                                aria-label={task?.kind === 'shell' ? 'Open shell' : 'Open subagent'}
-                                className="min-h-6 shrink-0 gap-1 px-1.5 text-muted"
-                                size="sm"
-                                variant="ghost"
-                                onClick={link.open}
-                            >
-                                <PanelRight aria-hidden="true" className="size-3.5" />
-                                Open
-                            </Button>
-                        </Tooltip>
-                    )
-                }
+                action={link && <AgentChatTaskOpenButton link={link} />}
                 disclosureKind="agent-chat-item"
                 glyph={<WorkGlyph kind={presentation.kind} />}
                 title={
@@ -310,26 +344,7 @@ const AgentChatWorkRow = memo(
                         )}
                     </>
                 }
-                trailing={
-                    <>
-                        {item.type === 'fileChange' && <FileChangeStat item={item} />}
-                        {task ? (
-                            <>
-                                <AgentChatTaskElapsed task={task} />
-                                {task.status !== 'completed' && (
-                                    <AgentChatStatusGlyph
-                                        status={agentChatTaskGlyphStatus(task.status)}
-                                    />
-                                )}
-                            </>
-                        ) : (
-                            status &&
-                            status !== 'running' &&
-                            status !== 'completed' && <AgentChatStatusGlyph status={status} />
-                        )}
-                        {duration && <span className="shrink-0 tabular-nums">{duration}</span>}
-                    </>
-                }
+                trailing={<AgentChatWorkTrailing item={item} task={task} />}
             >
                 <WorkDetail item={item} onOpenFile={onOpenFile} />
             </DisclosureRow>
