@@ -223,7 +223,7 @@ function DocumentPaneTab({
             dirty={document?.dirty}
             fileIconName={presentation.fileIconName}
             gitDecoration={gitDecoration}
-            icon="file"
+            icon={presentation.icon}
             label={presentation.label}
             // Ordinary files expose their full path on hover; virtual resources reuse their descriptive label.
             labelTooltip={presentation.labelTooltip}

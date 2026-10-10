@@ -13,6 +13,7 @@ describe('documentTabPresentation', () => {
     it('keeps file names accessible while exposing their full path on hover', () => {
         expect(documentTabPresentation('/project/notes.md', {})).toEqual({
             fileIconName: 'notes.md',
+            icon: 'file',
             label: 'notes.md',
             labelTooltip: '/project/notes.md',
         });
@@ -22,6 +23,7 @@ describe('documentTabPresentation', () => {
             }),
         ).toEqual({
             fileIconName: 'notes.md',
+            icon: 'file',
             label: 'notes.md',
             labelTooltip: '/outside/notes.md',
         });
@@ -46,9 +48,10 @@ describe('documentTabPresentation', () => {
             documentTabPresentation(gitFileDiffTabPath('repo', 'src/file.ts'), {}).fileIconName,
         ).toBe('file.ts');
     });
-    it('labels the Settings tab without exposing its opaque scheme', () => {
+    it('labels the Settings tab with its own icon, without exposing its opaque scheme', () => {
         expect(documentTabPresentation(settingsTabPath(), {})).toEqual({
-            fileIconName: 'settings.jsonc',
+            fileIconName: undefined,
+            icon: 'settings',
             label: 'Settings',
             labelTooltip: 'Settings',
         });
