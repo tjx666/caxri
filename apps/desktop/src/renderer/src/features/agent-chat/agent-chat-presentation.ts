@@ -97,7 +97,9 @@ export function agentChatEffortLabel(effort: string): string {
 export function agentChatModelLabel(
     snapshot: Pick<AgentChatSnapshot, 'effort' | 'model' | 'models'> | undefined,
 ): { model: string; effort?: string } | undefined {
-    if (!snapshot?.model) return undefined;
+    // Claude Code reports the model in each turn's init message, so a new Chat lists its models before it names the
+    // one in use; the picker still opens and reads as the provider default until then.
+    if (!snapshot?.model) return snapshot?.models?.length ? { model: 'Default' } : undefined;
     const listed = findAgentChatModel(snapshot.models, snapshot.model);
     const effort =
         snapshot.effort && (listed?.efforts.length ?? 1) > 0

@@ -52,22 +52,23 @@ export function claudeInitEffort(message: Record<string, unknown>): AgentChatPat
 
 /**
  * Switches a running Claude Code in place: `setModel` applies from the next response, and the effort goes to the
- * session's flag settings layer, which outranks the user's settings files without writing to them. Returns the state
- * the snapshot reports once both are accepted.
+ * session's flag settings layer, which outranks the user's settings files without writing to them. Each step reports
+ * its state as soon as Claude Code accepts it, so a failed effort change still shows the model that did switch.
  */
 export async function configureClaudeModel(
     stream: Pick<Query, 'applyFlagSettings' | 'setModel'>,
     { model, effort }: AgentChatModelChange,
-): Promise<AgentChatPatchOperation[]> {
-    if (model) await withTimeout(stream.setModel(model.id), CONFIGURE_TIMEOUT_MS);
-    if (effort)
+    apply: (operations: AgentChatPatchOperation[]) => void,
+): Promise<void> {
+    if (model) {
+        await withTimeout(stream.setModel(model.id), CONFIGURE_TIMEOUT_MS);
+        apply([{ op: 'state', state: { model: model.resolvedId ?? model.id } }]);
+    }
+    if (effort) {
         await withTimeout(
             stream.applyFlagSettings({ effortLevel: effort as EffortLevel }),
             CONFIGURE_TIMEOUT_MS,
         );
-    const state = {
-        ...(model && { model: model.resolvedId ?? model.id }),
-        ...(effort && { effort }),
-    };
-    return [{ op: 'state', state }];
+        apply([{ op: 'state', state: { effort } }]);
+    }
 }

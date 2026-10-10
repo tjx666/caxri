@@ -331,7 +331,9 @@ reasoning efforts it accepts (`efforts`, lowest first) and its `defaultEffort`; 
 `effort` report what the next turn uses. `agentChat.configure` switches either one. Server Core
 validates the change against `models` first (`resolveAgentChatModelChange` in
 `packages/protocol`), so a stale Client cannot send a model or effort the provider never listed;
-switching to a model that does not accept the current effort falls back to that model's default.
+switching to a model that does not accept the current effort falls back to that model's default,
+or, for a model that names none, to the strongest effort it accepts that does not exceed the
+current one.
 A running turn keeps the model it started with.
 
 - **Codex** lists models with `model/list` after the thread opens; a Codex that cannot list them

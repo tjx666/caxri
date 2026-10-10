@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentChatModel } from '../agent-chat-contract.js';
-import {
-    findAgentChatModel,
-    resolveAgentChatModelChange as resolveAgentChatConfig,
-} from '../agent-chat-models.js';
+import { findAgentChatModel, resolveAgentChatModelChange } from '../agent-chat-models.js';
 
 const SOL: AgentChatModel = {
     id: 'sol',
@@ -40,46 +37,58 @@ describe('resolveAgentChatModelChange', () => {
     const snapshot = { model: 'sol', effort: 'xhigh', models };
 
     it('switches the effort of the model in use', () => {
-        expect(resolveAgentChatConfig(snapshot, { effort: 'low' })).toEqual({
+        expect(resolveAgentChatModelChange(snapshot, { effort: 'low' })).toEqual({
             effort: 'low',
         });
         expect(
-            resolveAgentChatConfig({ ...snapshot, model: 'claude-opus-5-5' }, { effort: 'max' }),
+            resolveAgentChatModelChange(
+                { ...snapshot, model: 'claude-opus-5-5' },
+                { effort: 'max' },
+            ),
         ).toEqual({ effort: 'max' });
     });
 
     it('falls back to the new model default when it does not accept the current effort', () => {
-        expect(resolveAgentChatConfig(snapshot, { model: 'mini' })).toEqual({
+        expect(resolveAgentChatModelChange(snapshot, { model: 'mini' })).toEqual({
             model: MINI,
             effort: 'low',
         });
         expect(
-            resolveAgentChatConfig({ ...snapshot, effort: 'medium' }, { model: 'mini' }),
+            resolveAgentChatModelChange({ ...snapshot, effort: 'medium' }, { model: 'mini' }),
         ).toEqual({ model: MINI });
-        expect(resolveAgentChatConfig(snapshot, { model: 'plain' })).toEqual({
+        expect(resolveAgentChatModelChange(snapshot, { model: 'plain' })).toEqual({
             model: PLAIN,
         });
     });
 
+    it('steps down to the closest accepted effort when the new model names no default', () => {
+        expect(
+            resolveAgentChatModelChange({ ...snapshot, effort: 'xhigh' }, { model: 'opus' }),
+        ).toEqual({ model: OPUS, effort: 'high' });
+        expect(
+            resolveAgentChatModelChange({ ...snapshot, effort: 'minimal' }, { model: 'opus' }),
+        ).toEqual({ model: OPUS, effort: 'low' });
+    });
+
     it('takes an explicit effort for the model being switched to', () => {
-        expect(resolveAgentChatConfig(snapshot, { model: 'opus', effort: 'max' })).toEqual({
+        expect(resolveAgentChatModelChange(snapshot, { model: 'opus', effort: 'max' })).toEqual({
             model: OPUS,
             effort: 'max',
         });
     });
 
     it('rejects a model or effort the provider never offered', () => {
-        expect(() => resolveAgentChatConfig(snapshot, { model: 'gone' })).toThrow(
+        expect(() => resolveAgentChatModelChange(snapshot, { model: 'gone' })).toThrow(
             expect.objectContaining({ code: 'VALIDATION' }),
         );
-        expect(() => resolveAgentChatConfig(snapshot, { effort: 'max' })).toThrow(
+        expect(() => resolveAgentChatModelChange(snapshot, { effort: 'max' })).toThrow(
             expect.objectContaining({ code: 'VALIDATION' }),
         );
         expect(() =>
-            resolveAgentChatConfig({ ...snapshot, models: undefined }, { effort: 'low' }),
+            resolveAgentChatModelChange({ ...snapshot, models: undefined }, { effort: 'low' }),
         ).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
-        expect(() => resolveAgentChatConfig(snapshot, { model: 'plain', effort: 'low' })).toThrow(
-            expect.objectContaining({ code: 'VALIDATION' }),
-        );
+        expect(() =>
+            resolveAgentChatModelChange(snapshot, { model: 'plain', effort: 'low' }),
+        ).toThrow(expect.objectContaining({ code: 'VALIDATION' }));
     });
 });

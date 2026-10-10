@@ -563,7 +563,9 @@ class ClaudeChatSession implements AgentChatProviderSession {
     }
 
     async configure(change: AgentChatModelChange): Promise<void> {
-        this.options.apply(await configureClaudeModel(this.requireOpen(), change));
+        await configureClaudeModel(this.requireOpen(), change, (operations) =>
+            this.options.apply(operations),
+        );
     }
 
     async interrupt(): Promise<void> {
