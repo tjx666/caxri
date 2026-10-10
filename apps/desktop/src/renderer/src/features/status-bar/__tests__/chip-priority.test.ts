@@ -5,6 +5,7 @@ import { CHIP_PRIORITY_BREAKPOINTS, resolveChipVisibility } from '../chip-priori
 
 const ALL_VISIBLE: ChipVisibility = {
     acceptance: true,
+    agentThroughput: true,
     childProcessCount: true,
     linearIssue: true,
     memory: true,
@@ -38,10 +39,21 @@ describe('status bar chip priority resolution', () => {
         });
     });
 
+    it('drops the Agent output speed after memory', () => {
+        const width = CHIP_PRIORITY_BREAKPOINTS.agentThroughput - 1;
+        expect(resolveChipVisibility(width)).toEqual({
+            ...ALL_VISIBLE,
+            agentThroughput: false,
+            childProcessCount: false,
+            memory: false,
+        });
+    });
+
     it('drops the Linear issue chip before the acceptance chip', () => {
         const width = CHIP_PRIORITY_BREAKPOINTS.linearIssue - 1;
         expect(resolveChipVisibility(width)).toEqual({
             acceptance: true,
+            agentThroughput: false,
             childProcessCount: false,
             linearIssue: false,
             memory: false,
@@ -53,6 +65,7 @@ describe('status bar chip priority resolution', () => {
         const width = CHIP_PRIORITY_BREAKPOINTS.acceptance - 1;
         expect(resolveChipVisibility(width)).toEqual({
             acceptance: false,
+            agentThroughput: false,
             childProcessCount: false,
             linearIssue: false,
             memory: false,
@@ -60,10 +73,11 @@ describe('status bar chip priority resolution', () => {
         });
     });
 
-    it('drops the pull request chip last of the five', () => {
+    it('drops the pull request chip last of the six', () => {
         const width = CHIP_PRIORITY_BREAKPOINTS.pullRequest - 1;
         expect(resolveChipVisibility(width)).toEqual({
             acceptance: false,
+            agentThroughput: false,
             childProcessCount: false,
             linearIssue: false,
             memory: false,
@@ -74,7 +88,9 @@ describe('status bar chip priority resolution', () => {
     it('is monotonic: a narrower width never re-shows a chip a wider width hid', () => {
         // Excludes the `<= 0` "unmeasured" sentinel, which is a special case (fully visible), not part
         // of a real monotonically decreasing width sequence.
-        const widths = [1200, 900, 760, 752, 700, 680, 620, 610, 560, 545, 500, 480, 400, 1];
+        const widths = [
+            1200, 900, 830, 800, 760, 752, 700, 680, 620, 610, 560, 545, 500, 480, 400, 1,
+        ];
         let previous: ChipVisibility | undefined;
         for (const width of widths) {
             const current = resolveChipVisibility(width);

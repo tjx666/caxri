@@ -32,6 +32,12 @@ export { extractClaudeDelegationAnswer } from './providers/claude/delegation';
 export { agentCommandEnvironment } from './rename';
 export { readAgentReplySummary, summarizeLatestAgentReply } from './reply-summary';
 export { type AgentAdapter, AgentService, createLocalAgentAdapters } from './service';
+export {
+    ThroughputAccumulator,
+    type ThroughputLineScanner,
+    type ThroughputResponse,
+    type ThroughputSink,
+} from './throughput';
 export { AgentTimelineService } from './timeline';
 export type { AgentTitleContext } from './title-generation';
 export {

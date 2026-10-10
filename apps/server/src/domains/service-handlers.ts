@@ -3,6 +3,7 @@ import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import { agentSkillHealthReader } from './agent-skills';
+import { AgentThroughputService } from './agent-throughput';
 import type {
     AgentEnvironment,
     AgentHookManager,
@@ -73,6 +74,7 @@ type ServiceHandlerMethods =
     | 'files.readAsset'
     | 'files.write'
     | 'files.search'
+    | 'terminal.agentThroughput'
     | 'terminal.agentTranscript'
     | 'terminal.commitLink.resolve'
     | 'terminal.reference.preview'
@@ -302,6 +304,7 @@ export function createServiceHandlers(services: {
         vercel,
     } = services;
     const sessionContentSearch = new SessionContentSearch(database, agentEnvironment);
+    const agentThroughput = new AgentThroughputService(database, agentEnvironment);
     const sessionPullRequests = new SessionPullRequestService(
         database,
         git,
@@ -404,6 +407,7 @@ export function createServiceHandlers(services: {
         'pathBrowser.navigate': () => mainOwned('pathBrowser.navigate'),
         'pathBrowser.open': () => mainOwned('pathBrowser.open'),
         'pathBrowser.close': () => mainOwned('pathBrowser.close'),
+        'terminal.agentThroughput': ({ terminalId }) => agentThroughput.read(terminalId),
         'terminal.agentTranscript': async ({ terminalId, withContent }) => {
             if (withContent) await transcripts.watch(terminalId);
             return readAgentTranscript(database, terminalId, withContent, agentEnvironment);

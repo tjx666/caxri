@@ -27,6 +27,7 @@ import {
     terminalRendererIndicator,
     useTerminalRendererStatus,
 } from '../terminal/terminal-renderer-status';
+import { AgentThroughputStatus } from './agent-throughput-status';
 import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
 
@@ -188,15 +189,17 @@ function TerminalUsageStatus({
 }
 
 /**
- * The status bar's right side while a Terminal owns the active tab: renderer fallback, OSC progress, and the two live
- * process metrics. Each chip owns its own data and renders nothing when it has none, so this composition holds no
- * conditions of its own.
+ * The status bar's right side while a Terminal owns the active tab: renderer fallback, OSC progress, the hosted Agent's
+ * output speed, and the two live process metrics. Each chip owns its own data and renders nothing when it has none, so
+ * this composition holds no conditions of its own.
  */
 export function ActiveTerminalStatus({
+    showAgentThroughput,
     showChildProcessCount,
     showMemory,
     terminalId,
 }: {
+    showAgentThroughput: boolean;
     /**
      * Priority-hidden first as the status bar narrows (see `chip-priority.ts`): both metrics duplicate a live reading
      * already available in Process Explorer, so hiding them loses no information the user cannot get elsewhere.
@@ -209,6 +212,7 @@ export function ActiveTerminalStatus({
         <>
             <TerminalRendererStatus terminalId={terminalId} />
             <TerminalProgressStatus terminalId={terminalId} />
+            {showAgentThroughput && <AgentThroughputStatus terminalId={terminalId} />}
             <TerminalUsageStatus
                 showChildProcessCount={showChildProcessCount}
                 showMemory={showMemory}
