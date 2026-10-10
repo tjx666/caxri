@@ -185,6 +185,34 @@ function useWorkTabMotion(shouldFill: boolean) {
 }
 
 /**
+ * Built-in glyphs for tabs that show neither a file nor an Agent.
+ */
+const WORK_TAB_GLYPHS = {
+    'settings': SlidersHorizontal,
+    'usage': ChartColumn,
+    'agent-task': Bot,
+    'shell-task': SquareTerminal,
+} as const;
+
+function isWorkTabGlyph(icon: WorkTabProperties['icon']): icon is keyof typeof WORK_TAB_GLYPHS {
+    return Object.hasOwn(WORK_TAB_GLYPHS, icon);
+}
+
+function WorkTabIcon({
+    fileIconName,
+    icon,
+    label,
+}: Pick<WorkTabProperties, 'fileIconName' | 'icon' | 'label'>) {
+    if (icon === 'file')
+        return <FileTypeIcon entry={{ kind: 'file', name: fileIconName ?? label }} />;
+    if (isWorkTabGlyph(icon)) {
+        const Glyph = WORK_TAB_GLYPHS[icon];
+        return <Glyph aria-hidden="true" className="h-4 w-4 flex-none" size={14} />;
+    }
+    return <AgentIdentityIcon identity={icon} size={13} />;
+}
+
+/**
  * What the tab shows to identify its content: the type or Agent icon, the label, and the Git state VS Code paints over
  * that label. Split out of {@link WorkTabSelect}, which is left owning the button's tooltip and aria wiring.
  */
@@ -212,19 +240,7 @@ function WorkTabLabel({
 }) {
     return (
         <>
-            {icon === 'file' ? (
-                <FileTypeIcon entry={{ kind: 'file', name: fileIconName ?? label }} />
-            ) : icon === 'settings' ? (
-                <SlidersHorizontal aria-hidden="true" className="h-4 w-4 flex-none" size={14} />
-            ) : icon === 'usage' ? (
-                <ChartColumn aria-hidden="true" className="h-4 w-4 flex-none" size={14} />
-            ) : icon === 'agent-task' ? (
-                <Bot aria-hidden="true" className="h-4 w-4 flex-none" size={14} />
-            ) : icon === 'shell-task' ? (
-                <SquareTerminal aria-hidden="true" className="h-4 w-4 flex-none" size={14} />
-            ) : (
-                <AgentIdentityIcon identity={icon} size={13} />
-            )}
+            <WorkTabIcon fileIconName={fileIconName} icon={icon} label={label} />
             <span
                 ref={labelReference}
                 aria-hidden={isLabelAbbreviated}

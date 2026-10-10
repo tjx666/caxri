@@ -126,7 +126,7 @@ export class CodexBackgroundTerminals {
      */
     onTurnFinished(turnId: string): ReadonlySet<string> {
         const kept = new Set<string>();
-        const snapshot = this.host.read();
+        const items = new Map(this.host.read().items.map((item) => [item.id, item]));
         for (const state of this.commands.values()) {
             if (state.turnId !== turnId || state.isBackground) continue;
             state.isBackground = true;
@@ -139,7 +139,7 @@ export class CodexBackgroundTerminals {
                 isBackground: true,
                 canStop: true,
             });
-            const item = snapshot.items.find((candidate) => candidate.id === state.itemId);
+            const item = items.get(state.itemId);
             const output = item?.type === 'command' ? item.output : '';
             this.applyTask(state.itemId, [
                 {

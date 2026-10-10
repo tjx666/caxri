@@ -214,9 +214,9 @@ if (process.argv.includes('app-server')) {
             session.getByRole('button', { name: /^Thought Planning the reply/u }),
         ).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('surface-switch-running-turn.png') });
-        // Stop and Send share one slot: typed content turns it into Send, which steers the turn.
+        // Stop and Queue share one slot: typed content turns it into Queue message; Cmd+Enter steers instead.
         await message.fill('steer');
-        await expect(session.getByRole('button', { name: 'Send' })).toBeEnabled();
+        await expect(session.getByRole('button', { name: 'Queue message' })).toBeEnabled();
         await expect(session.getByRole('button', { name: 'Stop' })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('surface-switch-steer-draft.png') });
         await message.fill('');
