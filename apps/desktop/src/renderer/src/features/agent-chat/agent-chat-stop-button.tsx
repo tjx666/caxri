@@ -12,7 +12,9 @@ export const AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME =
     'rounded-full border-foreground bg-foreground text-background enabled:not-aria-disabled:hover:bg-foreground enabled:not-aria-disabled:hover:opacity-85';
 
 /**
- * Interrupts the running turn. Once a Stop was requested it is disabled with a spinner until the turn ends.
+ * Interrupts the running turn. Once a Stop was requested it shows a spinner and refuses clicks until the turn ends.
+ * That pending state is `aria-disabled` rather than `disabled`: Chromium evicts focus from a natively disabled button,
+ * which would drop a keyboard user's focus to the document body mid-interrupt.
  */
 export function AgentChatStopButton({
     isStopping,
@@ -25,11 +27,13 @@ export function AgentChatStopButton({
         <Tooltip content={isStopping ? 'Stopping…' : 'Stop (Esc)'}>
             <Button
                 aria-label={isStopping ? 'Stopping' : 'Stop'}
+                aria-disabled={isStopping || undefined}
                 className={AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME}
-                disabled={isStopping}
                 size="icon"
                 variant="ghost"
-                onClick={onStop}
+                onClick={() => {
+                    if (!isStopping) onStop();
+                }}
             >
                 {isStopping ? (
                     <Spinner className="size-3.5" />

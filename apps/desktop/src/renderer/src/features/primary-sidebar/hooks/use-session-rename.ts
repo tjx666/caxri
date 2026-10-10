@@ -6,6 +6,7 @@ import { useLatestReference } from '../../../hooks/use-latest-reference';
 import { clearSessionRenameRequest, useDialogStore } from '../../../stores/dialogs';
 import { didRenameSession } from '../../session/session-commands';
 import { suggestSessionTitle } from '../../session/session-title-suggestion-commands';
+import { decideSessionRename, syncUntouchedRenameDraft } from '../session-rename-draft';
 
 export interface SessionRenameController {
     beginRename: (sessionId: string, displayTitle: string, rowId: string) => void;
@@ -61,11 +62,16 @@ export function useSessionRename(
     const suggestionReference = useRef<{ sessionId: string } | undefined>(undefined);
     const renamingSessionIdReference = useRef<string | undefined>(undefined);
     const renamingRowIdReference = useRef<string | undefined>(undefined);
+    /**
+     * The title the editor opened with (or last synced to). Commit and blur compare the draft with this rather than the
+     * Session's current title, so an automatic name landing mid-edit is not reverted by an untouched draft.
+     */
+    const renameBaselineReference = useRef('');
     const restoreFocusRowIdReference = useRef<string | undefined>(undefined);
     const restoreFocusVisibleReference = useRef(false);
     /**
-     * Commit and blur compare the draft with the Session's current title. Read through a ref rather than closed over:
-     * the list is replaced on every Session switch (the Server stamps the opened Session's `lastOpenedAt`), and
+     * The suggestion path compares its answer with the Session's current title. Read through a ref rather than closed
+     * over: the list is replaced on every Session switch (the Server stamps the opened Session's `lastOpenedAt`), and
      * handlers rebuilt from it would reach every row as new props and render all of them again (issue #1356).
      */
     const latestSessions = useLatestReference(sessions);
@@ -83,6 +89,24 @@ export function useSessionRename(
         restoreFocusRowIdReference.current = undefined;
     }, [renamingRowId, sessions]);
 
+    /**
+     * Automatic naming can replace the title while the editor is open. An untouched draft follows it, so the editor
+     * shows the name that just arrived; a draft the user already edited keeps their text.
+     */
+    useEffect(() => {
+        const sessionId = renamingSessionIdReference.current;
+        if (!sessionId) return;
+        const currentTitle = sessions.find((session) => session.id === sessionId)?.displayTitle;
+        const next = syncUntouchedRenameDraft(
+            renameValue,
+            renameBaselineReference.current,
+            currentTitle,
+        );
+        if (next === undefined) return;
+        renameBaselineReference.current = next;
+        setRenameValue(next);
+    }, [sessions, renameValue]);
+
     const beginRename = useCallback(
         (sessionId: string, displayTitle: string, rowId: string): void => {
             /**
@@ -94,6 +118,7 @@ export function useSessionRename(
                 treeRow(rowId)?.matches(':focus-visible') === true;
             renamingSessionIdReference.current = sessionId;
             renamingRowIdReference.current = rowId;
+            renameBaselineReference.current = displayTitle;
             setRenamingRowId(rowId);
             setRenameValue(displayTitle);
             setRenameError(undefined);
@@ -133,27 +158,22 @@ export function useSessionRename(
         if (!sessionId) return;
         // The input is read-only while a suggestion is pending; Enter there must not discard the answer on its way.
         if (suggestionReference.current?.sessionId === sessionId) return;
-        const displayTitle = renameValue.trim();
-        if (!displayTitle) {
+        const decision = decideSessionRename(renameValue, renameBaselineReference.current);
+        if (decision.kind === 'empty') {
             setRenameError('Session name is required');
             return;
         }
-        const currentTitle = latestSessions.current.find(
-            (session) => session.id === sessionId,
-        )?.displayTitle;
         finishRename(sessionId, true);
         // Fire-and-forget: `didRenameSession` funnels its own failures into a toast.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        if (displayTitle !== currentTitle) void didRenameSession(sessionId, displayTitle);
-    }, [renameValue, latestSessions, finishRename]);
+        if (decision.kind === 'rename')
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void didRenameSession(sessionId, decision.displayTitle);
+    }, [renameValue, finishRename]);
 
     const blurRename = useCallback((): void => {
         const sessionId = renamingSessionIdReference.current;
         if (!sessionId) return;
-        const displayTitle = renameValue.trim();
-        const currentTitle = latestSessions.current.find(
-            (session) => session.id === sessionId,
-        )?.displayTitle;
+        const decision = decideSessionRename(renameValue, renameBaselineReference.current);
         finishRename(sessionId, false);
         /**
          * Clicking away while a suggestion is pending keeps it: the user asked for an AI name and the editor merely
@@ -162,10 +182,10 @@ export function useSessionRename(
          */
         if (suggestionReference.current?.sessionId === sessionId) return;
         // Fire-and-forget: `didRenameSession` funnels its own failures into a toast.
-        if (displayTitle && displayTitle !== currentTitle)
+        if (decision.kind === 'rename')
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void didRenameSession(sessionId, displayTitle);
-    }, [renameValue, latestSessions, finishRename]);
+            void didRenameSession(sessionId, decision.displayTitle);
+    }, [renameValue, finishRename]);
 
     const suggestRename = useCallback(
         (sessionId: string, displayTitle: string, rowId: string): void => {

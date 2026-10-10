@@ -290,8 +290,9 @@ setInterval(() => {
         await writeClaudeMetadata(config, root, startedAt, 'idle', 'First Agent');
         await expect(firstStatus).toHaveAttribute('data-session-status', 'attention');
         await expect(firstStatus).toHaveAttribute('data-attention-kind', 'completed');
-        await expect(firstStatus).toHaveAccessibleName(
-            'Needs attention: Finished. The Agent finished its latest turn.',
+        await expect(firstStatus).toHaveAccessibleName('Unread, finished');
+        await expect(firstStatus).toHaveAccessibleDescription(
+            'The Agent finished its latest turn.',
         );
         expect(
             await firstStatus

@@ -5,6 +5,7 @@ import type { SessionRenameController } from '../primary-sidebar/hooks/use-sessi
 import { SessionRenameInput } from '../primary-sidebar/session-rename-input';
 
 export function AgentActivityRowTitle({
+    canSuggest,
     isRenaming,
     onTitleHoverChange,
     sessionId,
@@ -13,6 +14,10 @@ export function AgentActivityRowTitle({
     title,
     viewportReference,
 }: {
+    /**
+     * Whether the Session has a primary Agent conversation for `Rename with AI` to name.
+     */
+    canSuggest: boolean;
     isRenaming: boolean;
     /**
      * The title's own hover state, distinct from the row's roving keyboard focus: `agent-activity-row-trigger.tsx` owns
@@ -41,6 +46,7 @@ export function AgentActivityRowTitle({
                     onCommit={sessionRename.commitRename}
                     onCancel={sessionRename.cancelRename}
                     onSuggest={() => sessionRename.suggestRename(sessionId, title, sessionId)}
+                    canSuggest={canSuggest}
                     suggesting={sessionRename.renameSuggestingSessionId === sessionId}
                 />
             ) : (

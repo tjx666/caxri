@@ -54,9 +54,10 @@ export function AgentChatMessage({
 
 /**
  * An Agent reply, with a Copy action underneath when it is the reply that ends a turn. Commentary between tool calls
- * carries no action row, so a long turn does not reserve empty space under every reply. The action is shown on hover or
- * keyboard focus to keep long transcripts calm. Copy takes the Markdown source, which pastes back into an issue, a
- * document, or another Agent intact.
+ * carries no action row, so a long turn does not reserve empty space under every reply. The action stays visible in a
+ * muted tone and rises to the foreground on hover, because a hover-only control is undiscoverable on a reply the reader
+ * is scrolling past (the same reasoning as `CodeView`). Copy takes the Markdown source, which pastes back into an
+ * issue, a document, or another Agent intact.
  */
 export function AgentChatReply({
     canCopy,
@@ -68,7 +69,7 @@ export function AgentChatReply({
     onOpenFile?: (target: string) => void;
 }) {
     return (
-        <div className="group/reply">
+        <div data-agent-chat-reply="">
             <AgentChatMessage
                 className="text-foreground"
                 isStreaming={item.streaming}
@@ -76,7 +77,7 @@ export function AgentChatReply({
                 onOpenFile={onOpenFile}
             />
             {canCopy && (
-                <div className="mt-0.5 flex h-6 opacity-0 transition-opacity group-focus-within/reply:opacity-100 group-hover/reply:opacity-100">
+                <div className="mt-0.5 flex h-6">
                     {!item.streaming && (
                         <CopyIconButton
                             className="-ml-1"
@@ -92,6 +93,11 @@ export function AgentChatReply({
     );
 }
 
+/**
+ * A notice in the transcript. An error is styled as one but is not a live `alert`: the timeline remounts its history on
+ * every Chat switch and fold toggle, which would re-announce errors that happened long ago. A failure the user must act
+ * on now lives in the dock's failure banner, which does announce.
+ */
 export function AgentChatNotice({ item }: { item: Extract<AgentChatItem, { type: 'notice' }> }) {
     const isError = item.kind === 'error';
     return (
@@ -100,7 +106,6 @@ export function AgentChatNotice({ item }: { item: Extract<AgentChatItem, { type:
                 'flex items-start gap-2 text-[12px] leading-5',
                 isError ? 'text-danger' : 'text-muted',
             )}
-            role={isError ? 'alert' : undefined}
         >
             {isError && <CircleAlert className="mt-0.5 size-3.5 shrink-0" />}
             <span className="wrap-anywhere whitespace-pre-line">

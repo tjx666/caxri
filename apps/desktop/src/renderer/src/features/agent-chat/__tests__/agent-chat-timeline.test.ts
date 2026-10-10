@@ -6,7 +6,9 @@ import {
     agentChatOutputLanguage,
     agentChatReasoningTitle,
     agentChatTurnLabel,
+    agentChatTurnTone,
     agentChatWorkDuration,
+    agentChatWorkGroupFailure,
     buildAgentChatTimeline,
     describeAgentChatWork,
     splitAgentChatWork,
@@ -167,6 +169,14 @@ describe('agentChatTurnLabel', () => {
     });
 });
 
+describe('agentChatTurnTone', () => {
+    it('tones a failed or stopped turn and keeps a completed one quiet', () => {
+        expect(agentChatTurnTone('failed')).toBe('danger');
+        expect(agentChatTurnTone('interrupted')).toBe('warning');
+        expect(agentChatTurnTone('completed')).toBeUndefined();
+    });
+});
+
 describe('describeAgentChatWork', () => {
     it('shows the inner command of a login-shell wrapper', () => {
         expect(
@@ -235,6 +245,28 @@ describe('describeAgentChatWork', () => {
             }),
         ).toMatchObject({ kind: 'edit', label: 'Edited', subject: 'a.ts +1 more' });
     });
+
+    it('names a failed, declined, or stopped item in its verb', () => {
+        const change = (status: 'declined' | 'failed' | 'running') =>
+            describeAgentChatWork({
+                id: 'f',
+                type: 'fileChange',
+                status,
+                changes: [{ path: 'src/a.ts', kind: 'update', diff: '' }],
+            });
+        expect(change('failed').label).toBe('Failed to edit');
+        expect(change('declined').label).toBe('Not allowed to edit');
+        expect(
+            describeAgentChatWork({
+                id: 'c',
+                type: 'command',
+                command: 'npm test',
+                status: 'interrupted',
+                output: '',
+            }).label,
+        ).toBe('Stopped running');
+        expect(change('running').label).toBe('Edited');
+    });
 });
 
 describe('agentChatWorkDuration', () => {
@@ -263,6 +295,35 @@ describe('summarizeAgentChatWork', () => {
         expect(
             summarizeAgentChatWork([thought('r')] as Parameters<typeof summarizeAgentChatWork>[0]),
         ).toBe('Thought');
+    });
+
+    it('counts failed and declined items at the end', () => {
+        const items = [
+            command('c1'),
+            { ...command('c2'), status: 'failed' },
+            { ...read('x'), status: 'declined' },
+        ] as Parameters<typeof summarizeAgentChatWork>[0];
+        expect(summarizeAgentChatWork(items)).toBe('Ran 2 commands, read 1 file, 2 failed');
+    });
+});
+
+describe('agentChatWorkGroupFailure', () => {
+    type Items = Parameters<typeof agentChatWorkGroupFailure>[0];
+
+    it('prefers failed over declined and is absent for a clean run', () => {
+        expect(agentChatWorkGroupFailure([command('c1'), read('x')] as Items)).toBeUndefined();
+        expect(
+            agentChatWorkGroupFailure([
+                command('c1'),
+                { ...read('x'), status: 'declined' },
+            ] as Items),
+        ).toBe('declined');
+        expect(
+            agentChatWorkGroupFailure([
+                { ...read('x'), status: 'declined' },
+                { ...command('c1'), status: 'failed' },
+            ] as Items),
+        ).toBe('failed');
     });
 });
 

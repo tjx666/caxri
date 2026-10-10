@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import type { ProjectRecord, TerminalRecord } from '@caxri/protocol';
+import type { ProjectRecord } from '@caxri/protocol';
 import { Check } from 'lucide-react';
 
 import { Tooltip } from '../../components/ui/tooltip';
@@ -32,7 +32,6 @@ export function AgentActivityRowItem({
     row,
     selected,
     sessionRename,
-    terminals,
     worktreeProject,
     onFocusChange,
 }: {
@@ -43,7 +42,6 @@ export function AgentActivityRowItem({
     row: AgentActivityRow;
     selected: boolean;
     sessionRename: SessionRenameController;
-    terminals: TerminalRecord[];
     /**
      * Workbench Root Project when this Session works in a linked worktree instead of its own Project root.
      */
@@ -83,12 +81,14 @@ export function AgentActivityRowItem({
     return (
         <SessionRowMenu
             onBeginRename={beginRename}
+            onSuggestRename={() =>
+                sessionRename.suggestRename(session.id, session.displayTitle, session.id)
+            }
             onMarkRead={canMarkRead ? onMarkRead : undefined}
             onOpenChange={setMenuOpen}
             project={project}
             pullRequest={visiblePullRequest}
             session={session}
-            terminals={terminals}
         >
             <div className="agent-activity-row-shell group/activity-row relative">
                 <SessionActivityCard

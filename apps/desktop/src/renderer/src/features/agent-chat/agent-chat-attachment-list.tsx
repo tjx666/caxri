@@ -2,9 +2,11 @@ import { X } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import type { AgentChatAttachment } from './agent-chat-drafts';
+import { agentChatAttachmentLabel } from './agent-chat-drafts';
 
 /**
- * Images attached to the message being written, each removable before it is sent.
+ * Images attached to the message being written, each removable before it is sent. Removing one unmounts the button that
+ * had focus, so the caller hands focus back to the message input.
  */
 export function AgentChatAttachmentList({
     attachments,
@@ -21,7 +23,7 @@ export function AgentChatAttachmentList({
             {attachments.map((attachment, index) => (
                 <li className="group/attachment relative" key={attachment.id}>
                     <img
-                        alt={`Attachment ${index + 1}`}
+                        alt={agentChatAttachmentLabel(attachment, index)}
                         className="size-16 rounded-md border border-border object-cover"
                         src={attachment.image.thumbnail}
                     />

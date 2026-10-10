@@ -61,7 +61,13 @@ export function linearIssueTooltip(
             extra.length > 0
                 ? {
                       label: 'Also referenced',
-                      items: extra.map((other) => ({ label: other.identifier, href: other.url })),
+                      // A bare identifier says nothing about which issue it is; the title does when it resolved.
+                      items: extra.map((other) => ({
+                          label: other.title
+                              ? `${other.identifier}: ${other.title}`
+                              : other.identifier,
+                          href: other.url,
+                      })),
                   }
                 : undefined,
         // With other issues listed, "open in Linear" alone no longer says which one the chip itself opens.

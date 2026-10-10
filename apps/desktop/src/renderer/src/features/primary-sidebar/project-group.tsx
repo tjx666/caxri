@@ -351,7 +351,6 @@ export function ProjectGroup({
                                 selected={session.id === selectedSessionId}
                                 session={session}
                                 terminal={sessionAgentTerminal(session, terminals)}
-                                terminals={terminals}
                                 worktreeProject={worktreeProjects?.[session.id]}
                             />
                         ))}

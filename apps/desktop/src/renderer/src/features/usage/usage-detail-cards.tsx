@@ -14,6 +14,7 @@ import {
     tableHeadClass,
     UsageCard,
 } from './usage-card';
+import { UsageSessionTitle } from './usage-session-title';
 
 function openPullRequest(url: string): void {
     // eslint-disable-next-line no-void -- openExternalUrl reports failures through the shared toast path.
@@ -152,14 +153,7 @@ function SessionsCard({ report }: { report: UsageReport }) {
                                                 />
                                             ))}
                                         </span>
-                                        <span
-                                            className={cn(
-                                                'truncate',
-                                                row.isDeleted && 'text-muted',
-                                            )}
-                                        >
-                                            {row.title}
-                                        </span>
+                                        <UsageSessionTitle row={row} />
                                         {row.isArchived && (
                                             <Archive
                                                 aria-label="Archived"
@@ -198,7 +192,7 @@ function PullRequestsCard({ report }: { report: UsageReport }) {
             title="Merged pull requests"
             caption={
                 pullRequestsMerged > 0
-                    ? `${formatUsd(costUsd / pullRequestsMerged)} per merged PR`
+                    ? `est. ${formatUsd(costUsd / pullRequestsMerged)} per merged PR`
                     : undefined
             }
         >
@@ -211,7 +205,7 @@ function PullRequestsCard({ report }: { report: UsageReport }) {
                     {report.pullRequests.slice(0, 12).map((row) => (
                         <li key={row.url}>
                             <button
-                                className="grid w-full cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-2 rounded-sm px-1 py-1 text-left text-[12px] hover:bg-list-hover-background hover:text-list-hover-foreground"
+                                className="grid w-full cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-2 rounded-sm px-1 py-1 text-left text-[12px] hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
                                 type="button"
                                 onClick={() => openPullRequest(row.url)}
                             >

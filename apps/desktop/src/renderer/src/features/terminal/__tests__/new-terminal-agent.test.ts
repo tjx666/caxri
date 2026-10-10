@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
     newAgentSurface,
+    newTerminalActionLabel,
     newTerminalAgentChoices,
+    newTerminalButtonText,
     newTerminalCommandKind,
     resolveNewTerminalAgent,
     resolveNewTerminalTarget,
@@ -147,5 +149,29 @@ describe('resolveNewTerminalTarget with Open in Chat', () => {
 
     it('still clones a live PTY primary Agent as a PTY', () => {
         expect(resolveNewTerminalTarget(terminal('codex'), 'codex', true)).toEqual(pty('codex'));
+    });
+});
+
+describe('newTerminalActionLabel', () => {
+    it('names the Agent and the view a press creates', () => {
+        expect(newTerminalActionLabel({ kind: 'codex', surface: 'chat' }, 'Codex')).toBe(
+            'New Codex Chat',
+        );
+        expect(newTerminalActionLabel({ kind: 'claude', surface: 'pty' }, 'Claude Code')).toBe(
+            'New Claude Code Terminal',
+        );
+    });
+
+    it('keeps a Shell as a plain New Terminal', () => {
+        expect(newTerminalActionLabel({ kind: 'shell', surface: 'pty' }, 'Shell')).toBe(
+            'New Terminal',
+        );
+    });
+});
+
+describe('newTerminalButtonText', () => {
+    it('says New Chat only when the press opens a Chat', () => {
+        expect(newTerminalButtonText('chat')).toBe('New Chat');
+        expect(newTerminalButtonText('pty')).toBe('New Terminal');
     });
 });

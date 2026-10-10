@@ -15,10 +15,12 @@ const DANGER_SHARE = 0.95;
 
 /**
  * How much of the context window the conversation uses, as a filling ring with the percentage beside it, the way the
- * Codex app shows it. The tooltip gives the token counts behind the percentage.
+ * Codex app shows it. The tooltip gives the token counts behind the percentage. The ring is a Tab stop so a keyboard
+ * user can raise that tooltip too, and its accessible name carries the counts for a screen reader.
  */
 export function AgentChatContextMeter({ usage }: { usage: AgentChatContextUsage }) {
     const percent = Math.round(usage.used * 100);
+    const tokens = `${formatTokens(usage.totalTokens)} / ${formatTokens(usage.contextWindow)} tokens`;
     const tone =
         usage.used >= DANGER_SHARE
             ? 'text-danger'
@@ -30,20 +32,18 @@ export function AgentChatContextMeter({ usage }: { usage: AgentChatContextUsage 
             content={
                 <span className="flex flex-col">
                     <span>{percent}% of context used</span>
-                    <span className="text-muted">
-                        {formatTokens(usage.totalTokens)} / {formatTokens(usage.contextWindow)}{' '}
-                        tokens
-                    </span>
+                    <span className="text-muted">{tokens}</span>
                 </span>
             }
         >
             <span
-                aria-label={`${percent}% of context used`}
+                aria-label={`${percent}% of context used, ${tokens}`}
                 className={cn(
-                    'flex h-7 shrink-0 items-center gap-1 px-1 text-[12px] leading-4 tabular-nums',
+                    'flex h-7 shrink-0 items-center gap-1 rounded-md px-1 text-[12px] leading-4 tabular-nums focus-visible:outline focus-visible:outline-accent',
                     tone,
                 )}
                 role="img"
+                tabIndex={0}
             >
                 <svg aria-hidden className="size-3.5 -rotate-90" viewBox="0 0 14 14">
                     <circle
@@ -56,7 +56,7 @@ export function AgentChatContextMeter({ usage }: { usage: AgentChatContextUsage 
                     />
                     {usage.used > 0 && (
                         <circle
-                            className="stroke-current transition-[stroke-dashoffset] duration-300 ease-out"
+                            className="stroke-current transition-[stroke-dashoffset] duration-(--motion-expand) ease-(--motion-ease-emphasized)"
                             cx="7"
                             cy="7"
                             fill="none"

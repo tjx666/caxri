@@ -41,7 +41,7 @@ const PRESENTATIONS: Record<AgentActivityState, SessionActivityPresentation> = {
 
 const COMPACTION_PRESENTATION = presentation(
     'Compacting',
-    'Codex is summarizing earlier context before continuing.',
+    'The Agent is summarizing earlier context before continuing.',
     'success',
     'text-success',
 );

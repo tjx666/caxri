@@ -87,7 +87,7 @@ if (process.argv.includes('app-server')) {
         await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
         await page
             .getByRole('menu', { name: 'New Terminal' })
-            .getByRole('menuitemcheckbox', { name: 'Open in Chat' })
+            .getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' })
             .click();
         await chooseTerminalFromCreateMenu(page, 'Codex Chat');
         const session = page.locator(VISIBLE_SESSION);

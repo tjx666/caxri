@@ -6,6 +6,7 @@ import type { SessionRecord } from '@caxri/protocol';
 import { cn } from '../../lib/utilities';
 import { didSelectSession } from '../session/session-commands';
 import type { SessionOrderController } from './hooks/use-session-order';
+import { canSuggestSessionTitle } from './session-rename-draft';
 
 interface SessionRowTriggerProperties extends ComponentProps<'div'> {
     session: SessionRecord;
@@ -64,6 +65,7 @@ export function SessionRowTrigger({
      * destructured prop, and one such default silently leaves the whole component unoptimized.
      */
     const rowId = explicitRowId ?? session.id;
+    const canSuggest = canSuggestSessionTitle(session);
     const trigger = (
         <div
             ref={sessionOrder.draggedId === session.id ? sessionOrder.sourceReference : undefined}
@@ -86,7 +88,13 @@ export function SessionRowTrigger({
             role="treeitem"
             aria-level={2}
             aria-selected={selected}
-            aria-keyshortcuts={renaming ? undefined : 'Alt+ArrowUp Alt+ArrowDown'}
+            aria-keyshortcuts={
+                renaming
+                    ? undefined
+                    : canSuggest
+                      ? 'Shift+Enter Alt+ArrowUp Alt+ArrowDown'
+                      : 'Alt+ArrowUp Alt+ArrowDown'
+            }
             tabIndex={renaming ? undefined : roving ? 0 : -1}
             onFocus={(event) => onFocusChange(event.currentTarget.matches(':focus-visible'))}
             onBlur={() => onFocusChange(false)}
@@ -101,7 +109,7 @@ export function SessionRowTrigger({
                 if (event.defaultPrevented) return;
                 if (!renaming && event.key === 'Enter' && event.shiftKey) {
                     event.preventDefault();
-                    onSuggestRename();
+                    if (canSuggest) onSuggestRename();
                 } else if (!renaming && event.key === 'Enter') {
                     event.preventDefault();
                     onBeginRename();

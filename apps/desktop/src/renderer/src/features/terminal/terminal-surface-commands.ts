@@ -11,6 +11,8 @@ import type { ContextMenuEntry } from '../../lib/context-menu';
 import { readCommandShortcut } from '../../lib/keybindings';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
+import type { TerminalSurfaceSwitchRegistry } from './terminal-surface-switch-pending';
+import { terminalSurfaceSwitches } from './terminal-surface-switch-pending';
 
 const surfaceLabels: Record<TerminalSurface, string> = {
     chat: 'Open as Chat',
@@ -20,8 +22,9 @@ const surfaceLabels: Record<TerminalSurface, string> = {
 type SurfaceSwitchTerminal = Pick<TerminalRecord, 'id' | 'kind' | 'provider' | 'surface'>;
 
 /**
- * Whether the Terminal can reopen on the other surface: an Agent whose provider supports Chat. A Shell or a PTY-only
- * Agent (Grok Build) has no other surface. The Server owns the authoritative checks.
+ * Whether the Terminal can reopen on the other surface: an Agent whose provider supports Chat (`canUseAgentChat`). A
+ * Shell, or an Agent whose provider has no Chat integration, has no other surface. The Server owns the authoritative
+ * checks.
  */
 export function canSwitchTerminalSurface(
     terminal: Pick<TerminalRecord, 'kind' | 'provider'> | undefined,
@@ -52,19 +55,20 @@ export function terminalSurfaceMenuEntry(
 }
 
 /**
- * Reopens a Chat-capable Agent Terminal on `surface`; a Terminal already there, or one that cannot switch, is left
- * alone.
+ * Reopens a Chat-capable Agent Terminal on `surface`; a Terminal already there, one that cannot switch, or one whose
+ * previous switch is still pending is left alone. Every entry point (rail toggle, tab menu, shortcut, native menu)
+ * comes through here, so the pending guard covers them all.
  */
 export function switchTerminalSurfaceTo(
     terminal: SurfaceSwitchTerminal,
     surface: TerminalSurface,
+    switches: TerminalSurfaceSwitchRegistry = terminalSurfaceSwitches,
 ): Promise<void> | undefined {
-    if (!terminal.provider || !canSwitchTerminalSurface(terminal)) return undefined;
+    const { provider } = terminal;
+    if (!provider || !canSwitchTerminalSurface(terminal)) return undefined;
     if (otherTerminalSurface(terminal) !== surface) return undefined;
-    return switchTerminalSurface(
-        terminal.id,
-        surface,
-        agentProviderCatalog[terminal.provider].displayName,
+    return switches.run(terminal.id, surface, () =>
+        switchTerminalSurface(terminal.id, surface, agentProviderCatalog[provider].displayName),
     );
 }
 

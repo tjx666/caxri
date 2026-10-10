@@ -13,6 +13,7 @@ import type { ContextMenuEntries } from '../../lib/context-menu';
 import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { readCommandShortcut } from '../../lib/keybindings';
 import { fetchCaxriQuery } from '../../queries/client';
+import { getBootstrap } from '../../stores/selectors';
 import { revokePermissionAutoAllow } from '../session/permission-auto-allow-commands';
 import {
     archiveSession,
@@ -29,6 +30,7 @@ import {
 } from '../session/session-commands';
 import { agentReloadMenuEntry } from '../terminal/terminal-reload-commands';
 import { agentResumeCommandMenuEntry } from '../terminal/terminal-surface-commands';
+import { canSuggestSessionTitle } from './session-rename-draft';
 
 /**
  * Right-click menu for one Session row. Every entry acts on the clicked row (not the selected Session), so the handlers
@@ -40,17 +42,18 @@ import { agentResumeCommandMenuEntry } from '../terminal/terminal-surface-comman
  * tree row's Enter key, which always opened the input.
  *
  * This menu and the row's own gestures open the same inline rename editor. A list without an editor omits
- * `onBeginRename`, so the menu never offers an action that does nothing.
+ * `onBeginRename`, so the menu never offers an action that does nothing. `onSuggestRename` is the row's Rename with AI
+ * (its `Shift+Enter`); the entry hides for a Session without a primary Agent, whose conversation the name comes from.
  */
 export function SessionRowMenu({
     children,
     onBeginRename,
     onMarkRead,
     onOpenChange,
+    onSuggestRename,
     project,
     pullRequest,
     session,
-    terminals,
 }: {
     children: ReactElement;
     onBeginRename?: () => void;
@@ -61,12 +64,16 @@ export function SessionRowMenu({
     onMarkRead?: () => void;
     onOpenChange?: (isOpen: boolean) => void;
     /**
+     * Opens the row's rename editor and asks for an AI-generated name, as the row's `Shift+Enter` does. Omitted by a
+     * list without a rename editor.
+     */
+    onSuggestRename?: () => void;
+    /**
      * The fields the menu's Project actions act on.
      */
     project: Pick<ProjectRecord, 'id' | 'rootPath'>;
     pullRequest?: SessionPullRequest;
     session: SessionRecord;
-    terminals: TerminalRecord[];
 }) {
     return (
         <ContextMenuTrigger
@@ -75,10 +82,16 @@ export function SessionRowMenu({
                 sessionRowMenu({
                     onBeginRename,
                     onMarkRead,
+                    onSuggestRename,
                     project,
                     pullRequest,
                     session,
-                    terminals,
+                    /**
+                     * Read when the menu opens instead of taken as a prop: every row would otherwise receive the whole
+                     * Terminal list, so any Terminal change (a surface switch, a title update) re-rendered every
+                     * Session row in the tree.
+                     */
+                    terminals: getBootstrap()?.terminals ?? [],
                 })
             }
         >
@@ -87,7 +100,13 @@ export function SessionRowMenu({
     );
 }
 
-const UNBOUND_AGENT_REASON = 'This Session has no bound Agent conversation yet';
+/**
+ * One sentence per reason an Agent entry is unavailable, shared by every entry that needs it: the Session has no Agent
+ * at all, or its Agent has not started a conversation yet.
+ */
+const NO_AGENT_REASON = 'This Session has no Agent';
+const NO_CONVERSATION_REASON = 'This Session has no Agent conversation yet';
+const NO_RUNNING_AGENT_REASON = 'This Session has no running Agent';
 
 /**
  * A native menu cannot be patched once it is showing, so the grant read gates the whole menu. It is bounded: a slow or
@@ -119,6 +138,7 @@ async function isPermissionAutoAllowGranted(sessionId: string): Promise<boolean>
 async function sessionRowMenu({
     onBeginRename,
     onMarkRead,
+    onSuggestRename,
     project,
     pullRequest,
     session,
@@ -126,6 +146,7 @@ async function sessionRowMenu({
 }: {
     onBeginRename?: () => void;
     onMarkRead?: () => void;
+    onSuggestRename?: () => void;
     project: Pick<ProjectRecord, 'id' | 'rootPath'>;
     pullRequest?: SessionPullRequest;
     session: SessionRecord;
@@ -139,9 +160,12 @@ async function sessionRowMenu({
     );
     /**
      * Both copy entries read the Agent's durable identity, which only exists once the provider has created a
-     * conversation: a Session whose Agent has not been bound yet has nothing to put on the clipboard.
+     * conversation: a Session whose Agent has not started one yet has nothing to put on the clipboard.
      */
-    const boundAgentSessionId = primaryTerminal?.agentSessionId;
+    const agentSessionId = primaryTerminal?.agentSessionId;
+    const missingConversationReason = primaryTerminal?.provider
+        ? NO_CONVERSATION_REASON
+        : NO_AGENT_REASON;
     const isAutoAllowGranted = await isPermissionAutoAllowGranted(session.id);
     return [
         /**
@@ -165,6 +189,12 @@ async function sessionRowMenu({
             shortcut: readCommandShortcut('session.rename'),
             onSelect: onBeginRename,
         },
+        onSuggestRename &&
+            canSuggestSessionTitle(session) && {
+                label: 'Rename with AI',
+                shortcut: 'shift+enter',
+                onSelect: onSuggestRename,
+            },
         /**
          * Pin has no key hint: it is neither a tree key nor a catalog command, because it acts on the clicked row
          * rather than the selected Session; the same reason Archive keeps a literal instead of a binding.
@@ -186,7 +216,7 @@ async function sessionRowMenu({
             : {
                   label: 'Detach Agent',
                   disabled: !canDetach,
-                  disabledReason: 'No running Agent Terminal to detach',
+                  disabledReason: NO_RUNNING_AGENT_REASON,
                   onSelect: () => detachSession(session.id),
               },
         /**
@@ -194,7 +224,7 @@ async function sessionRowMenu({
          * the way Detach does: a reload interrupts a running turn, so it must not reach Agents the user did not point
          * at. Each Agent Terminal's own tab menu reloads that one.
          */
-        agentReloadMenuEntry(primaryTerminal),
+        agentReloadMenuEntry(primaryTerminal, missingConversationReason),
         isAutoAllowGranted && {
             label: 'Turn Off Always Allow in this Session',
             onSelect: () => revokePermissionAutoAllow(session.id),
@@ -213,20 +243,18 @@ async function sessionRowMenu({
         CONTEXT_MENU_SEPARATOR,
         {
             label: 'Copy Agent Session ID',
-            disabled: !boundAgentSessionId,
-            disabledReason: UNBOUND_AGENT_REASON,
-            onSelect: () => boundAgentSessionId && copyAgentSessionId(boundAgentSessionId),
+            disabled: !agentSessionId,
+            disabledReason: missingConversationReason,
+            onSelect: () => agentSessionId && copyAgentSessionId(agentSessionId),
         },
         {
             label: 'Copy Transcript Path',
-            disabled: !boundAgentSessionId,
-            disabledReason: UNBOUND_AGENT_REASON,
+            disabled: !agentSessionId,
+            disabledReason: missingConversationReason,
             onSelect: () =>
-                primaryTerminal &&
-                boundAgentSessionId &&
-                copyAgentTranscriptPath(primaryTerminal.id),
+                primaryTerminal && agentSessionId && copyAgentTranscriptPath(primaryTerminal.id),
         },
-        agentResumeCommandMenuEntry(primaryTerminal, UNBOUND_AGENT_REASON),
+        agentResumeCommandMenuEntry(primaryTerminal, missingConversationReason),
         CONTEXT_MENU_SEPARATOR,
         {
             label: 'Delete Session…',

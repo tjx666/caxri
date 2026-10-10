@@ -90,7 +90,7 @@ import(${JSON.stringify(pathToFileURL(FAKE_GROK).href)});
 }
 
 /**
- * Creates an Agent Chat from the visible Session's New Terminal menu, with the menu's Open in Chat toggle on.
+ * Creates an Agent Chat from the visible Session's New Terminal menu, with the menu's Open Agents in Chat toggle on.
  */
 export async function openAgentChat(
     page: Page,
@@ -98,7 +98,7 @@ export async function openAgentChat(
 ) {
     await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
     const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
-    const openInChat = terminalMenu.getByRole('menuitemcheckbox', { name: 'Open in Chat' });
+    const openInChat = terminalMenu.getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' });
     if (!(await openInChat.isChecked())) await openInChat.click();
     await chooseTerminalFromCreateMenu(page, label);
 }

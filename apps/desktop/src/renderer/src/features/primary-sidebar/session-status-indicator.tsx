@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useId } from 'react';
 
 import type { SessionRecord } from '@caxri/protocol';
 import { Unplug } from 'lucide-react';
@@ -39,6 +40,7 @@ export function SessionStatusIndicator({
     session: SessionRecord;
     terminal?: SessionStatusTerminal;
 }) {
+    const descriptionId = useId();
     const status = sessionStatus(session, terminal);
     if (status.kind === 'default')
         return (
@@ -56,44 +58,57 @@ export function SessionStatusIndicator({
             </>
         );
 
+    /*
+     * The full sentence goes in a hidden sibling referenced by `aria-describedby`: hidden content is skipped when the
+     * row computes its name from content, but still read as the glyph's description.
+     */
     return (
-        <span
-            role="img"
-            aria-label={status.ariaLabel}
-            className={cn(
-                'session-status relative flex size-3.5 flex-none items-center justify-center',
-                status.kind === 'attention'
-                    ? 'session-status-attention text-warning'
-                    : status.kind === 'detached'
-                      ? 'session-status-detached text-muted'
-                      : 'session-status-running text-muted',
-                className,
-            )}
-            data-agent-operation={terminal?.agentOperation}
-            data-attention-kind={
-                status.kind === 'attention' ? session.lastAttentionKind : undefined
-            }
-            data-session-status={status.kind}
-        >
-            {status.kind === 'attention' ? (
-                <>
-                    <span
-                        aria-hidden="true"
-                        className="absolute inset-0 rounded-full border border-warning opacity-75 motion-safe:animate-ping motion-reduce:hidden"
-                        data-session-status-ripple=""
-                    />
-                    <span
-                        aria-hidden="true"
-                        className="size-3.5 rounded-full border border-warning"
-                    />
-                    <span aria-hidden="true" className="absolute size-2 rounded-full bg-warning" />
-                </>
-            ) : status.kind === 'detached' ? (
-                <Unplug aria-hidden="true" size={12} />
-            ) : (
-                <RunningArc />
-            )}
-        </span>
+        <>
+            <span
+                role="img"
+                aria-label={status.ariaLabel}
+                aria-describedby={descriptionId}
+                className={cn(
+                    'session-status relative flex size-3.5 flex-none items-center justify-center',
+                    status.kind === 'attention'
+                        ? 'session-status-attention text-warning'
+                        : status.kind === 'detached'
+                          ? 'session-status-detached text-muted'
+                          : 'session-status-running text-muted',
+                    className,
+                )}
+                data-agent-operation={terminal?.agentOperation}
+                data-attention-kind={
+                    status.kind === 'attention' ? session.lastAttentionKind : undefined
+                }
+                data-session-status={status.kind}
+            >
+                {status.kind === 'attention' ? (
+                    <>
+                        <span
+                            aria-hidden="true"
+                            className="absolute inset-0 rounded-full border border-warning opacity-75 motion-safe:animate-ping motion-reduce:hidden"
+                            data-session-status-ripple=""
+                        />
+                        <span
+                            aria-hidden="true"
+                            className="size-3.5 rounded-full border border-warning"
+                        />
+                        <span
+                            aria-hidden="true"
+                            className="absolute size-2 rounded-full bg-warning"
+                        />
+                    </>
+                ) : status.kind === 'detached' ? (
+                    <Unplug aria-hidden="true" size={12} />
+                ) : (
+                    <RunningArc />
+                )}
+            </span>
+            <span id={descriptionId} hidden>
+                {status.ariaDescription}
+            </span>
+        </>
     );
 }
 
