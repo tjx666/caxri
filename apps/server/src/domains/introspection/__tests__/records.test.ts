@@ -151,6 +151,39 @@ describe('Runtime record queries', () => {
         for (const project of topLevel) expect(project).not.toHaveProperty('ownerProjectId');
     });
 
+    it('lists only top-level Projects to a paired device, even when a worktree Project is granted', () => {
+        const service = new RecordQueryService(
+            {
+                ...source,
+                projects: () => [
+                    ...source.projects(),
+                    {
+                        id: 'project-worktree',
+                        displayTitle: 'feature',
+                        rootPath: '/Users/test/two-worktrees/feature',
+                        orderIndex: 2,
+                        createdAt: 3,
+                        lastOpenedAt: 3,
+                        ownerProjectId: 'project-2',
+                    },
+                ],
+            },
+            '/Users/test',
+        );
+        const device: Principal = {
+            kind: 'paired-device',
+            id: 'device-1',
+            deviceId: 'device-1',
+            role: 'control',
+            generation: 1,
+            projectIds: ['project-2', 'project-worktree'],
+        };
+
+        expect(service.project({ mode: 'list' }, device).projects).toEqual([
+            { id: 'project-2', displayTitle: 'Shared' },
+        ]);
+    });
+
     it('redacts Project roots outside HOME from every human query mode', () => {
         const externalRoot = '/Volumes/Private Client/repository';
         const service = new RecordQueryService(

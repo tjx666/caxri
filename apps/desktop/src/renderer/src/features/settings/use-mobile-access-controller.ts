@@ -11,7 +11,7 @@ import {
     revokeMobileDevice,
     setMobileAccessEnabled,
 } from './mobile-access-client';
-import { summarizeProjectAccess } from './mobile-access-summary';
+import { splitGrantableProjects, summarizeProjectAccess } from './mobile-access-summary';
 
 export interface MobilePairingState {
     expiresAt: number;
@@ -27,9 +27,17 @@ export interface MobileAccessState {
     loadState: 'error' | 'loading' | 'ready';
     now: number;
     pairing?: MobilePairingState;
+    /**
+     * The Projects a pairing can grant, without auto-registered worktree Projects (see `splitGrantableProjects`).
+     */
     projects: ProjectQueryResult['projects'];
     selectedProjectIds: Set<string>;
     status?: MobileAccessStatus;
+    /**
+     * Worktree Project ids an older pairing may still hold. The device's Access line skips them instead of counting
+     * them as unavailable, matching what the phone shows.
+     */
+    worktreeProjectIds: ReadonlySet<string>;
 }
 
 export type MobileAccessAction =
@@ -38,6 +46,7 @@ export type MobileAccessAction =
           projects: ProjectQueryResult['projects'];
           status: MobileAccessStatus;
           type: 'loaded';
+          worktreeProjectIds: ReadonlySet<string>;
       }
     | { busy: boolean; type: 'set-busy' }
     | { copied: boolean; type: 'set-copied' }
@@ -67,6 +76,7 @@ export const initialMobileAccessState: MobileAccessState = {
     now: 0,
     projects: [],
     selectedProjectIds: new Set(),
+    worktreeProjectIds: new Set(),
 };
 
 export const mobileAccessReducer = (
@@ -90,6 +100,7 @@ export const mobileAccessReducer = (
                                   .map((project) => project.id),
                           ),
                 status: action.status,
+                worktreeProjectIds: action.worktreeProjectIds,
             };
         case 'set-busy':
             return { ...state, busy: action.busy };
@@ -148,7 +159,7 @@ export const useMobileAccessController = () => {
             ]);
             dispatch({
                 devices: devices.devices,
-                projects: projects.projects,
+                ...splitGrantableProjects(projects),
                 status,
                 type: 'loaded',
             });
@@ -294,11 +305,13 @@ export const useMobileAccessController = () => {
             activeDevices.map((device) => [
                 device.deviceId,
                 summarizeProjectAccess(
-                    device.projectIds.map((projectId) => projectTitles.get(projectId)),
+                    device.projectIds
+                        .filter((projectId) => !state.worktreeProjectIds.has(projectId))
+                        .map((projectId) => projectTitles.get(projectId)),
                 ),
             ]),
         );
-    }, [activeDevices, state.projects]);
+    }, [activeDevices, state.projects, state.worktreeProjectIds]);
 
     return {
         ...state,
