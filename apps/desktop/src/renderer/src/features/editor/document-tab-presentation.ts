@@ -43,10 +43,10 @@ export function documentTabPresentation(
                     : preview
                       ? pathBasename(preview.path)
                       : isSettings
-                        ? // Resolved through the real on-disk file name so the tab icon matches the same lookup
-                          // `settings.jsonc` gets anywhere else a file icon is drawn from a path.
-                          'settings.jsonc'
+                        ? undefined
                         : (external?.name ?? pathBasename(path)),
+        // Settings draws its own glyph, as VS Code's Settings editor tab does, instead of the JSON file it is stored in.
+        icon: isSettings ? ('settings' as const) : ('file' as const),
         label,
         // A preview tab shows its source path: the label already says "Preview", so the tooltip's job is locating it.
         labelTooltip: preview

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { summarizeProjectAccess } from '../mobile-access-summary';
+import { splitGrantableProjects, summarizeProjectAccess } from '../mobile-access-summary';
 
 describe('summarizeProjectAccess', () => {
     it('joins every resolved title when none are unavailable', () => {
@@ -19,5 +19,24 @@ describe('summarizeProjectAccess', () => {
 
     it('reads as empty when the device has no grants at all', () => {
         expect(summarizeProjectAccess([])).toBe('');
+    });
+});
+
+describe('splitGrantableProjects', () => {
+    it('offers only top-level Projects and remembers the worktree Project ids', () => {
+        const result = splitGrantableProjects({
+            view: 'desktop',
+            projects: [
+                { id: 'project-1', displayTitle: 'Caxri', rootPath: '$HOME/caxri' },
+                {
+                    id: 'project-2',
+                    displayTitle: 'feature',
+                    rootPath: '$HOME/caxri-worktrees/feature',
+                    ownerProjectId: 'project-1',
+                },
+            ],
+        });
+        expect(result.projects.map(({ id }) => id)).toEqual(['project-1']);
+        expect([...result.worktreeProjectIds]).toEqual(['project-2']);
     });
 });

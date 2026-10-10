@@ -10,7 +10,7 @@ import type {
     TerminalQueryResult,
     TerminalRecord,
 } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
 export interface RecordQuerySource {
     currentProjectId(): string | undefined;
@@ -36,6 +36,19 @@ function isScopedPrincipal(principal: Principal): principal is ScopedPrincipal {
 
 function scopeFor(principal: Principal): ReadonlySet<string> | undefined {
     return isScopedPrincipal(principal) ? new Set(principal.projectIds) : undefined;
+}
+
+/**
+ * A paired device lists only the Projects the PrimarySidebar presents at its top level. Auto-registered worktree
+ * Projects can never own a Session, so on the mobile Project filter and pickers they were entries the user never added
+ * that always filtered to an empty list. Other principals keep the full list; the CLI marks worktree Projects with
+ * their `ownerProjectId`.
+ */
+function listedProjects(
+    projects: readonly ProjectRecord[],
+    principal: Principal,
+): readonly ProjectRecord[] {
+    return principal.kind === 'paired-device' ? projects.filter(isTopLevelProject) : projects;
 }
 
 function select<T extends SelectableRecord>(
@@ -104,7 +117,7 @@ export class RecordQueryService {
             );
         const selected =
             query.mode === 'list'
-                ? visible
+                ? listedProjects(visible, principal)
                 : query.mode === 'show'
                   ? [select(visible, query.selector, 'Project', ({ displayTitle }) => displayTitle)]
                   : [selectCurrent(visible, this.source.currentProjectId(), 'Project')];
