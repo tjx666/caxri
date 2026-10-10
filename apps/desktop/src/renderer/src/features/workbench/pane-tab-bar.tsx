@@ -598,7 +598,7 @@ function PaneTabList({
                 />
             </PaneTabScrollRail>
             <PaneTabScrollRail
-                className={cn('min-w-0 flex-1', !rail.isOccupied && 'hidden')}
+                className={cn('@container min-w-0 flex-1', !rail.isOccupied && 'hidden')}
                 fill={scrollFadeFill}
                 scrollClassName="work-tab-scroll"
             >

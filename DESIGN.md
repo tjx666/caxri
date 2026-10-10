@@ -567,7 +567,8 @@ muted is what stops a crowded rail from reading as a row of X's. A dirty tab sho
 slot instead and swaps to the close button on hover/focus, active or not.
 Tabs fill the full 44px rail height. Document tabs fit their full labels; Terminal tabs divide the
 remaining width with their full displayed content as the minimum. Crowded bars scroll rather than
-truncating Terminal labels or imposing a fixed filename cap.
+truncating Terminal labels or imposing a fixed filename cap; the one exception is a single document
+label longer than the whole bar, which truncates 6rem short of it so its own close button stays in view.
 While the whole workbench holds exactly one tab across every
 pane, that tab drops the accent top border: an "active" marker distinguishes nothing when there is
 nothing to distinguish it from, and the pane ring still carries focus. The New Terminal + reserves
