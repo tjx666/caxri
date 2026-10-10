@@ -10,14 +10,19 @@ export function createAgentChatHandlers(
     DomainHandlers,
     | 'agentChat.interrupt'
     | 'agentChat.read'
+    | 'agentChat.readTask'
+    | 'agentChat.removeQueued'
     | 'agentChat.respond'
+    | 'agentChat.resumeQueue'
     | 'agentChat.runCommand'
     | 'agentChat.send'
+    | 'agentChat.sendQueuedNow'
+    | 'agentChat.stopTask'
 > {
     return {
         'agentChat.read': ({ terminalId }) => agentChat.read(terminalId),
-        'agentChat.send': async ({ terminalId, text, images }) => {
-            await agentChat.send(terminalId, { text, ...(images && { images }) });
+        'agentChat.send': async ({ terminalId, text, images, delivery }) => {
+            await agentChat.send(terminalId, { text, ...(images && { images }) }, delivery);
             return null;
         },
         'agentChat.runCommand': async ({ terminalId, name, arguments: arguments_ }) => {
@@ -30,6 +35,23 @@ export function createAgentChatHandlers(
         },
         'agentChat.respond': ({ terminalId, requestId, response }) => {
             agentChat.respond(terminalId, requestId, response);
+            return null;
+        },
+        'agentChat.readTask': ({ terminalId, taskId }) => agentChat.readTask(terminalId, taskId),
+        'agentChat.stopTask': async ({ terminalId, taskId }) => {
+            await agentChat.stopTask(terminalId, taskId);
+            return null;
+        },
+        'agentChat.removeQueued': ({ terminalId, id }) => {
+            agentChat.removeQueued(terminalId, id);
+            return null;
+        },
+        'agentChat.sendQueuedNow': async ({ terminalId, id }) => {
+            await agentChat.sendQueuedNow(terminalId, id);
+            return null;
+        },
+        'agentChat.resumeQueue': ({ terminalId }) => {
+            agentChat.resumeQueue(terminalId);
             return null;
         },
     };

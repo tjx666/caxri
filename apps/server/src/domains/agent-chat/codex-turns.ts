@@ -36,7 +36,14 @@ function turnStatus(value: unknown): AgentChatTurn['status'] {
     }
 }
 
-function historyItems(rawItems: unknown, turnId: string, isRunning: boolean): AgentChatItem[] {
+/**
+ * One recorded turn's items, with the dangling ones closed unless the turn is still running.
+ */
+export function historyItems(
+    rawItems: unknown,
+    turnId: string,
+    isRunning: boolean,
+): AgentChatItem[] {
     if (!Array.isArray(rawItems)) return [];
     return rawItems.flatMap((rawItem) => {
         const item = mapCodexItem(rawItem, turnId, false);
@@ -93,12 +100,14 @@ export function historyOperations(
 
 /**
  * Operations that close one finished turn: its dangling items, an error notice for a failed turn, its final status and
- * duration, and the pending requests `shouldKeepRequest` releases.
+ * duration, and the pending requests `shouldKeepRequest` releases. Items in `keepOpen` stay running: a background
+ * terminal outlives the turn that started it and completes on its own.
  */
 export function finishedTurnOperations(
     snapshot: AgentChatSnapshot,
     turn: Json,
     shouldKeepRequest: (requestId: string, turnId: string) => boolean,
+    keepOpen: ReadonlySet<string> = new Set(),
 ):
     | {
           id: string;
@@ -113,7 +122,7 @@ export function finishedTurnOperations(
     const status = turnStatus(turn.status);
     const operations: AgentChatPatchOperation[] = [];
     for (const item of snapshot.items) {
-        if (item.turnId !== undefined && item.turnId !== id) continue;
+        if ((item.turnId !== undefined && item.turnId !== id) || keepOpen.has(item.id)) continue;
         const closed = closeDanglingItem(item);
         if (closed) operations.push({ op: 'upsertItem', item: closed });
     }

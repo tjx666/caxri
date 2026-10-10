@@ -210,14 +210,20 @@ export const isAgentChatWorkRunning = (item: AgentChatWorkItem): boolean =>
 /**
  * How a run of work renders: settled work collapses into one summary row once it holds at least two tool calls
  * (reasoning alone never earns a summary, which would hide the thought's title), and work still running stays out of
- * the summary as its own live rows, so the step in progress is always readable.
+ * the summary as its own live rows, so the step in progress is always readable. `isLive` marks more work as running,
+ * such as a tool call that returned while the background task it started keeps going.
  */
-export function splitAgentChatWork(items: readonly AgentChatWorkItem[]): {
+export function splitAgentChatWork(
+    items: readonly AgentChatWorkItem[],
+    isLive: (item: AgentChatWorkItem) => boolean = () => false,
+): {
     summarized: readonly AgentChatWorkItem[];
     rows: readonly AgentChatWorkItem[];
 } {
-    const settled = items.filter((item) => !isAgentChatWorkRunning(item));
-    const live = items.filter((item) => isAgentChatWorkRunning(item));
+    const isRunning = (item: AgentChatWorkItem): boolean =>
+        isAgentChatWorkRunning(item) || isLive(item);
+    const settled = items.filter((item) => !isRunning(item));
+    const live = items.filter((item) => isRunning(item));
     const toolCount = settled.filter((item) => item.type !== 'reasoning').length;
     return toolCount >= 2
         ? { summarized: settled, rows: live }

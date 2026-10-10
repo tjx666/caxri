@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { agentChatPatchSchema } from '../agent/agent-chat-contract.js';
+import { agentChatPatchSchema, agentChatTaskPatchSchema } from '../agent/agent-chat-contract.js';
 import { agentDispatchReceiptSchema } from '../agent/agent-dispatch-contract.js';
 import { agentEndpointSummarySchema } from '../agent/agent-endpoint-contract.js';
 import {
@@ -135,6 +135,11 @@ export const serverEventPayloads = {
      * output.
      */
     'agentChat.patch': agentChatPatchSchema,
+    /**
+     * Incremental change to one task's projection (a subagent's conversation or a background shell's output), transient
+     * for the same reason.
+     */
+    'agentChat.taskPatch': agentChatTaskPatchSchema,
     'terminal.output': z.object({
         terminalId: identifierSchema,
         data: z.string(),

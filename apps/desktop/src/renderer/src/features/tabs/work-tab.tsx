@@ -8,7 +8,7 @@ import type {
 } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import { ChartColumn, SlidersHorizontal, X } from 'lucide-react';
+import { Bot, ChartColumn, SlidersHorizontal, SquareTerminal, X } from 'lucide-react';
 import { useIsPresent } from 'motion/react';
 import * as m from 'motion/react-m';
 
@@ -86,9 +86,11 @@ interface WorkTabProperties {
     gitDecoration?: GitDecoration;
     /**
      * `'file'` resolves a file type icon from `fileIconName`; `'settings'` is the Settings tab's own glyph, matching VS
-     * Code, whose Settings editor tab shows a settings icon rather than the JSON file it is stored in.
+     * Code, whose Settings editor tab shows a settings icon rather than the JSON file it is stored in. `'agent-task'`
+     * and `'shell-task'` mark an Agent Chat's subagent and background shell tabs with the glyphs their timeline rows
+     * use.
      */
-    icon: 'file' | 'settings' | 'usage' | AgentIconIdentity;
+    icon: 'file' | 'settings' | 'usage' | 'agent-task' | 'shell-task' | AgentIconIdentity;
     label: string;
     /**
      * Hover/focus detail shown alongside `label`. For a Terminal this is the untruncated title behind an abbreviated
@@ -216,6 +218,10 @@ function WorkTabLabel({
                 <SlidersHorizontal aria-hidden="true" className="h-4 w-4 flex-none" size={14} />
             ) : icon === 'usage' ? (
                 <ChartColumn aria-hidden="true" className="h-4 w-4 flex-none" size={14} />
+            ) : icon === 'agent-task' ? (
+                <Bot aria-hidden="true" className="h-4 w-4 flex-none" size={14} />
+            ) : icon === 'shell-task' ? (
+                <SquareTerminal aria-hidden="true" className="h-4 w-4 flex-none" size={14} />
             ) : (
                 <AgentIdentityIcon identity={icon} size={13} />
             )}

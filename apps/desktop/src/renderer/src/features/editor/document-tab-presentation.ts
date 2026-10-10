@@ -1,9 +1,11 @@
 import {
+    agentTaskTabLabel,
     agentTranscriptTabLabel,
     filePreviewTabLabel,
     gitDiffTabLabel,
     isSettingsTabPath,
     isUsageTabPath,
+    parseAgentTaskTab,
     parseAgentTranscriptTab,
     parseExternalEditorTab,
     parseFilePreviewTab,
@@ -18,10 +20,18 @@ import { pathBasename } from '@caxri/utils';
  */
 export function documentTabPresentation(
     path: string,
-    options: { displayPath?: string; transcriptTitle?: string },
+    options: {
+        displayPath?: string;
+        transcriptTitle?: string;
+        /**
+         * The Agent Chat task an `agentTaskTabPath` tab shows, when the Chat still lists it.
+         */
+        task?: { kind: 'agent' | 'shell'; title: string };
+    },
 ) {
     const diff = parseGitDiffTab(path);
     const transcript = parseAgentTranscriptTab(path);
+    const agentTask = parseAgentTaskTab(path);
     const external = parseExternalEditorTab(path);
     const preview = parseFilePreviewTab(path);
     const isSettings = isSettingsTabPath(path);
@@ -30,13 +40,15 @@ export function documentTabPresentation(
         ? gitDiffTabLabel(diff)
         : transcript
           ? agentTranscriptTabLabel(options.transcriptTitle)
-          : preview
-            ? filePreviewTabLabel(preview.path)
-            : isSettings
-              ? SETTINGS_TAB_LABEL
-              : isUsage
-                ? USAGE_TAB_LABEL
-                : (external?.name ?? pathBasename(path));
+          : agentTask
+            ? agentTaskTabLabel(options.task)
+            : preview
+              ? filePreviewTabLabel(preview.path)
+              : isSettings
+                ? SETTINGS_TAB_LABEL
+                : isUsage
+                  ? USAGE_TAB_LABEL
+                  : (external?.name ?? pathBasename(path));
     return {
         fileIconName:
             diff?.kind === 'file'
@@ -47,16 +59,24 @@ export function documentTabPresentation(
                     ? 'transcript.jsonl'
                     : preview
                       ? pathBasename(preview.path)
-                      : isSettings || isUsage
+                      : isSettings || isUsage || agentTask
                         ? undefined
                         : (external?.name ?? pathBasename(path)),
         // Settings draws its own glyph, as VS Code's Settings editor tab does, instead of the JSON file it is stored in.
-        icon: isSettings ? ('settings' as const) : isUsage ? ('usage' as const) : ('file' as const),
+        icon: isSettings
+            ? ('settings' as const)
+            : isUsage
+              ? ('usage' as const)
+              : agentTask
+                ? options.task?.kind === 'shell'
+                    ? ('shell-task' as const)
+                    : ('agent-task' as const)
+                : ('file' as const),
         label,
         // A preview tab shows its source path: the label already says "Preview", so the tooltip's job is locating it.
         labelTooltip: preview
             ? preview.path
-            : diff || transcript || isSettings || isUsage
+            : diff || transcript || agentTask || isSettings || isUsage
               ? label
               : (options.displayPath ?? external?.name ?? path),
     };
