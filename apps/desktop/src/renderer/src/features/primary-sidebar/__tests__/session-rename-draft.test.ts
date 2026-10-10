@@ -37,20 +37,18 @@ describe('decideSessionRename', () => {
 
 describe('syncUntouchedRenameDraft', () => {
     it('adopts a new title while the draft is untouched', () => {
-        expect(syncUntouchedRenameDraft('Untitled', 'Untitled', 'Refactor auth flow')).toBe(
+        expect(syncUntouchedRenameDraft(false, 'Untitled', 'Refactor auth flow')).toBe(
             'Refactor auth flow',
         );
     });
 
-    it('keeps an edited draft when a new title arrives', () => {
-        expect(syncUntouchedRenameDraft('My name', 'Untitled', 'Refactor auth flow')).toBe(
-            undefined,
-        );
+    it('keeps an edited draft when a new title arrives, even one typed back to the original title', () => {
+        expect(syncUntouchedRenameDraft(true, 'Untitled', 'Refactor auth flow')).toBe(undefined);
     });
 
     it('does nothing while the title is unchanged or the Session is gone', () => {
-        expect(syncUntouchedRenameDraft('Untitled', 'Untitled', 'Untitled')).toBe(undefined);
-        expect(syncUntouchedRenameDraft('Untitled', 'Untitled', undefined)).toBe(undefined);
+        expect(syncUntouchedRenameDraft(false, 'Untitled', 'Untitled')).toBe(undefined);
+        expect(syncUntouchedRenameDraft(false, 'Untitled', undefined)).toBe(undefined);
     });
 });
 
