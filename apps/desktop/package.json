@@ -1,6 +1,6 @@
 {
     "name": "@caxri/desktop",
-    "version": "0.0.89",
+    "version": "0.0.90",
     "private": true,
     "description": "Caxri desktop application.",
     "type": "module",
