@@ -23,6 +23,24 @@ afterEach(async () => {
 });
 
 const USER_ONLY = { opening: [{ role: 'user' as const, text: 'hello' }], recent: [] };
+const EMPTY = { opening: [], recent: [] };
+const WITH_REPLY = {
+    opening: [
+        { role: 'user' as const, text: 'hello' },
+        { role: 'assistant' as const, text: 'Hi, what are we working on today?' },
+    ],
+    recent: [],
+};
+
+function namingReasons(log: { mock: { calls: unknown[][] } }) {
+    return log.mock.calls
+        .filter((call) => call[1] === logEventCatalog.agent.automaticNamingFinished)
+        .map((call) => {
+            const { reason, trigger } = (call[2] as { fields: { reason: string; trigger: string } })
+                .fields;
+            return `${trigger}:${reason}`;
+        });
+}
 
 /**
  * A first-turn Session whose transcript is read through spies, so each read can return what the file held at that
@@ -95,6 +113,14 @@ async function fixture() {
                 phase: 'turnFinished',
                 agentSessionId: 'fixture-agent',
             }),
+        startTurn: () =>
+            service.observe({
+                provider: 'codex',
+                terminalId,
+                launchId: 'fixture-launch',
+                phase: 'turnStarted',
+                agentSessionId: 'fixture-agent',
+            }),
     };
 }
 
@@ -140,6 +166,134 @@ describe('Automatic Session naming while the transcript settles', () => {
             'transcriptPending',
             'transcriptPending',
             'insufficientContext',
+        ]);
+    });
+});
+
+describe('Automatic Session naming when the first turn starts', () => {
+    it('names the Session from the opening request before the turn finishes', async () => {
+        const f = await fixture();
+        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue(USER_ONLY);
+        const generate = vi.spyOn(f.agents, 'generateTitle').mockResolvedValue('Greeting');
+        f.startTurn();
+        await vi.waitFor(() =>
+            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Greeting'),
+        );
+        expect(namingReasons(f.log)).toEqual(['turnStarted:completed']);
+        // Completed naming state ends naming synchronously, so the finished turn starts no attempt.
+        f.finishTurn();
+        expect(namingReasons(f.log)).toEqual(['turnStarted:completed']);
+        expect(generate).toHaveBeenCalledOnce();
+    });
+
+    it('re-reads a transcript that does not hold the submitted request yet', async () => {
+        vi.useFakeTimers();
+        const f = await fixture();
+        const read = vi
+            .spyOn(agentFunctions, 'readAgentTitleMessages')
+            .mockResolvedValueOnce(EMPTY)
+            .mockResolvedValue(USER_ONLY);
+        const generate = vi.spyOn(f.agents, 'generateTitle').mockResolvedValue('Greeting');
+        f.startTurn();
+        await vi.waitFor(() => expect(read).toHaveBeenCalledOnce());
+        expect(generate).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(500);
+        await vi.waitFor(() =>
+            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Greeting'),
+        );
+        expect(namingReasons(f.log)).toEqual([
+            'turnStarted:transcriptPending',
+            'turnStarted:completed',
+        ]);
+    });
+
+    it('leaves a request without a subject to the completed turn, without a cooldown', async () => {
+        const f = await fixture();
+        vi.spyOn(agentFunctions, 'readAgentTitleMessages')
+            .mockResolvedValueOnce(USER_ONLY)
+            .mockResolvedValue(WITH_REPLY);
+        const generate = vi
+            .spyOn(f.agents, 'generateTitle')
+            .mockResolvedValueOnce('SKIP')
+            .mockResolvedValue('Greeting');
+        f.startTurn();
+        await vi.waitFor(() =>
+            expect(namingReasons(f.log)).toEqual(['turnStarted:insufficientContext']),
+        );
+        expect(f.database.getSession(f.sessionId)?.displayTitle).not.toBe('Greeting');
+        f.finishTurn();
+        await vi.waitFor(() =>
+            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Greeting'),
+        );
+        expect(generate).toHaveBeenCalledTimes(2);
+        expect(namingReasons(f.log).at(-1)).toBe('turnFinished:completed');
+    });
+
+    it('replays a turn that finishes while the opening attempt is still generating', async () => {
+        const f = await fixture();
+        vi.spyOn(agentFunctions, 'readAgentTitleMessages')
+            .mockResolvedValueOnce(USER_ONLY)
+            .mockResolvedValue(WITH_REPLY);
+        const opening = Promise.withResolvers<string>();
+        const generate = vi
+            .spyOn(f.agents, 'generateTitle')
+            .mockReturnValueOnce(opening.promise)
+            .mockResolvedValue('Greeting');
+        f.startTurn();
+        await vi.waitFor(() => expect(generate).toHaveBeenCalledOnce());
+        f.finishTurn();
+        opening.resolve('SKIP');
+        await vi.waitFor(() =>
+            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Greeting'),
+        );
+        expect(namingReasons(f.log)).toEqual([
+            'turnStarted:insufficientContext',
+            'turnFinished:completed',
+        ]);
+    });
+
+    it('hands a still-settling opening attempt over to the finished turn', async () => {
+        vi.useFakeTimers();
+        const f = await fixture();
+        const read = vi
+            .spyOn(agentFunctions, 'readAgentTitleMessages')
+            .mockResolvedValueOnce(EMPTY)
+            .mockResolvedValue(WITH_REPLY);
+        vi.spyOn(f.agents, 'generateTitle').mockResolvedValue('Greeting');
+        f.startTurn();
+        await vi.waitFor(() => expect(read).toHaveBeenCalledOnce());
+        f.finishTurn();
+        await vi.waitFor(() =>
+            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Greeting'),
+        );
+        await vi.advanceTimersByTimeAsync(30_000);
+        expect(read).toHaveBeenCalledTimes(2);
+        expect(namingReasons(f.log)).toEqual([
+            'turnStarted:transcriptPending',
+            'turnFinished:completed',
+        ]);
+    });
+
+    it('gives a turn that finishes during the opening read its full settle budget', async () => {
+        vi.useFakeTimers();
+        const f = await fixture();
+        const opening = Promise.withResolvers<typeof EMPTY>();
+        const read = vi
+            .spyOn(agentFunctions, 'readAgentTitleMessages')
+            .mockReturnValueOnce(opening.promise)
+            .mockResolvedValue(USER_ONLY);
+        f.startTurn();
+        await vi.waitFor(() => expect(read).toHaveBeenCalledOnce());
+        f.finishTurn();
+        opening.resolve(EMPTY);
+        await vi.advanceTimersByTimeAsync(30_000);
+        expect(read).toHaveBeenCalledTimes(5);
+        expect(namingReasons(f.log)).toEqual([
+            'turnStarted:insufficientContext',
+            'turnFinished:transcriptPending',
+            'turnFinished:transcriptPending',
+            'turnFinished:transcriptPending',
+            'turnFinished:insufficientContext',
         ]);
     });
 });

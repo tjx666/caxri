@@ -7,6 +7,7 @@ import type { AgentEnvironment, AgentLifecycleSignal, AgentService } from './age
 import {
     agentProviderStateRoot,
     buildAgentTitlePrompt,
+    hasOpeningRequestMaterial,
     hasTitleNamingMaterial,
     isBareIssueReferenceTitle,
     locateAgentTranscript,
@@ -42,8 +43,8 @@ interface BlockedLaunch {
 }
 
 /**
- * Generates once after a completed main turn; persistent synchronization state, not provider title equality, ends
- * naming.
+ * Generates once, from the opening request when a main turn starts or from the conversation after it completes;
+ * persistent synchronization state, not provider title equality, ends naming.
  */
 export class SessionAutoNamingService {
     private readonly executions = new AsyncSemaphore(2);
@@ -109,38 +110,18 @@ export class SessionAutoNamingService {
     }
 
     /**
-     * The suppressions a freshly connected client still has to be told about.
-     *
-     * The live notice is a transient event, so it is simply lost while macOS has no window open: the Server keeps
-     * running turns, and the user comes back to a Session that silently kept its placeholder name. Reading the
-     * suppression records the service already maintains gives the reason somewhere to wait, and reusing
-     * {@link isBlockedLaunchInForce} means a launch that has since ended, changed Terminal, or been archived is never
-     * replayed as if it were still true.
+     * Starts or schedules one naming attempt. A completed turn names the Session from the request and its reply. A
+     * started turn names it from the request alone, so a long first turn does not leave the Session as `Untitled` for
+     * minutes; an opening request with no subject of its own yields `SKIP` and leaves naming to the completed turn.
+     * Internal replays (settle re-reads, cooldown timers, deferred events) enter here so they do not repeat the reset
+     * {@link observe} applies when the signal first arrives.
      */
-    automaticNamingNotices(): AutomaticNamingNotice[] {
-        const notices: AutomaticNamingNotice[] = [];
-        for (const [sessionId, blocked] of this.blockedLaunches) {
-            if (!this.isBlockedLaunchInForce(sessionId, blocked)) continue;
-            notices.push({ launchId: blocked.launchId, reason: blocked.reason, sessionId });
-        }
-        return notices;
-    }
-
-    observe(event: AgentLifecycleSignal): void {
-        if (this.closed || event.agentId) return;
+    private attempt(event: AgentLifecycleSignal): void {
+        if (this.closed) return;
         const terminal = this.database.getTerminal(event.terminalId);
         const session = terminal && this.database.getSession(terminal.sessionId);
         if (!terminal || !session || session.primaryAgentTerminalId !== terminal.id) return;
-        if (event.phase !== 'turnFinished') {
-            if (event.phase === 'turnStarted' || event.phase === 'sessionIdentified') {
-                this.deferred.delete(session.id);
-                this.transcriptSettleAttempts.delete(session.id);
-                clearTimeout(this.retryTimers.get(session.id));
-                this.retryTimers.delete(session.id);
-                this.running.get(session.id)?.controller.abort();
-            }
-            return;
-        }
+        if (event.phase !== 'turnFinished' && event.phase !== 'turnStarted') return;
         if (
             session.titleMode !== 'automatic' ||
             session.archivedAt !== undefined ||
@@ -162,6 +143,12 @@ export class SessionAutoNamingService {
         }
         if (state?.status === 'complete' || state?.status === 'stopped') return;
         const delay = (this.retryAfter.get(session.id) ?? 0) - Date.now();
+        /**
+         * The cooldown follows a completed attempt that had the reply too; a request-only retry cannot do better, so
+         * only the completed turn waits it out.
+         */
+        const isOpening = event.phase === 'turnStarted';
+        if (isOpening && delay > 0) return;
         if (delay > 0) {
             this.retryDeferredCounts.set(
                 session.id,
@@ -172,7 +159,7 @@ export class SessionAutoNamingService {
             clearTimeout(this.retryTimers.get(session.id));
             const timer = setTimeout(() => {
                 this.retryTimers.delete(session.id);
-                this.observe(event);
+                this.attempt(event);
             }, delay);
             timer.unref();
             this.retryTimers.set(session.id, timer);
@@ -255,7 +242,11 @@ export class SessionAutoNamingService {
                             ? await readAgentTitleMessages(location)
                             : { opening: [], recent: [] };
                         if (!isEligible()) return;
-                        if (!hasTitleNamingMaterial(context)) {
+                        if (
+                            !(isOpening ? hasOpeningRequestMaterial : hasTitleNamingMaterial)(
+                                context,
+                            )
+                        ) {
                             reason = 'transcriptPending';
                             return;
                         }
@@ -315,8 +306,14 @@ export class SessionAutoNamingService {
                 const retryDeferredCount = this.retryDeferredCounts.get(session.id) ?? 0;
                 this.retryDeferredCounts.delete(session.id);
                 const settleAttempt = this.transcriptSettleAttempts.get(session.id) ?? 0;
+                /**
+                 * A turn that finished while this opening attempt ran replays below with its own settle budget, so the
+                 * request-only attempt does not re-read again.
+                 */
+                const isHandedOver =
+                    isOpening && this.deferred.get(session.id)?.phase === 'turnFinished';
                 const settleDelay =
-                    reason === 'transcriptPending' && !controller.signal.aborted
+                    !isHandedOver && reason === 'transcriptPending' && !controller.signal.aborted
                         ? TRANSCRIPT_SETTLE_DELAYS_MS[settleAttempt]
                         : undefined;
                 if (reason === 'transcriptPending' && settleDelay === undefined)
@@ -329,6 +326,7 @@ export class SessionAutoNamingService {
                         fields: {
                             provider: target.provider,
                             reason,
+                            trigger: event.phase,
                             ...(failure && { failure }),
                             sessionId: session.id,
                             ...(retryDeferredCount > 0 && { retryDeferredCount }),
@@ -338,7 +336,15 @@ export class SessionAutoNamingService {
                 );
                 if (settleDelay === undefined) {
                     this.transcriptSettleAttempts.delete(session.id);
-                    if (!controller.signal.aborted && !this.blockedLaunches.has(session.id))
+                    /**
+                     * A request-only attempt that found no subject must not hold back the completed turn, which names
+                     * the Session from the reply as well.
+                     */
+                    if (
+                        !isOpening &&
+                        !controller.signal.aborted &&
+                        !this.blockedLaunches.has(session.id)
+                    )
                         this.retryAfter.set(session.id, Date.now() + 60_000);
                 } else {
                     this.transcriptSettleAttempts.set(session.id, settleAttempt + 1);
@@ -349,7 +355,7 @@ export class SessionAutoNamingService {
                     clearTimeout(this.retryTimers.get(session.id));
                     const timer = setTimeout(() => {
                         this.retryTimers.delete(session.id);
-                        this.observe(event);
+                        this.attempt(event);
                     }, settleDelay);
                     timer.unref();
                     this.retryTimers.set(session.id, timer);
@@ -359,10 +365,50 @@ export class SessionAutoNamingService {
                 this.running.delete(session.id);
                 const deferred = this.deferred.get(session.id);
                 this.deferred.delete(session.id);
-                if (deferred) this.observe(deferred);
+                if (deferred) this.attempt(deferred);
             }
         };
         this.running.set(session.id, { controller, promise: execute() });
+    }
+
+    /**
+     * The suppressions a freshly connected client still has to be told about.
+     *
+     * The live notice is a transient event, so it is simply lost while macOS has no window open: the Server keeps
+     * running turns, and the user comes back to a Session that silently kept its placeholder name. Reading the
+     * suppression records the service already maintains gives the reason somewhere to wait, and reusing
+     * {@link isBlockedLaunchInForce} means a launch that has since ended, changed Terminal, or been archived is never
+     * replayed as if it were still true.
+     */
+    automaticNamingNotices(): AutomaticNamingNotice[] {
+        const notices: AutomaticNamingNotice[] = [];
+        for (const [sessionId, blocked] of this.blockedLaunches) {
+            if (!this.isBlockedLaunchInForce(sessionId, blocked)) continue;
+            notices.push({ launchId: blocked.launchId, reason: blocked.reason, sessionId });
+        }
+        return notices;
+    }
+
+    observe(event: AgentLifecycleSignal): void {
+        if (this.closed || event.agentId) return;
+        const terminal = this.database.getTerminal(event.terminalId);
+        const session = terminal && this.database.getSession(terminal.sessionId);
+        if (!terminal || !session || session.primaryAgentTerminalId !== terminal.id) return;
+        const isTurnBoundary = event.phase === 'turnStarted' || event.phase === 'sessionIdentified';
+        /**
+         * A fresh signal supersedes any pending re-read or cooldown replay, including an opening attempt still waiting
+         * for its request when the turn finishes; a cooldown is rescheduled by `attempt` from `retryAfter`.
+         */
+        if (isTurnBoundary || event.phase === 'turnFinished') {
+            this.transcriptSettleAttempts.delete(session.id);
+            clearTimeout(this.retryTimers.get(session.id));
+            this.retryTimers.delete(session.id);
+        }
+        if (isTurnBoundary) {
+            this.deferred.delete(session.id);
+            this.running.get(session.id)?.controller.abort();
+        }
+        this.attempt(event);
     }
 
     /**

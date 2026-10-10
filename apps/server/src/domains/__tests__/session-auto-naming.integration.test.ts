@@ -264,7 +264,7 @@ describe('Automatic Session rename synchronization', () => {
                 log.mock.calls
                     .filter((call) => call[1] === logEventCatalog.agent.automaticNamingFinished)
                     .map((call) => call[2]);
-            expect(namingOptions()[0]).toEqual({
+            expect(namingOptions()[0]).toMatchObject({
                 durationMs: expect.any(Number) as number,
                 fields: {
                     provider: 'codex',
@@ -277,7 +277,7 @@ describe('Automatic Session rename synchronization', () => {
             await vi.advanceTimersByTimeAsync(60_000);
             expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Concrete task title');
             expect(f.rename).toHaveBeenCalledOnce();
-            expect(namingOptions().at(-1)).toEqual({
+            expect(namingOptions().at(-1)).toMatchObject({
                 durationMs: expect.any(Number) as number,
                 fields: {
                     provider: 'codex',
