@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { PrimarySidebarTreeRow } from '../primary-sidebar-tree';
 
 interface VanishedRowFocusOptions {
-    focusRow: (rowId: string) => void;
+    focusRow: (rowId: string, options?: FocusOptions) => void;
     /**
      * The row that owns the tree's roving Tab stop once the vanished row is gone.
      */
@@ -20,24 +20,29 @@ interface VanishedRowFocusOptions {
  * fallen to `document.body` by then, which is exactly the state this waits for: a row that vanished while the user was
  * somewhere else leaves focus alone, because `document.activeElement` is not the body.
  *
- * @returns The focus handler to notify on every row focus, so the hook knows which row to watch for.
+ * The replacement row inherits whether the vanished row showed `:focus-visible`. A bare `focus()` lets Chromium decide
+ * from the last input modality instead, so a row the user had only clicked, then pinned from its context menu after any
+ * keypress (even the Cmd of a Cmd+Tab), came back wearing the keyboard focus ring.
+ *
+ * @returns The focus handler to notify on every row focus, so the hook knows which row to watch for and how it was
+ *   focused.
  */
 export function useVanishedRowFocus({
     focusRow,
     rovingRowId,
     rows,
-}: VanishedRowFocusOptions): (rowId: string) => void {
-    const watchedRowId = useRef<string>(undefined);
+}: VanishedRowFocusOptions): (rowId: string, wasFocusVisible: boolean) => void {
+    const watchedRow = useRef<{ rowId: string; wasFocusVisible: boolean }>(undefined);
 
     useEffect(() => {
-        const rowId = watchedRowId.current;
-        if (!rowId || rows.some((row) => row.id === rowId)) return;
-        watchedRowId.current = undefined;
+        const watched = watchedRow.current;
+        if (!watched || rows.some((row) => row.id === watched.rowId)) return;
+        watchedRow.current = undefined;
         if (!rovingRowId || document.activeElement !== document.body) return;
-        focusRow(rovingRowId);
+        focusRow(rovingRowId, { focusVisible: watched.wasFocusVisible });
     }, [focusRow, rovingRowId, rows]);
 
-    return useCallback((rowId: string) => {
-        watchedRowId.current = rowId;
+    return useCallback((rowId: string, wasFocusVisible: boolean) => {
+        watchedRow.current = { rowId, wasFocusVisible };
     }, []);
 }
