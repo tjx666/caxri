@@ -23,7 +23,8 @@
  * A message with images is answered with how many it received. `/compact` compacts the conversation, reporting `status:
  * compacting` first; `/compact break` fails with a compaction error and `/compact crash` exits mid-compaction. The CLI
  * reports `/compact`, `/review`, and the terminal-bound `/exit` as its commands. A message steered with `priority:
- * 'next'` is quoted with `[next]`.
+ * 'next'` is quoted with `[next]`. It lists an `opus` alias and a model without effort control; `set_model` and an
+ * `effortLevel` flag setting change what the next init message reports.
  *
  * Like the real CLI, `session_state_changed` is reported only under `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1`, subagent
  * text only when `initialize` asked for `forwardSubagentText`, and an interrupt kills background tasks unless
@@ -103,13 +104,34 @@ const state: {
     interrupted: boolean;
     turnRunning: boolean;
     queued: QueuedTurn[];
+    model: string;
+    effort?: string;
 } = {
     nextRequestId: 1,
     lastUuid: null,
     interrupted: false,
     turnRunning: false,
     queued: [],
+    model: MODEL,
 };
+const MODELS = [
+    {
+        value: MODEL,
+        displayName: 'Fake',
+        description: 'Fake model',
+        supportsEffort: true,
+        supportedEffortLevels: ['low', 'medium', 'high'],
+    },
+    {
+        value: 'opus',
+        resolvedModel: 'fake-claude-opus',
+        displayName: 'Fake Opus',
+        description: 'Fake alias',
+        supportsEffort: true,
+        supportedEffortLevels: ['low', 'high', 'max'],
+    },
+    { value: 'fake-claude-haiku', displayName: 'Fake Haiku', description: 'No effort control' },
+];
 const isEmittingSessionState = process.env.CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS === '1';
 const COMMANDS = [
     {
@@ -283,7 +305,8 @@ async function runTurn(text: string, content: unknown, priority?: unknown, isAut
             type: 'system',
             subtype: 'init',
             cwd: process.cwd(),
-            model: MODEL,
+            model: state.model,
+            ...(state.effort && { effort: state.effort }),
             tools: [],
             permissionMode: 'default',
             slash_commands: COMMANDS.map((command) => command.name),
@@ -522,6 +545,12 @@ lines.on('line', (line) => {
     if (message.type === 'control_request') {
         const request = message.request as Json;
         if (request.subtype === 'interrupt') state.interrupted = true;
+        if (request.subtype === 'set_model' && typeof request.model === 'string')
+            state.model =
+                MODELS.find((model) => model.value === request.model)?.resolvedModel ??
+                request.model;
+        const flags = request.subtype === 'apply_flag_settings' ? (request.settings as Json) : {};
+        if (typeof flags.effortLevel === 'string') state.effort = flags.effortLevel;
         const answer = taskControl(scenarioIo, request);
         if (answer.error !== undefined) {
             send({
@@ -540,9 +569,7 @@ lines.on('line', (line) => {
                         ? {
                               commands: COMMANDS,
                               agents: [],
-                              models: [
-                                  { value: MODEL, displayName: 'Fake', description: 'Fake model' },
-                              ],
+                              models: MODELS,
                               account: {},
                               output_style: 'default',
                               available_output_styles: ['default'],

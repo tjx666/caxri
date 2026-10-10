@@ -10,6 +10,7 @@ import type {
 import type {
     AgentChatImageInput,
     AgentChatMessageInput,
+    AgentChatModelChange,
     AgentChatPatchOperation,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
@@ -33,13 +34,15 @@ import type {
 import { AgentChatStartError } from './chat-provider';
 import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
 import { ClaudeCommandList, claudeUserPrompt, isClaudeCompactCommand } from './claude-input';
-import { claudeAssistantItems, claudeUsageTokens, settleClaudeToolItem } from './claude-items';
+import { claudeAssistantItems, claudeUsageTokens } from './claude-items';
+import { claudeChatModels, claudeInitEffort, configureClaudeModel } from './claude-models';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
 import { ClaudeStream } from './claude-stream';
 import { readClaudeSubagentTranscript } from './claude-subagent-transcript';
 import { onClaudeApiRetry, onClaudeCompactBoundary, onClaudeStatus } from './claude-system-notices';
 import { ClaudeTasks } from './claude-tasks';
+import { ClaudeToolClock, settleClaudeToolResults } from './claude-tool-results';
 import { ClaudeTurns } from './claude-turns';
 import type { ClaudeChatSettings } from './launch-settings';
 import { claudeChatSettings } from './launch-settings';
@@ -78,6 +81,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
     private readonly stream: ClaudeStream;
 
     private readonly tasks: ClaudeTasks;
+    private readonly toolClock = new ClaudeToolClock();
 
     private query: Query | undefined;
 
@@ -113,7 +117,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
             host: options,
             bindSession: () => this.bindSession(),
             sessionId: () => this.sessionId,
-            settleRequests: () => this.requests.settleAll('Turn ended'),
+            settleRequests: () => {
+                this.requests.settleAll('Turn ended');
+                this.toolClock.clear();
+            },
         });
         this.stream = new ClaudeStream(
             (operations) => options.apply(operations),
@@ -188,23 +195,22 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 },
             ]);
         this.stream.settle(mapped.items);
+        this.toolClock.start(mapped.items);
     }
 
     private onToolResults(message: SDKUserMessage): void {
         const content = isRecord(message.message) ? message.message.content : undefined;
         if (!Array.isArray(content)) return;
-        const items = new Map(this.options.read().items.map((item) => [item.id, item]));
-        for (const block of content) {
-            if (!isRecord(block) || block.type !== 'tool_result') continue;
-            const toolUseId = stringField(block.tool_use_id);
-            if (!toolUseId) continue;
-            const id = clip(toolUseId, 200);
-            const wasDeclined = this.requests.takeDeclined(id);
-            const item = items.get(id);
-            const settled =
-                item && settleClaudeToolItem(item, block, message.tool_use_result, wasDeclined);
-            if (settled) this.options.apply([{ op: 'upsertItem', item: settled }]);
-        }
+        const operations = settleClaudeToolResults(
+            content,
+            this.options.read().items,
+            message.tool_use_result,
+            (id) => ({
+                wasDeclined: this.requests.takeDeclined(id),
+                durationMs: this.toolClock.stop(id),
+            }),
+        );
+        if (operations.length > 0) this.options.apply(operations);
         this.tasks.onToolResults(content);
     }
 
@@ -220,6 +226,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 const model = stringField(message.model);
                 if (model)
                     this.options.apply([{ op: 'state', state: { model: clip(model, 200) } }]);
+                this.options.apply(claudeInitEffort(message));
                 const commands = this.commands.hideTerminalBound(message.terminal_slash_commands);
                 if (commands) this.options.apply([{ op: 'state', state: { commands } }]);
                 return;
@@ -425,6 +432,8 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 INITIALIZE_TIMEOUT_MS,
             );
             this.reportCommands(initialized.commands);
+            const models = claudeChatModels(initialized.models);
+            if (models.length > 0) this.options.apply([{ op: 'state', state: { models } }]);
         } catch {
             const spawnErrorCode = this.spawnErrorCode;
             await this.close();
@@ -463,6 +472,12 @@ class ClaudeChatSession implements AgentChatProviderSession {
         const prompt = slashCommandPrompt(name, arguments_);
         this.submit(prompt, [], { ...options, isHidden: isClaudeCompactCommand(prompt) });
         return Promise.resolve();
+    }
+
+    async configure(change: AgentChatModelChange): Promise<void> {
+        await configureClaudeModel(this.requireOpen(), change, (operations) =>
+            this.options.apply(operations),
+        );
     }
 
     async interrupt(): Promise<void> {

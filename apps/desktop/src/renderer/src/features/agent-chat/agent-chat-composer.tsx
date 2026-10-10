@@ -1,7 +1,12 @@
 import type { RefObject } from 'react';
 import { useState } from 'react';
 
-import type { AgentAction, AgentChatCommand, AgentChatQueuedMessage } from '@caxri/protocol';
+import type {
+    AgentAction,
+    AgentChatCommand,
+    AgentChatQueuedMessage,
+    AgentChatSnapshot,
+} from '@caxri/protocol';
 import { MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
 import { ArrowUp } from 'lucide-react';
 
@@ -14,9 +19,12 @@ import { AgentChatAttachButton } from './agent-chat-attach-button';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
 import { AgentChatCommandMenu } from './agent-chat-command-menu';
 import { interruptAgentChat } from './agent-chat-commands';
+import { AgentChatContextMeter } from './agent-chat-context-meter';
 import { readAgentChatDraft, writeAgentChatDraft } from './agent-chat-drafts';
+import { AgentChatModelMenu } from './agent-chat-model-menu';
 import type { AgentChatActivity } from './agent-chat-presentation';
 import {
+    agentChatContextUsage,
     agentChatSendAction,
     agentChatSubmitDelivery,
     isAgentChatInterruptKey,
@@ -36,19 +44,20 @@ import { useAgentChatSubmit } from './hooks/use-agent-chat-submit';
  * input. Escape or the Stop button that replaces Send while the input is empty interrupts the turn. Images can be
  * pasted, dropped, or picked when the provider accepts them, and a leading `/` or `$` offers the provider's commands
  * and the discovered skills. It shares the timeline's centered column so the input lines up with the conversation, and
- * keeps attachments, the input, and its actions inside one card so they read as a single control.
+ * keeps the activity row, attachments, the input, and its actions inside one card so they read as a single control. The
+ * action row picks the model and effort for the next turn and shows how full the context window is.
  */
 export function AgentChatComposer({
     activeTurnId,
     activity,
     canSend,
     commands,
-    contextSummary,
     inputReference,
     isBusy,
     isQueuePaused,
     providerName,
     queue,
+    snapshot,
     supportsImages,
     terminalId,
 }: {
@@ -65,10 +74,6 @@ export function AgentChatComposer({
      * The provider's slash commands, from the projection.
      */
     commands: readonly AgentChatCommand[] | undefined;
-    /**
-     * Model and context-window line shown under the input, when the provider has reported them.
-     */
-    contextSummary: string | undefined;
     inputReference: RefObject<HTMLTextAreaElement | null>;
     /**
      * Whether a message sent now waits in the queue (`isAgentChatBusy`).
@@ -80,6 +85,10 @@ export function AgentChatComposer({
      */
     providerName: string;
     queue: readonly AgentChatQueuedMessage[] | undefined;
+    /**
+     * The model, effort, and context usage the action row shows.
+     */
+    snapshot: Pick<AgentChatSnapshot, 'effort' | 'model' | 'models' | 'usage'> | undefined;
     /**
      * Whether the provider's Chat accepts image input (`capabilities.chatImages`).
      */
@@ -119,6 +128,7 @@ export function AgentChatComposer({
         setDraft,
         terminalId,
     });
+    const contextUsage = agentChatContextUsage(snapshot);
     const isSendable = canSend && !isSending && !images.isReading && hasContent;
     const sendAction = agentChatSendAction({ isTurnRunning, isBusy }, providerName);
     const submit = async (delivery?: 'steer'): Promise<void> => {
@@ -151,7 +161,6 @@ export function AgentChatComposer({
                 terminalId={terminalId}
                 onEdit={restoreQueued}
             />
-            <AgentChatActivityBar activity={activity} />
             <form
                 className={cn(
                     'relative flex flex-col rounded-lg border border-border bg-surface transition-[border-color] duration-150 ease-out focus-within:border-muted',
@@ -164,6 +173,7 @@ export function AgentChatComposer({
                     void submit();
                 }}
             >
+                <AgentChatActivityBar activity={activity} />
                 {menu.isOpen && (
                     <AgentChatCommandMenu
                         activeIndex={menu.activeIndex}
@@ -227,9 +237,10 @@ export function AgentChatComposer({
                             onPick={imageInput.attach}
                         />
                     )}
-                    <p className="m-0 min-w-0 flex-1 truncate px-1 text-right text-[11px] leading-4 text-muted">
-                        {contextSummary}
-                    </p>
+                    <div className="flex min-w-0 flex-1 items-center justify-end gap-0.5">
+                        {contextUsage && <AgentChatContextMeter usage={contextUsage} />}
+                        <AgentChatModelMenu snapshot={snapshot} terminalId={terminalId} />
+                    </div>
                     {/* One primary action slot: Stop while a turn runs and nothing is typed, Send otherwise. */}
                     {isTurnRunning && !hasContent ? (
                         <AgentChatStopButton isStopping={isStopping} onStop={stop} />

@@ -65,9 +65,20 @@ export async function initializeCodexConnection(
     }
 }
 
-export type CodexThreadOpening =
-    | { outcome: 'resumed'; thread: Json; model?: string }
-    | { outcome: 'started'; threadId: string; model?: string };
+/**
+ * The opened thread, with the model and reasoning effort Codex reported for it. A thread that never chose an effort
+ * reports none.
+ */
+export type CodexThreadOpening = { model?: string; effort?: string } & (
+    { outcome: 'resumed'; thread: Json } | { outcome: 'started'; threadId: string }
+);
+
+function reportedModel(result: unknown): { model?: string; effort?: string } {
+    if (!isRecord(result)) return {};
+    const model = stringField(result.model);
+    const effort = stringField(result.reasoningEffort);
+    return { ...(model && { model }), ...(effort && { effort }) };
+}
 
 /**
  * Resumes `threadId` with its history, or starts a new thread when there is none.
@@ -109,8 +120,7 @@ export async function openCodexThread(
                 'Codex resumed a different conversation',
             );
         }
-        const model = isRecord(result) ? stringField(result.model) : undefined;
-        return { outcome: 'resumed', thread, ...(model && { model }) };
+        return { outcome: 'resumed', thread, ...reportedModel(result) };
     }
     let result: unknown;
     try {
@@ -129,6 +139,5 @@ export async function openCodexThread(
         await connection.close();
         throw new AgentChatStartError('handshake_failed', 'Codex did not return a conversation');
     }
-    const model = isRecord(result) ? stringField(result.model) : undefined;
-    return { outcome: 'started', threadId: startedId, ...(model && { model }) };
+    return { outcome: 'started', threadId: startedId, ...reportedModel(result) };
 }

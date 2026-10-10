@@ -201,6 +201,8 @@ export function applyAgentChatOperation(
                 next.activeTurnId = state.activeTurnId ?? undefined;
             if (state.plan !== undefined) next.plan = state.plan ?? undefined;
             if (state.model !== undefined) next.model = state.model ?? undefined;
+            if (state.effort !== undefined) next.effort = state.effort ?? undefined;
+            if (state.models !== undefined) next.models = state.models;
             if (state.usage !== undefined) next.usage = state.usage ?? undefined;
             if (state.commands !== undefined) next.commands = state.commands;
             if (state.operation !== undefined) next.operation = state.operation ?? undefined;
@@ -212,6 +214,7 @@ export function applyAgentChatOperation(
                 'activeTurnId',
                 'plan',
                 'model',
+                'effort',
                 'usage',
                 'operation',
             ] as const)

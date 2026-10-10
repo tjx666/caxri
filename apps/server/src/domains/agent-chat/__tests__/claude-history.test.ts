@@ -64,6 +64,7 @@ describe('Claude transcript history', () => {
                 command: 'ls',
                 status: 'completed',
                 output: 'a.ts',
+                exitCode: 0,
             },
             {
                 id: 'm2:text:0',

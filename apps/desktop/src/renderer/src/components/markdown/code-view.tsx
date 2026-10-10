@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { WrapText } from 'lucide-react';
+import { CodeXml, WrapText } from 'lucide-react';
 
 import { cn } from '../../lib/utilities';
 import { writeToClipboardWithFeedback } from '../copy-feedback';
@@ -8,9 +8,10 @@ import { CopyIconButton } from './copy-icon-button';
 import { useColorizedCode } from './use-colorized-code';
 
 /**
- * A titled block of code: a header with its label, a soft-wrap toggle for long lines, and a Copy button that stay
- * visible (hover-only controls are undiscoverable on a block the reader is scrolling past), over the code painted with
- * the editor's colors. Markdown fences and Agent Chat tool output share it so both read the same.
+ * A titled block of code, lifted onto `--elevated` with its header inside the same panel as the Codex app sets it: the
+ * label, a soft-wrap toggle for long lines, and a Copy button that stay visible (hover-only controls are undiscoverable
+ * on a block the reader is scrolling past), over the code painted with the editor's colors. Markdown fences and Agent
+ * Chat tool output share it so both read the same.
  */
 export function CodeView({
     className,
@@ -38,13 +39,14 @@ export function CodeView({
     language: string | undefined;
 }) {
     const [isWrapped, setWrapped] = useState(false);
-    const html = useColorizedCode(code, language, isPaintable);
+    const { html, languageName } = useColorizedCode(code, language, isPaintable);
     const wrapLabel = isWrapped ? 'Disable word wrap' : 'Enable word wrap';
     return (
-        <div className="overflow-hidden rounded-md border border-border bg-surface">
-            <div className="flex h-7 items-center gap-1 border-0 border-b border-solid border-border pr-0.5 pl-3 text-[11px] text-muted">
-                <span className="min-w-0 flex-1 truncate font-mono">
-                    {label ?? language ?? 'text'}
+        <div className="overflow-hidden rounded-lg bg-elevated">
+            <div className="flex h-8 items-center gap-1.5 pt-1 pr-1.5 pl-3 text-[12px] text-muted">
+                <CodeXml aria-hidden className="size-3.5 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">
+                    {label ?? languageName ?? language ?? 'Text'}
                 </span>
                 <button
                     aria-label={wrapLabel}
@@ -66,7 +68,7 @@ export function CodeView({
             </div>
             <pre
                 className={cn(
-                    'my-0 overflow-x-auto px-3 py-2 font-mono text-[12px] leading-[1.5] text-foreground',
+                    'my-0 overflow-x-auto px-3 pt-1 pb-2.5 font-mono text-[12px] leading-[1.5] text-foreground',
                     isWrapped && 'wrap-anywhere whitespace-pre-wrap',
                     className,
                 )}

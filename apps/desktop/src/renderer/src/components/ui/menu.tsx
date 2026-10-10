@@ -114,3 +114,49 @@ export function MenuSeparator(properties: MenuPrimitive.Separator.Props) {
         />
     );
 }
+
+export function MenuGroup(properties: MenuPrimitive.Group.Props) {
+    return <MenuPrimitive.Group data-slot="menu-group" {...properties} />;
+}
+
+export function MenuGroupLabel({ className, ...properties }: MenuPrimitive.GroupLabel.Props) {
+    return (
+        <MenuPrimitive.GroupLabel
+            data-slot="menu-group-label"
+            className={cn('px-2 pt-1 pb-0.5 text-[11px] text-muted', className)}
+            {...properties}
+        />
+    );
+}
+
+export function MenuRadioGroup(properties: MenuPrimitive.RadioGroup.Props) {
+    return <MenuPrimitive.RadioGroup data-slot="menu-radio-group" {...properties} />;
+}
+
+/**
+ * One choice of a {@link MenuRadioGroup}, laid out like {@link MenuCheckboxItem} so a menu mixing both keeps one column
+ * for its checks.
+ */
+export function MenuRadioItem({
+    children,
+    className,
+    ...properties
+}: MenuPrimitive.RadioItem.Props) {
+    return (
+        <MenuPrimitive.RadioItem
+            data-slot="menu-radio-item"
+            className={cn(
+                'flex min-h-7 cursor-default items-center gap-2 rounded px-2 py-1 text-[12px] outline-none data-disabled:pointer-events-none data-disabled:opacity-45 data-highlighted:bg-[var(--selection)]',
+                className,
+            )}
+            {...properties}
+        >
+            <span className="flex size-3.5 shrink-0 items-center justify-center">
+                <MenuPrimitive.RadioItemIndicator>
+                    <Check size={14} />
+                </MenuPrimitive.RadioItemIndicator>
+            </span>
+            {children}
+        </MenuPrimitive.RadioItem>
+    );
+}

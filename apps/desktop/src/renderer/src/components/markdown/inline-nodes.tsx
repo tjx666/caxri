@@ -14,9 +14,14 @@ export function InlineNodes({ nodes }: { nodes: readonly MarkdownInline[] }) {
 
 function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> }) {
     const { onOpenFile, variant } = useMarkdownContext();
+    /**
+     * A transcript sits on the pane background, where a `--surface` chip reads as a hole; the lifted `--elevated` chip
+     * matches how the Codex app sets code apart in its Dracula transcript. Compact hover cards already sit on
+     * `--elevated`, so they keep the recessed chip.
+     */
     const className = cn(
-        'rounded bg-surface px-1 py-px font-mono text-foreground',
-        variant === 'transcript' ? 'text-[12px]' : 'text-[11px]',
+        'rounded border-0 px-1 py-px font-mono text-foreground',
+        variant === 'transcript' ? 'bg-elevated text-[12px]' : 'bg-surface text-[11px]',
     );
     const { file } = node;
     if (!file || !onOpenFile) return <code className={className}>{node.value}</code>;
@@ -28,7 +33,7 @@ function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> 
         <button
             className={cn(
                 className,
-                'cursor-pointer border-0 underline-offset-2 hover:text-accent hover:underline focus-visible:outline focus-visible:outline-accent',
+                'cursor-pointer underline-offset-2 hover:text-accent hover:underline focus-visible:outline focus-visible:outline-accent',
             )}
             title={`Open ${file}`}
             type="button"

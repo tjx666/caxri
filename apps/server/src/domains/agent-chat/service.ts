@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type {
     AgentChatFailureReason,
     AgentChatMessageInput,
+    AgentChatModelRequest,
     AgentChatPatchOperation,
     AgentChatSnapshot,
     AgentChatTaskSnapshot,
@@ -15,6 +16,7 @@ import {
     agentProviderCatalog,
     CaxriError,
     errorMessage,
+    resolveAgentChatModelChange,
 } from '@caxri/protocol';
 import { assertE2EAgentChatInput, logEventCatalog, readE2EAgentPolicy } from '@caxri/system';
 
@@ -25,11 +27,11 @@ import { agentChatDrivers } from './chat-drivers';
 import { isAgentChatCommandListed } from './chat-items';
 import {
     chatStartFailure,
+    didPersistChatStartFailure,
     logChatProcessExited,
     prepareChatLaunch,
     readChatTranscript,
     requireChatTerminal,
-    TERMINAL_FAILURE_REASONS,
 } from './chat-launch';
 import { ChatProjection } from './chat-projection';
 import type {
@@ -276,26 +278,12 @@ export class AgentChatService {
             if (state.session === session) state.session = undefined;
             await session?.close();
             const failure = chatStartFailure(this.options, terminal, error, startedAt);
-            if (isCurrent() && !this.isShuttingDown) this.recordStartFailure(terminalId, failure);
+            if (isCurrent() && !this.isShuttingDown) {
+                this.setStatus(terminalId, 'failed', failure);
+                if (didPersistChatStartFailure(this.options, terminalId, failure))
+                    this.sendTerminalChange(terminalId);
+            }
         }
-    }
-
-    private recordStartFailure(
-        terminalId: string,
-        failure: { reason: AgentChatFailureReason; detail?: string },
-    ): void {
-        const { database } = this.options;
-        this.setStatus(terminalId, 'failed', failure);
-        this.options.coordinator.endTerminalLaunch(terminalId);
-        if (!database.getTerminal(terminalId)) return;
-        database.updateTerminalState(
-            terminalId,
-            'failed',
-            TERMINAL_FAILURE_REASONS[failure.reason],
-            failure.detail,
-        );
-        database.updateAgentProcessState(terminalId, 'failed');
-        this.sendTerminalChange(terminalId);
     }
 
     private lifecycle(
@@ -472,6 +460,16 @@ export class AgentChatService {
                 return;
             }
             await session.runCommand(name, trimmed);
+        });
+    }
+
+    async configure(terminalId: string, change: AgentChatModelRequest): Promise<void> {
+        await this.enqueue(terminalId, async (session) => {
+            const config = resolveAgentChatModelChange(
+                this.state(terminalId).projection.snapshot,
+                change,
+            );
+            if (config.model || config.effort) await session.configure?.(config);
         });
     }
 

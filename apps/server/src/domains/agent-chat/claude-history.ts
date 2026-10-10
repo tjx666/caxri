@@ -10,7 +10,8 @@ import { MAX_AGENT_CHAT_TASK_ITEMS, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/pr
 import { extractVisibleTranscriptMessage } from '../agents';
 import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
 import { claudeUserImageCount, isClaudeCompactCommand } from './claude-input';
-import { claudeAssistantItems, ClaudeBlockIds, settleClaudeToolItem, text } from './claude-items';
+import { claudeAssistantItems, ClaudeBlockIds, text } from './claude-items';
+import { settleClaudeToolItem } from './claude-tool-results';
 
 /**
  * Rebuilds a resumed Claude Code Chat from its session JSONL transcript. Claude Code's resume returns no history, so
@@ -65,7 +66,8 @@ function applyUserRecord(state: HistoryState, record: Json, message: Json): void
     for (const block of blocks) {
         const toolUseId = block.type === 'tool_result' ? stringField(block.tool_use_id) : undefined;
         const item = toolUseId ? state.items.get(clip(toolUseId, 200)) : undefined;
-        const settled = item && settleClaudeToolItem(item, block, record.toolUseResult, false);
+        const settled =
+            item && settleClaudeToolItem(item, block, { structured: record.toolUseResult });
         if (settled) state.items.set(settled.id, settled);
     }
     if (record.isCompactSummary === true) return;

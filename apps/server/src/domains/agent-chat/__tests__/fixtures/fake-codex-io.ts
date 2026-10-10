@@ -31,6 +31,11 @@ export interface FakeThread {
     id: string;
     turns: FakeTurn[];
     parentThreadId?: string;
+    /**
+     * The model and effort the last `turn/start` named, which a resumed thread reports.
+     */
+    model?: string;
+    effort?: string;
 }
 
 /**

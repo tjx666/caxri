@@ -1,10 +1,11 @@
 import type {
     AgentChatItem,
+    AgentChatModel,
     AgentChatPatchOperation,
     AgentChatRequest,
     AgentChatSnapshot,
 } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { agentChatModelSchema, CaxriError, MAX_AGENT_CHAT_MODELS } from '@caxri/protocol';
 
 import type { AgentChatResponse } from './chat-provider';
 
@@ -149,4 +150,25 @@ export function slashCommandPrompt(name: string, arguments_: string | undefined)
  */
 export function isAgentChatCommandListed(snapshot: AgentChatSnapshot, name: string): boolean {
     return snapshot.commands?.some((command) => command.name === name) ?? false;
+}
+
+/**
+ * Bounds a provider-listed model to the projection's limits, or drops it when what remains is still invalid (an effort
+ * name with unexpected characters, a missing identifier), so one odd entry cannot fail the whole snapshot.
+ */
+export function boundedChatModels(models: readonly AgentChatModel[]): AgentChatModel[] {
+    const bounded: AgentChatModel[] = [];
+    for (const model of models) {
+        const parsed = agentChatModelSchema.safeParse({
+            ...model,
+            id: clip(model.id, 200),
+            displayName: clip(model.displayName, 200),
+            ...(model.description && { description: clip(model.description, 500) }),
+            ...(model.resolvedId && { resolvedId: clip(model.resolvedId, 200) }),
+            efforts: model.efforts.slice(0, 10),
+        });
+        if (parsed.success) bounded.push(parsed.data);
+        if (bounded.length === MAX_AGENT_CHAT_MODELS) break;
+    }
+    return bounded;
 }

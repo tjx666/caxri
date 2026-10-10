@@ -90,9 +90,24 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await message.press('Enter');
         await expect(chat.getByText('Hello from fake Codex. You said: hi there')).toBeVisible();
         await expect(message).toHaveAttribute('placeholder', 'Message Codex');
-        // The footer keeps the model and remaining context in view, as the Codex TUI does.
-        await expect(chat.getByText(/^fake-codex-model · \d+% context left$/u)).toBeVisible();
+        // The composer keeps the model and the context used in view, as the Codex app does.
+        await expect(chat.getByRole('button', { name: /^Model: Fake Codex, / })).toBeVisible();
+        await expect(chat.getByRole('img', { name: /^\d+% of context used$/u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-reply.png') });
+        const planRow = chat.getByRole('button', {
+            name: 'Plan: 1 of 2 steps done. Current step: Reply',
+        });
+        await expect(planRow).toHaveAttribute('aria-expanded', 'false');
+        await expect(chat.getByRole('region', { name: 'Plan' }).getByRole('listitem')).toHaveCount(
+            0,
+        );
+        await planRow.click();
+        await expect(chat.getByRole('region', { name: 'Plan' }).getByRole('listitem')).toHaveText([
+            'Read the message',
+            'Reply',
+        ]);
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-plan-expanded.png') });
+        await planRow.click();
 
         await message.fill('please approve this');
         await message.press('Enter');
@@ -380,10 +395,13 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
         await expect(message).toHaveAttribute('placeholder', 'Message Claude');
+        // Claude Code names its model only in a turn's init, so the picker reads as the default until then.
+        await expect(chat.getByRole('button', { name: 'Model: Default' })).toBeVisible();
         await message.fill('hi there');
         await message.press('Enter');
         await expect(chat.getByText('Hello from fake Claude. You said: hi there')).toBeVisible();
-        await expect(chat.getByText(/^fake-claude-model · \d+% context left$/u)).toBeVisible();
+        await expect(chat.getByRole('button', { name: 'Model: Fake' })).toBeVisible();
+        await expect(chat.getByRole('img', { name: /^\d+% of context used$/u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-reply.png') });
 
         await message.fill('please approve this');
@@ -395,6 +413,18 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await approval.getByRole('button', { name: 'Accept', exact: true }).click();
         await expect(approval).toHaveCount(0);
         await expect(chat.getByText('The command ran.')).toBeVisible();
+        // The row reads the Agent's description of the command, and expanded shows the command and how it ended.
+        await chat
+            .getByRole('button', { name: /^Worked for /u })
+            .last()
+            .click();
+        const commandRow = chat.getByRole('button', { name: /^Ran Print a confirmation/u });
+        await expect(commandRow).toContainText(/\d+s$/u);
+        await commandRow.click();
+        await expect(chat.getByText('Exit code 0')).toBeVisible();
+        await expect(chat.locator('pre').filter({ hasText: 'echo approved' })).toBeVisible();
+        await expectDisclosuresSettled(chat, 'agent-chat-item');
+        await page.screenshot({ path: testInfo.outputPath('claude-chat-command.png') });
 
         await message.fill('ask me');
         await message.press('Enter');
@@ -445,7 +475,9 @@ test('a Grok Build Chat streams a reply, answers an approval, and resumes after 
         await message.fill('hi there');
         await message.press('Enter');
         await expect(chat.getByText('You said: hi there')).toBeVisible();
-        await expect(chat.getByText(/^grok-fake · \d+% context left$/u)).toBeVisible();
+        // Grok Build lists no models, so the composer names the one in use as plain text beside the context ring.
+        await expect(chat.getByText('grok-fake', { exact: true })).toBeVisible();
+        await expect(chat.getByRole('img', { name: /^\d+% of context used$/u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('grok-chat-reply.png') });
 
         await message.fill('please approve this');

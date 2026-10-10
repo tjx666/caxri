@@ -6,7 +6,9 @@ import { commandPolicy } from '../transport/method-spec.js';
 import {
     agentChatCommandSchema,
     agentChatDecisionSchema,
+    agentChatEffortSchema,
     agentChatImageMediaTypeSchema,
+    agentChatModelSchema,
     agentChatQueuedMessageSchema,
     agentChatSnapshotSchema,
     agentChatTaskSchema,
@@ -91,6 +93,23 @@ export const agentChatMethods = {
             name: agentChatCommandSchema.shape.name,
             arguments: z.string().trim().max(MAX_AGENT_CHAT_MESSAGE_LENGTH).optional(),
         }),
+        result: z.null(),
+    },
+    /**
+     * Switches the model or reasoning effort for the next turn and the ones after it; a running turn keeps its own. A
+     * model the snapshot's `models` does not list, or an effort that model does not accept, fails with `VALIDATION`.
+     */
+    'agentChat.configure': {
+        ...commandPolicy('server', 'control'),
+        params: z
+            .strictObject({
+                ...terminalTarget,
+                model: agentChatModelSchema.shape.id.optional(),
+                effort: agentChatEffortSchema.optional(),
+            })
+            .refine((change) => change.model !== undefined || change.effort !== undefined, {
+                message: 'Choose a model or an effort',
+            }),
         result: z.null(),
     },
     /**

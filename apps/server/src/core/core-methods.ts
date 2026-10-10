@@ -8,6 +8,7 @@ import type { ServerMethod } from '@caxri/protocol';
 export const coreForwardedMethods = [
     'agentActions.list',
     'agentActions.recordRecent',
+    'agentChat.configure',
     'agentChat.interrupt',
     'agentChat.read',
     'agentChat.readTask',
