@@ -2,6 +2,7 @@ import { sortedCopy } from '@caxri/utils';
 
 import { filesCoreCommandDefinitions } from '../registry/core-contributions.js';
 import type { CommandId } from './commands.js';
+import { gitCommandDefinitions } from './git-command-definitions.js';
 
 /**
  * Context predicates the palette can evaluate against the currently selected Session so commands only surface when
@@ -526,6 +527,14 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'view', group: 2, order: 2 },
     },
     {
+        id: 'usage.open',
+        title: 'Open Usage',
+        category: 'View',
+        description: 'Show token usage, estimated cost, and delivery stats for Caxri Sessions',
+        keywords: ['usage', 'tokens', 'cost', 'spend', 'stats', 'statistics', 'ccusage'],
+        nativeMenu: { menu: 'view', group: 3, order: 0 },
+    },
+    {
         id: 'settings.open',
         title: 'Open Settings',
         category: 'Preferences',
@@ -633,34 +642,7 @@ export const commandDefinitions: CommandDefinition[] = [
         description: 'Export a privacy-safe diagnostics bundle',
         nativeMenu: { menu: 'help', group: 1, order: 1 },
     },
-    {
-        id: 'git.switchBranch',
-        title: 'Switch Branch…',
-        category: 'Git',
-        description: "Check out another branch in the selected Session's repository",
-        keywords: ['checkout', 'git'],
-    },
-    {
-        id: 'git.goToNextReviewComment',
-        title: 'Go to Next Review Comment',
-        category: 'Git',
-        description: 'Jump to the next review comment anchored in the active Git diff tab',
-        keywords: ['diff', 'comment', 'review', 'next'],
-    },
-    {
-        id: 'git.goToPreviousReviewComment',
-        title: 'Go to Previous Review Comment',
-        category: 'Git',
-        description: 'Jump to the previous review comment anchored in the active Git diff tab',
-        keywords: ['diff', 'comment', 'review', 'previous'],
-    },
-    {
-        id: 'git.showPendingReviewComments',
-        title: 'Show Pending Review Comments',
-        category: 'Git',
-        description: 'Open the repository with pending review comments and reveal them',
-        keywords: ['diff', 'comment', 'review', 'pending'],
-    },
+    ...gitCommandDefinitions,
 ];
 
 export function getCommandDefinition(id: string): CommandDefinition {

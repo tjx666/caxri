@@ -8,7 +8,7 @@ import type {
 } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import { SlidersHorizontal, X } from 'lucide-react';
+import { ChartColumn, SlidersHorizontal, X } from 'lucide-react';
 import { useIsPresent } from 'motion/react';
 import * as m from 'motion/react-m';
 
@@ -88,7 +88,7 @@ interface WorkTabProperties {
      * `'file'` resolves a file type icon from `fileIconName`; `'settings'` is the Settings tab's own glyph, matching VS
      * Code, whose Settings editor tab shows a settings icon rather than the JSON file it is stored in.
      */
-    icon: 'file' | 'settings' | AgentIconIdentity;
+    icon: 'file' | 'settings' | 'usage' | AgentIconIdentity;
     label: string;
     /**
      * Hover/focus detail shown alongside `label`. For a Terminal this is the untruncated title behind an abbreviated
@@ -214,6 +214,8 @@ function WorkTabLabel({
                 <FileTypeIcon entry={{ kind: 'file', name: fileIconName ?? label }} />
             ) : icon === 'settings' ? (
                 <SlidersHorizontal aria-hidden="true" className="h-4 w-4 flex-none" size={14} />
+            ) : icon === 'usage' ? (
+                <ChartColumn aria-hidden="true" className="h-4 w-4 flex-none" size={14} />
             ) : (
                 <AgentIdentityIcon identity={icon} size={13} />
             )}

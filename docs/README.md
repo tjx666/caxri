@@ -52,6 +52,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [session-conversation-context.md](session-conversation-context.md) | Reading a Session's own Agent conversation                     |
 | [terminal-reference-preview.md](terminal-reference-preview.md)     | Terminal commit/reference hover previews                       |
 | [type-aware-linting.md](type-aware-linting.md)                     | ESLint (syntactic) + oxlint/tsgolint (typed) split             |
+| [usage.md](usage.md)                                               | Usage page: token, cost, and delivery statistics               |
 | [mobile/apk-size.md](mobile/apk-size.md)                           | Android internal APK size                                      |
 | [mobile/authorization.md](mobile/authorization.md)                 | Mobile device pairing and method authorization                 |
 | [mobile/changes.md](mobile/changes.md)                             | Mobile read-only Git Changes segment                           |

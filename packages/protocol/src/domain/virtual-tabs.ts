@@ -3,6 +3,7 @@ import { isExternalEditorTabPath } from './external-editor-tab.js';
 import { isFilePreviewTabPath } from './file-preview.js';
 import { isGitDiffTabPath } from './git-diff.js';
 import { isSettingsTabPath } from './settings-tab.js';
+import { isUsageTabPath } from './usage-tab.js';
 
 /**
  * Editor tab paths that name a virtual surface instead of a Project file. Virtual tabs are never read or written
@@ -16,6 +17,7 @@ export function isVirtualEditorTabPath(path: string): boolean {
         isAgentTranscriptTabPath(path) ||
         isExternalEditorTabPath(path) ||
         isFilePreviewTabPath(path) ||
-        isSettingsTabPath(path)
+        isSettingsTabPath(path) ||
+        isUsageTabPath(path)
     );
 }

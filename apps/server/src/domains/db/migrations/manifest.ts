@@ -4,6 +4,7 @@
 // hand-editing migration files.
 import baselineMigrationSql from './0000_baseline.sql?raw';
 import terminalSurfaceMigrationSql from './0001_terminal_surface.sql?raw';
+import agentSessionUsageMigrationSql from './0002_agent_session_usage.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -42,6 +43,7 @@ export function assertMigrationManifestMatchesJournal(
 export const migrationManifest = [
     { tag: '0000_baseline', sql: baselineMigrationSql },
     { tag: '0001_terminal_surface', sql: terminalSurfaceMigrationSql },
+    { tag: '0002_agent_session_usage', sql: agentSessionUsageMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

@@ -11,6 +11,7 @@ import {
 import {
     isExternalEditorTabPath,
     isSettingsTabPath,
+    isUsageTabPath,
     parseAgentTranscriptTab,
     parseFilePreviewTab,
     parseGitDiffTab,
@@ -61,6 +62,14 @@ const PreviewSurface = lazy(async () => {
 const SettingsWorkbenchPage = lazy(async () => {
     const module = await import('../settings/settings-workbench-page');
     return { default: module.SettingsWorkbenchPage };
+});
+
+/**
+ * Lazy so a Session that never opens the Usage report does not load its charts.
+ */
+const UsageWorkbenchPage = lazy(async () => {
+    const module = await import('../usage/usage-workbench-page');
+    return { default: module.UsageWorkbenchPage };
 });
 
 const emptyWorkClassName =
@@ -212,6 +221,12 @@ function EditorSurfaceContent({ paneId, path }: { paneId: string; path: string }
         return (
             <Suspense fallback={<div className={emptyWorkClassName}>Loading Settings…</div>}>
                 <SettingsWorkbenchPage />
+            </Suspense>
+        );
+    if (isUsageTabPath(path))
+        return (
+            <Suspense fallback={<div className={emptyWorkClassName}>Loading Usage…</div>}>
+                <UsageWorkbenchPage />
             </Suspense>
         );
     return <FileEditorSurface paneId={paneId} path={path} />;
