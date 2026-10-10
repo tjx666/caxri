@@ -11,13 +11,12 @@ import {
     MAX_AGENT_CHAT_DIFF_LENGTH,
     MAX_AGENT_CHAT_FILE_CHANGE_DIFF_TOTAL,
     MAX_AGENT_CHAT_FILE_CHANGES,
-    MAX_AGENT_CHAT_OUTPUT_LENGTH,
     MAX_AGENT_CHAT_PLAN_STEPS,
     MAX_AGENT_CHAT_QUESTIONS,
     MAX_AGENT_CHAT_TEXT_LENGTH,
 } from '@caxri/protocol';
 
-import { clip, closeDanglingItem, isRecord, stringField, tail } from './chat-items';
+import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
 
 /**
  * Pure translation from Claude Code's message stream (Agent SDK messages and the session JSONL transcript share the
@@ -95,7 +94,7 @@ function replacementDiff(oldText: string, newText: string): string {
 /**
  * Claude Code's `structuredPatch` result: hunks with line numbers, in the shape the `diff` package produces.
  */
-function structuredPatchDiff(patch: unknown): string | undefined {
+export function structuredPatchDiff(patch: unknown): string | undefined {
     if (!Array.isArray(patch) || patch.length === 0) return undefined;
     const hunks = patch.flatMap((hunk) => {
         if (!isRecord(hunk) || !Array.isArray(hunk.lines)) return [];
@@ -145,14 +144,18 @@ export function mapClaudeToolUse(
     if (!id || !name || isClaudeHiddenTool(name)) return undefined;
     const input = isRecord(block.input) ? block.input : {};
     const base = { id: clip(id, 200), ...(turnId && { turnId: clip(turnId, 200) }) };
-    if (name === 'Bash')
+    if (name === 'Bash') {
+        const description = optionalText(input.description, 500);
         return {
             ...base,
             type: 'command',
             command: clip(text(input.command), 4_096),
+            ...(description && { description }),
+            ...(input.run_in_background === true && { background: true }),
             status: 'running',
             output: '',
         };
+    }
     if (FILE_TOOLS.has(name))
         return {
             ...base,
@@ -177,58 +180,6 @@ export function mapClaudeToolUse(
         status: 'running',
         ...(summary && { summary }),
     };
-}
-
-function toolResultText(content: unknown): string {
-    if (typeof content === 'string') return content;
-    if (!Array.isArray(content)) return '';
-    return content
-        .flatMap((part) => (isRecord(part) && part.type === 'text' ? [text(part.text)] : []))
-        .join('\n');
-}
-
-/**
- * Settles the item a `tool_result` block answers. `structured` is Claude Code's structured tool output
- * (`tool_use_result` in the SDK, `toolUseResult` in the transcript), which carries the real patch for file edits.
- * `wasDeclined` marks a tool the user declined, which Claude Code reports as an error result.
- */
-export function settleClaudeToolItem(
-    item: AgentChatItem,
-    block: Json,
-    structured: unknown,
-    wasDeclined: boolean,
-): AgentChatItem | undefined {
-    const isError = block.is_error === true;
-    const status = wasDeclined ? 'declined' : isError ? 'failed' : 'completed';
-    const output = tail(toolResultText(block.content), MAX_AGENT_CHAT_OUTPUT_LENGTH);
-    switch (item.type) {
-        case 'command': {
-            return { ...item, status, output };
-        }
-        case 'toolCall': {
-            return { ...item, status, ...(output && { output }) };
-        }
-        case 'fileChange': {
-            const result = isRecord(structured) ? structured : {};
-            const patch = structuredPatchDiff(result.structuredPatch);
-            return {
-                ...item,
-                status,
-                changes: item.changes.map((change, index) =>
-                    index === 0
-                        ? {
-                              ...change,
-                              ...(result.type === 'create' && { kind: 'add' as const }),
-                              ...(patch && { diff: clip(patch, MAX_AGENT_CHAT_DIFF_LENGTH) }),
-                          }
-                        : change,
-                ),
-            };
-        }
-        default: {
-            return undefined;
-        }
-    }
 }
 
 /**

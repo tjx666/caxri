@@ -394,6 +394,18 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await approval.getByRole('button', { name: 'Accept', exact: true }).click();
         await expect(approval).toHaveCount(0);
         await expect(chat.getByText('The command ran.')).toBeVisible();
+        // The row reads the Agent's description of the command, and expanded shows the command and how it ended.
+        await chat
+            .getByRole('button', { name: /^Worked for /u })
+            .last()
+            .click();
+        const commandRow = chat.getByRole('button', { name: /^Ran Print a confirmation/u });
+        await expect(commandRow).toContainText(/\d+s$/u);
+        await commandRow.click();
+        await expect(chat.getByText('Exit code 0')).toBeVisible();
+        await expect(chat.locator('pre').filter({ hasText: 'echo approved' })).toBeVisible();
+        await expectDisclosuresSettled(chat, 'agent-chat-item');
+        await page.screenshot({ path: testInfo.outputPath('claude-chat-command.png') });
 
         await message.fill('ask me');
         await message.press('Enter');

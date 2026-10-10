@@ -42,6 +42,18 @@ function monacoLanguageId(monaco: Monaco, fence: string): string | undefined {
 }
 
 /**
+ * The display name Monaco registers for a fence word (`ts` reads as `TypeScript`), for a code block's header. Comes
+ * from the same registration that paints the block, so the label and the colors always agree.
+ */
+export async function codeLanguageName(fence: string): Promise<string | undefined> {
+    const { monaco } = await import('./monaco');
+    const languageId = monacoLanguageId(monaco, fence);
+    if (!languageId) return undefined;
+    return monaco.languages.getLanguages().find((language) => language.id === languageId)
+        ?.aliases?.[0];
+}
+
+/**
  * Paints `code` with the editor's own token colors, so a fenced block in a Markdown preview or a Chat reply and the
  * same lines in the editor share one set of colors and no second highlighting library has to track the theme.
  *

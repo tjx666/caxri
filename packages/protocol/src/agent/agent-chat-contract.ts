@@ -159,6 +159,15 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
         ...itemBase,
         type: z.literal('command'),
         command: z.string().max(4_096),
+        /**
+         * What the command does in plain words, when the Agent wrote one (Claude Code's `Bash` description).
+         */
+        description: z.string().max(500).optional(),
+        /**
+         * True once the command runs on in the background: started that way, or moved there by the user or a timeout.
+         * Its `status` then settles when the Agent hands it off, so `exitCode` and `durationMs` stay absent.
+         */
+        background: z.boolean().optional(),
         status: agentChatItemStatusSchema,
         /**
          * Bounded tail of the combined command output.
