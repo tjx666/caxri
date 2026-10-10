@@ -21,9 +21,9 @@ import {
 const DISCOVERY_STALE_MS = 30_000;
 
 /**
- * Suggestion state for a draft that is a bare `/name` or `$name`. Escape dismisses the list for the current draft only,
- * so typing another character brings it back. Skills are discovered only once the user starts an invocation, and the
- * provider's commands show while discovery runs or when it fails.
+ * Suggestion state for a draft that is a bare `/name` or `$name`. Escape dismisses the list for the current draft only:
+ * any edit brings it back, including clearing the box and typing the same `/` again. Skills are discovered only once
+ * the user starts an invocation, and the provider's commands show while discovery runs or when it fails.
  */
 export function useAgentChatCommandMenu({
     commands,
@@ -48,6 +48,13 @@ export function useAgentChatCommandMenu({
         [commands, discovery.data?.actions],
     );
     const [dismissedDraft, setDismissedDraft] = useState<string>();
+    /**
+     * The dismissal ends at the first edit. Comparing against the dismissed text alone would keep the list closed
+     * whenever the draft returned to it, so a `/` dismissed once stayed dismissed after the box was cleared and `/`
+     * typed again. Reset during render rather than in an effect:
+     * https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+     */
+    if (dismissedDraft !== undefined && dismissedDraft !== draft) setDismissedDraft(undefined);
     /**
      * Keyed by query so a new search starts at the first match.
      */
