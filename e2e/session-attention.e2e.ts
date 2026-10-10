@@ -133,7 +133,8 @@ setInterval(() => {
         const firstRow = running.page.locator(`[data-session-id="${firstSession.id}"]`);
         const firstStatus = firstRow.locator('.session-status');
         await expect(firstStatus).toHaveAttribute('data-session-status', 'running');
-        await expect(firstStatus).toHaveAccessibleName('Working. The Agent is running.');
+        await expect(firstStatus).toHaveAccessibleName('Working');
+        await expect(firstStatus).toHaveAccessibleDescription('The Agent is running.');
         expect(
             await firstStatus
                 .locator('[data-session-status-arc]')
