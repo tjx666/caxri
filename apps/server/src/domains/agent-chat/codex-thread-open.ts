@@ -2,8 +2,8 @@ import { isRecord, stringField } from './chat-items';
 import type { ChatProcessEnd } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
 import type { CodexThreadSettings } from './codex-chat-types';
-import type { CodexConnection } from './codex-connection';
-import { CodexRequestError } from './codex-connection';
+import type { JsonRpcConnection } from './json-rpc-connection';
+import { JsonRpcRequestError } from './json-rpc-connection';
 
 /**
  * Opening a Codex Chat: the app-server handshake, then resuming the bound thread or starting a new one. Every failure
@@ -20,7 +20,7 @@ const THREAD_OPEN_TIMEOUT_MS = 30_000;
  * failed handshake better than the handshake error does.
  */
 export async function initializeCodexConnection(
-    connection: CodexConnection,
+    connection: JsonRpcConnection,
     clientVersion: string,
     spawnFailure: () => ChatProcessEnd | undefined,
 ): Promise<void> {
@@ -53,7 +53,7 @@ export async function initializeCodexConnection(
             throw failure.code === 'ENOENT'
                 ? new AgentChatStartError('executable_not_found', 'Codex CLI was not found')
                 : new AgentChatStartError('spawn_failed', 'Codex could not be started');
-        if (error instanceof CodexRequestError && /unknown variant/u.test(error.message))
+        if (error instanceof JsonRpcRequestError && /unknown variant/u.test(error.message))
             throw new AgentChatStartError(
                 'unsupported_version',
                 'This Codex CLI version does not support Chat',
@@ -73,7 +73,7 @@ export type CodexThreadOpening =
  * Resumes `threadId` with its history, or starts a new thread when there is none.
  */
 export async function openCodexThread(
-    connection: CodexConnection,
+    connection: JsonRpcConnection,
     { cwd, settings, threadId }: { cwd: string; settings: CodexThreadSettings; threadId?: string },
 ): Promise<CodexThreadOpening> {
     const threadParameters = {

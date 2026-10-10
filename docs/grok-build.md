@@ -5,9 +5,10 @@ status: current
 
 # Grok Build
 
-Caxri hosts the native Grok Build terminal through the existing managed Agent PTY.
-It uses the installed CLI and its existing authentication; Caxri does not install
-Grok, implement an xAI API client, or introduce another chat interface.
+Caxri hosts the native Grok Build terminal through the existing managed Agent PTY,
+or runs it as an Agent Chat over its ACP agent (see [Chat](#chat)). Both use the
+installed CLI and its existing authentication; Caxri does not install Grok or
+implement an xAI API client.
 
 ## Supported launch
 
@@ -18,8 +19,8 @@ Default arguments are `--yolo` (`--yolo` is Grok Build's alias for
 is `off` (unrestricted). A user who wants confinement can add `--sandbox workspace`
 or another documented mode in Initial arguments (a flag and its value may share a
 line) and `prepareLaunch` passes that value through unchanged. Automatic background suspension is disabled for this
-provider. Do not substitute `--no-leader`: the verified binary rejects that newer
-option.
+provider. Do not add `--no-leader` to the TUI launch: the verified 1.0.24 root
+command rejects it. The Chat passes it to `grok agent`, which accepts it.
 
 Caxri owns the launch session arguments. A new Terminal receives a fresh UUID via
 `--session-id`; restore uses `--resume` with the exact confirmed conversation UUID.
@@ -54,6 +55,24 @@ not sufficient evidence that the main turn is waiting for a human. Native rename
 Agent messaging and bundled skills/actions are unavailable in
 this integration. Rename fails explicitly instead of saving a Caxri-only alias.
 
+## Chat
+
+A Chat runs `grok agent --no-leader stdio` and speaks ACP (Agent Client Protocol)
+v1; [Agent Chat](agent-chat.md) owns the provider-neutral contract and the full
+mapping. The Initial arguments are translated rather than appended: `--yolo` or
+`--always-approve`, `--model`, and `--reasoning-effort` become `agent` options,
+`--sandbox` and `--permission-mode` stay root options before `agent`, and TUI-only
+flags are dropped. `--no-leader` keeps a configured `[cli] use_leader` from turning
+the stdio agent into a bridge to a shared leader process.
+
+`session/new` takes the Terminal's preset UUID in `_meta.sessionId`, so the Chat and
+the TUI share one conversation identity and `summary.json` layout: a bound Grok
+Build Terminal switches between the PTY (`--resume`) and the Chat (`session/load`)
+in either direction. The Chat binds that id when its first turn starts and
+synthesizes its own lifecycle signals, so it does not depend on the hooks above.
+The verified Chat baseline is Grok Build 1.0.50; an older `grok agent` that rejects
+`--no-leader` fails the Chat's handshake visibly.
+
 ## Conversation title
 
 The metadata probe reads `generated_title` from the bound conversation's
@@ -71,7 +90,8 @@ synchronize a generated name back into the provider.
 ## Verification boundaries
 
 Automated Electron tests use a repository-owned fake CLI and isolated provider
-homes. They do not discover or invoke the host Grok executable. The native CLI
+homes. They do not discover or invoke the host Grok executable; the Chat's fake is
+`apps/server/src/domains/agent-chat/__tests__/fixtures/fake-grok-acp.ts`. The native CLI
 contract was separately checked with an explicitly authorized diagnostic probe:
 new UUID, exact resume, duplicate UUID rejection, native PTY `/new`, normal and
 failed turn events, and shutdown events. Command-hook receipts from the native

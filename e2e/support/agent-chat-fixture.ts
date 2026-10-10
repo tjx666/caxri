@@ -27,6 +27,15 @@ const FAKE_CLAUDE = join(
 );
 
 /**
+ * The deterministic Grok Build ACP agent the Server unit tests drive.
+ */
+const FAKE_GROK = join(
+    import.meta.dirname,
+    '../..',
+    'apps/server/src/domains/agent-chat/__tests__/fixtures/fake-grok-acp.ts',
+);
+
+/**
  * A fake Codex whose `app-server` is the deterministic Server-test fixture; threads persist under `directory`.
  */
 export function fakeCodexChatAgentMode(directory: string, userData: string) {
@@ -64,9 +73,29 @@ import(${JSON.stringify(pathToFileURL(FAKE_CLAUDE).href)});
 }
 
 /**
+ * A fake Grok Build whose `agent stdio` is the deterministic ACP fixture; sessions persist under `directory`.
+ */
+export function fakeGrokChatAgentMode(directory: string, userData: string) {
+    return createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            grok: {
+                executableSource: `#!${process.execPath}
+process.env.FAKE_GROK_STATE_DIR = ${JSON.stringify(join(directory, 'grok-sessions'))};
+import(${JSON.stringify(pathToFileURL(FAKE_GROK).href)});
+`,
+            },
+        },
+    });
+}
+
+/**
  * Creates an Agent Chat from the visible Session's New Terminal menu, with the menu's Open in Chat toggle on.
  */
-export async function openAgentChat(page: Page, label: 'Claude Chat' | 'Codex Chat') {
+export async function openAgentChat(
+    page: Page,
+    label: 'Claude Chat' | 'Codex Chat' | 'Grok Build Chat',
+) {
     await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
     const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
     const openInChat = terminalMenu.getByRole('menuitemcheckbox', { name: 'Open in Chat' });

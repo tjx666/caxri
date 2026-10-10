@@ -1,7 +1,7 @@
 import type { AgentChatCommand, AgentChatItem, AgentChatMessageInput } from '@caxri/protocol';
 
 import { isRecord, stringField } from './chat-items';
-import type { CodexRequestError } from './codex-connection';
+import type { JsonRpcRequestError } from './json-rpc-connection';
 
 /**
  * Slash commands Caxri maps to app-server methods. The Codex TUI's other commands drive its own screen (`/model`
@@ -106,6 +106,6 @@ export class CodexDeliveries {
  *
  * @see https://github.com/openai/codex/blob/main/codex-rs/app-server/src/request_processors/turn_processor.rs
  */
-export function isSteerTargetGone(error: CodexRequestError): boolean {
+export function isSteerTargetGone(error: JsonRpcRequestError): boolean {
     return /^(?:no active turn to steer|expected active turn id)/u.test(error.message);
 }
