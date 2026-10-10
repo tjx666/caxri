@@ -104,6 +104,48 @@ describe('buildAgentChatTimeline', () => {
         expect(shape(buildAgentChatTimeline(items, turns, undefined))).toEqual(['u', 'a1', ['c']]);
     });
 
+    it('marks only the reply that ends a turn, and none while the turn runs', () => {
+        const finalReplies = (entries: readonly AgentChatTimelineEntry[]): string[] =>
+            entries.flatMap((entry) =>
+                entry.kind === 'item'
+                    ? entry.isFinalReply
+                        ? [entry.item.id]
+                        : []
+                    : entry.kind === 'turn'
+                      ? finalReplies(entry.entries)
+                      : [],
+            );
+        const items = [
+            user('u1', 't1'),
+            reply('a1', 't1'),
+            command('c1', 't1'),
+            reply('a2', 't1'),
+            user('u2', 't2'),
+            reply('a3', 't2'),
+            command('c2', 't2'),
+            reply('a4', 't2'),
+            command('c3', 't2'),
+        ];
+        const turns: AgentChatTurn[] = [
+            { id: 't1', status: 'completed', durationMs: 1000 },
+            { id: 't2', status: 'running' },
+        ];
+        expect(finalReplies(buildAgentChatTimeline(items, turns, 't2'))).toEqual(['a2']);
+        const ended = buildAgentChatTimeline(
+            items,
+            [turns[0], { id: 't2', status: 'completed', durationMs: 1000 }],
+            undefined,
+        );
+        expect(finalReplies(ended)).toEqual(['a2', 'a4']);
+        // A subagent transcript has no turn records; each run of its items still ends on one reply.
+        const subagent = buildAgentChatTimeline(
+            [reply('s1'), command('sc'), reply('s2')],
+            [],
+            undefined,
+        );
+        expect(finalReplies(subagent)).toEqual(['s2']);
+    });
+
     it('skips empty reasoning', () => {
         const items: AgentChatItem[] = [
             { id: 'r', type: 'reasoning', text: '', streaming: true },

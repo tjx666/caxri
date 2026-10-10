@@ -136,6 +136,18 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
             .getByRole('button', { name: /^Worked for /u })
             .last()
             .click();
+        /**
+         * Only the reply that ends each turn carries Copy, so commentary between tool calls reserves no action row.
+         */
+        const reply = (text: string) =>
+            chat.locator(String.raw`.group\/reply`).filter({ hasText: text });
+        await expect(reply('Looking around the project.')).toBeVisible();
+        await expect(
+            reply('Looking around the project.').getByRole('button', { name: 'Copy message' }),
+        ).toHaveCount(0);
+        await expect(
+            reply('Explored the project.').getByRole('button', { name: 'Copy message' }),
+        ).toHaveCount(1);
         const workGroup = chat.getByRole('button', { name: 'Ran 2 commands, called 1 MCP tool' });
         await expect(workGroup).toHaveAttribute('aria-expanded', 'false');
         await workGroup.click();

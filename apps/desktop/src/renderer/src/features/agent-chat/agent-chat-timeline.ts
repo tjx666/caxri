@@ -25,7 +25,15 @@ export type AgentChatWorkItem = Extract<
  * everything but the prompt, the final reply, and notices into one `turn` entry.
  */
 export type AgentChatTimelineEntry =
-    | { kind: 'item'; item: Exclude<AgentChatItem, AgentChatWorkItem> }
+    | {
+          kind: 'item';
+          item: Exclude<AgentChatItem, AgentChatWorkItem>;
+          /**
+           * The reply that ends a finished turn, the only one that carries a Copy action. Commentary between tool calls
+           * stays action-free so the transcript does not reserve a row under every reply.
+           */
+          isFinalReply?: true;
+      }
     | { kind: 'work'; id: string; items: readonly AgentChatWorkItem[] }
     | {
           kind: 'turn';
@@ -51,7 +59,7 @@ const isWorkItem = (item: AgentChatItem): item is AgentChatWorkItem =>
  */
 const isVisible = (item: AgentChatItem): boolean => item.type !== 'reasoning' || item.text !== '';
 
-function groupWork(items: readonly AgentChatItem[]): FlatEntry[] {
+function groupWork(items: readonly AgentChatItem[], finalReplyId?: string): FlatEntry[] {
     const entries: FlatEntry[] = [];
     let work: AgentChatWorkItem[] = [];
     const flush = (): void => {
@@ -66,7 +74,11 @@ function groupWork(items: readonly AgentChatItem[]): FlatEntry[] {
             continue;
         }
         flush();
-        entries.push({ kind: 'item', item });
+        entries.push({
+            kind: 'item',
+            item,
+            ...(item.id === finalReplyId && { isFinalReply: true }),
+        });
     }
     flush();
     return entries;
@@ -96,20 +108,24 @@ export function agentChatTurnLabel(turn: AgentChatTurn): string {
  * view, dropping only a transient retry; the work and commentary before the reply fold into one disclosure at the
  * position of the first folded item, the way Codex and T3 Code end a turn.
  */
-function foldTurn(items: readonly AgentChatItem[], turn: AgentChatTurn): AgentChatTimelineEntry[] {
+function foldTurn(
+    items: readonly AgentChatItem[],
+    turn: AgentChatTurn,
+    finalReplyId: string | undefined,
+): AgentChatTimelineEntry[] {
     const visible = items.filter((item) => isVisible(item));
-    const replyIndex = visible.findLastIndex((item) => item.type === 'agentMessage');
+    const replyIndex = visible.findIndex((item) => item.id === finalReplyId);
     const isKept = (item: AgentChatItem, index: number): boolean =>
         item.type === 'userMessage' ||
         index === replyIndex ||
         (item.type === 'notice' && item.kind !== 'retrying');
     const folded = visible.filter((item, index) => !isKept(item, index));
-    if (folded.length === 0) return groupWork(visible);
+    if (folded.length === 0) return groupWork(visible, finalReplyId);
     const entries: AgentChatTimelineEntry[] = [];
     let hasFold = false;
     for (const [index, item] of visible.entries()) {
         if (isKept(item, index)) {
-            entries.push(...groupWork([item]));
+            entries.push(...groupWork([item], finalReplyId));
             continue;
         }
         if (hasFold) continue;
@@ -126,7 +142,9 @@ function foldTurn(items: readonly AgentChatItem[], turn: AgentChatTurn): AgentCh
 
 /**
  * Builds the rendered timeline from the projection. Items arrive in order and each turn's items are contiguous, so a
- * run of items sharing a `turnId` is one turn. A turn still running (or with no recorded end) stays expanded.
+ * run of items sharing a `turnId` is one turn. A turn still running (or with no recorded end) stays expanded. Every
+ * turn not running ends on its last reply, which is the only one marked `isFinalReply`; a running turn's latest reply
+ * may still be followed by more work, so it is not marked until the turn ends.
  */
 export function buildAgentChatTimeline(
     items: readonly AgentChatItem[],
@@ -138,6 +156,10 @@ export function buildAgentChatTimeline(
             .filter((turn) => turn.status !== 'running' && turn.id !== activeTurnId)
             .map((turn) => [turn.id, turn]),
     );
+    const running = new Set(
+        turns.filter((turn) => turn.status === 'running').map((turn) => turn.id),
+    );
+    if (activeTurnId !== undefined) running.add(activeTurnId);
     const entries: AgentChatTimelineEntry[] = [];
     let start = 0;
     while (start < items.length) {
@@ -146,7 +168,13 @@ export function buildAgentChatTimeline(
         while (end < items.length && items[end]?.turnId === turnId) end += 1;
         const segment = items.slice(start, end);
         const turn = turnId === undefined ? undefined : finished.get(turnId);
-        entries.push(...(turn ? foldTurn(segment, turn) : groupWork(segment)));
+        const finalReplyId =
+            turnId !== undefined && running.has(turnId)
+                ? undefined
+                : segment.findLast((item) => item.type === 'agentMessage')?.id;
+        entries.push(
+            ...(turn ? foldTurn(segment, turn, finalReplyId) : groupWork(segment, finalReplyId)),
+        );
         start = end;
     }
     return entries;
