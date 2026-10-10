@@ -158,6 +158,9 @@ pending permission prompts and questions until the user answers:
 - Claude Code has no turn ids. A turn is named by the uuid of the user message that started it and
   ends with the `result` message once `queued_turn_count` is zero, so a message sent mid-turn is
   folded into the running turn. The prompt is recorded locally because Claude Code does not echo it.
+  Output that arrives with no turn open (Claude Code continuing on its own after a background task
+  finishes) opens a turn named by a fresh uuid, so the composer offers Stop and a surface switch
+  asks before ending that work.
 - Text and thinking stream from `stream_event` deltas and are finalized by the complete
   `assistant` frame under the same id (model message id plus the block's per-kind ordinal).
 - `Bash` is a command row, `Edit`/`MultiEdit`/`Write`/`NotebookEdit` a file change whose diff is
