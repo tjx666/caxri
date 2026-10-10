@@ -3,6 +3,7 @@ import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'n
 import type {
     AgentChatDecision,
     AgentChatFailureReason,
+    AgentChatMessageInput,
     AgentChatPatchOperation,
     AgentChatSnapshot,
     AgentChatTurn,
@@ -148,9 +149,14 @@ export interface AgentChatProviderSession {
      */
     start(): Promise<'resumed' | 'started'>;
     /**
-     * Starts a turn, or steers the running one.
+     * Starts a turn, or steers the running one. Image data goes only to the provider; the projection keeps thumbnails.
      */
-    send(text: string): Promise<void>;
+    send(message: AgentChatMessageInput): Promise<void>;
+    /**
+     * Runs one of the commands this session reported in the snapshot's `commands`; the service has already checked that
+     * `name` is listed.
+     */
+    runCommand(name: string, arguments_: string | undefined): Promise<void>;
     interrupt(): Promise<void>;
     respond(requestId: string, response: AgentChatResponse): void;
     /**
@@ -162,3 +168,8 @@ export interface AgentChatProviderSession {
 export interface AgentChatDriver {
     create(host: AgentChatSessionHost): AgentChatProviderSession;
 }
+
+/**
+ * One input the service delivers to a started provider session, in the order the Client sent it.
+ */
+export type ChatInputDelivery = (session: AgentChatProviderSession) => Promise<void>;

@@ -79,6 +79,25 @@ async function executeMobileAgentChatScenario(
             () => chat.read(),
             (snapshot) => agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
         );
+        // The phone cannot show thumbnails yet, so an image-only message from the desktop reads as its image count.
+        await chat.send({
+            text: '',
+            images: [
+                {
+                    mediaType: 'image/png',
+                    data: 'iVBORw0KGgo=',
+                    thumbnail: 'data:image/jpeg;base64,/9j/4AAQ',
+                },
+            ],
+        });
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                agentText(snapshot).includes('Received 1 image.') && !snapshot.activeTurnId,
+        );
+        await waitForNoCheck(serial, 'agent-chat-activity');
+        await capture(environment, 'image-message', artifacts);
+
         await sendFromPhone(serial, 'table');
         await waitForMobile(
             () => chat.read(),

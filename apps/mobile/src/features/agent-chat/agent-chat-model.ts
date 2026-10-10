@@ -116,9 +116,23 @@ const noticeSummary = (item: Extract<AgentChatItem, { type: 'notice' }>): string
     }
 };
 
+/**
+ * The phone does not render image thumbnails yet, so a message's images are counted in its text. Without this an
+ * image-only message would vanish from the timeline.
+ */
+const userMessageText = (item: Extract<AgentChatItem, { type: 'userMessage' }>): string => {
+    const count = item.images?.length ?? 0;
+    if (count === 0) return item.text;
+    const note = count === 1 ? '1 image' : `${count} images`;
+    return item.text.length > 0 ? `${item.text}\n\n[${note}]` : `[${note}]`;
+};
+
 const toTimelineItem = (item: AgentChatItem): AgentTimelineItem | undefined => {
     switch (item.type) {
-        case 'userMessage':
+        case 'userMessage': {
+            const text = userMessageText(item);
+            return text.length > 0 ? { id: item.id, type: item.type, text } : undefined;
+        }
         case 'agentMessage': {
             return item.text.length > 0
                 ? { id: item.id, type: item.type, text: item.text }

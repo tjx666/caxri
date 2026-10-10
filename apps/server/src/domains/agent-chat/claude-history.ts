@@ -8,6 +8,7 @@ import { MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
 import { extractVisibleTranscriptMessage } from '../agents';
 import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
+import { claudeUserImageCount } from './claude-input';
 import { claudeAssistantItems, ClaudeBlockIds, settleClaudeToolItem, text } from './claude-items';
 
 /**
@@ -65,7 +66,9 @@ function applyUserRecord(state: HistoryState, record: Json, message: Json): void
     if (record.isCompactSummary === true) return;
     const visible = extractVisibleTranscriptMessage(record);
     const uuid = stringField(record.uuid);
-    if (!uuid || visible?.role !== 'user') return;
+    // An image-only message has no visible text but is still the user's turn.
+    const imageCount = claudeUserImageCount(message.content);
+    if (!uuid || (imageCount === 0 && visible?.role !== 'user')) return;
     const turnId = clip(uuid, 200);
     state.turnId = turnId;
     state.turns.push({ id: turnId, status: 'completed' });
@@ -73,7 +76,8 @@ function applyUserRecord(state: HistoryState, record: Json, message: Json): void
         id: turnId,
         turnId,
         type: 'userMessage',
-        text: clip(visible.text, MAX_AGENT_CHAT_TEXT_LENGTH),
+        text: clip(visible?.text ?? '', MAX_AGENT_CHAT_TEXT_LENGTH),
+        ...(imageCount > 0 && { images: Array.from({ length: imageCount }, () => ({})) }),
     });
 }
 

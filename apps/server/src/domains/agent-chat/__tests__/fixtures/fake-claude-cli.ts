@@ -14,6 +14,9 @@
  * - `table`: a reply with a Markdown table and a fenced code block.
  * - Anything else: thinking, a todo list, and a streamed reply quoting the message.
  *
+ * A message with images is answered with how many it received. `/compact` compacts the conversation; the CLI reports
+ * `/compact`, `/review`, and the terminal-bound `/exit` as its commands.
+ *
  * Every turn is appended to a JSONL transcript at Claude Code's own location under `CLAUDE_CONFIG_DIR`, so `--resume`
  * and Caxri's transcript-based history read real records.
  */
@@ -68,8 +71,17 @@ const state: {
     lastUuid: string | null;
     interrupted: boolean;
     turnRunning: boolean;
-    queued: string[];
+    queued: Array<{ text: string; content: unknown }>;
 } = { nextRequestId: 1, lastUuid: null, interrupted: false, turnRunning: false, queued: [] };
+const COMMANDS = [
+    {
+        name: 'compact',
+        description: 'Clear conversation history but keep a summary in context',
+        argumentHint: '<optional custom summarization instructions>',
+    },
+    { name: 'review', description: 'Review a pull request', argumentHint: '' },
+    { name: 'exit', description: 'Exit the REPL', argumentHint: '' },
+];
 const pendingControl = new Map<string, (response: Json) => void>();
 
 function send(message: Json) {
@@ -232,10 +244,10 @@ function result(startedAt: number, text: string, isError = false) {
     record({ type: 'system', subtype: 'turn_duration', durationMs: Date.now() - startedAt });
 }
 
-async function runTurn(text: string) {
+async function runTurn(text: string, content: unknown) {
     const startedAt = Date.now();
     state.interrupted = false;
-    record({ type: 'user', message: { role: 'user', content: text } });
+    record({ type: 'user', message: { role: 'user', content: content ?? text } });
     send(
         frame({
             type: 'system',
@@ -244,8 +256,24 @@ async function runTurn(text: string) {
             model: MODEL,
             tools: [],
             permissionMode: 'default',
+            slash_commands: COMMANDS.map((command) => command.name),
+            terminal_slash_commands: ['exit'],
         }),
     );
+    if (text.trim() === '/compact') {
+        send(frame({ type: 'system', subtype: 'compact_boundary' }));
+        record({ type: 'system', subtype: 'compact_boundary' });
+        result(startedAt, 'Compacted.');
+        return;
+    }
+    const imageCount = Array.isArray(content)
+        ? content.filter((block) => (block as { type?: unknown }).type === 'image').length
+        : 0;
+    if (imageCount > 0) {
+        await didStreamFully(`Received ${imageCount} image${imageCount === 1 ? '' : 's'}.`, 0);
+        result(startedAt, 'done');
+        return;
+    }
     if (text.includes('crash')) exitProcess(1);
     if (text.includes('fail')) {
         result(startedAt, 'The fake model is overloaded.', true);
@@ -409,9 +437,9 @@ async function drain() {
     if (state.turnRunning) return;
     state.turnRunning = true;
     while (state.queued.length > 0) {
-        const text = state.queued.shift() ?? '';
+        const next = state.queued.shift();
         // eslint-disable-next-line no-await-in-loop -- turns run one at a time, like the real CLI
-        await runTurn(text);
+        if (next) await runTurn(next.text, next.content);
     }
     state.turnRunning = false;
 }
@@ -460,7 +488,7 @@ lines.on('line', (line) => {
                 response:
                     request.subtype === 'initialize'
                         ? {
-                              commands: [],
+                              commands: COMMANDS,
                               agents: [],
                               models: [
                                   { value: MODEL, displayName: 'Fake', description: 'Fake model' },
@@ -475,7 +503,10 @@ lines.on('line', (line) => {
         return;
     }
     if (message.type === 'user') {
-        state.queued.push(userText(message.message));
+        state.queued.push({
+            text: userText(message.message),
+            content: (message.message as { content?: unknown } | undefined)?.content,
+        });
         // eslint-disable-next-line no-void -- the turn loop reports through stdout
         void drain();
     }

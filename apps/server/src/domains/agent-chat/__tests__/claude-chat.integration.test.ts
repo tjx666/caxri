@@ -10,7 +10,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
         await until((snapshot) => snapshot.status === 'ready');
         expect(database.getTerminal(terminal.id)?.agentSessionId).toBeUndefined();
 
-        await service.send(terminal.id, 'hi there');
+        await service.send(terminal.id, { text: 'hi there' });
         const snapshot = await until(
             (current) => current.turns.at(-1)?.status === 'completed' && !current.activeTurnId,
         );
@@ -45,7 +45,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
 
     it('asks before a command and runs it once accepted', async () => {
         const { service, terminal, signals, until } = await fixture({ provider: 'claude' });
-        await service.send(terminal.id, 'please approve this');
+        await service.send(terminal.id, { text: 'please approve this' });
         const pending = await until((snapshot) => snapshot.requests.length === 1);
         const request = pending.requests[0];
         expect(request).toMatchObject({
@@ -67,7 +67,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
 
     it('records a declined command as declined', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
-        await service.send(terminal.id, 'please approve this');
+        await service.send(terminal.id, { text: 'please approve this' });
         const pending = await until((snapshot) => snapshot.requests.length === 1);
         service.respond(terminal.id, pending.requests[0].id, {
             kind: 'decision',
@@ -82,7 +82,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
 
     it('gates a file edit and shows the patch Claude Code reports', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
-        await service.send(terminal.id, 'edit the notes');
+        await service.send(terminal.id, { text: 'edit the notes' });
         const pending = await until((snapshot) => snapshot.requests.length === 1);
         const request = pending.requests[0];
         expect(request).toMatchObject({ kind: 'fileChange', itemId: request.id });
@@ -96,7 +96,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
 
     it('asks to approve a plan as a generic tool request', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
-        await service.send(terminal.id, 'planmode');
+        await service.send(terminal.id, { text: 'planmode' });
         const pending = await until((snapshot) => snapshot.requests.length === 1);
         const request = pending.requests[0];
         expect(request).toMatchObject({
@@ -111,7 +111,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
 
     it('answers an AskUserQuestion question by its question text', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
-        await service.send(terminal.id, 'ask me');
+        await service.send(terminal.id, { text: 'ask me' });
         const pending = await until((snapshot) => snapshot.requests.length === 1);
         const request = pending.requests[0];
         expect(request).toMatchObject({
@@ -128,7 +128,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
 
     it('interrupts a running turn', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
-        await service.send(terminal.id, 'slow please');
+        await service.send(terminal.id, { text: 'slow please' });
         await until((snapshot) =>
             snapshot.items.some((item) => item.type === 'agentMessage' && item.text.length > 0),
         );
@@ -140,7 +140,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
 
     it('reports a failed turn with its error', async () => {
         const { service, terminal, signals, until } = await fixture({ provider: 'claude' });
-        await service.send(terminal.id, 'fail please');
+        await service.send(terminal.id, { text: 'fail please' });
         const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'failed');
         expect(done.items.at(-1)).toMatchObject({
             type: 'notice',
@@ -152,7 +152,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
 
     it('resumes the bound session with history read from its transcript', async () => {
         const { service, terminal, spawnProcess, until } = await fixture({ provider: 'claude' });
-        await service.send(terminal.id, 'remember me');
+        await service.send(terminal.id, { text: 'remember me' });
         await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
         await service.restart(terminal.id);
         const resumed = service.read(terminal.id);
@@ -174,7 +174,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
         expect(
             spawnProcess.mock.calls[1][1].some((argument) => argument.startsWith('--resume')),
         ).toBe(true);
-        await service.send(terminal.id, 'still here');
+        await service.send(terminal.id, { text: 'still here' });
         const next = await until(
             (snapshot) => snapshot.turns.length === 2 && !snapshot.activeTurnId,
         );
@@ -195,7 +195,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
 
     it('marks a crash mid-turn as a failed turn and a dead process', async () => {
         const { database, service, terminal, until } = await fixture({ provider: 'claude' });
-        await service.send(terminal.id, 'crash now');
+        await service.send(terminal.id, { text: 'crash now' });
         const snapshot = await until((current) => current.status === 'failed');
         expect(snapshot.failure?.reason).toBe('process_exited');
         expect(snapshot.turns.at(-1)?.status).toBe('interrupted');
@@ -204,9 +204,9 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
 
     it('folds a message sent mid-turn into the running turn', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
-        await service.send(terminal.id, 'pause first');
+        await service.send(terminal.id, { text: 'pause first' });
         await until((snapshot) => snapshot.activeTurnId !== undefined);
-        await service.send(terminal.id, 'and then');
+        await service.send(terminal.id, { text: 'and then' });
         const done = await until(
             (snapshot) =>
                 !snapshot.activeTurnId &&

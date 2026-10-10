@@ -11,6 +11,7 @@ export const coreForwardedMethods = [
     'agentChat.interrupt',
     'agentChat.read',
     'agentChat.respond',
+    'agentChat.runCommand',
     'agentChat.send',
     'agentHooks.get',
     'agentSkills.get',

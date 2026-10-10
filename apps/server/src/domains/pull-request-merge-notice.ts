@@ -49,7 +49,7 @@ export function createPullRequestMergeNotice(options: PullRequestMergeNoticeOpti
             return 'no-agent';
         const text = formatMergeNotice(url);
         if (isChatTerminal(terminal)) {
-            await options.agentChat.send(terminalId, text);
+            await options.agentChat.send(terminalId, { text });
             return 'sent';
         }
         const launchId = options.terminals.agentLaunchId(terminalId);
