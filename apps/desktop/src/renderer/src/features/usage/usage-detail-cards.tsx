@@ -20,6 +20,8 @@ function openPullRequest(url: string): void {
     void openExternalUrl(url, (message) => pushToast('error', message));
 }
 
+const MODEL_COLUMNS = ['Input', 'Output', 'Cache', 'Cost'];
+
 function ModelsCard({ report }: { report: UsageReport }) {
     return (
         <UsageCard title="Models">
@@ -30,10 +32,11 @@ function ModelsCard({ report }: { report: UsageReport }) {
                     <thead>
                         <tr>
                             <th className={tableHeadClass}>Model</th>
-                            <th className={cn(numericHeadClass, 'w-20')}>Input</th>
-                            <th className={cn(numericHeadClass, 'w-20')}>Output</th>
-                            <th className={cn(numericHeadClass, 'w-20')}>Cache</th>
-                            <th className={cn(numericHeadClass, 'w-20')}>Cost</th>
+                            {MODEL_COLUMNS.map((label) => (
+                                <th key={label} className={cn(numericHeadClass, 'w-20')}>
+                                    {label}
+                                </th>
+                            ))}
                         </tr>
                     </thead>
                     <tbody>

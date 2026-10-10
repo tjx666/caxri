@@ -198,40 +198,58 @@ export class IncrementalUsageScan {
     }
 }
 
+interface ReadPass {
+    /**
+     * File size the pass saw, or `undefined` when the file could not be opened safely.
+     */
+    size: number | undefined;
+    isReset: boolean;
+}
+
 /**
- * Feeds the complete lines after the stream's cursor to its parser through the shared symlink- and hardlink-safe
- * transcript reader, yielding between bounded passes so a large transcript never monopolizes Server Core. Each pass of
- * `scanTranscriptLines` ends by delivering the unconsumed remainder (a record still being written, or the part cut off
- * by the pass budget) without moving the cursor past it; that remainder is skipped here and read whole on a later pass.
- * Reports `reset` when the file shrank below the cursor.
+ * One bounded pass of `scanTranscriptLines`. Each pass ends by delivering the unconsumed remainder (a record still
+ * being written, or the part cut off by the pass budget) without moving the cursor past it; that remainder is held back
+ * here and read whole on a later pass.
  */
-async function readCompleteLines(stream: UsageStream): Promise<StreamReadOutcome> {
+async function readPass(stream: UsageStream): Promise<ReadPass> {
     const { cursor, location, parser } = stream;
     /**
-     * Set from the reader's callback; an object so the check after the `await` is not narrowed away.
+     * Set from the reader's callback; an object so the checks after the `await` are not narrowed away.
      */
     const reset = { isReset: false };
+    let pending: string | undefined;
+    const size = await scanTranscriptLines(
+        location,
+        cursor,
+        (line) => {
+            if (pending) parser.line(pending);
+            pending = line;
+        },
+        {
+            onReset: () => {
+                reset.isReset = true;
+            },
+        },
+    );
+    // Past an oversized record the reader delivers no remainder, so the last line it delivered was complete.
+    if (pending && cursor.skippingOversizedLine && !reset.isReset) parser.line(pending);
+    return { size, isReset: reset.isReset };
+}
+
+/**
+ * Feeds the complete lines after the stream's cursor to its parser through the shared symlink- and hardlink-safe
+ * transcript reader, yielding between bounded passes so a large transcript never monopolizes Server Core. Reports
+ * `reset` when the file shrank below the cursor.
+ */
+async function readCompleteLines(stream: UsageStream): Promise<StreamReadOutcome> {
+    const { cursor } = stream;
     for (;;) {
         const before = cursor.offset;
-        let pending: string | undefined;
         // eslint-disable-next-line no-await-in-loop -- each pass resumes at the cursor advanced by the previous pass
-        const size = await scanTranscriptLines(
-            location,
-            cursor,
-            (line) => {
-                if (pending) parser.line(pending);
-                pending = line;
-            },
-            {
-                onReset: () => {
-                    reset.isReset = true;
-                },
-            },
-        );
-        if (reset.isReset) return 'reset';
-        // Past an oversized record the reader delivers no remainder, so the last line it delivered was complete.
-        if (pending && cursor.skippingOversizedLine) parser.line(pending);
-        if (size === undefined || cursor.offset >= size || cursor.offset <= before) return 'read';
+        const pass = await readPass(stream);
+        if (pass.isReset) return 'reset';
+        if (pass.size === undefined || cursor.offset >= pass.size || cursor.offset <= before)
+            return 'read';
         // eslint-disable-next-line no-await-in-loop -- yield between passes
         await new Promise<void>((resolve) => setImmediate(resolve));
     }

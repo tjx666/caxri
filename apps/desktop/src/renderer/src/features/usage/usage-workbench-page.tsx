@@ -30,9 +30,10 @@ type AgentFilter = AgentProvider | typeof ALL_AGENTS;
  */
 const REFRESH_INTERVAL_MS = 60_000;
 
-function resolveTimeZone(): string {
-    return new Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-}
+/**
+ * Read once: a report's day boundaries only need to match the zone the user saw when the page loaded.
+ */
+const LOCAL_TIME_ZONE = new Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
 function rangeCaption(report: UsageReport): string {
     return report.rangeStart
@@ -64,10 +65,9 @@ export function UsageWorkbenchPage() {
     const [range, setRange] = useState<UsageRange>('30d');
     const [agent, setAgent] = useState<AgentFilter>(ALL_AGENTS);
     const [metric, setMetric] = useState<UsageMetric>('tokens');
-    const [timeZone] = useState(resolveTimeZone);
     const query = usePolledQuery(
         'usage.report',
-        { timeZone, range, ...(agent !== ALL_AGENTS && { provider: agent }) },
+        { timeZone: LOCAL_TIME_ZONE, range, ...(agent !== ALL_AGENTS && { provider: agent }) },
         {
             label: 'Usage page report',
             intervalMs: REFRESH_INTERVAL_MS,
