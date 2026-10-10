@@ -12,6 +12,7 @@ import type {
 
 import type { AgentDelegationAdapter } from './delegation-contract';
 import type { AgentHookAdapter, AgentLifecycleSignal } from './hooks/contract';
+import type { ThroughputLineScanner } from './throughput';
 import type { TimelineBuilder } from './timeline-model';
 import type { AgentTranscriptLocation } from './transcript-security';
 
@@ -284,6 +285,12 @@ export interface AgentProviderDescriptor {
      * `unsupported` for that provider instead of guessing at a shape.
      */
     timelineProjector?(this: void, builder: TimelineBuilder, record: unknown, offset: number): void;
+    /**
+     * Creates a fresh, stateful reader that measures each model response's output throughput from this provider's
+     * transcript lines. A provider whose transcript records no per-response usage and timing omits this, and the status
+     * bar shows no throughput for it.
+     */
+    createThroughputScanner?(this: void): ThroughputLineScanner;
 }
 
 /**
