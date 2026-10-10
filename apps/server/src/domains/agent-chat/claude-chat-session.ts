@@ -15,7 +15,13 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
-import { clip, endedSessionOperations, isRecord, stringField } from './chat-items';
+import {
+    clip,
+    endedSessionOperations,
+    isRecord,
+    slashCommandPrompt,
+    stringField,
+} from './chat-items';
 import type {
     AgentChatDriver,
     AgentChatProviderSession,
@@ -27,12 +33,7 @@ import type {
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
 import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
-import {
-    ClaudeCommandList,
-    claudeCommandPrompt,
-    claudeUserPrompt,
-    isClaudeCompactCommand,
-} from './claude-input';
+import { ClaudeCommandList, claudeUserPrompt, isClaudeCompactCommand } from './claude-input';
 import { claudeAssistantItems, claudeUsageTokens } from './claude-items';
 import { claudeChatModels, claudeInitEffort, configureClaudeModel } from './claude-models';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
@@ -468,7 +469,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
         arguments_: string | undefined,
         options?: ChatInputOptions,
     ): Promise<void> {
-        const prompt = claudeCommandPrompt(name, arguments_);
+        const prompt = slashCommandPrompt(name, arguments_);
         this.submit(prompt, [], { ...options, isHidden: isClaudeCompactCommand(prompt) });
         return Promise.resolve();
     }

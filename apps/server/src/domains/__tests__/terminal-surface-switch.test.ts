@@ -187,11 +187,15 @@ describe('terminal.switchSurface', () => {
         expect(loggedOutcomes()).toEqual(['startedNew']);
     });
 
-    it('rejects an Agent without Chat support', async () => {
-        const { handler, terminal } = await fixture({ provider: 'grok' });
+    it('reopens a bound Grok Build conversation in Chat', async () => {
+        const { handler, order, terminal } = await fixture({
+            provider: 'grok',
+            agentSessionId: '018f2f4e-8a7b-7c3d-9e1f-2a3b4c5d6e7f',
+        });
         await expect(
             handler({ terminalId: terminal.id, surface: 'chat', interruptTurn: false }),
-        ).rejects.toThrow(/Chat-capable/u);
+        ).resolves.toMatchObject({ status: 'switched', terminal: { surface: 'chat' } });
+        expect(order).toEqual(['pty.stop', 'chat.restart:chat']);
     });
 
     it.each(['running', 'waiting'] as const)(

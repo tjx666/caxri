@@ -1,5 +1,5 @@
 import type { ProcessState, TerminalKind, TerminalRecord, TerminalSurface } from '@caxri/protocol';
-import { agentProviderCatalog, agentProviderIds, terminalKindSchema } from '@caxri/protocol';
+import { agentProviderIds, canUseAgentChat, terminalKindSchema } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -111,9 +111,7 @@ describe('newTerminalAgentChoices', () => {
     });
 
     it('switches only Chat-capable Agents to Chat when Open in Chat is on', () => {
-        const chatKinds = agentProviderIds.filter(
-            (provider) => agentProviderCatalog[provider].capabilities.chat,
-        );
+        const chatKinds = agentProviderIds.filter((provider) => canUseAgentChat(provider));
         expect(chatKinds.length).toBeGreaterThan(0);
         const choices = newTerminalAgentChoices(null, true);
         expect(choices.map((choice) => choice.kind)).toEqual(CATALOG_ORDER);
@@ -131,10 +129,10 @@ describe('newAgentSurface', () => {
         expect(newAgentSurface('codex', true)).toBe('chat');
         expect(newAgentSurface('codex', false)).toBe('pty');
         expect(newAgentSurface('codex', undefined)).toBe('pty');
+        expect(newAgentSurface('grok', true)).toBe('chat');
     });
 
-    it('keeps Agents without Chat and the shell on a PTY', () => {
-        expect(newAgentSurface('grok', true)).toBe('pty');
+    it('keeps the shell on a PTY', () => {
         expect(newAgentSurface('shell', true)).toBe('pty');
     });
 });

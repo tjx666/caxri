@@ -16,7 +16,7 @@ import {
     MAX_AGENT_CHAT_TEXT_LENGTH,
 } from '@caxri/protocol';
 
-import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
+import { clip, closeDanglingItem, isRecord, replacementDiff, stringField } from './chat-items';
 
 /**
  * Pure translation from Claude Code's message stream (Agent SDK messages and the session JSONL transcript share the
@@ -76,21 +76,6 @@ function claudeToolSummary(input: unknown): string | undefined {
     }
 }
 
-function lines(value: string, prefix: '+' | '-'): string[] {
-    if (!value) return [];
-    return value
-        .replace(/\n$/u, '')
-        .split('\n')
-        .map((line) => `${prefix}${line}`);
-}
-
-/**
- * A unified-diff-style body for one replacement, used until the tool result supplies the real patch with line numbers.
- */
-function replacementDiff(oldText: string, newText: string): string {
-    return ['@@', ...lines(oldText, '-'), ...lines(newText, '+')].join('\n');
-}
-
 /**
  * Claude Code's `structuredPatch` result: hunks with line numbers, in the shape the `diff` package produces.
  */
@@ -120,7 +105,7 @@ function fileChangeDiff(name: string, input: Json): string {
                 .join('\n');
         }
         case 'Write': {
-            return ['@@', ...lines(text(input.content), '+')].join('\n');
+            return replacementDiff('', text(input.content));
         }
         default: {
             return replacementDiff('', text(input.new_source));
