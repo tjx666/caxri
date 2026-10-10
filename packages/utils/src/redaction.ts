@@ -3,7 +3,11 @@ const SECRET_ASSIGNMENT =
     /((?:"(?:token|password|secret|credential|api[_-]?key|authorization|cookie)"|'(?:token|password|secret|credential|api[_-]?key|authorization|cookie)'|\b(?:token|password|secret|credential|api[_-]?key|authorization|cookie))\s*[=:]\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;}\]]+)/gi;
 const SECRET_VALUE =
     /sk-[\w-]{12,}|Bearer\s+[\w.-]+|gh[pousr]_[a-zA-Z0-9]{20,}|github_pat_\w{10,}|xox[baprs]-[a-zA-Z0-9-]{10,}/g;
-const URL = /https?:\/\/[^\s<>"']+/gi;
+/**
+ * Not named `URL`: bundlers hoist this module into the Renderer's top-level scope, where that name can shadow the
+ * global `URL` constructor that asset imports (`new URL(asset, import.meta.url)`) rely on.
+ */
+const URL_PATTERN = /https?:\/\/[^\s<>"']+/gi;
 const PRESIGNED_QUERY_PARAMETER =
     /(?:^|&)(?:x-amz-signature|x-amz-credential|x-amz-security-token|x-goog-signature|x-goog-credential|signature|sig)=/i;
 
@@ -25,7 +29,7 @@ function redactPresignedUrl(value: string): string {
  */
 export function redactSecretText(value: string): string {
     return value
-        .replaceAll(URL, (match) => redactPresignedUrl(match))
+        .replaceAll(URL_PATTERN, (match) => redactPresignedUrl(match))
         .replaceAll(SECRET_VALUE, '[REDACTED]')
         .replaceAll(SECRET_ASSIGNMENT, (_match, prefix: string, secret: string) => {
             const quote =
