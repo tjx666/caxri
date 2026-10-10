@@ -44,9 +44,13 @@ export function StatTile({
         <div className="min-w-0 rounded-md border border-border bg-surface px-4 py-3">
             <div className="truncate text-[11px] text-muted">{label}</div>
             <div className="mt-1 truncate text-[15px] font-semibold tabular-nums">{value}</div>
-            {/* One line: a caption wrapped after a word or two (`$0 saved by / caching`) read as two facts. */}
+            {/*
+             * Wraps rather than truncates, so a narrow tile still shows the whole caption. `text-pretty` keeps a lone
+             * word off the last line; a caption holding two facts marks each `whitespace-nowrap` so it breaks between
+             * them, not inside one.
+             */}
             {detail && (
-                <div className="mt-1 truncate text-[11px] leading-snug text-muted">{detail}</div>
+                <div className="mt-1 text-[11px] leading-snug text-pretty text-muted">{detail}</div>
             )}
         </div>
     );

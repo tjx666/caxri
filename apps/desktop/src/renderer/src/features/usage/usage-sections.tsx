@@ -50,7 +50,13 @@ function KpiTiles({ report }: { report: UsageReport }) {
             <StatTile
                 label="Pull requests"
                 value={`${totals.pullRequestsMerged} merged`}
-                detail={`+${formatLineCount(totals.linesAdded)} -${formatLineCount(totals.linesDeleted)} lines · ${totals.pullRequestsCreated} opened`}
+                detail={
+                    <>
+                        <span className="whitespace-nowrap">{`+${formatLineCount(totals.linesAdded)} -${formatLineCount(totals.linesDeleted)} lines`}</span>
+                        {' · '}
+                        <span className="whitespace-nowrap">{`${totals.pullRequestsCreated} opened`}</span>
+                    </>
+                }
             />
             {/* Read from the trailing-year activity, like the Activity card, so the range selector does not move it. */}
             <StatTile
