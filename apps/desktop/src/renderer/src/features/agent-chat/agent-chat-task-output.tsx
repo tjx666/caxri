@@ -9,12 +9,17 @@ import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
  * provider stopped streaming it (the command may still run), so a quiet block is never mistaken for an idle command.
  */
 export function AgentChatTaskOutput({
+    command,
     isOutputCapped,
     isRunning,
     isTruncated,
     output,
     revision,
 }: {
+    /**
+     * The command line, when the tab is titled by the Agent's description of it.
+     */
+    command?: string | undefined;
     isOutputCapped: boolean;
     isRunning: boolean;
     isTruncated: boolean;
@@ -26,6 +31,12 @@ export function AgentChatTaskOutput({
     const text = output?.replace(/\n+$/u, '') ?? '';
     return (
         <div className="relative flex h-full min-h-0 flex-col">
+            {/* Pinned above the scroller so following the output's end never scrolls the command out of view. */}
+            {command && (
+                <pre className="m-0 max-h-24 shrink-0 overflow-y-auto border-b border-border px-4 py-2 font-mono text-[11px] leading-5 wrap-anywhere whitespace-pre-wrap text-muted">
+                    $ {command}
+                </pre>
+            )}
             {(isOutputCapped || isTruncated) && (
                 <div className="flex shrink-0 flex-col gap-0.5 border-b border-border px-4 py-1.5 text-[11px] leading-4 text-muted">
                     {isTruncated && <span>Showing the latest output</span>}

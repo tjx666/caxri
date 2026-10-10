@@ -252,9 +252,11 @@ export const agentChatTaskSchema = z.strictObject({
     id: z.string().min(1).max(200),
     kind: z.enum(['agent', 'shell']),
     /**
-     * The subagent's description or the shell's command line.
+     * The subagent's description, or for a shell what it does in plain words (Claude Code's `Bash` description) and
+     * otherwise its command line. `command` carries the command line when the title is the description.
      */
     title: z.string().max(1_000),
+    command: z.string().max(10_000).optional(),
     status: z.enum(['running', 'completed', 'failed', 'stopped']),
     itemId: z.string().min(1).max(200).optional(),
     /**
