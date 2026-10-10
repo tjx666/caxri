@@ -215,7 +215,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
             'aria-selected',
             'true',
         );
-        await page.getByRole('tab', { name: 'Codex', exact: true }).click();
+        await page.getByRole('tab', { name: 'Codex (Chat)', exact: true }).click();
         await expect(message).toBeVisible();
 
         // A crash fails the Chat; Retry restarts the provider on the same conversation and the pane follows it.
