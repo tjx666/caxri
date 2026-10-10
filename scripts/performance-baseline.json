@@ -3,8 +3,8 @@
     "armed": true,
     "source": "runner",
     "spec": "e2e/renderer.performance.e2e.ts",
-    "recordedAt": "2026-09-28T18:44:36.507Z",
-    "commit": "9febf06752c93db32ff3780d40653fef15dcbc3d",
+    "recordedAt": "2026-10-10T22:34:56.493Z",
+    "commit": "05c09962f335c6775feea9be7b7757ca89bfe11e",
     "provenance": "98 renderer-performance-receipt artifacts from self-hosted CI runs 35967460812-36421490139 (2026-09-24T07:13:31Z to 2026-09-28T12:48:30Z)",
     "metrics": {
         "durationMs": {
@@ -601,17 +601,6 @@
             "thresholdMs": 42.58,
             "sampleCount": 98
         },
-        "frames.sampleCount": {
-            "kind": "discrete",
-            "median": 12,
-            "mad": 0,
-            "k": 5,
-            "relativeMargin": 0,
-            "absoluteMarginMs": 0,
-            "historicalMaxMs": 13,
-            "thresholdMs": 13,
-            "sampleCount": 98
-        },
         "frames.estimatedRefreshIntervalMs": {
             "kind": "continuous",
             "median": 16.6,
@@ -675,6 +664,10 @@
         },
         "react.surfaces.primary-sidebar.baseDurationMaxMs": {
             "historicalMaxMs": 15.5,
+            "sampleCount": 98
+        },
+        "frames.sampleCount": {
+            "historicalMaxMs": 13,
             "sampleCount": 98
         }
     }
