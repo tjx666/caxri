@@ -10,6 +10,7 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { AgentCoordinator } from '../agents';
 import { CaxriDatabase } from '../db';
 import type { TerminalManager } from '../terminal';
+import { InFlightLaunches } from '../terminal/in-flight-launches';
 import { createTerminalSurfaceSwitchHandler } from '../terminal-surface-switch';
 
 async function fixture({
@@ -51,6 +52,7 @@ async function fixture({
         }),
     };
     const terminals = {
+        launches: new InFlightLaunches(),
         suspend: vi.fn(() => {
             order.push('pty.stop');
             return Promise.resolve();
@@ -146,6 +148,30 @@ describe('terminal.switchSurface', () => {
         );
         expect(coordinator.probeTerminal).toHaveBeenCalledWith(terminal.id);
         expect(surfaceOf(database.getTerminal(terminal.id))).toBe('pty');
+    });
+
+    it('keeps a detach of the Session waiting until the relaunch it is preparing lands', async () => {
+        const { chat, handler, order, terminal, terminals } = await fixture({ surface: 'chat' });
+        const closing = Promise.withResolvers<void>();
+        chat.close.mockImplementationOnce(() => closing.promise);
+        const switching = handler({
+            terminalId: terminal.id,
+            surface: 'pty',
+            interruptTurn: false,
+        });
+        await vi.waitFor(() => expect(chat.close).toHaveBeenCalled());
+        let orderAtDetach: string[] | undefined;
+        const detached = (async () => {
+            await terminals.launches.settled(() => false, terminal.sessionId);
+            orderAtDetach = [...order];
+        })();
+
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        expect(orderAtDetach).toBeUndefined();
+        closing.resolve();
+        await switching;
+        await detached;
+        expect(orderAtDetach).toEqual(['pty.restart:pty']);
     });
 
     it('is a no-op when the Terminal already uses the requested surface', async () => {

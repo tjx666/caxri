@@ -12,7 +12,7 @@ interface TerminalCreationOptions {
     configuration: Pick<ConfigService, 'getSettings'>;
     coordinator: Pick<AgentCoordinator, 'prepareTerminalStart'>;
     database: CaxriDatabase;
-    terminals: Pick<TerminalManager, 'start'>;
+    terminals: Pick<TerminalManager, 'launches' | 'start'>;
 }
 
 /**
@@ -60,15 +60,25 @@ export function createTerminalCreation(options: TerminalCreationOptions) {
         beforeStart?: (terminal: TerminalRecord) => void,
         mainAuthorizedCwd?: string,
     ): Promise<TerminalRecord> {
-        const cwd = await newTerminalWorkingDirectory(sessionId, requestedCwd, mainAuthorizedCwd);
-        const expectedWorkingDirectory = await terminalDirectoryIdentity(cwd);
-        const terminal = database.createTerminal(sessionId, kind, cwd);
-        beforeStart?.(terminal);
-        coordinator.prepareTerminalStart(terminal.id);
+        // The record does not exist until the working directory resolves; a detach starting meanwhile must still wait.
+        const prepared = terminals.launches.begin(sessionId);
         try {
-            return await terminals.start(terminal, { expectedWorkingDirectory });
-        } catch {
-            return database.getTerminal(terminal.id)!;
+            const cwd = await newTerminalWorkingDirectory(
+                sessionId,
+                requestedCwd,
+                mainAuthorizedCwd,
+            );
+            const expectedWorkingDirectory = await terminalDirectoryIdentity(cwd);
+            const terminal = database.createTerminal(sessionId, kind, cwd);
+            beforeStart?.(terminal);
+            coordinator.prepareTerminalStart(terminal.id);
+            try {
+                return await terminals.start(terminal, { expectedWorkingDirectory });
+            } catch {
+                return database.getTerminal(terminal.id)!;
+            }
+        } finally {
+            prepared();
         }
     }
     return { createAndStartTerminal, newTerminalWorkingDirectory, terminalWorkingDirectory };

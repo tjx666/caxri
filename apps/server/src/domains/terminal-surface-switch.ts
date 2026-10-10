@@ -81,52 +81,61 @@ export function createTerminalSurfaceSwitchHandler(
                 },
             );
 
-        const agentSessionId = await resumableAgentSessionId(options, current, 'surfaceSwitch');
-        const isTurnRunning =
-            from === 'chat'
-                ? options.chat.hasActiveTurn(terminalId)
-                : isPtyTurnRunning(options.database, current);
-        if (isTurnRunning && !interruptTurn) {
-            log('turnRunning');
-            return { status: 'turnRunning' };
-        }
-
+        /**
+         * Every await from here precedes the relaunch, so a detach that starts during them waits for it: a PTY that
+         * lands is handed over by `parkLaunch`, and a Chat by the detach's own Chat close that runs afterward.
+         */
+        const prepared = options.terminals.launches.begin(current.sessionId);
         try {
-            if (from === 'chat') await options.chat.close(terminalId);
-            else await options.terminals.suspend(terminalId, 'stopped', 'surfaceSwitched');
-            if (!options.database.getTerminal(terminalId))
-                throw new CaxriError('CONFLICT', 'Terminal was closed while switching');
-            options.database.updateTerminalSurface(terminalId, surface);
-            // Starting fresh drops a binding whose conversation was never written, so neither surface tries to resume it.
-            if (agentSessionId) options.coordinator.prepareTerminalResume(terminalId);
-            else options.coordinator.prepareTerminalStart(terminalId);
-            let terminal: TerminalRecord;
-            if (surface === 'chat') terminal = await options.chat.restart(terminalId);
-            else {
-                const expectedWorkingDirectory = await options.terminalDirectoryIdentity(
-                    current.cwd,
-                );
-                terminal = await options.terminals.restart(terminalId, {
-                    expectedWorkingDirectory,
-                    // The Chat's orderly stop left the Agent `stopped`, which on its own reads as "start only a Shell".
-                    launchAgent: true,
-                    resumeAgentSessionId: agentSessionId,
-                });
-                options.coordinator.probeTerminal(terminal.id);
+            const agentSessionId = await resumableAgentSessionId(options, current, 'surfaceSwitch');
+            const isTurnRunning =
+                from === 'chat'
+                    ? options.chat.hasActiveTurn(terminalId)
+                    : isPtyTurnRunning(options.database, current);
+            if (isTurnRunning && !interruptTurn) {
+                log('turnRunning');
+                return { status: 'turnRunning' };
             }
-            options.send({
-                event: 'state.changed',
-                payload: {
-                    kind: 'records',
-                    sessionIds: [terminal.sessionId],
-                    terminalIds: [terminal.id],
-                },
-            });
-            log(agentSessionId ? 'switched' : 'startedNew');
-            return { status: 'switched', terminal };
-        } catch (error) {
-            log('failed');
-            throw error;
+
+            try {
+                if (from === 'chat') await options.chat.close(terminalId);
+                else await options.terminals.suspend(terminalId, 'stopped', 'surfaceSwitched');
+                if (!options.database.getTerminal(terminalId))
+                    throw new CaxriError('CONFLICT', 'Terminal was closed while switching');
+                options.database.updateTerminalSurface(terminalId, surface);
+                // Starting fresh drops a binding whose conversation was never written, so neither surface tries to resume it.
+                if (agentSessionId) options.coordinator.prepareTerminalResume(terminalId);
+                else options.coordinator.prepareTerminalStart(terminalId);
+                let terminal: TerminalRecord;
+                if (surface === 'chat') terminal = await options.chat.restart(terminalId);
+                else {
+                    const expectedWorkingDirectory = await options.terminalDirectoryIdentity(
+                        current.cwd,
+                    );
+                    terminal = await options.terminals.restart(terminalId, {
+                        expectedWorkingDirectory,
+                        // The Chat's orderly stop left the Agent `stopped`, which on its own reads as "start only a Shell".
+                        launchAgent: true,
+                        resumeAgentSessionId: agentSessionId,
+                    });
+                    options.coordinator.probeTerminal(terminal.id);
+                }
+                options.send({
+                    event: 'state.changed',
+                    payload: {
+                        kind: 'records',
+                        sessionIds: [terminal.sessionId],
+                        terminalIds: [terminal.id],
+                    },
+                });
+                log(agentSessionId ? 'switched' : 'startedNew');
+                return { status: 'switched', terminal };
+            } catch (error) {
+                log('failed');
+                throw error;
+            }
+        } finally {
+            prepared();
         }
     };
 }

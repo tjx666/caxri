@@ -29,7 +29,7 @@ import { createIntrospectionServices } from './introspection';
 import { createMobileDomainHandlers } from './mobile';
 import { MobileTerminalMutationQueue } from './mobile-terminal-mutation-queue';
 import { createOrderingHandlers } from './ordering-handlers';
-import { createSessionParkingHandlers } from './parking-handlers';
+import { createSessionParkingHandlers, createTerminateAllHandler } from './parking-handlers';
 import { createProjectHidingHandlers } from './project-hiding-handlers';
 import { ProjectStatusService, VercelDeploymentStore } from './project-status';
 import { createRootServices } from './root-services';
@@ -348,6 +348,7 @@ export async function createDomainServices(
     };
     const sessionParking = {
         agentChat,
+        commanderRestores,
         database,
         evictSessions: evictSessionCaches,
         mobileTerminalMutations,
@@ -520,19 +521,22 @@ export async function createDomainServices(
         'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) =>
             sessionRenames.rename(sessionId, displayTitle, signal, finalizeDurably),
         ...createSessionParkingHandlers(sessionParking),
+        // Under `session.detach`'s Session lock: a resume sent mid-detach relaunches everything it handed over.
         'session.resume': ({ sessionId }) =>
-            sessionSelections.run(async () => {
-                await workbenchRoots.validateSession(sessionId);
-                database.selectSession(sessionId);
-                terminalSuspension.observeSelection();
-                observeSelectedSession(sessionId);
-                // Detached Chats and PTY Agents both relaunch here, on the Agent Sessions they handed over.
-                agentChat.resumeSession(sessionId);
-                restoreInterruptedTerminalsInBackground(sessionId, { includeDetached: true });
-                coordinator.probeSessionPrimaryAgent(sessionId);
-                sendFullStateChange('session.resume');
-                return database.getSession(sessionId)!;
-            }),
+            sessionSelections.run(() =>
+                mobileTerminalMutations.runSessions([sessionId], async () => {
+                    await workbenchRoots.validateSession(sessionId);
+                    database.selectSession(sessionId);
+                    terminalSuspension.observeSelection();
+                    observeSelectedSession(sessionId);
+                    // Detached Chats and PTY Agents both relaunch here, on the Agent Sessions they handed over.
+                    agentChat.resumeSession(sessionId);
+                    restoreInterruptedTerminalsInBackground(sessionId, { includeDetached: true });
+                    coordinator.probeSessionPrimaryAgent(sessionId);
+                    sendFullStateChange('session.resume');
+                    return database.getSession(sessionId)!;
+                }),
+            ),
         ...createSessionAgentRuntimeHandlers(agentRuntime),
         ...createDeletionHandlers({
             database,
@@ -600,14 +604,7 @@ export async function createDomainServices(
         }),
         'terminal.queryForPrincipal': ({ principal, query }) =>
             introspection.records.terminal(query, principal),
-        'terminal.terminateAll': async () => {
-            terminalRestores.close();
-            commanderRestores.close();
-            coordinator.close();
-            await agentChat.shutdown();
-            await terminals.shutdown('terminate');
-            return null;
-        },
+        ...createTerminateAllHandler(sessionParking),
         ...createServiceHandlers({
             acknowledgeFileMutation,
             agentChat,

@@ -17,6 +17,7 @@ import { CaxriDatabase } from '../db';
 import { SessionCompaction } from '../session-compaction';
 import type { TerminalManager } from '../terminal';
 import { TerminalRestoreSupervisor } from '../terminal';
+import { InFlightLaunches } from '../terminal/in-flight-launches';
 import { decideTerminalSuspensions } from '../terminal/suspension-policy';
 import {
     createTerminalAgentExactInputHandler,
@@ -56,7 +57,10 @@ async function fixture() {
         writeAgent: vi.fn(() => Promise.resolve(true)),
         writeAgentExact: vi.fn(() => true),
     };
-    const terminals = sideEffects as unknown as TerminalManager;
+    const terminals = {
+        ...sideEffects,
+        launches: new InFlightLaunches(),
+    } as unknown as TerminalManager;
     const coordinator = {
         hasIdleProof: () => true,
         observeInput: sideEffects.observeInput,

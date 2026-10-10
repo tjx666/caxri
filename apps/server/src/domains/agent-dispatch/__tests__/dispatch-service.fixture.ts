@@ -10,6 +10,7 @@ import type { AgentEndpointLifecycle } from '../../agent-endpoints';
 import type { AgentCoordinator } from '../../agents';
 import { CaxriDatabase } from '../../db';
 import type { TerminalManager, TerminalWorkingDirectoryIdentity } from '../../terminal';
+import { InFlightLaunches } from '../../terminal/in-flight-launches';
 import { AgentDispatchService } from '../service';
 
 export const PRINCIPAL: Principal = { kind: 'human-cli', id: 'human-cli:test' };
@@ -54,6 +55,7 @@ export function fakeTerminals(database: CaxriDatabase) {
     return {
         agentLaunchId: () => 'synthetic-launch',
         agentProcessId: (terminalId: string) => agentProcessIds.get(terminalId),
+        launches: new InFlightLaunches(),
         processId: (terminalId: string) => processIds.get(terminalId),
         start: (terminal: TerminalRecord) => {
             processIds.set(terminal.id, 4_242);
@@ -88,6 +90,8 @@ export function createService(
     ) => Promise.resolve({ device: '1', inode: '1', path }),
     emit: (event: ServerEvent) => void = vi.fn(),
 ) {
+    // Every TerminalManager owns this registry; an inline fake only lists the calls its test observes.
+    if (!('launches' in terminals)) Object.assign(terminals, { launches: new InFlightLaunches() });
     const service = new AgentDispatchService({
         logger,
         database,

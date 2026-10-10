@@ -69,11 +69,11 @@ export function sessionActivityReasonForAgentState(
  * process crash/kill discovered on the next `openDatabase` call; `orderly` covers a graceful Server shutdown (app quit,
  * Session reload). Both leave still-alive Terminals `interrupted` so the next Server start can auto-resume them (with
  * their Agent conversation intact). None of these shutdown reasons changes Session activity: ending a process does not
- * complete its conversation. `terminate` covers the explicit user-initiated "Terminate and Close" action
- * (`terminal.terminateAll`): Terminals are marked `stopped`, the same terminal state as a normal exit, so the next
- * Server start treats them as finished and does not auto-restore them.
+ * complete its conversation. Terminating work is not a shutdown: `terminal.terminateAll` (Terminate and Close, or an
+ * explicit quit before `host.stop`) stops each live Terminal as `stopped` while Server Core keeps running, so an
+ * orderly shutdown that follows finds nothing left to interrupt.
  */
-export type ShutdownReason = 'unclean' | 'orderly' | 'terminate';
+export type ShutdownReason = 'unclean' | 'orderly';
 
 export interface ShutdownOutcome {
     /**
@@ -103,15 +103,11 @@ const SHUTDOWN_OUTCOMES: Record<ShutdownReason, ShutdownOutcome> = {
         liveProcessStates: ['running', 'starting'],
         terminalProcessState: 'interrupted',
     },
-    terminate: {
-        liveProcessStates: ['running', 'starting'],
-        terminalProcessState: 'stopped',
-    },
 };
 
 /**
- * Decides the Terminal process transition for a shutdown. Exiting or terminating Caxri does not complete a
- * conversation: Session activity must survive every shutdown reason independently of Terminal process state.
+ * Decides the Terminal process transition for a shutdown. Exiting Caxri does not complete a conversation: Session
+ * activity must survive every shutdown reason independently of Terminal process state.
  */
 export function shutdownOutcome(reason: ShutdownReason): ShutdownOutcome {
     return SHUTDOWN_OUTCOMES[reason];

@@ -17,6 +17,7 @@ export type TerminalLifecycleCause =
     | 'untouchedSuspended'
     | 'sessionArchived'
     | 'terminalClosed'
+    | 'userTerminated'
     | 'serverShutdown';
 
 export interface TerminalManagerOptions {
