@@ -60,9 +60,10 @@ export function useAgentChatFileInput(
                 const files = [...event.dataTransfer.files];
                 const images = isImageInputEnabled ? agentChatImageFiles(event.dataTransfer) : [];
                 attach(images);
+                const attached = new Set(images);
                 insertPaths(
                     event,
-                    files.filter((file) => !images.includes(file)),
+                    files.filter((file) => !attached.has(file)),
                 );
             },
         },

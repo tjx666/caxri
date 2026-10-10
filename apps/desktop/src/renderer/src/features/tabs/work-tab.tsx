@@ -252,7 +252,7 @@ function WorkTabLabel({
                      * rail is a container: the sticky rail sizes to its own tabs, and inline-size containment would
                      * collapse it to nothing.
                      */
-                    'tab-label max-w-[calc(100cqw-6rem)] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap group-data-fill:max-w-none',
+                    'tab-label max-w-[calc(100cqw-6rem)] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap group-data-[fill=true]:max-w-none',
                     preview && 'italic',
                     /*
                      * Overrides the tab's own muted/foreground color, including on the inactive tabs: the point of
@@ -486,7 +486,7 @@ export function WorkTab({
                     showActiveAccent !== false &&
                     "before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-accent before:content-['']",
             )}
-            data-fill={fill || undefined}
+            data-fill={fill}
             data-pane-tab-id={paneTabId}
             data-terminal-id={terminalId}
             data-motion-identity={motionIdentity}
