@@ -148,6 +148,25 @@ describe('AgentChatService with a fake Codex app-server', () => {
         expect(spawnProcess).toHaveBeenCalledTimes(2);
     });
 
+    it('keeps the replaced start in YOLO on a resume restart after Settings turned it off', async () => {
+        let launchArguments = ['--dangerously-bypass-approvals-and-sandbox'];
+        const { service, terminal, threadOpens, until } = await fixture({
+            launchArgs: () => launchArguments,
+        });
+        await service.send(terminal.id, { text: 'remember me' });
+        await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+
+        launchArguments = [];
+        await service.restart(terminal.id, true);
+        await service.restart(terminal.id);
+
+        expect(await threadOpens()).toEqual([
+            { method: 'thread/start', sandbox: 'danger-full-access', approvalPolicy: 'never' },
+            { method: 'thread/resume', sandbox: 'danger-full-access', approvalPolicy: 'never' },
+            { method: 'thread/resume', sandbox: 'workspace-write', approvalPolicy: 'on-request' },
+        ]);
+    });
+
     it('keeps a Client that cached the old projection converging after a restart', async () => {
         const { service, terminal, client, until } = await fixture();
         await service.send(terminal.id, { text: 'before restart' });

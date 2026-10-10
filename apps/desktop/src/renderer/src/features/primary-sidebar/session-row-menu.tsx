@@ -27,6 +27,7 @@ import {
     resumeSession,
     setSessionPinned,
 } from '../session/session-commands';
+import { agentReloadMenuEntry } from '../terminal/terminal-reload-commands';
 
 /**
  * Right-click menu for one Session row. Every entry acts on the clicked row (not the selected Session), so the handlers
@@ -187,6 +188,12 @@ async function sessionRowMenu({
                   disabledReason: 'No running Agent Terminal to detach',
                   onSelect: () => detachSession(session.id),
               },
+        /**
+         * Reloads the Primary Agent, the same Terminal the copy entries below read, rather than every Agent Terminal
+         * the way Detach does: a reload interrupts a running turn, so it must not reach Agents the user did not point
+         * at. Each Agent Terminal's own tab menu reloads that one.
+         */
+        agentReloadMenuEntry(primaryTerminal),
         isAutoAllowGranted && {
             label: 'Turn Off Always Allow in this Session',
             onSelect: () => revokePermissionAutoAllow(session.id),
