@@ -13,16 +13,15 @@ import { TerminalLinkPicker } from '../terminal/terminal-link-picker';
 import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatComposer } from './agent-chat-composer';
+import { AgentChatPlanCard } from './agent-chat-plan-card';
 import {
     agentChatActivity,
-    agentChatContextSummary,
     agentChatFailureMessage,
     canSendAgentChatMessage,
     isAgentChatBusy,
     isAgentChatTurnRunning,
 } from './agent-chat-presentation';
 import { AgentChatRequestCard } from './agent-chat-request-card';
-import { AgentChatPlanCard } from './agent-chat-status-glyph';
 import { openAgentChatTaskTab } from './agent-chat-task-opener';
 import { AgentChatTaskStrip } from './agent-chat-task-strip';
 import { agentChatTasksByItem } from './agent-chat-tasks';
@@ -244,12 +243,12 @@ export function AgentChatPane({
                 activity={agentChatActivity(snapshot, providerName)}
                 canSend={canSendAgentChatMessage(snapshot)}
                 commands={snapshot?.commands}
-                contextSummary={agentChatContextSummary(snapshot)}
                 inputReference={inputReference}
                 isBusy={isAgentChatBusy(snapshot)}
                 isQueuePaused={snapshot?.queuePaused ?? false}
                 providerName={providerName}
                 queue={snapshot?.queue}
+                snapshot={snapshot}
                 supportsImages={supportsImages}
                 terminalId={terminalId}
             />

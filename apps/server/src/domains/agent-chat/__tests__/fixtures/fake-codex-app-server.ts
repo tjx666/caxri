@@ -21,7 +21,8 @@
  * A message with images is answered with how many it received, and `thread/compact/start` runs a compaction turn that
  * stays in progress briefly and cannot be steered. `turn/steer` echoes the steered message into the running turn; a
  * steered message containing `late` ends the turn first, so the steer loses that race, and one containing `refuse` is
- * rejected outright.
+ * rejected outright. `model/list` offers two models, and a `turn/start` that names a model or effort saves it on the
+ * thread, as Codex does, so a resumed thread reports the last choice.
  *
  * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history. Each
  * thread open also appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert
@@ -36,6 +37,7 @@ import readline from 'node:readline';
 
 import { runApprovalCommand, runApprovalPatch, runQuestion } from './fake-codex-approvals.ts';
 import type { FakeCodexIo, FakeItem, FakeThread, FakeTurn } from './fake-codex-io.ts';
+import { FAKE_MODELS } from './fake-codex-models.ts';
 import { didHandleTaskRequest, runBackgroundCommand, runSubagent } from './fake-codex-tasks.ts';
 
 /**
@@ -276,6 +278,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
                 '',
                 '> Note: nothing outside the Project was touched.',
                 '',
+                'Background: [the Markdown guide](https://example.com/guide) and https://example.com/faq.',
+                '',
                 '| Option | Cost |',
                 '| :--- | ---: |',
                 '| Fast | 2 |',
@@ -370,7 +374,8 @@ function threadResponse() {
             cwd: process.cwd(),
             turns: thread.turns.map((turn) => wireTurn(turn)),
         },
-        model: 'fake-codex-model',
+        model: thread.model ?? 'fake-codex-model',
+        reasoningEffort: thread.effort ?? null,
     };
 }
 
@@ -429,6 +434,10 @@ function handle(message: RpcMessage) {
             send({ id, result: threadResponse() });
             return;
         }
+        case 'model/list': {
+            send({ id, result: { data: FAKE_MODELS, nextCursor: null } });
+            return;
+        }
         case 'turn/start': {
             const input = (parameters.input ?? []) as FakeInput[];
             const clientId =
@@ -442,7 +451,10 @@ function handle(message: RpcMessage) {
                 error: null,
                 startedAt: Date.now(),
             };
-            currentThread().turns.push(turn);
+            const thread = currentThread();
+            if (typeof parameters.model === 'string') thread.model = parameters.model;
+            if (typeof parameters.effort === 'string') thread.effort = parameters.effort;
+            thread.turns.push(turn);
             state.activeTurn = turn;
             send({ id, result: { turn: { id: turn.id, items: [], status: 'inProgress' } } });
             notify('turn/started', { turn: { id: turn.id, items: [], status: 'inProgress' } });

@@ -185,7 +185,12 @@ export function describeAgentChatWork(item: AgentChatWorkItem): AgentToolPresent
             };
         }
         case 'command': {
-            return describeAgentTool({ name: 'shell', summary: item.command });
+            const presentation = describeAgentTool({ name: 'shell', summary: item.command });
+            // The Agent's own words for the command read better than the command line, which the row still shows
+            // expanded.
+            return item.description
+                ? { ...presentation, subject: item.description, isCodeSubject: false }
+                : presentation;
         }
         case 'toolCall': {
             return describeAgentTool(item);
@@ -202,6 +207,17 @@ export function describeAgentChatWork(item: AgentChatWorkItem): AgentToolPresent
             };
         }
     }
+}
+
+/**
+ * The duration a work row shows. A command always shows how long it took, as a terminal prompt would; another tool only
+ * once it is noticeable.
+ */
+export function agentChatWorkDuration(item: AgentChatWorkItem): string | null {
+    if (item.type === 'command') return formatShortDuration(item.durationMs);
+    if (item.type === 'toolCall' && (item.durationMs ?? 0) >= 1000)
+        return formatShortDuration(item.durationMs);
+    return null;
 }
 
 export const isAgentChatWorkRunning = (item: AgentChatWorkItem): boolean =>

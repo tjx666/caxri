@@ -16,8 +16,10 @@ const alignClassName = {
 } as const;
 
 /**
- * A GFM table. The transcript variant frames it, tints the header row, and adds a Copy button that puts both Markdown
- * text and an HTML table on the clipboard, so it pastes as a table into a spreadsheet and as Markdown into an editor.
+ * A GFM table. The transcript variant sets it open, as the Codex app does: no frame or header tint, only row hairlines,
+ * with the first column flush to the prose and the last leaving room for its hover Copy button. It adds a Copy button
+ * that puts both Markdown text and an HTML table on the clipboard, so it pastes as a table into a spreadsheet and as
+ * Markdown into an editor.
  */
 export function TableBlock({ block }: { block: TableBlockNode }) {
     const { variant } = useMarkdownContext();
@@ -25,7 +27,7 @@ export function TableBlock({ block }: { block: TableBlockNode }) {
     const cellClassName = (column: number) =>
         cn(
             'border-0 border-b border-solid border-border align-top',
-            isTranscript ? 'px-3 py-1.5' : 'px-2 py-1',
+            isTranscript ? 'px-3 py-2 first:pl-0 last:pr-8' : 'px-2 py-1',
             alignClassName[block.align[column] ?? 'left'],
         );
     const table = (
@@ -36,7 +38,7 @@ export function TableBlock({ block }: { block: TableBlockNode }) {
                     isTranscript && 'min-w-full [&_tbody_tr:last-child>td]:border-b-0',
                 )}
             >
-                <thead className={cn(isTranscript && 'bg-surface')}>
+                <thead>
                     <tr>
                         {block.header.map((cell, column) => (
                             <th
@@ -69,10 +71,10 @@ export function TableBlock({ block }: { block: TableBlockNode }) {
     );
     if (!isTranscript) return table;
     return (
-        <div className="group/table relative overflow-hidden rounded-md border border-border">
+        <div className="group/table relative">
             {table}
             <CopyIconButton
-                className="absolute top-0.5 right-0.5 bg-surface opacity-0 transition-opacity group-focus-within/table:opacity-100 group-hover/table:opacity-100"
+                className="absolute top-0.5 right-0.5 bg-background opacity-0 transition-opacity group-focus-within/table:opacity-100 group-hover/table:opacity-100"
                 copy={() =>
                     writeRichToClipboardWithFeedback(navigator.clipboard, {
                         text: tableToMarkdown(block),

@@ -4,6 +4,7 @@ import type {
     AgentChatDecision,
     AgentChatFailureReason,
     AgentChatMessageInput,
+    AgentChatModelChange,
     AgentChatPatchOperation,
     AgentChatSnapshot,
     AgentChatTaskPatchOperation,
@@ -196,6 +197,12 @@ export interface AgentChatProviderSession {
         arguments_: string | undefined,
         options?: ChatInputOptions,
     ): Promise<void>;
+    /**
+     * Switches the model or effort for the next turn onward. The service has already validated the change against the
+     * snapshot's `models`; the session reports the new `model` and `effort` once the provider accepts them. A provider
+     * that lists no models (Grok Build) omits it: validation already rejects every switch it could receive.
+     */
+    configure?(config: AgentChatModelChange): Promise<void>;
     /**
      * Stops the running turn. Background tasks keep running.
      */

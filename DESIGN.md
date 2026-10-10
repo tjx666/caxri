@@ -958,27 +958,45 @@ search/path fields use `InputGroup`, never feature-local field chrome.
 while focused (the pane ring already carries the accent focus) and `--accent` while an image is
 dragged over it. Inside, top to bottom: the attached-image strip (64px radius-6 thumbnails, each
 with its remove control inset in the top-right corner), a borderless auto-growing textarea, and one
-action row: Attach images on the left, the model and context summary right-aligned in `--muted`, and
-a single primary action slot. That slot shows Stop while a turn runs and the input is empty, and
-Send as soon as there is content; the two never sit side by side. While the Chat is busy (a turn
-runs or context is compacting), Enter and Send queue the message and the placeholder says so;
-Cmd+Enter steers it into the running turn instead. Queued messages sit above the card as 12px
-`--surface` cards, each with Edit (back into the composer), Delete, and Send now (Steer while a
-turn runs); after a stopped turn a `Queue paused` row with Resume heads them. Running subagents and
-background shells list in a strip above the composer with elapsed time and their own Stop; clicking
-one, or the Open action on its timeline row, opens it as a read-only tab split to the right of the
-Chat, reusing that side pane for later tasks. A user message that was steered or queued carries an
-11px `--muted` `Steered` or `Queued` caption. Escape interrupts a running turn regardless. While the Chat starts, works, or waits on an answer, a
-28px status tab sits on top of the card, inset 12px on each side: a spinner (or a `--warning`
+action row: Attach images on the left, then right-aligned in `--muted` the context meter (a 14px
+ring that fills with the share of the window in use, its percentage beside it, `--warning` from 80%
+and `--danger` from 95%, the token counts in its tooltip) and the model picker (the model's name and
+the next turn's effort, opening a menu of models with their descriptions and the current model's
+efforts, which stays open after a choice), and a single primary action slot. That slot shows Stop
+while a turn runs and the input is empty, and Send as soon as there is content; the two never sit
+side by side. While the Chat is busy (a turn runs or context is compacting), Enter and Send queue
+the message and the placeholder says so; Cmd+Enter steers it into the running turn instead. Queued
+messages sit above the card as 12px `--surface` cards, each with Edit (back into the composer),
+Delete, and Send now (Steer while a turn runs); after a stopped turn a `Queue paused` row with
+Resume heads them. Running subagents and background shells list in a strip above the composer with
+elapsed time and their own Stop; clicking one, or the Open action on its timeline row, opens it as
+a read-only tab split to the right of the Chat, reusing that side pane for later tasks. A user
+message that was steered or queued carries an 11px `--muted` `Steered` or `Queued` caption. Escape
+interrupts a running turn regardless. While the Chat starts, works, or waits on an answer, a 32px
+status row opens the card above a hairline, so the card keeps one rounded outline: a spinner (or a `--warning`
 question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
 stop` right-aligned. A working turn's label is one playful verb chosen per turn (`Pondering…`),
 so a long turn reads as progress rather than a stall. References: T3 Code's Chat composer, Claude
-Code's spinner verbs, and LobeHub's status tab and ringed Stop button.
+Code's spinner verbs, LobeHub's ringed Stop button, and the Codex app's context ring and model and
+effort picker. In the transcript, inline code sits in a lifted `--elevated` chip and links take
+`--accent`; a code block is one radius-8 `--elevated` panel whose header (a code glyph, Monaco's
+language name such as `TypeScript`, wrap and copy) shares its fill; a table is set open, with row
+hairlines and no frame or header tint. All follow the Codex app's Dracula transcript.
+
+**Agent Chat plan**: the latest plan docks above the composer as one 32px radius-8 `--surface`
+row with a 1px `--border`: a list glyph, `Plan`, the step the Agent is on truncated in `--muted`,
+then right-aligned a 4px segment per step (`--success` done, `--muted` in progress, `--border`
+pending; omitted past ten steps), the `done/total` count (`--success` once complete), and a
+chevron. It starts collapsed and expands in place to the explanation and the step list (scrolling
+past 240px), keeping that choice while the plan updates. Reference: T3 Code's composer task badge.
 
 **Agent Chat timeline**: work is secondary to the conversation. Every command, tool call, file
 change, and thought is one 12px `--muted` disclosure row: the tool kind's glyph (the same table the
 mobile timeline uses), a past-tense verb, the subject in a mono `--surface` chip, and trailing facts
-(a `+N -M` diff stat, a non-success status glyph, a duration of at least one second). Consecutive
+(a `+N -M` diff stat, a non-success status glyph, a duration of at least one second; a command
+always shows its duration, plus a `--danger` `Exit N` when non-zero and a `--surface` `Background`
+tag once handed off). A command the Agent described is titled by the description in the body font,
+and its command line moves into the expanded view. Consecutive
 work collapses into one summary row (`Ran 3 commands, read 2 files`). A finished turn folds
 everything except the prompt, the final reply, and notices behind one `Worked for 2m 1s` row with a
 bottom hairline. Expanded output renders in the shared code view, painted in the language inferred

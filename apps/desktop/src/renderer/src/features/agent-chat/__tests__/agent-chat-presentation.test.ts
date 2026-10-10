@@ -5,8 +5,11 @@ import { describe, expect, it } from 'vitest';
 import {
     agentChatActivity,
     agentChatCommandCwd,
-    agentChatContextSummary,
+    agentChatContextUsage,
+    agentChatEffortLabel,
     agentChatFailureMessage,
+    agentChatModelLabel,
+    agentChatPlanProgress,
     agentChatQuestionAnswers,
     agentChatRequestTitle,
     agentChatSendAction,
@@ -117,21 +120,44 @@ describe('agentChatCommandCwd', () => {
     });
 });
 
-describe('agentChatContextSummary', () => {
-    it('shows the model and the context left once the provider reports them', () => {
-        expect(agentChatContextSummary(undefined)).toBeUndefined();
-        expect(agentChatContextSummary({})).toBeUndefined();
-        expect(agentChatContextSummary({ model: 'gpt-test' })).toBe('gpt-test');
+describe('agentChatContextUsage', () => {
+    it('reports the share of the window in use once the provider reports its size', () => {
+        expect(agentChatContextUsage(undefined)).toBeUndefined();
+        expect(agentChatContextUsage({ usage: { totalTokens: 500 } })).toBeUndefined();
         expect(
-            agentChatContextSummary({
-                model: 'gpt-test',
-                usage: { totalTokens: 25_000, contextWindow: 100_000 },
-            }),
-        ).toBe('gpt-test · 75% context left');
-        expect(agentChatContextSummary({ usage: { totalTokens: 500 } })).toBeUndefined();
+            agentChatContextUsage({ usage: { totalTokens: 25_000, contextWindow: 100_000 } }),
+        ).toEqual({ used: 0.25, totalTokens: 25_000, contextWindow: 100_000 });
         expect(
-            agentChatContextSummary({ usage: { totalTokens: 200_000, contextWindow: 100_000 } }),
-        ).toBe('0% context left');
+            agentChatContextUsage({ usage: { totalTokens: 200_000, contextWindow: 100_000 } })
+                ?.used,
+        ).toBe(1);
+    });
+});
+
+describe('agentChatModelLabel', () => {
+    const models = [
+        { id: 'opus', resolvedId: 'claude-opus-5-5', displayName: 'Opus', efforts: ['high'] },
+        { id: 'plain', displayName: 'Plain', efforts: [] },
+    ];
+
+    it('names the listed model and the effort the next turn uses', () => {
+        expect(agentChatModelLabel(undefined)).toBeUndefined();
+        // Claude Code lists its models before its first turn names the one in use.
+        expect(agentChatModelLabel({ models })).toEqual({ model: 'Default' });
+        expect(agentChatModelLabel({ model: 'claude-opus-5-5', effort: 'xhigh', models })).toEqual({
+            model: 'Opus',
+            effort: 'Extra high',
+        });
+        expect(agentChatModelLabel({ model: 'gpt-raw' })).toEqual({ model: 'gpt-raw' });
+        // A model without effort control never shows a stale effort from the previous model.
+        expect(agentChatModelLabel({ model: 'plain', effort: 'high', models })).toEqual({
+            model: 'Plain',
+        });
+    });
+
+    it('labels known efforts and capitalizes unknown ones', () => {
+        expect(agentChatEffortLabel('max')).toBe('Max');
+        expect(agentChatEffortLabel('turbo')).toBe('Turbo');
     });
 });
 
@@ -248,5 +274,35 @@ describe('agentChatRequestTitle', () => {
                 decisions: ['accept'],
             }),
         ).toBe('Start with this plan?');
+    });
+});
+
+describe('agentChatPlanProgress', () => {
+    it('counts completed steps and names the one in progress', () => {
+        expect(
+            agentChatPlanProgress({
+                steps: [
+                    { step: 'Read', status: 'completed' },
+                    { step: 'Edit', status: 'pending' },
+                    { step: 'Test', status: 'inProgress' },
+                ],
+            }),
+        ).toEqual({ completed: 1, total: 3, current: 'Test' });
+    });
+
+    it('falls back to the first pending step, then to none once done', () => {
+        expect(
+            agentChatPlanProgress({
+                steps: [
+                    { step: 'Read', status: 'completed' },
+                    { step: 'Edit', status: 'pending' },
+                ],
+            }).current,
+        ).toBe('Edit');
+        expect(agentChatPlanProgress({ steps: [{ step: 'Read', status: 'completed' }] })).toEqual({
+            completed: 1,
+            total: 1,
+            current: undefined,
+        });
     });
 });

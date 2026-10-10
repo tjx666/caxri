@@ -6,6 +6,7 @@ import {
     agentChatOutputLanguage,
     agentChatReasoningTitle,
     agentChatTurnLabel,
+    agentChatWorkDuration,
     buildAgentChatTimeline,
     describeAgentChatWork,
     splitAgentChatWork,
@@ -142,6 +143,24 @@ describe('describeAgentChatWork', () => {
         });
     });
 
+    it("titles a command with the Agent's description when it wrote one", () => {
+        expect(
+            describeAgentChatWork({
+                id: 'c',
+                type: 'command',
+                command: 'git status --short',
+                description: 'Show working tree status',
+                status: 'completed',
+                output: '',
+            }),
+        ).toEqual({
+            kind: 'command',
+            label: 'Ran',
+            subject: 'Show working tree status',
+            isCodeSubject: false,
+        });
+    });
+
     it('names the first changed file and how many more', () => {
         expect(
             describeAgentChatWork({
@@ -154,6 +173,23 @@ describe('describeAgentChatWork', () => {
                 ],
             }),
         ).toMatchObject({ kind: 'edit', label: 'Edited', subject: 'a.ts +1 more' });
+    });
+});
+
+describe('agentChatWorkDuration', () => {
+    it('always times a command and times other tools once it is noticeable', () => {
+        const command = {
+            id: 'c',
+            type: 'command',
+            command: 'ls',
+            status: 'completed',
+            output: '',
+        } as const;
+        expect(agentChatWorkDuration({ ...command, durationMs: 300 })).toBe('<1s');
+        expect(agentChatWorkDuration(command)).toBeNull();
+        const tool = { id: 't', type: 'toolCall', name: 'webSearch', status: 'completed' } as const;
+        expect(agentChatWorkDuration({ ...tool, durationMs: 300 })).toBeNull();
+        expect(agentChatWorkDuration({ ...tool, durationMs: 2_000 })).toBe('2s');
     });
 });
 

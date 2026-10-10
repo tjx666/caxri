@@ -9,8 +9,9 @@ import {
 import { clip, closeDanglingItem, isRecord, stringField, tail } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
 import { ChatTaskList } from './chat-tasks';
-import { claudeAssistantItems, settleClaudeToolItem, text } from './claude-items';
+import { claudeAssistantItems, text } from './claude-items';
 import { ClaudeStream } from './claude-stream';
+import { settleClaudeToolItem } from './claude-tool-results';
 
 /**
  * Background work a Claude Code Chat lists: subagents (`Agent`, formerly `Task`) and background shells (`Bash
@@ -525,12 +526,10 @@ export class ClaudeTasks {
                     const item = items.get(id);
                     const settled =
                         item &&
-                        settleClaudeToolItem(
-                            item,
-                            block,
-                            message.tool_use_result,
-                            this.options.takeDeclined(id),
-                        );
+                        settleClaudeToolItem(item, block, {
+                            structured: message.tool_use_result,
+                            wasDeclined: this.options.takeDeclined(id),
+                        });
                     if (settled)
                         this.options.host.applyTask(taskId, [{ op: 'upsertItem', item: settled }]);
                     this.settleAgentResult(id, block);

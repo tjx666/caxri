@@ -37,6 +37,7 @@ export const MAX_AGENT_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
  */
 export const MAX_AGENT_CHAT_THUMBNAIL_LENGTH = 48 * 1024;
 export const MAX_AGENT_CHAT_COMMANDS = 200;
+export const MAX_AGENT_CHAT_MODELS = 50;
 /**
  * Background work a Chat lists at once (subagents and background shells). Older ended tasks drop first.
  */
@@ -98,6 +99,38 @@ export const agentChatCommandSchema = z.strictObject({
 });
 
 /**
+ * A reasoning effort level, as the provider names it (`low`, `high`, `xhigh`, ...). Kept open because each provider and
+ * model offers its own set.
+ */
+export const agentChatEffortSchema = z
+    .string()
+    .min(1)
+    .max(40)
+    .regex(/^[\w-]+$/u);
+
+/**
+ * A model the provider lets this Chat switch to, with the reasoning efforts it accepts.
+ */
+export const agentChatModelSchema = z.strictObject({
+    /**
+     * The identifier the provider takes when switching, and reports as the snapshot's `model` once it is in use.
+     */
+    id: z.string().min(1).max(200),
+    displayName: z.string().max(200),
+    description: z.string().max(500).optional(),
+    /**
+     * Another identifier the provider reports for this model, such as the full model a Claude Code alias resolves to,
+     * so the snapshot's `model` still matches the row it was chosen from.
+     */
+    resolvedId: z.string().max(200).optional(),
+    /**
+     * Efforts the model accepts, lowest first. Empty for a model without effort control.
+     */
+    efforts: z.array(agentChatEffortSchema).max(10),
+    defaultEffort: agentChatEffortSchema.optional(),
+});
+
+/**
  * Lifecycle of one structured tool-like item. `interrupted` is Caxri's own closure for an item the provider left open
  * when its turn ended.
  */
@@ -145,6 +178,15 @@ export const agentChatItemSchema = z.discriminatedUnion('type', [
         ...itemBase,
         type: z.literal('command'),
         command: z.string().max(4_096),
+        /**
+         * What the command does in plain words, when the Agent wrote one (Claude Code's `Bash` description).
+         */
+        description: z.string().max(500).optional(),
+        /**
+         * True once the command runs on in the background: started that way, or moved there by the user or a timeout.
+         * Its `status` then settles when the Agent hands it off, so `exitCode` and `durationMs` stay absent.
+         */
+        background: z.boolean().optional(),
         status: agentChatItemStatusSchema,
         /**
          * Bounded tail of the combined command output.
@@ -401,6 +443,14 @@ export const agentChatSnapshotSchema = z.strictObject({
     plan: agentChatPlanSchema.optional(),
     model: z.string().max(200).optional(),
     /**
+     * The reasoning effort the next turn uses, when the provider reports it.
+     */
+    effort: agentChatEffortSchema.optional(),
+    /**
+     * Models `agentChat.configure` can switch to. Absent until the provider has listed them.
+     */
+    models: z.array(agentChatModelSchema).max(MAX_AGENT_CHAT_MODELS).optional(),
+    /**
      * Slash commands the provider currently offers. Absent until the provider has started.
      */
     commands: z.array(agentChatCommandSchema).max(MAX_AGENT_CHAT_COMMANDS).optional(),
@@ -447,6 +497,8 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 requests: agentChatSnapshotSchema.shape.requests,
                 plan: agentChatSnapshotSchema.shape.plan.unwrap().nullable(),
                 model: agentChatSnapshotSchema.shape.model.unwrap().nullable(),
+                effort: agentChatSnapshotSchema.shape.effort.unwrap().nullable(),
+                models: agentChatSnapshotSchema.shape.models.unwrap(),
                 commands: agentChatSnapshotSchema.shape.commands.unwrap(),
                 usage: agentChatSnapshotSchema.shape.usage.unwrap().nullable(),
                 truncated: agentChatSnapshotSchema.shape.truncated,
@@ -540,5 +592,6 @@ export type AgentChatPatchOperation = z.infer<typeof agentChatPatchOperationSche
 export type AgentChatPatch = z.infer<typeof agentChatPatchSchema>;
 export type AgentChatDecision = z.infer<typeof agentChatDecisionSchema>;
 export type AgentChatCommand = z.infer<typeof agentChatCommandSchema>;
+export type AgentChatModel = z.infer<typeof agentChatModelSchema>;
 export type AgentChatImageMediaType = z.infer<typeof agentChatImageMediaTypeSchema>;
 /* eslint-enable unicorn/max-nested-calls */

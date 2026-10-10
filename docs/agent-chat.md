@@ -194,7 +194,13 @@ pending permission prompts and questions until the user answers:
   locally because Claude Code does not echo it.
 - Text and thinking stream from `stream_event` deltas and are finalized by the complete
   `assistant` frame under the same id (model message id plus the block's per-kind ordinal).
-- `Bash` is a command row, `Edit`/`MultiEdit`/`Write`/`NotebookEdit` a file change whose diff is
+- `Bash` is a command row that keeps the tool's `description`. Its result settles the exit code
+  (Claude Code reports a failure as an error result starting `Exit code N`, so a success is 0) and a
+  duration Caxri measures from the `tool_use` to its result, because Claude Code reports none. A
+  command started with `run_in_background`, or moved there by the user or a timeout
+  (`backgroundTaskId`, `backgroundedByUser` in the structured result), is marked `background` and
+  carries neither, since it finishes after the hand-off. Settling lives in `claude-tool-results.ts`.
+- `Edit`/`MultiEdit`/`Write`/`NotebookEdit` is a file change whose diff is
   replaced by Claude Code's `structuredPatch` when the result arrives, `TodoWrite` the plan, and
   every other tool a generic tool row. Subagent frames (`parent_tool_use_id`, with
   `forwardSubagentText`) go to the subagent's own task projection, never the parent timeline; see
@@ -347,20 +353,26 @@ several callbacks can share one item, so the transport id is never the key.
 
 - The transcript and the composer share one centered column. Pending approvals, questions, the
   plan, and the failure banner sit in a dock above the composer, outside the scroller, so reading
-  history never hides them. The timeline follows new output until the user scrolls up; Jump to
+  history never hides them. The plan stays one collapsed row (the current step and `done/total`)
+  until the user expands it, so a long plan never pushes the transcript out of view. The timeline follows new output until the user scrolls up; Jump to
   latest returns to the end.
 - The composer keeps an unsent draft per Chat across tab switches, clears only the text that was
-  actually sent, and treats Escape as Stop while a turn runs. Its footer shows the model and the
-  remaining context window. Activating a Chat's tab puts the cursor in the composer, as activating
+  actually sent, and treats Escape as Stop while a turn runs. Its action row shows how much of the
+  context window is used, as a filling ring and a percentage with the token counts in its tooltip,
+  and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
   a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another
   text field, and not when arrow-key tab navigation activated it, which keeps focus on the tab.
-  A status tab on top of the composer says whether the Chat is starting, working, or waiting on an
+  A status row at the top of the composer card says whether the Chat is starting, working, or waiting on an
   answer; a working turn shows one verb chosen per turn from its id, its elapsed time, and `Esc to
 stop`. Only the label is the polite live region, so the ticking time is never announced.
 - Work renders as one-line rows (`Ran git status`, `Read <file>`, `Edited <file> +2 more`),
   each with the tool kind's glyph from the provider tool table shared with mobile
   (`packages/protocol/src/agent/agent-tool-presentation.ts`). Codex's login-shell wrapper
-  (`/bin/zsh -lc "..."`) is unwrapped so a row shows the script that ran. Consecutive work collapses
+  (`/bin/zsh -lc "..."`) is unwrapped so a row shows the script that ran. A command the Agent
+  described (Claude Code's `Bash` description) is titled by that description, and its command line
+  moves into the expanded view. A command row always shows its duration, a non-zero `Exit N`, and a
+  `Background` tag for a hand-off; the expanded view ends with its exit code. Codex reports no
+  description or background state for a command, so its rows show the command line. Consecutive work collapses
   into one summary row, and once a turn ends its work and commentary fold behind `Worked for X`
   (`Stopped after X`, `Failed after X`), keeping the prompt, the final reply, and notices other than
   a transient retry in view. A running turn stays expanded, and running work sweeps a highlight across its verb instead of
@@ -445,6 +457,30 @@ stop`. Only the label is the polite live region, so the ticking time is never an
   chosen; one that does is completed so its arguments can be typed.
 - Image bytes, thumbnails, and command arguments never reach logs.
 
+## Model and effort
+
+The snapshot's `models` lists the models the provider lets this Chat switch to, each with the
+reasoning efforts it accepts (`efforts`, lowest first) and its `defaultEffort`; `model` and
+`effort` report what the next turn uses. `agentChat.configure` switches either one. Server Core
+validates the change against `models` first (`resolveAgentChatModelChange` in
+`packages/protocol`), so a stale Client cannot send a model or effort the provider never listed;
+switching to a model that does not accept the current effort falls back to that model's default,
+or, for a model that names none, to the strongest effort it accepts that does not exceed the
+current one.
+A running turn keeps the model it started with.
+
+- **Codex** lists models with `model/list` after the thread opens; a Codex that cannot list them
+  still chats, and the composer then shows the model as plain text. `thread/start` and
+  `thread/resume` report the thread's `reasoningEffort`, and a thread that never chose one runs at
+  its model's default. App-server has no request that changes the model in place, so a switch
+  rides on the next `turn/start` (`model`, `effort`), which Codex saves on the thread for later
+  turns and for the next resume.
+- **Claude Code** lists models in the SDK's `initialize` response. `value` (often an alias such as
+  `opus`) is the identifier and `resolvedModel` the full model the init message then reports, kept
+  as `resolvedId` so the two match. A switch applies in place: `setModel`, and `effortLevel`
+  through `applyFlagSettings`, which outranks the user's settings files without writing to them.
+  The effort is known only when the CLI publishes it in its init message or after a switch.
+
 ## Lifecycle signals
 
 A Chat begins its own launch generation with the Agent coordinator and synthesizes
@@ -487,7 +523,7 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 
 ## Not yet supported
 
-Claude Code's model and agent pickers (its `initialize` response already lists both). Grok Build's
+Claude Code's agent picker (its `initialize` response already lists the agents). Grok Build's
 model picker, images (its ACP agent advertises `image: false`), and questions
 (`_x.ai/ask_user_question`, turned off for now). Grok Build stays out of the real-Agent smoke. On mobile, a
 Chat shows no plan, model, or context usage yet, shows an image as its count (`[1 image]`) instead of

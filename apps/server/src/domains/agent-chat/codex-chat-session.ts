@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type {
     AgentChatMessageInput,
+    AgentChatModelChange,
     AgentChatPatchOperation,
     AgentChatRequest,
 } from '@caxri/protocol';
@@ -43,6 +44,7 @@ import {
     mapCodexRequest,
     mapCodexUsage,
 } from './codex-items';
+import { CodexModelSettings } from './codex-models';
 import { CodexTasks } from './codex-tasks';
 import { initializeCodexConnection, openCodexThread } from './codex-thread-open';
 import { finishedTurnOperations, historyOperations } from './codex-turns';
@@ -93,6 +95,8 @@ class CodexChatSession implements AgentChatProviderSession {
 
     private readonly tasks: CodexTasks;
 
+    private readonly models: CodexModelSettings;
+
     constructor(private readonly options: AgentChatSessionHost) {
         this.settings = options.isRealAgentE2E
             ? REAL_E2E_CODEX_CHAT_SETTINGS
@@ -104,6 +108,7 @@ class CodexChatSession implements AgentChatProviderSession {
                 this.requireConnection().request(method, parameters, timeoutMs),
             threadId: () => this.threadId,
         });
+        this.models = new CodexModelSettings(options);
     }
 
     private requireConnection(): JsonRpcConnection {
@@ -427,11 +432,13 @@ class CodexChatSession implements AgentChatProviderSession {
         });
         if (opened.outcome === 'resumed') {
             this.loadHistory(opened.thread, opened.model);
+            this.models.reportOpened(opened.effort);
             return 'resumed';
         }
         this.threadId = opened.threadId;
         if (opened.model)
             this.options.apply([{ op: 'state', state: { model: clip(opened.model, 200) } }]);
+        this.models.reportOpened(opened.effort);
         return 'started';
     }
 
@@ -439,16 +446,18 @@ class CodexChatSession implements AgentChatProviderSession {
         return this.connection?.isOpen ?? false;
     }
 
-    /**
-     * Spawns the provider, completes the handshake, and opens the thread. Resolves once the Chat can accept input.
-     */
     get pid(): number | undefined {
         return this.connection?.pid;
     }
 
+    /**
+     * Spawns the provider, completes the handshake, and opens the thread. Resolves once the Chat can accept input.
+     */
     async start(): Promise<'resumed' | 'started'> {
         const outcome = await this.open();
-        this.options.apply([{ op: 'state', state: { commands: CODEX_COMMANDS } }]);
+        // react-doctor-disable-next-line react-doctor/server-sequential-independent-await -- Listing needs the connection `open` creates, and the default effort reads the thread it reported.
+        const modelState = await this.models.load(this.requireConnection());
+        this.options.apply([{ op: 'state', state: { commands: CODEX_COMMANDS, ...modelState } }]);
         return outcome;
     }
 
@@ -490,8 +499,8 @@ class CodexChatSession implements AgentChatProviderSession {
                 this.deliveries.forget(clientUserMessageId);
             }
         }
-        const result = await connection.request(
-            'turn/start',
+        const result = await this.models.startTurn(
+            connection,
             { threadId: this.threadId, input, summary: 'detailed', clientUserMessageId },
             TURN_REQUEST_TIMEOUT_MS,
         );
@@ -516,6 +525,12 @@ class CodexChatSession implements AgentChatProviderSession {
             { threadId: this.threadId },
             TURN_REQUEST_TIMEOUT_MS,
         );
+    }
+
+    configure(change: AgentChatModelChange): Promise<void> {
+        this.requireConnection();
+        this.models.configure(change);
+        return Promise.resolve();
     }
 
     async interrupt(): Promise<void> {

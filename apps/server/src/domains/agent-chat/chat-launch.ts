@@ -19,7 +19,7 @@ import type { AgentChatServiceOptions } from './service-options';
 /**
  * The Terminal failure a Chat start failure is recorded as.
  */
-export const TERMINAL_FAILURE_REASONS: Record<AgentChatFailureReason, TerminalFailureReason> = {
+const TERMINAL_FAILURE_REASONS: Record<AgentChatFailureReason, TerminalFailureReason> = {
     executable_not_found: 'executable_not_found',
     spawn_failed: 'spawn_failed',
     handshake_failed: 'spawn_failed',
@@ -152,4 +152,26 @@ export function chatStartFailure(
         },
     });
     return failure;
+}
+
+/**
+ * Records a failed start on the Chat's Terminal and agent process, and ends its launch. Returns `false` when the
+ * Terminal no longer exists, so there is no change to broadcast.
+ */
+export function didPersistChatStartFailure(
+    options: AgentChatServiceOptions,
+    terminalId: string,
+    failure: { reason: AgentChatFailureReason; detail?: string },
+): boolean {
+    const { database } = options;
+    options.coordinator.endTerminalLaunch(terminalId);
+    if (!database.getTerminal(terminalId)) return false;
+    database.updateTerminalState(
+        terminalId,
+        'failed',
+        TERMINAL_FAILURE_REASONS[failure.reason],
+        failure.detail,
+    );
+    database.updateAgentProcessState(terminalId, 'failed');
+    return true;
 }
