@@ -139,6 +139,14 @@ setInterval(() => {
                 .locator('[data-session-status-arc]')
                 .evaluate((element) => element.getAnimations().length),
         ).toBeGreaterThan(0);
+        // A monochrome ring, as in Codex's thread list: it strokes in the slot's own muted text color, not a status hue.
+        const ringColors = await firstStatus.evaluate((element) => ({
+            ring: [...element.querySelectorAll(':scope [data-session-status-arc] circle')].map(
+                (circle) => getComputedStyle(circle).stroke,
+            ),
+            slot: getComputedStyle(element).color,
+        }));
+        expect(ringColors.ring).toEqual([ringColors.slot]);
         // The row keeps the Agent's brand-color mark: color is what tells Claude Code and Codex apart in a long list.
         await expect(firstRow.locator('img[data-agent-icon="claude"]')).toBeVisible();
         const [rowBox, statusBox] = await Promise.all([
