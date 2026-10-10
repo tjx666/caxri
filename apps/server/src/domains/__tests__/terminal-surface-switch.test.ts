@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import type { AgentProvider, TerminalRecord, TerminalSurface } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { AgentCoordinator } from '../agents';
@@ -59,7 +60,11 @@ async function fixture({
             return Promise.resolve(database.getTerminal(terminalId)!);
         }),
     };
-    const coordinator = { prepareTerminalResume: vi.fn(), probeTerminal: vi.fn() };
+    const coordinator = {
+        prepareTerminalResume: vi.fn(),
+        prepareTerminalStart: vi.fn(),
+        probeTerminal: vi.fn(),
+    };
     const logger = { write: vi.fn() };
     const send = vi.fn();
     const handler = createTerminalSurfaceSwitchHandler({
@@ -82,9 +87,9 @@ async function fixture({
             .run(terminal.id, state, session.id);
     }
     function loggedOutcomes() {
-        return logger.write.mock.calls.map(
-            (call) => (call[2] as { fields: { outcome: string } }).fields.outcome,
-        );
+        return logger.write.mock.calls
+            .filter((call) => call[1] === logEventCatalog.terminal.surfaceSwitched)
+            .map((call) => (call[2] as { fields: { outcome: string } }).fields.outcome);
     }
     return {
         chat,
@@ -151,24 +156,35 @@ describe('terminal.switchSurface', () => {
         expect(order).toEqual([]);
     });
 
-    it('refuses an unbound Agent without touching its process', async () => {
-        const { database, handler, loggedOutcomes, order, terminal } = await fixture({
+    it('switches an unbound Agent and starts a new conversation on the other surface', async () => {
+        const { coordinator, database, handler, loggedOutcomes, order, terminal } = await fixture({
             agentSessionId: null,
         });
         await expect(
             handler({ terminalId: terminal.id, surface: 'chat', interruptTurn: false }),
-        ).rejects.toThrow(/no conversation to continue yet/u);
-        expect(order).toEqual([]);
-        expect(surfaceOf(database.getTerminal(terminal.id))).toBe('pty');
-        expect(loggedOutcomes()).toEqual(['unbound']);
+        ).resolves.toMatchObject({ status: 'switched', terminal: { surface: 'chat' } });
+        expect(order).toEqual(['pty.stop', 'chat.restart:chat']);
+        expect(coordinator.prepareTerminalStart).toHaveBeenCalledWith(terminal.id);
+        expect(coordinator.prepareTerminalResume).not.toHaveBeenCalled();
+        expect(surfaceOf(database.getTerminal(terminal.id))).toBe('chat');
+        expect(loggedOutcomes()).toEqual(['startedNew']);
     });
 
-    it('refuses a Claude Code session whose transcript was never written', async () => {
-        const { handler, order, terminal } = await fixture({ provider: 'claude' });
+    it('starts a new PTY conversation for a Claude Code session whose transcript was never written', async () => {
+        const { coordinator, handler, loggedOutcomes, order, terminal, terminals } = await fixture({
+            provider: 'claude',
+            surface: 'chat',
+        });
         await expect(
-            handler({ terminalId: terminal.id, surface: 'chat', interruptTurn: false }),
-        ).rejects.toThrow(/Claude has no conversation/u);
-        expect(order).toEqual([]);
+            handler({ terminalId: terminal.id, surface: 'pty', interruptTurn: false }),
+        ).resolves.toMatchObject({ status: 'switched' });
+        expect(order).toEqual(['chat.close:chat', 'pty.restart:pty']);
+        expect(terminals.restart).toHaveBeenCalledWith(
+            terminal.id,
+            expect.objectContaining({ launchAgent: true, resumeAgentSessionId: undefined }),
+        );
+        expect(coordinator.prepareTerminalStart).toHaveBeenCalledWith(terminal.id);
+        expect(loggedOutcomes()).toEqual(['startedNew']);
     });
 
     it('rejects an Agent without Chat support', async () => {

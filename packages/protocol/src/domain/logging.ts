@@ -454,8 +454,9 @@ export const logEventCatalog = {
         suspendFailed: 'terminal.suspend_failed',
         suspended: 'terminal.suspended',
         /**
-         * One `terminal.switchSurface` request: the closed `outcome` (`switched`, `turnRunning`, `unbound`, `failed`),
-         * both surfaces, the provider, whether a running turn was interrupted, and the duration.
+         * One `terminal.switchSurface` request: the closed `outcome` (`switched`, `startedNew` for an Agent with no
+         * conversation to carry over, `turnRunning`, `failed`), both surfaces, the provider, whether a running turn was
+         * interrupted, and the duration.
          */
         surfaceSwitched: 'terminal.surface_switched',
     },

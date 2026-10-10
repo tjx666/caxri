@@ -174,6 +174,15 @@ class ClaudeChatSession implements AgentChatProviderSession {
         });
     }
 
+    /**
+     * Opens a turn for output Claude Code produced without a prompt from Caxri. After a turn ends, a finished
+     * background task makes Claude Code continue the conversation on its own; without a turn the composer would offer
+     * Send instead of Stop while it works, and a surface switch would end that work without asking.
+     */
+    private adoptProviderTurn(): void {
+        if (!this.options.read().activeTurnId) this.beginTurn(randomUUID());
+    }
+
     private finishTurn(result: SDKResultMessage): void {
         const usageWindow = claudeContextWindow(result.modelUsage);
         if (usageWindow) this.contextWindow = usageWindow;
@@ -384,10 +393,13 @@ class ClaudeChatSession implements AgentChatProviderSession {
         if ('parent_tool_use_id' in message && message.parent_tool_use_id) return;
         switch (message.type) {
             case 'stream_event': {
+                if (isRecord(message.event) && message.event.type === 'message_start')
+                    this.adoptProviderTurn();
                 this.onStreamEvent(message.event);
                 return;
             }
             case 'assistant': {
+                this.adoptProviderTurn();
                 this.onAssistant(message.message);
                 return;
             }

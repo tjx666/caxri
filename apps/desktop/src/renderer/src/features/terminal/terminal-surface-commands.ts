@@ -1,9 +1,15 @@
 import type { TerminalRecord, TerminalSurface } from '@caxri/protocol';
-import { agentProviderCatalog, canUseAgentChat, isChatTerminal } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    agentResumeCommandLine,
+    canUseAgentChat,
+    isChatTerminal,
+} from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import type { ContextMenuEntry } from '../../lib/context-menu';
-import { tryCommand } from '../../stores/toasts';
+import { readCommandShortcut } from '../../lib/keybindings';
+import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 
 const surfaceLabels: Record<TerminalSurface, string> = {
@@ -11,27 +17,61 @@ const surfaceLabels: Record<TerminalSurface, string> = {
     pty: 'Open as Terminal',
 };
 
+type SurfaceSwitchTerminal = Pick<TerminalRecord, 'id' | 'kind' | 'provider' | 'surface'>;
+
+/**
+ * Whether the Terminal can reopen on the other surface: an Agent whose provider supports Chat. A Shell or a PTY-only
+ * Agent (Grok Build) has no other surface. The Server owns the authoritative checks.
+ */
+export function canSwitchTerminalSurface(
+    terminal: Pick<TerminalRecord, 'kind' | 'provider'> | undefined,
+): boolean {
+    return Boolean(terminal?.provider && canUseAgentChat(terminal.kind));
+}
+
+/**
+ * The surface a switch would open: Terminal for a Chat, Chat for a PTY.
+ */
+export function otherTerminalSurface(terminal: Pick<TerminalRecord, 'surface'>): TerminalSurface {
+    return isChatTerminal(terminal) ? 'pty' : 'chat';
+}
+
 /**
  * The tab-menu entry that reopens an Agent Terminal on the other surface, or `undefined` for a Terminal that cannot
- * switch (a Shell, or an Agent without Chat support). The Server owns the authoritative checks; disabling an unbound
- * Agent here only explains up front why there is nothing to carry over yet.
+ * switch. It shows the shortcut of `terminal.switchAgentSurface`, which performs the same switch on the active tab.
  */
-export function terminalSurfaceMenuEntry(terminal: TerminalRecord): ContextMenuEntry | undefined {
-    const { provider } = terminal;
-    if (!provider || !canUseAgentChat(terminal.kind)) return undefined;
-    const target: TerminalSurface = isChatTerminal(terminal) ? 'pty' : 'chat';
+export function terminalSurfaceMenuEntry(
+    terminal: SurfaceSwitchTerminal,
+): ContextMenuEntry | undefined {
+    if (!canSwitchTerminalSurface(terminal)) return undefined;
     return {
-        label: surfaceLabels[target],
-        disabled: !terminal.agentSessionId,
-        disabledReason: 'Send a message first; there is no conversation to continue yet',
-        onSelect: () =>
-            switchTerminalSurface(terminal.id, target, agentProviderCatalog[provider].displayName),
+        label: surfaceLabels[otherTerminalSurface(terminal)],
+        shortcut: readCommandShortcut('terminal.switchAgentSurface'),
+        onSelect: () => switchTerminalSurfaceTo(terminal, otherTerminalSurface(terminal)),
     };
 }
 
 /**
- * Reopens the Terminal on `surface`, continuing the same conversation. A running turn is never ended silently: the
- * Server reports it, and only an explicit confirmation switches with `interruptTurn`.
+ * Reopens a Chat-capable Agent Terminal on `surface`; a Terminal already there, or one that cannot switch, is left
+ * alone.
+ */
+export function switchTerminalSurfaceTo(
+    terminal: SurfaceSwitchTerminal,
+    surface: TerminalSurface,
+): Promise<void> | undefined {
+    if (!terminal.provider || !canSwitchTerminalSurface(terminal)) return undefined;
+    if (otherTerminalSurface(terminal) !== surface) return undefined;
+    return switchTerminalSurface(
+        terminal.id,
+        surface,
+        agentProviderCatalog[terminal.provider].displayName,
+    );
+}
+
+/**
+ * Reopens the Terminal on `surface`, continuing the same conversation, or starting one when there is none yet. A
+ * running turn is never ended silently: the Server reports it, and only an explicit confirmation switches with
+ * `interruptTurn`.
  */
 export async function switchTerminalSurface(
     terminalId: string,
@@ -57,4 +97,33 @@ export async function switchTerminalSurface(
         },
         { refresh: refreshWorkbench },
     );
+}
+
+/**
+ * "Copy Resume Command" for an Agent tab and a Session row (its Primary Agent): a shell command that continues the
+ * bound Agent Session in the provider's own TUI outside Caxri. Disabled until the Agent has a conversation to continue;
+ * `disabledReason` lets a menu reuse the wording of its other conversation entries.
+ */
+export function agentResumeCommandMenuEntry(
+    terminal: Pick<TerminalRecord, 'agentSessionId' | 'cwd' | 'provider'> | undefined,
+    disabledReason = 'Send a message first; there is no conversation to resume yet',
+): ContextMenuEntry {
+    const provider = terminal?.provider;
+    const agentSessionId = terminal?.agentSessionId;
+    return {
+        label: 'Copy Resume Command',
+        disabled: !provider || !agentSessionId,
+        disabledReason,
+        onSelect: () =>
+            provider &&
+            agentSessionId &&
+            copyAgentResumeCommand(agentResumeCommandLine(provider, agentSessionId, terminal.cwd)),
+    };
+}
+
+function copyAgentResumeCommand(command: string): Promise<unknown> {
+    return tryCommand('Unable to copy the resume command', async () => {
+        await navigator.clipboard.writeText(command);
+        pushToast('success', 'Resume command copied');
+    });
 }

@@ -32,22 +32,22 @@ import {
 } from '../editor/document-tab-path-actions';
 import { documentTabPathMenu } from '../editor/document-tab-path-menu';
 import { documentTabPresentation } from '../editor/document-tab-presentation';
-import { EditorTabActions } from '../editor/editor-tab-actions';
 import { GitReviewTabBadge } from '../editor/git-review-tab-badge';
 import { previewSourcePath } from '../preview/preview-commands';
 import { WorkTab } from '../tabs/work-tab';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
 import { workTabId, workTabNavigationTarget } from '../tabs/work-tab-accessibility';
-import { NewTerminalButton } from '../terminal/new-terminal-button';
 import { closeTerminal } from '../terminal/terminal-commands';
 import {
     terminalProgressAriaLabel,
     terminalProgressLabel,
     useTerminalProgress,
 } from '../terminal/terminal-progress';
+import { canSwitchTerminalSurface } from '../terminal/terminal-surface-commands';
 import { terminalTabMenuEntries } from '../terminal/terminal-tab-menu';
 import { selectPaneTab } from './pane-actions';
 import { EDITOR_PATH_DRAG_TYPE, PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
+import { PaneTabActions } from './pane-tab-actions';
 import { paneTabMenu } from './pane-tab-menu';
 import { useActiveTabReveal } from './pane-tab-reveal';
 import { usePaneViewSession, usePaneViewSessionId } from './pane-view-session';
@@ -333,40 +333,6 @@ function ScrollFade({ edge, fill }: { edge: 'end' | 'start'; fill: ScrollFadeFil
                 SCROLL_FADE_FILL_CLASS_NAME[fill],
             )}
         />
-    );
-}
-
-/**
- * The bar's trailing strip. With one tab, + floats over its end: a reserved slot showed the bar's fill as a block.
- */
-function PaneTabActions({
-    editorPath,
-    hasPaneTabs,
-    hasTabsToSwitch,
-    paneId,
-}: {
-    editorPath: string | undefined;
-    hasPaneTabs: boolean;
-    hasTabsToSwitch: boolean;
-    paneId: string;
-}) {
-    if (!editorPath && !hasPaneTabs) return null;
-    return (
-        <div
-            className={`tab-actions relative flex h-11 flex-none items-center [-webkit-app-region:no-drag] ${editorPath || hasTabsToSwitch ? 'px-1' : ''}`}
-        >
-            {editorPath && <EditorTabActions paneId={paneId} path={editorPath} />}
-            {hasPaneTabs && (
-                <div
-                    className={cn(
-                        !hasTabsToSwitch &&
-                            'absolute top-0 right-full z-[5] flex h-11 items-center pr-1 opacity-0 [-webkit-app-region:no-drag] group-hover/work-tabs:opacity-100 focus-within:opacity-100 has-[[data-popup-open]]:opacity-100',
-                    )}
-                >
-                    <NewTerminalButton paneId={paneId} />
-                </div>
-            )}
-        </div>
     );
 }
 
@@ -715,6 +681,9 @@ export function PaneTabBar({
     const activeTab = pane.tabs.find((tab) => tab.id === pane.activeTabId) ?? pane.tabs.at(0);
     const activeTabId = activeTab?.id;
     const editorPath = editorTabActionsPath(activeTab);
+    const activeTerminal = useTerminal(
+        activeTab?.resource.kind === 'terminal' ? activeTab.resource.terminalId : '',
+    );
     useActiveTabReveal(listReference, activeTabId, isDropTarget);
     return (
         <div
@@ -758,6 +727,9 @@ export function PaneTabBar({
                 hasPaneTabs={pane.tabs.length > 0}
                 hasTabsToSwitch={hasTabsToSwitch}
                 paneId={pane.id}
+                surfaceTerminal={
+                    canSwitchTerminalSurface(activeTerminal) ? activeTerminal : undefined
+                }
             />
             {/* Evenly divided tabs reach the window's right edge, so with the primarySidebar hidden this bar is the
                 whole titlebar and nothing in it would be draggable. The corner inherits the bar's drag region and

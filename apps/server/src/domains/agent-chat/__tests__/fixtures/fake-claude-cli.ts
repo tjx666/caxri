@@ -373,6 +373,15 @@ async function runTurn(text: string, content: unknown) {
         result(startedAt, 'done');
         return;
     }
+    if (text.includes('background')) {
+        await didStreamFully('Started the job in the background.', 0);
+        result(startedAt, 'done');
+        setTimeout(() => {
+            // eslint-disable-next-line no-void -- the follow-up turn reports through stdout
+            void continueAfterBackgroundTask();
+        }, 100);
+        return;
+    }
     if (text.includes('pause')) {
         await didStreamFully('Thinking it over before answering.', 200);
         result(startedAt, 'done');
@@ -431,6 +440,44 @@ async function runTurn(text: string, content: unknown) {
     });
     await didStreamFully(`Hello from fake Claude. You said: ${text}`, 5);
     result(startedAt, 'done');
+}
+
+/**
+ * What Claude Code does when a background task finishes after the turn that started it ended: it reports the task and
+ * continues the conversation on its own, with no user message opening the turn.
+ */
+async function continueAfterBackgroundTask() {
+    state.turnRunning = true;
+    const startedAt = Date.now();
+    const outputFile = path.join(process.cwd(), 'job.log');
+    send(
+        frame({
+            type: 'system',
+            subtype: 'task_notification',
+            task_id: 'fake-task',
+            status: 'completed',
+            output_file: outputFile,
+            summary: 'Background job finished',
+        }),
+    );
+    const toolUseId = `toolu_${crypto.randomUUID()}`;
+    assistant(`msg_${crypto.randomUUID()}`, {
+        type: 'tool_use',
+        id: toolUseId,
+        name: 'Bash',
+        input: { command: 'cat job.log', description: 'Read the job output' },
+    });
+    await delay(300);
+    const message = {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: toolUseId, content: 'ok' }],
+    };
+    send(frame({ type: 'user', message }));
+    record({ type: 'user', message });
+    await didStreamFully('The background job finished.', 0);
+    result(startedAt, 'done');
+    state.turnRunning = false;
+    await drain();
 }
 
 async function drain() {

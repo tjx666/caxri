@@ -129,6 +129,16 @@ dev app. Drive the real application over CDP, capture a screenshot of the affect
 check it before reporting completion. Passing unit or e2e gates alone does not count for visual
 changes.
 
+To verify Agent UI in a dev instance, run fake providers, never the host CLI. Build the environment with
+`e2e/support/agent-fixture.ts`'s `createFakeAgentMode` plus `createE2EAgentEnvironment`, export its
+`e2eAgentEnvironmentKeys()` values together with `CAXRI_E2E=1` and `CAXRI_E2E_WINDOW_MODE=visible`, then
+start `switch-worktree dev`. Without `CAXRI_E2E=1` the fake executables are ignored while the isolated
+`CODEX_HOME` still applies, so the real Codex CLI starts at its login screen. Before using the Agent, confirm with
+`ps` that the Agent process is the fake `e2e-agents/bin/<provider>`. To add a Project without a native
+folder picker, also export `V8_INSPECTOR_PORT=<port>` (electron-vite passes it to Main as `--inspect`) and
+replace `dialog.showOpenDialog` through `Runtime.evaluate`, as `e2e/support/packaged-project-dialog.ts` does.
+Delete that Project before stopping, so a later plain `dev` run does not restore the Agent with a real CLI.
+
 A change limited to native menu entries (Renderer menu data that Main draws with `Menu.popup`) has
 no CDP-visible surface. Verify it with a Playwright Electron spec that opens the menu from its real
 trigger through `e2e/support/native-context-menu.ts`, asserts the entry's label, position, and
