@@ -32,7 +32,10 @@ import {
 import { draftAfterQueueEdit } from './agent-chat-queue';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { completeAgentChatAction } from './agent-chat-slash-commands';
-import { AgentChatStopButton } from './agent-chat-stop-button';
+import {
+    AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME,
+    AgentChatStopButton,
+} from './agent-chat-stop-button';
 import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
 import { useAgentChatImageInput } from './hooks/use-agent-chat-image-input';
@@ -248,11 +251,13 @@ export function AgentChatComposer({
                         <Tooltip content={sendAction.tooltip}>
                             <Button
                                 aria-label={sendAction.label}
+                                className={AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME}
                                 disabled={!isSendable}
                                 size="icon"
                                 type="submit"
+                                variant="ghost"
                             >
-                                <ArrowUp className="size-4" />
+                                <ArrowUp className="size-4" strokeWidth={2.25} />
                             </Button>
                         </Tooltip>
                     )}

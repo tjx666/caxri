@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ScrollEdges } from '../tab-scroll-edges';
-import { applyScrollEdgeIntersections } from '../tab-scroll-edges';
+import type { ScrollEdges } from './use-scroll-edges';
+import { applyScrollEdgeIntersections } from './use-scroll-edges';
 
 const NEITHER: ScrollEdges = { canScrollStart: false, canScrollEnd: false };
 

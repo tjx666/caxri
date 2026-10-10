@@ -8,6 +8,7 @@ import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
+import { useScrollEdges } from '../../hooks/use-scroll-edges';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
@@ -46,7 +47,6 @@ import { PaneTabActions } from './pane-tab-actions';
 import { paneTabMenu } from './pane-tab-menu';
 import { useActiveTabReveal } from './pane-tab-reveal';
 import { usePaneViewSession, usePaneViewSessionId } from './pane-view-session';
-import { useScrollEdges } from './tab-scroll-edges';
 import { usePaneTabDrag } from './use-pane-tab-drag';
 
 interface PaneTabProperties {

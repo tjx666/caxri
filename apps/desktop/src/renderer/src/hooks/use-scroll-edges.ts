@@ -2,8 +2,9 @@ import type { RefObject } from 'react';
 import { useEffect, useState } from 'react';
 
 /**
- * Which edges of a horizontally scrollable tab strip currently hide content, so a caller can fade in a cue only on the
- * side that actually has more tabs to reveal.
+ * Which edges of a scroll container currently hide content, so a caller can fade in a cue only on the side that
+ * actually has more to reveal. `start`/`end` are left/right for a horizontal scroller and top/bottom for a vertical
+ * one.
  */
 export interface ScrollEdges {
     canScrollStart: boolean;
@@ -40,15 +41,14 @@ export function applyScrollEdgeIntersections(
 }
 
 /**
- * Tracks which edges of a horizontally scrolling tab strip a caller should fade, so `PaneTabBar` can show "there is
- * more to scroll to" the way a horizontally scrolling list normally signals it: `overflow-x-auto` alone gives no such
- * cue.
+ * Tracks which edges of a scroll container a caller should fade, so a list can show "there is more to scroll to"
+ * (`PaneTabBar`'s tab strip, an Agent Chat work group): `overflow-*-auto` alone gives no such cue.
  *
  * Watches two zero-footprint sentinel elements the caller renders at the very start and end of the scrollable content
  * (`startReference`/`endReference`) against the scroll container itself as the `IntersectionObserver` root, rather than
  * reading `scrollLeft`/`scrollWidth` off a `scroll` listener: a sentinel's visibility already answers "is there more
  * content past this edge" without a layout read on every scroll event, and the same observer entries fire for a tab
- * opening or closing (which moves the end sentinel) with no separate `ResizeObserver`.
+ * opening or closing or a row being added (which moves the end sentinel) with no separate `ResizeObserver`.
  */
 export function useScrollEdges(
     scrollReference: RefObject<HTMLElement | null>,

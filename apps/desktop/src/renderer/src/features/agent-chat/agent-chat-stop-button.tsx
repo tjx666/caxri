@@ -5,8 +5,14 @@ import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 
 /**
- * Interrupts the running turn. While the turn works, an arc circles the stop square so the one control that ends the
- * turn also shows it is still going; once a Stop was requested it is disabled with a spinner until the turn ends.
+ * The composer's one primary action, Send or Stop: a filled `--foreground` circle with a `--background` glyph, the way
+ * the Codex app draws it, so the slot reads as the same control in both states.
+ */
+export const AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME =
+    'rounded-full border-foreground bg-foreground text-background enabled:not-aria-disabled:hover:bg-foreground enabled:not-aria-disabled:hover:opacity-85';
+
+/**
+ * Interrupts the running turn. Once a Stop was requested it is disabled with a spinner until the turn ends.
  */
 export function AgentChatStopButton({
     isStopping,
@@ -19,41 +25,16 @@ export function AgentChatStopButton({
         <Tooltip content={isStopping ? 'Stopping…' : 'Stop (Esc)'}>
             <Button
                 aria-label={isStopping ? 'Stopping' : 'Stop'}
+                className={AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME}
                 disabled={isStopping}
                 size="icon"
-                variant="secondary"
+                variant="ghost"
                 onClick={onStop}
             >
                 {isStopping ? (
                     <Spinner className="size-3.5" />
                 ) : (
-                    <span className="relative flex size-5 items-center justify-center">
-                        <svg
-                            aria-hidden="true"
-                            className="absolute inset-0 size-5 motion-safe:animate-spin"
-                            fill="none"
-                            viewBox="0 0 20 20"
-                        >
-                            <circle
-                                className="opacity-25"
-                                cx="10"
-                                cy="10"
-                                r="8.5"
-                                stroke="currentColor"
-                                strokeWidth="1.5"
-                            />
-                            <circle
-                                cx="10"
-                                cy="10"
-                                r="8.5"
-                                stroke="currentColor"
-                                strokeDasharray="13 41"
-                                strokeLinecap="round"
-                                strokeWidth="1.5"
-                            />
-                        </svg>
-                        <Square className="size-2 fill-current" />
-                    </span>
+                    <Square aria-hidden="true" className="size-2.5 fill-current" />
                 )}
             </Button>
         </Tooltip>

@@ -206,10 +206,17 @@ if (process.argv.includes('app-server')) {
         );
         await expect(session.getByText('Esc to stop')).toBeVisible();
         await expect(session.getByText(/^\d+s$/u)).toBeVisible();
-        // Live work reads in the present tense with its subject, and a thought shows its Codex title.
+        // Live work reads in the present tense with its subject, sweeping the highlight across the whole title, and a
+        // thought shows its Codex title.
+        const liveRow = session.getByRole('button', { name: 'Searching slow in src' });
+        await expect(liveRow).toBeVisible();
         await expect(
-            session.getByRole('button', { name: /^Running rg -n slow src/u }),
-        ).toBeVisible();
+            liveRow
+                .locator('xpath=..')
+                .locator('.activity-shimmer')
+                .filter({ hasText: 'Searching' })
+                .filter({ hasText: 'slow in src' }),
+        ).toHaveCount(1);
         await expect(
             session.getByRole('button', { name: /^Thought Planning the reply/u }),
         ).toBeVisible();

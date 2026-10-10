@@ -163,13 +163,15 @@ export function applyAgentChatOperation(
     switch (operation.op) {
         case 'reset': {
             /**
-             * Commands describe the running provider, and the follow-up queue belongs to Server Core; neither is part
-             * of the conversation being replaced.
+             * Commands and models describe the running provider, and the follow-up queue belongs to Server Core; none
+             * is part of the conversation being replaced. A resumed Claude Code reports its models before its history
+             * replay resets the Chat, so dropping them here hid the model picker on every resumed Chat.
              */
             return {
                 ...emptyAgentChatSnapshot(snapshot.terminalId),
                 revision: snapshot.revision,
                 ...(snapshot.commands && { commands: snapshot.commands }),
+                ...(snapshot.models && { models: snapshot.models }),
                 ...(snapshot.queue && { queue: snapshot.queue }),
                 ...(snapshot.queuePaused !== undefined && { queuePaused: snapshot.queuePaused }),
             };

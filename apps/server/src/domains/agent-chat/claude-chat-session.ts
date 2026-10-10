@@ -60,6 +60,12 @@ const INITIALIZE_TIMEOUT_MS = 30_000;
  */
 const INTERRUPT_TIMEOUT_MS = 10_000;
 
+/**
+ * The frame types that carry a subagent's own conversation. The CLI also stamps `parent_tool_use_id` on a running Bash
+ * call's own `tool_progress` heartbeats; listing a task from those turned a background shell into a phantom `Agent`.
+ */
+const CHILD_CONVERSATION_TYPES = new Set<string>(['stream_event', 'assistant', 'user']);
+
 type Json = Record<string, unknown>;
 
 /**
@@ -261,7 +267,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
         if (this.isEnded) return;
         // A subagent's own conversation goes to its task tab, not the parent timeline.
         if ('parent_tool_use_id' in message && message.parent_tool_use_id) {
-            this.tasks.onChildMessage(message);
+            if (CHILD_CONVERSATION_TYPES.has(message.type)) this.tasks.onChildMessage(message);
             return;
         }
         switch (message.type) {
