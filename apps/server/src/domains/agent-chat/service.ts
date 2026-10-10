@@ -26,13 +26,14 @@ import {
     readE2EAgentPolicy,
 } from '@caxri/system';
 
+import { AgentRunAutonomy } from '../agent-run-autonomy';
 import type { AgentLifecycleSignal } from '../agents';
 import { agentCommandEnvironment, readAgentTranscript } from '../agents';
 import { SingleFlight } from '../single-flight';
 import { resolveTerminalExecutable } from '../terminal';
+import { agentChatDrivers } from './chat-drivers';
 import { isAgentChatCommandListed } from './chat-items';
 import type {
-    AgentChatDriver,
     AgentChatExit,
     AgentChatProviderSession,
     AgentChatResponse,
@@ -41,8 +42,6 @@ import type {
     ChatLifecycleEvent,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
-import { claudeChatDriver } from './claude-chat-session';
-import { codexChatDriver } from './codex-chat-session';
 import type { AgentChatServiceOptions } from './service-options';
 
 /**
@@ -50,16 +49,6 @@ import type { AgentChatServiceOptions } from './service-options';
  * with one event per token.
  */
 const PATCH_FLUSH_MS = 16;
-
-/**
- * The Chat implementation for each provider. Exhaustive so a provider added to the catalog fails closed here until it
- * has a structured driver; `capabilities.chat` in the catalog must agree.
- */
-const agentChatDrivers: Record<AgentProvider, AgentChatDriver | undefined> = {
-    claude: claudeChatDriver,
-    codex: codexChatDriver,
-    grok: undefined,
-};
 
 interface ChatState {
     snapshot: AgentChatSnapshot;
@@ -103,6 +92,8 @@ export class AgentChatService {
      * already applied. Starting one past the last revision instead leaves a gap that makes each Client re-read.
      */
     private readonly revisionFloors = new Map<string, number>();
+
+    private readonly agentRunAutonomy = new AgentRunAutonomy();
 
     private isShuttingDown = false;
 
@@ -218,6 +209,7 @@ export class AgentChatService {
 
     private async ensureStarted(
         terminal: TerminalRecord & { provider: AgentProvider },
+        shouldKeepAgentAutonomy = false,
     ): Promise<AgentChatProviderSession> {
         const state = this.state(terminal.id);
         /**
@@ -225,7 +217,9 @@ export class AgentChatService {
          * alone does not mean it can take a turn. Join an in-flight start instead of sending into it early.
          */
         if (this.starts.has(terminal.id) || !state.session?.isOpen)
-            await this.starts.run(terminal.id, () => this.start(terminal, state));
+            await this.starts.run(terminal.id, () =>
+                this.start(terminal, state, shouldKeepAgentAutonomy),
+            );
         if (!state.session?.isOpen)
             throw new CaxriError(
                 'UNAVAILABLE',
@@ -241,9 +235,10 @@ export class AgentChatService {
      */
     private async startQuietly(
         terminal: TerminalRecord & { provider: AgentProvider },
+        shouldKeepAgentAutonomy = false,
     ): Promise<void> {
         try {
-            await this.ensureStarted(terminal);
+            await this.ensureStarted(terminal, shouldKeepAgentAutonomy);
         } catch {
             // Recorded in the projection by start().
         }
@@ -252,6 +247,7 @@ export class AgentChatService {
     private async start(
         terminal: TerminalRecord & { provider: AgentProvider },
         state: ChatState,
+        shouldKeepAgentAutonomy: boolean,
     ): Promise<void> {
         const { database, logger } = this.options;
         const terminalId = terminal.id;
@@ -271,7 +267,12 @@ export class AgentChatService {
         try {
             const driver = agentChatDrivers[provider];
             if (!driver) throw new AgentChatStartError('spawn_failed');
-            const launch = this.options.launchSettings(provider);
+            const launch = this.agentRunAutonomy.launch(
+                terminalId,
+                provider,
+                this.options.launchSettings(provider),
+                shouldKeepAgentAutonomy,
+            );
             /**
              * Real-Agent E2E may start a Chat only when the run was authorized for the Chat surface; the thread then
              * ignores the user's launch settings for a fixed read-only, approval-free configuration.
@@ -549,13 +550,14 @@ export class AgentChatService {
     }
 
     /**
-     * Stops the provider and starts it again on the same Agent Session. Clears a previous failure.
+     * Stops the provider and starts it again on the same Agent Session. Clears a previous failure. A resume keeps the
+     * replaced start's approval mode (see `AgentRunAutonomy`).
      */
-    async restart(terminalId: string): Promise<TerminalRecord> {
+    async restart(terminalId: string, shouldKeepAgentAutonomy = false): Promise<TerminalRecord> {
         const terminal = this.requireChatTerminal(terminalId);
         await this.stop(terminalId);
         this.forget(terminalId);
-        await this.startQuietly(terminal);
+        await this.startQuietly(terminal, shouldKeepAgentAutonomy);
         return this.options.database.getTerminal(terminalId) ?? terminal;
     }
 

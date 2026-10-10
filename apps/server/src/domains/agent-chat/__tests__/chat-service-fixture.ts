@@ -21,7 +21,13 @@ const FAKE_CLAUDE = join(import.meta.dirname, 'fixtures', 'fake-claude-cli.ts');
  * Builds an AgentChatService over a temporary database that spawns the fake Codex app-server or fake Claude Code CLI.
  */
 export async function fixture(
-    options: { launchArgs?: string[]; provider?: 'claude' | 'codex' } = {},
+    options: {
+        /**
+         * A function is read at every provider start, so a test can change Settings between starts.
+         */
+        launchArgs?: string[] | (() => string[]);
+        provider?: 'claude' | 'codex';
+    } = {},
 ) {
     const provider = options.provider ?? 'codex';
     const directory = await realpath(await mkdtemp(`${tmpdir()}/caxri-agent-chat-`));
@@ -61,7 +67,10 @@ export async function fixture(
             }),
         launchSettings: () => ({
             ...defaultAgentProviderSettings[provider].launch,
-            args: options.launchArgs ?? [],
+            args:
+                typeof options.launchArgs === 'function'
+                    ? options.launchArgs()
+                    : (options.launchArgs ?? []),
         }),
         resolveExecutable: () => Promise.resolve(`/fake/${provider}`),
         coordinator,

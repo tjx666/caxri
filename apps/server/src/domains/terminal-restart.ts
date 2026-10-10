@@ -19,7 +19,7 @@ interface TerminalRestartHandlerOptions {
     /**
      * Restarts a Chat Terminal's provider process; a Chat never reaches the PTY restart path.
      */
-    restartChat(terminalId: string): Promise<TerminalRecord>;
+    restartChat(terminalId: string, shouldKeepAgentAutonomy: boolean): Promise<TerminalRecord>;
 }
 
 /**
@@ -27,6 +27,11 @@ interface TerminalRestartHandlerOptions {
  * surrounding Shell as well as the Agent: injecting a launch into a live prompt could execute inside an unpublished
  * edit or disturb foreground job control. Restarting updates recency, but a validated lifecycle signal still owns
  * whether the Agent is executing a turn.
+ *
+ * A `resume` restart (the Terminal's Restart, the menus' Reload Agent) continues the same Agent Session, so it also
+ * keeps the approval mode the replaced Agent Run launched with: a run started in YOLO comes back in YOLO even if the
+ * Settings switch was turned off since, and the reverse. Every other launch argument follows the current Settings, so a
+ * reload still picks up a changed model or flag. A `fresh` restart starts a new conversation on the current Settings.
  */
 export function createTerminalRestartHandler(
     options: TerminalRestartHandlerOptions,
@@ -37,7 +42,7 @@ export function createTerminalRestartHandler(
         if (isChatTerminal(current)) {
             // A fresh restart drops the Agent Session binding so the next start opens a new conversation.
             if (mode === 'fresh') options.coordinator.prepareTerminalStart(terminalId);
-            const terminal = await options.restartChat(terminalId);
+            const terminal = await options.restartChat(terminalId, mode !== 'fresh');
             const sessionIds = recordAgentRestart(options.database, terminal);
             options.send({
                 event: 'state.changed',
@@ -60,6 +65,7 @@ export function createTerminalRestartHandler(
         const terminal = await options.terminals.restart(terminalId, {
             expectedWorkingDirectory,
             resumeAgentSessionId,
+            shouldKeepAgentAutonomy: mode !== 'fresh',
         });
         if (terminal.provider) options.coordinator.probeTerminal(terminal.id);
         const sessionIds = recordAgentRestart(options.database, terminal);

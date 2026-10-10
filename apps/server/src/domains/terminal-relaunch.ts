@@ -21,7 +21,8 @@ export function createRelaunchHandlers({
     return {
         'terminal.restart': createTerminalRestartHandler({
             ...options,
-            restartChat: (terminalId) => agentChat.restart(terminalId),
+            restartChat: (terminalId, shouldKeepAgentAutonomy) =>
+                agentChat.restart(terminalId, shouldKeepAgentAutonomy),
         }),
         'terminal.switchSurface': (parameters) =>
             mobileTerminalMutations.run(parameters.terminalId, () => switchSurface(parameters)),
