@@ -26,3 +26,9 @@ _Researched 2026-08-06._
 - Named alongside Orca, Conductor, T3 Code, Herdr, Paseo, and others in a widely-engaged agent-workbench roundup thread (@T_Zahil, 2026-08-05, x.com/T_Zahil/status/2085024540355166472).
 - Reply from @NikosGPet (2026-08-06, x.com/NikosGPet/status/2085270846621311159): "it's great! Supports multiple agents talking between them and working together and it has a great interface!": praise for both multi-agent coordination and UI polish.
 - Project self-describes as "still very early... expect bugs, rough edges, and fast-moving internals," consistent with its recent rebrand and rapid weekly release cadence.
+
+## Chat and Terminal switching
+
+_Researched 2026-10-10._
+
+- Terminal and Chat are chosen at creation and `ctrl+1`/`ctrl+2` moves between the two views; a conversation cannot move from one surface to the other.

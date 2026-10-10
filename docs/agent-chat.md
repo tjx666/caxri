@@ -66,10 +66,11 @@ CLI fixture; the service, reducer, and pane do not change.
 
 ## Switching surface
 
-A bound Agent Terminal reopens on the other surface from its tab's context menu: "Open as Chat" on a
-PTY Agent, "Open as Terminal" on a Chat (`terminal.switchSurface`,
-`apps/server/src/domains/terminal-surface-switch.ts`). The Terminal row, tab, title, and Primary
-Agent election stay; only the process is replaced.
+A Chat-capable Agent Terminal reopens on the other surface from the `Terminal | Chat` toggle on the
+tab rail (shown for the active tab), its tab's context menu ("Open as Chat" / "Open as Terminal"),
+or `terminal.switchAgentSurface` (`cmd+shift+j`, also in the command palette), all through
+`terminal.switchSurface` (`apps/server/src/domains/terminal-surface-switch.ts`). The Terminal row,
+tab, title, and Primary Agent election stay; only the process is replaced.
 
 - The current process stops first: the PTY through the same barrier a suspension uses (cause
   `surfaceSwitched`), or the Chat provider through its orderly stop. Then `surface` flips and the
@@ -77,15 +78,20 @@ Agent election stay; only the process is replaced.
   `codex resume <thread>` or `claude --resume <session>` for a PTY. A failed Chat resume is the
   usual visible `resume_failed`; it never starts a new conversation.
 - An unbound Agent (no Agent Session yet, or a Claude Code session whose transcript was never
-  written) has nothing to carry over. The menu entry is disabled with "Send a message first", and
-  Server Core answers `CONFLICT` without touching the process.
+  written) has nothing to carry over, so the other surface starts a new conversation (outcome
+  `startedNew`). A PTY restart passes `launchAgent`, because the Chat's orderly stop left the Agent
+  `stopped`, which on its own restarts only a Shell.
 - A running turn is never ended silently. Server Core answers `turnRunning` instead of switching;
   the Renderer asks "Stop the running turn?" and only Stop and Switch repeats the request with
   `interruptTurn`. A Chat's turn is its projection's active turn; a PTY's is the Session's
   `running` or `waiting` activity while it is the Primary Agent (a secondary PTY Agent has no
   per-Terminal turn state, so it switches like a restart).
-- Each request logs `terminal.surface_switched` with a closed outcome (`switched`, `turnRunning`,
-  `unbound`, `failed`), both surfaces, the provider, and the duration.
+- Each request logs `terminal.surface_switched` with a closed outcome (`switched`, `startedNew`,
+  `turnRunning`, `failed`), both surfaces, the provider, and the duration.
+- "Copy Resume Command" in the tab and Session row menus copies `cd <cwd> && <provider resume
+command> <id>` (`agentResumeCommandLine`, from the provider catalog's `resumeArgs`) to continue
+  the bound conversation in the provider's own TUI outside Caxri. It is disabled until the Agent
+  has a conversation.
 
 ## Process lifecycle
 

@@ -51,6 +51,11 @@ export interface CommandContext {
         sendSequence(text: string): void;
         restartActive(): void;
         startNewAgentSession(): void;
+        /**
+         * True only when the active tab is an Agent Terminal whose provider supports Chat, so it has another surface.
+         */
+        canSwitchActiveSurface(): boolean;
+        switchActiveSurface(): void;
         closeActive(): void;
     };
     workbench: {

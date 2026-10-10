@@ -39,3 +39,9 @@ _Researched 2026-09-24 from source `ee7949a` (2026-09-21)._
 - Composer: model/mode selectors, provider slash commands, image attach, streamed dictation, and a full realtime voice mode.
 - Direct host:port (optional TLS/password) or an opt-in relay with Curve25519 E2EE; Tailscale recommended outside the LAN. Push through Expo; SQLite replica cache for timeline catch-up.
 - Public sentiment (X, Sept 2026): most praised for a native GUI that is far nicer on a phone than SSH or a TUI; criticized for mobile sessions freezing, weaker connection reliability than Orca, and contending with the official Codex app-server.
+
+## Chat and Terminal switching
+
+_Researched 2026-10-10._
+
+- Surfaces are fixed per Agent; continuing elsewhere means copying the provider's resume command, the pattern behind Caxri's "Copy Resume Command".
