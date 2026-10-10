@@ -14,7 +14,8 @@ import {
 
 describe('New Session choices', () => {
     it('offers every Agent provider as a choice', () => {
-        for (const provider of agentProviderIds) expect(NEW_SESSION_AGENT_ORDER).toContain(provider);
+        for (const provider of agentProviderIds)
+            expect(NEW_SESSION_AGENT_ORDER).toContain(provider);
     });
 
     it('sorts granted Projects by server-projected recent use, then title', () => {
