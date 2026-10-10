@@ -90,7 +90,7 @@ describe('AgentCoordinator provider switch', () => {
             expect(database.getTerminal(created.terminal!.id)).toMatchObject({
                 icon: 'claude',
                 kind: 'claude',
-                title: 'Claude Code',
+                title: 'Claude',
             });
             await expect
                 .poll(() => database.getTerminal(created.terminal!.id)?.agentSessionId)
@@ -709,7 +709,7 @@ describe('AgentCoordinator provider switch', () => {
                 agentSessionId: 'claude-hook-session',
                 icon: 'claude',
                 kind: 'claude',
-                title: 'Claude Code',
+                title: 'Claude',
             });
             await expect
                 .poll(() => database.getSession(created.session.id)?.displayTitle)
