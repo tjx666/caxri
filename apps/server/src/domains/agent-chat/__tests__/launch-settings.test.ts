@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { claudeChatSettings, codexChatSettings } from '../launch-settings';
+import { claudeChatSettings, codexChatSettings, grokChatSettings } from '../launch-settings';
 
 const launch = (arguments_: string[]) => ({ executable: 'codex', args: arguments_ });
 
@@ -83,6 +83,41 @@ describe('claudeChatSettings', () => {
             additionalDirectories: ['../shared'],
             allowedTools: ['Bash(git:*)', 'Read'],
             disallowedTools: ['WebFetch'],
+        });
+    });
+});
+
+describe('grokChatSettings', () => {
+    it('keeps the autonomy flag meaning, under either spelling', () => {
+        expect(grokChatSettings(launch(['--yolo']))).toEqual({
+            rootArgs: [],
+            agentArgs: ['--always-approve'],
+        });
+        expect(grokChatSettings(launch(['--always-approve'])).agentArgs).toEqual([
+            '--always-approve',
+        ]);
+    });
+
+    it('leaves approvals to Grok Build without it', () => {
+        expect(grokChatSettings(launch([]))).toEqual({ rootArgs: [], agentArgs: [] });
+    });
+
+    it('places root and agent options where the CLI accepts them and drops TUI-only flags', () => {
+        expect(
+            grokChatSettings(
+                launch([
+                    '-m',
+                    'grok-x',
+                    '--effort=high',
+                    '--sandbox workspace',
+                    '--permission-mode=acceptEdits',
+                    '--no-alt-screen',
+                    '--minimal',
+                ]),
+            ),
+        ).toEqual({
+            rootArgs: ['--sandbox', 'workspace', '--permission-mode', 'acceptEdits'],
+            agentArgs: ['--model', 'grok-x', '--reasoning-effort', 'high'],
         });
     });
 });

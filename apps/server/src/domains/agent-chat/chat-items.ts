@@ -36,6 +36,22 @@ export function tail(value: string, limit: number): string {
     return value.length <= limit ? value : value.slice(value.length - limit);
 }
 
+function prefixedLines(value: string, prefix: '+' | '-'): string[] {
+    if (!value) return [];
+    return value
+        .replace(/\n$/u, '')
+        .split('\n')
+        .map((line) => `${prefix}${line}`);
+}
+
+/**
+ * A unified-diff-style body for one replacement, for a provider that reports an edit as old and new text rather than a
+ * patch with line numbers. An empty `oldText` reads as a whole-file write.
+ */
+export function replacementDiff(oldText: string, newText: string): string {
+    return ['@@', ...prefixedLines(oldText, '-'), ...prefixedLines(newText, '+')].join('\n');
+}
+
 /**
  * Closes an item the provider left open when its turn ended.
  */
@@ -118,6 +134,14 @@ export function answeredNotice(
         kind: 'answered',
         message: clip(lines.join('\n'), 2_000),
     };
+}
+
+/**
+ * The prompt text that runs a slash command, for a provider that expands a command typed as a message (Claude Code and
+ * Grok Build) exactly as its own terminal UI would.
+ */
+export function slashCommandPrompt(name: string, arguments_: string | undefined): string {
+    return arguments_ ? `/${name} ${arguments_}` : `/${name}`;
 }
 
 /**

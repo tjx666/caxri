@@ -14,7 +14,13 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
-import { clip, endedSessionOperations, isRecord, stringField } from './chat-items';
+import {
+    clip,
+    endedSessionOperations,
+    isRecord,
+    slashCommandPrompt,
+    stringField,
+} from './chat-items';
 import type {
     AgentChatDriver,
     AgentChatProviderSession,
@@ -28,7 +34,6 @@ import { AgentChatStartError } from './chat-provider';
 import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
 import {
     ClaudeCommandList,
-    claudeCommandPrompt,
     claudeUserPrompt,
     isClaudeCompactCommand,
 } from './claude-input';
@@ -459,7 +464,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
         arguments_: string | undefined,
         options?: ChatInputOptions,
     ): Promise<void> {
-        const prompt = claudeCommandPrompt(name, arguments_);
+        const prompt = slashCommandPrompt(name, arguments_);
         this.submit(prompt, [], { ...options, isHidden: isClaudeCompactCommand(prompt) });
         return Promise.resolve();
     }
