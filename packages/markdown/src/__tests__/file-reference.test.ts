@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { fileLinkTarget, fileReferenceTarget } from '../file-reference.js';
+import { fileLinkTarget, fileReferenceTarget, proseFileReferences } from '../file-reference.js';
 
 describe('fileReferenceTarget', () => {
     it.each([
@@ -43,4 +43,27 @@ describe('fileLinkTarget', () => {
             expect(fileLinkTarget(destination)).toBeUndefined();
         },
     );
+});
+
+describe('proseFileReferences', () => {
+    it('finds paths and located names in prose, including flush against CJK text', () => {
+        expect(
+            proseFileReferences('Edited src/app.ts:12, /repo/a.md. 改了b.ts:3-5，再看 ./c.json'),
+        ).toEqual([
+            { index: 7, text: 'src/app.ts:12', file: 'src/app.ts:12' },
+            { index: 22, text: '/repo/a.md', file: '/repo/a.md' },
+            { index: 36, text: 'b.ts:3-5', file: 'b.ts#L3-L5' },
+            { index: 48, text: './c.json', file: './c.json' },
+        ]);
+    });
+
+    it.each([
+        'Built with Node.js and index.ts as words',
+        'https://example.com/src/a.ts',
+        'mail me at a@example.com',
+        'example.com/a.html',
+        'pinned glm-5.3 and v1.2',
+    ])('finds nothing in %j', (text) => {
+        expect(proseFileReferences(text)).toEqual([]);
+    });
 });

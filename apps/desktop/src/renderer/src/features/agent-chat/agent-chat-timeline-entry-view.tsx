@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
 import { memo } from 'react';
 
-import { AgentChatNotice, AgentChatReply, AgentChatUserMessage } from './agent-chat-message';
+import { AgentChatNotice, AgentChatReply } from './agent-chat-message';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 import { AgentChatTurnFold } from './agent-chat-turn-fold';
+import { AgentChatUserMessage } from './agent-chat-user-message';
 import { AgentChatWorkGroup } from './agent-chat-work-group';
 
 type MessageItem = Extract<AgentChatTimelineEntry, { kind: 'item' }>['item'];
@@ -29,6 +30,7 @@ const AgentChatMessageItem = memo(
                         delivery={item.delivery}
                         images={item.images}
                         text={item.text}
+                        onOpenFile={onOpenFile}
                     />
                 );
             }

@@ -18,7 +18,7 @@ import {
     themeImportExtensions,
 } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
-import { app, clipboard, ClipboardItem, dialog, nativeImage, shell } from 'electron';
+import { app, clipboard, ClipboardItem, dialog, nativeImage, net, shell } from 'electron';
 
 import { createAcceptanceExternalOpenFixture } from './acceptance-external-open';
 import { createAcceptanceSessionDeleteFixture } from './acceptance-session-delete';
@@ -48,6 +48,7 @@ import {
     isExternalDocumentRequest,
 } from './external-document-methods';
 import { openExternalUrl } from './external-links';
+import { createLinkFavicons } from './link-favicons';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 import { currentRequestWindow } from './request-window';
 import type { DesktopServerConnection } from './server-connection';
@@ -103,6 +104,7 @@ function assertNever(value: never): never {
  * screenshots, and update control all need direct Electron API access the Server process lacks.
  */
 export function createMainMethodHandler(options: MainMethodHandlerOptions) {
+    const linkFavicon = createLinkFavicons((url, init) => net.fetch(url, init));
     const externalOpenFixture =
         options.externalOpenFixture ??
         createAcceptanceExternalOpenFixture({
@@ -213,6 +215,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     allowTrust: true,
                     window: mainWindow,
                 });
+            case 'links.favicon':
+                return linkFavicon(request.params.origin);
             case 'dialog.selectDirectory':
                 return options.workbenchRootAuthority.selectProjectFolder();
             case 'pathBrowser.start':

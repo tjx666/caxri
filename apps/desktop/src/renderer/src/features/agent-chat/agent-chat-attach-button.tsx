@@ -39,6 +39,7 @@ export function AgentChatAttachButton({
             <Tooltip content="Attach images">
                 <Button
                     aria-label="Attach images"
+                    className="text-muted hover:text-foreground"
                     size="icon"
                     variant="ghost"
                     onClick={() => inputReference.current?.click()}

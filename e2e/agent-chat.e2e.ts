@@ -199,6 +199,23 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await page.getByRole('tab', { name: 'Codex', exact: true }).click();
         await expect(message).toBeVisible();
 
+        // A Files entry dropped on the composer is inserted as its path, relative to where the Agent runs.
+        await page.getByRole('treeitem', { name: 'app.ts', exact: true }).dragTo(message);
+        await expect(message).toHaveValue('src/app.ts ');
+        // A path written as plain prose, in the user's message and in the reply, opens in the Editor.
+        await message.fill('see src/greeting.ts:2 next');
+        await message.press('Enter');
+        const prosePath = chat.getByRole('button', { name: 'src/greeting.ts:2', exact: true });
+        await expect(prosePath).toHaveCount(2);
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-prose-path.png') });
+        await prosePath.last().click();
+        await expect(page.getByRole('tab', { name: 'greeting.ts' })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+        await page.getByRole('tab', { name: 'Codex', exact: true }).click();
+        await expect(message).toBeVisible();
+
         // A crash fails the Chat; Retry restarts the provider on the same conversation and the pane follows it.
         await message.fill('crash now');
         await message.press('Enter');

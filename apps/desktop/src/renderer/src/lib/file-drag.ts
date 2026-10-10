@@ -35,14 +35,15 @@ export function hasOsFiles(dataTransfer: Pick<DataTransfer, 'types'>): boolean {
 /**
  * The paths a drop inserts into a Terminal. A Caxri Files entry carries its own path. Files from another application
  * carry none the page can read, so the preload resolves each one; a file with no path on disk resolves to `''` and is
- * left out.
+ * left out. `files` narrows which dropped files count, for a target that takes some of them another way.
  */
-export function terminalDragPaths(event: DragEvent): string[] {
+export function terminalDragPaths(
+    event: DragEvent,
+    files: Iterable<File> = event.dataTransfer.files,
+): string[] {
     const path = event.dataTransfer.getData(FILE_REFERENCE_DRAG_TYPE) || dragPath(event);
     if (path) return [path];
-    return Array.from(event.dataTransfer.files, (file) =>
-        globalThis.caxri.pathForFile(file),
-    ).filter(Boolean);
+    return Array.from(files, (file) => globalThis.caxri.pathForFile(file)).filter(Boolean);
 }
 
 export function hasTerminalDraggedPath(event: DragEvent): boolean {

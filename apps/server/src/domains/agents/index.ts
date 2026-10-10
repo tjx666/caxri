@@ -1,4 +1,4 @@
-export { listAgentActions, recordRecentAgentAction } from './actions';
+export { listAgentActions, readAgentAction, recordRecentAgentAction } from './actions';
 export {
     AgentAttentionAutoAllow,
     createPermissionAutoAllowController,

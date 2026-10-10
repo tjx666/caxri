@@ -1,5 +1,7 @@
 export type { DocumentLocation } from './document-paths.js';
 export { isExternalTarget, isInPageTarget, resolveDocumentTarget } from './document-paths.js';
+export type { ProseFileReference } from './file-reference.js';
+export { proseFileReferences } from './file-reference.js';
 export type {
     MarkdownBlock,
     MarkdownBlockOptions,
