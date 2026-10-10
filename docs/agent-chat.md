@@ -209,7 +209,8 @@ pending permission prompts and questions until the user answers:
 - A turn is one `session/prompt`, named by the `promptId` Caxri sends in its `_meta`; the prompt's
   result carries the stop reason (`end_turn`, `cancelled`, `max_tokens`, `refusal`) and the
   conversation's token count. Grok Build does not echo the prompt, so it is recorded locally. A
-  message sent mid-turn goes to the running turn through `_x.ai/interject`.
+  steered message goes to the running turn through `_x.ai/interject`; Caxri never sends a second
+  `session/prompt` mid-turn, since Server Core's follow-up queue owns queueing.
 - `agent_message_chunk` and `agent_thought_chunk` stream text and reasoning. `tool_call` and
   `tool_call_update` are merged per call id, the update's present fields replacing earlier ones: an
   `execute` call is a command row, a call carrying `diff` content a file change, and anything else
@@ -273,6 +274,8 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   `commandExecution` with a `processId` still running when its turn ends becomes a shell task;
   Caxri initializes with `experimentalApi: true` so `thread/backgroundTerminals/terminate` can stop
   it. Codex stops streaming a command after 10,000 deltas, which sets `isOutputCapped`.
+- **Grok Build.** No tasks are projected yet: its background task updates are ignored, `stopTask`
+  answers `CONFLICT`, and `readTaskHistory` knows no task.
 - **Pane.** A subagent or background row opens its task in a Workbench tab
   (`caxri-agent-task://<terminalId>/<taskId>`, `packages/protocol/src/domain/agent-task-tab.ts`) in a
   split beside the Chat, reusing that side pane for later tasks. A subagent tab is a read-only
@@ -286,7 +289,7 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
 A message sent while a turn runs waits in Server Core's queue by default and goes out as its own
 turn once the Chat is idle, one turn at a time and in order; a message also waits behind earlier
 queued ones. `agentChat.send` with `delivery: 'steer'` instead adds it to the running turn (Codex
-`turn/steer`, Claude Code `priority: 'next'`). A slash command issued during a turn is queued.
+`turn/steer`, Claude Code `priority: 'next'`, Grok Build `_x.ai/interject`). A slash command issued during a turn is queued.
 User messages record how they arrived (`delivery: 'queued' | 'steered'`), in memory only.
 
 - The snapshot's `queue` lists each entry's text, image count, and command; image data stays on

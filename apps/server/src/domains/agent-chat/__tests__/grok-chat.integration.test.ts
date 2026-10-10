@@ -175,13 +175,13 @@ describe('AgentChatService with a fake Grok Build ACP agent', () => {
         expect(done.items.at(-1)).toMatchObject({ type: 'agentMessage', streaming: false });
     });
 
-    it('delivers a message sent mid-turn to the running turn', async () => {
+    it('steers a message sent mid-turn into the running turn', async () => {
         const { service, terminal, until } = await fixture({ provider: 'grok' });
         await service.send(terminal.id, { text: 'slow please' });
         await until((snapshot) =>
             snapshot.items.some((item) => item.type === 'agentMessage' && item.text.length > 0),
         );
-        await service.send(terminal.id, { text: 'and then' });
+        await service.send(terminal.id, { text: 'and then' }, 'steer');
         const heard = await until((snapshot) =>
             snapshot.items.some(
                 (item) => item.type === 'agentMessage' && item.text.includes('Heard: and then'),
@@ -191,6 +191,9 @@ describe('AgentChatService with a fake Grok Build ACP agent', () => {
         expect(
             heard.items.filter((item) => item.type === 'userMessage').map((item) => item.text),
         ).toEqual(['slow please', 'and then']);
+        expect(heard.items.findLast((item) => item.type === 'userMessage')).toMatchObject({
+            delivery: 'steered',
+        });
         await service.interrupt(terminal.id);
     });
 

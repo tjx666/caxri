@@ -32,11 +32,7 @@ import type {
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
 import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
-import {
-    ClaudeCommandList,
-    claudeUserPrompt,
-    isClaudeCompactCommand,
-} from './claude-input';
+import { ClaudeCommandList, claudeUserPrompt, isClaudeCompactCommand } from './claude-input';
 import { claudeAssistantItems, claudeUsageTokens, settleClaudeToolItem } from './claude-items';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
