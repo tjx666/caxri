@@ -202,6 +202,25 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
         expect(database.getTerminal(terminal.id)?.lastProcessState).toBe('dead');
     });
 
+    it('opens a turn when Claude Code continues on its own after a background task', async () => {
+        const { service, terminal, until, signals } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'start a background job' });
+        await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+
+        const working = await until((snapshot) =>
+            snapshot.items.some((item) => item.type === 'command' && item.status === 'running'),
+        );
+        expect(working.turns).toHaveLength(2);
+        expect(working.activeTurnId).toBe(working.turns[1]?.id);
+        expect(working.items.at(-1)).toMatchObject({ turnId: working.activeTurnId });
+
+        const done = await until(
+            (snapshot) => !snapshot.activeTurnId && snapshot.turns[1]?.status === 'completed',
+        );
+        expect(done.items.filter((item) => item.type === 'userMessage')).toHaveLength(1);
+        expect(signals.filter((signal) => signal.phase === 'turnStarted')).toHaveLength(2);
+    });
+
     it('folds a message sent mid-turn into the running turn', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
         await service.send(terminal.id, { text: 'pause first' });
