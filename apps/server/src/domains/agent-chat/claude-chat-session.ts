@@ -39,11 +39,11 @@ import {
     claudeContextWindow,
     claudeUsageTokens,
     finishedClaudeTurn,
-    settleClaudeToolItem,
 } from './claude-items';
 import { claudeChatModels, claudeInitEffort, configureClaudeModel } from './claude-models';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
+import { ClaudeToolClock, settleClaudeToolResults } from './claude-tool-results';
 import type { ClaudeChatSettings } from './launch-settings';
 import { claudeChatSettings } from './launch-settings';
 import { ProviderProcess } from './provider-process';
@@ -87,6 +87,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
     private readonly streamingBlocks = new Map<number, string>();
 
     private readonly streamedItems = new Set<string>();
+    private readonly toolClock = new ClaudeToolClock();
 
     private streamingMessageId: string | undefined;
 
@@ -201,6 +202,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             error || 'Claude could not finish this turn',
         );
         this.options.apply(finished.operations);
+        this.toolClock.clear();
         if (this.contextWindow && snapshot.usage)
             this.options.apply([
                 {
@@ -306,23 +308,21 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 },
             ]);
         for (const item of mapped.items) this.streamedItems.delete(item.id);
+        this.toolClock.start(mapped.items);
     }
 
     private onToolResults(message: SDKUserMessage): void {
         const content = isRecord(message.message) ? message.message.content : undefined;
-        if (!Array.isArray(content)) return;
-        const items = new Map(this.options.read().items.map((item) => [item.id, item]));
-        for (const block of content) {
-            if (!isRecord(block) || block.type !== 'tool_result') continue;
-            const toolUseId = stringField(block.tool_use_id);
-            if (!toolUseId) continue;
-            const id = clip(toolUseId, 200);
-            const wasDeclined = this.requests.takeDeclined(id);
-            const item = items.get(id);
-            const settled =
-                item && settleClaudeToolItem(item, block, message.tool_use_result, wasDeclined);
-            if (settled) this.options.apply([{ op: 'upsertItem', item: settled }]);
-        }
+        const operations = settleClaudeToolResults(
+            content,
+            this.options.read().items,
+            message.tool_use_result,
+            (id) => ({
+                wasDeclined: this.requests.takeDeclined(id),
+                durationMs: this.toolClock.stop(id),
+            }),
+        );
+        if (operations.length > 0) this.options.apply(operations);
     }
 
     private onSystem(message: Json): void {

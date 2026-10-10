@@ -971,12 +971,17 @@ stop` right-aligned. A working turn's label is one playful verb chosen per turn 
 so a long turn reads as progress rather than a stall. References: T3 Code's Chat composer, Claude
 Code's spinner verbs, LobeHub's ringed Stop button, and the Codex app's context ring and model and
 effort picker. In the transcript, inline code sits in a lifted `--elevated` chip and links take
-`--accent`, as the Codex app sets them in Dracula.
+`--accent`; a code block is one radius-8 `--elevated` panel whose header (a code glyph, Monaco's
+language name such as `TypeScript`, wrap and copy) shares its fill; a table is set open, with row
+hairlines and no frame or header tint. All follow the Codex app's Dracula transcript.
 
 **Agent Chat timeline**: work is secondary to the conversation. Every command, tool call, file
 change, and thought is one 12px `--muted` disclosure row: the tool kind's glyph (the same table the
 mobile timeline uses), a past-tense verb, the subject in a mono `--surface` chip, and trailing facts
-(a `+N -M` diff stat, a non-success status glyph, a duration of at least one second). Consecutive
+(a `+N -M` diff stat, a non-success status glyph, a duration of at least one second; a command
+always shows its duration, plus a `--danger` `Exit N` when non-zero and a `--surface` `Background`
+tag once handed off). A command the Agent described is titled by the description in the body font,
+and its command line moves into the expanded view. Consecutive
 work collapses into one summary row (`Ran 3 commands, read 2 files`). A finished turn folds
 everything except the prompt, the final reply, and notices behind one `Worked for 2m 1s` row with a
 bottom hairline. Expanded output renders in the shared code view, painted in the language inferred

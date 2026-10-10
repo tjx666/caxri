@@ -20,7 +20,7 @@ function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> 
      * `--elevated`, so they keep the recessed chip.
      */
     const className = cn(
-        'rounded px-1 py-px font-mono text-foreground',
+        'rounded border-0 px-1 py-px font-mono text-foreground',
         variant === 'transcript' ? 'bg-elevated text-[12px]' : 'bg-surface text-[11px]',
     );
     const { file } = node;
@@ -33,7 +33,7 @@ function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> 
         <button
             className={cn(
                 className,
-                'cursor-pointer border-0 underline-offset-2 hover:text-accent hover:underline focus-visible:outline focus-visible:outline-accent',
+                'cursor-pointer underline-offset-2 hover:text-accent hover:underline focus-visible:outline focus-visible:outline-accent',
             )}
             title={`Open ${file}`}
             type="button"

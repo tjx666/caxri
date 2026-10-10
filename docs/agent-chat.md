@@ -160,7 +160,13 @@ pending permission prompts and questions until the user answers:
   folded into the running turn. The prompt is recorded locally because Claude Code does not echo it.
 - Text and thinking stream from `stream_event` deltas and are finalized by the complete
   `assistant` frame under the same id (model message id plus the block's per-kind ordinal).
-- `Bash` is a command row, `Edit`/`MultiEdit`/`Write`/`NotebookEdit` a file change whose diff is
+- `Bash` is a command row that keeps the tool's `description`. Its result settles the exit code
+  (Claude Code reports a failure as an error result starting `Exit code N`, so a success is 0) and a
+  duration Caxri measures from the `tool_use` to its result, because Claude Code reports none. A
+  command started with `run_in_background`, or moved there by the user or a timeout
+  (`backgroundTaskId`, `backgroundedByUser` in the structured result), is marked `background` and
+  carries neither, since it finishes after the hand-off. Settling lives in `claude-tool-results.ts`.
+- `Edit`/`MultiEdit`/`Write`/`NotebookEdit` is a file change whose diff is
   replaced by Claude Code's `structuredPatch` when the result arrives, `TodoWrite` the plan, and
   every other tool a generic tool row. Subagent frames (`parent_tool_use_id`) stay inside their
   parent tool call.
@@ -240,7 +246,11 @@ stop`. Only the label is the polite live region, so the ticking time is never an
 - Work renders as one-line rows (`Ran git status`, `Read <file>`, `Edited <file> +2 more`),
   each with the tool kind's glyph from the provider tool table shared with mobile
   (`packages/protocol/src/agent/agent-tool-presentation.ts`). Codex's login-shell wrapper
-  (`/bin/zsh -lc "..."`) is unwrapped so a row shows the script that ran. Consecutive work collapses
+  (`/bin/zsh -lc "..."`) is unwrapped so a row shows the script that ran. A command the Agent
+  described (Claude Code's `Bash` description) is titled by that description, and its command line
+  moves into the expanded view. A command row always shows its duration, a non-zero `Exit N`, and a
+  `Background` tag for a hand-off; the expanded view ends with its exit code. Codex reports no
+  description or background state for a command, so its rows show the command line. Consecutive work collapses
   into one summary row, and once a turn ends its work and commentary fold behind `Worked for X`
   (`Stopped after X`, `Failed after X`), keeping the prompt, the final reply, and notices other than
   a transient retry in view. A running turn stays expanded, and running work sweeps a highlight across its verb instead of

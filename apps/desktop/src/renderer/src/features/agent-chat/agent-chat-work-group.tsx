@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { memo, useId, useMemo, useState } from 'react';
 
 import type { AgentToolKind } from '@caxri/protocol';
-import { agentToolActiveLabel, formatShortDuration, unwrapShellCommand } from '@caxri/protocol';
+import { agentToolActiveLabel, unwrapShellCommand } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import {
     Bot,
@@ -38,6 +38,7 @@ import type { AgentChatWorkItem } from './agent-chat-timeline';
 import {
     agentChatOutputLanguage,
     agentChatReasoningTitle,
+    agentChatWorkDuration,
     agentChatWorkKind,
     describeAgentChatWork,
     isAgentChatWorkRunning,
@@ -171,7 +172,9 @@ function WorkDetail({
             const command = unwrapShellCommand(item.command);
             return (
                 <>
-                    {(command.length > COMMAND_TITLE_LENGTH || command.includes('\n')) && (
+                    {(item.description !== undefined ||
+                        command.length > COMMAND_TITLE_LENGTH ||
+                        command.includes('\n')) && (
                         <CodeView
                             className={OUTPUT_CLASS_NAME}
                             code={command}
@@ -180,8 +183,20 @@ function WorkDetail({
                         />
                     )}
                     <OutputView language={agentChatOutputLanguage(item)} text={item.output} />
-                    {item.exitCode !== undefined && item.exitCode !== 0 && (
-                        <p className="m-0 text-danger">Exit code {item.exitCode}</p>
+                    {item.exitCode !== undefined && (
+                        <p
+                            className={cn(
+                                'm-0',
+                                item.exitCode === 0 ? 'text-muted' : 'text-danger',
+                            )}
+                        >
+                            Exit code {item.exitCode}
+                        </p>
+                    )}
+                    {item.background && (
+                        <p className="m-0 text-muted">
+                            Moved to the background; the Agent is told when it finishes.
+                        </p>
                     )}
                 </>
             );
@@ -219,6 +234,25 @@ function WorkDetail({
     }
 }
 
+/**
+ * What a settled command's row says beyond its status glyph: a non-zero exit code, and a background hand-off, whose
+ * exit code and duration belong to a later notification.
+ */
+function CommandFacts({ item }: { item: Extract<AgentChatWorkItem, { type: 'command' }> }) {
+    return (
+        <>
+            {item.background && (
+                <span className="shrink-0 rounded bg-surface px-1 text-[11px]">Background</span>
+            )}
+            {item.exitCode !== undefined && item.exitCode !== 0 && (
+                <span className="shrink-0 font-mono text-[11px] text-danger tabular-nums">
+                    <span className="sr-only">, </span>Exit {item.exitCode}
+                </span>
+            )}
+        </>
+    );
+}
+
 function FileChangeStat({ item }: { item: Extract<AgentChatWorkItem, { type: 'fileChange' }> }) {
     const stat = useMemo(() => agentChatFileChangesStat(item.changes), [item.changes]);
     return (
@@ -239,10 +273,7 @@ const AgentChatWorkRow = memo(
         const presentation = describeAgentChatWork(item);
         const status = item.type === 'reasoning' ? undefined : item.status;
         const isRunning = isAgentChatWorkRunning(item);
-        const duration =
-            (item.type === 'command' || item.type === 'toolCall') && (item.durationMs ?? 0) >= 1000
-                ? formatShortDuration(item.durationMs)
-                : null;
+        const duration = agentChatWorkDuration(item);
         return (
             <DisclosureRow
                 disclosureKind="agent-chat-item"
@@ -268,6 +299,7 @@ const AgentChatWorkRow = memo(
                 trailing={
                     <>
                         {item.type === 'fileChange' && <FileChangeStat item={item} />}
+                        {item.type === 'command' && <CommandFacts item={item} />}
                         {status && status !== 'running' && status !== 'completed' && (
                             <AgentChatStatusGlyph status={status} />
                         )}
