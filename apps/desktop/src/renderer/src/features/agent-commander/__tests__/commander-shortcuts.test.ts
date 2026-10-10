@@ -13,9 +13,14 @@ vi.mock('../../terminal/terminal-link-actions', () => ({
     openTerminalLinkPicker: (terminalId: string) => mocks.ran.push(`links ${terminalId}`),
 }));
 
+import { commandDefinitions } from '../../../commands/definitions';
 import { useDialogStore } from '../../../stores/dialogs';
 import { useWorkbenchStore } from '../../../stores/workbench';
-import { createCommanderShortcutState, dispatchCommanderKeydown } from '../commander-shortcuts';
+import {
+    COMMANDER_TERMINAL_COMMANDS,
+    createCommanderShortcutState,
+    dispatchCommanderKeydown,
+} from '../commander-shortcuts';
 
 /**
  * The focused input of a running xterm, which matches both the Terminal and the editable-surface selectors.
@@ -61,6 +66,19 @@ afterEach(() => {
 });
 
 describe('Agent Commander shortcuts', () => {
+    it('reaches through an editable target exactly when the Workbench definition does', () => {
+        const commanderIds = Object.keys(COMMANDER_TERMINAL_COMMANDS);
+        expect(commanderIds.length).toBeGreaterThan(0);
+        for (const [id, { allowInEditable }] of Object.entries(COMMANDER_TERMINAL_COMMANDS)) {
+            const workbench = commandDefinitions.find((definition) => definition.id === id);
+            expect(workbench, `${id} has a Workbench definition`).toBeDefined();
+            expect({ id, allowInEditable }).toEqual({
+                id,
+                allowInEditable: workbench?.allowInEditable ?? false,
+            });
+        }
+    });
+
     it('runs the Terminal actions its context menu offers on the Commander Terminal', () => {
         const state = createCommanderShortcutState();
 

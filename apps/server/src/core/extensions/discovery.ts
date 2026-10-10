@@ -1,12 +1,13 @@
-import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import type { Dirent } from 'node:fs';
-import { open, readdir, realpath } from 'node:fs/promises';
+import { readdir, realpath } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 
 import type { ExtensionError, ExtensionManifest } from '@caxri/protocol';
 import { extensionIdSchema, extensionManifestSchema } from '@caxri/protocol';
 import { satisfies } from 'semver';
+
+import { readBoundedRegularFileText } from '../../domains/bounded-file-reader';
 
 export interface DiscoveredExtension {
     extensionId: string;
@@ -18,28 +19,16 @@ export interface DiscoveredExtension {
 
 const MAX_EXTENSION_MANIFEST_BYTES = 256 * 1_024;
 
-async function readManifestSource(path: string): Promise<string> {
-    const file = await open(path, 'r');
-    try {
-        const metadata = await file.stat();
-        if (!metadata.isFile()) throw new Error('Extension package.json is not a regular file');
-        if (metadata.size > MAX_EXTENSION_MANIFEST_BYTES)
-            throw new Error('Extension package.json exceeds the 256 KiB limit');
-        const buffer = Buffer.allocUnsafe(MAX_EXTENSION_MANIFEST_BYTES + 1);
-        let bytesRead = 0;
-        while (bytesRead < buffer.length) {
-            // The file offset and byte count advance together; parallel reads would break the bound.
-            // eslint-disable-next-line no-await-in-loop
-            const result = await file.read(buffer, bytesRead, buffer.length - bytesRead, bytesRead);
-            if (result.bytesRead === 0) break;
-            bytesRead += result.bytesRead;
-        }
-        if (bytesRead > MAX_EXTENSION_MANIFEST_BYTES)
-            throw new Error('Extension package.json exceeds the 256 KiB limit');
-        return buffer.subarray(0, bytesRead).toString('utf8');
-    } finally {
-        await file.close();
-    }
+/**
+ * An installed extension root is user-writable, so its manifest goes through the shared bounded reader: a FIFO planted
+ * as `package.json` is rejected as one invalid extension instead of blocking discovery of every sibling until a writer
+ * appears.
+ */
+function readManifestSource(path: string): Promise<string> {
+    return readBoundedRegularFileText(path, MAX_EXTENSION_MANIFEST_BYTES, {
+        capacityMessage: 'Extension package.json exceeds the 256 KiB limit',
+        notRegularFileMessage: 'Extension package.json is not a regular file',
+    });
 }
 
 export interface RejectedExtension {

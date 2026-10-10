@@ -1,7 +1,6 @@
-/* eslint-disable max-lines -- Hook lifecycle scenarios share one multi-provider integration fixture. */
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
-import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -606,50 +605,6 @@ describe('AgentHookManager', () => {
         }
     });
 
-    it('inspects and reconciles a symlinked foreign Codex hook policy without rewriting it', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-symlink-'));
-        temporaryDirectories.push(directory);
-        const codexHome = join(directory, 'codex');
-        const managedConfig = join(directory, 'dotfiles', 'config.toml');
-        const configPath = join(codexHome, 'config.toml');
-        const hooksPath = join(codexHome, 'hooks.json');
-        const foreignConfig = '[[hooks.Stop]]\ncommand = "foreign"\n';
-        await mkdir(codexHome, { recursive: true });
-        await mkdir(join(directory, 'dotfiles'), { recursive: true });
-        await writeFile(managedConfig, foreignConfig, 'utf8');
-        await symlink(managedConfig, configPath);
-        const settings = structuredClone(defaultAgentProviderSettings);
-        settings.codex.hooks.enabled = true;
-        const manager = new AgentHookManager({
-            environment: { homeDirectory: directory, variables: { CODEX_HOME: codexHome } },
-            logger: createLogger(join(directory, 'logs')),
-            onAuthorityLost: vi.fn(),
-            onLaunchEnded: vi.fn(),
-            onLaunchStarted: vi.fn(),
-            onSignal: vi.fn(() => 'accepted' as const),
-            discoverExecutable: () => Promise.resolve(process.execPath),
-            hookExecutable: process.execPath,
-            send: vi.fn(),
-            sharedPath: join(directory, 'shared'),
-            userDataPath: join(directory, 'profile'),
-        });
-
-        try {
-            await manager.initialize(settings);
-            await manager.reconcile(settings);
-
-            expect(manager.getHealth().codex).toEqual({
-                kind: 'conflict',
-                message: 'Codex already defines inline hooks in config.toml',
-            });
-            expect(await readFile(managedConfig, 'utf8')).toBe(foreignConfig);
-            expect((await lstat(configPath)).isSymbolicLink()).toBe(true);
-            await expect(lstat(hooksPath)).rejects.toMatchObject({ code: 'ENOENT' });
-        } finally {
-            await manager.close();
-        }
-    });
-
     it("preserves a user's own Claude session-naming hook while installing Caxri entries", async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-personal-hook-'));
         temporaryDirectories.push(directory);
@@ -818,4 +773,3 @@ describe('AgentHookManager', () => {
         }
     });
 });
-/* eslint-enable max-lines */

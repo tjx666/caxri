@@ -35,6 +35,7 @@ import {
     sessionActivityReasonForAgentState,
     shutdownOutcome,
 } from '../session-policy';
+import { insertAgentDispatchWithTerminal } from './agent-dispatch-terminal';
 import { AgentIdentity } from './agent-identity';
 import type { AgentCommanderRows } from './commander-rows';
 import { agentCommanderRows } from './commander-rows';
@@ -567,25 +568,19 @@ export class CaxriDatabase {
     }
 
     /**
-     * Atomically binds a durable dispatch receipt to its new Terminal before any PTY can spawn.
+     * Atomically binds a durable dispatch receipt to its new Terminal before any PTY can spawn, refusing an archived
+     * Session; see {@link insertAgentDispatchWithTerminal}.
      */
     createAgentDispatchWithTerminal(
         input: NewAgentDispatchReceipt,
         kind: AgentProvider,
         cwd?: string,
     ): { stored: StoredAgentDispatchReceipt; terminal: TerminalRecord } {
-        return this.db.transaction(() => {
-            this.db.agentDispatchReceipts.insert(input);
-            const terminal = this.insertTerminal(input.sessionId, kind, cwd);
-            return {
-                stored: this.db.agentDispatchReceipts.update(input.dispatchId, {
-                    status: 'starting',
-                    terminalId: terminal.id,
-                    now: input.now,
-                }),
-                terminal,
-            };
-        });
+        return this.db.transaction(() =>
+            insertAgentDispatchWithTerminal(this.db, input, () =>
+                this.insertTerminal(input.sessionId, kind, cwd),
+            ),
+        );
     }
 
     createAgentDispatch(input: NewAgentDispatchReceipt): StoredAgentDispatchReceipt {

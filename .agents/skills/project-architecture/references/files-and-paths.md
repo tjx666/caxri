@@ -20,7 +20,10 @@ Desktop process lifetime (bounded, oldest first). That registry is the whole aut
 `externalDocument.*` methods: the Renderer names only an ID Main issued after the user opened that file,
 never a path. `externalDocument.write` reauthorizes the path on every save (same parent directory, a
 regular file, no symbolic link, a single hard link), opens it with `O_NOFOLLOW`, checks the descriptor
-against the authorized inode, and overwrites it in place. The file's own inode is deliberately not pinned
+against the authorized inode, and overwrites it in place. In-place overwrite keeps the inode, mode,
+ownership, and extended attributes of a file Caxri does not own, at the cost of atomicity: a crash
+mid-save can leave it truncated, as with any in-place editor save (`IT-external-document-in-place-save`
+in [the debt ledger](../../../../docs/architecture-debt.md)). The file's own inode is deliberately not pinned
 across saves, because editors that save by renaming a temporary file replace it; the opened path is the
 document identity, as for a Project file. Reveal in Finder and Open with Default App resolve the same
 way. Open in Terminal calls the Main-only `terminal.createInExternalDirectory`, which admits that one

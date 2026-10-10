@@ -17,6 +17,20 @@ describe('Agent provider Runtime descriptors', () => {
         expect(new Set(Object.keys(agentProviders))).toEqual(new Set(agentProviderIds));
     });
 
+    /**
+     * Mobile cannot import Server descriptors, so `CONVERSATION_TIMELINE_PROVIDERS` in
+     * `apps/mobile/src/features/sessions/session-ui-state.ts` hard-codes this set. Change both together.
+     */
+    it('projects a Conversation timeline for exactly the providers Mobile expects', () => {
+        expect(
+            new Set(
+                agentProviderIds.filter(
+                    (provider) => agentProviders[provider].timelineProjector !== undefined,
+                ),
+            ),
+        ).toEqual(new Set(['claude', 'codex']));
+    });
+
     it.each([
         ['claude', ['--resume', 'provider-session-1']],
         ['codex', ['resume', 'provider-session-1']],

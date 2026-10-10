@@ -1,15 +1,11 @@
-import { createHash } from 'node:crypto';
-
 import type {
     AgentDispatchFailure,
-    AgentDispatchLaunch,
     AgentDispatchReceipt,
     AgentDispatchResumeParams as AgentDispatchResumeParameters,
     AgentDispatchStartParams as AgentDispatchStartParameters,
     AgentDispatchWaitResult,
     AgentEndpointRef as AgentEndpointReference,
     AgentLaunchSettings,
-    AgentProvider,
     Principal,
     ProcessState,
     TerminalRecord,
@@ -25,6 +21,7 @@ import { agentProviders } from '../agents';
 import { assertPtyTerminal } from '../pty-guard';
 import { SingleFlight } from '../single-flight';
 import type { TerminalLifecycleCause, TerminalWorkingDirectoryIdentity } from '../terminal';
+import { dispatchFingerprint, launchProjection } from './launch-projection';
 import type { AgentDispatchServiceOptions } from './service-options';
 
 interface DispatchWaiter {
@@ -77,37 +74,6 @@ export interface AgentDispatchResumeOptions {
     replaceLaunchId?: string;
     shouldStart?: () => boolean;
     beforeResume(): void;
-}
-
-function dispatchFingerprint(principal: Principal, operation: string, input: unknown): string {
-    return createHash('sha256')
-        .update(JSON.stringify({ principal, operation, input }))
-        .digest('hex');
-}
-
-function launchFingerprint(launch: AgentLaunchSettings): string {
-    return createHash('sha256').update(JSON.stringify(launch)).digest('hex');
-}
-
-function launchProjection(
-    provider: AgentProvider,
-    launch: AgentLaunchSettings,
-    mode: AgentDispatchLaunch['mode'],
-    resumeArgumentCount = 0,
-): AgentDispatchLaunch {
-    return {
-        provider,
-        mode,
-        executable: launch.executable,
-        argumentCount: launch.args.length + resumeArgumentCount,
-        fingerprint: launchFingerprint({
-            executable: launch.executable,
-            args:
-                resumeArgumentCount === 0
-                    ? launch.args
-                    : [...launch.args, `<${resumeArgumentCount} provider resume arguments>`],
-        }),
-    };
 }
 
 function isSettled(receipt: AgentDispatchReceipt): boolean {
@@ -292,6 +258,7 @@ export class AgentDispatchService {
         let identity: TerminalWorkingDirectoryIdentity;
         try {
             identity = await this.options.terminalDirectoryIdentity(terminal.cwd);
+            this.assertNotArchived(input.sessionId);
             if (options && this.options.terminals.agentLaunchId(terminal.id) !== expectedLaunchId)
                 throw new CaxriError('CONFLICT', 'Agent generation changed before resume');
             options?.beforeResume();
@@ -410,9 +377,18 @@ export class AgentDispatchService {
         const session = this.options.database.getSession(sessionId);
         if (!session || session.projectId !== projectId)
             throw new CaxriError('NOT_FOUND', 'Dispatch Session was not found in the Project');
-        if (session.archivedAt !== undefined)
-            throw new CaxriError('CONFLICT', 'Restore the archived Session before dispatching');
+        this.assertNotArchived(sessionId);
         return session;
+    }
+
+    /**
+     * Dispatch does not join the Session mutation queue, and `session.archive` parks only the Terminals live when it
+     * runs, so every await before a launch must re-check archive state. A fresh start re-checks inside the
+     * receipt/Terminal insert transaction instead (`createAgentDispatchWithTerminal`).
+     */
+    private assertNotArchived(sessionId: string): void {
+        if (this.options.database.getSession(sessionId)?.archivedAt !== undefined)
+            throw new CaxriError('CONFLICT', 'Restore the archived Session before dispatching');
     }
 
     private targetTerminal(target: {

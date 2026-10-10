@@ -9,7 +9,9 @@ import type { MobileTheme } from '../../theme/tokens';
 import { ConversationView } from '../conversation/conversation-view';
 import type { ConversationTimelineState } from '../conversation/use-conversation-timeline';
 import {
+    AGENT_CHAT_HANDED_OFF_NOTICE,
     agentChatActivityLabel,
+    agentChatEmptyMessage,
     agentChatFailureMessage,
     agentChatTimelineItems,
 } from './agent-chat-model';
@@ -69,6 +71,7 @@ const AgentChatBody = ({
     canSend,
     chat,
     enterFrom,
+    isHandedOff,
     provider,
     theme,
 }: {
@@ -78,6 +81,7 @@ const AgentChatBody = ({
     canSend: boolean;
     chat: AgentChatController;
     enterFrom: -1 | 0 | 1 | null;
+    isHandedOff: boolean;
     provider: string;
     theme: MobileTheme;
 }) => {
@@ -131,9 +135,7 @@ const AgentChatBody = ({
     return (
         <View style={styles.status} testID="agent-chat-status-empty">
             <Text style={[styles.statusText, { color: theme.muted }]}>
-                {canSend
-                    ? `No messages yet. Send a message to start working with ${provider}.`
-                    : 'No messages yet.'}
+                {agentChatEmptyMessage({ canSend, isHandedOff, provider })}
             </Text>
         </View>
     );
@@ -209,6 +211,7 @@ export const AgentChatView = ({
     deviceRole,
     enterFrom,
     isConnected,
+    isHandedOff,
     provider,
     theme,
 }: {
@@ -223,6 +226,11 @@ export const AgentChatView = ({
      * reports its own read failures.
      */
     isConnected: boolean;
+    /**
+     * The Chat was detached for another client. Like the detached PTY chip, the notice offers no action: the phone
+     * cannot resume a Session, and Retry restarts only a failed Chat.
+     */
+    isHandedOff: boolean;
     provider: string;
     theme: MobileTheme;
 }) => {
@@ -265,6 +273,14 @@ export const AgentChatView = ({
                     tone="danger"
                 />
             ) : null}
+            {isHandedOff ? (
+                <Banner
+                    message={AGENT_CHAT_HANDED_OFF_NOTICE}
+                    testID="agent-chat-handed-off"
+                    theme={theme}
+                    tone="muted"
+                />
+            ) : null}
             {isConnected && chat.status === 'stale' ? (
                 <Banner
                     actionLabel="Retry"
@@ -280,6 +296,7 @@ export const AgentChatView = ({
                     canSend={canRetry}
                     chat={chat}
                     enterFrom={enterFrom}
+                    isHandedOff={isHandedOff}
                     provider={provider}
                     theme={theme}
                 />

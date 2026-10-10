@@ -164,6 +164,7 @@ export const SessionDetail = ({
                     deviceRole={deviceRole}
                     draft={draft}
                     isConnected={isConnected}
+                    isHandedOff={chat.isHandedOff}
                     onDraftChange={onDraftChange}
                     provider={chat.provider}
                     theme={theme}

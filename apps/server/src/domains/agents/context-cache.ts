@@ -30,6 +30,81 @@ function parseLine(line: string): RecordValue {
 }
 
 /**
+ * Codex records each request's own usage on `token_count` events, so the newest measurable one is the answer and any
+ * compaction marker seen first means nothing current survived it.
+ */
+function inspectCodexRequests(lines: readonly string[]): ContextCacheObservation {
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+        const entry = parseLine(lines[index]);
+        const payload = record(entry.payload);
+        if (
+            entry.type === 'compacted' ||
+            (entry.type === 'event_msg' && payload.type === 'context_compacted')
+        )
+            return { status: 'already_compacted' };
+        if (entry.type !== 'event_msg' || payload.type !== 'token_count') continue;
+        const usage = record(record(payload.info).last_token_usage);
+        const contextTokens = tokens(usage.input_tokens) || tokens(usage.total_tokens);
+        const activityAt = timestamp(entry.timestamp);
+        if (contextTokens > 0 && Number.isFinite(activityAt))
+            return { status: 'measured', usage: { activityAt, contextTokens, ttlMinutes: 30 } };
+    }
+    return { status: 'usage_unavailable' };
+}
+
+/**
+ * Claude splits the newest request's size from its cache lifetime: a cache-read-only response carries no creation TTL,
+ * so earlier creation evidence up to the last compaction boundary supplies it.
+ */
+function inspectClaudeRequests(lines: readonly string[]): ContextCacheObservation {
+    let latest: Omit<ContextCacheUsage, 'ttlMinutes'> | undefined;
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+        const entry = parseLine(lines[index]);
+        if (entry.type === 'system' && entry.subtype === 'compact_boundary') {
+            if (!latest) return { status: 'already_compacted' };
+            break;
+        }
+        if (entry.type !== 'assistant') continue;
+        const usage = record(record(entry.message).usage);
+        const contextTokens =
+            tokens(usage.input_tokens) +
+            tokens(usage.cache_creation_input_tokens) +
+            tokens(usage.cache_read_input_tokens);
+        const activityAt = timestamp(entry.timestamp);
+        if (!latest && contextTokens > 0 && Number.isFinite(activityAt))
+            latest = { activityAt, contextTokens };
+        const creation = record(usage.cache_creation);
+        const ttlMinutes =
+            tokens(creation.ephemeral_1h_input_tokens) > 0
+                ? 60
+                : tokens(creation.ephemeral_5m_input_tokens) > 0
+                  ? 5
+                  : undefined;
+        if (latest && ttlMinutes) return { status: 'measured', usage: { ...latest, ttlMinutes } };
+    }
+    return latest
+        ? { status: 'measured', usage: { ...latest, ttlMinutes: 60 } }
+        : { status: 'usage_unavailable' };
+}
+
+/**
+ * Exhaustive on purpose: a newly catalogued provider fails to compile until it declares how its transcript records
+ * per-request usage, instead of being read with another provider's record shapes. `null` declares that the transcript
+ * has no usable evidence, so batch compaction reports `usage_unavailable` and skips it.
+ */
+const contextCacheInspectors: Record<
+    AgentProvider,
+    ((lines: readonly string[]) => ContextCacheObservation) | null
+> = {
+    claude: inspectClaudeRequests,
+    codex: inspectCodexRequests,
+    /**
+     * Batch compaction does not touch Grok Sessions; see `docs/session-compaction.md`.
+     */
+    grok: null,
+};
+
+/**
  * Reads the last request, never cumulative usage. Estimates match the native cache guard policy: Codex 30 minutes;
  * Claude uses explicit cache-creation lifetime, falling back to one hour when the transcript omits it. These are
  * selection heuristics, not cache-hit guarantees. A compaction boundary invalidates all earlier request usage.
@@ -40,50 +115,6 @@ export function inspectContextCache(
     provider: AgentProvider,
     content: string,
 ): ContextCacheObservation {
-    if (provider === 'grok') return { status: 'usage_unavailable' };
-    const lines = content.split('\n');
-    let latest: Omit<ContextCacheUsage, 'ttlMinutes'> | undefined;
-    for (let index = lines.length - 1; index >= 0; index -= 1) {
-        const entry = parseLine(lines[index]);
-        const payload = record(entry.payload);
-        const isBoundary =
-            provider === 'codex'
-                ? entry.type === 'compacted' ||
-                  (entry.type === 'event_msg' && payload.type === 'context_compacted')
-                : entry.type === 'system' && entry.subtype === 'compact_boundary';
-        if (isBoundary) {
-            if (!latest) return { status: 'already_compacted' };
-            break;
-        }
-        if (provider === 'codex') {
-            if (entry.type !== 'event_msg' || payload.type !== 'token_count') continue;
-            const usage = record(record(payload.info).last_token_usage);
-            const contextTokens = tokens(usage.input_tokens) || tokens(usage.total_tokens);
-            const activityAt = timestamp(entry.timestamp);
-            if (contextTokens > 0 && Number.isFinite(activityAt))
-                return { status: 'measured', usage: { activityAt, contextTokens, ttlMinutes: 30 } };
-        } else {
-            if (entry.type !== 'assistant') continue;
-            const usage = record(record(entry.message).usage);
-            const contextTokens =
-                tokens(usage.input_tokens) +
-                tokens(usage.cache_creation_input_tokens) +
-                tokens(usage.cache_read_input_tokens);
-            const activityAt = timestamp(entry.timestamp);
-            if (!latest && contextTokens > 0 && Number.isFinite(activityAt))
-                latest = { activityAt, contextTokens };
-            const creation = record(usage.cache_creation);
-            const ttlMinutes =
-                tokens(creation.ephemeral_1h_input_tokens) > 0
-                    ? 60
-                    : tokens(creation.ephemeral_5m_input_tokens) > 0
-                      ? 5
-                      : undefined;
-            if (latest && ttlMinutes)
-                return { status: 'measured', usage: { ...latest, ttlMinutes } };
-        }
-    }
-    return latest
-        ? { status: 'measured', usage: { ...latest, ttlMinutes: 60 } }
-        : { status: 'usage_unavailable' };
+    const inspect = contextCacheInspectors[provider];
+    return inspect ? inspect(content.split('\n')) : { status: 'usage_unavailable' };
 }

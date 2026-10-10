@@ -37,6 +37,11 @@ const packageManifest = JSON.parse(
     await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
 ) as PackageManifest;
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
+/**
+ * The `tsc` the mobile workspace's own scripts run. It is not the root TypeScript 7 CLI; see the `apps/mobile`
+ * exception in `.agents/skills/project-architecture/references/stack-baseline.md`.
+ */
+const mobileTscPath = join(repoRoot, 'apps/mobile/node_modules/.bin/tsc');
 
 function miseVersion(tool: 'node' | 'pnpm'): string {
     const match = mise.match(new RegExp(`^${tool} = "([^"]+)"$`, 'mu'));
@@ -217,9 +222,25 @@ describe('toolchain contract', () => {
         expect(typescript.version).toMatch(/^6\./u);
     });
 
+    it('keeps apps/mobile on the documented TypeScript 6 compiler that Expo tooling needs', async () => {
+        const mobileManifest = JSON.parse(
+            await readFile(new URL('../../apps/mobile/package.json', import.meta.url), 'utf8'),
+        ) as PackageManifest;
+        const mobileRequire = createRequire(join(repoRoot, 'apps/mobile/package.json'));
+        const resolvedTypescript = mobileRequire('typescript/package.json') as {
+            name: string;
+            version: string;
+        };
+        const { stdout } = await execFileAsync(mobileTscPath, ['--version']);
+
+        expect(mobileManifest.devDependencies.typescript).toMatch(/^\^6\./u);
+        expect(resolvedTypescript).toMatchObject({ name: 'typescript' });
+        expect(resolvedTypescript.version).toMatch(/^6\./u);
+        expect(stdout.trim()).toBe(`Version ${resolvedTypescript.version}`);
+    });
+
     it('rejects browser document globals from the React Native runtime project', async () => {
         const workspace = await mkdtemp(join(tmpdir(), 'caxri-mobile-runtime-contract-'));
-        const tscPath = join(repoRoot, 'apps/mobile/node_modules/.bin/tsc');
         try {
             await writeFile(
                 join(workspace, 'tsconfig.json'),
@@ -242,7 +263,11 @@ describe('toolchain contract', () => {
 
             let diagnostics = '';
             try {
-                await execFileAsync(tscPath, ['--noEmit', '-p', join(workspace, 'tsconfig.json')]);
+                await execFileAsync(mobileTscPath, [
+                    '--noEmit',
+                    '-p',
+                    join(workspace, 'tsconfig.json'),
+                ]);
             } catch (error) {
                 const failure = error as { stderr?: string; stdout?: string };
                 diagnostics = `${failure.stdout ?? ''}\n${failure.stderr ?? ''}`;

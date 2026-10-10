@@ -1,8 +1,10 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { extensionIdSchema } from '@caxri/protocol';
+import { execFileAsync } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { discoverExtensions } from '../discovery';
@@ -122,6 +124,40 @@ describe('discoverExtensions', () => {
         expect(missing?.error.code).toBe('MANIFEST_INVALID');
         expect(extensionIdSchema.safeParse(missing?.extensionId).success).toBe(true);
     });
+
+    /**
+     * A plain read-only open of a FIFO waits for a writer, so a FIFO planted as one installed extension's
+     * `package.json` used to stall discovery of every extension. It is now one rejected extension.
+     */
+    it.skipIf(process.platform === 'win32')(
+        'rejects a FIFO manifest at once without hiding sibling extensions',
+        async () => {
+            const root = await mkdtemp(join(tmpdir(), 'caxri-extension-fifo-manifest-'));
+            temporaryDirectories.push(root);
+            await mkdir(join(root, 'planted'));
+            await execFileAsync('mkfifo', [join(root, 'planted', 'package.json')]);
+            await writeExtension(root, 'valid');
+
+            const result = await discoverExtensions({
+                roots: [root],
+                appVersion: '0.0.17',
+                includeTestOnly: false,
+            });
+
+            expect(result.extensions.map(({ extensionId }) => extensionId)).toEqual([
+                'publisher.valid',
+            ]);
+            expect(result.rejected).toEqual([
+                expect.objectContaining({
+                    error: {
+                        code: 'MANIFEST_INVALID',
+                        message: 'Extension package.json is not a regular file',
+                    },
+                }),
+            ]);
+        },
+        2_000,
+    );
 
     it('rejects CommonJS and incompatible engines before executing extension code', async () => {
         const root = await mkdtemp(join(tmpdir(), 'caxri-extension-invalid-'));

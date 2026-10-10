@@ -1,5 +1,8 @@
+import type { AgentProvider } from '@caxri/protocol';
+import { agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import type { ContextCacheObservation } from '../context-cache';
 import { inspectContextCache } from '../context-cache';
 
 const timestamp = '2026-01-01T00:00:00Z';
@@ -98,4 +101,26 @@ describe('prompt cache selection evidence', () => {
             status: 'usage_unavailable',
         });
     });
+
+    /**
+     * Keyed by `AgentProvider` so a newly catalogued provider fails to compile here until its routing is pinned.
+     */
+    const ownRecordShapes: Record<AgentProvider, ContextCacheObservation> = {
+        claude: { status: 'measured', usage: { activityAt, contextTokens: 70_000, ttlMinutes: 5 } },
+        codex: {
+            status: 'measured',
+            usage: { activityAt, contextTokens: 120_000, ttlMinutes: 30 },
+        },
+        grok: { status: 'usage_unavailable' },
+    };
+    it.each(agentProviderIds)(
+        'reads %s transcripts only with its own record shapes',
+        (provider) => {
+            const mixed = [
+                codex(120_000),
+                claude({ input_tokens: 70_000, cache_creation: { ephemeral_5m_input_tokens: 10 } }),
+            ].join('\n');
+            expect(inspectContextCache(provider, mixed)).toEqual(ownRecordShapes[provider]);
+        },
+    );
 });

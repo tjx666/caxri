@@ -23,4 +23,19 @@ describe('safeProcessEnvironment', () => {
             PATH: '/usr/bin',
         });
     });
+
+    it('keeps proxy and CA trust context in both spellings without inheriting API keys', () => {
+        const networkContext = {
+            HTTPS_PROXY: 'https://proxy.example.test:3128',
+            https_proxy: 'https://proxy.example.test:3128',
+            NO_PROXY: 'localhost',
+            NODE_EXTRA_CA_CERTS: '/fixture/ca/extra.pem',
+            SSL_CERT_FILE: '/fixture/ca/bundle.pem',
+            SSL_CERT_DIR: '/fixture/ca',
+            ZDOTDIR: '/fixture/zdotdir',
+        };
+        expect(
+            safeProcessEnvironment({ ...networkContext, OPENAI_API_KEY: 'excluded-fixture' }),
+        ).toEqual(networkContext);
+    });
 });

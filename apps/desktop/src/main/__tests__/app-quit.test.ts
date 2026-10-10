@@ -7,6 +7,7 @@ import {
     confirmAppQuit,
     confirmPendingReviewCommentsQuit,
     createAppQuitHandler,
+    createAppQuitPromptOptions,
     notifyAppQuitStopFailure,
     pendingReviewCommentsPrompt,
     resolveAppQuit,
@@ -333,6 +334,43 @@ describe('appQuitPrompt', () => {
             confirmPendingReviewCommentsQuit({ showMessageBox } as never, undefined, summary),
         ).resolves.toBe('cancel');
         expect(showMessageBox).toHaveBeenCalledWith(pendingReviewCommentsPrompt(summary));
+    });
+
+    it('attaches every quit prompt to a Workbench window created after composition', async () => {
+        const showMessageBox = vi.fn().mockResolvedValue({ response: 1 });
+        const summary = {
+            count: 1,
+            groups: [
+                {
+                    sessionId: 'session-1',
+                    repositoryId: 'repo-1',
+                    repositoryName: 'caxri',
+                    count: 1,
+                },
+            ],
+        };
+        const impact = { activePtyCount: 1, otherClientCount: 0 };
+        const mainWindow = { isDestroyed: () => false };
+        const getWindow = vi.fn((): typeof mainWindow | undefined => undefined);
+        const prompts = createAppQuitPromptOptions({ showMessageBox } as never, getWindow as never);
+        // Mirrors `index.ts`: the quit handler is composed before the Workbench window exists.
+        getWindow.mockReturnValue(mainWindow);
+
+        await expect(prompts.confirmPendingReviewComments(summary)).resolves.toBe('cancel');
+        await expect(prompts.confirm(impact)).resolves.toBe('keep-running');
+        await prompts.notifyStopFailure();
+
+        expect(showMessageBox).toHaveBeenNthCalledWith(
+            1,
+            mainWindow,
+            pendingReviewCommentsPrompt(summary),
+        );
+        expect(showMessageBox).toHaveBeenNthCalledWith(2, mainWindow, appQuitPrompt(impact));
+        expect(showMessageBox).toHaveBeenNthCalledWith(
+            3,
+            mainWindow,
+            expect.objectContaining({ title: "Caxri Couldn't Stop All Tasks" }),
+        );
     });
 
     it('resolves to discard when the user picks Quit Anyway', async () => {

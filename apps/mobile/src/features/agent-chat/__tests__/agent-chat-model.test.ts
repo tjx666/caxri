@@ -1,17 +1,21 @@
 import type { AgentChatRequest, AgentChatSnapshot } from '@caxri/protocol';
-import { describeAgentTool } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds, describeAgentTool } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { mobileTerminalExitPresentation } from '../../terminal/terminal-exit-presentation';
 import {
+    AGENT_CHAT_HANDED_OFF_NOTICE,
     agentChatActivityLabel,
     agentChatApprovalChoices,
     agentChatApprovalFiles,
     agentChatComposerDisabledReason,
+    agentChatEmptyMessage,
     agentChatFailureMessage,
     agentChatProviderName,
     agentChatQuestionAnswers,
     agentChatRequestTitle,
     agentChatTimelineItems,
+    isAgentChatHandedOff,
     isAgentChatTerminal,
 } from '../agent-chat-model';
 
@@ -34,6 +38,18 @@ describe('Agent Chat model', () => {
         expect(agentChatProviderName({ kind: 'grok', provider: 'grok' })).toBe('Grok Build');
         expect(agentChatProviderName({ kind: 'shell' })).toBe('the Agent');
         expect(agentChatProviderName(undefined)).toBe('the Agent');
+    });
+
+    it('names every Chat provider exactly as the Desktop catalog does', () => {
+        for (const provider of agentProviderIds) {
+            expect(agentChatProviderName({ kind: provider })).toBe(
+                agentProviderCatalog[provider].displayName,
+            );
+            expect(agentChatProviderName({ kind: 'shell', provider })).toBe(
+                agentProviderCatalog[provider].displayName,
+            );
+        }
+        expect(agentChatProviderName({ kind: 'grok' })).toBe('Grok Build');
     });
 
     it('projects a Chat onto the Conversation timeline with a Thought row and turn dividers', () => {
@@ -227,6 +243,7 @@ describe('Agent Chat model', () => {
             agentChatComposerDisabledReason({
                 deviceRole: 'view',
                 isConnected: true,
+                isHandedOff: false,
                 snapshot: base,
             }),
         ).toMatch(/Reply access/u);
@@ -234,6 +251,7 @@ describe('Agent Chat model', () => {
             agentChatComposerDisabledReason({
                 deviceRole: 'reply',
                 isConnected: true,
+                isHandedOff: false,
                 snapshot: { ...base, status: 'failed' },
             }),
         ).toMatch(/Retry/u);
@@ -241,6 +259,7 @@ describe('Agent Chat model', () => {
             agentChatComposerDisabledReason({
                 deviceRole: 'control',
                 isConnected: true,
+                isHandedOff: false,
                 snapshot: base,
             }),
         ).toBeUndefined();
@@ -254,5 +273,86 @@ describe('Agent Chat model', () => {
         expect(agentChatFailureMessage('process_exited', 'Claude', false)).toBe(
             'Claude stopped unexpectedly. Reply access is required to retry.',
         );
+    });
+
+    it('treats a detached Chat as handed off, the way the phone treats a detached Terminal', () => {
+        expect(isAgentChatHandedOff({ lastProcessState: 'detached' })).toBe(true);
+        for (const state of [
+            'running',
+            'starting',
+            'stopped',
+            'dead',
+            'failed',
+            'interrupted',
+            'suspended',
+        ] as const)
+            expect(isAgentChatHandedOff({ lastProcessState: state })).toBe(false);
+        expect(isAgentChatHandedOff(undefined)).toBe(false);
+        /**
+         * The notice names the Chat where the detached PTY chip names the Terminal; the rest of the sentence is shared.
+         */
+        expect(AGENT_CHAT_HANDED_OFF_NOTICE).toBe('Chat was handed off on your computer');
+        expect(mobileTerminalExitPresentation('detached').label).toBe(
+            AGENT_CHAT_HANDED_OFF_NOTICE.replace('Chat', 'Terminal'),
+        );
+    });
+
+    it('disables sending to a handed-off Chat, whose snapshot still reads stopped', () => {
+        const stopped: AgentChatSnapshot = { ...base, status: 'stopped' };
+        expect(
+            agentChatComposerDisabledReason({
+                deviceRole: 'control',
+                isConnected: true,
+                isHandedOff: true,
+                snapshot: stopped,
+            }),
+        ).toBe('Resume the Agent on your computer to send messages.');
+        expect(
+            agentChatComposerDisabledReason({
+                deviceRole: 'reply',
+                isConnected: true,
+                isHandedOff: true,
+                snapshot: undefined,
+            }),
+        ).toBe('Resume the Agent on your computer to send messages.');
+        // Role and connection keep precedence, exactly as before.
+        expect(
+            agentChatComposerDisabledReason({
+                deviceRole: 'view',
+                isConnected: true,
+                isHandedOff: true,
+                snapshot: stopped,
+            }),
+        ).toMatch(/Reply access/u);
+        expect(
+            agentChatComposerDisabledReason({
+                deviceRole: 'control',
+                isConnected: false,
+                isHandedOff: true,
+                snapshot: stopped,
+            }),
+        ).toBe('Reconnect to send messages.');
+        // A stopped Chat that was not handed off still resumes on the next message.
+        expect(
+            agentChatComposerDisabledReason({
+                deviceRole: 'control',
+                isConnected: true,
+                isHandedOff: false,
+                snapshot: stopped,
+            }),
+        ).toBeUndefined();
+    });
+
+    it('does not invite a message into an empty Chat this device cannot send to', () => {
+        expect(
+            agentChatEmptyMessage({ canSend: true, isHandedOff: false, provider: 'Grok Build' }),
+        ).toBe('No messages yet. Send a message to start working with Grok Build.');
+        expect(
+            agentChatEmptyMessage({ canSend: false, isHandedOff: false, provider: 'Grok Build' }),
+        ).toBe('No messages yet.');
+        for (const canSend of [true, false])
+            expect(
+                agentChatEmptyMessage({ canSend, isHandedOff: true, provider: 'Grok Build' }),
+            ).toBe('Messages appear here once the Chat resumes.');
     });
 });

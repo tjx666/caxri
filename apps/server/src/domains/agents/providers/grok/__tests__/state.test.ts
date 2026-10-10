@@ -1,7 +1,9 @@
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
+import { execFileAsync } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { AgentEnvironment } from '../../../contract';
@@ -167,6 +169,30 @@ describe('Grok Build conversation title', () => {
                 ),
             ).toEqual({ title: `${kind} cwd title`, titleSource: 'automatic' });
         },
+    );
+
+    /**
+     * A plain read-only open of a FIFO waits for a writer, so a FIFO at `summary.json` used to park every probe of the
+     * bound Terminal indefinitely. The shared bounded reader refuses it at once.
+     */
+    it.skipIf(process.platform === 'win32')(
+        'keeps the current title without waiting when summary.json is a FIFO',
+        async () => {
+            const target = await workspace();
+            await writeSummary(target, AGENT_SESSION_ID, '{}');
+            const summaryPath = join(
+                target.environment.variables.GROK_HOME!,
+                'sessions',
+                encodeGrokCwdDirname(target.cwd),
+                AGENT_SESSION_ID,
+                'summary.json',
+            );
+            await rm(summaryPath);
+            await execFileAsync('mkfifo', [summaryPath]);
+
+            expect(await readState(target, AGENT_SESSION_ID)).toBeUndefined();
+        },
+        2_000,
     );
 
     it('rejects an agent session id that is not an opaque basename', async () => {

@@ -2,8 +2,6 @@ import type { GitReviewPendingSummary } from '@caxri/protocol';
 import { errorMessage, toWireError } from '@caxri/protocol';
 import type { BrowserWindow, Dialog } from 'electron';
 
-import type { DesktopServerConnection } from './server-connection';
-
 export type AppQuitDecision = 'cancel' | 'keep-running' | 'stop';
 export type AppQuitOutcome = 'cancelled' | 'kept-running' | 'stop-failed' | 'stopped';
 export type AppQuitIntent = 'relaunch' | 'system-shutdown' | 'user';
@@ -158,21 +156,20 @@ export async function confirmPendingReviewCommentsQuit(
 }
 
 /**
- * One composition entry point for the two pending-review-comments `AppQuitOptions` fields, so the caller's own
- * `createAppQuitHandler({...})` literal only needs to spread this instead of writing both out itself. Takes a
- * `DesktopServerConnection` getter (rather than a `readPendingReviewComments` callback) so the call fits on one line; a
- * getter, not the connection itself, because the caller's `supervisor` binding is assigned after this composition
- * runs.
+ * One composition entry point for every native quit prompt parented to the Workbench window. Takes a window getter, not
+ * a window, because the caller composes the quit handler before its `mainWindow` binding is assigned, and the window
+ * can later close and be recreated: a captured value stays `undefined`, so the prompt never attaches as a sheet to the
+ * Workbench window. Owning all three prompts here keeps a new one from capturing the value again.
  */
-export function createReviewCommentsQuitOptions(
+export function createAppQuitPromptOptions(
     dialog: Dialog,
-    window: BrowserWindow | undefined,
-    getServer: () => DesktopServerConnection,
-): Pick<AppQuitOptions, 'confirmPendingReviewComments' | 'readPendingReviewComments'> {
+    getWindow: () => BrowserWindow | undefined,
+): Pick<AppQuitOptions, 'confirm' | 'confirmPendingReviewComments' | 'notifyStopFailure'> {
     return {
+        confirm: (impact) => confirmAppQuit(dialog, getWindow(), impact),
         confirmPendingReviewComments: (summary) =>
-            confirmPendingReviewCommentsQuit(dialog, window, summary),
-        readPendingReviewComments: () => getServer().request('gitReview.pending', {}),
+            confirmPendingReviewCommentsQuit(dialog, getWindow(), summary),
+        notifyStopFailure: () => notifyAppQuitStopFailure(dialog, getWindow()),
     };
 }
 
