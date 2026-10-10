@@ -28,8 +28,9 @@ describe('0001_terminal_surface migration', () => {
             updatedAt: 1,
         });
         previous.close();
-        // Reproduce the schema-39 layout: the baseline had no `surface` column.
+        // Reproduce the schema-39 layout: the baseline had no `surface` column and none of the later tables.
         const raw = new Database(databasePath);
+        raw.exec('DROP TABLE agent_session_usage; DROP TABLE pull_request_outcomes');
         raw.exec('ALTER TABLE terminals DROP COLUMN surface');
         raw.pragma(`user_version = ${BASELINE_SCHEMA_VERSION}`);
         raw.close();

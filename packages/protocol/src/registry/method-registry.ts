@@ -84,6 +84,7 @@ import { terminalRelaunchMethods } from '../domain/terminal-relaunch-contract.js
 import { terminalSurfaceSchema } from '../domain/terminal-surface.js';
 import { treeChildrenResultSchema } from '../domain/tree-item.js';
 import { updateStateSchema } from '../domain/update-state.js';
+import { usageMethods } from '../domain/usage-contract.js';
 import {
     extensionCommandIdSchema,
     extensionErrorSchema,
@@ -157,6 +158,7 @@ export const methods = {
     ...agentEndpointMethods,
     ...agentInboxMethods,
     ...businessMethods,
+    ...usageMethods,
     ...bugReportMethods,
     ...mobileMethods,
     ...workbenchMethods,

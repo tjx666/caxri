@@ -12,6 +12,7 @@ import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
 import { terminals } from '../schema';
+import type { AgentSessionUsageModel } from './agent-session-usage';
 
 export const MAX_TERMINALS_PER_SESSION = 16;
 export const MAX_TERMINALS_GLOBAL = 32;
@@ -75,7 +76,10 @@ export interface NewTerminalInput {
  * surviving one's index. Every caller shares this one INSERT instead of duplicating it.
  */
 export class TerminalsModel {
-    constructor(private readonly database: CaxriDrizzleDatabase) {}
+    constructor(
+        private readonly database: CaxriDrizzleDatabase,
+        private readonly usageLedger?: Pick<AgentSessionUsageModel, 'recordBindings'>,
+    ) {}
 
     /**
      * `(session_id, order_index)` is unique, so it alone defines a stable order.
@@ -195,12 +199,17 @@ export class TerminalsModel {
             .run();
     }
 
+    /**
+     * Every non-empty binding is also appended to the usage ledger in the same statement sequence, because the column
+     * written here is overwritten by the next `/clear`, provider switch, or Terminal close.
+     */
     updateAgentSessionId(id: string, agentSessionId: string | undefined, now = Date.now()): void {
         this.database
             .update(terminals)
             .set({ agentSessionId: agentSessionId ?? null, updatedAt: now })
             .where(eq(terminals.id, id))
             .run();
+        if (agentSessionId) this.usageLedger?.recordBindings(id, now);
     }
 
     /**

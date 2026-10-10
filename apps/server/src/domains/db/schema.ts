@@ -8,6 +8,7 @@ import type {
     SessionAttentionKind,
     SessionTitleMode,
     TerminalFailureReason,
+    UsagePullRequestState,
 } from '@caxri/protocol';
 import { sql } from 'drizzle-orm';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
@@ -91,6 +92,12 @@ const agentDispatchStatuses = closedValues<AgentDispatchStatus>()([
     'stopped',
     'interrupted',
     'failed',
+]);
+const pullRequestOutcomeStates = closedValues<UsagePullRequestState>()([
+    'open',
+    'merged',
+    'closed',
+    'missing',
 ]);
 const agentDelegationStatuses = closedValues<AgentDelegationReceipt['status']>()([
     'requested',
@@ -494,5 +501,64 @@ export const agentDelegations = sqliteTable(
         index('agent_delegations_status').on(table.status),
         index('agent_delegations_terminal').on(table.terminalId),
         check('agent_delegations_status', isOneOf(table.status, agentDelegationStatuses)),
+    ],
+);
+
+/**
+ * Usage ledger: one row per Agent Session ever bound to a Terminal of a Caxri Session. `terminals.agent_session_id`
+ * holds only the current binding and is overwritten by `/clear`, provider switches, and Terminal close, so this table
+ * is the only durable record of which provider conversations Caxri itself hosted. Rows are appended by
+ * `TerminalsModel.updateAgentSessionId` and the usage service's reconciliation pass, never updated by the Agent.
+ *
+ * `session_id`, `project_id`, and `terminal_id` intentionally carry no foreign key: tokens already spent stay spent
+ * after Session, Project, or Terminal metadata is deleted, and the report labels such rows instead of dropping them.
+ *
+ * `usage_json` caches the parsed, content-free token aggregate (hourly buckets per model, active time, created pull
+ * request URLs) so history survives a provider pruning its own transcripts. `source_fingerprint` is the size and mtime
+ * of every transcript file that produced it; a mismatch triggers a rescan.
+ */
+export const agentSessionUsage = sqliteTable(
+    'agent_session_usage',
+    {
+        provider: text('provider').notNull(),
+        agentSessionId: text('agent_session_id').notNull(),
+        sessionId: text('session_id').notNull(),
+        projectId: text('project_id').notNull(),
+        terminalId: text('terminal_id').notNull(),
+        /**
+         * Provider state root (`terminals.agent_cwd ?? terminals.cwd`) at the latest observed binding; locates the
+         * transcript after the Terminal is gone.
+         */
+        cwd: text('cwd').notNull(),
+        boundAt: integer('bound_at').notNull(),
+        sourceFingerprint: text('source_fingerprint'),
+        scannedAt: integer('scanned_at'),
+        usageJson: text('usage_json'),
+    },
+    (table) => [
+        primaryKey({ columns: [table.provider, table.agentSessionId] }),
+        index('agent_session_usage_session').on(table.sessionId),
+    ],
+);
+
+/**
+ * Last known GitHub outcome of a pull request an Agent created from a Caxri Session. Merged and closed rows are final
+ * and never refetched; open rows are refreshed on a bounded schedule by the usage service. Keyed by the canonical
+ * `https://github.com/<owner>/<repo>/pull/<number>` URL harvested from the transcript.
+ */
+export const pullRequestOutcomes = sqliteTable(
+    'pull_request_outcomes',
+    {
+        url: text('url').primaryKey(),
+        state: text('state').notNull(),
+        title: text('title').notNull(),
+        createdAt: integer('created_at'),
+        mergedAt: integer('merged_at'),
+        additions: integer('additions').notNull().default(0),
+        deletions: integer('deletions').notNull().default(0),
+        checkedAt: integer('checked_at').notNull(),
+    },
+    (table) => [
+        check('pull_request_outcomes_state', isOneOf(table.state, pullRequestOutcomeStates)),
     ],
 );

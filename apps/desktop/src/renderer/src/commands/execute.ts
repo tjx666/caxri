@@ -1,10 +1,19 @@
 import './definitions';
 
 import type { CommandId } from '@caxri/protocol';
-import { errorMessage, listPaneTerminalIds, paneSplitBlockedReason } from '@caxri/protocol';
+import {
+    errorMessage,
+    listPaneTerminalIds,
+    paneSplitBlockedReason,
+    usageTabPath,
+} from '@caxri/protocol';
 
 import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
-import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-commands';
+import {
+    closeDocumentTabs,
+    openEditorTab,
+    saveActiveEditor,
+} from '../features/editor/document-commands';
 import {
     addGitReviewComment,
     canAddGitReviewComment,
@@ -357,6 +366,11 @@ const commandContext: CommandContext = {
     dialogs: {
         openSettings: (view = 'ui') => useDialogStore.getState().openSettings(view),
         openPalette: () => useDialogStore.getState().setPaletteOpen(true),
+        openUsage: () => {
+            // Usage is a Session pane tab; before the first Project exists there is no pane to open it into.
+            if (getSelectedSession()) openEditorTab(usageTabPath());
+            else pushToast('info', 'Add a Project to open Usage');
+        },
         openSessionContentSearch: () => useDialogStore.getState().setSessionContentSearchOpen(true),
         // eslint-disable-next-line no-void -- floating-promise discard: seeding never rejects
         openProjectSearch: () => void openSeededProjectSearch(),

@@ -47,10 +47,11 @@ export {
     normalizeGeneratedAgentTitle,
     readAgentTitleMessages,
 } from './title-generation';
-export type { DelegationTranscriptBatch } from './transcript';
+export type { AgentTranscriptIdentity, DelegationTranscriptBatch } from './transcript';
 export {
     isAgentConversationUnwritten,
     locateAgentTranscript,
+    locateAgentTranscriptForIdentity,
     readAgentTranscript,
     readDelegationTranscript,
     resolveAgentTranscriptLocation,
@@ -62,6 +63,7 @@ export {
     type TranscriptPullRequestReference,
     type TranscriptPullRequestScan,
 } from './transcript-pull-requests';
+export type { TranscriptScanCursor } from './transcript-scan';
 export { scanTranscriptLines, scanTranscriptToEnd } from './transcript-scan';
 export type { AgentTranscriptLocation, TranscriptScanFailureReason } from './transcript-security';
 export {
