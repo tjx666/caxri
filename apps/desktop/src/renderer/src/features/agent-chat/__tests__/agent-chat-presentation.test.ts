@@ -3,12 +3,13 @@ import { emptyAgentChatSnapshot } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
-    agentChatActivityLabel,
+    agentChatActivity,
     agentChatCommandCwd,
     agentChatContextSummary,
     agentChatFailureMessage,
     agentChatQuestionAnswers,
     agentChatRequestTitle,
+    agentChatWorkingVerb,
     canSendAgentChatMessage,
     isAgentChatInterruptKey,
     isAgentChatSubmitKey,
@@ -96,27 +97,40 @@ describe('agentChatContextSummary', () => {
     });
 });
 
-describe('agentChatActivityLabel', () => {
+describe('agentChatActivity', () => {
     it('tells starting, working, and waiting on the user apart', () => {
-        expect(agentChatActivityLabel(undefined, 'Claude Code')).toEqual({
+        expect(agentChatActivity(undefined, 'Claude Code')).toEqual({
+            kind: 'starting',
             text: 'Starting Claude Code…',
-            isBusy: true,
         });
-        expect(agentChatActivityLabel(snapshot('ready'), 'Codex')).toBeUndefined();
-        const running = { ...snapshot('ready'), activeTurnId: 'turn-1' };
-        expect(agentChatActivityLabel(running, 'Codex')).toEqual({
-            text: 'Working…',
-            isBusy: true,
+        expect(agentChatActivity(snapshot('ready'), 'Codex')).toBeUndefined();
+        const running = {
+            ...snapshot('ready'),
+            activeTurnId: 'turn-1',
+            turns: [{ id: 'turn-1', status: 'running' as const, startedAt: 1000 }],
+        };
+        expect(agentChatActivity(running, 'Codex')).toEqual({
+            kind: 'working',
+            text: `${agentChatWorkingVerb('turn-1')}…`,
+            startedAt: 1000,
         });
         expect(
-            agentChatActivityLabel(
+            agentChatActivity(
                 {
                     ...running,
                     requests: [{ id: 'r', kind: 'fileChange' }],
                 },
                 'Codex',
             ),
-        ).toEqual({ text: 'Waiting for your answer', isBusy: false });
+        ).toEqual({ kind: 'waiting', text: 'Waiting for your answer' });
+    });
+
+    it('keeps one verb for a turn and varies it across turns', () => {
+        expect(agentChatWorkingVerb('turn-1')).toBe(agentChatWorkingVerb('turn-1'));
+        const verbs = new Set(
+            Array.from({ length: 40 }, (_, index) => agentChatWorkingVerb(`turn-${index}`)),
+        );
+        expect(verbs.size).toBeGreaterThan(5);
     });
 });
 

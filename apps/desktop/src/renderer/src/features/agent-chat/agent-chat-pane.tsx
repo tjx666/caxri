@@ -4,7 +4,6 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { ArrowDown, CircleAlert, RotateCcw } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
-import { Spinner } from '../../components/ui/spinner';
 import { useCaxriQuery } from '../../queries/client';
 import { useTerminalLinkPicker } from '../terminal/hooks/use-terminal-link-picker';
 import { registerTerminalFocusHandler, restartTerminal } from '../terminal/terminal-commands';
@@ -15,7 +14,7 @@ import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatComposer } from './agent-chat-composer';
 import {
-    agentChatActivityLabel,
+    agentChatActivity,
     agentChatContextSummary,
     agentChatFailureMessage,
     canSendAgentChatMessage,
@@ -62,30 +61,6 @@ function AgentChatFailureBanner({
                 <RotateCcw className="size-3.5" />
                 Retry
             </Button>
-        </div>
-    );
-}
-
-/**
- * The one-line activity indicator under the timeline. It is the Chat's polite status region: transitions between
- * starting, working, and waiting are announced, while streamed reply text never is.
- */
-function AgentChatActivity({
-    snapshot,
-    providerName,
-}: {
-    snapshot: AgentChatSnapshot | undefined;
-    providerName: string;
-}) {
-    const label = agentChatActivityLabel(snapshot, providerName);
-    return (
-        <div aria-live="polite" className="text-[12px] text-muted" role="status">
-            {label && (
-                <span className="flex items-center gap-2">
-                    {label.isBusy && <Spinner className="size-3.5" />}
-                    {label.text}
-                </span>
-            )}
         </div>
     );
 }
@@ -186,7 +161,6 @@ export function AgentChatPane({
                                 Send a message to start working with {providerName}.
                             </p>
                         )}
-                        <AgentChatActivity providerName={providerName} snapshot={snapshot} />
                     </div>
                 </div>
                 {!isFollowing && (
@@ -239,6 +213,7 @@ export function AgentChatPane({
             />
             <AgentChatComposer
                 activeTurnId={snapshot?.activeTurnId}
+                activity={agentChatActivity(snapshot, providerName)}
                 canSend={canSendAgentChatMessage(snapshot)}
                 commands={snapshot?.commands}
                 contextSummary={agentChatContextSummary(snapshot)}

@@ -9,11 +9,13 @@ import { Button } from '../../components/ui/button';
 import { Textarea } from '../../components/ui/textarea';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
+import { AgentChatActivityBar } from './agent-chat-activity-bar';
 import { AgentChatAttachButton } from './agent-chat-attach-button';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
 import { AgentChatCommandMenu } from './agent-chat-command-menu';
 import { interruptAgentChat } from './agent-chat-commands';
 import { readAgentChatDraft, writeAgentChatDraft } from './agent-chat-drafts';
+import type { AgentChatActivity } from './agent-chat-presentation';
 import { isAgentChatInterruptKey, isAgentChatSubmitKey } from './agent-chat-presentation';
 import { completeAgentChatAction } from './agent-chat-slash-commands';
 import { AgentChatStopButton } from './agent-chat-stop-button';
@@ -31,6 +33,7 @@ import { useAgentChatSubmit } from './hooks/use-agent-chat-submit';
  */
 export function AgentChatComposer({
     activeTurnId,
+    activity,
     canSend,
     commands,
     contextSummary,
@@ -43,6 +46,10 @@ export function AgentChatComposer({
      * The running turn, which a message steers and Stop interrupts.
      */
     activeTurnId: string | undefined;
+    /**
+     * What the Chat is doing, shown as a status tab on top of the input.
+     */
+    activity: AgentChatActivity | undefined;
     canSend: boolean;
     /**
      * The provider's slash commands, from the projection.
@@ -116,6 +123,7 @@ export function AgentChatComposer({
     };
     return (
         <div className="mx-auto w-full max-w-3xl px-4 pt-1 pb-3">
+            <AgentChatActivityBar activity={activity} />
             <form
                 className={cn(
                     'relative flex flex-col rounded-lg border border-border bg-surface transition-[border-color] duration-150 ease-out focus-within:border-muted',

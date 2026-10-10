@@ -132,6 +132,23 @@ if (process.argv.includes('app-server')) {
         await message.fill('slow please');
         await message.press('Enter');
         await expect(session.getByRole('button', { name: 'Stop' })).toBeVisible();
+        // The status tab on the composer names the turn under a moving highlight and counts its time.
+        await expect(
+            session.getByRole('status').filter({ hasText: /^[A-Z][\w -]+…$/u }),
+        ).toHaveCount(1);
+        await expect(session.locator('.activity-shimmer').first()).toHaveCSS(
+            'animation-name',
+            'activity-shimmer',
+        );
+        await expect(session.getByText('Esc to stop')).toBeVisible();
+        await expect(session.getByText(/^\d+s$/u)).toBeVisible();
+        // Live work reads in the present tense with its subject, and a thought shows its Codex title.
+        await expect(
+            session.getByRole('button', { name: /^Running rg -n slow src/u }),
+        ).toBeVisible();
+        await expect(
+            session.getByRole('button', { name: /^Thought Planning the reply/u }),
+        ).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('surface-switch-running-turn.png') });
         // Stop and Send share one slot: typed content turns it into Send, which steers the turn.
         await message.fill('steer');
