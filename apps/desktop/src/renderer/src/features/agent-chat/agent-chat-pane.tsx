@@ -31,6 +31,7 @@ import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-f
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import type { AgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
 import { AgentChatTaskLinksContext } from './hooks/use-agent-chat-task-link';
+import { AgentChatTerminalContext } from './hooks/use-agent-chat-terminal';
 
 /**
  * Why the Chat cannot continue, with the one action that recovers it. It sits in the dock, outside the scrolling
@@ -174,13 +175,15 @@ export function AgentChatPane({
                             </p>
                         )}
                         <AgentChatTaskLinksContext value={taskLinks}>
-                            {timeline.map((entry) => (
-                                <AgentChatTimelineEntryView
-                                    entry={entry}
-                                    key={entry.kind === 'item' ? entry.item.id : entry.id}
-                                    onOpenFile={openFile}
-                                />
-                            ))}
+                            <AgentChatTerminalContext value={terminalId}>
+                                {timeline.map((entry) => (
+                                    <AgentChatTimelineEntryView
+                                        entry={entry}
+                                        key={entry.kind === 'item' ? entry.item.id : entry.id}
+                                        onOpenFile={openFile}
+                                    />
+                                ))}
+                            </AgentChatTerminalContext>
                         </AgentChatTaskLinksContext>
                         {isEmpty && (
                             <p className="m-0 py-8 text-center text-[13px] text-muted">

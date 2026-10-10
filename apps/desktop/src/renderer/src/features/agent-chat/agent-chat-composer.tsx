@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import type { DragEvent, RefObject } from 'react';
 import { useState } from 'react';
 
 import type {
@@ -14,13 +14,17 @@ import { Button } from '../../components/ui/button';
 import { Textarea } from '../../components/ui/textarea';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
+import { useTerminal } from '../../stores/selectors';
+import { pushToast } from '../../stores/toasts';
+import { terminalDropInput } from '../terminal/terminal-drop';
+import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatActivityBar } from './agent-chat-activity-bar';
 import { AgentChatAttachButton } from './agent-chat-attach-button';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
 import { AgentChatCommandMenu } from './agent-chat-command-menu';
 import { interruptAgentChat } from './agent-chat-commands';
 import { AgentChatContextMeter } from './agent-chat-context-meter';
-import { readAgentChatDraft, writeAgentChatDraft } from './agent-chat-drafts';
+import { draftWithInsertion, readAgentChatDraft, writeAgentChatDraft } from './agent-chat-drafts';
 import { AgentChatModelMenu } from './agent-chat-model-menu';
 import type { AgentChatActivity } from './agent-chat-presentation';
 import {
@@ -38,17 +42,18 @@ import {
 } from './agent-chat-stop-button';
 import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
-import { useAgentChatImageInput } from './hooks/use-agent-chat-image-input';
+import { useAgentChatFileInput } from './hooks/use-agent-chat-file-input';
 import { useAgentChatSubmit } from './hooks/use-agent-chat-submit';
 
 /**
  * Message input. Enter sends, Shift+Enter adds a line. While a turn runs (or the context compacts), Enter queues the
  * message for after the turn and Cmd+Enter steers it into the running turn; queued messages wait as cards above the
  * input. Escape or the Stop button that replaces Send while the input is empty interrupts the turn. Images can be
- * pasted, dropped, or picked when the provider accepts them, and a leading `/` or `$` offers the provider's commands
- * and the discovered skills. It shares the timeline's centered column so the input lines up with the conversation, and
- * keeps the activity row, attachments, the input, and its actions inside one card so they read as a single control. The
- * action row picks the model and effort for the next turn and shows how full the context window is.
+ * pasted, dropped, or picked when the provider accepts them; any other dropped file, Files entry, or Editor tab is
+ * inserted as its path. A leading `/` or `$` offers the provider's commands and the discovered skills. It shares the
+ * timeline's centered column so the input lines up with the conversation, and keeps the activity row, attachments, the
+ * input, and its actions inside one card so they read as a single control. The action row picks the model and effort
+ * for the next turn and shows how full the context window is.
  */
 export function AgentChatComposer({
     activeTurnId,
@@ -110,7 +115,6 @@ export function AgentChatComposer({
         draft,
         terminalId,
     });
-    const imageInput = useAgentChatImageInput(supportsImages, images.add);
     const isTurnRunning = activeTurnId !== undefined;
     const isStopping = isTurnRunning && stoppingTurnId === activeTurnId;
     const hasContent = draft.trim().length > 0 || images.attachments.length > 0;
@@ -120,6 +124,33 @@ export function AgentChatComposer({
             writeAgentChatDraft(terminalId, next);
             return next;
         });
+    const terminal = useTerminal(terminalId);
+    const workbenchRoot = usePaneViewSession()?.rootPath;
+    /**
+     * A dropped file is cited by path the way a drop into a Terminal pastes one, relative to where the Agent runs, and
+     * lands at the caret.
+     */
+    const insertPaths = (event: DragEvent, files: readonly File[]): void => {
+        const input = terminal && terminalDropInput(event, terminal, workbenchRoot, files);
+        if (!input) {
+            if (files.length > 0)
+                pushToast(
+                    'warning',
+                    'This file has no path on disk to insert. Save it, then drop the saved file.',
+                );
+            return;
+        }
+        const textarea = inputReference.current;
+        const start = textarea?.selectionStart ?? draft.length;
+        const end = textarea?.selectionEnd ?? start;
+        const inserted = draftWithInsertion(draft, start, end, input);
+        setDraft(() => inserted.draft);
+        requestAnimationFrame(() => {
+            textarea?.focus();
+            textarea?.setSelectionRange(inserted.caret, inserted.caret);
+        });
+    };
+    const fileInput = useAgentChatFileInput(supportsImages, images.add, insertPaths);
     const {
         isSending,
         runCommand,
@@ -167,9 +198,9 @@ export function AgentChatComposer({
             <form
                 className={cn(
                     'relative flex flex-col rounded-lg border border-border bg-surface transition-[border-color] duration-150 ease-out focus-within:border-muted',
-                    imageInput.isDragOver && 'border-accent focus-within:border-accent',
+                    fileInput.isDragOver && 'border-accent focus-within:border-accent',
                 )}
-                {...imageInput.dropHandlers}
+                {...fileInput.dropHandlers}
                 onSubmit={(event) => {
                     event.preventDefault();
                     // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
@@ -231,16 +262,20 @@ export function AgentChatComposer({
                         // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
                         void submit(delivery === 'steer' ? 'steer' : undefined);
                     }}
-                    onPaste={imageInput.onPaste}
+                    onPaste={fileInput.onPaste}
                 />
                 <div className="flex items-center gap-1 px-2 pb-2">
-                    {supportsImages && (
-                        <AgentChatAttachButton
-                            isReading={images.isReading}
-                            onPick={imageInput.attach}
-                        />
-                    )}
+                    {/*
+                     * Pasting or dropping is how most images arrive, so the picker sits with the other secondary
+                     * controls beside Send rather than claiming the row's leading corner, as T3 Code does.
+                     */}
                     <div className="flex min-w-0 flex-1 items-center justify-end gap-0.5">
+                        {supportsImages && (
+                            <AgentChatAttachButton
+                                isReading={images.isReading}
+                                onPick={fileInput.attach}
+                            />
+                        )}
                         {contextUsage && <AgentChatContextMeter usage={contextUsage} />}
                         <AgentChatModelMenu snapshot={snapshot} terminalId={terminalId} />
                     </div>

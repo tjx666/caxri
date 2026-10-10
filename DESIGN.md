@@ -956,11 +956,13 @@ selects the standard themed fill, workbench canvas, inline surface, or an embedd
 search/path fields use `InputGroup`, never feature-local field chrome.
 
 **Agent Chat composer**: one radius-8 `--surface` card with a 1px `--border` that turns `--muted`
-while focused (the pane ring already carries the accent focus) and `--accent` while an image is
-dragged over it. Inside, top to bottom: the attached-image strip (64px radius-6 thumbnails, each
-with its remove control inset in the top-right corner), a borderless auto-growing textarea, and one
-action row: Attach images on the left, then right-aligned in `--muted` the context meter (a 14px
-ring that fills with the share of the window in use, its percentage beside it, `--warning` from 80%
+while focused (the pane ring already carries the accent focus) and `--accent` while a file is
+dragged over it. A dropped image attaches; any other file, Files entry, or Editor tab is inserted at
+the caret as its path, spelled relative to the Agent's directory the way a Terminal drop is. Inside, top to bottom: the attached-image strip (64px radius-6 thumbnails, drawn
+from a preview that covers the 96px sent-message tile at 2x, each with its remove control inset in
+the top-right corner), a borderless auto-growing textarea, and one action row, right-aligned in
+`--muted`: Attach images (pasting or dropping is the common path, so the picker does not claim the
+leading corner), the context meter (a 14px ring that fills with the share of the window in use, its percentage beside it, `--warning` from 80%
 and `--danger` from 95%, the token counts in its tooltip) and the model picker (the model's name and
 the next turn's effort, opening a menu of models with their descriptions and the current model's
 efforts, which stays open after a choice), and a single primary action slot: a 28px `--foreground`
@@ -985,7 +987,15 @@ Code's spinner verbs, and the Codex app's round Send and Stop, context ring, and
 picker. In the transcript, inline code sits in a lifted `--elevated` chip and links take
 `--accent`; a code block is one radius-8 `--elevated` panel whose header (a code glyph, Monaco's
 language name such as `TypeScript`, wrap and copy) shares its fill; a table is set open, with row
-hairlines and no frame or header tint. All follow the Codex app's Dracula transcript.
+hairlines and no frame or header tint. All follow the Codex app's Dracula transcript. A path the
+Agent writes as plain prose (`src/app.ts:12`, an absolute path) is a file link like a cited one;
+in the user's bubble a path keeps the text color with a dotted underline that turns `--accent` on
+hover, so the user's words still read as theirs. A web link leads with the site's favicon (the
+GitHub mark for GitHub, a globe when there is none, fading in only on first load) and a dotted
+underline; hovering it opens a 320px card naming the host with an Open action, then where the
+link leads (`owner/repo · #N` beside a pull request, issue, or discussion glyph for GitHub). A user
+message that starts with a skill (`$name`) or command (`/name`) shows it as an `--accent` chip;
+clicking the chip opens a popover with that skill's rendered Markdown.
 
 **Agent Chat plan**: the latest plan docks above the composer as one 32px radius-8 `--surface`
 row with a 1px `--border`: a list glyph, `Plan`, the step the Agent is on truncated in `--muted`,

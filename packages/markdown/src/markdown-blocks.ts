@@ -1,7 +1,7 @@
 import type { Token } from 'markdown-it';
 import createMarkdownIt from 'markdown-it';
 
-import { fileLinkTarget, fileReferenceTarget } from './file-reference.js';
+import { fileLinkTarget, fileReferenceTarget, proseFileReferences } from './file-reference.js';
 
 /**
  * Inline content of a {@link MarkdownBlock}. Every variant carries plain text only, so a host renders it as text nodes.
@@ -169,7 +169,38 @@ function convertInline(tokens: readonly Token[], options: MarkdownBlockOptions):
             if (leaf) push(leaf);
         }
     }
-    return trimInline(root);
+    const nodes = trimInline(root);
+    return options.fileLinks ? linkProsePaths(nodes) : nodes;
+}
+
+/**
+ * Turns paths an Agent wrote as plain prose (`updated src/app.ts:12`) into file links, the way the Codex app does. Text
+ * already inside a link keeps its own destination.
+ */
+function linkProsePaths(nodes: MarkdownInline[]): MarkdownInline[] {
+    return nodes.flatMap((node): MarkdownInline[] => {
+        if (node.type === 'text') return splitProsePaths(node.value);
+        if ('children' in node && node.type !== 'link')
+            return [{ ...node, children: linkProsePaths(node.children) }];
+        return [node];
+    });
+}
+
+function splitProsePaths(value: string): MarkdownInline[] {
+    const nodes: MarkdownInline[] = [];
+    let offset = 0;
+    for (const reference of proseFileReferences(value)) {
+        if (reference.index > offset)
+            nodes.push({ type: 'text', value: value.slice(offset, reference.index) });
+        nodes.push({
+            type: 'link',
+            file: reference.file,
+            children: [{ type: 'text', value: reference.text }],
+        });
+        offset = reference.index + reference.text.length;
+    }
+    if (offset < value.length) nodes.push({ type: 'text', value: value.slice(offset) });
+    return nodes;
 }
 
 /**

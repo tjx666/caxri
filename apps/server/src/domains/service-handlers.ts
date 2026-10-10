@@ -13,6 +13,7 @@ import type {
 } from './agents';
 import {
     listAgentActions,
+    readAgentAction,
     readAgentReplySummary,
     readAgentTranscript,
     recordRecentAgentAction,
@@ -55,6 +56,7 @@ type ServiceHandlerMethods =
     | 'agent.replySummary'
     | 'agent.delegation.access.bootstrap'
     | 'agentActions.list'
+    | 'agentActions.read'
     | 'agentActions.recordRecent'
     | 'files.list'
     | 'files.resolveImports'
@@ -209,6 +211,7 @@ const MAIN_OWNED_METHODS = [
     'desktop.openProject',
     'desktop.openFile',
     'external.open',
+    'links.favicon',
     'argv.get',
     'argv.update',
     'gpu.restartInSafeMode',
@@ -382,6 +385,8 @@ export function createServiceHandlers(services: {
                 configuration.getSettings().value,
                 terminalId,
             ),
+        'agentActions.read': ({ invocation, terminalId }) =>
+            readAgentAction(database, agentEnvironment, terminalId, invocation),
         'agentActions.recordRecent': ({ invocation, terminalId }) =>
             recordRecentAgentAction(database, configuration, terminalId, invocation),
         'files.list': ({ sessionId, directory }, signal) =>

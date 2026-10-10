@@ -16,6 +16,10 @@ const MAX_DISCOVERED_ACTIONS = 256;
 
 interface DiscoveryResult {
     actions: AgentAction[];
+    /**
+     * The canonical file each discovered invocation came from, kept Server-side so the wire never carries a path.
+     */
+    files: Map<string, string>;
     partial: boolean;
 }
 
@@ -89,6 +93,13 @@ function parseFrontmatter(source: string): Frontmatter {
 }
 
 async function readMetadata(path: string): Promise<Frontmatter> {
+    return parseFrontmatter(await readActionFile(path));
+}
+
+/**
+ * Reads one discovered action file, bounded like discovery itself.
+ */
+export async function readActionFile(path: string): Promise<string> {
     const handle = await open(path, 'r');
     try {
         const stats = await handle.stat();
@@ -96,7 +107,7 @@ async function readMetadata(path: string): Promise<Frontmatter> {
             throw new Error('Agent action metadata is not a bounded regular file');
         const buffer = Buffer.allocUnsafe(stats.size);
         const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-        return parseFrontmatter(buffer.subarray(0, bytesRead).toString('utf8'));
+        return buffer.subarray(0, bytesRead).toString('utf8');
     } finally {
         await handle.close();
     }
@@ -148,15 +159,16 @@ async function scanRoot(
          */
         const code =
             typeof error === 'object' && error && 'code' in error ? String(error.code) : undefined;
-        return { actions: [], partial: code !== 'ENOENT' };
+        return { actions: [], files: new Map(), partial: code !== 'ENOENT' };
     }
     let canonicalBoundary: string | undefined;
     if (root.boundaryDirectory) {
         try {
             canonicalBoundary = await realpath(root.boundaryDirectory);
-            if (!isInside(canonicalBoundary, canonicalRoot)) return { actions: [], partial: true };
+            if (!isInside(canonicalBoundary, canonicalRoot))
+                return { actions: [], files: new Map(), partial: true };
         } catch {
-            return { actions: [], partial: true };
+            return { actions: [], files: new Map(), partial: true };
         }
     }
     /**
@@ -166,6 +178,7 @@ async function scanRoot(
     const containmentRoot = canonicalBoundary ?? canonicalRoot;
     const queue = [{ directory: canonicalRoot, depth: 0, relativeDirectory: '' }];
     const actions: AgentAction[] = [];
+    const files = new Map<string, string>();
     const seenDirectories = new Set<string>();
     let visitedEntries = 0;
     let isPartial = false;
@@ -186,7 +199,7 @@ async function scanRoot(
         );
         for (const entry of sortedEntries) {
             visitedEntries += 1;
-            if (visitedEntries > MAX_DISCOVERY_ENTRIES) return { actions, partial: true };
+            if (visitedEntries > MAX_DISCOVERY_ENTRIES) return { actions, files, partial: true };
             const path = join(current.directory, entry.name);
             let canonicalPath: string | undefined;
             try {
@@ -216,8 +229,10 @@ async function scanRoot(
                             adapter,
                         );
                         if (action) {
-                            if (actions.length < MAX_DISCOVERED_ACTIONS) actions.push(action);
-                            else isPartial = true;
+                            if (actions.length < MAX_DISCOVERED_ACTIONS) {
+                                actions.push(action);
+                                files.set(action.invocation, canonicalPath);
+                            } else isPartial = true;
                         }
                     } catch {
                         isPartial = true;
@@ -235,7 +250,7 @@ async function scanRoot(
             }
         }
     }
-    return { actions, partial: isPartial };
+    return { actions, files, partial: isPartial };
 }
 
 export async function discoverAgentActions(
@@ -243,15 +258,18 @@ export async function discoverAgentActions(
     roots: AgentActionDiscoveryRoot[],
 ): Promise<DiscoveryResult> {
     const merged = new Map<string, AgentAction>();
+    const files = new Map<string, string>();
     let isPartial = false;
     const results = await mapWithConcurrency(roots, 4, (root) => scanRoot(root, adapter));
     for (const result of results) {
         isPartial ||= result.partial;
         for (const action of result.actions) merged.set(action.invocation, action);
+        for (const [invocation, file] of result.files) files.set(invocation, file);
     }
     const actions = merged.values().toArray();
     return {
         actions,
+        files,
         partial: isPartial || actions.length > MAX_DISCOVERED_ACTIONS,
     };
 }

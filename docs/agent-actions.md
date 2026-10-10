@@ -78,7 +78,10 @@ Runtime derives roots from the selected Terminal's durable provider, cwd, and au
 Renderer cannot submit an arbitrary path. Traversal is breadth-first and bounded by depth, entry,
 file-size, and result limits. Canonical paths must remain inside the declared root, so symlink escape
 is rejected. Only scalar `name`, `description`, `argument-hint`, and `user-invocable` frontmatter is
-read; skill bodies and filesystem paths never cross IPC. Missing roots are normal, while unreadable
+read for listing, and filesystem paths never cross IPC. `agentActions.read` returns one discovered
+action's body (frontmatter stripped, capped at 64 KiB) by invocation, so an Agent Chat can show the
+skill a message invoked; it re-runs discovery for that Terminal, accepts no path, and works while the
+Agent is stopped. Missing roots are normal, while unreadable
 or unsafe entries produce a partial-result warning without hiding the actions that remain usable.
 
 Caxri does not scrape an interactive CLI menu, execute a command to enumerate built-ins, or promise
