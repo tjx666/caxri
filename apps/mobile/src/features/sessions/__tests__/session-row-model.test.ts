@@ -1,8 +1,8 @@
 import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import type { MobileSessionItem } from '../session-model';
 import { mobileAgentDisplayName } from '../agent-display-name';
+import type { MobileSessionItem } from '../session-model';
 import { archivedAgeLabel, sessionAgeLabel, sessionAgentLabel } from '../session-row-model';
 
 describe('Session row labels', () => {
