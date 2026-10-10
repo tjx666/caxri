@@ -19,6 +19,11 @@ interface SessionRenameInputProperties {
      */
     onSuggest: () => void;
     /**
+     * Whether the Session has a primary Agent conversation to name. A Shell-only Session hides the AI button and
+     * ignores `Shift+Enter` rather than offering an action that can only fail.
+     */
+    canSuggest: boolean;
+    /**
      * A suggestion is in flight: the input turns read-only so the answer cannot overwrite something typed meanwhile.
      */
     suggesting: boolean;
@@ -35,6 +40,7 @@ export function SessionRenameInput({
     onCommit,
     onCancel,
     onSuggest,
+    canSuggest,
     suggesting,
 }: SessionRenameInputProperties) {
     const errorId = `session-rename-error-${sessionId}`;
@@ -75,7 +81,7 @@ export function SessionRenameInput({
                     if (event.nativeEvent.isComposing || event.keyCode === 229) return; // eslint-disable-line unicorn/prefer-keyboard-event-key -- `.key` reports "Process" or the composed text here
                     if (event.key === 'Enter' && event.shiftKey) {
                         event.preventDefault();
-                        onSuggest();
+                        if (canSuggest) onSuggest();
                     } else if (event.key === 'Enter') {
                         event.preventDefault();
                         onCommit();
@@ -86,29 +92,31 @@ export function SessionRenameInput({
                 }}
                 size="compact"
             />
-            <Tooltip content="Rename with AI" shortcut="shift+enter">
-                <button
-                    type="button"
-                    className={`${sessionRowActionButton} session-rename-suggest flex-none disabled:cursor-default`}
-                    aria-label={`Rename ${title} with AI`}
-                    aria-keyshortcuts="Shift+Enter"
-                    disabled={suggesting}
-                    tabIndex={-1}
-                    // Keeps focus in the input: a blur would end the rename before the click lands.
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        onSuggest();
-                    }}
-                    onDoubleClick={(event) => event.stopPropagation()}
-                >
-                    {suggesting ? (
-                        <LoaderCircle size={12} className="motion-safe:animate-spin" />
-                    ) : (
-                        <Sparkles size={12} />
-                    )}
-                </button>
-            </Tooltip>
+            {canSuggest && (
+                <Tooltip content="Rename with AI" shortcut="shift+enter">
+                    <button
+                        type="button"
+                        className={`${sessionRowActionButton} session-rename-suggest flex-none disabled:cursor-default`}
+                        aria-label={`Rename ${title} with AI`}
+                        aria-keyshortcuts="Shift+Enter"
+                        disabled={suggesting}
+                        tabIndex={-1}
+                        // Keeps focus in the input: a blur would end the rename before the click lands.
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            onSuggest();
+                        }}
+                        onDoubleClick={(event) => event.stopPropagation()}
+                    >
+                        {suggesting ? (
+                            <LoaderCircle size={12} className="motion-safe:animate-spin" />
+                        ) : (
+                            <Sparkles size={12} />
+                        )}
+                    </button>
+                </Tooltip>
+            )}
             {error && (
                 <span
                     id={errorId}

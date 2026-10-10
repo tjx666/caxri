@@ -88,12 +88,13 @@ export const terminalCommandDefinitions: CommandDefinition[] = [
         description:
             'Reopen the active Agent as a Chat, or a Chat as a Terminal, continuing its conversation',
         keywords: ['chat view', 'terminal view', 'toggle chat'],
+        nativeMenu: { menu: 'terminal', group: 0, order: 4 },
     },
     {
         id: 'terminal.close',
         title: 'Close Terminal',
         category: 'Terminal',
         description: 'Close the active Terminal',
-        nativeMenu: { menu: 'terminal', group: 0, order: 4 },
+        nativeMenu: { menu: 'terminal', group: 0, order: 5 },
     },
 ];

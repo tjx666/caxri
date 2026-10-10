@@ -53,8 +53,8 @@ _Avoid_: Session, pane
 
 **Chat**:
 An Agent Terminal created with the chat surface: the same Agent CLI driven through its vendor's
-structured protocol and shown as a conversation instead of a terminal grid. Its surface is fixed
-at creation.
+structured protocol and shown as a conversation instead of a terminal grid. The same Agent
+Terminal can switch between the chat and terminal surfaces and keep its Agent Session.
 _Avoid_: Conversation, chat mode, Agent panel
 
 ## Agents and attention

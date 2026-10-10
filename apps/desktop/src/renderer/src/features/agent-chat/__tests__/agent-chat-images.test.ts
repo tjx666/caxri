@@ -2,7 +2,12 @@ import { MAX_AGENT_CHAT_IMAGE_BYTES, MAX_AGENT_CHAT_IMAGES } from '@caxri/protoc
 import { describe, expect, it } from 'vitest';
 
 import { attachmentsAfterSend } from '../agent-chat-drafts';
-import { agentChatImageRejection, agentChatThumbnailSize } from '../agent-chat-images';
+import {
+    agentChatImageRejection,
+    agentChatImageRejectionMessage,
+    agentChatImagesUnsupportedMessage,
+    agentChatThumbnailSize,
+} from '../agent-chat-images';
 
 describe('Agent Chat image attachments', () => {
     it('accepts provider image types within the size and count limits', () => {
@@ -38,5 +43,17 @@ describe('Agent Chat image attachments', () => {
         expect(attachmentsAfterSend(current, sent).map((attachment) => attachment.id)).toEqual([
             'b',
         ]);
+    });
+
+    it('names the oversized files in the size rejection', () => {
+        expect(agentChatImageRejectionMessage('size', ['huge.png', 'big.jpg'])).toBe(
+            `Images must be ${MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024} MB or smaller: huge.png, big.jpg`,
+        );
+        expect(agentChatImageRejectionMessage('size')).toBe(
+            `Images must be ${MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024} MB or smaller`,
+        );
+        expect(agentChatImagesUnsupportedMessage('Grok Build')).toBe(
+            'Grok Build Chat does not accept images',
+        );
     });
 });

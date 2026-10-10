@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 
 import type { AgentChatItem, AgentChatTask, AgentTaskTab } from '@caxri/protocol';
 import { agentTaskTabLabel } from '@caxri/protocol';
-import { ArrowDown, ArrowLeft, RotateCcw, Square } from 'lucide-react';
+import { ArrowLeft, RotateCcw, Square } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { cn } from '../../lib/utilities';
@@ -10,6 +10,7 @@ import { openTerminalFileTarget } from '../terminal/terminal-file-link-open';
 import { parseTerminalFileLocation } from '../terminal/terminal-file-location';
 import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import { stopAgentChatTask } from './agent-chat-commands';
+import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
 import { revealAgentChat } from './agent-chat-task-opener';
@@ -126,7 +127,12 @@ function TaskTimeline({
     );
     return (
         <div className="relative h-full min-h-0">
-            <div className="h-full overflow-y-auto" ref={scrollReference} onScroll={onScroll}>
+            <div
+                className="h-full overflow-y-auto outline-none"
+                ref={scrollReference}
+                tabIndex={-1}
+                onScroll={onScroll}
+            >
                 <div
                     className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4"
                     ref={contentReference}
@@ -152,17 +158,11 @@ function TaskTimeline({
                     )}
                 </div>
             </div>
-            {!isFollowing && (
-                <Button
-                    className="absolute bottom-2 left-1/2 -translate-x-1/2 shadow-md"
-                    size="sm"
-                    variant="secondary"
-                    onClick={jumpToLatest}
-                >
-                    <ArrowDown className="size-3.5" />
-                    Jump to latest
-                </Button>
-            )}
+            <AgentChatJumpToLatest
+                focusTarget={scrollReference}
+                isFollowing={isFollowing}
+                onJump={jumpToLatest}
+            />
         </div>
     );
 }

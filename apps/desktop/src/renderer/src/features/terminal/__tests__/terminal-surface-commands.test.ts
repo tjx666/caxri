@@ -37,6 +37,7 @@ import {
     switchTerminalSurfaceTo,
     terminalSurfaceMenuEntry,
 } from '../terminal-surface-commands';
+import { TerminalSurfaceSwitchRegistry } from '../terminal-surface-switch-pending';
 
 function agentTerminal(
     kind: TerminalKind,
@@ -152,5 +153,23 @@ describe('agentResumeCommandMenuEntry', () => {
             ),
         ).toMatchObject({ disabled: true, disabledReason: 'No conversation yet' });
         expect(agentResumeCommandMenuEntry(undefined)).toMatchObject({ disabled: true });
+    });
+});
+
+describe('switchTerminalSurfaceTo re-entry', () => {
+    it('ignores a second switch for the same Terminal while the first is pending', async () => {
+        const switches = new TerminalSurfaceSwitchRegistry();
+        const firstReply = Promise.withResolvers<unknown>();
+        mocks.caxriRequest.mockImplementationOnce(() => firstReply.promise);
+        const first = switchTerminalSurfaceTo(agentTerminal('codex'), 'chat', switches);
+        expect(switches.pendingSurface('terminal-1')).toBe('chat');
+        expect(switchTerminalSurfaceTo(agentTerminal('codex'), 'chat', switches)).toBeUndefined();
+        expect(mocks.caxriRequest).toHaveBeenCalledTimes(1);
+
+        firstReply.resolve({ status: 'switched' });
+        await first;
+        expect(switches.pendingSurface('terminal-1')).toBeUndefined();
+        await switchTerminalSurfaceTo(agentTerminal('codex'), 'chat', switches);
+        expect(mocks.caxriRequest).toHaveBeenCalledTimes(2);
     });
 });

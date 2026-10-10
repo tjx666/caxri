@@ -153,8 +153,9 @@ process.stdout.write('Compaction Agent ready\r\n');
         );
         const sessionStatus = sessionRow.locator('.session-status');
         await expect(sessionStatus).toHaveAttribute('data-session-status', 'running');
-        await expect(sessionStatus).toHaveAccessibleName(
-            'Compacting. Codex is summarizing earlier context before continuing.',
+        await expect(sessionStatus).toHaveAccessibleName('Compacting');
+        await expect(sessionStatus).toHaveAccessibleDescription(
+            'The Agent is summarizing earlier context before continuing.',
         );
 
         await running.page.emulateMedia({ reducedMotion: 'reduce' });
@@ -180,7 +181,7 @@ process.stdout.write('Compaction Agent ready\r\n');
         await expect(activityCard).toBeVisible();
         await expect(activityCard).toContainText('Compacting');
         await expect(activityCard).toContainText(
-            'Codex is summarizing earlier context before continuing.',
+            'The Agent is summarizing earlier context before continuing.',
         );
         await running.page.screenshot({
             path: testInfo.outputPath('codex-compacting.png'),
@@ -227,8 +228,9 @@ process.stdout.write('Compaction Agent ready\r\n');
             .locator(`[data-session-id="${sessionId}"] .session-status`);
         await expect(switcherRow).toHaveAttribute('data-session-status', 'running');
         await expect(switcherRow).toHaveAttribute('data-agent-operation', 'compacting');
-        await expect(switcherRow).toHaveAccessibleName(
-            'Compacting. Codex is summarizing earlier context before continuing.',
+        await expect(switcherRow).toHaveAccessibleName('Compacting');
+        await expect(switcherRow).toHaveAccessibleDescription(
+            'The Agent is summarizing earlier context before continuing.',
         );
         await running.page.keyboard.up('Meta');
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionId);

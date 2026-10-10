@@ -6,7 +6,7 @@ import type {
     AgentChatRequest,
     AgentChatSnapshot,
 } from '@caxri/protocol';
-import { findAgentChatModel } from '@caxri/protocol';
+import { agentToolActiveLabel, describeAgentTool, findAgentChatModel } from '@caxri/protocol';
 
 import { projectRelativePath } from '../../lib/file-path';
 
@@ -318,6 +318,17 @@ export function agentChatItemStatusLabel(status: AgentChatItemStatus): string {
     }
 }
 
+/**
+ * The caption under a user message in the timeline. A message reaches the timeline only once it was delivered (a
+ * pending follow-up waits in the queue cards above the composer), so a queued one is now an ordinary message and a
+ * `Queued` caption would read as still pending. Only `Steered` says something still true: it joined a running turn.
+ */
+export function agentChatDeliveryCaption(
+    delivery: 'queued' | 'steered' | undefined,
+): 'Steered' | undefined {
+    return delivery === 'steered' ? 'Steered' : undefined;
+}
+
 export function agentChatNoticeMessage(item: Extract<AgentChatItem, { type: 'notice' }>): string {
     switch (item.kind) {
         case 'compacted': {
@@ -366,7 +377,34 @@ export function agentChatApprovalChoices(
     return choices.filter((choice) => !allowed || allowed.includes(choice.decision));
 }
 
-export function agentChatRequestTitle(request: AgentChatRequest): string {
+/**
+ * A tool subject longer than this stays out of the approval title; the card shows it in full below.
+ */
+const REQUEST_TITLE_SUBJECT_LENGTH = 60;
+
+/**
+ * What a tool approval asks to do, in the timeline's words rather than the provider's identifier: `Allow editing
+ * app.ts?`, `Allow create_issue from github?`. A long or multi-line subject is left to the card body; a tool the shared
+ * table does not know keeps its name.
+ */
+function agentChatToolRequestTitle(request: { name: string; summary?: string }): string {
+    const presentation = describeAgentTool(request);
+    if (presentation.kind === 'mcp' && presentation.subject)
+        return `Allow ${presentation.subject} from ${presentation.label}?`;
+    const subject = presentation.subject;
+    if (!subject || presentation.kind === 'other') return `Allow ${request.name}?`;
+    const gerund = agentToolActiveLabel(presentation);
+    const action = `${gerund.charAt(0).toLowerCase()}${gerund.slice(1)}`;
+    return subject.length <= REQUEST_TITLE_SUBJECT_LENGTH && !subject.includes('\n')
+        ? `Allow ${action} ${subject}?`
+        : `Allow ${action}?`;
+}
+
+/**
+ * The approval card's heading. `providerName` is the provider catalog's display name, which a question names as the one
+ * asking.
+ */
+export function agentChatRequestTitle(request: AgentChatRequest, providerName: string): string {
     switch (request.kind) {
         case 'command': {
             return request.networkHost
@@ -382,12 +420,12 @@ export function agentChatRequestTitle(request: AgentChatRequest): string {
              */
             return request.name === 'ExitPlanMode'
                 ? 'Start with this plan?'
-                : `Allow ${request.name}?`;
+                : agentChatToolRequestTitle(request);
         }
         case 'question': {
             return request.questions.length === 1
-                ? 'The Agent has a question'
-                : `The Agent has ${request.questions.length} questions`;
+                ? `${providerName} has a question`
+                : `${providerName} has ${request.questions.length} questions`;
         }
     }
 }

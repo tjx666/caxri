@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { fixture } from './chat-service-fixture';
+import { FAKE_CLAUDE_PLAN } from './fixtures/fake-claude-approvals';
 
 describe('AgentChatService with a fake Claude Code CLI', () => {
     it('streams a turn and binds the preset session on its first turn', async () => {
@@ -102,7 +103,7 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
         expect(request).toMatchObject({
             kind: 'tool',
             name: 'ExitPlanMode',
-            summary: '1. Read the notes.\n2. Summarize them in one paragraph.',
+            summary: FAKE_CLAUDE_PLAN,
         });
         service.respond(terminal.id, request.id, { kind: 'decision', decision: 'accept' });
         const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');

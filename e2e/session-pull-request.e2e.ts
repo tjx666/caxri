@@ -368,7 +368,8 @@ setInterval(() => {
         // Lifecycle outranks delivery: the running glyph takes the pull request's right-edge slot.
         await expect(pullRequest).toHaveCount(0);
         await expectRightEdge(status);
-        await expect(status).toHaveAccessibleName('Working. The Agent is running.');
+        await expect(status).toHaveAccessibleName('Working');
+        await expect(status).toHaveAccessibleDescription('The Agent is running.');
 
         // Collapsing the Project must not fold a running Agent out of sight: the heading summarizes it.
         const projectTitle = running.page.getByRole('treeitem', { name: /^project \(/u });

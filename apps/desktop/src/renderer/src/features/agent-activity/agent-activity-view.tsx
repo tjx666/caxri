@@ -304,7 +304,6 @@ export function AgentActivityView() {
                                 row={entry.row}
                                 selected={selectedSessionId === entry.row.session.id}
                                 sessionRename={sessionRename}
-                                terminals={terminals}
                                 worktreeProject={worktreeProjectBySessionId.get(
                                     entry.row.session.id,
                                 )}

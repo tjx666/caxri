@@ -44,7 +44,7 @@ function MonthLabels({ weeks }: { weeks: readonly HeatmapWeek[] }) {
             {weeks.map((week) => (
                 <span
                     key={week.start}
-                    className="overflow-visible text-[10px] whitespace-nowrap text-muted"
+                    className="overflow-visible text-[11px] whitespace-nowrap text-muted"
                 >
                     {week.monthLabel ?? ''}
                 </span>
@@ -219,7 +219,11 @@ export function UsageActivityCard({
             aria-label="Token activity"
         >
             <div className="flex items-center justify-between gap-3">
-                <h2 className="m-0 text-[13px] font-semibold">Activity</h2>
+                {/* The range selector does not apply here: the chart always covers the trailing year. */}
+                <h2 className="m-0 flex items-baseline gap-2 text-[13px] font-semibold">
+                    Activity
+                    <span className="text-[11px] font-normal text-muted">Last 12 months</span>
+                </h2>
                 <ToggleGroup
                     aria-label="Activity view"
                     value={[view]}
@@ -238,7 +242,7 @@ export function UsageActivityCard({
                 <div className="flex min-w-160 gap-2" onPointerLeave={() => setHover(undefined)}>
                     {view === 'daily' && (
                         <div
-                            className="grid grid-rows-7 gap-0.5 pt-4 text-[10px] text-muted"
+                            className="grid grid-rows-7 gap-0.5 pt-4 text-[11px] text-muted"
                             aria-hidden="true"
                         >
                             {WEEKDAY_LABELS.map((label, index) => (
@@ -263,7 +267,8 @@ export function UsageActivityCard({
                 </div>
             </div>
             <div className="mt-3 flex min-h-5 items-center justify-between gap-3 text-[11px] text-muted">
-                <span aria-live="polite" className="truncate">
+                {/* Not a live region: it changes on every pointer move, and the chart's own label carries the summary. */}
+                <span className="truncate">
                     {hover ? (
                         <>
                             <span className="text-foreground">{hover.label}</span> · {hover.detail}

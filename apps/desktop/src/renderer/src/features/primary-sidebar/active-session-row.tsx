@@ -9,6 +9,7 @@ import { useSessionPullRequest } from './hooks/use-session-pull-request';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
 import { SessionActivityCard } from './session-activity-card';
 import { SessionPullRequestIndicator } from './session-pull-request-indicator';
+import { canSuggestSessionTitle } from './session-rename-draft';
 import { SessionRenameInput } from './session-rename-input';
 import { SessionRowActions } from './session-row-actions';
 import { SessionRowMenu } from './session-row-menu';
@@ -62,7 +63,6 @@ interface ActiveSessionRowProperties {
     selected: boolean;
     session: SessionRecord;
     terminal?: TerminalRecord;
-    terminals: TerminalRecord[];
     /**
      * Workbench Root Project when this Session works in a linked worktree instead of its own Project root. Absent for
      * the ordinary case, which renders no marker.
@@ -107,7 +107,6 @@ export function ActiveSessionRow({
     selected,
     session,
     terminal,
-    terminals,
     worktreeProject,
 }: ActiveSessionRowProperties) {
     const project = {
@@ -163,6 +162,7 @@ export function ActiveSessionRow({
                     onCommit={onCommitRename}
                     onCancel={onCancelRename}
                     onSuggest={suggestRename}
+                    canSuggest={canSuggestSessionTitle(session)}
                     suggesting={renameSuggesting}
                 />
             ) : (
@@ -263,11 +263,11 @@ export function ActiveSessionRow({
     return (
         <SessionRowMenu
             onBeginRename={beginRename}
+            onSuggestRename={suggestRename}
             onOpenChange={setMenuOpen}
             project={project}
             pullRequest={pullRequest}
             session={session}
-            terminals={terminals}
         >
             {row}
         </SessionRowMenu>

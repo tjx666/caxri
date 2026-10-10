@@ -6,7 +6,9 @@ import type {
     AgentChatSnapshot,
     AgentTimelineItem,
 } from '@caxri/protocol';
+import { describeAgentTool } from '@caxri/protocol';
 
+import { mobileAgentDisplayName } from '../sessions/agent-display-name';
 import type { MobileTerminal } from '../sessions/session-model';
 
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
@@ -26,28 +28,19 @@ export const isAgentChatTerminal = (
 export const agentChatProviderName = (
     terminal: Pick<MobileTerminal, 'kind' | 'provider'> | undefined,
 ): string => {
-    switch (terminal?.provider ?? terminal?.kind) {
-        case 'claude': {
-            return 'Claude';
-        }
-        case 'grok': {
-            return 'Grok';
-        }
-        case 'codex': {
-            return 'Codex';
-        }
-        default: {
-            return 'the Agent';
-        }
-    }
+    const provider = terminal?.provider ?? terminal?.kind;
+    return provider && provider !== 'shell' ? mobileAgentDisplayName(provider) : 'the Agent';
 };
 
 /**
- * The same closed failure copy the Desktop Chat pane shows; provider text never selects the message.
+ * The same closed failure copy the Desktop Chat pane shows; provider text never selects the message. `canRetry` is
+ * false on a view-only device, which has no Retry button, so the copy names the access it needs instead of asking it to
+ * retry.
  */
 export const agentChatFailureMessage = (
     reason: AgentChatFailureReason,
     provider: string,
+    canRetry = true,
 ): string => {
     switch (reason) {
         case 'executable_not_found': {
@@ -60,7 +53,9 @@ export const agentChatFailureMessage = (
             return `${provider} started but did not respond.`;
         }
         case 'process_exited': {
-            return `${provider} stopped unexpectedly. Retry to resume the conversation.`;
+            return canRetry
+                ? `${provider} stopped unexpectedly. Retry to resume the conversation.`
+                : `${provider} stopped unexpectedly. Reply access is required to retry.`;
         }
         case 'resume_failed': {
             return 'The previous conversation could not be resumed.';
@@ -256,7 +251,18 @@ export const agentChatApprovalChoices = (
     return choices.filter((choice) => !allowed || allowed.includes(choice.decision));
 };
 
-export const agentChatRequestTitle = (request: AgentChatRequest): string => {
+/**
+ * A tool's name as a person reads it: an MCP tool (`mcp__github__create_issue`) reads as `create_issue from github`,
+ * and any other tool keeps the name the provider reported.
+ */
+const approvalToolName = (name: string): string => {
+    const presentation = describeAgentTool({ name, summary: name });
+    return presentation.kind === 'mcp' && presentation.subject
+        ? `${presentation.subject} from ${presentation.label}`
+        : name;
+};
+
+export const agentChatRequestTitle = (request: AgentChatRequest, provider: string): string => {
     switch (request.kind) {
         case 'command': {
             return request.networkHost
@@ -272,12 +278,12 @@ export const agentChatRequestTitle = (request: AgentChatRequest): string => {
              */
             return request.name === 'ExitPlanMode'
                 ? 'Start with this plan?'
-                : `Allow ${request.name}?`;
+                : `Allow ${approvalToolName(request.name)}?`;
         }
         case 'question': {
             return request.questions.length === 1
-                ? 'The Agent has a question'
-                : `The Agent has ${request.questions.length} questions`;
+                ? `${provider} has a question`
+                : `${provider} has ${request.questions.length} questions`;
         }
     }
 };

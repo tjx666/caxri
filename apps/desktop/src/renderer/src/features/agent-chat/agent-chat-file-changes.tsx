@@ -21,6 +21,7 @@ import {
     agentChatDiffLinesStat,
     canOpenAgentChatChange,
 } from './agent-chat-diff';
+import { agentChatChevronMotion } from './agent-chat-disclosure';
 
 const LINE_CLASS_NAME: Record<AgentChatDiffLine['kind'], string> = {
     added: 'bg-diff-stat-added/15',
@@ -154,7 +155,8 @@ function FileChangeBlock({
                 >
                     <ChevronRight
                         className={cn(
-                            'size-3.5 transition-transform duration-100',
+                            'size-3.5',
+                            agentChatChevronMotion(isExpanded),
                             isExpanded && 'rotate-90',
                         )}
                     />

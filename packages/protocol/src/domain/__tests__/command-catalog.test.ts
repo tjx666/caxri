@@ -130,6 +130,14 @@ describe('command registry', () => {
         expect(
             getNativeMenuCommandGroups('help').map((group) => group.map((command) => command.id)),
         ).toEqual([['processExplorer.open'], ['developer.reportBug', 'diagnostics.export']]);
+        expect(getNativeMenuCommandGroups('terminal')[0]?.map((command) => command.id)).toEqual([
+            'terminal.new',
+            'terminal.clear',
+            'terminal.restart',
+            'terminal.startNewAgentSession',
+            'terminal.switchAgentSurface',
+            'terminal.close',
+        ]);
     });
 
     it('migrates every released default generation to commands the current catalog can execute', () => {

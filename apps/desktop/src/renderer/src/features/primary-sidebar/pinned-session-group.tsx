@@ -189,7 +189,6 @@ export function PinnedSessionGroup({
                                     sessionOrder={sessionOrder}
                                     showProjectName
                                     terminal={sessionAgentTerminal(session, terminals)}
-                                    terminals={terminals}
                                     visibleSessionIds={visibleSessionIds}
                                     worktreeProject={worktreeProjects?.[session.id]}
                                 />

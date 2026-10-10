@@ -74,13 +74,28 @@ function parseFrontmatter(source: string): Frontmatter {
     const end = source.indexOf('\n---', 3);
     if (end === -1) return {};
     const values = new Map<string, string>();
-    for (const line of source.slice(3, end).split('\n')) {
+    const lines = source.slice(3, end).split('\n');
+    for (let index = 0; index < lines.length; index++) {
+        const line = lines[index];
+        // An indented line belongs to the key above it (a nested map or a block scalar), never a top-level key.
+        if (/^\s/u.test(line)) continue;
         const separator = line.indexOf(':');
         if (separator <= 0) continue;
-        values.set(
-            line.slice(0, separator).trim().toLowerCase(),
-            scalar(line.slice(separator + 1)),
-        );
+        let value = line.slice(separator + 1).trim();
+        /**
+         * A block scalar (`description: |` or `>-`) keeps its text on the indented lines below. Reading only the
+         * indicator showed `|` as a skill's description in the Chat composer's menu; `safeText` folds the joined
+         * lines.
+         */
+        if (/^[|>][+-]?$/u.test(value)) {
+            const block: string[] = [];
+            while (index + 1 < lines.length && /^(?:\s|$)/u.test(lines[index + 1]))
+                block.push(lines[++index].trim());
+            value = block.join('\n');
+        } else {
+            value = scalar(value);
+        }
+        values.set(line.slice(0, separator).trim().toLowerCase(), value);
     }
     return {
         name: safeText(values.get('name'), 120),

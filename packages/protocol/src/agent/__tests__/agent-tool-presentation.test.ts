@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentToolActiveLabel,
+    agentToolOutcomeLabel,
     describeAgentTool,
     formatShortDuration,
     summarizeAgentToolGroup,
@@ -190,5 +191,28 @@ describe('agentToolActiveLabel', () => {
         expect(agentToolActiveLabel(describeAgentTool({ name: 'docs/search', summary: 'x' }))).toBe(
             'docs',
         );
+    });
+});
+
+describe('agentToolOutcomeLabel', () => {
+    const edit = describeAgentTool({ name: 'Edit', summary: '/a.ts' });
+
+    it('keeps the past tense for a completed call', () => {
+        expect(agentToolOutcomeLabel(edit, 'completed')).toBe('Edited');
+    });
+
+    it('says in words that a call failed, was declined, or was stopped', () => {
+        expect(agentToolOutcomeLabel(edit, 'failed')).toBe('Failed to edit');
+        expect(agentToolOutcomeLabel(edit, 'declined')).toBe('Not allowed to edit');
+        expect(agentToolOutcomeLabel(edit, 'interrupted')).toBe('Stopped editing');
+        expect(agentToolOutcomeLabel(describeAgentTool({ name: 'Bash' }), 'failed')).toBe(
+            'Failed to run',
+        );
+    });
+
+    it('prefixes the outcome to a tool that has no verb', () => {
+        const mcp = describeAgentTool({ name: 'mcp__github__create_issue' });
+        expect(agentToolOutcomeLabel(mcp, 'failed')).toBe('Failed: github');
+        expect(agentToolOutcomeLabel(mcp, 'declined')).toBe('Not allowed: github');
     });
 });

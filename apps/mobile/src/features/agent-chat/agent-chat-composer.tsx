@@ -116,7 +116,7 @@ export const AgentChatComposer = ({
                     numberOfLines={6}
                     onChangeText={onDraftChange}
                     placeholder={
-                        isRunning ? `Reply while ${provider} works` : `Message ${provider}`
+                        isRunning ? `Steer ${provider}'s current turn` : `Message ${provider}`
                     }
                     placeholderTextColor={theme.muted}
                     scrollEnabled

@@ -5,7 +5,11 @@ import { tryCommand } from '../../stores/toasts';
 import { applyFormEdit } from '../settings/config-edit';
 import { getSettings, updateSettings } from '../settings/settings-client';
 
-const LABEL = 'Open in Chat';
+/**
+ * The Settings title of `session.openAgentsInChat` (`settings-spec.ts`): the toggle writes that persistent setting, so
+ * it names it the way Settings does rather than reading like a one-off action for the next pick.
+ */
+const LABEL = 'Open Agents in Chat';
 
 /**
  * Writes `session.openAgentsInChat` through `settings.jsonc`, the same path the Settings page uses, so the menus and
