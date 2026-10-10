@@ -475,7 +475,9 @@ test('a Grok Build Chat streams a reply, answers an approval, and resumes after 
         await message.fill('hi there');
         await message.press('Enter');
         await expect(chat.getByText('You said: hi there')).toBeVisible();
-        await expect(chat.getByText(/^grok-fake · \d+% context left$/u)).toBeVisible();
+        // Grok Build lists no models, so the composer names the one in use as plain text beside the context ring.
+        await expect(chat.getByText('grok-fake', { exact: true })).toBeVisible();
+        await expect(chat.getByRole('img', { name: /^\d+% of context used$/u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('grok-chat-reply.png') });
 
         await message.fill('please approve this');
