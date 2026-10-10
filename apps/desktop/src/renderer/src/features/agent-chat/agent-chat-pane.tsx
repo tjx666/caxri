@@ -13,6 +13,7 @@ import { TerminalLinkPicker } from '../terminal/terminal-link-picker';
 import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatComposer } from './agent-chat-composer';
+import { AgentChatPlanCard } from './agent-chat-plan-card';
 import {
     agentChatActivity,
     agentChatFailureMessage,
@@ -20,7 +21,6 @@ import {
     isAgentChatTurnRunning,
 } from './agent-chat-presentation';
 import { AgentChatRequestCard } from './agent-chat-request-card';
-import { AgentChatPlanCard } from './agent-chat-status-glyph';
 import { buildAgentChatTimeline } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';

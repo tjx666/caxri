@@ -9,6 +9,7 @@ import {
     agentChatEffortLabel,
     agentChatFailureMessage,
     agentChatModelLabel,
+    agentChatPlanProgress,
     agentChatQuestionAnswers,
     agentChatRequestTitle,
     agentChatWorkingVerb,
@@ -205,5 +206,35 @@ describe('agentChatRequestTitle', () => {
                 decisions: ['accept'],
             }),
         ).toBe('Start with this plan?');
+    });
+});
+
+describe('agentChatPlanProgress', () => {
+    it('counts completed steps and names the one in progress', () => {
+        expect(
+            agentChatPlanProgress({
+                steps: [
+                    { step: 'Read', status: 'completed' },
+                    { step: 'Edit', status: 'pending' },
+                    { step: 'Test', status: 'inProgress' },
+                ],
+            }),
+        ).toEqual({ completed: 1, total: 3, current: 'Test' });
+    });
+
+    it('falls back to the first pending step, then to none once done', () => {
+        expect(
+            agentChatPlanProgress({
+                steps: [
+                    { step: 'Read', status: 'completed' },
+                    { step: 'Edit', status: 'pending' },
+                ],
+            }).current,
+        ).toBe('Edit');
+        expect(agentChatPlanProgress({ steps: [{ step: 'Read', status: 'completed' }] })).toEqual({
+            completed: 1,
+            total: 1,
+            current: undefined,
+        });
     });
 });

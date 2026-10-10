@@ -2,6 +2,7 @@ import type {
     AgentChatFailureReason,
     AgentChatItem,
     AgentChatItemStatus,
+    AgentChatPlan,
     AgentChatRequest,
     AgentChatSnapshot,
 } from '@caxri/protocol';
@@ -170,6 +171,29 @@ export function agentChatActivity(
         kind: 'working',
         text: `${agentChatWorkingVerb(turnId)}…`,
         startedAt: snapshot.turns.find((turn) => turn.id === turnId)?.startedAt,
+    };
+}
+
+export interface AgentChatPlanProgress {
+    completed: number;
+    total: number;
+    /**
+     * The step the Agent is on: the one in progress, else the first still pending; absent once every step is done.
+     */
+    current: string | undefined;
+}
+
+/**
+ * How far the Agent is through its plan, for the collapsed plan row above the composer.
+ */
+export function agentChatPlanProgress(plan: Pick<AgentChatPlan, 'steps'>): AgentChatPlanProgress {
+    const current =
+        plan.steps.find((step) => step.status === 'inProgress') ??
+        plan.steps.find((step) => step.status === 'pending');
+    return {
+        completed: plan.steps.filter((step) => step.status === 'completed').length,
+        total: plan.steps.length,
+        current: current?.step,
     };
 }
 
