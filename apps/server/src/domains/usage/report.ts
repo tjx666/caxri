@@ -56,6 +56,32 @@ export interface UsageReportInput {
 }
 
 /**
+ * One formatter per time zone, reused across reports; a Client sends the same zone on every poll.
+ */
+const localHourFormats = new Map<string, Intl.DateTimeFormat>();
+
+function localHourFormat(timeZone: string): Intl.DateTimeFormat {
+    const cached = localHourFormats.get(timeZone);
+    if (cached) return cached;
+    let format: Intl.DateTimeFormat;
+    try {
+        format = new Intl.DateTimeFormat('en-CA', {
+            timeZone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            hourCycle: 'h23',
+        });
+    } catch {
+        throw new CaxriError('VALIDATION', 'Unknown time zone');
+    }
+    // Only valid zones are cached, and there are a few hundred of them, so the map stays bounded.
+    localHourFormats.set(timeZone, format);
+    return format;
+}
+
+/**
  * Maps epoch milliseconds to the Client's local calendar date and hour. Formatting is the expensive part, and usage is
  * bucketed by hour, so results are memoized per hour.
  */
@@ -64,18 +90,7 @@ export class LocalClock {
     private readonly hours = new Map<number, { date: string; hour: number }>();
 
     constructor(timeZone: string) {
-        try {
-            this.format = new Intl.DateTimeFormat('en-CA', {
-                timeZone,
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                hourCycle: 'h23',
-            });
-        } catch {
-            throw new CaxriError('VALIDATION', 'Unknown time zone');
-        }
+        this.format = localHourFormat(timeZone);
     }
 
     at(epochMs: number): { date: string; hour: number } {
