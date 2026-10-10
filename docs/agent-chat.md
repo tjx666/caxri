@@ -13,6 +13,10 @@ its trade-offs are in [ADR 0012](adr/0012-agent-chat-surface.md).
 Codex and Claude Code are Chat-capable (`capabilities.chat` in the provider catalog,
 `packages/protocol/src/agent/agents.ts`); Grok Build stays PTY-only. Copy that names the Agent
 (failure banners, "Starting ...", the composer placeholder) reads the catalog's `displayName`.
+Claude Code's `displayName` is "Claude": the Chat is built on the Claude Agent SDK, whose
+[branding guidelines](https://code.claude.com/docs/en/agent-sdk/overview#branding-guidelines) do not
+permit an integration to call itself "Claude Code". Server messages about the user's installed
+Claude Code itself (hook configuration, minimum version) still name it.
 
 ## Provider seam
 

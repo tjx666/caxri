@@ -99,9 +99,9 @@ describe('agentChatContextSummary', () => {
 
 describe('agentChatActivity', () => {
     it('tells starting, working, and waiting on the user apart', () => {
-        expect(agentChatActivity(undefined, 'Claude Code')).toEqual({
+        expect(agentChatActivity(undefined, 'Claude')).toEqual({
             kind: 'starting',
-            text: 'Starting Claude Code…',
+            text: 'Starting Claude…',
         });
         expect(agentChatActivity(snapshot('ready'), 'Codex')).toBeUndefined();
         const running = {
@@ -153,8 +153,8 @@ describe('isAgentChatInterruptKey', () => {
 
 describe('agentChatFailureMessage', () => {
     it('names the Chat provider', () => {
-        expect(agentChatFailureMessage('process_exited', 'Claude Code')).toBe(
-            'Claude Code stopped unexpectedly. Retry to resume the conversation.',
+        expect(agentChatFailureMessage('process_exited', 'Claude')).toBe(
+            'Claude stopped unexpectedly. Retry to resume the conversation.',
         );
     });
 });

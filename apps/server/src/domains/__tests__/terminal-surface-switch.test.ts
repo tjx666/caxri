@@ -167,7 +167,7 @@ describe('terminal.switchSurface', () => {
         const { handler, order, terminal } = await fixture({ provider: 'claude' });
         await expect(
             handler({ terminalId: terminal.id, surface: 'chat', interruptTurn: false }),
-        ).rejects.toThrow(/Claude Code has no conversation/u);
+        ).rejects.toThrow(/Claude has no conversation/u);
         expect(order).toEqual([]);
     });
 

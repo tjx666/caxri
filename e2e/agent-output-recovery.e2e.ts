@@ -94,11 +94,9 @@ test('matched parsed Agent output sends delayed Esc and continue when recovery i
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         const settingsTab = await openSettingsTab(running.page);
-        await revealSettingsSection(settingsTab, 'Claude Code');
-        await settingsTab
-            .getByRole('switch', { name: 'Claude Code network error recovery' })
-            .check();
-        const patterns = settingsTab.getByLabel('Claude Code additional ending output patterns');
+        await revealSettingsSection(settingsTab, 'Claude');
+        await settingsTab.getByRole('switch', { name: 'Claude network error recovery' }).check();
+        const patterns = settingsTab.getByLabel('Claude additional ending output patterns');
         await patterns.fill(
             'API Error: The response stopped arriving. The response above may be incomplete.',
         );
@@ -111,7 +109,7 @@ test('matched parsed Agent output sends delayed Esc and continue when recovery i
                 ],
             });
 
-        const settleDelay = settingsTab.getByLabel('Claude Code Wait before Esc');
+        const settleDelay = settingsTab.getByLabel('Claude Wait before Esc');
         await settleDelay.fill('250');
         await settleDelay.blur();
         await expect
@@ -120,7 +118,7 @@ test('matched parsed Agent output sends delayed Esc and continue when recovery i
                 settleDelayMs: 250,
             });
 
-        const continueDelay = settingsTab.getByLabel('Claude Code Wait before Continue');
+        const continueDelay = settingsTab.getByLabel('Claude Wait before Continue');
         await continueDelay.fill('250');
         await continueDelay.blur();
 
@@ -146,7 +144,7 @@ test('matched parsed Agent output sends delayed Esc and continue when recovery i
         await expect(running.page.locator('.xterm-rows')).toContainText('RECOVERY_INPUT_RECEIVED');
         await expect(
             running.page.getByText(
-                'Sent Esc and continue to Claude Code after a matched recovery rule.',
+                'Sent Esc and continue to Claude after a matched recovery rule.',
                 { exact: true },
             ),
         ).toBeVisible();
@@ -189,21 +187,19 @@ test('Claude Code capacity stop uses the built-in recovery rule with no custom p
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         const settingsTab = await openSettingsTab(running.page);
-        await revealSettingsSection(settingsTab, 'Claude Code');
-        await settingsTab
-            .getByRole('switch', { name: 'Claude Code network error recovery' })
-            .check();
+        await revealSettingsSection(settingsTab, 'Claude');
+        await settingsTab.getByRole('switch', { name: 'Claude network error recovery' }).check();
         await expect(
-            settingsTab.getByLabel('Claude Code additional ending output patterns'),
+            settingsTab.getByLabel('Claude additional ending output patterns'),
         ).toHaveValue('');
         await expect(
             settingsTab.getByText('No additional patterns configured.', { exact: true }),
         ).toBeVisible();
 
-        const settleDelay = settingsTab.getByLabel('Claude Code Wait before Esc');
+        const settleDelay = settingsTab.getByLabel('Claude Wait before Esc');
         await settleDelay.fill('250');
         await settleDelay.blur();
-        const continueDelay = settingsTab.getByLabel('Claude Code Wait before Continue');
+        const continueDelay = settingsTab.getByLabel('Claude Wait before Continue');
         await continueDelay.fill('250');
         await continueDelay.blur();
         await expect
@@ -224,7 +220,7 @@ test('Claude Code capacity stop uses the built-in recovery rule with no custom p
         await expect(running.page.locator('.xterm-rows')).toContainText('RECOVERY_INPUT_RECEIVED');
         await expect(
             running.page.getByText(
-                'Sent Esc and continue to Claude Code after a matched recovery rule.',
+                'Sent Esc and continue to Claude after a matched recovery rule.',
                 { exact: true },
             ),
         ).toBeVisible();

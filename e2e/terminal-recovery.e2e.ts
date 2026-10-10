@@ -618,7 +618,7 @@ test('startup failure uses a compact danger status without covering output', asy
         await running.page.setViewportSize({ height: 800, width: 1_200 });
         const sessionId = await createProjectSession(running.page, 'claude');
         const failed = running.page.locator('[data-terminal-exit-state="failed"]');
-        await expect(failed).toContainText('Claude Code CLI was not found');
+        await expect(failed).toContainText('Claude CLI was not found');
         await expect(failed).toHaveClass(/terminal-recovery-danger/);
         const actions = failed.locator('.terminal-recovery-action');
         await expect(actions).toHaveCount(2);
@@ -672,7 +672,7 @@ test('startup failure uses a compact danger status without covering output', asy
 
 for (const agent of [
     { kind: 'codex', name: 'Codex' },
-    { kind: 'claude', name: 'Claude Code' },
+    { kind: 'claude', name: 'Claude' },
 ] as const) {
     test(`restored ${agent.name} Terminal renders its cursor-addressed first screen at the visible grid`, async () => {
         const testDirectory = await mkdtemp(join(tmpdir(), `caxri-${agent.kind}-grid-e2e-`));

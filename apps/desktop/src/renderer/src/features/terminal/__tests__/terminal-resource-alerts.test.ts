@@ -35,7 +35,7 @@ const raised: TerminalResourceAlert = {
         sessionTitle: 'Tune the timeline',
         kind: 'claude',
         provider: 'claude',
-        title: 'Claude Code',
+        title: 'Claude',
         processId: 100,
     },
     cpuPercent: 396.2,
@@ -58,7 +58,7 @@ describe('terminal resource alerts', () => {
 
     it('names the Agent, the Session, and both readings', () => {
         expect(terminalResourceAlertMessage(raised)).toBe(
-            'High resource use: Claude Code · Tune the timeline is using 4.4 GB of memory and 396% CPU.',
+            'High resource use: Claude · Tune the timeline is using 4.4 GB of memory and 396% CPU.',
         );
     });
 
