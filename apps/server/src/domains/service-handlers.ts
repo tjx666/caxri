@@ -38,6 +38,7 @@ import { refreshAfterMerge } from './pull-request-merge-refresh';
 import type { SessionContextService } from './session-context';
 import { SessionPullRequestService } from './session-pull-requests';
 import { resolveTerminalFileLink } from './terminal';
+import { UsageService } from './usage';
 
 type ServiceHandlerMethods =
     | 'agent.message.send'
@@ -118,6 +119,7 @@ type ServiceHandlerMethods =
     | 'settings.delegation.import'
     | 'agentHooks.get'
     | 'agentSkills.get'
+    | 'usage.report'
     | 'settings.update'
     | 'settings.trustDomain'
     | 'settings.trustFolder'
@@ -334,6 +336,13 @@ export function createServiceHandlers(services: {
         logger,
         terminals: services.terminals,
     });
+    const usage = new UsageService({
+        database,
+        environment: agentEnvironment,
+        logger,
+        runner: externalStatus.run,
+        userDataPath,
+    });
     const deliveryFocusRefresh = new DeliveryFocusRefresh({
         logger,
         projectStatus,
@@ -503,6 +512,7 @@ export function createServiceHandlers(services: {
             configuration.importDelegationSettings(settings, dryRun),
         'agentHooks.get': () => agentHooks.getHealth(),
         'agentSkills.get': agentSkillHealthReader(database, agentEnvironment, userDataPath),
+        'usage.report': (parameters) => usage.report(parameters),
         'settings.update': async ({ source }) => {
             await configuration.updateSettings(source);
             await awaitAgentSettingsReconcile();

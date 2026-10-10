@@ -299,6 +299,9 @@ export const commandDefinitions: CommandDefinition[] = [
             allowInEditable: true,
         }),
     ),
+    fromCatalog('usage.open', (context) => context.dialogs.openUsage(), {
+        allowInEditable: true,
+    }),
     fromCatalog('settings.open', (context) => context.dialogs.openSettings(), {
         allowInEditable: true,
     }),

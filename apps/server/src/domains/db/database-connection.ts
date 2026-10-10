@@ -5,6 +5,7 @@ import type { CaxriDrizzleDatabase } from './connection';
 import { markShutdown as markTerminalsShutdown, openDatabase } from './connection';
 import { AgentDelegationsModel } from './models/agent-delegations';
 import { AgentDispatchReceiptsModel } from './models/agent-dispatch-receipts';
+import { AgentSessionUsageModel } from './models/agent-session-usage';
 import { AppStateModel } from './models/app-state';
 import { MobileAgentSubmitReceiptsModel } from './models/mobile-agent-submit-receipts';
 import { ProjectsModel } from './models/projects';
@@ -63,6 +64,7 @@ export class CaxriDatabaseConnection {
     readonly agentDispatchReceipts: AgentDispatchReceiptsModel;
     readonly mobileAgentSubmitReceipts: MobileAgentSubmitReceiptsModel;
     readonly agentDelegations: AgentDelegationsModel;
+    readonly agentSessionUsage: AgentSessionUsageModel;
     readonly protocolState: ProtocolStateModel;
 
     constructor(path: string, options: CaxriDatabaseConnectionOptions = {}) {
@@ -75,7 +77,8 @@ export class CaxriDatabaseConnection {
             options.onSessionStateRepair,
             options.onSessionStateUnchanged,
         );
-        this.terminals = new TerminalsModel(this.db);
+        this.agentSessionUsage = new AgentSessionUsageModel(this.db);
+        this.terminals = new TerminalsModel(this.db, this.agentSessionUsage);
         this.snapshots = new SnapshotsModel(this.db);
         this.appState = new AppStateModel(this.db);
         this.agentDispatchReceipts = new AgentDispatchReceiptsModel(this.db);

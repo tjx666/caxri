@@ -15,6 +15,7 @@ export const coreForwardedMethods = [
     'agentChat.send',
     'agentHooks.get',
     'agentSkills.get',
+    'usage.report',
     'app.bootstrap',
     'app.health',
     'commander.board',

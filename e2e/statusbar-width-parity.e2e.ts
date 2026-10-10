@@ -34,27 +34,27 @@ interface WidthCapture {
 
 /**
  * Derived from `CHIP_PRIORITY_BREAKPOINTS` in `apps/desktop/src/renderer/src/features/status-bar/chip-priority.ts`:
- * child-process count 752, memory 680, pull request 610.
+ * child-process count 830, memory 752, output speed 680, pull request 480.
  *
  * Those thresholds are compared against the footer's _content-box_ width quantized down to a multiple of 8
  * (`useContainerWidth`), and the footer carries `px-2` (8px per side), so the number the Renderer resolves is
  * `floor((viewport - 16) / 8) * 8`, not the viewport width. Each width below therefore sits at least 16px clear of the
  * nearest breakpoint _after_ that conversion, so a small padding or scrollbar change cannot silently flip a chip:
  *
- * - 852 -> 832: above 752, every chip renders.
- * - 716 -> 696: below 752 and above 680, so only the child-process count is dropped.
- * - 656 -> 640: below 680 and above 610, so memory goes too while the pull request stays.
+ * - 868 -> 848: above 830, every chip renders.
+ * - 812 -> 792: below 830 and above 752, so only the child-process count is dropped.
+ * - 656 -> 640: below 752 and above 480, so memory goes too while the pull request stays.
  *
  * The numbers are restated rather than imported from the Renderer on purpose: this spec must keep asserting the shipped
  * behavior across a Renderer-internal file move, and an import of the same constant the component uses would make the
  * assertion a tautology.
  */
 const WIDTH_CAPTURES: readonly WidthCapture[] = [
-    { name: 'wide', width: 852, measuredWidth: 832, showChildProcessCount: true, showMemory: true },
+    { name: 'wide', width: 868, measuredWidth: 848, showChildProcessCount: true, showMemory: true },
     {
         name: 'medium',
-        width: 716,
-        measuredWidth: 696,
+        width: 812,
+        measuredWidth: 792,
         showChildProcessCount: false,
         showMemory: true,
     },
@@ -237,7 +237,7 @@ exec /bin/zsh -l
                 .toBe(capture.measuredWidth);
             await expectChip(memory, capture.showMemory);
             await expectChip(childProcesses, capture.showChildProcessCount);
-            // Never dropped above 610px: the narrow capture must still prove which chips survived.
+            // Never dropped above 480px: the narrow capture must still prove which chips survived.
             await expect(pullRequest).toBeVisible();
             await expect(project).toBeVisible();
             await expect(branch).toBeVisible();

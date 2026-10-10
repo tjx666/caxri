@@ -4,7 +4,12 @@ import type {
     ProjectRecord,
     ProjectStatusOverview,
 } from '@caxri/protocol';
-import { isExternalEditorTabPath, isSettingsTabPath, parseGitDiffTab } from '@caxri/protocol';
+import {
+    isExternalEditorTabPath,
+    isSettingsTabPath,
+    isUsageTabPath,
+    parseGitDiffTab,
+} from '@caxri/protocol';
 import { Monitor } from 'lucide-react';
 
 import { useContainerWidth } from '@/hooks/use-container-width';
@@ -134,6 +139,7 @@ function ActivePaneStatus({
         activeResource?.kind === 'file' &&
         !isExternalEditorTabPath(activeResource.path) &&
         !isSettingsTabPath(activeResource.path) &&
+        !isUsageTabPath(activeResource.path) &&
         !parseGitDiffTab(activeResource.path)
     )
         return (
