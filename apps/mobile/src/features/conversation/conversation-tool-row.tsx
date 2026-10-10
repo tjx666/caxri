@@ -1,13 +1,12 @@
 import { Pressable, Text, View } from 'react-native';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
+import { describeAgentTool, formatShortDuration } from '@caxri/protocol';
 import { CircleAlert } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
-import { formatConversationDuration } from './conversation-model';
 import { conversationStyles as styles } from './conversation-styles';
 import { ConversationToolIcon } from './conversation-tool-icon';
-import { describeTool } from './tool-presentation';
 
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
 
@@ -20,7 +19,7 @@ export const ConversationToolRow = ({
     theme: MobileTheme;
     tool: ToolCall;
 }) => {
-    const presentation = describeTool(tool);
+    const presentation = describeAgentTool(tool);
     return (
         <Pressable
             accessibilityLabel={`${presentation.label} ${presentation.subject ?? ''}. ${tool.status}. Open detail.`}
@@ -59,7 +58,7 @@ export const ConversationToolRow = ({
             {tool.status === 'failed' ? <CircleAlert color={theme.danger} size={15} /> : null}
             {tool.durationMs !== undefined ? (
                 <Text style={[styles.toolDuration, { color: theme.muted }]}>
-                    {formatConversationDuration(tool.durationMs)}
+                    {formatShortDuration(tool.durationMs)}
                 </Text>
             ) : null}
         </Pressable>

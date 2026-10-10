@@ -108,6 +108,27 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(chat.getByText('Answered: Color: Blue')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-question.png') });
 
+        // Consecutive tool calls fold into one summary; a finished turn folds its work behind its duration.
+        await message.fill('explore the project');
+        await message.press('Enter');
+        await expect(chat.getByText('Explored the project.')).toBeVisible();
+        await chat
+            .getByRole('button', { name: /^Worked for /u })
+            .last()
+            .click();
+        const workGroup = chat.getByRole('button', { name: 'Ran 2 commands, called 1 MCP tool' });
+        await expect(workGroup).toHaveAttribute('aria-expanded', 'false');
+        await workGroup.click();
+        await expect(chat.getByRole('button', { name: 'docs search' })).toBeVisible();
+        await chat.getByRole('button', { name: 'Ran cat src/app.ts' }).click();
+        // A printed file's output is painted in that file's language.
+        await expect(chat.locator('pre code span[class*="mtk"]').first()).toBeVisible();
+        await expectDisclosuresSettled(chat, 'agent-chat-item');
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-work-group.png') });
+        const exploreFold = chat.getByRole('button', { name: /^Worked for /u }).last();
+        await exploreFold.click();
+        await expect(exploreFold).toHaveAttribute('aria-expanded', 'false');
+
         // Headings, task lists, tables, and fenced code keep their structure in the transcript.
         await message.fill('show a table');
         await message.press('Enter');
@@ -200,15 +221,21 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(fileApproval).toHaveCount(0);
         await expect(chat.getByText('The files were changed.')).toBeVisible();
 
-        // The timeline entry collapses to a file count and line totals, then lists each file's diff.
+        // The finished turn folds its work behind its duration, keeping the prompt and the reply in view.
+        const turnFold = chat.getByRole('button', { name: /^Worked for /u }).last();
+        await expect(turnFold).toHaveAttribute('aria-expanded', 'false');
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-turn-folded.png') });
+        await turnFold.click();
+        // The change names its first file and line totals, then lists each file's diff.
         const changeRow = chat.getByRole('button', {
-            name: /3 files changed ?, 5 lines added, 2 removed$/u,
+            name: /^Edited greeting\.ts \+2 more ?, 5 lines added, 2 removed$/u,
         });
         await expect(changeRow).toHaveAttribute('aria-expanded', 'false');
         await page.screenshot({ path: testInfo.outputPath('agent-chat-diff-collapsed.png') });
         await changeRow.click();
         await expect(chat.getByText('const greeting = `Hello, ${name}!`;')).toBeVisible();
         await expect(chat.getByText('Call `greet(name)`.')).toBeVisible();
+        await expectDisclosuresSettled(chat, 'agent-chat-turn');
         await expectDisclosuresSettled(chat, 'agent-chat-item');
         await expectDisclosuresSettled(chat, 'agent-chat-file-change');
         await page.screenshot({ path: testInfo.outputPath('agent-chat-diff-expanded.png') });
@@ -217,7 +244,11 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await message.fill('write a bigdiff');
         await message.press('Enter');
         await expect(chat.getByText('Generated a large file.')).toBeVisible();
-        await chat.getByRole('button', { name: /1 file changed ?, / }).click();
+        await chat
+            .getByRole('button', { name: /^Worked for /u })
+            .last()
+            .click();
+        await chat.getByRole('button', { name: /^Edited generated\.txt ?, / }).click();
         // The header says so up front; the note at the cut is a scroll away in a long diff.
         await expect(chat.getByText('Truncated', { exact: true })).toBeVisible();
         await expectDisclosuresSettled(chat, 'agent-chat-item');

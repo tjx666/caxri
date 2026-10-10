@@ -1,12 +1,12 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
+import { describeAgentTool } from '@caxri/protocol';
 
 import { BottomSheet } from '../../components/bottom-sheet';
 import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles as styles } from './conversation-styles';
 import { ConversationToolIcon } from './conversation-tool-icon';
-import { describeTool } from './tool-presentation';
 
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
 
@@ -20,7 +20,7 @@ export const ConversationToolDetail = ({
     tool: ToolCall | null;
 }) => {
     if (!tool) return null;
-    const presentation = describeTool(tool);
+    const presentation = describeAgentTool(tool);
     return (
         <BottomSheet
             closeLabel="Close tool detail"

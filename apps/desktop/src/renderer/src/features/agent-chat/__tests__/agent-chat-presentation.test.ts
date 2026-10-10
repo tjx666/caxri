@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatActivityLabel,
-    agentChatActivityTitle,
     agentChatCommandCwd,
     agentChatContextSummary,
     agentChatFailureMessage,
@@ -47,34 +46,6 @@ describe('isAgentChatSubmitKey', () => {
         expect(isAgentChatSubmitKey({ key: 'Enter', shiftKey: false, isComposing: true })).toBe(
             false,
         );
-    });
-});
-
-describe('agentChatActivityTitle', () => {
-    it('counts the changed files; the line counts and paths render beside it', () => {
-        expect(
-            agentChatActivityTitle({
-                id: 'f',
-                type: 'fileChange',
-                status: 'completed',
-                changes: [
-                    { path: 'a.ts', kind: 'update', diff: '' },
-                    { path: 'b.ts', kind: 'add', diff: '' },
-                ],
-            }),
-        ).toBe('2 files changed');
-    });
-
-    it('joins a tool name with its summary', () => {
-        expect(
-            agentChatActivityTitle({
-                id: 't',
-                type: 'toolCall',
-                name: 'webSearch',
-                status: 'running',
-                summary: 'zod v4',
-            }),
-        ).toBe('webSearch: zod v4');
     });
 });
 

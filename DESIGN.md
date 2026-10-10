@@ -959,6 +959,17 @@ a single primary action slot. That slot shows Stop while a turn runs and the inp
 Send (steering the running turn) as soon as there is content; the two never sit side by side.
 Escape interrupts a running turn regardless. Reference: T3 Code's Chat composer.
 
+**Agent Chat timeline**: work is secondary to the conversation. Every command, tool call, file
+change, and thought is one 12px `--muted` disclosure row: the tool kind's glyph (the same table the
+mobile timeline uses), a past-tense verb, the subject in a mono `--surface` chip, and trailing facts
+(a `+N -M` diff stat, a non-success status glyph, a duration of at least one second). Consecutive
+work collapses into one summary row (`Ran 3 commands, read 2 files`). A finished turn folds
+everything except the prompt, the final reply, and notices behind one `Worked for 2m 1s` row with a
+bottom hairline. Expanded output renders in the shared code view, painted in the language inferred
+from what produced it (a printed file's extension, a Git diff, JSON) and capped in height. A new
+tool kind gets its glyph in one table, not a new component. References: the Codex app and T3 Code's
+work log.
+
 **Settings**: a Workbench tab, not a modal: `Cmd+,`, the menu, and the palette all open or focus
 this one tab instead of raising a dialog, so it composes with every other document (the Archived
 Sessions manager still floats its own confirmation dialog over it, exactly as it would over any

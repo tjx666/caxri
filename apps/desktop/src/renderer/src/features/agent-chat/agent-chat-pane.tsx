@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
 import { ArrowDown, CircleAlert, RotateCcw } from 'lucide-react';
@@ -23,14 +23,9 @@ import {
 } from './agent-chat-presentation';
 import { AgentChatRequestCard } from './agent-chat-request-card';
 import { AgentChatPlanCard } from './agent-chat-status-glyph';
-import { AgentChatTimelineItem } from './agent-chat-timeline-item';
+import { buildAgentChatTimeline } from './agent-chat-timeline';
+import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
-
-/**
- * A streamed delta replaces only the item it appends to (`applyAgentChatPatch` keeps every other item's identity), so
- * the rest of the transcript skips rendering entirely.
- */
-const MemoizedAgentChatTimelineItem = memo(AgentChatTimelineItem);
 
 /**
  * Why the Chat cannot continue, with the one action that recovers it. It sits in the dock, outside the scrolling
@@ -149,6 +144,13 @@ export function AgentChatPane({
             ),
         [terminalId],
     );
+    const items = snapshot?.items;
+    const turns = snapshot?.turns;
+    const activeTurnId = snapshot?.activeTurnId;
+    const timeline = useMemo(
+        () => (items && turns ? buildAgentChatTimeline(items, turns, activeTurnId) : []),
+        [items, turns, activeTurnId],
+    );
     const isEmpty = snapshot?.status === 'ready' && snapshot.items.length === 0;
     const retry = (): void => {
         /**
@@ -172,10 +174,10 @@ export function AgentChatPane({
                                 Earlier messages are not shown
                             </p>
                         )}
-                        {snapshot?.items.map((item) => (
-                            <MemoizedAgentChatTimelineItem
-                                item={item}
-                                key={item.id}
+                        {timeline.map((entry) => (
+                            <AgentChatTimelineEntryView
+                                entry={entry}
+                                key={entry.kind === 'item' ? entry.item.id : entry.id}
                                 onOpenFile={openFile}
                             />
                         ))}
