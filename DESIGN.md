@@ -718,8 +718,8 @@ remains instant.
 
 The work-tab `Compacting` accessory is the other state-motion exception: only that word pulses,
 while the Agent icon, Session title, focus accent, and neighboring tabs remain still. Live Agent Chat work is the third: a highlight sweeps across the text of what is still running
-(a running tool's verb, `Thinking`, the composer's working line) through the `.activity-shimmer`
-class, and the Stop button's arc circles while the turn works. The row's tool glyph never swaps
+(a running tool's whole title, verb and subject together, `Thinking`, the composer's working line)
+through the `.activity-shimmer` class. The row's tool glyph never swaps
 for a spinner, so a column of rows does not flicker as each starts and ends. Hovered or
 keyboard-focused clipped sidebar titles may scroll solely to reveal their text, as described above.
 
@@ -727,7 +727,7 @@ keyboard-focused clipped sidebar titles may scroll solely to reveal their text, 
 behind `motion-safe:` variants (the library ships no media query of its own, and a
 `motion-reduce:animate-none` override would lose the specificity fight against the `data-open:`
 attribute variant), disclosure CSS zeroes its durations, Session status icons keep their base shape
-but stop moving, the `Compacting` word stays high-contrast and static, Chat shimmer text and the Stop arc stay still, and Motion durations come
+but stop moving, the `Compacting` word stays high-contrast and static, Chat shimmer text stays still, and Motion durations come
 from the shared `useShouldReduceMotion` hook
 (`hooks/use-should-reduce-motion.ts`, the only sanctioned way to read the preference in JS),
 without changing focus, selection, command, query, or lifecycle behavior.
@@ -962,9 +962,10 @@ action row: Attach images on the left, then right-aligned in `--muted` the conte
 ring that fills with the share of the window in use, its percentage beside it, `--warning` from 80%
 and `--danger` from 95%, the token counts in its tooltip) and the model picker (the model's name and
 the next turn's effort, opening a menu of models with their descriptions and the current model's
-efforts, which stays open after a choice), and a single primary action slot. That slot shows Stop
-while a turn runs and the input is empty, and Send as soon as there is content; the two never sit
-side by side. While the Chat is busy (a turn runs or context is compacting), Enter and Send queue
+efforts, which stays open after a choice), and a single primary action slot: a 28px `--foreground`
+circle holding a `--background` up arrow for Send, or a small filled square for Stop. That slot
+shows Stop while a turn runs and the input is empty, and Send as soon as there is content; the two
+never sit side by side. While the Chat is busy (a turn runs or context is compacting), Enter and Send queue
 the message and the placeholder says so; Cmd+Enter steers it into the running turn instead. Queued
 messages sit above the card as 12px `--surface` cards, each with Edit (back into the composer),
 Delete, and Send now (Steer while a turn runs); after a stopped turn a `Queue paused` row with
@@ -977,8 +978,8 @@ status row opens the card above a hairline, so the card keeps one rounded outlin
 question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
 stop` right-aligned. A working turn's label is one playful verb chosen per turn (`Pondering…`),
 so a long turn reads as progress rather than a stall. References: T3 Code's Chat composer, Claude
-Code's spinner verbs, LobeHub's ringed Stop button, and the Codex app's context ring and model and
-effort picker. In the transcript, inline code sits in a lifted `--elevated` chip and links take
+Code's spinner verbs, and the Codex app's round Send and Stop, context ring, and model and effort
+picker. In the transcript, inline code sits in a lifted `--elevated` chip and links take
 `--accent`; a code block is one radius-8 `--elevated` panel whose header (a code glyph, Monaco's
 language name such as `TypeScript`, wrap and copy) shares its fill; a table is set open, with row
 hairlines and no frame or header tint. All follow the Codex app's Dracula transcript.
@@ -992,15 +993,20 @@ past 240px), keeping that choice while the plan updates. Reference: T3 Code's co
 
 **Agent Chat timeline**: work is secondary to the conversation. Every command, tool call, file
 change, and thought is one 12px `--muted` disclosure row: the tool kind's glyph (the same table the
-mobile timeline uses), a past-tense verb, the subject in a mono `--surface` chip, and trailing facts
+mobile timeline uses), a past-tense verb, the subject in the body font (a single file it read or changed is an underlined link that opens
+it), and trailing facts
 (a `+N -M` diff stat, a non-success status glyph, a duration of at least one second; a command
 always shows its duration, plus a `--danger` `Exit N` when non-zero and a `--surface` `Background`
 tag once handed off). A command the Agent described is titled by the description in the body font,
 and its command line moves into the expanded view. Consecutive
-work collapses into one summary row (`Ran 3 commands, read 2 files`). A finished turn folds
+work collapses into one summary row (`Ran 3 commands, read 2 files`) whose expanded list scrolls
+past 240px and fades its clipped edge over 24px. A shell command that only reads, searches, or
+lists files reads as that action (`sed -n '1,40p' src/app.ts` is `Read app.ts`, `rg foo src` is
+`Searched foo in src`), keeping its command line in the expanded view. A finished turn folds
 everything except the prompt, the final reply, and notices behind one `Worked for 2m 1s` row with a
 bottom hairline. Expanded output renders in the shared code view, painted in the language inferred
-from what produced it (a printed file's extension, a Git diff, JSON) and capped in height. A new
+from what produced it (a printed file's extension, a Git diff, JSON), any other command output as
+shell, and capped in height. A new
 tool kind gets its glyph in one table, not a new component. References: the Codex app and T3 Code's
 work log.
 

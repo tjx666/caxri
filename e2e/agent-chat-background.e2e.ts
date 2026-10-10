@@ -55,7 +55,8 @@ test('a Codex Chat opens a subagent and a background shell beside the Chat', asy
         await openSubagent.click();
         const subagent = page.getByRole('region', { name: /Inspect the fixtures/u });
         await expect(subagent).toBeVisible();
-        await expect(subagent.getByText('ls fixtures')).toBeVisible();
+        // `ls fixtures` reads as the listing it is, the same as in the Chat's own timeline.
+        await expect(subagent.getByRole('button', { name: /^Listed fixtures/u })).toBeVisible();
         await expect(subagent.getByText(/still working/u).first()).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-subagent-tab.png') });
         await subagent.getByRole('button', { name: 'Stop' }).click();

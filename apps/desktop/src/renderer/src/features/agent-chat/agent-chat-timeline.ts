@@ -215,8 +215,8 @@ export function describeAgentChatWork(item: AgentChatWorkItem): AgentToolPresent
         case 'command': {
             const presentation = describeAgentTool({ name: 'shell', summary: item.command });
             // The Agent's own words for the command read better than the command line, which the row still shows
-            // expanded.
-            return item.description
+            // expanded. A read, search, or listing already names what it looked at, so it keeps that.
+            return item.description && presentation.kind === 'command'
                 ? { ...presentation, subject: item.description, isCodeSubject: false }
                 : presentation;
         }
@@ -232,6 +232,7 @@ export function describeAgentChatWork(item: AgentChatWorkItem): AgentToolPresent
                 label: isCreate ? 'Created' : 'Edited',
                 ...(first && { subject: `${pathBasename(first.path)}${more}` }),
                 isCodeSubject: true,
+                ...(first && item.changes.length === 1 && { path: first.path }),
             };
         }
     }
@@ -351,8 +352,8 @@ const FILE_PRINTING_COMMAND = /^\s*(?:cat|sed|head|tail|nl|bat|less|more)\s/u;
 
 /**
  * The language to paint a command's or tool's output with, inferred from what produced it: a Git diff, a printed or
- * read file's extension, or JSON. `undefined` keeps it plain text, which is the honest rendering for logs and
- * listings.
+ * read file's extension, or JSON. Any other command output is painted as shell, the terminal it came from, so its
+ * strings, numbers, flags, and paths still separate from the prose around them; another tool's output stays plain.
  */
 export function agentChatOutputLanguage(
     item: Extract<AgentChatWorkItem, { type: 'command' | 'toolCall' }>,
@@ -378,7 +379,8 @@ export function agentChatOutputLanguage(
             if (extension) return extension;
         }
     }
-    return isJsonText(output) ? 'json' : undefined;
+    if (isJsonText(output)) return 'json';
+    return item.type === 'command' ? 'shell' : undefined;
 }
 
 /**

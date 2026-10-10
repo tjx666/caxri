@@ -250,6 +250,19 @@ export function startBackgroundShell(io: FakeClaudeIo, startedAt: number, finish
         ticks += 1;
         tasks.outputs.set(taskId, `${tasks.outputs.get(taskId) ?? ''}tick ${ticks}\n`);
     }, 100);
+    /**
+     * The real CLI reports a running Bash command's elapsed time in `tool_progress` frames whose `parent_tool_use_id`
+     * is the Bash call itself, though no subagent exists.
+     */
+    io.send(
+        childFrame(io, toolUseId, {
+            type: 'tool_progress',
+            tool_use_id: toolUseId,
+            tool_name: 'Bash',
+            elapsed_time_seconds: 1,
+            task_id: taskId,
+        }),
+    );
     io.system('background_tasks_changed', { tasks: liveBackground() });
     io.system('task_started', {
         task_id: taskId,

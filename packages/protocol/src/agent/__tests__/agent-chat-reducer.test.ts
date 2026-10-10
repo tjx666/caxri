@@ -207,6 +207,17 @@ describe('Agent Chat reducer: tasks, queue, and operation state', () => {
         expect(snapshot.queuePaused).toBe(true);
         expect(snapshot.tasks).toBeUndefined();
     });
+
+    it('keeps the models a provider offers across a conversation reset', () => {
+        const models = [{ id: 'opus', displayName: 'Opus', efforts: ['high'] }];
+        let snapshot = applyAgentChatOperation(empty(), {
+            op: 'state',
+            state: { models, usage: { totalTokens: 10, contextWindow: 100 } },
+        });
+        snapshot = applyAgentChatOperation(snapshot, { op: 'reset' });
+        expect(snapshot.models).toEqual(models);
+        expect(snapshot.usage).toBeUndefined();
+    });
 });
 
 describe('Agent Chat task reducer', () => {
