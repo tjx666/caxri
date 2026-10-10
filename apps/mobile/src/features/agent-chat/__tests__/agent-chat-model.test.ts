@@ -13,6 +13,7 @@ import {
     agentChatRequestTitle,
     agentChatTimelineItems,
     isAgentChatTerminal,
+    isOverLineBudget,
 } from '../agent-chat-model';
 
 const base: AgentChatSnapshot = {
@@ -31,7 +32,9 @@ describe('Agent Chat model', () => {
         expect(isAgentChatTerminal({})).toBe(false);
         expect(isAgentChatTerminal(undefined)).toBe(false);
         expect(agentChatProviderName({ kind: 'codex' })).toBe('Codex');
+        expect(agentChatProviderName({ kind: 'grok', provider: 'grok' })).toBe('Grok Build');
         expect(agentChatProviderName({ kind: 'shell' })).toBe('the Agent');
+        expect(agentChatProviderName(undefined)).toBe('the Agent');
     });
 
     it('projects a Chat onto the Conversation timeline with a Thought row and turn dividers', () => {
@@ -147,17 +150,48 @@ describe('Agent Chat model', () => {
     });
 
     it('names the tool a generic tool approval would run', () => {
-        expect(agentChatRequestTitle({ id: 'r', kind: 'tool', name: 'WebFetch' })).toBe(
+        expect(agentChatRequestTitle({ id: 'r', kind: 'tool', name: 'WebFetch' }, 'Claude')).toBe(
             'Allow WebFetch?',
         );
         expect(
-            agentChatRequestTitle({
-                id: 'r',
-                kind: 'tool',
-                name: 'ExitPlanMode',
-                summary: 'Plan',
-            }),
+            agentChatRequestTitle(
+                { id: 'r', kind: 'tool', name: 'mcp__github__create_issue' },
+                'Claude',
+            ),
+        ).toBe('Allow create_issue from github?');
+        expect(
+            agentChatRequestTitle(
+                { id: 'r', kind: 'tool', name: 'ExitPlanMode', summary: 'Plan' },
+                'Claude',
+            ),
         ).toBe('Start with this plan?');
+    });
+
+    it('names the provider that is asking a question', () => {
+        const question = {
+            id: 'q1',
+            header: '',
+            question: 'Which?',
+            options: [],
+            allowsOther: true,
+        };
+        expect(
+            agentChatRequestTitle({ id: 'q', kind: 'question', questions: [question] }, 'Claude'),
+        ).toBe('Claude has a question');
+        expect(
+            agentChatRequestTitle(
+                { id: 'q', kind: 'question', questions: [question, { ...question, id: 'q2' }] },
+                'Grok Build',
+            ),
+        ).toBe('Grok Build has 2 questions');
+    });
+
+    it('estimates when clamped approval text hides content', () => {
+        expect(isOverLineBudget('git status', 6)).toBe(false);
+        expect(isOverLineBudget('a\nb\nc\nd\ne\nf', 6)).toBe(false);
+        expect(isOverLineBudget('a\nb\nc\nd\ne\nf\ng', 6)).toBe(true);
+        expect(isOverLineBudget('x'.repeat(36 * 6), 6)).toBe(false);
+        expect(isOverLineBudget('x'.repeat(36 * 6 + 1), 6)).toBe(true);
     });
 
     it('lists the files a file-change approval gates', () => {
@@ -220,5 +254,14 @@ describe('Agent Chat model', () => {
             }),
         ).toBeUndefined();
         expect(agentChatFailureMessage('executable_not_found', 'Codex')).toMatch(/Codex/u);
+    });
+
+    it('asks only a device that can retry to retry a stopped provider', () => {
+        expect(agentChatFailureMessage('process_exited', 'Claude')).toBe(
+            'Claude stopped unexpectedly. Retry to resume the conversation.',
+        );
+        expect(agentChatFailureMessage('process_exited', 'Claude', false)).toBe(
+            'Claude stopped unexpectedly. Reply access is required to retry.',
+        );
     });
 });

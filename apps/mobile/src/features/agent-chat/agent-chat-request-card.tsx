@@ -1,5 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useState } from 'react';
+import type { StyleProp, TextLayoutEvent, TextStyle } from 'react-native';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { AgentChatItem, AgentChatRequest } from '@caxri/protocol';
@@ -10,6 +11,7 @@ import {
     agentChatApprovalFiles,
     agentChatQuestionAnswers,
     agentChatRequestTitle,
+    isOverLineBudget,
 } from './agent-chat-model';
 import type { AgentChatResponse } from './use-agent-chat';
 
@@ -69,6 +71,58 @@ const ActionButton = ({
     );
 };
 
+/**
+ * Approval text clamped to `maxLines`, with a Show all / Show less toggle when the clamp hides content, so a long
+ * command or plan can still be read before it is accepted. Whether the clamp hides anything comes from a wrap estimate
+ * first and from native layout once it reports more lines than the clamp allows.
+ */
+const ClampedText = ({
+    maxLines,
+    style,
+    testID,
+    text,
+    theme,
+}: {
+    maxLines: number;
+    style: StyleProp<TextStyle>;
+    testID?: string;
+    text: string;
+    theme: MobileTheme;
+}) => {
+    const [isExpanded, setExpanded] = useState(false);
+    const [hasMeasuredOverflow, setMeasuredOverflow] = useState(false);
+    const isTruncatable = hasMeasuredOverflow || isOverLineBudget(text, maxLines);
+    const onTextLayout = (event: TextLayoutEvent): void => {
+        if (event.nativeEvent.lines.length > maxLines) setMeasuredOverflow(true);
+    };
+    return (
+        <View>
+            <Text
+                numberOfLines={isExpanded ? undefined : maxLines}
+                onTextLayout={onTextLayout}
+                style={style}
+                testID={testID}
+            >
+                {text}
+            </Text>
+            {isTruncatable ? (
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: isExpanded }}
+                    hitSlop={4}
+                    onPress={() => setExpanded((current) => !current)}
+                    style={styles.toggle}
+                    testID={testID ? `${testID}-toggle` : undefined}
+                >
+                    <Text style={[styles.toggleLabel, { color: theme.primary }]}>
+                        {isExpanded ? 'Show less' : 'Show all'}
+                    </Text>
+                </Pressable>
+            ) : null}
+        </View>
+    );
+};
+
 const ApprovalBody = ({
     items,
     request,
@@ -82,22 +136,22 @@ const ApprovalBody = ({
     return (
         <>
             {request.kind === 'tool' && request.summary ? (
-                <Text
-                    numberOfLines={6}
+                <ClampedText
+                    maxLines={6}
                     style={[styles.code, { backgroundColor: theme.elevated, color: theme.text }]}
                     testID="agent-chat-request-tool"
-                >
-                    {request.summary}
-                </Text>
+                    text={request.summary}
+                    theme={theme}
+                />
             ) : null}
             {request.kind === 'command' && request.command ? (
-                <Text
-                    numberOfLines={6}
+                <ClampedText
+                    maxLines={6}
                     style={[styles.code, { backgroundColor: theme.elevated, color: theme.text }]}
                     testID="agent-chat-request-command"
-                >
-                    {request.command}
-                </Text>
+                    text={request.command}
+                    theme={theme}
+                />
             ) : null}
             {request.kind === 'command' && request.cwd ? (
                 <Text numberOfLines={1} style={[styles.meta, { color: theme.muted }]}>
@@ -105,9 +159,13 @@ const ApprovalBody = ({
                 </Text>
             ) : null}
             {files.length > 0 ? (
-                <Text numberOfLines={4} style={[styles.meta, { color: theme.muted }]}>
-                    {files.join('\n')}
-                </Text>
+                <ClampedText
+                    maxLines={4}
+                    style={[styles.meta, { color: theme.muted }]}
+                    testID="agent-chat-request-files"
+                    text={files.join('\n')}
+                    theme={theme}
+                />
             ) : null}
             {request.reason ? (
                 <Text numberOfLines={4} style={[styles.meta, { color: theme.muted }]}>
@@ -205,12 +263,14 @@ export const AgentChatRequestCard = ({
     canAnswer,
     items,
     onRespond,
+    provider,
     request,
     theme,
 }: {
     canAnswer: boolean;
     items: readonly AgentChatItem[];
     onRespond: (request: AgentChatRequest, response: AgentChatResponse) => Promise<void>;
+    provider: string;
     request: AgentChatRequest;
     theme: MobileTheme;
 }) => {
@@ -238,7 +298,7 @@ export const AgentChatRequestCard = ({
             testID="agent-chat-request"
         >
             <Text style={[styles.title, { color: theme.text }]}>
-                {agentChatRequestTitle(request)}
+                {agentChatRequestTitle(request, provider)}
             </Text>
             {request.kind === 'question' ? (
                 <QuestionBody
@@ -331,6 +391,8 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         padding: 8,
     },
+    toggle: { alignSelf: 'flex-start', justifyContent: 'center', minHeight: 44, minWidth: 44 },
+    toggleLabel: { fontSize: 13, fontWeight: '700' },
     question: { gap: 6 },
     option: { borderRadius: 10, borderWidth: 1, gap: 2, minHeight: 44, padding: 10 },
     input: {

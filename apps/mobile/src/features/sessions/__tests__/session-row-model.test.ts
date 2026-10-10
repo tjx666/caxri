@@ -8,6 +8,9 @@ describe('Session row labels', () => {
         expect(
             sessionAgentLabel({ primaryTerminal: { kind: 'claude' } } as MobileSessionItem),
         ).toBe('Claude');
+        expect(sessionAgentLabel({ primaryTerminal: { kind: 'grok' } } as MobileSessionItem)).toBe(
+            'Grok Build',
+        );
         expect(sessionAgentLabel({ primaryTerminal: { kind: 'shell' } } as MobileSessionItem)).toBe(
             'Shell',
         );
