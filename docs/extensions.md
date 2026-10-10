@@ -90,7 +90,9 @@ An extension package must declare `type: "module"`, a `.js` or `.mjs` entry, a c
 Only `secondarySidebar` and `panel` are contribution locations. Container icons explicitly choose
 either an allowlisted semantic icon (`{ "kind": "builtin", "id": "status" }`) or an extension
 resource (`{ "kind": "resource", "path": "media/extension.svg" }`). Resource icons keep their
-authored colors. The optional bounded integer `order` makes container placement independent of
+authored colors. Desktop's tab strip and the mobile Session tabs map a builtin id to its glyph through
+one shared table (`viewContainerIconGlyph` in `@caxri/protocol`); the mobile read surface does not
+project resource icons, so a phone shows such a container with the generic package glyph. The optional bounded integer `order` makes container placement independent of
 extension discovery order; equal or omitted values retain stable discovery order. `onView:<id>` and
 `onCommand:<id>` activation are derived from contributions, so
 manifests must not declare `activationEvents`; conditional `when` clauses are likewise unsupported
