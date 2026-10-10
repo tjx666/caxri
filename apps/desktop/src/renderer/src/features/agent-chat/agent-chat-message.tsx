@@ -86,14 +86,17 @@ export function AgentChatMessage({
 }
 
 /**
- * An Agent reply with its Copy action underneath. The action's row is reserved while the reply streams, so the
- * transcript does not jump when it appears, and it is shown on hover or keyboard focus to keep long transcripts calm.
- * Copy takes the Markdown source, which pastes back into an issue, a document, or another Agent intact.
+ * An Agent reply, with a Copy action underneath when it is the reply that ends a turn. Commentary between tool calls
+ * carries no action row, so a long turn does not reserve empty space under every reply. The action is shown on hover or
+ * keyboard focus to keep long transcripts calm. Copy takes the Markdown source, which pastes back into an issue, a
+ * document, or another Agent intact.
  */
 export function AgentChatReply({
+    canCopy,
     item,
     onOpenFile,
 }: {
+    canCopy: boolean;
     item: Extract<AgentChatItem, { type: 'agentMessage' }>;
     onOpenFile?: (target: string) => void;
 }) {
@@ -105,15 +108,19 @@ export function AgentChatReply({
                 text={item.text}
                 onOpenFile={onOpenFile}
             />
-            <div className="mt-0.5 flex h-6 opacity-0 transition-opacity group-focus-within/reply:opacity-100 group-hover/reply:opacity-100">
-                {!item.streaming && (
-                    <CopyIconButton
-                        className="-ml-1"
-                        copy={() => writeToClipboardWithFeedback(navigator.clipboard, item.text)}
-                        label="Copy message"
-                    />
-                )}
-            </div>
+            {canCopy && (
+                <div className="mt-0.5 flex h-6 opacity-0 transition-opacity group-focus-within/reply:opacity-100 group-hover/reply:opacity-100">
+                    {!item.streaming && (
+                        <CopyIconButton
+                            className="-ml-1"
+                            copy={() =>
+                                writeToClipboardWithFeedback(navigator.clipboard, item.text)
+                            }
+                            label="Copy message"
+                        />
+                    )}
+                </div>
+            )}
         </div>
     );
 }

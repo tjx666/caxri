@@ -224,6 +224,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
                 exitCode: 0,
                 durationMs: 5,
             });
+        // Commentary before the work, which the Chat shows without the Copy action only the final reply carries.
+        await streamMessage(turn, 'Looking around the project.', 0);
         ran('cat src/app.ts', 'export const answer: number = 42;\n');
         ran('git status --short', ' M src/app.ts\n');
         completeItem(turn, {

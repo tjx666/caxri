@@ -13,7 +13,15 @@ type MessageItem = Extract<AgentChatTimelineEntry, { kind: 'item' }>['item'];
  * the rest of the transcript skips rendering entirely.
  */
 const AgentChatMessageItem = memo(
-    ({ item, onOpenFile }: { item: MessageItem; onOpenFile?: (target: string) => void }) => {
+    ({
+        isFinalReply,
+        item,
+        onOpenFile,
+    }: {
+        isFinalReply?: boolean;
+        item: MessageItem;
+        onOpenFile?: (target: string) => void;
+    }) => {
         switch (item.type) {
             case 'userMessage': {
                 return (
@@ -25,7 +33,13 @@ const AgentChatMessageItem = memo(
                 );
             }
             case 'agentMessage': {
-                return <AgentChatReply item={item} onOpenFile={onOpenFile} />;
+                return (
+                    <AgentChatReply
+                        canCopy={isFinalReply === true}
+                        item={item}
+                        onOpenFile={onOpenFile}
+                    />
+                );
             }
             case 'notice': {
                 return <AgentChatNotice item={item} />;
@@ -50,7 +64,13 @@ export function AgentChatTimelineEntryView({
 }): ReactNode {
     switch (entry.kind) {
         case 'item': {
-            return <AgentChatMessageItem item={entry.item} onOpenFile={onOpenFile} />;
+            return (
+                <AgentChatMessageItem
+                    isFinalReply={entry.isFinalReply}
+                    item={entry.item}
+                    onOpenFile={onOpenFile}
+                />
+            );
         }
         case 'work': {
             return <AgentChatWorkGroup items={entry.items} onOpenFile={onOpenFile} />;
