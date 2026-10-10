@@ -26,8 +26,6 @@ import type {
     ChatTaskHistory,
 } from './chat-provider';
 import type { CodexThreadSettings } from './codex-chat-types';
-import type { JsonRpcServerRequest } from './json-rpc-connection';
-import { JsonRpcConnection, JsonRpcRequestError } from './json-rpc-connection';
 import {
     CODEX_COMMANDS,
     CodexDeliveries,

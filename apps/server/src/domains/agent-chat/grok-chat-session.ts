@@ -20,17 +20,24 @@ import type {
     AgentChatProviderSession,
     AgentChatResponse,
     AgentChatSessionHost,
+    ChatInputOptions,
     ChatProcessEnd,
+    ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
-import { grokCommands, grokModelState, grokUsage } from './grok-items';
+import {
+    ACP_PROTOCOL_VERSION,
+    grokCommands,
+    grokInitializeParameters,
+    grokModelState,
+    grokUsage,
+} from './grok-items';
 import { GrokRequestBroker } from './grok-requests';
 import { GrokUpdates, stopReasonStatus } from './grok-updates';
 import type { JsonRpcServerRequest } from './json-rpc-connection';
 import { JsonRpcConnection, JsonRpcRequestError } from './json-rpc-connection';
 import { grokChatSettings } from './launch-settings';
 
-const ACP_PROTOCOL_VERSION = 1;
 const HANDSHAKE_TIMEOUT_MS = 15_000;
 const SESSION_OPEN_TIMEOUT_MS = 30_000;
 const TURN_REQUEST_TIMEOUT_MS = 30_000;
@@ -235,7 +242,7 @@ class GrokChatSession implements AgentChatProviderSession {
     /**
      * Starts a turn with `text`. The prompt request stays open for the whole turn and answers with its stop reason.
      */
-    private prompt(text: string, isCompaction: boolean): void {
+    private prompt(text: string, isCompaction: boolean, options: ChatInputOptions = {}): void {
         const connection = this.requireConnection();
         const turnId = randomUUID();
         this.beginTurn(turnId, isCompaction);
@@ -247,6 +254,7 @@ class GrokChatSession implements AgentChatProviderSession {
                     turnId,
                     type: 'userMessage',
                     text: clip(text, MAX_AGENT_CHAT_TEXT_LENGTH),
+                    ...(options.delivery && { delivery: options.delivery }),
                 },
             },
         ]);
@@ -385,18 +393,7 @@ class GrokChatSession implements AgentChatProviderSession {
         try {
             initialized = await connection.request(
                 'initialize',
-                {
-                    protocolVersion: ACP_PROTOCOL_VERSION,
-                    clientCapabilities: {
-                        fs: { readTextFile: false, writeTextFile: false },
-                        terminal: false,
-                    },
-                    clientInfo: {
-                        name: 'caxri',
-                        title: 'Caxri',
-                        version: this.options.clientVersion,
-                    },
-                },
+                grokInitializeParameters(this.options.clientVersion),
                 HANDSHAKE_TIMEOUT_MS,
             );
         } catch {
@@ -492,7 +489,10 @@ class GrokChatSession implements AgentChatProviderSession {
         return this.open();
     }
 
-    async send(message: AgentChatMessageInput): Promise<void> {
+    async send(
+        message: Omit<AgentChatMessageInput, 'delivery'>,
+        options?: ChatInputOptions,
+    ): Promise<void> {
         if (message.images && message.images.length > 0)
             throw new CaxriError('VALIDATION', 'Grok Build Chat does not accept images');
         const connection = this.requireConnection();
@@ -510,7 +510,7 @@ class GrokChatSession implements AgentChatProviderSession {
                 );
                 // A turn that ended while the interjection was in flight cannot show it; start the next turn instead.
                 if (this.activeTurn !== turn) {
-                    this.prompt(message.text, false);
+                    this.prompt(message.text, false, options);
                     return;
                 }
                 this.options.apply([
@@ -521,6 +521,7 @@ class GrokChatSession implements AgentChatProviderSession {
                             turnId: turn.id,
                             type: 'userMessage',
                             text: clip(message.text, MAX_AGENT_CHAT_TEXT_LENGTH),
+                            delivery: 'steered',
                         },
                     },
                 ]);
@@ -533,10 +534,14 @@ class GrokChatSession implements AgentChatProviderSession {
                     throw new CaxriError('CONFLICT', 'Grok Build could not take this message now');
             }
         }
-        this.prompt(message.text, false);
+        this.prompt(message.text, false, options);
     }
 
-    runCommand(name: string, arguments_: string | undefined): Promise<void> {
+    runCommand(
+        name: string,
+        arguments_: string | undefined,
+        options?: ChatInputOptions,
+    ): Promise<void> {
         if (this.activeTurn)
             return Promise.reject(
                 new CaxriError(
@@ -544,8 +549,19 @@ class GrokChatSession implements AgentChatProviderSession {
                     'Wait for the current turn to finish before running a command',
                 ),
             );
-        this.prompt(slashCommandPrompt(name, arguments_), name === 'compact');
+        this.prompt(slashCommandPrompt(name, arguments_), name === 'compact', options);
         return Promise.resolve();
+    }
+
+    /**
+     * Grok Build Chat projects no background tasks, so there is never one to stop.
+     */
+    stopTask(): Promise<void> {
+        return Promise.reject(new CaxriError('CONFLICT', 'This task is no longer running'));
+    }
+
+    readTaskHistory(): Promise<ChatTaskHistory | undefined> {
+        return Promise.resolve(undefined);
     }
 
     async interrupt(): Promise<void> {

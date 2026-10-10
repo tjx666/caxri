@@ -310,6 +310,19 @@ export function grokCommands(available: unknown): AgentChatCommand[] {
 /**
  * The current model and its context window from a `session/new` or `session/load` result's `models`.
  */
+export const ACP_PROTOCOL_VERSION = 1;
+
+/**
+ * The `initialize` request: Caxri offers no client filesystem or terminal, so Grok Build uses its own tools.
+ */
+export function grokInitializeParameters(clientVersion: string): Json {
+    return {
+        protocolVersion: ACP_PROTOCOL_VERSION,
+        clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+        clientInfo: { name: 'caxri', title: 'Caxri', version: clientVersion },
+    };
+}
+
 export function grokModelState(models: unknown): { model?: string; contextWindow?: number } {
     if (!isRecord(models)) return {};
     const model = stringField(models.currentModelId);

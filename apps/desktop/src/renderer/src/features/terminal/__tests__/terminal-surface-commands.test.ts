@@ -130,7 +130,6 @@ describe('switchTerminalSurfaceTo', () => {
     });
 
     it('leaves a Terminal without a Chat surface alone', () => {
-        expect(switchTerminalSurfaceTo(agentTerminal('grok'), 'chat')).toBeUndefined();
         expect(switchTerminalSurfaceTo(agentTerminal('shell'), 'chat')).toBeUndefined();
     });
 });

@@ -5,9 +5,9 @@ import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
 import type { AgentChatSessionHost, ChatTaskHistory } from './chat-provider';
 import { ChatTaskList } from './chat-tasks';
 import { CodexBackgroundTerminals } from './codex-background-terminals';
-import { JsonRpcRequestError } from './json-rpc-connection';
 import { mapCodexItem } from './codex-items';
 import { historyItems } from './codex-turns';
+import { JsonRpcRequestError } from './json-rpc-connection';
 
 /**
  * Background work of one Codex Chat: subagent threads and background terminals, projected into the parent snapshot's
