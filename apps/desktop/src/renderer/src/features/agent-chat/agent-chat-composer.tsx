@@ -1,7 +1,7 @@
 import type { RefObject } from 'react';
 import { useState } from 'react';
 
-import type { AgentChatCommand } from '@caxri/protocol';
+import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
 import { MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
 import { ArrowUp } from 'lucide-react';
 
@@ -15,7 +15,7 @@ import { AgentChatCommandMenu } from './agent-chat-command-menu';
 import { interruptAgentChat } from './agent-chat-commands';
 import { readAgentChatDraft, writeAgentChatDraft } from './agent-chat-drafts';
 import { isAgentChatInterruptKey, isAgentChatSubmitKey } from './agent-chat-presentation';
-import { completeAgentChatCommand } from './agent-chat-slash-commands';
+import { completeAgentChatAction } from './agent-chat-slash-commands';
 import { AgentChatStopButton } from './agent-chat-stop-button';
 import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
@@ -25,9 +25,9 @@ import { useAgentChatSubmit } from './hooks/use-agent-chat-submit';
 /**
  * Message input. Enter sends, Shift+Enter adds a line. While a turn runs, a message steers it, and Escape or the Stop
  * button that replaces Send while the input is empty interrupts it. Images can be pasted, dropped, or picked when the
- * provider accepts them, and a leading `/` offers the provider's slash commands. It shares the timeline's centered
- * column so the input lines up with the conversation, and keeps attachments, the input, and its actions inside one card
- * so they read as a single control.
+ * provider accepts them, and a leading `/` or `$` offers the provider's commands and the discovered skills. It shares
+ * the timeline's centered column so the input lines up with the conversation, and keeps attachments, the input, and its
+ * actions inside one card so they read as a single control.
  */
 export function AgentChatComposer({
     activeTurnId,
@@ -70,7 +70,11 @@ export function AgentChatComposer({
      */
     const [stoppingTurnId, setStoppingTurnId] = useState<string>();
     const images = useAgentChatAttachments(terminalId);
-    const menu = useAgentChatCommandMenu(draft, commands);
+    const menu = useAgentChatCommandMenu({
+        commands,
+        draft,
+        terminalId,
+    });
     const imageInput = useAgentChatImageInput(supportsImages, images.add);
     const isTurnRunning = activeTurnId !== undefined;
     const isStopping = isTurnRunning && stoppingTurnId === activeTurnId;
@@ -96,14 +100,14 @@ export function AgentChatComposer({
     const submit = async (): Promise<void> => {
         if (isSendable) await submitDraft(draft);
     };
-    const choose = (command: AgentChatCommand): void => {
-        const completed = completeAgentChatCommand(command);
+    const choose = (action: AgentAction): void => {
+        const completed = completeAgentChatAction(action);
         setDraft(() => completed);
         inputReference.current?.focus();
-        // A command without arguments has nothing left to type, so choosing it runs it.
-        if (!canSend || isSending || command.argumentHint) return;
+        // A command without arguments has nothing left to type, so choosing it runs it; a skill waits for the request.
+        if (!canSend || isSending || completed !== action.invocation) return;
         // eslint-disable-next-line no-void -- runCommand reports its own failures through tryCommand
-        void runCommand(completed, { name: command.name });
+        void runCommand(completed, { name: action.invocation.slice(1) });
     };
     const stop = (): void => {
         if (!activeTurnId || isStopping) return;

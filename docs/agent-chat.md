@@ -299,6 +299,13 @@ several callbacks can share one item, so the transport id is never the key.
   Claude Code reports its own list (built-in commands, skills, and custom commands) from the SDK's
   `initialize` response and `commands_changed`, minus the `terminal_slash_commands` that only make
   sense in its terminal UI; the command runs as prompt text, as in Claude Code itself.
+- **Skills.** A leading `/` or `$` also lists the skills the
+  [Agent Commands & Skills](agent-actions.md) picker discovers for this Terminal (`agentActions.list`,
+  after the user's Settings overrides), ranked by the picker's search. Picker-only commands are
+  left out because a Chat runs only what its provider reported, and a skill Claude Code already
+  lists keeps its command row. Choosing a skill inserts its invocation and a space instead of
+  sending: a Codex `$skill` travels as ordinary text, which Codex resolves to the skill the same way
+  its own composer does.
 - `agentChat.runCommand` runs a listed command with optional arguments and rejects anything the
   Chat does not list with `VALIDATION`. In the composer, Arrow keys move through matches, Tab or
   Enter chooses one, and Escape dismisses the list. A command that takes no arguments runs when

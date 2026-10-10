@@ -1,10 +1,10 @@
-import type { AgentChatCommand } from '@caxri/protocol';
+import type { AgentAction } from '@caxri/protocol';
 
 import { cn } from '../../lib/utilities';
 import { agentChatCommandOptionId } from './agent-chat-slash-commands';
 
 /**
- * Slash-command suggestions above the composer. Focus stays in the input, which drives the list through
+ * Command and skill suggestions above the composer. Focus stays in the input, which drives the list through
  * `aria-activedescendant`; the pointer can pick a row too. Rows match the command palette's density and focus fill.
  */
 export function AgentChatCommandMenu({
@@ -15,14 +15,14 @@ export function AgentChatCommandMenu({
     onHover,
 }: {
     activeIndex: number;
-    commands: readonly AgentChatCommand[];
+    commands: readonly AgentAction[];
     listId: string;
-    onChoose: (command: AgentChatCommand) => void;
+    onChoose: (action: AgentAction) => void;
     onHover: (index: number) => void;
 }) {
     return (
         <div
-            aria-label="Commands"
+            aria-label="Commands and skills"
             className="absolute inset-x-0 bottom-full mb-1 max-h-64 overflow-y-auto rounded-md bg-elevated p-1 text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)]"
             id={listId}
             role="listbox"
@@ -35,15 +35,15 @@ export function AgentChatCommandMenu({
                         index === activeIndex &&
                             'bg-list-focus-background text-list-focus-foreground',
                     )}
-                    id={agentChatCommandOptionId(listId, command.name)}
-                    key={command.name}
+                    id={agentChatCommandOptionId(listId, command.invocation)}
+                    key={command.invocation}
                     role="option"
                     // Keeps focus in the input; the click below chooses the row.
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => onChoose(command)}
                     onMouseMove={() => onHover(index)}
                 >
-                    <span className="shrink-0 font-mono">/{command.name}</span>
+                    <span className="shrink-0 font-mono">{command.invocation}</span>
                     {command.argumentHint && (
                         <span className="shrink-0 text-muted">{command.argumentHint}</span>
                     )}
