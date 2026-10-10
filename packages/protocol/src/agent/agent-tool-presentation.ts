@@ -149,6 +149,30 @@ export const describeAgentTool = (
     return { ...known, subject, isCodeSubject: !PROSE_KINDS.has(known.kind) };
 };
 
+/**
+ * Present-tense verbs for work still in progress (`Running git status`), per kind. MCP and unknown tools keep their
+ * label, which names the server or tool rather than an action.
+ */
+const ACTIVE_LABELS: Partial<Record<AgentToolKind, string>> = {
+    agent: 'Running agent',
+    command: 'Running',
+    edit: 'Editing',
+    image: 'Viewing image',
+    list: 'Listing',
+    plan: 'Updating plan',
+    question: 'Asking',
+    read: 'Reading',
+    search: 'Searching',
+    skill: 'Using skill',
+    stop: 'Stopping',
+    thought: 'Thinking',
+    web: 'Browsing',
+    write: 'Writing',
+};
+
+export const agentToolActiveLabel = (presentation: Pick<AgentToolPresentation, 'kind' | 'label'>) =>
+    ACTIVE_LABELS[presentation.kind] ?? presentation.label;
+
 const plural = (count: number, singular: string, pluralForm = `${singular}s`): string =>
     `${count} ${count === 1 ? singular : pluralForm}`;
 

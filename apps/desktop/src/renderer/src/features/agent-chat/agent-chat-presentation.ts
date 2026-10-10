@@ -66,18 +66,68 @@ export function agentChatContextSummary(
 }
 
 /**
- * What the Chat is doing right now, for the activity line. A pending request means the turn is blocked on the user, not
- * working, so it says so instead of spinning.
+ * What a running turn says it is doing. A long turn reads as progress rather than a stall when the line has some life
+ * in it, as Claude Code's spinner does; the words stay calm and never claim a specific step.
  */
-export function agentChatActivityLabel(
-    snapshot: Pick<AgentChatSnapshot, 'status' | 'activeTurnId' | 'requests'> | undefined,
+const WORKING_VERBS = [
+    'Pondering',
+    'Tinkering',
+    'Mulling it over',
+    'Connecting the dots',
+    'Untangling',
+    'Sketching',
+    'Percolating',
+    'Rummaging',
+    'Piecing it together',
+    'Noodling',
+    'Brewing',
+    'Weighing options',
+    'Tracing',
+    'Sleuthing',
+    'Distilling',
+    'Simmering',
+    'Calibrating',
+    'Whittling',
+    'Wrangling',
+    'Conjuring',
+    'Exploring',
+    'Cross-checking',
+    'Lining things up',
+    'Spelunking',
+] as const;
+
+/**
+ * One verb per turn, chosen from its id so it stays put while the turn runs and every client shows the same one.
+ */
+export function agentChatWorkingVerb(turnId: string): string {
+    let hash = 0;
+    for (const character of turnId) hash = (hash * 31 + (character.codePointAt(0) ?? 0)) >>> 0;
+    return WORKING_VERBS[hash % WORKING_VERBS.length] ?? 'Working';
+}
+
+export type AgentChatActivity =
+    | { kind: 'starting'; text: string }
+    | { kind: 'working'; text: string; startedAt: number | undefined }
+    | { kind: 'waiting'; text: string };
+
+/**
+ * What the Chat is doing right now, for the status line on the composer. A pending request means the turn is blocked on
+ * the user, not working, so it says so instead of animating.
+ */
+export function agentChatActivity(
+    snapshot: Pick<AgentChatSnapshot, 'status' | 'activeTurnId' | 'requests' | 'turns'> | undefined,
     providerName: string,
-): { text: string; isBusy: boolean } | undefined {
+): AgentChatActivity | undefined {
     if (!snapshot || snapshot.status === 'starting')
-        return { text: `Starting ${providerName}…`, isBusy: true };
-    if (!snapshot.activeTurnId) return undefined;
-    if (snapshot.requests.length > 0) return { text: 'Waiting for your answer', isBusy: false };
-    return { text: 'Working…', isBusy: true };
+        return { kind: 'starting', text: `Starting ${providerName}…` };
+    const turnId = snapshot.activeTurnId;
+    if (!turnId) return undefined;
+    if (snapshot.requests.length > 0) return { kind: 'waiting', text: 'Waiting for your answer' };
+    return {
+        kind: 'working',
+        text: `${agentChatWorkingVerb(turnId)}…`,
+        startedAt: snapshot.turns.find((turn) => turn.id === turnId)?.startedAt,
+    };
 }
 
 export function isAgentChatTurnRunning(snapshot: AgentChatSnapshot | undefined): boolean {

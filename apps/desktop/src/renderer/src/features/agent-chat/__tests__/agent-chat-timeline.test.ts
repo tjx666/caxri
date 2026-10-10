@@ -4,9 +4,11 @@ import { describe, expect, it } from 'vitest';
 import type { AgentChatTimelineEntry } from '../agent-chat-timeline';
 import {
     agentChatOutputLanguage,
+    agentChatReasoningTitle,
     agentChatTurnLabel,
     buildAgentChatTimeline,
     describeAgentChatWork,
+    splitAgentChatWork,
     stripLineNumberGutter,
     summarizeAgentChatWork,
 } from '../agent-chat-timeline';
@@ -205,5 +207,66 @@ describe('stripLineNumberGutter', () => {
     it("drops Claude Code's Read line numbers only when every line has one", () => {
         expect(stripLineNumberGutter('     1→const a = 1;\n     2→\n')).toBe('const a = 1;\n\n');
         expect(stripLineNumberGutter('1→a\nplain')).toBe('1→a\nplain');
+    });
+});
+
+describe('agentChatReasoningTitle', () => {
+    it('names a thought by its latest Codex summary title', () => {
+        expect(agentChatReasoningTitle('**Planning the fix**\n\nRead the parser first.')).toEqual({
+            title: 'Planning the fix',
+            body: 'Read the parser first.',
+        });
+        const twoParts = '**Reading code**\n\nOpened it.\n\n**Writing tests**\n\nAdded one.';
+        expect(agentChatReasoningTitle(twoParts)).toEqual({
+            title: 'Writing tests',
+            body: twoParts,
+        });
+        expect(agentChatReasoningTitle('Plain **bold** thought')).toEqual({
+            body: 'Plain **bold** thought',
+        });
+    });
+
+    it('shows the title beside the Thinking verb', () => {
+        expect(
+            describeAgentChatWork({
+                id: 'r',
+                type: 'reasoning',
+                text: '**Tracing the bug**\n\n',
+                streaming: true,
+            }),
+        ).toEqual({
+            kind: 'thought',
+            label: 'Thinking',
+            subject: 'Tracing the bug',
+            isCodeSubject: false,
+        });
+    });
+});
+
+describe('splitAgentChatWork', () => {
+    const thought = { id: 't', type: 'reasoning' as const, text: '**Plan**', streaming: false };
+    const ran = (id: string, status: 'running' | 'completed') => ({
+        id,
+        type: 'command' as const,
+        command: 'ls',
+        status,
+        output: '',
+    });
+    const ids = (split: ReturnType<typeof splitAgentChatWork>) => ({
+        summarized: split.summarized.map((item) => item.id),
+        rows: split.rows.map((item) => item.id),
+    });
+
+    it('keeps a thought and a lone call as rows', () => {
+        const split = splitAgentChatWork([thought, ran('a', 'completed')]);
+        expect(ids(split)).toEqual({ summarized: [], rows: ['t', 'a'] });
+    });
+
+    it('summarizes two settled calls and keeps running work as a live row', () => {
+        const items = [thought, ran('a', 'completed'), ran('b', 'completed'), ran('c', 'running')];
+        expect(ids(splitAgentChatWork(items))).toEqual({
+            summarized: ['t', 'a', 'b'],
+            rows: ['c'],
+        });
     });
 });

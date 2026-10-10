@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { memo, useId, useMemo, useState } from 'react';
 
 import type { AgentToolKind } from '@caxri/protocol';
-import { formatShortDuration, unwrapShellCommand } from '@caxri/protocol';
+import { agentToolActiveLabel, formatShortDuration, unwrapShellCommand } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import {
     Bot,
@@ -28,7 +28,6 @@ import {
 import { DiffStat } from '../../components/diff-stat';
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { CodeView } from '../../components/markdown/code-view';
-import { Spinner } from '../../components/ui/spinner';
 import { diffStatLabel } from '../../lib/diff-stat-label';
 import { cn } from '../../lib/utilities';
 import { agentChatFileChangesStat } from './agent-chat-diff';
@@ -38,8 +37,11 @@ import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import type { AgentChatWorkItem } from './agent-chat-timeline';
 import {
     agentChatOutputLanguage,
+    agentChatReasoningTitle,
     agentChatWorkKind,
     describeAgentChatWork,
+    isAgentChatWorkRunning,
+    splitAgentChatWork,
     stripLineNumberGutter,
     summarizeAgentChatWork,
 } from './agent-chat-timeline';
@@ -123,11 +125,16 @@ function DisclosureRow({
     );
 }
 
-function WorkGlyph({ kind, isRunning }: { kind: AgentToolKind | undefined; isRunning: boolean }) {
-    if (isRunning) return <Spinner className="size-3.5" />;
+function WorkGlyph({ kind }: { kind: AgentToolKind | undefined }) {
     const Icon = kind ? WORK_ICONS[kind] : Layers;
     return <Icon aria-hidden="true" className="size-3.5" />;
 }
+
+/**
+ * Work still running keeps its tool glyph and sweeps a highlight across its verb instead of swapping in a spinner, so a
+ * column of rows does not flicker as each one starts and ends.
+ */
+const RUNNING_LABEL_CLASS_NAME = 'activity-shimmer';
 
 /**
  * A command the row title can show in full is not repeated as its own block; a long or multi-line one is.
@@ -155,7 +162,7 @@ function WorkDetail({
                 <AgentChatMessage
                     className="text-muted"
                     isStreaming={item.streaming}
-                    text={item.text}
+                    text={agentChatReasoningTitle(item.text).body}
                     onOpenFile={onOpenFile}
                 />
             );
@@ -231,7 +238,7 @@ const AgentChatWorkRow = memo(
     ({ item, onOpenFile }: { item: AgentChatWorkItem; onOpenFile?: (target: string) => void }) => {
         const presentation = describeAgentChatWork(item);
         const status = item.type === 'reasoning' ? undefined : item.status;
-        const isRunning = item.type === 'reasoning' ? item.streaming : item.status === 'running';
+        const isRunning = isAgentChatWorkRunning(item);
         const duration =
             (item.type === 'command' || item.type === 'toolCall') && (item.durationMs ?? 0) >= 1000
                 ? formatShortDuration(item.durationMs)
@@ -239,10 +246,12 @@ const AgentChatWorkRow = memo(
         return (
             <DisclosureRow
                 disclosureKind="agent-chat-item"
-                glyph={<WorkGlyph isRunning={isRunning} kind={presentation.kind} />}
+                glyph={<WorkGlyph kind={presentation.kind} />}
                 title={
                     <>
-                        <span className="shrink-0">{presentation.label}</span>
+                        <span className={cn('shrink-0', isRunning && RUNNING_LABEL_CLASS_NAME)}>
+                            {isRunning ? agentToolActiveLabel(presentation) : presentation.label}
+                        </span>
                         {presentation.subject && (
                             <span
                                 className={cn(
@@ -273,26 +282,20 @@ const AgentChatWorkRow = memo(
 );
 
 /**
- * Consecutive work collapses into one summary row (`Ran 3 commands, read 2 files`) that lists each piece when expanded.
- * A lone piece of work renders as its own row.
+ * Settled work as one summary row (`Ran 3 commands, read 2 files`) that lists each piece when expanded.
  */
-export function AgentChatWorkGroup({
+function AgentChatWorkSummary({
     items,
     onOpenFile,
 }: {
     items: readonly AgentChatWorkItem[];
     onOpenFile?: (target: string) => void;
 }) {
-    const only = items.at(0);
-    if (only && items.length === 1) return <AgentChatWorkRow item={only} onOpenFile={onOpenFile} />;
-    const isRunning = items.some((item) =>
-        item.type === 'reasoning' ? item.streaming : item.status === 'running',
-    );
     const hasFailure = items.some((item) => item.type !== 'reasoning' && item.status === 'failed');
     return (
         <DisclosureRow
             disclosureKind="agent-chat-work-group"
-            glyph={<WorkGlyph isRunning={isRunning} kind={agentChatWorkKind(items)} />}
+            glyph={<WorkGlyph kind={agentChatWorkKind(items)} />}
             title={<span className="min-w-0 truncate">{summarizeAgentChatWork(items)}</span>}
             trailing={hasFailure && <AgentChatStatusGlyph status="failed" />}
         >
@@ -302,5 +305,29 @@ export function AgentChatWorkGroup({
                 ))}
             </div>
         </DisclosureRow>
+    );
+}
+
+/**
+ * A run of consecutive work. Settled tool calls collapse into a summary row; a lone call, a thought, and anything still
+ * running render as their own rows (see `splitAgentChatWork`).
+ */
+export function AgentChatWorkGroup({
+    items,
+    onOpenFile,
+}: {
+    items: readonly AgentChatWorkItem[];
+    onOpenFile?: (target: string) => void;
+}) {
+    const { summarized, rows } = splitAgentChatWork(items);
+    return (
+        <div className="flex flex-col">
+            {summarized.length > 0 && (
+                <AgentChatWorkSummary items={summarized} onOpenFile={onOpenFile} />
+            )}
+            {rows.map((item) => (
+                <AgentChatWorkRow item={item} key={item.id} onOpenFile={onOpenFile} />
+            ))}
+        </div>
     );
 }

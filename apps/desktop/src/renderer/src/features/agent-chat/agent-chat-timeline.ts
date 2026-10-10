@@ -152,6 +152,23 @@ export function buildAgentChatTimeline(
     return entries;
 }
 
+const REASONING_TITLE = /^\*\*([^*\n]+)\*\*[ \t]*$/gmu;
+
+/**
+ * Codex opens each reasoning summary part with a bold title line (`**Planning the fix**`). The row shows the latest
+ * title, which is what the Agent is thinking about now, as the Codex app does. A summary with a single leading title
+ * drops it from the expanded text so it is not read twice; several titles stay as the text's own section headings.
+ */
+export function agentChatReasoningTitle(text: string): { title?: string; body: string } {
+    const titles = text.matchAll(REASONING_TITLE).toArray();
+    const last = titles.at(-1);
+    if (!last?.[1]) return { body: text };
+    const title = last[1].trim();
+    return titles.length === 1 && last.index === 0
+        ? { title, body: text.slice(last[0].length).trimStart() }
+        : { title, body: text };
+}
+
 /**
  * The kind, verb, and subject a work row shows. Commands and file changes are first-class items rather than named
  * tools, so they are described here; every other tool goes through the shared provider tool table.
@@ -159,9 +176,11 @@ export function buildAgentChatTimeline(
 export function describeAgentChatWork(item: AgentChatWorkItem): AgentToolPresentation {
     switch (item.type) {
         case 'reasoning': {
+            const { title } = agentChatReasoningTitle(item.text);
             return {
                 kind: 'thought',
                 label: item.streaming ? 'Thinking' : 'Thought',
+                ...(title && { subject: title }),
                 isCodeSubject: false,
             };
         }
@@ -183,6 +202,26 @@ export function describeAgentChatWork(item: AgentChatWorkItem): AgentToolPresent
             };
         }
     }
+}
+
+export const isAgentChatWorkRunning = (item: AgentChatWorkItem): boolean =>
+    item.type === 'reasoning' ? item.streaming : item.status === 'running';
+
+/**
+ * How a run of work renders: settled work collapses into one summary row once it holds at least two tool calls
+ * (reasoning alone never earns a summary, which would hide the thought's title), and work still running stays out of
+ * the summary as its own live rows, so the step in progress is always readable.
+ */
+export function splitAgentChatWork(items: readonly AgentChatWorkItem[]): {
+    summarized: readonly AgentChatWorkItem[];
+    rows: readonly AgentChatWorkItem[];
+} {
+    const settled = items.filter((item) => !isAgentChatWorkRunning(item));
+    const live = items.filter((item) => isAgentChatWorkRunning(item));
+    const toolCount = settled.filter((item) => item.type !== 'reasoning').length;
+    return toolCount >= 2
+        ? { summarized: settled, rows: live }
+        : { summarized: [], rows: [...settled, ...live] };
 }
 
 /**

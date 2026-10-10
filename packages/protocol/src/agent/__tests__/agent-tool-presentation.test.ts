@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    agentToolActiveLabel,
     describeAgentTool,
     formatShortDuration,
     summarizeAgentToolGroup,
@@ -121,5 +122,19 @@ describe('formatShortDuration', () => {
         expect(formatShortDuration(45_000)).toBe('45s');
         expect(formatShortDuration(120_000)).toBe('2m');
         expect(formatShortDuration(121_000)).toBe('2m 1s');
+    });
+});
+
+describe('agentToolActiveLabel', () => {
+    it('uses a present-tense verb while the work runs', () => {
+        expect(agentToolActiveLabel(describeAgentTool({ name: 'Bash', summary: 'ls' }))).toBe(
+            'Running',
+        );
+        expect(agentToolActiveLabel(describeAgentTool({ name: 'Read', summary: '/a.ts' }))).toBe(
+            'Reading',
+        );
+        expect(agentToolActiveLabel(describeAgentTool({ name: 'docs/search', summary: 'x' }))).toBe(
+            'docs',
+        );
     });
 });

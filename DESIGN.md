@@ -699,7 +699,7 @@ enter `--motion-tab-enter` (140ms, ease-out) and exit `--motion-tab-exit` (110ms
 shared chrome tab indicator moves with `--motion-chrome-switch` (160ms,
 `--motion-ease-emphasized`); overlays enter `--motion-overlay-enter` (150ms) and exit
 `--motion-overlay-exit` (100ms); `Compacting` pulses on `--motion-compaction-pulse` (1800ms,
-ease-in-out). JS resolves tokens through `lib/motion.ts` (`motionDurationMs`);
+ease-in-out); live Agent Chat text sweeps on `--motion-activity-shimmer` (2200ms, linear). JS resolves tokens through `lib/motion.ts` (`motionDurationMs`);
 settlement fallbacks are token plus a safety margin (`motionSettleTimeoutMs`), never an independent
 literal.
 
@@ -716,14 +716,17 @@ motion belongs to the ring, never the Agent mark itself; swapping among the thre
 remains instant.
 
 The work-tab `Compacting` accessory is the other state-motion exception: only that word pulses,
-while the Agent icon, Session title, focus accent, and neighboring tabs remain still. Hovered or
+while the Agent icon, Session title, focus accent, and neighboring tabs remain still. Live Agent Chat work is the third: a highlight sweeps across the text of what is still running
+(a running tool's verb, `Thinking`, the composer's working line) through the `.activity-shimmer`
+class, and the Stop button's arc circles while the turn works. The row's tool glyph never swaps
+for a spinner, so a column of rows does not flicker as each starts and ends. Hovered or
 keyboard-focused clipped sidebar titles may scroll solely to reveal their text, as described above.
 
 `prefers-reduced-motion: reduce` completes every layer instantly: overlay keyframes are gated
 behind `motion-safe:` variants (the library ships no media query of its own, and a
 `motion-reduce:animate-none` override would lose the specificity fight against the `data-open:`
 attribute variant), disclosure CSS zeroes its durations, Session status icons keep their base shape
-but stop moving, the `Compacting` word stays high-contrast and static, and Motion durations come
+but stop moving, the `Compacting` word stays high-contrast and static, Chat shimmer text and the Stop arc stay still, and Motion durations come
 from the shared `useShouldReduceMotion` hook
 (`hooks/use-should-reduce-motion.ts`, the only sanctioned way to read the preference in JS),
 without changing focus, selection, command, query, or lifecycle behavior.
@@ -957,7 +960,12 @@ with its remove control inset in the top-right corner), a borderless auto-growin
 action row: Attach images on the left, the model and context summary right-aligned in `--muted`, and
 a single primary action slot. That slot shows Stop while a turn runs and the input is empty, and
 Send (steering the running turn) as soon as there is content; the two never sit side by side.
-Escape interrupts a running turn regardless. Reference: T3 Code's Chat composer.
+Escape interrupts a running turn regardless. While the Chat starts, works, or waits on an answer, a
+28px status tab sits on top of the card, inset 12px on each side: a spinner (or a `--warning`
+question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
+stop` right-aligned. A working turn's label is one playful verb chosen per turn (`Pondering…`),
+so a long turn reads as progress rather than a stall. References: T3 Code's Chat composer, Claude
+Code's spinner verbs, and LobeHub's status tab and ringed Stop button.
 
 **Agent Chat timeline**: work is secondary to the conversation. Every command, tool call, file
 change, and thought is one 12px `--muted` disclosure row: the tool kind's glyph (the same table the
