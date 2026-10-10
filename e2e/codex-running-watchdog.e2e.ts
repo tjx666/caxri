@@ -104,7 +104,8 @@ process.stdout.write('Watchdog Agent ready\r\n');
         await terminalInput.press('s');
         const sessionStatus = sessionRow.locator('.session-status');
         await expect(sessionStatus).toHaveAttribute('data-session-status', 'running');
-        await expect(sessionStatus).toHaveAccessibleName('Working. The Agent is running.');
+        await expect(sessionStatus).toHaveAccessibleName('Working');
+        await expect(sessionStatus).toHaveAccessibleDescription('The Agent is running.');
         await terminalInput.press('f');
         await expect(sessionStatus).toHaveAttribute('data-session-status', 'default');
         const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
@@ -282,7 +283,8 @@ process.stdout.write('Start recovery Agent ready\r\n');
         await expect(sessionStatus).toHaveAttribute('data-session-status', 'default');
         await terminalInput.press('s');
         await expect(sessionStatus).toHaveAttribute('data-session-status', 'running');
-        await expect(sessionStatus).toHaveAccessibleName('Working. The Agent is running.');
+        await expect(sessionStatus).toHaveAccessibleName('Working');
+        await expect(sessionStatus).toHaveAccessibleDescription('The Agent is running.');
         await sessionRow.screenshot({
             path: testInfo.outputPath('codex-lost-start-recovered.png'),
         });

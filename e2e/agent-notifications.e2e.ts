@@ -430,7 +430,8 @@ process.stdout.write('Fake Claude subagent lifecycle ready\r\n');
         const sourceRow = running.page.locator(`[data-session-id="${sourceSessionId}"]`);
         const sourceStatus = sourceRow.locator('.session-status');
         await expect(sourceStatus).toHaveAttribute('data-session-status', 'running');
-        await expect(sourceStatus).toHaveAccessibleName('Working. The Agent is running.');
+        await expect(sourceStatus).toHaveAccessibleName('Working');
+        await expect(sourceStatus).toHaveAccessibleDescription('The Agent is running.');
 
         await writeFile(join(config, 'subagent-started'), '', 'utf8');
         await waitForReceipt(join(config, 'subagent-started.receipt'));
