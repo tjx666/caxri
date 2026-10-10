@@ -6,6 +6,7 @@ import type { Page } from '@playwright/test';
 
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { chooseContextMenuItem } from './support/native-context-menu.ts';
 
 /**
  * Session ids of the rows the Pinned group currently renders, in the order it renders them.
@@ -259,6 +260,46 @@ test('an over-full Pinned group closes with a reveal row instead of burying ever
         await expect(
             page.locator(`.pinned-session-group [data-session-id="${pinnedIds[4]}"]`),
         ).toBeFocused();
+    } finally {
+        await running.app.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test('a row clicked, then pinned from its context menu, does not come back wearing the keyboard focus ring', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-session-pinning-focus-e2e-'));
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const running = await launchCaxri({
+        userDataDir: join(directory, 'profile'),
+        testRootPath: root,
+    });
+    try {
+        const { page } = running;
+        await createProjectSession(page);
+        const bootstrap = await pageRequest<{ sessions: Array<{ id: string }> }>(
+            page,
+            'app.bootstrap',
+        );
+        const sessionId = bootstrap.sessions[0].id;
+        const card = page.locator(`.project-group [data-session-id="${sessionId}"]`);
+        await card.click();
+        /*
+         * Any keypress after the click (the Cmd of a Cmd+Tab away and back is enough) switches Chromium's modality to
+         * keyboard. The context menu is then opened without a renderer mouse event, which is what a right-click on an
+         * inactive macOS window delivers, so the last modality is still the keyboard's when the pinned row is focused.
+         */
+        await page.keyboard.press('Shift');
+        await card.evaluate((element) =>
+            element.dispatchEvent(
+                new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }),
+            ),
+        );
+        await chooseContextMenuItem(running.app, 'Pin Session');
+
+        const pinned = page.locator(`.pinned-session-group [data-session-id="${sessionId}"]`);
+        await expect(pinned).toBeFocused();
+        expect(await pinned.evaluate((element) => element.matches(':focus-visible'))).toBe(false);
     } finally {
         await running.app.close();
         await rm(directory, { recursive: true, force: true });
