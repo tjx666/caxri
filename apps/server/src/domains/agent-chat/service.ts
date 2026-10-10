@@ -469,7 +469,7 @@ export class AgentChatService {
                 this.state(terminalId).projection.snapshot,
                 change,
             );
-            if (config.model || config.effort) await session.configure(config);
+            if (config.model || config.effort) await session.configure?.(config);
         });
     }
 

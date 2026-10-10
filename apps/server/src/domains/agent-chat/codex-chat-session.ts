@@ -27,8 +27,6 @@ import type {
     ChatTaskHistory,
 } from './chat-provider';
 import type { CodexThreadSettings } from './codex-chat-types';
-import type { CodexServerRequest } from './codex-connection';
-import { CodexConnection, CodexRequestError } from './codex-connection';
 import {
     CODEX_COMMANDS,
     CodexDeliveries,
@@ -50,6 +48,8 @@ import { CodexModelSettings } from './codex-models';
 import { CodexTasks } from './codex-tasks';
 import { initializeCodexConnection, openCodexThread } from './codex-thread-open';
 import { finishedTurnOperations, historyOperations } from './codex-turns';
+import type { JsonRpcServerRequest } from './json-rpc-connection';
+import { JsonRpcConnection, JsonRpcRequestError } from './json-rpc-connection';
 import { codexChatSettings, REAL_E2E_CODEX_CHAT_SETTINGS } from './launch-settings';
 
 const TURN_REQUEST_TIMEOUT_MS = 30_000;
@@ -75,7 +75,7 @@ interface PendingRequest {
 class CodexChatSession implements AgentChatProviderSession {
     private readonly settings: CodexThreadSettings;
 
-    private connection: CodexConnection | undefined;
+    private connection: JsonRpcConnection | undefined;
 
     private threadId: string | undefined;
 
@@ -111,7 +111,7 @@ class CodexChatSession implements AgentChatProviderSession {
         this.models = new CodexModelSettings(options);
     }
 
-    private requireConnection(): CodexConnection {
+    private requireConnection(): JsonRpcConnection {
         if (!this.connection?.isOpen || !this.threadId)
             throw new CaxriError('UNAVAILABLE', 'Codex Chat is not running');
         return this.connection;
@@ -307,7 +307,7 @@ class CodexChatSession implements AgentChatProviderSession {
         ]);
     }
 
-    private onServerRequest(request: CodexServerRequest): void {
+    private onServerRequest(request: JsonRpcServerRequest): void {
         const connection = this.connection;
         if (!connection) return;
         const kind = codexRequestKind(request.method);
@@ -407,7 +407,8 @@ class CodexChatSession implements AgentChatProviderSession {
 
     private async open(): Promise<'resumed' | 'started'> {
         let spawnFailure: ChatProcessEnd | undefined;
-        const connection = new CodexConnection({
+        const connection = new JsonRpcConnection({
+            label: 'Codex app-server',
             executable: this.options.executable,
             args: [...this.settings.rootArgs, 'app-server', '--listen', 'stdio://'],
             cwd: this.options.cwd,
@@ -489,7 +490,7 @@ class CodexChatSession implements AgentChatProviderSession {
                  * precondition and the message starts the next turn instead of being lost. It was not steered after
                  * all, so its echo carries no marker.
                  */
-                if (!(error instanceof CodexRequestError)) throw error;
+                if (!(error instanceof JsonRpcRequestError)) throw error;
                 if (!isSteerTargetGone(error))
                     throw new CaxriError(
                         'CONFLICT',
