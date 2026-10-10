@@ -5,10 +5,12 @@ import type {
     AgentChatPlan,
     AgentChatRequest,
     AgentChatSnapshot,
+    ProcessState,
 } from '@caxri/protocol';
 import { agentToolActiveLabel, describeAgentTool, findAgentChatModel } from '@caxri/protocol';
 
 import { projectRelativePath } from '../../lib/file-path';
+import { getTerminalExitPresentation } from '../terminal/terminal-exit-presentation';
 
 /**
  * User-facing copy for each closed failure reason. Provider text never selects the message; `detail` is shown beside it
@@ -43,11 +45,78 @@ export function agentChatFailureMessage(
 /**
  * Whether the composer accepts a message. A stopped Chat resumes its Agent Session on the next message, a starting one
  * queues the message on Server Core until the provider is ready (opening a Chat and typing at once must not drop the
- * first Enter), and a running turn accepts a message into its queue or as steering. Only a failed provider, or a Chat
- * not loaded yet, refuses input.
+ * first Enter), and a running turn accepts a message into its queue or as steering. A failed provider, a Chat not
+ * loaded yet, or one handed to another client refuses input. The hand-over lives only on the Terminal record
+ * (`processState` is its `lastProcessState`): the projection of a detached Chat still reads `stopped`, yet Server Core
+ * rejects its input until the user resumes it, so without this check Enter would fail instead of the pane saying why.
  */
-export function canSendAgentChatMessage(snapshot: AgentChatSnapshot | undefined): boolean {
-    return snapshot !== undefined && snapshot.status !== 'failed';
+export function canSendAgentChatMessage(
+    snapshot: AgentChatSnapshot | undefined,
+    processState: ProcessState | undefined,
+): boolean {
+    return snapshot !== undefined && snapshot.status !== 'failed' && processState !== 'detached';
+}
+
+/**
+ * The placeholder an empty transcript shows, or `undefined` while it should stay blank (still loading or starting). A
+ * detached Chat dropped its projection when it stopped, so after a remount it has nothing to show until the Session
+ * resumes; saying so, as the phone does, keeps the blank transcript from reading as lost history.
+ */
+export function agentChatEmptyMessage(
+    snapshot: Pick<AgentChatSnapshot, 'items' | 'status'> | undefined,
+    processState: ProcessState | undefined,
+    providerName: string,
+): string | undefined {
+    if (!snapshot || snapshot.items.length > 0) return undefined;
+    if (processState === 'detached') return 'Messages appear here once the Chat resumes.';
+    return snapshot.status === 'ready'
+        ? `Send a message to start working with ${providerName}.`
+        : undefined;
+}
+
+/**
+ * Why the Chat cannot continue here, for the banner above the composer. `recovery` is what its one action does:
+ * `restart` relaunches the provider on its bound conversation, which clears a failure and ends a hand-over; `reload`
+ * reads a projection that never loaded again.
+ */
+export interface AgentChatRecoveryNotice {
+    kind: 'detached' | 'failed';
+    message: string;
+    detail?: string;
+    recovery: 'reload' | 'restart';
+}
+
+/**
+ * The banner the Chat shows instead of a working composer, or `undefined` when it can continue. A detached Chat uses
+ * the PTY recovery bar's copy, so both Terminal surfaces describe a hand-over the same way. The hand-over wins over a
+ * provider failure: it is the newer fact, and the same restart recovers both.
+ */
+export function agentChatRecoveryNotice(
+    snapshot: Pick<AgentChatSnapshot, 'failure' | 'status'> | undefined,
+    state: { isLoadError: boolean; processState: ProcessState | undefined },
+    providerName: string,
+): AgentChatRecoveryNotice | undefined {
+    if (state.processState === 'detached')
+        return {
+            kind: 'detached',
+            message: getTerminalExitPresentation('detached')?.label ?? 'Detached',
+            recovery: 'restart',
+        };
+    const isFailed = snapshot?.status === 'failed';
+    if (!isFailed && !state.isLoadError) return undefined;
+    /**
+     * A failed provider stays failed on read so a broken CLI is not relaunched by every render; only a restart clears
+     * the failure and resumes the bound conversation.
+     */
+    const recovery = isFailed ? 'restart' : 'reload';
+    if (!snapshot?.failure)
+        return { kind: 'failed', message: 'The conversation could not be loaded.', recovery };
+    return {
+        kind: 'failed',
+        message: agentChatFailureMessage(snapshot.failure.reason, providerName),
+        ...(snapshot.failure.detail && { detail: snapshot.failure.detail }),
+        recovery,
+    };
 }
 
 /**

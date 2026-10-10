@@ -1,16 +1,29 @@
 import process from 'node:process';
 
-import { defaultAppSettings } from '@caxri/protocol';
+import type { AppSettings } from '@caxri/protocol';
+import { appSettingsSchema, defaultAppSettings } from '@caxri/protocol';
 import { redactLogValue, redactSecrets } from '@caxri/system';
 import { describe, expect, it } from 'vitest';
 
 import {
-    diagnosticSettings,
+    diagnosticSettingsFile,
     normalizeHome,
     pickDiagnosticLogNames,
     summarizePerformanceLogs,
     summarizeRecentErrorIds,
 } from '../diagnostics';
+
+/**
+ * The subset of `diagnostics/settings.json` these assertions read; the assertions themselves check the content.
+ */
+interface ExportedSettings {
+    'agents.delegation': unknown;
+    'agents.providers': Record<string, { launch: { args: unknown }; recovery: unknown }>;
+}
+
+function parseExport(file: string): ExportedSettings {
+    return JSON.parse(file) as ExportedSettings;
+}
 
 describe('diagnostics redaction', () => {
     it('redacts secret-like keys and values', () => {
@@ -45,10 +58,119 @@ describe('diagnostics redaction', () => {
             continueDelayMs: 750,
         };
 
-        const exported = JSON.stringify(diagnosticSettings(settings));
+        const exported = diagnosticSettingsFile(settings);
 
         expect(exported).not.toContain('private proxy timeout text');
-        expect(exported).toContain('"patternCount":1');
+        expect(parseExport(exported)['agents.providers'].codex.recovery).toEqual({
+            enabled: true,
+            patternCount: 1,
+            settleDelayMs: 500,
+            continueDelayMs: 750,
+        });
+    });
+
+    it('excludes delegation prompt text and launch credentials while keeping routing shape', () => {
+        const settings = structuredClone(defaultAppSettings);
+        settings['agents.delegation'] = {
+            maxDepth: 3,
+            presets: [
+                {
+                    name: 'reviewer',
+                    provider: 'codex',
+                    model: 'gpt-5.5',
+                    effort: 'high',
+                    useWhen: 'SENTINEL_PRESET_USE_WHEN',
+                    dontUseWhen: 'SENTINEL_PRESET_DONT_USE_WHEN',
+                    instructions: 'SENTINEL_PRESET_INSTRUCTIONS',
+                },
+            ],
+            callers: {
+                claude: {
+                    presets: {
+                        reviewer: {
+                            provider: 'grok',
+                            effort: 'low',
+                            useWhen: 'SENTINEL_BINDING_USE_WHEN',
+                        },
+                    },
+                    exclude: [],
+                    prepend: 'SENTINEL_CALLER_PREPEND',
+                    append: 'SENTINEL_CALLER_APPEND',
+                },
+            },
+        };
+        settings['agents.providers'].claude.launch.args = [
+            '--model',
+            'opus',
+            '--api-key',
+            'SENTINEL_KEY',
+        ];
+
+        const exported = diagnosticSettingsFile(settings);
+
+        expect(exported).not.toMatch(/SENTINEL/u);
+        const parsed = parseExport(exported);
+        expect(parsed['agents.delegation']).toEqual({
+            maxDepth: 3,
+            presets: [
+                {
+                    name: 'reviewer',
+                    provider: 'codex',
+                    model: 'gpt-5.5',
+                    effort: 'high',
+                    useWhen: { redacted: true, length: 'SENTINEL_PRESET_USE_WHEN'.length },
+                    dontUseWhen: {
+                        redacted: true,
+                        length: 'SENTINEL_PRESET_DONT_USE_WHEN'.length,
+                    },
+                    instructions: {
+                        redacted: true,
+                        length: 'SENTINEL_PRESET_INSTRUCTIONS'.length,
+                    },
+                },
+            ],
+            callers: {
+                claude: {
+                    presets: {
+                        reviewer: {
+                            provider: 'grok',
+                            effort: 'low',
+                            useWhen: {
+                                redacted: true,
+                                length: 'SENTINEL_BINDING_USE_WHEN'.length,
+                            },
+                        },
+                    },
+                    exclude: [],
+                    prepend: { redacted: true, length: 'SENTINEL_CALLER_PREPEND'.length },
+                    append: { redacted: true, length: 'SENTINEL_CALLER_APPEND'.length },
+                },
+            },
+        });
+        expect(parsed['agents.providers'].claude.launch.args).toEqual([
+            '--model',
+            'opus',
+            '--api-key',
+            '[REDACTED]',
+        ]);
+    });
+
+    it('declares an export rule for exactly the settings schema keys', () => {
+        const exported = parseExport(diagnosticSettingsFile(defaultAppSettings));
+        const byCodePoint = (left: string, right: string): number => left.localeCompare(right);
+
+        expect(Object.keys(exported).toSorted(byCodePoint)).toEqual(
+            Object.keys(appSettingsSchema.shape).toSorted(byCodePoint),
+        );
+    });
+
+    it('drops a settings key that has no declared export rule', () => {
+        const settings = {
+            ...structuredClone(defaultAppSettings),
+            'future.privateNote': 'SENTINEL_UNCLASSIFIED',
+        } as AppSettings;
+
+        expect(diagnosticSettingsFile(settings)).not.toContain('SENTINEL_UNCLASSIFIED');
     });
 
     it.each([

@@ -12,6 +12,7 @@ import { ZipArchive } from 'archiver';
 
 import { commanderDiagnostics } from './commander';
 import type { CaxriDatabase } from './db';
+import { diagnosticSettings } from './diagnostic-settings';
 import type { WatchHubSnapshot } from './watch-hub';
 
 /**
@@ -48,26 +49,11 @@ function json(value: unknown): string {
 }
 
 /**
- * Keeps recovery configuration useful for support while ensuring user-authored output text never enters an export.
+ * Exact `diagnostics/settings.json` content: the explicit per-key projection removes Agent prompt text and argv
+ * credentials, then the generic pass redacts secret-named keys, token-shaped values, and home paths.
  */
-export function diagnosticSettings(settings: AppSettings): unknown {
-    return {
-        ...settings,
-        'agents.providers': Object.fromEntries(
-            Object.entries(settings['agents.providers']).map(([provider, value]) => [
-                provider,
-                {
-                    ...value,
-                    recovery: {
-                        enabled: value.recovery.enabled,
-                        patternCount: value.recovery.patterns.length,
-                        settleDelayMs: value.recovery.settleDelayMs,
-                        continueDelayMs: value.recovery.continueDelayMs,
-                    },
-                },
-            ]),
-        ),
-    };
+export function diagnosticSettingsFile(settings: AppSettings): string {
+    return json(diagnosticSettings(settings));
 }
 
 interface PerformanceAggregate {
@@ -288,7 +274,7 @@ export class DiagnosticsService {
             })),
         );
         const performance = summarizePerformanceLogs(redactedLogs.map((log) => log.content));
-        const settings = diagnosticSettings(this.getSettings());
+        const settings = diagnosticSettingsFile(this.getSettings());
 
         await new Promise<void>((resolve, reject) => {
             const output = createWriteStream(destination, { mode: 0o600 });
@@ -320,9 +306,7 @@ export class DiagnosticsService {
             archive.append(json(projects), { name: 'diagnostics/projects.json' });
             archive.append(json(sessions), { name: 'diagnostics/sessions.json' });
             archive.append(json(terminals), { name: 'diagnostics/terminals.json' });
-            archive.append(json(settings), {
-                name: 'diagnostics/settings.json',
-            });
+            archive.append(settings, { name: 'diagnostics/settings.json' });
             archive.append(json(performance), { name: 'diagnostics/performance.json' });
             for (const log of redactedLogs)
                 archive.append(log.content, { name: `diagnostics/logs/${log.name}` });

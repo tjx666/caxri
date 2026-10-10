@@ -65,7 +65,7 @@ before selecting that Session's primary Agent Terminal. A denied Session is an a
 not an empty timeline.
 
 The projection currently supports every Agent provider whose descriptor registers a
-`timelineProjector` (Claude Code and Codex today); a provider without one, such as Grok, reports
+`timelineProjector` (Claude Code and Codex today); a provider without one, such as Grok Build, reports
 `unsupported` instead of a partial or guessed timeline. It emits chronological `userMessage`,
 `agentMessage`, `toolCall`, `turnBoundary`, and `systemEvent` items with stable IDs. Tool items have
 a bounded name, summary, status, optional duration, and optional detail. Thinking and unrelated

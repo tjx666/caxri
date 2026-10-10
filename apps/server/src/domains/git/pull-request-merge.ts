@@ -9,10 +9,39 @@ import { logEventCatalog } from '@caxri/system';
 import { parseGitHubRemote } from '@caxri/utils';
 import { z } from 'zod';
 
-import type { ExternalStatusRunner } from '../external-status';
+import type { CliFailureKind, ExternalStatusRunner } from '../external-status';
 import { ExternalStatusCliError } from '../external-status';
 
 type MergeMethod = ServerOperationResult<'git.mergePullRequest'>['method'];
+
+/**
+ * The `gh` call a merge failed in: reading the repository's allowed methods, or the merge itself.
+ */
+type MergeStep = 'pr.merge' | 'repo.view';
+
+/**
+ * Closed cause of a failed merge for `git.github_command_failed`. A `gh` failure keeps the shared CLI classifier's
+ * kind; the others are outcomes this flow decides itself. Deliberately never the fault message: `gh` stderr names the
+ * repository, the Pull Request, and GitHub's policy text, and an exec fault repeats the argv with the head SHA.
+ */
+type MergeFailureReason = CliFailureKind | 'invalid-response' | 'no-merge-method' | 'unknown';
+
+/**
+ * A repository whose settings allow no merge method is a policy answer, not a `gh` failure, so it carries its own class
+ * for the log classification while still reaching the caller as an ordinary `GIT` error.
+ */
+class NoMergeMethodError extends CaxriError {
+    constructor() {
+        super('GIT', 'This repository does not allow any merge method');
+    }
+}
+
+function mergeFailureReason(error: unknown): MergeFailureReason {
+    if (error instanceof ExternalStatusCliError) return error.kind;
+    if (error instanceof NoMergeMethodError) return 'no-merge-method';
+    if (error instanceof SyntaxError || error instanceof z.ZodError) return 'invalid-response';
+    return 'unknown';
+}
 
 const repoMergeSettingsSchema = z.object({
     squashMergeAllowed: z.boolean().optional(),
@@ -94,6 +123,7 @@ export async function mergeGitHubPullRequest(
     const slug = `${remote.owner}/${remote.repo}`;
     const startedAt = performance.now();
     let method: MergeMethod | undefined;
+    let step: MergeStep = 'repo.view';
     try {
         const settings = repoMergeSettingsSchema.parse(
             JSON.parse(
@@ -111,7 +141,8 @@ export async function mergeGitHubPullRequest(
             ),
         );
         method = chooseMergeMethod(settings);
-        if (!method) throw new CaxriError('GIT', 'This repository does not allow any merge method');
+        if (!method) throw new NoMergeMethodError();
+        step = 'pr.merge';
         await dependencies.run(
             'gh',
             [
@@ -129,7 +160,12 @@ export async function mergeGitHubPullRequest(
     } catch (error) {
         dependencies.logger.write('warn', logEventCatalog.git.githubCommandFailed, {
             durationMs: performance.now() - startedAt,
-            fields: { operation: 'pr.merge', error: errorMessage(error, 'unknown') },
+            fields: {
+                operation: 'pr.merge',
+                step,
+                reason: mergeFailureReason(error),
+                exitCode: error instanceof ExternalStatusCliError ? error.exitCode : null,
+            },
         });
         throw error instanceof CaxriError ? error : mergeFailure(error);
     } finally {

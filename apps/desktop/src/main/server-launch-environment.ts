@@ -18,8 +18,8 @@ export interface ServerLaunchEnvironmentOptions {
 /**
  * Curated environment forwarded from Desktop to the spawned Server Core child process. This is an explicit allowlist,
  * not a `process.env` passthrough; see `packages/client/src/supervise/launch.ts`'s `safeLaunchEnvironment()`, which
- * merges a small separate `LAUNCH_ENVIRONMENT_KEYS` allowlist with this curated object (this object always wins on
- * overlap).
+ * merges the shared `INHERITED_PROCESS_ENVIRONMENT_KEYS` (`@caxri/protocol`) plus the log-level and inspect keys with
+ * this curated object (this object always wins on overlap).
  */
 export function buildServerLaunchEnvironment(
     options: ServerLaunchEnvironmentOptions,

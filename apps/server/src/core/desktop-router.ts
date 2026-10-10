@@ -26,7 +26,7 @@ interface StoredTarget {
     expiresAt: number;
     generation: number;
     id: string;
-    operation: 'open' | 'openInEditor' | 'openWithDefaultApp' | 'reveal' | 'trash';
+    operation: 'open' | 'openInEditor' | 'openWithDefaultApp' | 'reveal';
     projectId?: string;
     sessionId?: string;
     projectRootId?: string;
@@ -127,7 +127,7 @@ export class ServerDesktopRouter {
     }
 
     private issueTarget(
-        operation: 'open' | 'openInEditor' | 'openWithDefaultApp' | 'reveal' | 'trash',
+        operation: 'open' | 'openInEditor' | 'openWithDefaultApp' | 'reveal',
         generation: number,
         resolved: {
             entry: AuthorizedEntry;
@@ -289,62 +289,6 @@ export class ServerDesktopRouter {
         const lease = await this.requireLease(shouldLaunch);
         await this.options.bridge.invoke({ kind: 'focus' }, lease.generation);
         return { state: 'focused', generation: lease.generation };
-    }
-
-    async trash(
-        parameters: ServerOperationParameters<'files.trash'>,
-        signal?: AbortSignal,
-        context?: WorkbenchRequestContext,
-    ): Promise<ServerOperationResult<'files.trash'>> {
-        assertNotCancelled(signal);
-        const lease = await this.requireLease(false);
-        const item = context
-            ? await this.options.domainService.requestInWorkbenchContext(
-                  'files.authorizeTrash',
-                  parameters,
-                  context,
-                  undefined,
-                  signal,
-              )
-            : signal
-              ? await this.options.domainService.requestWithSignal(
-                    'files.authorizeTrash',
-                    parameters,
-                    signal,
-                )
-              : await this.options.domainService.request('files.authorizeTrash', parameters);
-        assertNotCancelled(signal);
-        const isConfirmed = isDesktopConfirmationAccepted(
-            await this.options.bridge.invoke(
-                {
-                    kind: 'confirmFilesTrash',
-                    item: {
-                        name: item.name,
-                        path: item.path,
-                        ...(parameters.hasUnsavedChanges !== undefined && {
-                            hasUnsavedChanges: parameters.hasUnsavedChanges,
-                        }),
-                    },
-                },
-                lease.generation,
-            ),
-        );
-        assertNotCancelled(signal);
-        if (!isConfirmed) return { canceled: true };
-        const target = this.issueTarget('trash', lease.generation, {
-            entry: item,
-            sessionId: parameters.sessionId,
-        });
-        try {
-            await this.options.bridge.invoke(
-                { kind: 'trash', targetId: target.id },
-                lease.generation,
-            );
-        } catch (error) {
-            this.targets.delete(target.id);
-            throw error;
-        }
-        return { kind: item.kind, name: item.name, path: item.path };
     }
 
     async discard(
@@ -553,10 +497,10 @@ export class ServerDesktopRouter {
         }
         if (!target.sessionId)
             throw new CaxriError('PATH_DENIED', 'Desktop target has no Session authority');
-        const current = await this.options.domainService.request(
-            target.operation === 'trash' ? 'files.authorizeTrash' : 'files.authorizeOpen',
-            { sessionId: target.sessionId, path: target.entry.path },
-        );
+        const current = await this.options.domainService.request('files.authorizeOpen', {
+            sessionId: target.sessionId,
+            path: target.entry.path,
+        });
         if (!isSameIdentity(target.entry, current))
             throw new CaxriError('CONFLICT', 'Desktop target changed before use');
         return {

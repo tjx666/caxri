@@ -32,6 +32,11 @@ to both. The dispatch that lost the Terminal settles as `interrupted` with `targ
 same outcome its delegation reports. The Agent process is left running: it belongs to the user who
 started it, and the losing dispatch never signals it.
 
+An archived target Session never receives a new launch. A start rechecks the archive inside the
+same transaction that inserts its receipt and Terminal, so archiving while the dispatch validates
+its working directory still fails with `CONFLICT` and writes no receipt. A resume rechecks after
+its last wait and settles its receipt as `failed` with `CONFLICT` instead of restarting the Agent.
+
 Every receipt status transition emits `agent_dispatch.transitioned`. Fields contain the dispatch
 and Terminal identifiers, previous and current statuses, a closed reason, and elapsed lifetime.
 Reasons distinguish launch readiness/failure, process failure/exit, Host or Terminal restart,

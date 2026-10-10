@@ -48,4 +48,6 @@ production modules; at three or more cohesive modules it owns `apps/server/src/d
 exposes its boundary through `index.ts`, and keeps tests in that directory's `__tests__/`. Git,
 Terminal, Agents, Files, and DB use this nested shape. Production cross-domain imports stay relative
 and target only the domain root; a focused structure test rejects a missing barrel or deep cross-domain
-import.
+import. The same test enforces both flat shapes the rule forbids: a flat `domains/<prefix>-*.ts` module
+beside an existing `domains/<prefix>/` directory, and a third flat module sharing one first hyphen
+segment. Pre-existing exceptions sit in its frozen allowlists, which may only shrink.

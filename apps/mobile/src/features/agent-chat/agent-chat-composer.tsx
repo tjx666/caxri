@@ -57,6 +57,7 @@ export const AgentChatComposer = ({
     deviceRole,
     draft,
     isConnected,
+    isHandedOff,
     onDraftChange,
     provider,
     theme,
@@ -65,6 +66,10 @@ export const AgentChatComposer = ({
     deviceRole: 'view' | 'reply' | 'control' | null;
     draft: string;
     isConnected: boolean;
+    /**
+     * A detached Chat refuses input until its Session resumes, so the composer says so instead of failing a send.
+     */
+    isHandedOff: boolean;
     onDraftChange: (draft: string) => void;
     provider: string;
     theme: MobileTheme;
@@ -72,6 +77,7 @@ export const AgentChatComposer = ({
     const disabledReason = agentChatComposerDisabledReason({
         deviceRole,
         isConnected,
+        isHandedOff,
         snapshot: chat.snapshot,
     });
     const isRunning = Boolean(chat.snapshot?.activeTurnId);
@@ -155,8 +161,16 @@ export const AgentChatComposer = ({
                     )}
                 </Pressable>
             </View>
+            {/* `reason` flexes along the meta row; placed directly in the column block it collapses to zero height. */}
             {disabledReason ? (
-                <Text style={[styles.reason, { color: theme.muted }]}>{disabledReason}</Text>
+                <View style={styles.composerMeta}>
+                    <Text
+                        style={[styles.reason, { color: theme.muted }]}
+                        testID="agent-chat-composer-reason"
+                    >
+                        {disabledReason}
+                    </Text>
+                </View>
             ) : null}
             {error ? (
                 <Text

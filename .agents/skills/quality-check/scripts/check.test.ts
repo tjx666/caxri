@@ -488,10 +488,10 @@ describe('testCandidatesForFile', () => {
         );
     });
 
-    it('does not treat a top-level runtime file as a domain integration suite', () => {
+    it('does not map a flat domain file onto the domain-services integration suite', () => {
         expect(
             testCandidatesForFile('apps/server/src/domains/create-domain-services.ts'),
-        ).not.toContain('apps/server/src/domains/__tests__/runtime.integration.test.ts');
+        ).not.toContain('apps/server/src/domains/__tests__/domain-services.integration.test.ts');
     });
 });
 
@@ -711,7 +711,7 @@ describe('direct import test selection', () => {
         expect(direct).toEqual(expected);
         expect(selected.filter((test) => !test.endsWith('/structure.test.ts'))).toEqual(expected);
         expect(selected).not.toContain(
-            'apps/server/src/domains/__tests__/runtime.integration.test.ts',
+            'apps/server/src/domains/__tests__/domain-services.integration.test.ts',
         );
         expect(selected).not.toContain(
             'apps/server/src/domains/__tests__/agent-hooks.integration.test.ts',

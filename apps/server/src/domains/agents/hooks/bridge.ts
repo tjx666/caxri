@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import type { AgentProvider } from '@caxri/protocol';
+
 import { atomicWrite } from '../../atomic-file';
 
 const BRIDGE_RECEIPT_TIMEOUT_MS = 250;
@@ -8,6 +10,19 @@ const BRIDGE_SOCKET_TIMEOUT_MS = 2_000;
 const BRIDGE_STDIN_TIMEOUT_MS = 250;
 const BRIDGE_ATTENTION_TIMEOUT_MS = 125_000;
 export const AGENT_HOOK_BRIDGE_MAX_DELIVERY_MS = BRIDGE_STDIN_TIMEOUT_MS + BRIDGE_SOCKET_TIMEOUT_MS;
+
+/**
+ * Hook payload keys that carry each provider's per-turn identity, in precedence order. Exhaustive on purpose: a newly
+ * catalogued provider fails to compile until it declares its key, instead of silently being read with another
+ * provider's. The table is serialized into the standalone bridge script, where a provider it does not name carries no
+ * turn identity. Claude's documented per-prompt identity spans UserPromptSubmit, Stop, and StopFailure (v2.1.196+).
+ * https://code.claude.com/docs/en/hooks#common-input-fields
+ */
+const HOOK_TURN_ID_KEYS: Record<AgentProvider, readonly string[]> = {
+    claude: ['prompt_id'],
+    codex: ['turn_id', 'turnId'],
+    grok: ['promptId'],
+};
 
 const BRIDGE_SCRIPT = String.raw`'use strict';
 const net = require('node:net');
@@ -31,6 +46,7 @@ for (let index = 2; index < process.argv.length - 1; index += 2) {
 // tells the bridge which schema it expects through the launch environment, next to the socket that instance owns.
 const provider = args.get('provider');
 const interactive = args.get('interactive');
+const turnIdKeys = new Map(${JSON.stringify(Object.entries(HOOK_TURN_ID_KEYS))}).get(provider) || [];
 // Grok imports Claude hooks by default. Those inherited commands must not identify it as Claude Code.
 if (process.env.GROK_SESSION_ID && provider !== 'grok') process.exit(0);
 const schemaFromEnvironment = Number(process.env['CAXRI_HOOK_SCHEMA_' + String(provider).toUpperCase()]);
@@ -183,6 +199,12 @@ function hasWorktreeCreateIntent(payload) {
   if (typeof command !== 'string' || command.length === 0 || command.length > 32768) return false;
   return splitShellSegments(command).some(segmentCreatesWorktree);
 }
+// Mirrors '??' across keys: the first present key wins even when its value is not a usable identifier.
+function firstPresent(payload, keys) {
+  if (payload === null || payload === undefined) return undefined;
+  const key = keys.find((candidate) => payload[candidate] !== undefined && payload[candidate] !== null);
+  return key === undefined ? undefined : payload[key];
+}
 function readIdentifiers(callback) {
   let source = '';
   let done = false;
@@ -234,9 +256,7 @@ function readIdentifiers(callback) {
       if (typeof agentValue === 'string' && agentValue.length > 0 && agentValue.length <= 256) agentId = agentValue;
       const value = payload && (payload.session_id ?? payload.sessionId);
       if (typeof value === 'string' && value.length > 0 && value.length <= 256) sessionId = value;
-      // Claude's documented per-prompt identity spans UserPromptSubmit, Stop, and StopFailure (v2.1.196+).
-      // https://code.claude.com/docs/en/hooks#common-input-fields
-      const turnValue = payload && (provider === 'claude' ? payload.prompt_id : provider === 'grok' ? payload.promptId : (payload.turn_id ?? payload.turnId));
+      const turnValue = firstPresent(payload, turnIdKeys);
       if (typeof turnValue === 'string' && turnValue.length > 0 && turnValue.length <= 256) turnId = turnValue;
       const toolValue = payload && (payload.tool_use_id ?? payload.toolUseId);
       if (typeof toolValue === 'string' && toolValue.length > 0 && toolValue.length <= 256) toolUseId = toolValue;
@@ -268,7 +288,7 @@ function readIdentifiers(callback) {
       // carries it again, so a truncated payload costs at most one event of latency.
       agentId = prefixString(['agent_id', 'agentId']);
       sessionId = prefixString(['session_id', 'sessionId']);
-      turnId = prefixString(provider === 'claude' ? ['prompt_id'] : ['turn_id', 'turnId']);
+      turnId = prefixString(turnIdKeys);
     }
     const responseStop = captureDigests && provider === 'grok' && signal.phase === 'turnFinished';
     callback({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, responseByteLength, responseStop, turnContinues, failure, overflow: captureDigests && overflow });
@@ -427,7 +447,11 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
 }
 `;
 
-const BRIDGE_VERSION = 22;
+/**
+ * Bump on every bridge script change, including a behavior-preserving one: same-version builds sharing the staged
+ * bridge would otherwise keep rewriting each other's copy.
+ */
+const BRIDGE_VERSION = 23;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

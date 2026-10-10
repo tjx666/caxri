@@ -1,5 +1,7 @@
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { mobileAgentDisplayName } from '../agent-display-name';
 import type { MobileSessionItem } from '../session-model';
 import { archivedAgeLabel, sessionAgeLabel, sessionAgentLabel } from '../session-row-model';
 
@@ -15,6 +17,19 @@ describe('Session row labels', () => {
             'Shell',
         );
         expect(sessionAgentLabel({} as MobileSessionItem)).toBe('No Agent');
+    });
+
+    it('names every Agent provider exactly as the Desktop catalog does', () => {
+        for (const provider of agentProviderIds) {
+            expect(mobileAgentDisplayName(provider)).toBe(
+                agentProviderCatalog[provider].displayName,
+            );
+            expect(
+                sessionAgentLabel({ primaryTerminal: { kind: provider } } as MobileSessionItem),
+            ).toBe(agentProviderCatalog[provider].displayName);
+        }
+        expect(mobileAgentDisplayName('grok')).toBe('Grok Build');
+        expect(mobileAgentDisplayName('shell')).toBe('Shell');
     });
 
     it('uses short relative time at minute, hour, and day boundaries', () => {

@@ -1,3 +1,5 @@
+import type { AgentProvider } from '@caxri/protocol';
+
 import { shouldFallbackToTerminal } from '../conversation/conversation-model';
 import type { ConversationTimelineState } from '../conversation/use-conversation-timeline';
 import type { MobileTerminal } from './session-model';
@@ -105,13 +107,25 @@ export const preferredSessionSegment = (
     isConversationAvailable: boolean,
 ): SessionSegment => remembered ?? (isConversationAvailable ? 'conversation' : 'terminal');
 
+/**
+ * Providers whose Conversation timeline the Server can project (their descriptor declares a `timelineProjector`). This
+ * fail-closed copy lets a newly launched Agent show its tab before any timeline loads. Keyed by `AgentProvider` so a
+ * newly catalogued provider fails to compile until it takes a side here; the Server test in
+ * `apps/server/src/domains/agents/providers/__tests__/providers.test.ts` pins the same set so the two cannot drift.
+ */
+const CONVERSATION_TIMELINE_PROVIDERS: Record<AgentProvider, boolean> = {
+    claude: true,
+    codex: true,
+    grok: false,
+};
+
+const hasConversationTimeline = (identity: MobileTerminal['kind'] | undefined): boolean =>
+    identity !== undefined && identity !== 'shell' && CONVERSATION_TIMELINE_PROVIDERS[identity];
+
 export const hasKnownConversationAgent = (
     terminal: Pick<MobileTerminal, 'kind' | 'provider'> | undefined,
 ): boolean =>
-    terminal?.kind === 'claude' ||
-    terminal?.kind === 'codex' ||
-    terminal?.provider === 'claude' ||
-    terminal?.provider === 'codex';
+    hasConversationTimeline(terminal?.kind) || hasConversationTimeline(terminal?.provider);
 
 /**
  * A plain shell has no Conversation to show, so it gets no Conversation tab and no "isn't available" notice: both would

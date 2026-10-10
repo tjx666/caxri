@@ -107,8 +107,12 @@ live Chat (`codex app-server --listen stdio://`, `claude` in stream-json mode, o
 allowlisted environment as other Agent launches and no lifecycle-hook environment (the Chat
 synthesizes its own lifecycle signals, so hooks would double-report).
 
-- **Lazy start.** The provider starts on the first `agentChat.read` or `agentChat.send`. Server
-  Core restart therefore never relaunches idle Chats, and boot-time Terminal restore skips them.
+- **Lazy start.** The provider starts on the first `agentChat.read` or `agentChat.send` (the one
+  eager start is `session.resume` taking a detached Chat back; see Detach). Server
+  Core restart therefore never relaunches idle Chats, and boot-time Terminal restore skips them. A
+  failed or detached Chat does not start on a read. Archive stops a Chat without a durable mark, so
+  a read would start it; neither Desktop nor the phone opens an archived Session's Chat, and the
+  first read after a restore starts it.
 - **Resume.** A bound Chat resumes its thread with `thread/resume`, verifies the returned id, and
   rebuilds the projection from the returned history. `model` is omitted on resume so the thread
   keeps its own model and effort. A failed resume is a visible `resume_failed` failure, never a
@@ -122,14 +126,33 @@ synthesizes its own lifecycle signals, so hooks would double-report).
 - **Grok Build resume.** `session/load` replays the conversation as `session/update` frames before
   it answers, with `turn_completed` marking where each turn ended; the Chat folds them into one
   reset. An unknown session id fails `session/load`, which is `resume_failed`.
-- **Stop.** Closing, deleting, archiving, or detaching the Session stops the child (stdin EOF, then
-  SIGTERM and SIGKILL on its process group). `terminal.restart` restarts it; a fresh restart drops
-  the thread binding first. A failed Chat stays failed on read; the pane's Retry restarts it, which
-  clears the failure and resumes the bound thread.
+- **Stop.** Closing or deleting the Terminal, switching it to a PTY, or archiving or detaching the
+  Session stops the child (stdin EOF, then SIGTERM and SIGKILL on its process group).
+  `terminal.restart` restarts it; a fresh restart drops the thread binding first. A failed Chat
+  stays failed on read; the pane's Retry restarts it, which clears the failure and resumes the
+  bound thread.
+- **Admission.** A teardown retires the Chat's in-memory state before it awaits the provider.
+  Queued input is admitted again when it reaches the head of the Chat's send chain, after a start
+  it joined, and right before a provider spawns: the state must still be current and the Terminal
+  row must still exist as a Chat that is not detached. Input that waited behind a close, archive,
+  detach, restart, or surface switch therefore rejects instead of relaunching the provider, and a
+  start whose Chat was torn down before it spawned is abandoned. `ChatStates`
+  (`apps/server/src/domains/agent-chat/chat-states.ts`) owns the fence and the marker it reads.
+- **Detach.** `session.detach` hands the Session's live Chats to another client the way it parks
+  PTY Agents: the requested exit records `detached` instead of `stopped`. A detached Chat's read
+  returns the projection as `stopped` without relaunching it, and input fails with `UNAVAILABLE`,
+  so a pane remount, a reconnect, or a phone coming to the foreground never takes the thread back.
+  `session.resume` clears the marker and relaunches the thread, as it relaunches detached PTY
+  Agents, so a pane or phone that read the Chat while it was detached receives the replay as
+  patches; an explicit restart (Retry, a switch to Chat) clears it too. Because the projection still reads `stopped`,
+  the Desktop pane reads the Terminal record's `lastProcessState`: while it is `detached` the
+  composer refuses input and a neutral row above it carries the PTY recovery bar's Detached label
+  with Resume, which restarts the Chat. The phone reads the same record: it shows `Chat was handed
+off on your computer`, refuses input, and offers no Resume, matching its detached PTY Terminals.
 - **State.** `lastProcessState` and `lastAgentProcessState` follow the child: `starting`,
-  `running`, `stopped` after an orderly stop, `dead` after an unexpected exit, `failed` with a
-  closed `failureReason` when it cannot start. Orderly Server Core shutdown stamps `interrupted`
-  through the shared shutdown path, not completion.
+  `running`, `stopped` after an orderly stop, `detached` after a detach, `dead` after an
+  unexpected exit, `failed` with a closed `failureReason` when it cannot start. Orderly Server
+  Core shutdown stamps `interrupted` through the shared shutdown path, not completion.
 - **Running count.** Live Chat children count toward `activePtyCount` and `terminal.runningCount`
   (whole app or one Session), so Server Core idle exit, `server.stop`, the window-close
   confirmation, and Session or Project deletion prompts treat them like live PTYs. Choosing
@@ -492,7 +515,8 @@ conversation.
 
 ## Observability
 
-`agent_chat.process_started` (closed outcome and reason, resume mode, duration),
+`agent_chat.process_started` (closed outcome `ready`, `failed`, or `abandoned` with its reason,
+resume mode, duration),
 `agent_chat.process_exited` (closed end reason with lifetime aggregates of turns, server
 requests, rejected requests, and dropped frames), `agent_chat.turn_finished` (status, duration),
 `agent_chat.protocol_rejected` (closed reason, protocol method name), and

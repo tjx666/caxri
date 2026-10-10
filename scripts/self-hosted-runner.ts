@@ -40,9 +40,15 @@ interface RunnerAgentEnvironmentPolicy {
     environmentKeys: readonly string[];
 }
 
-const RUNNER_AGENT_ENVIRONMENT_POLICIES = {
+/**
+ * Dependency-free copy of `AGENT_STATE_ENVIRONMENT_KEYS` from `@caxri/protocol`, because this file runs before
+ * workspace install (see below). `scripts/__tests__/self-hosted-runner.test.ts` holds the two tables equal, so a
+ * provider state key added there cannot be left pointing at the runner's real home here.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/self-hosted-runner.test.ts
+export const RUNNER_AGENT_ENVIRONMENT_POLICIES = {
     claude: { directoryName: 'claude', environmentKeys: ['CLAUDE_CONFIG_DIR'] },
-    codex: { directoryName: 'codex', environmentKeys: ['CODEX_HOME'] },
+    codex: { directoryName: 'codex', environmentKeys: ['CODEX_HOME', 'CODEX_SQLITE_HOME'] },
     grok: { directoryName: 'grok', environmentKeys: ['GROK_HOME'] },
 } satisfies Record<AgentProvider, RunnerAgentEnvironmentPolicy>;
 

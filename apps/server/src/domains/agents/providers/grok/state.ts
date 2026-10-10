@@ -1,9 +1,8 @@
-import { Buffer } from 'node:buffer';
-import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { sessionRenameTitleSchema } from '@caxri/protocol';
 
+import { readBoundedRegularFileText } from '../../../bounded-file-reader';
 import type { AgentEnvironment, AgentSnapshotContext, LocalAgentState } from '../../contract';
 import { canonicalPath, isOpaqueAgentSessionId } from '../../contract';
 import { grokProjectRoot } from './paths';
@@ -20,21 +19,15 @@ interface GrokSessionSummary {
 
 async function readGrokSummary(path: string): Promise<GrokSessionSummary | undefined> {
     try {
-        const handle = await open(path, 'r');
-        try {
-            const buffer = Buffer.allocUnsafe(MAX_GROK_SUMMARY_BYTES + 1);
-            const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-            if (bytesRead > MAX_GROK_SUMMARY_BYTES) return undefined;
-            const content = buffer.subarray(0, bytesRead).toString('utf8');
-            const parsed: unknown = JSON.parse(content);
-            return typeof parsed === 'object' && parsed !== null ? parsed : undefined;
-        } finally {
-            await handle.close();
-        }
+        const parsed: unknown = JSON.parse(
+            await readBoundedRegularFileText(path, MAX_GROK_SUMMARY_BYTES),
+        );
+        return typeof parsed === 'object' && parsed !== null ? parsed : undefined;
     } catch {
         /**
-         * A conversation Grok Build has not flushed yet, an inaccessible home, and a half-written or malformed record
-         * all mean the same thing to the probe: no title to publish.
+         * A conversation Grok Build has not flushed yet, an inaccessible home, an oversized or non-regular entry (the
+         * shared reader refuses a FIFO instead of waiting on its writer), and a half-written or malformed record all
+         * mean the same thing to the probe: no title to publish.
          */
         return undefined;
     }

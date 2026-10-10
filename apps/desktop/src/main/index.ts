@@ -28,12 +28,7 @@ import { createAcceptanceUpdateFixture } from './acceptance-update';
 import type { AgentCommanderWindowController } from './agent-commander-window';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import type { AppQuitIntent } from './app-quit';
-import {
-    confirmAppQuit,
-    createAppQuitHandler,
-    createReviewCommentsQuitOptions,
-    notifyAppQuitStopFailure,
-} from './app-quit';
+import { createAppQuitHandler, createAppQuitPromptOptions } from './app-quit';
 import { updateArgvConfig } from './argv-config';
 import {
     persistAllWindowState,
@@ -214,15 +209,13 @@ if (ownsProfileInstance) {
             notifications?.dispose();
         },
         closeDesktop: () => supervisor.shutdown(),
-        confirm: (impact) => confirmAppQuit(dialog, mainWindow, impact),
-        ...createReviewCommentsQuitOptions(dialog, mainWindow, () => supervisor),
+        ...createAppQuitPromptOptions(dialog, () => mainWindow),
         detachAll: () => supervisor.request('terminal.detachAll'),
         exit: () => app.exit(0),
         logFailure: (level, stage, error) =>
             mainLogger?.write(level, logEventCatalog.app.quitFailed, {
                 fields: { stage, error },
             }),
-        notifyStopFailure: () => notifyAppQuitStopFailure(dialog, mainWindow),
         persistWindowState: async () => {
             const window = mainWindow;
             await persistAllWindowState([
@@ -235,6 +228,7 @@ if (ownsProfileInstance) {
             ]);
         },
         quitIntent: () => quitIntent,
+        readPendingReviewComments: () => supervisor.request('gitReview.pending', {}),
         readStatus: () => supervisor.request('host.status'),
         stopServer: () => supervisor.stopServer(),
     });

@@ -7,6 +7,7 @@ status: accepted
 
 - Date: 2026-08-25
 - Implementation plan: [Server architecture refactor plan](../server-refactor-plan.md)
+- Amended by: [ADR 0013](0013-editable-external-documents.md) (external documents are editable and can open a Terminal in their folder)
 
 Local, direct, and Relay access establish the same public Server protocol. Local access uses a private
 loopback bootstrap credential. Direct access uses TLS with a pairing-delivered certificate pin,

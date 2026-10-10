@@ -975,10 +975,14 @@ never sit side by side. While the Chat is busy (a turn runs or context is compac
 the message and the placeholder says so; Cmd+Enter steers it into the running turn instead. Queued
 messages sit above the card as 12px `--surface` cards, each with Edit (back into the composer),
 Delete, and Send now (Steer while a turn runs); after a stopped turn a `Queue paused` row with
-Resume heads them. Running subagents and background shells list in a strip above the composer with
-elapsed time and their own Stop; a shell is named by the Agent's description of it (Claude Code's
-`Bash` description) when there is one, with its command line atop its tab's output, and by the
-command line in monospace otherwise; clicking one, or the Open action on its timeline row, opens it as
+Resume heads them. Above everything in the dock, a recovery row explains why the Chat cannot
+continue: a provider failure in a `--danger` bordered card with Retry, or a hand-over to another
+client in a neutral `--border` card with the PTY recovery bar's unplugged glyph, its Detached label,
+and Resume; while either shows, Send is disabled. Running subagents and background shells list in a
+strip above the composer with elapsed time and their own Stop; a shell is named by the Agent's
+description of it (Claude Code's `Bash` description) when there is one, with its command line atop
+its tab's output, and by the command line in monospace otherwise; clicking one, or the Open action on
+its timeline row, opens it as
 a read-only tab split to the right of the Chat, reusing that side pane for later tasks. A user
 message steered into a running turn carries an 11px `--muted` `Steered` caption; a queued one is an
 ordinary message once delivered and carries none, since `Queued` would read as pending. Escape

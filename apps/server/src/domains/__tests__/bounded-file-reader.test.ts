@@ -3,8 +3,10 @@ import type { FileHandle } from 'node:fs/promises';
 import { appendFile, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import type { CaxriError } from '@caxri/protocol';
+import { execFileAsync } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { readBoundedRegularFile, readBoundedRegularFileText } from '../bounded-file-reader';
@@ -159,5 +161,72 @@ describe('readBoundedRegularFileText', () => {
                 },
             }),
         ).rejects.toMatchObject({ code: 'CAPACITY' } satisfies Partial<CaxriError>);
+    });
+
+    /**
+     * A plain read-only open of a FIFO blocks until a writer appears, parking a libuv thread and the caller with it.
+     * `O_NONBLOCK` returns the open at once so the `fstat` check can refuse the FIFO instead.
+     */
+    it.skipIf(process.platform === 'win32')(
+        'refuses a FIFO at the path, or behind a final symlink, without waiting for a writer',
+        async () => {
+            const directory = await makeTemporaryDirectory('caxri-bounded-read-fifo-');
+            const fifo = join(directory, 'planted.json');
+            await execFileAsync('mkfifo', [fifo]);
+            const link = join(directory, 'link.json');
+            await symlink(fifo, link);
+
+            await expect(
+                readBoundedRegularFileText(fifo, 1024, { notRegularFileMessage: 'Not a file' }),
+            ).rejects.toMatchObject({
+                code: 'IO',
+                message: 'Not a file',
+            } satisfies Partial<CaxriError>);
+            await expect(readBoundedRegularFileText(link, 1024)).rejects.toMatchObject({
+                code: 'IO',
+            } satisfies Partial<CaxriError>);
+        },
+        2_000,
+    );
+
+    it('refuses a final symlink under the nofollow policy while still reading a regular file', async () => {
+        const directory = await makeTemporaryDirectory('caxri-bounded-read-nofollow-');
+        const target = join(directory, 'target.json');
+        await writeFile(target, '{}', 'utf8');
+        const link = join(directory, 'link.json');
+        await symlink(target, link);
+
+        await expect(
+            readBoundedRegularFileText(link, 1024, { symlinks: 'nofollow' }),
+        ).rejects.toMatchObject({ code: 'ELOOP' });
+        await expect(
+            readBoundedRegularFileText(target, 1024, { symlinks: 'nofollow' }),
+        ).resolves.toBe('{}');
+        await expect(readBoundedRegularFileText(link, 1024)).resolves.toBe('{}');
+    });
+
+    it('hands the opened metadata to inspect before the shared checks, letting it reject first', async () => {
+        const directory = await makeTemporaryDirectory('caxri-bounded-read-inspect-');
+        const path = join(directory, 'file.txt');
+        await writeFile(path, 'x'.repeat(10), 'utf8');
+        const inspected: number[] = [];
+
+        await expect(
+            readBoundedRegularFileText(path, 9, {
+                inspect: (metadata) => {
+                    inspected.push(metadata.size);
+                },
+            }),
+        ).rejects.toMatchObject({ code: 'CAPACITY' } satisfies Partial<CaxriError>);
+        expect(inspected).toEqual([10]);
+
+        const policy = new Error('caller policy');
+        await expect(
+            readBoundedRegularFileText(path, 9, {
+                inspect: () => {
+                    throw policy;
+                },
+            }),
+        ).rejects.toBe(policy);
     });
 });

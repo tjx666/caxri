@@ -262,7 +262,10 @@ bounded `AsyncSemaphore` (`MAX_CONCURRENT_GIT_COMMANDS = 8`, unchanged) and logs
 plus `operation` (argv[0], or `argv[0].subcommand` for `worktree`/`remote`/`stash`/`submodule`,
 `classifyGitOperation`) and a non-reversible `repository` hash (`hashRepoPath`, SHA-256 of the cwd,
 truncated). No source content, Terminal output, or raw filesystem path is logged. Command failures
-log `git.command_failed` with the same fields. The `git.summary` boundary event (see above) is the
+log `git.command_failed` with the same fields plus closed, content-free failure fields: `reason`, `exitCode`,
+`signal`, and `errorCode`; never the exec message, whose argv and stderr carry refs and paths. A command its own
+request aborted (fast Source Control navigation) records `reason: cancelled` with `errorCode: ABORT_ERR` at debug
+and rejects with `CANCELLED` rather than `GIT`, even under `allowFailure`. The `git.summary` boundary event (see above) is the
 authoritative measurement for one summary's full wall time and command count; the startup benchmark
 asserts against it rather than the last `git.command` record.
 

@@ -90,6 +90,8 @@ Vite 8 requires `electron-vite@6`; while that integration is still beta, it expl
 
 TypeScript 7 is the registry latest but does not ship a JavaScript API. Caxri follows the official side-by-side layout: `@typescript/native` supplies the TypeScript 7 `tsc` binary, while the `typescript` package name aliases `@typescript/typescript6` so typed ESLint rules continue to receive the supported TypeScript 6 API. Re-evaluate the alias after TypeScript 7.1 and native typed-lint support ship.
 
+`apps/mobile` is the one exception. Expo tooling expects the `typescript` JavaScript API from the app itself (the Expo CLI TypeScript prerequisite, and `@expo/require-utils`, which looks for `transpileModule` to load `app.config.ts` and rejects TypeScript 7), so that workspace declares the plain TypeScript 6 package. Its `tsc` bin shadows the root TypeScript 7 CLI, so the mobile `typecheck` script runs the TypeScript 6 compiler; [stack-baseline.md](stack-baseline.md) records the exception and the toolchain contract test pins its major.
+
 `@parcel/watcher`, `better-sqlite3`, and `node-pty` are Server application dependencies. The artifact
 builder copies only their selected runtime inputs and compatible prebuilds, preserves executable helper
 modes, and records every byte in the artifact manifest. The native spike loads all three with the

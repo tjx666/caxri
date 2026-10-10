@@ -67,6 +67,7 @@ const SessionConversationPane = ({
             deviceRole={deviceRole}
             enterFrom={enterFrom}
             isConnected={isConnected}
+            isHandedOff={chat.isHandedOff}
             provider={chat.provider}
             theme={theme}
         />

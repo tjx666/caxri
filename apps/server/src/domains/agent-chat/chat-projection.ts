@@ -24,7 +24,7 @@ const PATCH_FLUSH_MS = 16;
 interface ChatProjectionOptions {
     terminalId: string;
     /**
-     * Where this projection's revisions start; see `AgentChatService.revisionFloors`.
+     * Where this projection's revisions start; see `ChatStates.revisionFloors`.
      */
     revision: number;
     taskRevisionFloors: Map<string, number>;

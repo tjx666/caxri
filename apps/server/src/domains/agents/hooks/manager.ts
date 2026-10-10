@@ -15,7 +15,7 @@ import { agentProviderCatalog, agentProviderIds, CaxriError, errorMessage } from
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mapWithConcurrency, unixSocketPath } from '@caxri/system';
 
-import { atomicWrite } from '../../atomic-file';
+import { atomicWrite, atomicWriteUserConfig } from '../../atomic-file';
 import { readBoundedRegularFileText } from '../../bounded-file-reader';
 import type { WatchHandle } from '../../watch-hub';
 import { WatchHub } from '../../watch-hub';
@@ -447,7 +447,7 @@ export class AgentHookManager {
             if (contents.get(edit.targetId) === edit.source) continue;
             // oxlint-disable-next-line react-doctor/async-await-in-loop
             // eslint-disable-next-line no-await-in-loop -- see doc comment above: edits must apply in order
-            await atomicWrite(target.path, edit.source);
+            await atomicWriteUserConfig(target.path, edit.source);
             contents.set(edit.targetId, edit.source);
             written += 1;
             this.options.logger.write('info', logEventCatalog.agentHooks.configWritten, {

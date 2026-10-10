@@ -1,10 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
-    AgentChatFailureReason,
     AgentChatMessageInput,
     AgentChatModelRequest,
-    AgentChatPatchOperation,
     AgentChatSnapshot,
     AgentChatTaskSnapshot,
     AgentProvider,
@@ -33,30 +31,17 @@ import {
     readChatTranscript,
     requireChatTerminal,
 } from './chat-launch';
-import { ChatProjection } from './chat-projection';
 import type {
     AgentChatExit,
     AgentChatProviderSession,
     AgentChatResponse,
-    ChatInputDelivery,
     ChatLifecycleEvent,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
-import { ChatFollowUpQueue } from './chat-queue';
-import { forgetTaskRevisions } from './chat-task-projections';
+import type { ChatState, ChatStateDelivery, ChatTerminal } from './chat-states';
+import { ChatStates } from './chat-states';
 import { ChatTaskList } from './chat-tasks';
 import type { AgentChatServiceOptions } from './service-options';
-
-interface ChatState {
-    projection: ChatProjection;
-    session?: AgentChatProviderSession;
-    launchId?: string;
-    /**
-     * Settles after the last accepted send. Serializes sends so two quick messages cannot both start a turn.
-     */
-    sendQueue: Promise<unknown>;
-    followUps: ChatFollowUpQueue;
-}
 
 /**
  * Owns every Chat Terminal's provider process and in-memory conversation projection. Processes start lazily on the
@@ -64,29 +49,24 @@ interface ChatState {
  * truth and comes back on resume. See `docs/agent-chat.md`.
  */
 export class AgentChatService {
-    private readonly states = new Map<string, ChatState>();
+    private readonly states: ChatStates;
     /**
      * One provider start in flight per Terminal; concurrent reads and sends join it.
      */
     private readonly starts = new SingleFlight<string, void>();
 
-    /**
-     * The revision a Chat's next projection starts from after its state was dropped (restart, close). Clients keep
-     * their cached snapshot across both, so a projection that restarted at 0 would have every new patch discarded as
-     * already applied. Starting one past the last revision instead leaves a gap that makes each Client re-read.
-     */
-    private readonly revisionFloors = new Map<string, number>();
-
-    /**
-     * The same revision floor for task projections, keyed by Terminal and task.
-     */
-    private readonly taskRevisionFloors = new Map<string, number>();
-
     private readonly agentRunAutonomy = new AgentRunAutonomy();
 
     private isShuttingDown = false;
 
-    constructor(private readonly options: AgentChatServiceOptions) {}
+    constructor(private readonly options: AgentChatServiceOptions) {
+        this.states = new ChatStates({
+            database: options.database,
+            logger: options.logger,
+            send: (event) => options.send(event),
+            enqueue: (terminalId, state, deliver) => this.enqueueOn(terminalId, state, deliver),
+        });
+    }
 
     private async stop(terminalId: string): Promise<void> {
         const state = this.states.get(terminalId);
@@ -96,75 +76,22 @@ export class AgentChatService {
         state.session = undefined;
     }
 
-    private state(terminalId: string): ChatState {
-        const existing = this.states.get(terminalId);
-        if (existing) return existing;
-        const state: ChatState = {
-            projection: new ChatProjection({
-                terminalId,
-                revision: this.revisionFloors.get(terminalId) ?? 0,
-                taskRevisionFloors: this.taskRevisionFloors,
-                logger: this.options.logger,
-                send: (event) => this.options.send(event),
-                onChange: () => state.followUps.dispatch(),
-            }),
-            sendQueue: Promise.resolve(),
-            followUps: new ChatFollowUpQueue({
-                terminalId,
-                logger: this.options.logger,
-                read: () => state.projection.snapshot,
-                apply: (operations) => this.apply(terminalId, operations),
-                canDeliver: () =>
-                    this.states.get(terminalId) === state && state.session?.isOpen === true,
-                enqueue: (deliver) => this.enqueue(terminalId, deliver),
-            }),
-        };
-        this.states.set(terminalId, state);
-        return state;
-    }
-
-    private apply(terminalId: string, operations: AgentChatPatchOperation[]): void {
-        this.states.get(terminalId)?.projection.apply(operations);
-    }
-
-    /**
-     * Drops a Chat's projection without letting its pending patches reach Clients after a replacement chain began.
-     */
-    private forget(terminalId: string): void {
-        const state = this.states.get(terminalId);
-        if (!state) return;
-        this.revisionFloors.set(terminalId, state.projection.retire());
-        this.states.delete(terminalId);
-    }
-
-    private setStatus(
-        terminalId: string,
-        status: AgentChatSnapshot['status'],
-        failure?: { reason: AgentChatFailureReason; detail?: string },
-    ): void {
-        this.apply(terminalId, [{ op: 'state', state: { status, failure: failure ?? null } }]);
-    }
-
-    private sendTerminalChange(terminalId: string): void {
-        this.options.send({
-            event: 'state.changed',
-            payload: { kind: 'records', sessionIds: [], terminalIds: [terminalId] },
-        });
-    }
-
     private async ensureStarted(
-        terminal: TerminalRecord & { provider: AgentProvider },
+        terminalId: string,
+        state: ChatState,
         shouldKeepAgentAutonomy = false,
     ): Promise<AgentChatProviderSession> {
-        const state = this.state(terminal.id);
+        const terminal = this.states.admit(terminalId, state);
         /**
          * `start()` publishes its session as soon as the process spawns, before the thread exists, so an open session
          * alone does not mean it can take a turn. Join an in-flight start instead of sending into it early.
          */
-        if (this.starts.has(terminal.id) || !state.session?.isOpen)
-            await this.starts.run(terminal.id, () =>
+        if (this.starts.has(terminalId) || !state.session?.isOpen)
+            await this.starts.run(terminalId, () =>
                 this.start(terminal, state, shouldKeepAgentAutonomy),
             );
+        // A teardown may have begun while the start was in flight; its session is about to close.
+        this.states.admit(terminalId, state);
         if (!state.session?.isOpen)
             throw new CaxriError(
                 'UNAVAILABLE',
@@ -176,21 +103,49 @@ export class AgentChatService {
 
     /**
      * Starts the provider for a caller that does not need the session. A failed start is already recorded in the
-     * projection, where every Client sees it.
+     * projection, where every Client sees it, and a refused admission (a detached or closing Chat) starts nothing.
      */
     private async startQuietly(
-        terminal: TerminalRecord & { provider: AgentProvider },
+        terminalId: string,
+        state: ChatState,
         shouldKeepAgentAutonomy = false,
     ): Promise<void> {
         try {
-            await this.ensureStarted(terminal, shouldKeepAgentAutonomy);
+            await this.ensureStarted(terminalId, state, shouldKeepAgentAutonomy);
         } catch {
-            // Recorded in the projection by start().
+            // Recorded in the projection by start(), or refused before anything started.
         }
     }
 
+    /**
+     * Ends a start whose Chat began a teardown before its provider spawned. Nothing ran, so this is not a failure: the
+     * Terminal records the stop a running provider's requested exit would have.
+     */
+    private abandonStart(
+        terminalId: string,
+        state: ChatState,
+        launchId: string,
+        startedAt: number,
+    ): void {
+        const { coordinator, database, logger } = this.options;
+        if (state.launchId === launchId) state.launchId = undefined;
+        coordinator.endTerminalLaunch(terminalId);
+        logger.write('info', logEventCatalog.agentChat.processStarted, {
+            fields: {
+                terminalId,
+                outcome: 'abandoned',
+                reason: state.retiring ?? 'closed',
+                durationMs: Date.now() - startedAt,
+            },
+        });
+        // Shutdown stamps durable state through the shared shutdown path.
+        if (this.isShuttingDown || !database.getTerminal(terminalId)) return;
+        this.states.recordRequestedStop(terminalId, state);
+        this.states.publish(terminalId);
+    }
+
     private async start(
-        terminal: TerminalRecord & { provider: AgentProvider },
+        terminal: ChatTerminal,
         state: ChatState,
         shouldKeepAgentAutonomy: boolean,
     ): Promise<void> {
@@ -200,10 +155,10 @@ export class AgentChatService {
         const launchId = randomUUID();
         const startedAt = Date.now();
         state.launchId = launchId;
-        this.setStatus(terminalId, 'starting');
+        this.states.setStatus(terminalId, 'starting');
         database.updateTerminalState(terminalId, 'starting');
         database.updateAgentProcessState(terminalId, 'starting');
-        this.sendTerminalChange(terminalId);
+        this.states.publish(terminalId);
         this.options.coordinator.beginTerminalLaunch(terminalId, launchId);
         const isCurrent = () =>
             state.launchId === launchId && this.states.get(terminalId) === state;
@@ -222,6 +177,11 @@ export class AgentChatService {
                 provider,
                 launch,
             );
+            // Resolving the executable awaited; the Chat may have been closed, deleted, or detached meanwhile.
+            if (!this.states.isAdmitted(terminalId, state)) {
+                this.abandonStart(terminalId, state, launchId, startedAt);
+                return;
+            }
             session = driver.create({
                 terminalId,
                 cwd: terminal.cwd,
@@ -234,7 +194,7 @@ export class AgentChatService {
                 spawnProcess: this.options.spawnProcess,
                 read: () => state.projection.snapshot,
                 apply: (operations) => {
-                    if (isCurrent()) this.apply(terminalId, operations);
+                    if (isCurrent()) this.states.apply(terminalId, operations);
                 },
                 applyTask: (taskId, operations) => {
                     if (isCurrent()) state.projection.applyTask(taskId, operations);
@@ -246,7 +206,7 @@ export class AgentChatService {
                 onSessionBound: (agentSessionId) => {
                     if (!isCurrent()) return;
                     if (database.rebindAgentSession(terminalId, provider, agentSessionId))
-                        this.sendTerminalChange(terminalId);
+                        this.states.publish(terminalId);
                 },
                 onTurnFinished: (status, durationMs) =>
                     logger.write('info', logEventCatalog.agentChat.turnFinished, {
@@ -265,10 +225,10 @@ export class AgentChatService {
                 await session.close();
                 return;
             }
-            this.setStatus(terminalId, 'ready');
+            this.states.setStatus(terminalId, 'ready');
             database.updateTerminalState(terminalId, 'running');
             database.updateAgentProcessState(terminalId, 'running');
-            this.sendTerminalChange(terminalId);
+            this.states.publish(terminalId);
             if (database.getTerminal(terminalId)?.agentSessionId)
                 this.options.coordinator.probeTerminal(terminalId);
             logger.write('info', logEventCatalog.agentChat.processStarted, {
@@ -279,9 +239,9 @@ export class AgentChatService {
             await session?.close();
             const failure = chatStartFailure(this.options, terminal, error, startedAt);
             if (isCurrent() && !this.isShuttingDown) {
-                this.setStatus(terminalId, 'failed', failure);
+                this.states.setStatus(terminalId, 'failed', failure);
                 if (didPersistChatStartFailure(this.options, terminalId, failure))
-                    this.sendTerminalChange(terminalId);
+                    this.states.publish(terminalId);
             }
         }
     }
@@ -345,36 +305,53 @@ export class AgentChatService {
         // Background work lives inside the provider process and ended with it.
         new ChatTaskList({
             read: () => state.projection.snapshot,
-            apply: (operations) => this.apply(terminalId, operations),
+            apply: (operations) => this.states.apply(terminalId, operations),
         }).stopAll();
         this.options.coordinator.endTerminalLaunch(terminalId);
         if (!database.getTerminal(terminalId)) return;
-        if (exit.requested) {
-            this.setStatus(terminalId, 'stopped');
-            database.updateTerminalState(terminalId, 'stopped');
-            database.updateAgentProcessState(terminalId, 'stopped');
-        } else {
+        if (exit.requested) this.states.recordRequestedStop(terminalId, state);
+        else {
             // No detail: the closed reason's own copy already says everything Caxri knows about the exit.
-            this.setStatus(terminalId, 'failed', { reason: 'process_exited' });
+            this.states.setStatus(terminalId, 'failed', { reason: 'process_exited' });
             database.updateTerminalExitState(terminalId, 'dead');
             database.updateAgentProcessExitState(terminalId, 'dead');
         }
-        this.sendTerminalChange(terminalId);
+        this.states.publish(terminalId);
     }
 
     /**
      * Serializes input per Chat, starting the provider first, so messages and commands reach it in the order sent.
      */
-    private async enqueue(terminalId: string, deliver: ChatInputDelivery): Promise<void> {
-        const terminal = requireChatTerminal(this.options.database, terminalId);
-        const state = this.state(terminalId);
+    private enqueue(terminalId: string, deliver: ChatStateDelivery): Promise<void> {
+        requireChatTerminal(this.options.database, terminalId);
+        return this.enqueueOn(terminalId, this.states.open(terminalId), deliver);
+    }
+
+    /**
+     * Appends input to one Chat state's send chain. The state is resolved once, by the caller, and admitted again when
+     * the input reaches the head of the chain: input that waited behind a close, delete, archive, detach, restart, or
+     * surface switch rejects there instead of starting a provider for the Terminal.
+     */
+    private async enqueueOn(
+        terminalId: string,
+        state: ChatState,
+        deliver: ChatStateDelivery,
+    ): Promise<void> {
+        this.states.admit(terminalId, state);
         const previous = state.sendQueue;
         const run = (async () => {
             await previous;
-            await deliver(await this.ensureStarted(terminal));
+            await deliver(await this.ensureStarted(terminalId, state), state);
         })();
         state.sendQueue = Promise.allSettled([run]);
         await run;
+    }
+
+    /**
+     * Whether a Chat has a provider process or a start in flight, which is what a detach hands over.
+     */
+    private isLive(terminalId: string): boolean {
+        return this.states.get(terminalId)?.session?.isOpen === true || this.starts.has(terminalId);
     }
 
     /**
@@ -382,17 +359,7 @@ export class AgentChatService {
      * exit, the window-close confirmation, and Session deletion prompts treat a running Chat like a running PTY.
      */
     liveCount(sessionId?: string): number {
-        let count = 0;
-        for (const [terminalId, state] of this.states) {
-            if (!state.session?.isOpen) continue;
-            if (
-                sessionId !== undefined &&
-                this.options.database.getTerminal(terminalId)?.sessionId !== sessionId
-            )
-                continue;
-            count += 1;
-        }
-        return count;
+        return this.states.liveCount(sessionId);
     }
 
     /**
@@ -403,9 +370,13 @@ export class AgentChatService {
         return Boolean(state?.session?.isOpen && state.projection.snapshot.activeTurnId);
     }
 
+    /**
+     * Returns the projection and lazily starts a provider that is not running. A failed Chat stays failed, and a
+     * detached or closing one is refused by the admission fence, so neither relaunches on a read.
+     */
     read(terminalId: string): AgentChatSnapshot {
-        const terminal = requireChatTerminal(this.options.database, terminalId);
-        const state = this.state(terminalId);
+        requireChatTerminal(this.options.database, terminalId);
+        const state = this.states.open(terminalId);
         state.projection.flush();
         if (
             !state.session &&
@@ -413,7 +384,7 @@ export class AgentChatService {
             state.projection.snapshot.status !== 'failed'
         )
             // eslint-disable-next-line no-void -- the read returns the starting projection; patches follow.
-            void this.startQuietly(terminal);
+            void this.startQuietly(terminalId, state);
         state.projection.flush();
         return agentChatSnapshotSchema.parse(state.projection.snapshot);
     }
@@ -428,8 +399,7 @@ export class AgentChatService {
         delivery: 'queue' | 'steer' = 'queue',
     ): Promise<void> {
         assertE2EAgentChatInput(readE2EAgentPolicy(), message.text);
-        await this.enqueue(terminalId, async (session) => {
-            const state = this.state(terminalId);
+        await this.enqueue(terminalId, async (session, state) => {
             if (delivery === 'steer' && state.projection.snapshot.activeTurnId) {
                 await session.send(message, { delivery: 'steered' });
                 state.followUps.logSteered();
@@ -445,8 +415,7 @@ export class AgentChatService {
 
     async runCommand(terminalId: string, name: string, arguments_?: string): Promise<void> {
         assertE2EAgentChatInput(readE2EAgentPolicy(), `/${name}`);
-        await this.enqueue(terminalId, async (session) => {
-            const state = this.state(terminalId);
+        await this.enqueue(terminalId, async (session, state) => {
             if (!isAgentChatCommandListed(state.projection.snapshot, name))
                 throw new CaxriError('VALIDATION', `/${name} is not available in this Chat`);
             const trimmed = arguments_?.trim() ? arguments_ : undefined;
@@ -464,11 +433,8 @@ export class AgentChatService {
     }
 
     async configure(terminalId: string, change: AgentChatModelRequest): Promise<void> {
-        await this.enqueue(terminalId, async (session) => {
-            const config = resolveAgentChatModelChange(
-                this.state(terminalId).projection.snapshot,
-                change,
-            );
+        await this.enqueue(terminalId, async (session, state) => {
+            const config = resolveAgentChatModelChange(state.projection.snapshot, change);
             if (config.model || config.effort) await session.configure?.(config);
         });
     }
@@ -490,14 +456,14 @@ export class AgentChatService {
      * never saw (a resumed conversation, an evicted projection).
      */
     async readTask(terminalId: string, taskId: string): Promise<AgentChatTaskSnapshot> {
-        const terminal = requireChatTerminal(this.options.database, terminalId);
-        const state = this.state(terminalId);
+        requireChatTerminal(this.options.database, terminalId);
+        const state = this.states.open(terminalId);
         state.projection.flush();
         const live = state.projection.tasks.resolve(taskId);
         if (live) return agentChatTaskSnapshotSchema.parse(live);
         let session: AgentChatProviderSession;
         try {
-            session = await this.ensureStarted(terminal);
+            session = await this.ensureStarted(terminalId, state);
         } catch {
             throw new CaxriError('NOT_FOUND', 'This task is no longer available');
         }
@@ -530,8 +496,7 @@ export class AgentChatService {
      * Sends one queued message ahead of the rest: it steers the running turn, or starts a turn when the Chat is idle.
      */
     async sendQueuedNow(terminalId: string, id: string): Promise<void> {
-        await this.enqueue(terminalId, async (session) => {
-            const state = this.state(terminalId);
+        await this.enqueue(terminalId, async (session, state) => {
             const entry = state.followUps.entry(id);
             const isSteering = Boolean(state.projection.snapshot.activeTurnId);
             if (isSteering && entry.kind === 'command')
@@ -553,34 +518,70 @@ export class AgentChatService {
     }
 
     /**
-     * Stops the provider and starts it again on the same Agent Session. Clears a previous failure. A resume keeps the
-     * replaced start's approval mode (see `AgentRunAutonomy`).
+     * Stops the provider and starts it again on the same Agent Session. Clears a previous failure and ends a hand-over:
+     * an explicit restart (Retry, a surface switch to Chat) is the user taking the Chat back. A resume keeps the
+     * replaced start's approval mode (see `AgentRunAutonomy`). Queued follow-ups carry over; input still waiting in the
+     * replaced state's send chain rejects.
      */
     async restart(terminalId: string, shouldKeepAgentAutonomy = false): Promise<TerminalRecord> {
-        const terminal = requireChatTerminal(this.options.database, terminalId);
-        await this.stop(terminalId);
+        requireChatTerminal(this.options.database, terminalId);
         const previous = this.states.get(terminalId);
-        this.forget(terminalId);
-        if (previous) this.state(terminalId).followUps.adopt(previous.followUps);
-        await this.startQuietly(terminal, shouldKeepAgentAutonomy);
+        if (previous) previous.retiring ??= 'replaced';
+        await this.stop(terminalId);
+        this.states.forget(terminalId);
+        const terminal = requireChatTerminal(this.options.database, terminalId);
+        if (terminal.lastProcessState === 'detached') this.states.clearDetached(terminalId);
+        const state = this.states.open(terminalId);
+        if (previous) state.followUps.adopt(previous.followUps);
+        await this.startQuietly(terminalId, state, shouldKeepAgentAutonomy);
         return this.options.database.getTerminal(terminalId) ?? terminal;
     }
 
     /**
-     * Stops a Chat whose Terminal is being closed, deleted, or archived, and forgets its projection.
+     * Stops a Chat whose Terminal is being closed, deleted, archived, detached, or switched to a PTY, and forgets its
+     * projection. The state retires synchronously, before the stop awaits anything, so input queued behind it rejects.
      */
-    async close(terminalId: string): Promise<void> {
+    async close(terminalId: string, reason: 'closed' | 'detached' = 'closed'): Promise<void> {
+        const state = this.states.get(terminalId);
+        if (state) state.retiring = reason;
         await this.stop(terminalId);
-        this.forget(terminalId);
-        forgetTaskRevisions(this.taskRevisionFloors, terminalId);
+        this.states.forget(terminalId, true);
     }
 
-    async closeSession(sessionId: string): Promise<void> {
+    /**
+     * Stops a Session's Chats for an archive (`closed`) or a hand-over to another client (`detached`). A detach parks
+     * only the Chats that are live, as `detached`, mirroring `TerminalSuspensionService.detachSession` for PTYs: a read
+     * then returns the projection without relaunching, and input fails, until `resumeSession` or an explicit restart.
+     */
+    async closeSession(sessionId: string, reason: 'closed' | 'detached' = 'closed'): Promise<void> {
         const ids = this.options.database
             .listTerminals(sessionId)
             .filter((terminal) => this.states.has(terminal.id))
             .map((terminal) => terminal.id);
-        await Promise.all(ids.map((id) => this.close(id)));
+        if (reason === 'closed') {
+            await Promise.all(ids.map((id) => this.close(id)));
+            return;
+        }
+        // Each Chat is marked as soon as it stops: a read between its stop and a sibling's would otherwise relaunch it.
+        await Promise.all(
+            ids
+                .filter((id) => this.isLive(id))
+                .map(async (id) => {
+                    await this.close(id, 'detached');
+                    this.states.markDetached(id);
+                }),
+        );
+    }
+
+    /**
+     * `session.resume`: clears the hand-over marker on the Session's Chats and starts each provider again on its bound
+     * Agent Session, as resume relaunches detached PTY Agents. Waiting for a read is not enough: a pane or phone that
+     * read the Chat while it was detached already holds that projection and reads again only on a patch.
+     */
+    resumeSession(sessionId: string): void {
+        for (const terminalId of this.states.clearDetachedSession(sessionId))
+            // eslint-disable-next-line no-void -- a failed start is recorded in the projection every Client reads
+            void this.startQuietly(terminalId, this.states.open(terminalId));
     }
 
     /**
@@ -588,8 +589,8 @@ export class AgentChatService {
      */
     async shutdown(): Promise<void> {
         this.isShuttingDown = true;
-        await Promise.all(this.states.keys().map((id) => this.stop(id)));
-        for (const state of this.states.values()) state.projection.retire();
+        for (const state of this.states.values()) state.retiring ??= 'closed';
+        await Promise.all(this.states.terminalIds().map((id) => this.stop(id)));
         this.states.clear();
     }
 }

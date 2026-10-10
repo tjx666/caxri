@@ -231,8 +231,7 @@ describe('Host Desktop router', () => {
             return Promise.reject(new Error(`Unexpected unscoped method: ${method}`));
         });
         const requestInWorkbenchContext = vi.fn((method: string) => {
-            if (method === 'files.authorizeOpen' || method === 'files.authorizeTrash')
-                return Promise.resolve(authorized);
+            if (method === 'files.authorizeOpen') return Promise.resolve(authorized);
             if (method === 'git.discard.preflight')
                 return Promise.resolve({
                     status: 'ready' as const,
@@ -244,11 +243,7 @@ describe('Host Desktop router', () => {
             return Promise.reject(new Error(`Unexpected scoped method: ${method}`));
         });
         const invoke = vi.fn((operation: DesktopOperation) =>
-            Promise.resolve(
-                operation.kind === 'confirmFilesTrash' || operation.kind === 'confirmGitDiscard'
-                    ? { confirmed: true }
-                    : null,
-            ),
+            Promise.resolve(operation.kind === 'confirmGitDiscard' ? { confirmed: true } : null),
         );
         const router = new ServerDesktopRouter({
             bridge: {
@@ -276,7 +271,6 @@ describe('Host Desktop router', () => {
             undefined,
             context,
         );
-        await router.trash({ path: 'file.ts', sessionId: session.id }, undefined, context);
         await router.discard(
             {
                 repositoryId: 'repo-1',
@@ -297,14 +291,6 @@ describe('Host Desktop router', () => {
         );
         expect(requestInWorkbenchContext).toHaveBeenNthCalledWith(
             2,
-            'files.authorizeTrash',
-            { path: 'file.ts', sessionId: session.id },
-            context,
-            undefined,
-            undefined,
-        );
-        expect(requestInWorkbenchContext).toHaveBeenNthCalledWith(
-            3,
             'git.discard.preflight',
             {
                 repositoryId: 'repo-1',
@@ -316,76 +302,12 @@ describe('Host Desktop router', () => {
             undefined,
         );
         expect(requestInWorkbenchContext).toHaveBeenNthCalledWith(
-            4,
+            3,
             'git.discard.apply',
             { token: 'scoped-token' },
             context,
         );
         expect(request.mock.calls.map(([method]) => method)).toEqual(['app.bootstrap']);
-    });
-
-    it('reauthorizes a Trash target through Runtime immediately before Desktop consumes it', async () => {
-        const request = vi.fn((method: string) => {
-            if (method === 'files.authorizeTrash') return Promise.resolve(authorized);
-            return Promise.reject(new Error(`Unexpected method: ${method}`));
-        });
-        const routerReference: { current?: ServerDesktopRouter } = {};
-        const invoke = vi.fn(async (operation: DesktopOperation) => {
-            if (operation.kind === 'confirmFilesTrash') return { confirmed: true };
-            if (operation.kind === 'trash') {
-                await expect(
-                    routerReference.current?.consumeTarget(operation.targetId, 5),
-                ).resolves.toMatchObject({ operation: 'trash', path: authorized.path });
-                return null;
-            }
-            throw new Error(`Unexpected Desktop operation: ${operation.kind}`);
-        });
-        const router = new ServerDesktopRouter({
-            bridge: {
-                invoke,
-                lease: () => ({
-                    desktopId: 'desktop-1',
-                    generation: 5,
-                    expiresAt: Date.now() + 1_000,
-                }),
-            },
-            domainService: domainService(request),
-        });
-        routerReference.current = router;
-
-        await expect(
-            router.trash({ sessionId: session.id, path: authorized.path }),
-        ).resolves.toEqual({ kind: 'file', name: 'file.ts', path: authorized.path });
-        expect(request).toHaveBeenCalledTimes(2);
-        expect(invoke.mock.calls.map(([operation]) => operation.kind)).toEqual([
-            'confirmFilesTrash',
-            'trash',
-        ]);
-    });
-
-    it('does not create a Trash target when the user cancels confirmation', async () => {
-        const request = vi.fn((method: string) => {
-            if (method === 'files.authorizeTrash') return Promise.resolve(authorized);
-            return Promise.reject(new Error(`Unexpected method: ${method}`));
-        });
-        const invoke = vi.fn(() => Promise.resolve({ confirmed: false }));
-        const router = new ServerDesktopRouter({
-            bridge: {
-                invoke,
-                lease: () => ({
-                    desktopId: 'desktop-1',
-                    generation: 6,
-                    expiresAt: Date.now() + 1_000,
-                }),
-            },
-            domainService: domainService(request),
-        });
-
-        await expect(
-            router.trash({ sessionId: session.id, path: authorized.path }),
-        ).resolves.toEqual({ canceled: true });
-        expect(request).toHaveBeenCalledOnce();
-        expect(invoke).toHaveBeenCalledOnce();
     });
 
     it('confirms Runtime-canonical Git discard details and applies only its one-use token', async () => {
@@ -550,38 +472,6 @@ describe('Host Desktop router', () => {
 
         await expect(discarded).rejects.toMatchObject({ code: 'CANCELLED' });
         expect(request).toHaveBeenCalledOnce();
-    });
-
-    it('does not issue a Trash target after the Extension request is cancelled', async () => {
-        const confirmation = Promise.withResolvers<{ confirmed: boolean }>();
-        const request = vi.fn((method: string) => {
-            if (method === 'files.authorizeTrash') return Promise.resolve(authorized);
-            return Promise.reject(new Error(`Unexpected method: ${method}`));
-        });
-        const invoke = vi.fn(() => confirmation.promise);
-        const router = new ServerDesktopRouter({
-            bridge: {
-                invoke,
-                lease: () => ({
-                    desktopId: 'desktop-1',
-                    generation: 11,
-                    expiresAt: Date.now() + 1_000,
-                }),
-            },
-            domainService: domainService(request),
-        });
-        const controller = new AbortController();
-        const trashed = router.trash(
-            { path: authorized.path, sessionId: session.id },
-            controller.signal,
-        );
-        await vi.waitFor(() => expect(invoke).toHaveBeenCalledOnce());
-
-        controller.abort();
-        confirmation.resolve({ confirmed: true });
-
-        await expect(trashed).rejects.toMatchObject({ code: 'CANCELLED' });
-        expect(invoke).toHaveBeenCalledOnce();
     });
 
     it('rejects paths outside every Project without routing a Desktop command', async () => {
