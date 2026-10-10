@@ -173,15 +173,34 @@ describe('describeAgentChatWork', () => {
             describeAgentChatWork({
                 id: 'c',
                 type: 'command',
-                command: `/bin/zsh -lc "sed -n '1,40p' docs/SKILL.md"`,
+                command: `/bin/zsh -lc "git log --format='%h %s' -5"`,
                 status: 'completed',
                 output: '',
             }),
         ).toEqual({
             kind: 'command',
             label: 'Ran',
-            subject: "sed -n '1,40p' docs/SKILL.md",
+            subject: "git log --format='%h %s' -5",
             isCodeSubject: true,
+        });
+    });
+
+    it('names the file a shell read printed, even when the Agent described the command', () => {
+        expect(
+            describeAgentChatWork({
+                id: 'c',
+                type: 'command',
+                command: `/bin/zsh -lc "sed -n '1,40p' docs/SKILL.md"`,
+                description: 'Read the skill',
+                status: 'completed',
+                output: '',
+            }),
+        ).toEqual({
+            kind: 'read',
+            label: 'Read',
+            subject: 'SKILL.md',
+            isCodeSubject: true,
+            path: 'docs/SKILL.md',
         });
     });
 
@@ -257,14 +276,15 @@ describe('agentChatOutputLanguage', () => {
             output,
         });
 
-    it('infers the language of a printed file, a Git diff, or JSON', () => {
+    it('infers the language of a printed file, a Git diff, JSON, or else the shell', () => {
         expect(run(`/bin/zsh -lc "sed -n '1,420p' /work/skills/SKILL.md"`)).toBe('md');
         expect(run('cat src/app.ts')).toBe('ts');
         expect(run('git -C repo diff HEAD~1')).toBe('diff');
-        expect(run('git show --stat HEAD')).toBeUndefined();
-        expect(run('agent-browser skills get core --full | sed -n 1,700p')).toBeUndefined();
+        expect(run('git show --stat HEAD')).toBe('shell');
+        expect(run('agent-browser skills get core --full | sed -n 1,700p')).toBe('shell');
         expect(run('gh api repos/a/b', '{"ok": true}')).toBe('json');
-        expect(run('ls -la', 'total 0')).toBeUndefined();
+        // Any other command output is painted as the shell it came from.
+        expect(run('ls -la', 'total 0')).toBe('shell');
     });
 
     it('uses the path a file tool read', () => {
