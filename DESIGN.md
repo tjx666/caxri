@@ -950,6 +950,15 @@ selects the standard themed fill, workbench canvas, inline surface, or an embedd
 `InputGroup`; all variants share one border, focus ring, invalid, and disabled contract. Adorned
 search/path fields use `InputGroup`, never feature-local field chrome.
 
+**Agent Chat composer**: one radius-8 `--surface` card with a 1px `--border` that turns `--muted`
+while focused (the pane ring already carries the accent focus) and `--accent` while an image is
+dragged over it. Inside, top to bottom: the attached-image strip (64px radius-6 thumbnails, each
+with its remove control inset in the top-right corner), a borderless auto-growing textarea, and one
+action row: Attach images on the left, the model and context summary right-aligned in `--muted`, and
+a single primary action slot. That slot shows Stop while a turn runs and the input is empty, and
+Send (steering the running turn) as soon as there is content; the two never sit side by side.
+Escape interrupts a running turn regardless. Reference: T3 Code's Chat composer.
+
 **Settings**: a Workbench tab, not a modal: `Cmd+,`, the menu, and the palette all open or focus
 this one tab instead of raising a dialog, so it composes with every other document (the Archived
 Sessions manager still floats its own confirmation dialog over it, exactly as it would over any

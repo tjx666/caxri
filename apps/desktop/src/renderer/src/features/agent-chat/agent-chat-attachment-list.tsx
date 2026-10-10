@@ -14,17 +14,20 @@ export function AgentChatAttachmentList({
     onRemove: (id: string) => void;
 }) {
     return (
-        <ul aria-label="Attached images" className="m-0 flex list-none flex-wrap gap-1.5 p-0">
+        <ul
+            aria-label="Attached images"
+            className="m-0 flex list-none flex-wrap gap-2 px-3 pt-3 pb-0"
+        >
             {attachments.map((attachment, index) => (
                 <li className="group/attachment relative" key={attachment.id}>
                     <img
                         alt={`Attachment ${index + 1}`}
-                        className="size-12 rounded-md border border-border object-cover"
+                        className="size-16 rounded-md border border-border object-cover"
                         src={attachment.image.thumbnail}
                     />
                     <Button
                         aria-label={`Remove image ${index + 1}`}
-                        className="absolute -top-1.5 -right-1.5 size-5 rounded-full shadow-sm"
+                        className="absolute top-1 right-1 size-5 shadow-sm"
                         size="icon"
                         type="button"
                         variant="secondary"

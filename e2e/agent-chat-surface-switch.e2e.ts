@@ -132,6 +132,14 @@ if (process.argv.includes('app-server')) {
         await message.fill('slow please');
         await message.press('Enter');
         await expect(session.getByRole('button', { name: 'Stop' })).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('surface-switch-running-turn.png') });
+        // Stop and Send share one slot: typed content turns it into Send, which steers the turn.
+        await message.fill('steer');
+        await expect(session.getByRole('button', { name: 'Send' })).toBeEnabled();
+        await expect(session.getByRole('button', { name: 'Stop' })).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('surface-switch-steer-draft.png') });
+        await message.fill('');
+        await expect(session.getByRole('button', { name: 'Stop' })).toBeVisible();
         await tab.click({ button: 'right' });
         await chooseContextMenuItem(app, 'Open as Terminal');
         const confirm = page.getByRole('dialog', { name: 'Stop the running turn?' });
