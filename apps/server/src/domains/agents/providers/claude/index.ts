@@ -1,6 +1,7 @@
 import { join, resolve } from 'node:path';
 
 import type { AgentActivityState } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 import { mapWithConcurrency } from '@caxri/system';
 
 import { runExternalCommand } from '../../../executables';
@@ -389,7 +390,10 @@ export const claudeProvider: AgentProviderDescriptor = {
     readState: (context, environment) =>
         readClaudeState(context, resolveClaudeConfigDirectory(environment)),
     renameSession: renameClaudeSession,
-    resumeArguments: (agentSessionId) => ['--resume', agentSessionId],
+    resumeArguments: (agentSessionId) => [
+        ...agentProviderCatalog.claude.resumeArgs,
+        agentSessionId,
+    ],
     timelineProjector: appendClaudeTimelineRecord,
     createThroughputScanner: createClaudeThroughputScanner,
     transcriptBaseRoot: (environment) =>

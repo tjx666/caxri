@@ -131,6 +131,8 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 sendSequence: record('terminal.sendSequence'),
                 restartActive: record('terminal.restart'),
                 startNewAgentSession: record('terminal.startNewAgentSession'),
+                canSwitchActiveSurface: () => true,
+                switchActiveSurface: record('terminal.switchAgentSurface'),
                 closeActive: record('terminal.close'),
             },
             workbench: {

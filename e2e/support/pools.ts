@@ -18,6 +18,7 @@ export interface E2EPoolPlan {
  * anything on its own, it just stops protecting the spec it forgot.
  */
 export const clipboardCapabilitySpecs = [
+    'e2e/agent-chat-surface-switch.e2e.ts',
     'e2e/bug-report.e2e.ts',
     'e2e/clipboard-restoration.e2e.ts',
     'e2e/editor-git-actions.e2e.ts',

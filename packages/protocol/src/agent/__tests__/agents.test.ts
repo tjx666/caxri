@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentProviderCatalog, agentProviderIds, defaultAgentProviderSettings } from '../agents.js';
+import {
+    agentProviderCatalog,
+    agentProviderIds,
+    agentResumeCommandLine,
+    defaultAgentProviderSettings,
+} from '../agents.js';
 
 describe('agentProviderCatalog capabilities', () => {
     it('keeps image input undefined for providers without a documented safe paste path', () => {
@@ -79,5 +84,22 @@ describe('defaultAgentProviderSettings', () => {
             '--dangerously-bypass-approvals-and-sandbox',
         ]);
         expect(defaultAgentProviderSettings.grok.launch.args).toEqual(['--yolo']);
+    });
+});
+
+describe('agentResumeCommandLine', () => {
+    it("continues each provider's session from the Terminal's folder", () => {
+        expect(agentResumeCommandLine('claude', 'a1b2-c3', '/work/app')).toBe(
+            'cd /work/app && claude --resume a1b2-c3',
+        );
+        expect(agentResumeCommandLine('codex', 'thread-1', '/work/app')).toBe(
+            'cd /work/app && codex resume thread-1',
+        );
+    });
+
+    it('quotes a folder the shell would otherwise split or expand', () => {
+        expect(agentResumeCommandLine('claude', 'id', "/work/it's my app")).toBe(
+            String.raw`cd '/work/it'\''s my app' && claude --resume id`,
+        );
     });
 });
