@@ -110,6 +110,11 @@ export interface TerminalStartOptions {
      */
     launchSettings?: AgentLaunchSettings;
     /**
+     * Relaunches the Agent on the approval mode (YOLO or not) of this Terminal's previous Agent launch rather than the
+     * current Settings switch; see `AgentRunAutonomy`.
+     */
+    shouldKeepAgentAutonomy?: boolean;
+    /**
      * Server-generated private-file pointer, appended after provider-native resume arguments.
      */
     initialPrompt?: string;

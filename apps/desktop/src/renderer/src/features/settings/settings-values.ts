@@ -1,12 +1,13 @@
 import type { AppSettings, ArgvConfig, ArgvConfigChanges } from '@caxri/protocol';
-import { defaultAgentProviderSettings, defaultAppSettings } from '@caxri/protocol';
-import { isEqual } from 'es-toolkit';
-
 import {
+    defaultAgentProviderSettings,
+    defaultAppSettings,
     hasDefaultProviderAutonomy,
     hasProviderAutonomy,
     withProviderAutonomy,
-} from './provider-autonomy';
+} from '@caxri/protocol';
+import { isEqual } from 'es-toolkit';
+
 import type { SettingRowBinding } from './settings-registry';
 
 /**
@@ -135,16 +136,11 @@ export function rowResetAction(
             return {
                 kind: 'field',
                 key: 'agents.providers',
-                value: withProviderField(settings, binding.provider, {
-                    launch: {
-                        ...settings['agents.providers'][binding.provider].launch,
-                        args: withProviderAutonomy(
-                            settings['agents.providers'][binding.provider].launch.args,
-                            binding.provider,
-                            hasDefaultProviderAutonomy(binding.provider),
-                        ),
-                    },
-                }),
+                value: withProviderAutonomyField(
+                    settings,
+                    binding.provider,
+                    hasDefaultProviderAutonomy(binding.provider),
+                ),
             };
         case 'provider-launch':
             return {
@@ -228,4 +224,19 @@ export function withProviderField(
         ...settings['agents.providers'],
         [provider]: { ...settings['agents.providers'][provider], ...patch },
     };
+}
+
+/**
+ * Returns a full `agents.providers` value with `provider`'s autonomy tokens turned on or off in its launch arguments,
+ * every other argument left in place.
+ */
+export function withProviderAutonomyField(
+    settings: AppSettings,
+    provider: keyof AppSettings['agents.providers'],
+    isEnabled: boolean,
+): AppSettings['agents.providers'] {
+    const launch = settings['agents.providers'][provider].launch;
+    return withProviderField(settings, provider, {
+        launch: { ...launch, args: withProviderAutonomy(launch.args, provider, isEnabled) },
+    });
 }
