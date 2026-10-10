@@ -41,13 +41,6 @@ export const acknowledgeCheckedUncertainCreate = (
 ): NewSessionCreateState =>
     state.kind === 'uncertain' && state.checkedSessions ? { kind: 'idle' } : state;
 
-export const NEW_SESSION_AGENT_LABELS: Record<TerminalKind, string> = {
-    claude: 'Claude',
-    codex: 'Codex',
-    grok: 'Grok',
-    shell: 'Shell',
-};
-
 export const NEW_SESSION_AGENT_ORDER: TerminalKind[] = ['claude', 'codex', 'grok', 'shell'];
 
 export const sortNewSessionProjects = (projects: NewSessionProject[]): NewSessionProject[] => {

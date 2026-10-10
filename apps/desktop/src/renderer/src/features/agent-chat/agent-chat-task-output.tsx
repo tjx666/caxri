@@ -1,6 +1,4 @@
-import { ArrowDown } from 'lucide-react';
-
-import { Button } from '../../components/ui/button';
+import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 
 /**
@@ -47,10 +45,15 @@ export function AgentChatTaskOutput({
                     )}
                 </div>
             )}
-            <div className="min-h-0 flex-1 overflow-auto" ref={scrollReference} onScroll={onScroll}>
+            <div
+                className="min-h-0 flex-1 overflow-auto outline-none"
+                ref={scrollReference}
+                tabIndex={-1}
+                onScroll={onScroll}
+            >
                 <div ref={contentReference}>
                     {text ? (
-                        <pre className="m-0 px-4 py-3 font-mono text-[11px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground">
+                        <pre className="m-0 px-4 py-3 font-mono text-[11px] leading-4 wrap-anywhere whitespace-pre-wrap text-foreground">
                             {text}
                         </pre>
                     ) : (
@@ -60,17 +63,11 @@ export function AgentChatTaskOutput({
                     )}
                 </div>
             </div>
-            {!isFollowing && (
-                <Button
-                    className="absolute bottom-2 left-1/2 -translate-x-1/2 shadow-md"
-                    size="sm"
-                    variant="secondary"
-                    onClick={jumpToLatest}
-                >
-                    <ArrowDown className="size-3.5" />
-                    Jump to latest
-                </Button>
-            )}
+            <AgentChatJumpToLatest
+                focusTarget={scrollReference}
+                isFollowing={isFollowing}
+                onJump={jumpToLatest}
+            />
         </div>
     );
 }

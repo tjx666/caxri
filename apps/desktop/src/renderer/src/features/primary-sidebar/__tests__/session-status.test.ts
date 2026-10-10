@@ -27,9 +27,23 @@ describe('Session list status', () => {
                 }),
             ),
         ).toEqual({
-            ariaLabel:
-                'Needs attention: Finished. The Agent finished its latest turn. Current status: Working. The Agent is running.',
+            ariaDescription: 'The Agent finished its latest turn. Current status: Working.',
+            ariaLabel: 'Unread, finished',
             kind: 'attention',
+        });
+    });
+
+    it('keeps the unread name short for waiting and unknown attention', () => {
+        expect(
+            sessionStatus(
+                sessionSource('waiting', { hasUnread: true, lastAttentionKind: 'waiting' }),
+            ),
+        ).toMatchObject({
+            ariaDescription: 'The Agent is waiting for input or confirmation.',
+            ariaLabel: 'Unread, waiting for you',
+        });
+        expect(sessionStatus(sessionSource('idle', { hasUnread: true }))).toMatchObject({
+            ariaLabel: 'Unread',
         });
     });
 
@@ -52,12 +66,14 @@ describe('Session list status', () => {
 
     it('maps running and compaction to the running slot', () => {
         expect(sessionStatus(sessionSource('running'))).toEqual({
-            ariaLabel: 'Working. The Agent is running.',
+            ariaDescription: 'The Agent is running.',
+            ariaLabel: 'Working',
             kind: 'running',
         });
         expect(sessionStatus(sessionSource('completed'), { agentOperation: 'compacting' })).toEqual(
             {
-                ariaLabel: 'Compacting. Codex is summarizing earlier context before continuing.',
+                ariaDescription: 'The Agent is summarizing earlier context before continuing.',
+                ariaLabel: 'Compacting',
                 kind: 'running',
             },
         );
@@ -72,11 +88,13 @@ describe('Session list status', () => {
 
     it('shows a detached Agent as a static detached slot instead of stale activity', () => {
         expect(sessionStatus(sessionSource('running'), { lastProcessState: 'detached' })).toEqual({
-            ariaLabel: 'Detached. The Agent was stopped so another client can resume it.',
+            ariaDescription: 'The Agent was stopped so another client can resume it.',
+            ariaLabel: 'Detached',
             kind: 'detached',
         });
         expect(sessionStatus(sessionSource('waiting'), { lastProcessState: 'detached' })).toEqual({
-            ariaLabel: 'Detached. The Agent was stopped so another client can resume it.',
+            ariaDescription: 'The Agent was stopped so another client can resume it.',
+            ariaLabel: 'Detached',
             kind: 'detached',
         });
     });

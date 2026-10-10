@@ -24,7 +24,7 @@ import {
     prepareAcceptanceAgentFixture,
     validateAcceptanceAgentFixture,
 } from './agent-fixtures';
-import { assertAcceptanceBuildCommit } from './build-identity';
+import { assertAcceptanceBuildCommit, readBuiltMainSource } from './build-identity';
 import {
     beginCaseLifecycle,
     completeCaseLifecycle,
@@ -533,7 +533,7 @@ async function main(): Promise<void> {
             isNativeDialogAuthorized: isNativeDialogAuthorized(),
         });
         assertAcceptanceBuildCommit({
-            builtMainSource: await readFile(BUILT_MAIN_PATH, 'utf8'),
+            builtMainSource: await readBuiltMainSource(dirname(BUILT_MAIN_PATH)),
             reportCommit: plannedCase.commit,
         });
         const { profileId } = validateAcceptanceCaseLaunch(plannedCase.item.stateIsolation, {

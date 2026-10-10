@@ -48,18 +48,34 @@ export function agentChatImageRejection(
     return undefined;
 }
 
-export function agentChatImageRejectionMessage(rejection: AgentChatImageRejection): string {
+/**
+ * The toast for one kind of rejection. `fileNames` names the files a size rejection refused, so the user knows which
+ * one to shrink when several were dropped at once.
+ */
+export function agentChatImageRejectionMessage(
+    rejection: AgentChatImageRejection,
+    fileNames: readonly string[] = [],
+): string {
     switch (rejection) {
         case 'count': {
             return `A message can include up to ${MAX_AGENT_CHAT_IMAGES} images`;
         }
         case 'size': {
-            return `Images must be ${MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024} MB or smaller`;
+            const limit = `Images must be ${MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024} MB or smaller`;
+            return fileNames.length > 0 ? `${limit}: ${fileNames.join(', ')}` : limit;
         }
         case 'type': {
             return 'Only PNG, JPEG, GIF, and WebP images can be attached';
         }
     }
+}
+
+/**
+ * Said when an image is pasted into a Chat whose provider takes no image input, so the gesture does not silently do
+ * nothing. A drop needs no message: it cites the image by path instead.
+ */
+export function agentChatImagesUnsupportedMessage(providerName: string): string {
+    return `${providerName} Chat does not accept images`;
 }
 
 /**

@@ -200,14 +200,21 @@ async function requestTerminalRestart(
     await caxri.request('terminal.restart', { terminalId, mode });
 }
 
-export function restartTerminalWithRecovery(terminalId: string): void {
+/**
+ * Resume-restarts a Terminal with the lost-reply recovery offer. `failureTitle` names the action the user took, so a
+ * failed Reload Agent does not report itself as a Terminal restart.
+ */
+export function restartTerminalWithRecovery(
+    terminalId: string,
+    failureTitle = 'Terminal restart failed',
+): void {
     let isRestartSubmitted = false;
     // Captured before the attempt: the offer stays in the notification center indefinitely, and the handler refuses it
     // once this Terminal is running something else, so the number has to describe the failure rather than the present.
     const processId = getBootstrap()?.terminals.find((entry) => entry.id === terminalId)?.processId;
     // eslint-disable-next-line no-void -- tryCommand reports restart failures through the toast
     void tryCommand(
-        'Terminal restart failed',
+        failureTitle,
         () =>
             requestTerminalRestart(terminalId, 'resume', () => {
                 isRestartSubmitted = true;

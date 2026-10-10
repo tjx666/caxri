@@ -33,29 +33,35 @@ export function useAgentChatAttachments(terminalId: string) {
         });
     const add = async (files: readonly File[]): Promise<void> => {
         const accepted: File[] = [];
-        const rejections = new Set<AgentChatImageRejection>();
+        /**
+         * Rejected file names per reason, so one toast per reason can name the files it refused.
+         */
+        const rejections = new Map<AgentChatImageRejection, string[]>();
         for (const file of files) {
             const rejection = agentChatImageRejection(file, reservedCount.current);
-            if (rejection) rejections.add(rejection);
+            if (rejection)
+                rejections.set(rejection, [...(rejections.get(rejection) ?? []), file.name]);
             else {
                 accepted.push(file);
                 reservedCount.current += 1;
             }
         }
-        for (const rejection of rejections)
-            pushToast('error', agentChatImageRejectionMessage(rejection));
+        for (const [rejection, fileNames] of rejections)
+            pushToast('error', agentChatImageRejectionMessage(rejection, fileNames));
         if (accepted.length === 0) return;
         setReadingCount((count) => count + accepted.length);
         const results = await Promise.allSettled(accepted.map((file) => readAgentChatImage(file)));
         setReadingCount((count) => count - accepted.length);
-        const images = results.flatMap((result) =>
-            result.status === 'fulfilled' ? [result.value] : [],
+        const images = results.flatMap((result, index) =>
+            result.status === 'fulfilled'
+                ? [{ image: result.value, name: accepted[index]?.name }]
+                : [],
         );
         reservedCount.current -= accepted.length - images.length;
         if (images.length < accepted.length) pushToast('error', 'An image could not be read');
         update((current) => [
             ...current,
-            ...images.map((image) => ({ id: crypto.randomUUID(), image })),
+            ...images.map(({ image, name }) => ({ id: crypto.randomUUID(), image, name })),
         ]);
     };
     const remove = (id: string): void => {

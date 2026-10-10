@@ -1,5 +1,13 @@
-import type { UsageDay } from '@caxri/protocol';
-import { formatTokens, formatUsd, localDateWeekday, shiftLocalDate } from '@caxri/protocol';
+import type { AgentProvider, UsageDay, UsageReport, UsageSessionRow } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    formatDuration,
+    formatPercent,
+    formatTokens,
+    formatUsd,
+    localDateWeekday,
+    shiftLocalDate,
+} from '@caxri/protocol';
 
 /**
  * The heatmap always shows the trailing 53 weeks, GitHub style: one column per week, Sunday on top.
@@ -33,7 +41,7 @@ function monthLabel(date: string): string {
     return SHORT_MONTHS[Number(date.slice(5, 7)) - 1];
 }
 
-export function weekdayName(index: number): string {
+function weekdayName(index: number): string {
     return WEEKDAYS[index];
 }
 
@@ -204,4 +212,108 @@ export function activityHighlights(activity: readonly UsageDay[]): ActivityHighl
 export function peakHour(hourOfDay: readonly number[]): number | undefined {
     const peak = Math.max(0, ...hourOfDay);
     return peak > 0 ? hourOfDay.indexOf(peak) : undefined;
+}
+
+/**
+ * What the Usage page shows instead of its sections, or `undefined` when the report has something to show.
+ *
+ * - `agentFilter`: one Agent is selected and it used nothing in the range. Saying "No Agent usage yet" there blamed the
+ *   whole page on a filter the user may have forgotten, so the copy names the Agent and offers to clear the filter.
+ * - `noUsage`: no Agent conversation was ever recorded.
+ */
+export type UsageEmptyState = { kind: 'agentFilter'; title: string } | { kind: 'noUsage' };
+
+export function usageEmptyState(
+    report: {
+        coverage: Pick<UsageReport['coverage'], 'agentSessions'>;
+        totals: { tokens: Pick<UsageReport['totals']['tokens'], 'total'> };
+    },
+    agent: AgentProvider | undefined,
+): UsageEmptyState | undefined {
+    if (
+        agent !== undefined &&
+        (report.coverage.agentSessions === 0 || report.totals.tokens.total === 0)
+    )
+        return {
+            kind: 'agentFilter',
+            title: `No ${agentProviderCatalog[agent].displayName} usage in this range`,
+        };
+    if (report.coverage.agentSessions === 0) return { kind: 'noUsage' };
+    return undefined;
+}
+
+/**
+ * The page caption's refresh state. With `keepPreviousData` a failed refetch leaves the previous report on screen and
+ * nothing else would say the figures are stale, so the caption reports it with a retry.
+ */
+export function didUsageRefreshFail(query: { data: unknown; isError: boolean }): boolean {
+    return query.data !== undefined && query.isError;
+}
+
+/**
+ * The burn-rate card's caption: the 30-day pace projected to a month. Prefixed `est.` and suffixed with the price
+ * basis, because a dollar figure on its own reads as a bill and a subscription plan is billed differently.
+ */
+export function burnRateCaption(last30DaysCostUsd: number): string {
+    return `Last 30 days · est. ${formatUsd((last30DaysCostUsd / 30) * 30.4)}/month at API prices`;
+}
+
+/**
+ * Whether a Most expensive Sessions row can switch to its Session. A deleted Session has nothing to open, and an
+ * archived one is not in the PrimarySidebar to select.
+ */
+export function canOpenUsageSession(
+    row: Pick<UsageSessionRow, 'isArchived' | 'isDeleted'>,
+): boolean {
+    return !row.isArchived && !row.isDeleted;
+}
+
+/**
+ * The shortest Agent time an hourly rate is projected from. A few seconds of measured activity extrapolated to an hour
+ * printed `144M output tokens per active hour` against a total of 2k tokens.
+ */
+const MIN_HOURLY_RATE_ACTIVE_MS = 60_000;
+
+/**
+ * The Highlights card's sentences, in display order. Each one appears only when its figure is meaningful.
+ */
+export function buildUsageInsights(
+    report: Pick<UsageReport, 'activity' | 'models' | 'projects'> & {
+        totals: Pick<
+            UsageReport['totals'],
+            'activeMs' | 'cacheSavingsUsd' | 'costUsd' | 'pullRequestsMerged'
+        > & { tokens: Pick<UsageReport['totals']['tokens'], 'output'> };
+    },
+): string[] {
+    const highlights = activityHighlights(report.activity);
+    const { totals } = report;
+    const topProject = report.projects.at(0);
+    const topModel = report.models.at(0);
+    const output = totals.tokens.output;
+    const insights: string[] = [];
+    if (highlights.busiestDay)
+        insights.push(
+            `Busiest day: ${formatDate(highlights.busiestDay.date)} with ${formatTokens(highlights.busiestDay.tokens)} tokens (${formatUsd(highlights.busiestDay.costUsd)}).`,
+        );
+    // "Day of the week", not "weekday": the busiest one is often a Saturday or Sunday.
+    if (highlights.busiestWeekday !== undefined)
+        insights.push(`${weekdayName(highlights.busiestWeekday)} is your busiest day of the week.`);
+    if (topProject && totals.costUsd > 0)
+        insights.push(
+            `${topProject.title} accounts for ${formatPercent(topProject.costUsd / totals.costUsd)} of the spend.`,
+        );
+    if (topModel) insights.push(`Most spend goes to ${topModel.model}.`);
+    if (totals.cacheSavingsUsd > 0)
+        insights.push(
+            `Prompt caching saved ${formatUsd(totals.cacheSavingsUsd)}, ${formatPercent(totals.cacheSavingsUsd / (totals.cacheSavingsUsd + totals.costUsd))} of what the same tokens would cost uncached.`,
+        );
+    if (output > 0 && totals.activeMs >= MIN_HOURLY_RATE_ACTIVE_MS)
+        insights.push(
+            `Agents wrote ${formatTokens(Math.round(output / (totals.activeMs / 3_600_000)))} output tokens per active hour.`,
+        );
+    if (totals.pullRequestsMerged > 0)
+        insights.push(
+            `Each merged pull request took ${formatDuration(totals.activeMs / totals.pullRequestsMerged)} of Agent time on average.`,
+        );
+    return insights;
 }

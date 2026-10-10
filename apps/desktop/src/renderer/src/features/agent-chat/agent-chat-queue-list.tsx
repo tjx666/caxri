@@ -16,10 +16,12 @@ const ACTION_CLASS_NAME = 'size-6 text-muted hover:text-foreground';
 
 function QueueCard({
     entry,
+    onAction,
     onEdit,
     terminalId,
 }: {
     entry: AgentChatQueueEntryView;
+    onAction: () => void;
     onEdit: (text: string) => void;
     terminalId: string;
 }) {
@@ -47,6 +49,7 @@ function QueueCard({
                     onClick={() => {
                         // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
                         void editAgentChatQueued(terminalId, entry, onEdit);
+                        onAction();
                     }}
                 >
                     <Pencil className="size-3.5" />
@@ -61,6 +64,7 @@ function QueueCard({
                     onClick={() => {
                         // eslint-disable-next-line no-void -- the command reports its own failures through tryCommand
                         void didRemoveAgentChatQueued(terminalId, entry.id);
+                        onAction();
                     }}
                 >
                     <Trash2 className="size-3.5" />
@@ -81,7 +85,10 @@ function QueueCard({
                     disabled={!entry.canSendNow}
                     size="sm"
                     variant="ghost"
-                    onClick={() => sendAgentChatQueuedNow(terminalId, entry.id)}
+                    onClick={() => {
+                        sendAgentChatQueuedNow(terminalId, entry.id);
+                        onAction();
+                    }}
                 >
                     <CornerDownLeft className="size-3.5" />
                     {entry.sendNowLabel}
@@ -99,12 +106,18 @@ function QueueCard({
 export function AgentChatQueueList({
     isTurnRunning,
     isPaused,
+    onAction,
     onEdit,
     queue,
     terminalId,
 }: {
     isTurnRunning: boolean;
     isPaused: boolean;
+    /**
+     * Runs after any queue action. Each one removes the control that was clicked (the card leaves the queue, or the
+     * paused header goes away), so the caller moves focus back to the message input instead of losing it to the body.
+     */
+    onAction: () => void;
     /**
      * Puts a queued message's text back into the composer once it left the queue.
      */
@@ -130,7 +143,10 @@ export function AgentChatQueueList({
                             className="min-h-5 shrink-0 gap-1 px-1.5 text-[11px]"
                             size="sm"
                             variant="secondary"
-                            onClick={() => resumeAgentChatQueue(terminalId)}
+                            onClick={() => {
+                                resumeAgentChatQueue(terminalId);
+                                onAction();
+                            }}
                         >
                             <Play className="size-3" />
                             Resume
@@ -148,6 +164,7 @@ export function AgentChatQueueList({
                         entry={entry}
                         key={entry.id}
                         terminalId={terminalId}
+                        onAction={onAction}
                         onEdit={onEdit}
                     />
                 ))}

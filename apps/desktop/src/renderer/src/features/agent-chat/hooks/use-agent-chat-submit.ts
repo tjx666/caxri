@@ -15,20 +15,31 @@ export function useAgentChatSubmit({
     attachments,
     clearSent,
     commands,
+    onSent,
     setDraft,
     terminalId,
 }: {
     attachments: readonly AgentChatAttachment[];
     clearSent: (sent: readonly AgentChatAttachment[]) => void;
     commands: readonly AgentChatCommand[] | undefined;
+    /**
+     * Runs after Server Core accepted a message (sent, queued, or steered) or a slash command, never after a failure.
+     */
+    onSent?: () => void;
     setDraft: (update: (current: string) => string) => void;
     terminalId: string;
 }) {
     const [isSending, setSending] = useState(false);
-    const send = async (didDeliver: () => Promise<boolean>, onSent: () => void): Promise<void> => {
+    const send = async (
+        didDeliver: () => Promise<boolean>,
+        clearDelivered: () => void,
+    ): Promise<void> => {
         setSending(true);
         try {
-            if (await didDeliver()) onSent();
+            if (await didDeliver()) {
+                clearDelivered();
+                onSent?.();
+            }
         } finally {
             setSending(false);
         }

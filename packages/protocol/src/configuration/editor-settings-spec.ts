@@ -216,7 +216,7 @@ export const editorSettingsSpec = [
         key: 'editor.foldOnOpenLineThreshold',
         title: 'Fold on open above',
         description:
-            'Collapse a file longer than this the first time it opens: Fold All, or Fold Level 2 for JSON so its top-level keys stay visible. Set to 0 to never fold on open.',
+            'Collapse every block of a file longer than this the first time it opens; JSON keeps its top-level keys visible. Unfold All (⌘K ⌘J) expands it again. Set to 0 to never fold on open.',
         category: 'editor',
         keywords: ['fold', 'folding', 'collapse', 'outline', 'overview', 'long', 'large', 'open'],
         min: 0,

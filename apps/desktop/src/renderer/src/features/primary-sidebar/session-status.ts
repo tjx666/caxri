@@ -2,10 +2,20 @@ import type { AgentOperation, ProcessState, SessionRecord } from '@caxri/protoco
 
 import { sessionActivityPresentation } from './session-activity';
 
+/**
+ * A visible status carries a short accessible name and a separate full sentence. The name joins the row's own
+ * accessible name, so it stays a word or two (`Unread, finished`, `Working`); the sentence is the glyph's accessible
+ * description, read on demand instead of on every arrow key through the list.
+ */
+interface VisibleSessionStatus {
+    ariaDescription: string;
+    ariaLabel: string;
+}
+
 export type SessionStatus =
-    | { ariaLabel: string; kind: 'attention' }
-    | { ariaLabel: string; kind: 'detached' }
-    | { ariaLabel: string; kind: 'running' }
+    | (VisibleSessionStatus & { kind: 'attention' })
+    | (VisibleSessionStatus & { kind: 'detached' })
+    | (VisibleSessionStatus & { kind: 'running' })
     | { kind: 'default' };
 
 export interface SessionStatusTerminal {
@@ -39,10 +49,15 @@ export function sessionStatus(
         );
         const currentStatus =
             agentOperation === 'compacting' || session.lastActivityState === 'running'
-                ? ` Current status: ${currentActivity.ariaLabel}`
+                ? ` Current status: ${currentActivity.label}.`
                 : '';
         return {
-            ariaLabel: `Needs attention: ${attentionActivity.label}. ${attentionActivity.description}${currentStatus}`,
+            ariaDescription: `${attentionActivity.description}${currentStatus}`,
+            // `Unread, finished` rather than `Needs attention: Finished`: a finished turn needs nothing, it is unread.
+            ariaLabel:
+                session.lastAttentionKind === undefined
+                    ? 'Unread'
+                    : `Unread, ${attentionActivity.label.toLowerCase()}`,
             kind: 'attention',
         };
     }
@@ -53,13 +68,18 @@ export function sessionStatus(
      */
     if (terminal.lastProcessState === 'detached') {
         return {
-            ariaLabel: 'Detached. The Agent was stopped so another client can resume it.',
+            ariaDescription: 'The Agent was stopped so another client can resume it.',
+            ariaLabel: 'Detached',
             kind: 'detached',
         };
     }
 
     if (agentOperation === 'compacting' || session.lastActivityState === 'running') {
-        return { ariaLabel: currentActivity.ariaLabel, kind: 'running' };
+        return {
+            ariaDescription: currentActivity.description,
+            ariaLabel: currentActivity.label,
+            kind: 'running',
+        };
     }
 
     return { kind: 'default' };

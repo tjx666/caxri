@@ -65,7 +65,8 @@ function mergeConfirmationReason(pullRequest: PullRequest): string | undefined {
 /**
  * The PR row's inline merge button. Offered only for an open pull request whose head Caxri knows and that GitHub does
  * not already report as conflicting; a draft or a conflict has to be resolved on GitHub first, and the row's hover card
- * says so instead.
+ * says so instead. A merge with clean checks is a single click by design, with no confirmation; only the risky states
+ * {@link mergeConfirmationReason} names (failing or running checks, unmet protection, a stale base) ask first.
  */
 export function mergePullRequestAction(
     repo: Pick<ProjectStatusRepository, 'id'>,

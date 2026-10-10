@@ -15,10 +15,24 @@ export function isScrolledToEnd(
 }
 
 /**
+ * Where a following view scrolls to after a layout change: the end of its content, or `null` while the user reads
+ * history. The end moves both when the content grows and when the view itself shrinks (a dock below it expanding a diff
+ * or the plan), and either one would otherwise leave the latest entry clipped under the dock.
+ */
+export function agentChatFollowScrollTop(
+    metrics: { scrollHeight: number; clientHeight: number },
+    isFollowing: boolean,
+): number | null {
+    return isFollowing ? Math.max(metrics.scrollHeight - metrics.clientHeight, 0) : null;
+}
+
+/**
  * Keeps the timeline pinned to its end while the user is reading the end, and leaves it alone once they scroll up to
  * read history. `revision` changes with every streamed patch, so following is re-applied after each layout; a resize of
  * the content (an expanded tool row, a narrower pane re-wrapping text) moves the end without a new revision, so the
- * content is observed too. `isFollowing` drives the "Jump to latest" control shown while reading history.
+ * content is observed too. So is the scroll view itself: a dock below it growing shrinks the view without changing the
+ * content, and the end must stay in sight. `isFollowing` drives the "Jump to latest" control shown while reading
+ * history.
  */
 export function useAgentChatScroll(revision: number | undefined): {
     scrollReference: RefObject<HTMLDivElement | null>;
@@ -33,7 +47,9 @@ export function useAgentChatScroll(revision: number | undefined): {
     const [isFollowing, setFollowing] = useState(true);
     const pin = useCallback(() => {
         const element = scrollReference.current;
-        if (element && isFollowingReference.current) element.scrollTop = element.scrollHeight;
+        if (!element) return;
+        const top = agentChatFollowScrollTop(element, isFollowingReference.current);
+        if (top !== null) element.scrollTop = top;
     }, []);
     const onScroll = useCallback(() => {
         const element = scrollReference.current;
@@ -49,9 +65,11 @@ export function useAgentChatScroll(revision: number | undefined): {
     useLayoutEffect(pin, [pin, revision]);
     useEffect(() => {
         const content = contentReference.current;
-        if (!content) return;
+        const view = scrollReference.current;
+        if (!content || !view) return;
         const observer = new ResizeObserver(pin);
         observer.observe(content);
+        observer.observe(view);
         return () => observer.disconnect();
     }, [pin]);
     return { scrollReference, contentReference, isFollowing, onScroll, jumpToLatest };

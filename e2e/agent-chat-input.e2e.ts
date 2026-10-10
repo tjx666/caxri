@@ -94,6 +94,12 @@ test('a Codex Chat sends pasted and picked images and runs /compact', async ({},
             /^\$review-pr\s*Review the open pull request$/u,
         ]);
         await page.screenshot({ path: testInfo.outputPath('codex-chat-commands.png') });
+        // Escape dismisses the list for this draft only; clearing the box and typing `/` again reopens it.
+        await message.press('Escape');
+        await expect(commands).toHaveCount(0);
+        await message.fill('');
+        await message.fill('/');
+        await expect(commands.getByRole('option').first()).toHaveText(/^\/compact/u);
         await message.fill('$rev');
         await expect(commands.getByRole('option').first()).toHaveText(/^\$review-pr/u);
         await message.press('Enter');

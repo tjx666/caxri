@@ -137,3 +137,22 @@ export function newTerminalAgentChoices(
         surface: newAgentSurface(kind, openInChat),
     }));
 }
+
+/**
+ * What a New Terminal control says it will create, named by Agent and view ("New Codex Chat", "New Claude Code
+ * Terminal") so the tab strip's `+` tooltip names the Agent its press starts (DESIGN.md, Tab strip). A Shell is plain
+ * "New Terminal": it is not an Agent. `agentLabel` is the Agent's display name, resolved by the caller from the icon
+ * registry so this module stays free of asset imports.
+ */
+export function newTerminalActionLabel(target: NewTerminalTarget, agentLabel: string): string {
+    if (target.kind === 'shell') return 'New Terminal';
+    return `New ${agentLabel} ${target.surface === 'chat' ? 'Chat' : 'Terminal'}`;
+}
+
+/**
+ * The empty pane's labelled button text: "New Chat" when its press opens an Agent Chat, "New Terminal" otherwise. The
+ * leading Agent icon already names the Agent, so the text names only what kind of tab appears.
+ */
+export function newTerminalButtonText(surface: TerminalSurface | undefined): string {
+    return surface === 'chat' ? 'New Chat' : 'New Terminal';
+}

@@ -168,6 +168,27 @@ describe('discoverAgentActions', () => {
         });
     });
 
+    it('reads a block scalar description and ignores nested keys', async () => {
+        const root = await temporaryDirectory('caxri-action-block-');
+        const skillDirectory = join(root, 'dispatch');
+        await mkdir(skillDirectory);
+        await writeFile(
+            join(skillDirectory, 'SKILL.md'),
+            '---\nname: dispatch\ndescription: |\n  Dispatch to another harness\n  through named presets.\nmetadata:\n  name: nested\n---\n',
+        );
+
+        const result = await discoverAgentActions(codexAdapter, [
+            { directory: root, kind: 'skills', scope: 'project' },
+        ]);
+
+        expect(result.actions).toEqual([
+            expect.objectContaining({
+                invocation: '$dispatch',
+                description: 'Dispatch to another harness through named presets.',
+            }),
+        ]);
+    });
+
     it('ignores skills explicitly hidden from user invocation', async () => {
         const root = await temporaryDirectory('caxri-action-hidden-');
         const skillDirectory = join(root, 'internal');

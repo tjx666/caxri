@@ -13,14 +13,29 @@ describe('agent throughput labels', () => {
         expect(throughputRate({ durationMs: 0, outputTokens: 0 })).toBeUndefined();
     });
 
-    it('keeps one decimal only for slow rates', () => {
-        expect(formatThroughputRate(8.46)).toBe('8.5 tok/s');
-        expect(formatThroughputRate(47.6)).toBe('48 tok/s');
+    it('reports no rate for a duration below the timer floor', () => {
+        expect(throughputRate({ durationMs: 1, outputTokens: 40 })).toBeUndefined();
+        expect(throughputRate({ durationMs: 249, outputTokens: 40 })).toBeUndefined();
+        expect(throughputRate({ durationMs: 250, outputTokens: 40 })).toBe(160);
+        expect(
+            describeThroughputAggregate({ durationMs: 1, outputTokens: 40, responseCount: 1 }),
+        ).toBe('40 tokens in 0.0s');
     });
 
-    it('formats durations from tenths of a second to minutes', () => {
-        expect(formatThroughputDuration(6_296)).toBe('6.3 s');
-        expect(formatThroughputDuration(42_400)).toBe('42 s');
+    it('rounds rates to whole tokens and shows <1 below one', () => {
+        expect(formatThroughputRate(8.46)).toBe('8 tok/s');
+        expect(formatThroughputRate(9.8)).toBe('10 tok/s');
+        expect(formatThroughputRate(47.6)).toBe('48 tok/s');
+        expect(formatThroughputRate(0.4)).toBe('<1 tok/s');
+        expect(formatThroughputRate(0.9)).toBe('<1 tok/s');
+        expect(formatThroughputRate(12_345.4)).toBe('12,345 tok/s');
+    });
+
+    it('formats durations from tenths of a second to minutes with flush units', () => {
+        expect(formatThroughputDuration(6_296)).toBe('6.3s');
+        expect(formatThroughputDuration(9_960)).toBe('10s');
+        expect(formatThroughputDuration(42_400)).toBe('42s');
+        expect(formatThroughputDuration(65_000)).toBe('1m 5s');
         expect(formatThroughputDuration(59_700)).toBe('1m 0s');
         expect(formatThroughputDuration(987_629)).toBe('16m 28s');
     });
@@ -32,9 +47,9 @@ describe('agent throughput labels', () => {
                 outputTokens: 3_210,
                 responseCount: 12,
             }),
-        ).toBe('3,210 tokens in 52 s across 12 responses · 62 tok/s');
+        ).toBe('3,210 tokens in 52s across 12 responses · 62 tok/s');
         expect(
             describeThroughputAggregate({ durationMs: 8_600, outputTokens: 412, responseCount: 1 }),
-        ).toBe('412 tokens in 8.6 s · 48 tok/s');
+        ).toBe('412 tokens in 8.6s · 48 tok/s');
     });
 });

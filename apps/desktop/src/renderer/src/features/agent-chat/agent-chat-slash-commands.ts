@@ -96,3 +96,36 @@ export function agentChatLeadingInvocation(
     const invocation = match?.[1];
     return invocation ? { invocation, rest: text.slice(invocation.length) } : undefined;
 }
+
+export type AgentChatMenuKeyAction = 'choose' | 'complete' | 'dismiss' | 'next' | 'previous';
+
+/**
+ * What a key does while the suggestion list is open. Tab completes the active row into the input without running it,
+ * the way a shell completes a name; Enter chooses it, which runs a command that takes no arguments. Anything else is
+ * the input's own key.
+ */
+export function agentChatMenuKeyAction(event: {
+    key: string;
+    shiftKey: boolean;
+}): AgentChatMenuKeyAction | undefined {
+    switch (event.key) {
+        case 'ArrowDown': {
+            return 'next';
+        }
+        case 'ArrowUp': {
+            return 'previous';
+        }
+        case 'Escape': {
+            return 'dismiss';
+        }
+        case 'Tab': {
+            return 'complete';
+        }
+        case 'Enter': {
+            return event.shiftKey ? undefined : 'choose';
+        }
+        default: {
+            return undefined;
+        }
+    }
+}

@@ -66,11 +66,16 @@ const Banner = ({
 );
 
 const AgentChatBody = ({
+    canSend,
     chat,
     enterFrom,
     provider,
     theme,
 }: {
+    /**
+     * A view-only device cannot message the Chat, so its empty state does not invite it to.
+     */
+    canSend: boolean;
     chat: AgentChatController;
     enterFrom: -1 | 0 | 1 | null;
     provider: string;
@@ -126,7 +131,9 @@ const AgentChatBody = ({
     return (
         <View style={styles.status} testID="agent-chat-status-empty">
             <Text style={[styles.statusText, { color: theme.muted }]}>
-                {`No messages yet. Send a message to start working with ${provider}.`}
+                {canSend
+                    ? `No messages yet. Send a message to start working with ${provider}.`
+                    : 'No messages yet.'}
             </Text>
         </View>
     );
@@ -135,10 +142,12 @@ const AgentChatBody = ({
 const AgentChatRequests = ({
     canAnswer,
     chat,
+    provider,
     theme,
 }: {
     canAnswer: boolean;
     chat: AgentChatController;
+    provider: string;
     theme: MobileTheme;
 }) => {
     const { respond, snapshot } = chat;
@@ -149,11 +158,12 @@ const AgentChatRequests = ({
                 canAnswer={canAnswer}
                 items={items ?? []}
                 onRespond={respond}
+                provider={provider}
                 request={item}
                 theme={theme}
             />
         ),
-        [canAnswer, items, respond, theme],
+        [canAnswer, items, provider, respond, theme],
     );
     const requests = snapshot?.requests ?? [];
     if (requests.length === 0) return null;
@@ -161,6 +171,7 @@ const AgentChatRequests = ({
         <FlatList
             contentContainerStyle={styles.requests}
             data={requests}
+            keyboardShouldPersistTaps="handled"
             keyExtractor={(request) => request.id}
             renderItem={renderRequest}
             style={[styles.dock, { borderColor: theme.border }]}
@@ -218,6 +229,10 @@ export const AgentChatView = ({
     const [isRestarting, setRestarting] = useState(false);
     const [restartError, setRestartError] = useState<string | null>(null);
     const { snapshot } = chat;
+    /**
+     * Reply access is the bar for both retrying a failed provider and sending a message, matching
+     * `agentChatComposerDisabledReason`.
+     */
     const canRetry = deviceRole === 'reply' || deviceRole === 'control';
     const restart = async (): Promise<void> => {
         setRestarting(true);
@@ -238,7 +253,9 @@ export const AgentChatView = ({
                 <Banner
                     actionLabel={canRetry ? 'Retry' : undefined}
                     isBusy={isRestarting}
-                    message={restartError ?? agentChatFailureMessage(failure.reason, provider)}
+                    message={
+                        restartError ?? agentChatFailureMessage(failure.reason, provider, canRetry)
+                    }
                     onAction={() => {
                         // eslint-disable-next-line no-void -- The banner reports a failed restart itself.
                         void restart();
@@ -260,13 +277,19 @@ export const AgentChatView = ({
             ) : null}
             <View style={styles.body}>
                 <AgentChatBody
+                    canSend={canRetry}
                     chat={chat}
                     enterFrom={enterFrom}
                     provider={provider}
                     theme={theme}
                 />
             </View>
-            <AgentChatRequests canAnswer={deviceRole === 'control'} chat={chat} theme={theme} />
+            <AgentChatRequests
+                canAnswer={deviceRole === 'control'}
+                chat={chat}
+                provider={provider}
+                theme={theme}
+            />
             <AgentChatActivity chat={chat} provider={provider} theme={theme} />
         </View>
     );
@@ -288,7 +311,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderRadius: 10,
         justifyContent: 'center',
-        minHeight: 36,
+        minHeight: 44,
         minWidth: 72,
         paddingHorizontal: 14,
     },

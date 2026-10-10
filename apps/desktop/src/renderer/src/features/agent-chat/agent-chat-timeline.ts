@@ -5,6 +5,7 @@ import type {
     AgentToolPresentation,
 } from '@caxri/protocol';
 import {
+    agentToolOutcomeLabel,
     describeAgentTool,
     formatShortDuration,
     summarizeAgentToolGroup,
@@ -39,6 +40,10 @@ export type AgentChatTimelineEntry =
           kind: 'turn';
           id: string;
           label: string;
+          /**
+           * How the turn ended, so a failed or stopped turn's fold row carries its tone, not only its words.
+           */
+          status: AgentChatTurn['status'];
           entries: ReadonlyArray<Exclude<AgentChatTimelineEntry, { kind: 'turn' }>>;
       };
 
@@ -55,9 +60,15 @@ const isWorkItem = (item: AgentChatItem): item is AgentChatWorkItem =>
     WORK_ITEM_TYPES.has(item.type);
 
 /**
- * Empty reasoning carries nothing to read (a redacted or not-yet-streamed thought), so it never becomes a row.
+ * Empty reasoning carries nothing to read (a redacted or not-yet-streamed thought), so it never becomes a row. Nor does
+ * a reply that ended empty, such as one a stop cut off before its first word: it would render a Copy action with
+ * nothing to copy. A reply still streaming stays, because its first words are on the way.
  */
-const isVisible = (item: AgentChatItem): boolean => item.type !== 'reasoning' || item.text !== '';
+const isVisible = (item: AgentChatItem): boolean => {
+    if (item.type === 'reasoning') return item.text !== '';
+    if (item.type === 'agentMessage') return item.streaming || item.text.trim() !== '';
+    return true;
+};
 
 function groupWork(items: readonly AgentChatItem[], finalReplyId?: string): FlatEntry[] {
     const entries: FlatEntry[] = [];
@@ -104,6 +115,17 @@ export function agentChatTurnLabel(turn: AgentChatTurn): string {
 }
 
 /**
+ * The semantic tone of a finished turn's fold row: a failed turn is `danger`, a stopped one `warning`, and a turn that
+ * completed stays quiet (`undefined`), because a column of green fold rows would be noise.
+ */
+export function agentChatTurnTone(
+    status: AgentChatTurn['status'],
+): 'danger' | 'warning' | undefined {
+    if (status === 'failed') return 'danger';
+    return status === 'interrupted' ? 'warning' : undefined;
+}
+
+/**
  * A finished turn keeps its prompt, its final reply, and its notices (an error, a compaction, an answered question) in
  * view, dropping only a transient retry; the work and commentary before the reply fold into one disclosure at the
  * position of the first folded item, the way Codex and T3 Code end a turn.
@@ -134,6 +156,7 @@ function foldTurn(
             kind: 'turn',
             id: `turn:${turn.id}`,
             label: agentChatTurnLabel(turn),
+            status: turn.status,
             entries: groupWork(folded),
         });
     }
@@ -171,7 +194,7 @@ export function buildAgentChatTimeline(
         const finalReplyId =
             turnId !== undefined && running.has(turnId)
                 ? undefined
-                : segment.findLast((item) => item.type === 'agentMessage')?.id;
+                : segment.findLast((item) => item.type === 'agentMessage' && isVisible(item))?.id;
         entries.push(
             ...(turn ? foldTurn(segment, turn, finalReplyId) : groupWork(segment, finalReplyId)),
         );
@@ -199,9 +222,16 @@ export function agentChatReasoningTitle(text: string): { title?: string; body: s
 
 /**
  * The kind, verb, and subject a work row shows. Commands and file changes are first-class items rather than named
- * tools, so they are described here; every other tool goes through the shared provider tool table.
+ * tools, so they are described here; every other tool goes through the shared provider tool table. A settled item that
+ * did not complete names its outcome in the verb (`Failed to edit`), so the title tells the truth on its own.
  */
 export function describeAgentChatWork(item: AgentChatWorkItem): AgentToolPresentation {
+    const presentation = describeAgentChatWorkAction(item);
+    if (item.type === 'reasoning' || item.status === 'running') return presentation;
+    return { ...presentation, label: agentToolOutcomeLabel(presentation, item.status) };
+}
+
+function describeAgentChatWorkAction(item: AgentChatWorkItem): AgentToolPresentation {
     switch (item.type) {
         case 'reasoning': {
             const { title } = agentChatReasoningTitle(item.text);
@@ -276,8 +306,28 @@ export function splitAgentChatWork(
 }
 
 /**
+ * Work items that did not do what they set out to: failed, or declined by the user or a policy.
+ */
+const isAgentChatWorkUnsuccessful = (item: AgentChatWorkItem): boolean =>
+    item.type !== 'reasoning' && (item.status === 'failed' || item.status === 'declined');
+
+/**
+ * The status glyph a summary row shows: `failed` when any item failed, else `declined` when any was declined, else
+ * none.
+ */
+export function agentChatWorkGroupFailure(
+    items: readonly AgentChatWorkItem[],
+): 'declined' | 'failed' | undefined {
+    const unsuccessful = items.filter((item) => isAgentChatWorkUnsuccessful(item));
+    if (unsuccessful.some((item) => item.type !== 'reasoning' && item.status === 'failed'))
+        return 'failed';
+    return unsuccessful.length > 0 ? 'declined' : undefined;
+}
+
+/**
  * `Ran 3 commands, read 2 files` for a group, counting each changed file as one edit. Reasoning only names the group
- * when it is all the group holds.
+ * when it is all the group holds. Items that failed or were declined are counted at the end (`, 1 failed`), so a
+ * collapsed group never reads as a clean run.
  */
 export function summarizeAgentChatWork(items: readonly AgentChatWorkItem[]): string {
     const tools = items.flatMap((item): Array<{ name: string; summary?: string }> => {
@@ -306,7 +356,9 @@ export function summarizeAgentChatWork(items: readonly AgentChatWorkItem[]): str
         return items.some((item) => item.type === 'reasoning' && item.streaming)
             ? 'Thinking'
             : 'Thought';
-    return summarizeAgentToolGroup(tools);
+    const failed = items.filter((item) => isAgentChatWorkUnsuccessful(item)).length;
+    const summary = summarizeAgentToolGroup(tools);
+    return failed > 0 ? `${summary}, ${failed} failed` : summary;
 }
 
 /**

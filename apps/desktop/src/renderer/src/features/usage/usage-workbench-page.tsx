@@ -9,10 +9,11 @@ import { Button } from '../../components/ui/button';
 import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
 import { Spinner } from '../../components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
+import { Tooltip } from '../../components/ui/tooltip';
 import { usePolledQuery } from '../../hooks/use-polled-query';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import type { UsageMetric } from './usage-metrics';
-import { formatDate } from './usage-metrics';
+import { didUsageRefreshFail, formatDate, usageEmptyState } from './usage-metrics';
 import { UsageSections } from './usage-sections';
 
 const RANGES: ReadonlyArray<{ value: UsageRange; label: string }> = [
@@ -35,14 +36,42 @@ const REFRESH_INTERVAL_MS = 60_000;
  */
 const LOCAL_TIME_ZONE = new Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
+/**
+ * The date range plus the price basis: every dollar figure below is an API list-price estimate, not what a subscription
+ * plan bills, and the page header is the one line every card sits under.
+ */
 function rangeCaption(report: UsageReport): string {
-    return report.rangeStart
+    const range = report.rangeStart
         ? `${formatDate(report.rangeStart)} to ${formatDate(report.today)}`
         : `All time through ${formatDate(report.today)}`;
+    return `${range} · Costs are API list-price estimates`;
 }
 
-function UsageBody({ report, metric }: { report: UsageReport; metric: UsageMetric }) {
-    if (report.coverage.agentSessions === 0)
+function UsageBody({
+    report,
+    metric,
+    agent,
+    onShowAllAgents,
+}: {
+    report: UsageReport;
+    metric: UsageMetric;
+    agent: AgentProvider | undefined;
+    onShowAllAgents: () => void;
+}) {
+    const empty = usageEmptyState(report, agent);
+    if (empty?.kind === 'agentFilter')
+        return (
+            <Empty className="h-full">
+                <EmptyMedia>
+                    <ChartColumn aria-hidden="true" size={24} />
+                </EmptyMedia>
+                <EmptyTitle>{empty.title}</EmptyTitle>
+                <Button size="sm" variant="secondary" onClick={onShowAllAgents}>
+                    Show all Agents
+                </Button>
+            </Empty>
+        );
+    if (empty?.kind === 'noUsage')
         return (
             <Empty className="h-full">
                 <EmptyMedia>
@@ -89,6 +118,20 @@ export function UsageWorkbenchPage() {
                         {report
                             ? rangeCaption(report)
                             : 'Tokens, estimated cost, and outcomes of Agents in Caxri Sessions'}
+                        {didUsageRefreshFail(query) && (
+                            <>
+                                {' · '}
+                                <span className="text-danger">Couldn&apos;t refresh</span>
+                                {' · '}
+                                <button
+                                    type="button"
+                                    className="cursor-pointer rounded-sm border-0 bg-transparent p-0 text-[11px] text-foreground underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                                    onClick={retry}
+                                >
+                                    Retry
+                                </button>
+                            </>
+                        )}
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -101,13 +144,17 @@ export function UsageWorkbenchPage() {
                     >
                         <ToggleGroupItem value={ALL_AGENTS}>All Agents</ToggleGroupItem>
                         {agentProviderIds.map((provider) => (
-                            <ToggleGroupItem
+                            <Tooltip
                                 key={provider}
-                                aria-label={agentProviderCatalog[provider].displayName}
-                                value={provider}
+                                content={agentProviderCatalog[provider].displayName}
                             >
-                                <AgentIdentityIcon identity={provider} size={14} />
-                            </ToggleGroupItem>
+                                <ToggleGroupItem
+                                    aria-label={agentProviderCatalog[provider].displayName}
+                                    value={provider}
+                                >
+                                    <AgentIdentityIcon identity={provider} size={14} />
+                                </ToggleGroupItem>
+                            </Tooltip>
                         ))}
                     </ToggleGroup>
                     <ToggleGroup
@@ -137,10 +184,15 @@ export function UsageWorkbenchPage() {
             </div>
             <div className="min-h-0 overflow-y-auto" aria-busy={query.isFetching}>
                 {report ? (
-                    <UsageBody metric={metric} report={report} />
+                    <UsageBody
+                        agent={agent === ALL_AGENTS ? undefined : agent}
+                        metric={metric}
+                        report={report}
+                        onShowAllAgents={() => setAgent(ALL_AGENTS)}
+                    />
                 ) : query.isError ? (
                     <Empty className="h-full">
-                        <EmptyTitle>Usage could not be loaded</EmptyTitle>
+                        <EmptyTitle className="text-danger">Usage could not be loaded</EmptyTitle>
                         <p className="m-0 max-w-[420px] text-[12px] text-muted">
                             {errorMessage(query.error, 'The usage report failed.')}
                         </p>

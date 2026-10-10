@@ -226,6 +226,61 @@ const ACTIVE_LABELS: Partial<Record<AgentToolKind, string>> = {
 export const agentToolActiveLabel = (presentation: Pick<AgentToolPresentation, 'kind' | 'label'>) =>
     ACTIVE_LABELS[presentation.kind] ?? presentation.label;
 
+/**
+ * Base-form verbs for a tool that did not complete (`Failed to edit`), per kind. MCP and unknown tools have none: their
+ * label names the server or tool rather than an action.
+ */
+const BASE_VERBS: Partial<Record<AgentToolKind, string>> = {
+    agent: 'run agent',
+    command: 'run',
+    edit: 'edit',
+    image: 'view image',
+    list: 'list',
+    plan: 'update plan',
+    question: 'ask',
+    read: 'read',
+    search: 'search',
+    skill: 'use skill',
+    stop: 'stop',
+    thought: 'think',
+    web: 'browse',
+    write: 'write',
+};
+
+/**
+ * How a settled tool call ended, as far as its row title is concerned.
+ */
+export type AgentToolOutcome = 'completed' | 'declined' | 'failed' | 'interrupted';
+
+/**
+ * The verb a settled work row shows. A completed call keeps its past tense (`Edited`); one that did not complete says
+ * so in words (`Failed to edit`, `Not allowed to run`, `Stopped editing`), so the title never reads as a success that
+ * only a small status glyph contradicts. A tool without a verb keeps its label behind the outcome (`Failed: github`).
+ */
+export const agentToolOutcomeLabel = (
+    presentation: Pick<AgentToolPresentation, 'kind' | 'label'>,
+    outcome: AgentToolOutcome,
+): string => {
+    const verb = BASE_VERBS[presentation.kind];
+    switch (outcome) {
+        case 'completed': {
+            return presentation.label;
+        }
+        case 'failed': {
+            return verb ? `Failed to ${verb}` : `Failed: ${presentation.label}`;
+        }
+        case 'declined': {
+            return verb ? `Not allowed to ${verb}` : `Not allowed: ${presentation.label}`;
+        }
+        case 'interrupted': {
+            const active = ACTIVE_LABELS[presentation.kind];
+            return active
+                ? `Stopped ${active.charAt(0).toLowerCase()}${active.slice(1)}`
+                : `Stopped: ${presentation.label}`;
+        }
+    }
+};
+
 const plural = (count: number, singular: string, pluralForm = `${singular}s`): string =>
     `${count} ${count === 1 ? singular : pluralForm}`;
 

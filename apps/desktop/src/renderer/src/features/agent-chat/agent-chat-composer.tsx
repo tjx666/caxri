@@ -1,4 +1,4 @@
-import type { DragEvent, RefObject } from 'react';
+import type { ClipboardEvent, DragEvent, RefObject } from 'react';
 import { useState } from 'react';
 
 import type {
@@ -24,7 +24,12 @@ import { AgentChatAttachmentList } from './agent-chat-attachment-list';
 import { AgentChatCommandMenu } from './agent-chat-command-menu';
 import { interruptAgentChat } from './agent-chat-commands';
 import { AgentChatContextMeter } from './agent-chat-context-meter';
-import { draftWithInsertion, readAgentChatDraft, writeAgentChatDraft } from './agent-chat-drafts';
+import {
+    agentChatPasteTruncationWarning,
+    draftWithInsertion,
+    readAgentChatDraft,
+    writeAgentChatDraft,
+} from './agent-chat-drafts';
 import { AgentChatModelMenu } from './agent-chat-model-menu';
 import type { AgentChatActivity } from './agent-chat-presentation';
 import {
@@ -53,7 +58,9 @@ import { useAgentChatSubmit } from './hooks/use-agent-chat-submit';
  * inserted as its path. A leading `/` or `$` offers the provider's commands and the discovered skills. It shares the
  * timeline's centered column so the input lines up with the conversation, and keeps the activity row, attachments, the
  * input, and its actions inside one card so they read as a single control. The action row picks the model and effort
- * for the next turn and shows how full the context window is.
+ * for the next turn and shows how full the context window is. Clicking Send, Stop, or a chip or queue action hands
+ * focus back to the input, since each of those controls disables or unmounts itself and would otherwise drop focus to
+ * the document body.
  */
 export function AgentChatComposer({
     activeTurnId,
@@ -63,6 +70,7 @@ export function AgentChatComposer({
     inputReference,
     isBusy,
     isQueuePaused,
+    onSent,
     providerName,
     queue,
     snapshot,
@@ -89,7 +97,12 @@ export function AgentChatComposer({
     isBusy: boolean;
     isQueuePaused: boolean;
     /**
-     * The provider catalog's display name, for the placeholder.
+     * Runs after Server Core accepted a message from this composer (sent, queued, or steered) or a slash command it
+     * ran; never after a failed or refused send. The pane uses it to scroll the timeline to the latest entry.
+     */
+    onSent?: () => void;
+    /**
+     * The provider catalog's display name, for the placeholder and the toast that says it takes no images.
      */
     providerName: string;
     queue: readonly AgentChatQueuedMessage[] | undefined;
@@ -115,6 +128,7 @@ export function AgentChatComposer({
         draft,
         terminalId,
     });
+    const focusInput = (): void => inputReference.current?.focus();
     const isTurnRunning = activeTurnId !== undefined;
     const isStopping = isTurnRunning && stoppingTurnId === activeTurnId;
     const hasContent = draft.trim().length > 0 || images.attachments.length > 0;
@@ -150,7 +164,12 @@ export function AgentChatComposer({
             textarea?.setSelectionRange(inserted.caret, inserted.caret);
         });
     };
-    const fileInput = useAgentChatFileInput(supportsImages, images.add, insertPaths);
+    const fileInput = useAgentChatFileInput({
+        add: images.add,
+        insertPaths,
+        isImageInputEnabled: supportsImages,
+        providerName,
+    });
     const {
         isSending,
         runCommand,
@@ -159,6 +178,7 @@ export function AgentChatComposer({
         attachments: images.attachments,
         clearSent: images.clearSent,
         commands,
+        onSent,
         setDraft,
         terminalId,
     });
@@ -170,12 +190,19 @@ export function AgentChatComposer({
     };
     const restoreQueued = (text: string): void => {
         setDraft((current) => draftAfterQueueEdit(current, text));
-        inputReference.current?.focus();
+        focusInput();
+    };
+    /**
+     * Tab: put the row's text into the input and stop there, so the user can add arguments or press Enter to run it.
+     */
+    const complete = (action: AgentAction): void => {
+        setDraft(() => completeAgentChatAction(action));
+        focusInput();
     };
     const choose = (action: AgentAction): void => {
         const completed = completeAgentChatAction(action);
         setDraft(() => completed);
-        inputReference.current?.focus();
+        focusInput();
         // A command without arguments has nothing left to type, so choosing it runs it; a skill waits for the request.
         if (!canSend || isSending || completed !== action.invocation) return;
         // eslint-disable-next-line no-void -- runCommand reports its own failures through tryCommand
@@ -186,6 +213,19 @@ export function AgentChatComposer({
         setStoppingTurnId(activeTurnId);
         interruptAgentChat(terminalId);
     };
+    const paste = (event: ClipboardEvent<HTMLTextAreaElement>): void => {
+        const { selectionEnd, selectionStart, value } = event.currentTarget;
+        const warning = agentChatPasteTruncationWarning(
+            {
+                currentLength: value.length,
+                pastedLength: event.clipboardData.getData('text/plain').length,
+                selectedLength: selectionEnd - selectionStart,
+            },
+            MAX_AGENT_CHAT_MESSAGE_LENGTH,
+        );
+        if (warning) pushToast('warning', warning);
+        fileInput.onPaste(event);
+    };
     return (
         <div className="mx-auto w-full max-w-3xl px-4 pt-1 pb-3">
             <AgentChatQueueList
@@ -193,16 +233,19 @@ export function AgentChatComposer({
                 isTurnRunning={isTurnRunning}
                 queue={queue}
                 terminalId={terminalId}
+                onAction={focusInput}
                 onEdit={restoreQueued}
             />
             <form
                 className={cn(
-                    'relative flex flex-col rounded-lg border border-border bg-surface transition-[border-color] duration-150 ease-out focus-within:border-muted',
+                    'relative flex flex-col rounded-lg border border-border bg-surface transition-[border-color] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) focus-within:border-muted',
                     fileInput.isDragOver && 'border-accent focus-within:border-accent',
                 )}
                 {...fileInput.dropHandlers}
                 onSubmit={(event) => {
                     event.preventDefault();
+                    // The Send button disables itself while the message is in flight, which would drop its focus.
+                    focusInput();
                     // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
                     void submit();
                 }}
@@ -220,7 +263,10 @@ export function AgentChatComposer({
                 {images.attachments.length > 0 && (
                     <AgentChatAttachmentList
                         attachments={images.attachments}
-                        onRemove={images.remove}
+                        onRemove={(id) => {
+                            images.remove(id);
+                            focusInput();
+                        }}
                     />
                 )}
                 <Textarea
@@ -237,7 +283,7 @@ export function AgentChatComposer({
                         setDraft(() => value);
                     }}
                     onKeyDown={(event) => {
-                        if (menu.didHandleKey(event, choose)) return;
+                        if (menu.didHandleKey(event, { choose, complete })) return;
                         const key = {
                             key: event.key,
                             shiftKey: event.shiftKey,
@@ -262,7 +308,7 @@ export function AgentChatComposer({
                         // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
                         void submit(delivery === 'steer' ? 'steer' : undefined);
                     }}
-                    onPaste={fileInput.onPaste}
+                    onPaste={paste}
                 />
                 <div className="flex items-center gap-1 px-2 pb-2">
                     {/*
@@ -281,7 +327,13 @@ export function AgentChatComposer({
                     </div>
                     {/* One primary action slot: Stop while a turn runs and nothing is typed, Send otherwise. */}
                     {isTurnRunning && !hasContent ? (
-                        <AgentChatStopButton isStopping={isStopping} onStop={stop} />
+                        <AgentChatStopButton
+                            isStopping={isStopping}
+                            onStop={() => {
+                                stop();
+                                focusInput();
+                            }}
+                        />
                     ) : (
                         <Tooltip content={sendAction.tooltip}>
                             <Button

@@ -77,7 +77,7 @@ import {
     mainWindowChromeOptions,
     zoomFactorForLevel,
 } from './window-chrome';
-import { createWindowCloseHandler } from './window-close';
+import { createWindowCloseHandler, windowClosePrompt } from './window-close';
 import { resolveE2EWindowMode } from './window-mode';
 import type { WindowPlacement } from './window-placement';
 import { defaultWindowState, showWhenPlaced } from './window-placement';
@@ -357,15 +357,7 @@ if (ownsProfileInstance) {
                 mainLogger?.write('info', logEventCatalog.window.closeConfirmation, {
                     fields: { runningTerminals: count },
                 });
-                const result = await dialog.showMessageBox(window, {
-                    type: 'warning',
-                    title: 'Terminals are still running',
-                    message: `${count} Terminal${count === 1 ? ' is' : 's are'} still running.`,
-                    detail: 'Keep Running closes this window and leaves Caxri Server active. To exit the app, use Quit Caxri and choose whether running tasks should stop.',
-                    buttons: ['Keep Running', 'Terminate and Close', 'Cancel'],
-                    defaultId: 2,
-                    cancelId: 2,
-                });
+                const result = await dialog.showMessageBox(window, windowClosePrompt(count));
                 mainLogger?.write('info', logEventCatalog.window.closeDecision, {
                     fields: { response: result.response },
                 });

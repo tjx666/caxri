@@ -17,6 +17,7 @@ import { cn } from '../../lib/utilities';
 import type { SessionRenameController } from '../primary-sidebar/hooks/use-session-rename';
 import type { SessionTitleScroll } from '../primary-sidebar/hooks/use-session-title-scroll';
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
+import { canSuggestSessionTitle } from '../primary-sidebar/session-rename-draft';
 import { didSelectSession } from '../session/session-commands';
 import type { AgentActivityGlyphId } from './agent-activity-glyph';
 import { agentActivityGlyph } from './agent-activity-glyph';
@@ -35,6 +36,24 @@ const GLYPH_COMPONENTS: Record<AgentActivityGlyphId, ComponentType<{ size?: numb
     unplug: Unplug,
     x: CircleX,
 };
+
+/**
+ * The row's own keys for `aria-keyshortcuts`: `Shift+Enter` names it with AI when the Session has an Agent to ask, and
+ * Delete marks it read where the queue allows that. None while the rename editor replaces the row.
+ */
+function rowKeyShortcuts({
+    canMarkRead,
+    canSuggest,
+    isRenaming,
+}: {
+    canMarkRead: boolean;
+    canSuggest: boolean;
+    isRenaming: boolean;
+}): string | undefined {
+    if (isRenaming) return undefined;
+    const keys = [canSuggest && 'Shift+Enter', canMarkRead && 'Delete Backspace'].filter(Boolean);
+    return keys.length > 0 ? keys.join(' ') : undefined;
+}
 
 /**
  * Returns the DOM trigger so HoverCardTrigger can attach its event handlers and ref directly.
@@ -75,6 +94,7 @@ export function AgentActivityRowTrigger({
     const { project, session, terminal } = row;
     const glyph = agentActivityGlyph(row);
     const GlyphIcon = GLYPH_COMPONENTS[glyph.id];
+    const canSuggest = canSuggestSessionTitle(session);
     const { viewportReference, textReference, setHovered, setFocused } = titleScroll;
     return (
         <div
@@ -101,7 +121,7 @@ export function AgentActivityRowTrigger({
                 !canMarkRead && row.groupId === 'attention' ? 'Viewed and read' : undefined
             }
             aria-selected={selected}
-            aria-keyshortcuts={canMarkRead && !isRenaming ? 'Delete Backspace' : undefined}
+            aria-keyshortcuts={rowKeyShortcuts({ canMarkRead, canSuggest, isRenaming })}
             tabIndex={isRenaming ? undefined : roving ? 0 : -1}
             onBlur={() => setFocused(false)}
             onFocus={(event) => {
@@ -121,7 +141,8 @@ export function AgentActivityRowTrigger({
                 // The Project tree's `Shift+Enter`: open the editor and ask for an AI-generated name.
                 if (event.key === 'Enter' && event.shiftKey) {
                     event.preventDefault();
-                    sessionRename.suggestRename(session.id, session.displayTitle, session.id);
+                    if (canSuggest)
+                        sessionRename.suggestRename(session.id, session.displayTitle, session.id);
                     return;
                 }
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -160,6 +181,7 @@ export function AgentActivityRowTrigger({
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <AgentActivityRowTitle
+                    canSuggest={canSuggest}
                     isRenaming={isRenaming}
                     onTitleHoverChange={setHovered}
                     sessionId={session.id}

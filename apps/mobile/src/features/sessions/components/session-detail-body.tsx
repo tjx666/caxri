@@ -73,6 +73,7 @@ const SessionConversationPane = ({
     ) : (
         <View style={{ flex: 1 }}>
             <ConversationView
+                canSend={deviceRole === 'reply' || deviceRole === 'control'}
                 enterFrom={enterFrom}
                 onRetry={timeline.refresh}
                 theme={theme}

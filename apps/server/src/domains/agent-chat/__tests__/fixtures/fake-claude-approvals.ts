@@ -11,6 +11,21 @@ import type { FakeClaudeIo } from './fake-claude-io.ts';
 
 type Json = Record<string, unknown>;
 
+/**
+ * The plan `planmode` asks to approve. Eight steps run past the phone's six-line approval clamp, so the mobile card has
+ * to offer Show all.
+ */
+export const FAKE_CLAUDE_PLAN = [
+    '1. Read the notes.',
+    '2. List the open questions.',
+    '3. Group them by topic.',
+    '4. Draft one paragraph per topic.',
+    '5. Check each claim against the notes.',
+    '6. Trim the repeated points.',
+    '7. Summarize them in one paragraph.',
+    '8. Save the summary beside the notes.',
+].join('\n');
+
 async function wasToolAllowed(
     io: FakeClaudeIo,
     name: string,
@@ -113,7 +128,7 @@ export async function didRunApprovalScenario(
         const isAllowed = await wasToolAllowed(
             io,
             'ExitPlanMode',
-            { plan: '1. Read the notes.\n2. Summarize them in one paragraph.' },
+            { plan: FAKE_CLAUDE_PLAN },
             () => ({ content: 'User has approved your plan.' }),
         );
         if (!io.isInterrupted())

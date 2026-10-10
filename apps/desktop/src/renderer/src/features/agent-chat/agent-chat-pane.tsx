@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { ArrowDown, CircleAlert, RotateCcw } from 'lucide-react';
+import { CircleAlert, RotateCcw } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { useCaxriQuery } from '../../queries/client';
@@ -13,6 +13,7 @@ import { TerminalLinkPicker } from '../terminal/terminal-link-picker';
 import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatComposer } from './agent-chat-composer';
+import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { AgentChatPlanCard } from './agent-chat-plan-card';
 import {
     agentChatActivity,
@@ -192,17 +193,11 @@ export function AgentChatPane({
                         )}
                     </div>
                 </div>
-                {!isFollowing && (
-                    <Button
-                        className="absolute bottom-2 left-1/2 -translate-x-1/2 shadow-md"
-                        size="sm"
-                        variant="secondary"
-                        onClick={jumpToLatest}
-                    >
-                        <ArrowDown className="size-3.5" />
-                        Jump to latest
-                    </Button>
-                )}
+                <AgentChatJumpToLatest
+                    focusTarget={inputReference}
+                    isFollowing={isFollowing}
+                    onJump={jumpToLatest}
+                />
             </div>
             <div className="mx-auto flex max-h-[45%] w-full max-w-3xl shrink-0 flex-col gap-2 overflow-y-auto px-4 empty:hidden">
                 <AgentChatFailureBanner
@@ -225,7 +220,9 @@ export function AgentChatPane({
                                 ? undefined
                                 : snapshot.items.find((item) => item.id === request.itemId)
                         }
+                        onAnswered={focusComposer}
                         projectRoot={projectRoot}
+                        providerName={providerName}
                         request={request}
                         terminalId={terminalId}
                     />
@@ -250,6 +247,7 @@ export function AgentChatPane({
                 isBusy={isAgentChatBusy(snapshot)}
                 isQueuePaused={snapshot?.queuePaused ?? false}
                 providerName={providerName}
+                onSent={jumpToLatest}
                 queue={snapshot?.queue}
                 snapshot={snapshot}
                 supportsImages={supportsImages}

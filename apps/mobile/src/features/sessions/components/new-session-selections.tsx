@@ -6,12 +6,9 @@ import { Folder, FolderPlus, Search } from 'lucide-react-native';
 
 import { AgentGlyph } from '../../../components/agent-icon';
 import type { MobileTheme } from '../../../theme/tokens';
+import { mobileAgentDisplayName } from '../agent-display-name';
 import type { NewSessionViewState } from '../hooks/use-new-session';
-import {
-    NEW_SESSION_AGENT_LABELS,
-    NEW_SESSION_AGENT_ORDER,
-    newSessionAgentReason,
-} from '../new-session-model';
+import { NEW_SESSION_AGENT_ORDER, newSessionAgentReason } from '../new-session-model';
 import { NewSessionChoice } from './new-session-choice';
 import { newSessionStyles as styles } from './new-session-styles';
 
@@ -36,7 +33,7 @@ const NewSessionAgentChoice = ({
         <NewSessionChoice
             disabled={disabled}
             isCompact
-            label={NEW_SESSION_AGENT_LABELS[kind]}
+            label={mobileAgentDisplayName(kind)}
             leading={<AgentGlyph kind={kind} size={20} theme={theme} />}
             onPress={() => state.setNewSessionAgent(kind)}
             reason={reason}
