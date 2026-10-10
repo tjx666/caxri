@@ -970,7 +970,9 @@ the message and the placeholder says so; Cmd+Enter steers it into the running tu
 messages sit above the card as 12px `--surface` cards, each with Edit (back into the composer),
 Delete, and Send now (Steer while a turn runs); after a stopped turn a `Queue paused` row with
 Resume heads them. Running subagents and background shells list in a strip above the composer with
-elapsed time and their own Stop; clicking one, or the Open action on its timeline row, opens it as
+elapsed time and their own Stop; a shell is named by the Agent's description of it (Claude Code's
+`Bash` description) when there is one, with its command line atop its tab's output, and by the
+command line in monospace otherwise; clicking one, or the Open action on its timeline row, opens it as
 a read-only tab split to the right of the Chat, reusing that side pane for later tasks. A user
 message that was steered or queued carries an 11px `--muted` `Steered` or `Queued` caption. Escape
 interrupts a running turn regardless. While the Chat starts, works, or waits on an answer, a 32px

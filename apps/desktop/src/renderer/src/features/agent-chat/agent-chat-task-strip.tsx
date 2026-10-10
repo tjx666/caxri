@@ -7,7 +7,11 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { stopAgentChatTask } from './agent-chat-commands';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
 import { openAgentChatTaskTab } from './agent-chat-task-opener';
-import { agentChatTaskStrip, canStopAgentChatTask } from './agent-chat-tasks';
+import {
+    agentChatTaskStrip,
+    canStopAgentChatTask,
+    isAgentChatTaskTitleCommand,
+} from './agent-chat-tasks';
 
 function TaskEntry({ task, terminalId }: { task: AgentChatTask; terminalId: string }) {
     const title = task.title || (task.kind === 'shell' ? 'Shell' : 'Subagent');
@@ -22,7 +26,7 @@ function TaskEntry({ task, terminalId }: { task: AgentChatTask; terminalId: stri
                 <AgentChatTaskGlyph kind={task.kind} />
                 <span
                     className={
-                        task.kind === 'shell'
+                        isAgentChatTaskTitleCommand(task)
                             ? 'min-w-0 truncate font-mono text-[11px] text-foreground'
                             : 'min-w-0 truncate text-foreground'
                     }

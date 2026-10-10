@@ -214,22 +214,28 @@ export class ClaudeTasks {
     }
 
     /**
-     * The command line of the Bash row a background shell started, when that row is in the parent timeline.
+     * The Bash row a background shell started, when that row is in the parent timeline.
      */
-    private commandFor(toolUseId: string | undefined): string | undefined {
-        if (!toolUseId) return undefined;
-        const id = clip(toolUseId, 200);
-        const item = this.options.host.read().items.find((candidate) => candidate.id === id);
-        return item?.type === 'command' && item.command ? item.command : undefined;
+    private commandRow(toolUseId: string | undefined) {
+        const id = toolUseId && clip(toolUseId, 200);
+        const item = id && this.options.host.read().items.find((candidate) => candidate.id === id);
+        return item && item.type === 'command' ? item : undefined;
     }
 
     private listShell(claudeId: string, known: KnownTask): void {
         const id = clip(claudeId, 200);
         this.known.set(claudeId, { ...known, id });
         this.claudeIds.set(id, claudeId);
+        const row = this.commandRow(known.toolUseId);
+        const command = stringField(row?.command);
+        // The Bash call's description names the shell the way the Agent did; the command line stays for its tab.
+        const description =
+            stringField(row?.description) ??
+            (known.description === command ? undefined : stringField(known.description));
         this.list.upsert(id, {
             kind: 'shell',
-            title: this.commandFor(known.toolUseId) ?? (known.description || 'Background command'),
+            title: description ?? command ?? 'Background command',
+            ...(description && command && { command: clip(command, 10_000) }),
             ...(known.toolUseId && { itemId: clip(known.toolUseId, 200) }),
             isBackground: true,
             canStop: true,

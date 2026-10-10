@@ -85,7 +85,9 @@ describe('Claude Code background work in Agent Chat', () => {
         expect(shell).toMatchObject({
             kind: 'shell',
             itemId: bashRow?.id,
-            title: 'while true; do echo tick; sleep 0.1; done',
+            // Named by the Bash call's description; the command line stays for its tab.
+            title: 'Print ticks',
+            command: 'while true; do echo tick; sleep 0.1; done',
             isBackground: true,
             canStop: true,
         });
