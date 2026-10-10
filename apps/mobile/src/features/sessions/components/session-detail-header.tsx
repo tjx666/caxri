@@ -7,7 +7,6 @@ import {
     ChevronLeft,
     EllipsisVertical,
     FileDiff,
-    ListTree,
     MailOpen,
     MessagesSquare,
     SquareTerminal,
@@ -20,7 +19,7 @@ import { usePopoverAnchor } from '../../../components/use-popover-anchor';
 import type { MobileTheme } from '../../../theme/tokens';
 import { isAgentChatTerminal } from '../../agent-chat/agent-chat-model';
 import { MobileGatewayRequestError } from '../../connection/mobile-gateway-client';
-import { PanelIcon } from '../../panels/panels-view';
+import { panelIcon } from '../../panels/panel-icon';
 import type { Panel } from '../../panels/use-panels';
 import type { MobileSessionItem } from '../session-model';
 import type { SESSION_SEGMENTS, SessionSegment } from '../session-ui-state';
@@ -48,12 +47,12 @@ const segmentPresentation = (
     segment: SessionSegment,
     panels: readonly Panel[] | undefined,
     isChat: boolean,
-): { icon: LucideIcon; label: string; panel?: Panel } => {
+): { icon: LucideIcon; label: string } => {
     // A Chat's conversation tab carries the Desktop name for that surface.
     if (segment === 'conversation' && isChat) return { icon: MessagesSquare, label: 'Chat' };
     if (!isPanelSessionSegment(segment)) return fixedSegmentPresentation[segment];
     const panel = panels?.find((candidate) => candidate.id === panelIdOfSegment(segment));
-    return { icon: ListTree, label: panel?.title ?? 'Project view', panel };
+    return { icon: panelIcon(panel?.icon), label: panel?.title ?? 'Project view' };
 };
 
 /**
@@ -85,7 +84,7 @@ const SessionSegmentTab = ({
     selected: boolean;
     theme: MobileTheme;
 }) => {
-    const { icon: Icon, label, panel } = segmentPresentation(option, panels, isChat);
+    const { icon: Icon, label } = segmentPresentation(option, panels, isChat);
     /**
      * A zero badge reads as a value to act on; an empty Changes tab says the same thing without the noise.
      */
@@ -101,16 +100,7 @@ const SessionSegmentTab = ({
             style={[styles.tab, selected ? { backgroundColor: theme.surface } : null]}
             testID={segmentTestId(option)}
         >
-            {panel ? (
-                <PanelIcon
-                    color={color}
-                    panel={panel}
-                    size={18}
-                    strokeWidth={selected ? 2.25 : 2}
-                />
-            ) : (
-                <Icon color={color} size={18} strokeWidth={selected ? 2.25 : 2} />
-            )}
+            <Icon color={color} size={18} strokeWidth={selected ? 2.25 : 2} />
             {selected ? (
                 <Animated.Text
                     entering={tabLabelEntering}

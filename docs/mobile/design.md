@@ -168,6 +168,10 @@ added without moving screens. Query keys include the same host identity.
 - Segments are icon tabs; the selected tab adds its label, and every tab keeps an accessible name.
   The Changes tab shows the changed-file count as a badge when it is non-zero. A plain shell Session
   with no Agent has no Conversation tab.
+- A Project view tab shows the icon its container declares, resolved through the same glyph table as
+  Desktop's secondary-sidebar tabs (`viewContainerIconGlyph` in `@caxri/protocol`), so Files and
+  Status keep their Desktop glyphs. A container the phone cannot draw (an extension image, which the
+  Server does not project, or an unknown id) shows one generic package glyph, never Status's.
 - Switching segments slides the new body in from the side the selection moved toward while it fades
   in; the first segment of a Session does not move because the screen transition already animates
   it. A populated Conversation stays hidden until its list has scrolled to the latest message, so it
