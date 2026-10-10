@@ -119,9 +119,11 @@ function showSecondarySidebar(command: Extract<CommandId, `secondarySidebar.show
 }
 
 function ActivePaneStatus({
+    showAgentThroughput,
     showChildProcessCount,
     showMemory,
 }: {
+    showAgentThroughput: boolean;
     showChildProcessCount: boolean;
     showMemory: boolean;
 }) {
@@ -144,6 +146,7 @@ function ActivePaneStatus({
     if (activeResource?.kind === 'terminal')
         return (
             <ActiveTerminalStatus
+                showAgentThroughput={showAgentThroughput}
                 showChildProcessCount={showChildProcessCount}
                 showMemory={showMemory}
                 terminalId={activeResource.terminalId}
@@ -258,6 +261,7 @@ export function StatusBar() {
                 <ScreencastModeChip />
                 <PermissionAutoAllowChip />
                 <ActivePaneStatus
+                    showAgentThroughput={chipVisibility.agentThroughput}
                     showChildProcessCount={chipVisibility.childProcessCount}
                     showMemory={chipVisibility.memory}
                 />
