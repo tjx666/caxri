@@ -129,6 +129,15 @@ dev app. Drive the real application over CDP, capture a screenshot of the affect
 check it before reporting completion. Passing unit or e2e gates alone does not count for visual
 changes.
 
+A change limited to native menu entries (Renderer menu data that Main draws with `Menu.popup`) has
+no CDP-visible surface. Verify it with a Playwright Electron spec that opens the menu from its real
+trigger through `e2e/support/native-context-menu.ts`, asserts the entry's label, position, and
+enabled state, and chooses it end to end; then state in the report that the dev-app screenshot does
+not apply. Any accompanying DOM change still needs the CDP screenshot. Capture a real native popup
+only when the user explicitly asks to verify native rendering: it needs synthesized foreground input
+(a native folder dialog to grant a Project root, then the popup itself) that `switch-worktree`
+limits.
+
 For native load failures, run `bun run spike:native` and `bun run spike:pty`, then verify the
 packaged app rather than assuming the development ABI matches.
 

@@ -18,7 +18,7 @@ Codex and Claude Code are Chat-capable (`capabilities.chat` in the provider cata
 
 `AgentChatService` owns everything provider-neutral: the Terminal row, the projection and its
 revisions, patch coalescing, lifecycle delivery, and process state. Each provider is a driver in
-`agentChatDrivers` (`service.ts`) that creates one `AgentChatProviderSession` per live process
+`agentChatDrivers` (`chat-drivers.ts`) that creates one `AgentChatProviderSession` per live process
 (`chat-provider.ts`). A session only translates its protocol into projection operations and
 lifecycle events through the `AgentChatSessionHost` callbacks, which the service fences so a
 replaced session's late reports are dropped. Shared pieces:

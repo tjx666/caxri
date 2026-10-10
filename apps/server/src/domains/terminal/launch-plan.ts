@@ -21,6 +21,7 @@ import {
 } from '@caxri/system';
 import { expandLaunchArguments } from '@caxri/utils';
 
+import { AgentRunAutonomy } from '../agent-run-autonomy';
 // Server providers use the public domain barrel by architecture contract.
 // oxlint-disable-next-line react-doctor/no-barrel-import
 import { agentProviders, defaultAgentEnvironment, readVersion } from '../agents';
@@ -81,6 +82,7 @@ export interface TerminalLaunchPlannerOptions {
  */
 export class TerminalLaunchPlanner {
     private readonly agentEnvironment: () => Promise<NodeJS.ProcessEnv>;
+    private readonly agentRunAutonomy = new AgentRunAutonomy();
 
     constructor(private readonly options: TerminalLaunchPlannerOptions) {
         this.agentEnvironment = options.agentEnvironment ?? serverProcessEnvironment;
@@ -109,10 +111,14 @@ export class TerminalLaunchPlanner {
                 start?.launchAgent ?? record.lastAgentProcessState !== 'stopped';
             if (!shouldLaunchAgent) return { ok: true, value: { args: ['-l'], executable } };
 
-            const launch =
+            const launch = this.agentRunAutonomy.launch(
+                record.id,
+                record.kind,
                 start?.launchSettings ??
-                this.options.agentLaunchSettings?.(record.kind) ??
-                defaultAgentProviderSettings[record.kind].launch;
+                    this.options.agentLaunchSettings?.(record.kind) ??
+                    defaultAgentProviderSettings[record.kind].launch,
+                start?.shouldKeepAgentAutonomy,
+            );
             try {
                 assertE2EAgentLaunch(
                     e2eAgentPolicy,

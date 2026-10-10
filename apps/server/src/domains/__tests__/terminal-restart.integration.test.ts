@@ -199,6 +199,71 @@ describe('Agent Terminal restart', () => {
         }
     });
 
+    it.each([
+        { launchedInYolo: true, settingsArgs: [] as string[] },
+        { launchedInYolo: false, settingsArgs: ['--dangerously-skip-permissions'] },
+    ])(
+        'keeps the replaced Agent Run in YOLO=$launchedInYolo when resuming after Settings changed',
+        async ({ launchedInYolo, settingsArgs }) => {
+            const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-claude-yolo-restart-'));
+            temporaryDirectories.push(directory);
+            const userDataPath = join(directory, 'user-data');
+            const projectRoot = join(directory, 'project');
+            await Promise.all([mkdir(projectRoot), mkdir(userDataPath)]);
+            const canonicalProjectRoot = await realpath(projectRoot);
+            const sessionId = 'claude-session-yolo';
+            const created = seedStoppedAgentSession(
+                userDataPath,
+                canonicalProjectRoot,
+                'claude',
+                sessionId,
+            );
+            const homeDirectory = join(directory, 'home');
+            await writeClaudeTranscript(homeDirectory, canonicalProjectRoot, sessionId);
+            const spawn = vi.fn<typeof spawnPty>(() => createFakePty());
+            const logger = new StructuredLogger(join(directory, 'logs'));
+            const execution = createTestTerminalExecution(logger, { spawn });
+            const start = vi.spyOn(execution, 'start');
+            let launchArguments = launchedInYolo
+                ? ['--dangerously-skip-permissions', '--verbose']
+                : ['--verbose'];
+            const runtime = await createTestDomainServices({
+                agentEnvironment: { homeDirectory, variables: {} },
+                userDataPath,
+                logger,
+                send: () => {},
+                terminal: {
+                    agentLaunchSettings: () => ({ executable: 'claude', args: launchArguments }),
+                    execution,
+                    resolveExecutable: (kind) =>
+                        Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/usr/local/bin/claude'),
+                },
+                agentAdapters: createPendingAgentAdapters(),
+            });
+            const terminalId = created.terminal!.id;
+            const launchedArguments = (call: number) => start.mock.calls[call]?.[0].agent?.args;
+
+            try {
+                await runtime.handlers['terminal.restart']({ terminalId, mode: 'resume' });
+                expect(launchedArguments(0)).toEqual([...launchArguments, '--resume', sessionId]);
+
+                launchArguments = [...settingsArgs, '--verbose'];
+                await runtime.handlers['terminal.restart']({ terminalId, mode: 'resume' });
+                expect(launchedArguments(1)).toEqual([
+                    ...(launchedInYolo ? ['--dangerously-skip-permissions'] : []),
+                    '--verbose',
+                    '--resume',
+                    sessionId,
+                ]);
+
+                await runtime.handlers['terminal.restart']({ terminalId, mode: 'fresh' });
+                expect(launchedArguments(2)).toEqual(launchArguments);
+            } finally {
+                await runtime.close();
+            }
+        },
+    );
+
     it('starts a Claude Code Agent fresh when its conversation was never written', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-claude-unwritten-restart-'));
         temporaryDirectories.push(directory);
