@@ -42,6 +42,17 @@ An opening request that is only an image, a link, or an issue identifier carries
 own. The assistant's first reply supplies it, which is why the naming subprocess needs no tools,
 no network fetches, and no image access of its own.
 
+## Naming timing
+
+A long first turn would otherwise leave the Session `Untitled` for minutes, so naming starts when
+the primary Agent's turn starts, from the opening request alone. The provider hook usually arrives
+before the request reaches the transcript, so the read is retried after short settle delays. A
+request with no subject of its own makes the model answer `SKIP`; that attempt sets no cooldown,
+and the completed turn names the Session from the request and its reply. Either path names a
+Session once: a title applied at turn start is not revised when the turn completes. Each attempt
+logs `agent.automatic_naming_finished` with a closed `reason` and a `trigger` of `turnStarted` or
+`turnFinished`.
+
 ## Rename with AI
 
 The Session rename editor's AI button, and `Shift+Enter` on a focused Session row or inside the
