@@ -156,7 +156,8 @@ off on your computer`, refuses input, and offers no Resume, matching its detache
 - **Running count.** Live Chat children count toward `activePtyCount` and `terminal.runningCount`
   (whole app or one Session), so Server Core idle exit, `server.stop`, the window-close
   confirmation, and Session or Project deletion prompts treat them like live PTYs. Choosing
-  Terminate and Close stops the Chat provider process with the PTYs.
+  Terminate and Close stops the Chat provider process with the PTYs and records it `stopped`;
+  the Chat service keeps running, so the next read on the same Server Core starts it again.
 
 ## Launch settings
 

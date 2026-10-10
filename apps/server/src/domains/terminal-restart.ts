@@ -39,35 +39,42 @@ export function createTerminalRestartHandler(
     return async ({ mode, terminalId }) => {
         const current = options.database.getTerminal(terminalId);
         if (!current) throw new CaxriError('NOT_FOUND', 'Terminal not found');
-        if (isChatTerminal(current)) {
-            // A fresh restart drops the Agent Session binding so the next start opens a new conversation.
-            if (mode === 'fresh') options.coordinator.prepareTerminalStart(terminalId);
-            const terminal = await options.restartChat(terminalId, mode !== 'fresh');
-            const sessionIds = recordAgentRestart(options.database, terminal);
-            options.send({
-                event: 'state.changed',
-                payload: { kind: 'records', sessionIds, terminalIds: [terminal.id] },
-            });
-            return terminal;
+        /**
+         * Every await below precedes the relaunch, so a detach that starts during them waits for it: a PTY that lands
+         * is handed over by `parkLaunch`, and a Chat by the detach's own Chat close that runs afterward.
+         */
+        const prepared = options.terminals.launches.begin(current.sessionId);
+        let terminal: TerminalRecord;
+        try {
+            if (isChatTerminal(current)) {
+                // A fresh restart drops the Agent Session binding so the next start opens a new conversation.
+                if (mode === 'fresh') options.coordinator.prepareTerminalStart(terminalId);
+                terminal = await options.restartChat(terminalId, mode !== 'fresh');
+            } else {
+                const expectedWorkingDirectory = await options.terminalDirectoryIdentity(
+                    current.cwd,
+                );
+                const resumeAgentSessionId =
+                    mode === 'fresh'
+                        ? undefined
+                        : await resumableAgentSessionId(options, current, 'restart');
+                if (mode !== 'fresh' && !current.agentSessionId && current.provider === 'grok')
+                    throw new CaxriError(
+                        'UNAVAILABLE',
+                        'Original Grok Build Session identity is unavailable; start a new Session explicitly',
+                    );
+                if (resumeAgentSessionId) options.coordinator.prepareTerminalResume(terminalId);
+                else options.coordinator.prepareTerminalStart(terminalId);
+                terminal = await options.terminals.restart(terminalId, {
+                    expectedWorkingDirectory,
+                    resumeAgentSessionId,
+                    shouldKeepAgentAutonomy: mode !== 'fresh',
+                });
+                if (terminal.provider) options.coordinator.probeTerminal(terminal.id);
+            }
+        } finally {
+            prepared();
         }
-        const expectedWorkingDirectory = await options.terminalDirectoryIdentity(current.cwd);
-        const resumeAgentSessionId =
-            mode === 'fresh'
-                ? undefined
-                : await resumableAgentSessionId(options, current, 'restart');
-        if (mode !== 'fresh' && !current.agentSessionId && current.provider === 'grok')
-            throw new CaxriError(
-                'UNAVAILABLE',
-                'Original Grok Build Session identity is unavailable; start a new Session explicitly',
-            );
-        if (resumeAgentSessionId) options.coordinator.prepareTerminalResume(terminalId);
-        else options.coordinator.prepareTerminalStart(terminalId);
-        const terminal = await options.terminals.restart(terminalId, {
-            expectedWorkingDirectory,
-            resumeAgentSessionId,
-            shouldKeepAgentAutonomy: mode !== 'fresh',
-        });
-        if (terminal.provider) options.coordinator.probeTerminal(terminal.id);
         const sessionIds = recordAgentRestart(options.database, terminal);
         options.send({
             event: 'state.changed',

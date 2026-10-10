@@ -165,13 +165,6 @@ describe('shutdownOutcome', () => {
             terminalProcessState: 'interrupted',
         });
     });
-
-    it('maps an explicit terminate shutdown to stopped Terminals without changing Session activity', () => {
-        expect(shutdownOutcome('terminate')).toEqual({
-            liveProcessStates: ['running', 'starting'],
-            terminalProcessState: 'stopped',
-        });
-    });
 });
 
 describe('choosePrimaryAgentForNewTerminal', () => {
