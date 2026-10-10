@@ -13,7 +13,7 @@ import { cn } from '../../lib/utilities';
 import { useGitDecoration } from '../../stores/git-decorations';
 import { describeFailure } from '../../stores/toasts';
 import type { EditorBreadcrumbSegment } from './editor-breadcrumbs-model';
-import { useEditorBreadcrumbPicker } from './use-editor-breadcrumb-picker';
+import { useEditorBreadcrumbPicker } from './hooks/use-editor-breadcrumb-picker';
 
 /**
  * Preserves the listbox's single DOM focus while a pointer activates one of its virtual options.

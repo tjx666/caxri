@@ -8,7 +8,7 @@ import { applyEditorTheme } from '../../lib/editor-theme';
 import { useCaxriQuery } from '../../queries/client';
 import { useTheme } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
-import { useAgentTranscriptFollow } from './use-agent-transcript-follow';
+import { useAgentTranscriptFollow } from './hooks/use-agent-transcript-follow';
 
 const emptyWorkClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';

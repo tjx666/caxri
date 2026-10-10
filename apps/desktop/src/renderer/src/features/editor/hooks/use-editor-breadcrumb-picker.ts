@@ -3,17 +3,17 @@ import { useEffect, useId, useRef, useState } from 'react';
 
 import type { FileEntry } from '@caxri/protocol';
 
-import { resolveEntryKind } from '../../lib/file-entry';
-import { parentDirectoryPath, projectRelativePath } from '../../lib/file-path';
-import { useCaxriQuery } from '../../queries/client';
-import { tryCommand } from '../../stores/toasts';
-import type { EditorBreadcrumbSegment } from './editor-breadcrumbs-model';
+import { resolveEntryKind } from '../../../lib/file-entry';
+import { parentDirectoryPath, projectRelativePath } from '../../../lib/file-path';
+import { useCaxriQuery } from '../../../queries/client';
+import { tryCommand } from '../../../stores/toasts';
+import type { EditorBreadcrumbSegment } from '../editor-breadcrumbs-model';
 import {
     adjacentBreadcrumbPickerPath,
     editorBreadcrumbDirectoryLabel,
     editorBreadcrumbPickerDirectory,
     typeaheadBreadcrumbPickerPath,
-} from './editor-breadcrumbs-model';
+} from '../editor-breadcrumbs-model';
 
 const TYPEAHEAD_RESET_MS = 700;
 const EMPTY_ENTRIES: FileEntry[] = [];
