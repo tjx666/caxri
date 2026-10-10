@@ -117,3 +117,10 @@ export function answeredNotice(
         message: clip(lines.join('\n'), 2_000),
     };
 }
+
+/**
+ * Whether the running provider offers `name`, so a stale Client cannot reach a method the provider never listed.
+ */
+export function isAgentChatCommandListed(snapshot: AgentChatSnapshot, name: string): boolean {
+    return snapshot.commands?.some((command) => command.name === name) ?? false;
+}

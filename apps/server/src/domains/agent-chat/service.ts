@@ -2,11 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import type {
     AgentChatFailureReason,
+    AgentChatMessageInput,
     AgentChatPatchOperation,
     AgentChatSnapshot,
-    AgentLaunchSettings,
     AgentProvider,
-    ServerEvent,
     TerminalFailureReason,
     TerminalRecord,
 } from '@caxri/protocol';
@@ -20,7 +19,6 @@ import {
     isChatTerminal,
     MAX_AGENT_CHAT_PATCH_OPERATIONS,
 } from '@caxri/protocol';
-import type { StructuredLogger } from '@caxri/system';
 import {
     assertE2EAgentChatInput,
     assertE2EAgentChatLaunch,
@@ -28,24 +26,24 @@ import {
     readE2EAgentPolicy,
 } from '@caxri/system';
 
-import type { AgentEnvironment, AgentLifecycleSignal } from '../agents';
+import type { AgentLifecycleSignal } from '../agents';
 import { agentCommandEnvironment, readAgentTranscript } from '../agents';
-import type { CaxriDatabase } from '../db';
 import { SingleFlight } from '../single-flight';
-import type { TerminalManagerOptions } from '../terminal';
 import { resolveTerminalExecutable } from '../terminal';
+import { isAgentChatCommandListed } from './chat-items';
 import type {
     AgentChatDriver,
     AgentChatExit,
     AgentChatProviderSession,
     AgentChatResponse,
     AgentChatTranscript,
+    ChatInputDelivery,
     ChatLifecycleEvent,
-    SpawnChatProcess,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
 import { claudeChatDriver } from './claude-chat-session';
 import { codexChatDriver } from './codex-chat-session';
+import type { AgentChatServiceOptions } from './service-options';
 
 /**
  * Streaming deltas are coalesced into one patch per frame-sized window so a fast provider does not flood every Client
@@ -62,30 +60,6 @@ const agentChatDrivers: Record<AgentProvider, AgentChatDriver | undefined> = {
     codex: codexChatDriver,
     grok: undefined,
 };
-
-export interface AgentChatServiceOptions {
-    database: CaxriDatabase;
-    logger: StructuredLogger;
-    send(event: ServerEvent): void;
-    /**
-     * Locates provider state such as Claude Code's on-disk transcript, and seeds the provider process environment.
-     */
-    agentEnvironment: AgentEnvironment;
-    /**
-     * Overrides the provider process environment derived from `agentEnvironment`, so tests can point it at fakes.
-     */
-    environment?: () => Promise<NodeJS.ProcessEnv>;
-    launchSettings(provider: AgentProvider): AgentLaunchSettings;
-    resolveExecutable?: TerminalManagerOptions['resolveExecutable'];
-    coordinator: {
-        beginTerminalLaunch(terminalId: string, launchId: string): void;
-        endTerminalLaunch(terminalId: string): void;
-        probeTerminal(terminalId: string): void;
-    };
-    observeLifecycleSignal(signal: AgentLifecycleSignal): Promise<unknown>;
-    clientVersion: string;
-    spawnProcess?: SpawnChatProcess;
-}
 
 interface ChatState {
     snapshot: AgentChatSnapshot;
@@ -497,6 +471,21 @@ export class AgentChatService {
     }
 
     /**
+     * Serializes input per Chat, starting the provider first, so messages and commands reach it in the order sent.
+     */
+    private async enqueue(terminalId: string, deliver: ChatInputDelivery): Promise<void> {
+        const terminal = this.requireChatTerminal(terminalId);
+        const state = this.state(terminalId);
+        const previous = state.sendQueue;
+        const run = (async () => {
+            await previous;
+            await deliver(await this.ensureStarted(terminal));
+        })();
+        state.sendQueue = Promise.allSettled([run]);
+        await run;
+    }
+
+    /**
      * Number of live provider processes, optionally limited to one Session. Counted as running work so Server Core idle
      * exit, the window-close confirmation, and Session deletion prompts treat a running Chat like a running PTY.
      */
@@ -533,18 +522,18 @@ export class AgentChatService {
         return agentChatSnapshotSchema.parse(state.snapshot);
     }
 
-    async send(terminalId: string, text: string): Promise<void> {
-        assertE2EAgentChatInput(readE2EAgentPolicy(), text);
-        const terminal = this.requireChatTerminal(terminalId);
-        const state = this.state(terminalId);
-        const previous = state.sendQueue;
-        const run = (async () => {
-            await previous;
-            const session = await this.ensureStarted(terminal);
-            await session.send(text);
-        })();
-        state.sendQueue = Promise.allSettled([run]);
-        await run;
+    async send(terminalId: string, message: AgentChatMessageInput): Promise<void> {
+        assertE2EAgentChatInput(readE2EAgentPolicy(), message.text);
+        await this.enqueue(terminalId, (session) => session.send(message));
+    }
+
+    async runCommand(terminalId: string, name: string, arguments_?: string): Promise<void> {
+        assertE2EAgentChatInput(readE2EAgentPolicy(), `/${name}`);
+        await this.enqueue(terminalId, async (session) => {
+            if (!isAgentChatCommandListed(this.state(terminalId).snapshot, name))
+                throw new CaxriError('VALIDATION', `/${name} is not available in this Chat`);
+            await session.runCommand(name, arguments_?.trim() ? arguments_ : undefined);
+        });
     }
 
     async interrupt(terminalId: string): Promise<void> {

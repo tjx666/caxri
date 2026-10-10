@@ -273,6 +273,27 @@ several callbacks can share one item, so the transport id is never the key.
   admission like a Desktop request. Retry restarts only a `failed` Chat (`terminal.restart` with
   `mode: 'resume'`).
 
+## Images and slash commands
+
+- **Images.** A provider with `capabilities.chatImages` (Codex and Claude Code) accepts up to 4
+  PNG, JPEG, GIF, or WebP images of at most 5 MB each per message, pasted, dropped, or picked with
+  Attach images. An image alone is a valid message. `agentChat.send` carries each image's base64
+  data straight to the provider (Codex `image` data-URL input, a Claude `image` content block) and
+  never stores it. The projection keeps only the Renderer-made JPEG thumbnail (at most 48 KB, raster
+  data URLs only), which counts against the text budget. Codex pairs it with the echoed user message
+  through `clientUserMessageId`. A resumed Chat knows how many images a message had, but their
+  previews were the sending Client's, so it shows placeholders.
+- **Slash commands.** The snapshot's `commands` is the list the composer offers after a leading
+  `/`. Codex lists `/compact`, which runs `thread/compact/start` and is refused while a turn runs.
+  Claude Code reports its own list (built-in commands, skills, and custom commands) from the SDK's
+  `initialize` response and `commands_changed`, minus the `terminal_slash_commands` that only make
+  sense in its terminal UI; the command runs as prompt text, as in Claude Code itself.
+- `agentChat.runCommand` runs a listed command with optional arguments and rejects anything the
+  Chat does not list with `VALIDATION`. In the composer, Arrow keys move through matches, Tab or
+  Enter chooses one, and Escape dismisses the list. A command that takes no arguments runs when
+  chosen; one that does is completed so its arguments can be typed.
+- Image bytes, thumbnails, and command arguments never reach logs.
+
 ## Lifecycle signals
 
 A Chat begins its own launch generation with the Agent coordinator and synthesizes
@@ -297,8 +318,9 @@ message text, command output, provider stderr, or protocol bodies.
 `fake-claude-cli.ts` are deterministic stand-ins for each provider, selected by keywords in the
 user's message (approval, file-change approval, edit, oversized diff, question, plan approval,
 table, slow stream, failure, crash). The Claude fake speaks the stream-json control protocol the
-SDK drives and writes a real transcript, so resume is exercised end to end. Unit, integration, and
-fake-mode E2E tests drive them; no test launches the
+SDK drives and writes a real transcript, so resume is exercised end to end. Both answer a message
+with images by counting them and implement compaction, so the E2E covers paste, file pick, and the
+slash list for each provider. Unit, integration, and fake-mode E2E tests drive them; no test launches the
 real CLI or calls a model.
 
 `bun run test:e2e:real-agent` is the manual, never-CI smoke against the real CLI (see the `e2e-testing` skill). Its
@@ -311,7 +333,7 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 
 ## Not yet supported
 
-Image input and slash commands. Claude Code's `initialize` response already lists its slash
-commands, models, and agents for that follow-up. On mobile, a Chat shows no plan, model, or context
-usage yet, older history beyond the window stays on the computer, and switching surface is
-Desktop-only.
+Claude Code's model and agent pickers (its `initialize` response already lists both). On mobile, a
+Chat shows no plan, model, or context usage yet, shows an image as its count (`[1 image]`) instead of
+a thumbnail, cannot attach images or run slash commands, older history beyond the window stays on
+the computer, and switching surface is Desktop-only.

@@ -8,7 +8,11 @@ import type {
     SpawnedProcess,
     SpawnOptions,
 } from '@anthropic-ai/claude-agent-sdk';
-import type { AgentChatPatchOperation } from '@caxri/protocol';
+import type {
+    AgentChatImageInput,
+    AgentChatMessageInput,
+    AgentChatPatchOperation,
+} from '@caxri/protocol';
 import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
 import {
@@ -27,6 +31,7 @@ import type {
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
 import { claudeHistoryOperations } from './claude-history';
+import { ClaudeCommandList, claudeCommandPrompt, claudeUserPrompt } from './claude-input';
 import {
     claudeAssistantItems,
     ClaudeBlockIds,
@@ -102,6 +107,8 @@ class ClaudeChatSession implements AgentChatProviderSession {
     private contextWindow: number | undefined;
 
     private turnCount = 0;
+
+    private readonly commands = new ClaudeCommandList();
 
     constructor(private readonly options: AgentChatSessionHost) {
         this.settings = claudeChatSettings(options.launch);
@@ -327,6 +334,12 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 const model = stringField(message.model);
                 if (model)
                     this.options.apply([{ op: 'state', state: { model: clip(model, 200) } }]);
+                const commands = this.commands.hideTerminalBound(message.terminal_slash_commands);
+                if (commands) this.options.apply([{ op: 'state', state: { commands } }]);
+                return;
+            }
+            case 'commands_changed': {
+                this.reportCommands(message.commands);
                 return;
             }
             case 'compact_boundary': {
@@ -437,6 +450,21 @@ class ClaudeChatSession implements AgentChatProviderSession {
         this.onEnd();
     }
 
+    private reportCommands(commands: unknown): void {
+        this.options.apply([{ op: 'state', state: { commands: this.commands.report(commands) } }]);
+    }
+
+    private submit(text: string, images: readonly AgentChatImageInput[]): void {
+        this.requireOpen();
+        const uuid = randomUUID();
+        const activeTurnId = this.options.read().activeTurnId;
+        const turnId = activeTurnId ?? uuid;
+        if (!activeTurnId) this.beginTurn(turnId);
+        const prompt = claudeUserPrompt({ uuid, turnId, sessionId: this.sessionId, text, images });
+        this.options.apply([{ op: 'upsertItem', item: prompt.item }]);
+        this.prompts.push(prompt.message);
+    }
+
     get isOpen(): boolean {
         return this.process !== undefined && !this.isEnded;
     }
@@ -492,7 +520,11 @@ class ClaudeChatSession implements AgentChatProviderSession {
         // eslint-disable-next-line no-void -- the read loop runs for the process lifetime and reports through onEnd.
         void this.consume(stream);
         try {
-            await withTimeout(stream.initializationResult(), INITIALIZE_TIMEOUT_MS);
+            const initialized = await withTimeout(
+                stream.initializationResult(),
+                INITIALIZE_TIMEOUT_MS,
+            );
+            this.reportCommands(initialized.commands);
         } catch {
             const spawnErrorCode = this.spawnErrorCode;
             await this.close();
@@ -518,31 +550,13 @@ class ClaudeChatSession implements AgentChatProviderSession {
         return resumeId ? 'resumed' : 'started';
     }
 
-    send(text: string): Promise<void> {
-        this.requireOpen();
-        const uuid = randomUUID();
-        const activeTurnId = this.options.read().activeTurnId;
-        const turnId = activeTurnId ?? uuid;
-        if (!activeTurnId) this.beginTurn(turnId);
-        // Claude Code does not echo the prompt back, so the projection records it as sent.
-        this.options.apply([
-            {
-                op: 'upsertItem',
-                item: {
-                    id: uuid,
-                    turnId,
-                    type: 'userMessage',
-                    text: clip(text, MAX_AGENT_CHAT_TEXT_LENGTH),
-                },
-            },
-        ]);
-        this.prompts.push({
-            type: 'user',
-            message: { role: 'user', content: text },
-            parent_tool_use_id: null,
-            uuid,
-            session_id: this.sessionId,
-        });
+    send({ text, images = [] }: AgentChatMessageInput): Promise<void> {
+        this.submit(text, images);
+        return Promise.resolve();
+    }
+
+    runCommand(name: string, arguments_: string | undefined): Promise<void> {
+        this.submit(claudeCommandPrompt(name, arguments_), []);
         return Promise.resolve();
     }
 

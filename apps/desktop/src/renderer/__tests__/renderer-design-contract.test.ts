@@ -7,10 +7,11 @@ import { describe, expect, it } from 'vitest';
 
 const rendererRoot = fileURLToPath(new URL('../src', import.meta.url));
 /**
- * `color` is the one remaining sanctioned native input: the OS color picker has no shadcn equivalent. Boolean controls
- * must use the shared Switch/Checkbox primitives (DESIGN.md "Spacing and radius" contract paragraph).
+ * `color` and `file` are the sanctioned native inputs: the OS color and file pickers have no shadcn equivalent (a
+ * `file` input stays hidden behind a Button that opens it). Boolean controls must use the shared Switch/Checkbox
+ * primitives (DESIGN.md "Spacing and radius" contract paragraph).
  */
-const nativeInputTypes = new Set(['color']);
+const nativeInputTypes = new Set(['color', 'file']);
 const allowedArbitraryClasses = new Set([
     'gap-[5px]',
     'h-[3px]',

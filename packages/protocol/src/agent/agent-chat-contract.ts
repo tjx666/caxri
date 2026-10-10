@@ -27,9 +27,61 @@ export const MAX_AGENT_CHAT_PATCH_OPERATIONS = 200;
  * individually valid items cannot add up to an unbounded snapshot.
  */
 export const MAX_AGENT_CHAT_TOTAL_TEXT_LENGTH = 4 * 1024 * 1024;
+/**
+ * Images one message may attach. Each is bounded by the smaller per-image limit the hosted providers accept (5 MB), so
+ * Caxri rejects an oversized image up front instead of letting the provider fail the turn.
+ */
+export const MAX_AGENT_CHAT_IMAGES = 4;
+export const MAX_AGENT_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
+/**
+ * A sent image's preview is a small Renderer-made thumbnail, not the image itself, so the projection stays bounded.
+ */
+export const MAX_AGENT_CHAT_THUMBNAIL_LENGTH = 48 * 1024;
+export const MAX_AGENT_CHAT_COMMANDS = 200;
 
 const boundedText = z.string().max(MAX_AGENT_CHAT_TEXT_LENGTH);
 const boundedOutput = z.string().max(MAX_AGENT_CHAT_OUTPUT_LENGTH);
+
+export const agentChatImageMediaTypeSchema = z.enum([
+    'image/png',
+    'image/jpeg',
+    'image/gif',
+    'image/webp',
+]);
+
+/**
+ * Only an inline base64 raster image may be rendered, so a provider or Client cannot make the Renderer load a remote
+ * URL through a thumbnail.
+ */
+const thumbnailSchema = z
+    .string()
+    .max(MAX_AGENT_CHAT_THUMBNAIL_LENGTH)
+    .regex(/^data:image\/(?:png|jpeg|gif|webp);base64,[\d+/A-Za-z]+={0,2}$/u);
+
+/**
+ * An image attached to a user message. `thumbnail` is absent when the provider's history carries the image but no
+ * preview Caxri made, such as a resumed conversation; the Chat then shows a placeholder.
+ */
+export const agentChatImageReferenceSchema = z.strictObject({
+    thumbnail: thumbnailSchema.optional(),
+});
+
+/**
+ * A slash command the provider runs. The list is the provider's own (Claude Code reports its commands, Codex has a
+ * fixed set Caxri maps to app-server methods), so a command that is not listed is never offered.
+ */
+export const agentChatCommandSchema = z.strictObject({
+    name: z
+        .string()
+        .min(1)
+        .max(100)
+        .regex(/^[\w:.-]+$/u),
+    description: z.string().max(500).optional(),
+    /**
+     * Placeholder for the command's arguments, such as `<file>`. A command without one runs as soon as it is chosen.
+     */
+    argumentHint: z.string().max(200).optional(),
+});
 
 /**
  * Lifecycle of one structured tool-like item. `interrupted` is Caxri's own closure for an item the provider left open
@@ -49,7 +101,12 @@ const itemBase = {
 };
 
 export const agentChatItemSchema = z.discriminatedUnion('type', [
-    z.strictObject({ ...itemBase, type: z.literal('userMessage'), text: boundedText }),
+    z.strictObject({
+        ...itemBase,
+        type: z.literal('userMessage'),
+        text: boundedText,
+        images: z.array(agentChatImageReferenceSchema).max(MAX_AGENT_CHAT_IMAGES).optional(),
+    }),
     z.strictObject({
         ...itemBase,
         type: z.literal('agentMessage'),
@@ -262,6 +319,10 @@ export const agentChatSnapshotSchema = z.strictObject({
     requests: z.array(agentChatRequestSchema).max(20),
     plan: agentChatPlanSchema.optional(),
     model: z.string().max(200).optional(),
+    /**
+     * Slash commands the provider currently offers. Absent until the provider has started.
+     */
+    commands: z.array(agentChatCommandSchema).max(MAX_AGENT_CHAT_COMMANDS).optional(),
     usage: z
         .strictObject({
             totalTokens: z.number().int().nonnegative(),
@@ -295,6 +356,7 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 requests: agentChatSnapshotSchema.shape.requests,
                 plan: agentChatSnapshotSchema.shape.plan.unwrap().nullable(),
                 model: agentChatSnapshotSchema.shape.model.unwrap().nullable(),
+                commands: agentChatSnapshotSchema.shape.commands.unwrap(),
                 usage: agentChatSnapshotSchema.shape.usage.unwrap().nullable(),
                 truncated: agentChatSnapshotSchema.shape.truncated,
             })
@@ -321,8 +383,44 @@ export type AgentChatSnapshot = z.infer<typeof agentChatSnapshotSchema>;
 export type AgentChatPatchOperation = z.infer<typeof agentChatPatchOperationSchema>;
 export type AgentChatPatch = z.infer<typeof agentChatPatchSchema>;
 export type AgentChatDecision = z.infer<typeof agentChatDecisionSchema>;
+export type AgentChatCommand = z.infer<typeof agentChatCommandSchema>;
+export type AgentChatImageMediaType = z.infer<typeof agentChatImageMediaTypeSchema>;
+export type AgentChatImageInput = z.infer<typeof agentChatImageInputSchema>;
+export type AgentChatMessageInput = Omit<
+    z.infer<typeof agentChatSendParametersSchema>,
+    'terminalId'
+>;
+
+/**
+ * Upper bound of an image's base64 length, from its byte limit.
+ */
+const MAX_IMAGE_BASE64_LENGTH = Math.ceil(MAX_AGENT_CHAT_IMAGE_BYTES / 3) * 4;
+
+/**
+ * An image a message sends. `data` is the full image, delivered to the provider and never stored in the projection or
+ * logs; `thumbnail` is the preview the user message shows.
+ */
+export const agentChatImageInputSchema = z.strictObject({
+    mediaType: agentChatImageMediaTypeSchema,
+    data: z
+        .string()
+        .min(1)
+        .max(MAX_IMAGE_BASE64_LENGTH)
+        .regex(/^[\d+/A-Za-z]+={0,2}$/u),
+    thumbnail: thumbnailSchema,
+});
 
 const terminalTarget = { terminalId: identifierSchema };
+
+const agentChatSendParametersSchema = z
+    .strictObject({
+        ...terminalTarget,
+        text: z.string().trim().max(MAX_AGENT_CHAT_MESSAGE_LENGTH),
+        images: z.array(agentChatImageInputSchema).max(MAX_AGENT_CHAT_IMAGES).optional(),
+    })
+    .refine((message) => message.text.length > 0 || (message.images?.length ?? 0) > 0, {
+        message: 'A message needs text or an image',
+    });
 
 /**
  * Agent Chat methods: the structured surface of a Chat Terminal. See `docs/agent-chat.md`.
@@ -337,13 +435,23 @@ export const agentChatMethods = {
         result: agentChatSnapshotSchema,
     },
     /**
-     * Starts a turn, or steers the running one, with the user's message.
+     * Starts a turn, or steers the running one, with the user's message and any attached images.
      */
     'agentChat.send': {
         ...commandPolicy('server', 'control'),
+        params: agentChatSendParametersSchema,
+        result: z.null(),
+    },
+    /**
+     * Runs one of the snapshot's `commands`. A command the provider does not offer fails with `VALIDATION`; one that
+     * cannot run during a turn fails with `CONFLICT`.
+     */
+    'agentChat.runCommand': {
+        ...commandPolicy('server', 'control'),
         params: z.strictObject({
             ...terminalTarget,
-            text: z.string().trim().min(1).max(MAX_AGENT_CHAT_MESSAGE_LENGTH),
+            name: agentChatCommandSchema.shape.name,
+            arguments: z.string().trim().max(MAX_AGENT_CHAT_MESSAGE_LENGTH).optional(),
         }),
         result: z.null(),
     },

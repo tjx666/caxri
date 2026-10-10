@@ -1,4 +1,6 @@
-import type { AgentChatRequest } from '@caxri/protocol';
+import { randomUUID } from 'node:crypto';
+
+import type { AgentChatMessageInput, AgentChatRequest } from '@caxri/protocol';
 import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
 import {
@@ -21,6 +23,7 @@ import { AgentChatStartError } from './chat-provider';
 import type { CodexThreadSettings } from './codex-chat-types';
 import type { CodexServerRequest } from './codex-connection';
 import { CodexConnection, CodexRequestError } from './codex-connection';
+import { CODEX_COMMANDS, CodexThumbnails, codexUserInput } from './codex-input';
 import type { CodexRequestKind } from './codex-items';
 import {
     codexRequestKey,
@@ -72,6 +75,8 @@ class CodexChatSession implements AgentChatProviderSession {
     private turnCount = 0;
 
     private rejectedRequests = 0;
+
+    private readonly thumbnails = new CodexThumbnails();
 
     constructor(private readonly options: AgentChatSessionHost) {
         this.settings = options.isRealAgentE2E
@@ -160,7 +165,8 @@ class CodexChatSession implements AgentChatProviderSession {
             }
             case 'item/started':
             case 'item/completed': {
-                const item = mapCodexItem(parameters.item, turnId, method === 'item/started');
+                const mapped = mapCodexItem(parameters.item, turnId, method === 'item/started');
+                const item = mapped && this.thumbnails.apply(mapped, parameters.item);
                 if (item) this.options.apply([{ op: 'upsertItem', item }]);
                 if (
                     method === 'item/completed' &&
@@ -318,18 +324,7 @@ class CodexChatSession implements AgentChatProviderSession {
         });
     }
 
-    get pid(): number | undefined {
-        return this.connection?.pid;
-    }
-
-    get isOpen(): boolean {
-        return this.connection?.isOpen ?? false;
-    }
-
-    /**
-     * Spawns the provider, completes the handshake, and opens the thread. Resolves once the Chat can accept input.
-     */
-    async start(): Promise<'resumed' | 'started'> {
+    private async open(): Promise<'resumed' | 'started'> {
         const { settings } = this;
         let spawnFailure: ChatProcessEnd | undefined;
         const connection = new CodexConnection({
@@ -454,15 +449,39 @@ class CodexChatSession implements AgentChatProviderSession {
         return 'started';
     }
 
-    async send(text: string): Promise<void> {
+    get isOpen(): boolean {
+        return this.connection?.isOpen ?? false;
+    }
+
+    /**
+     * Spawns the provider, completes the handshake, and opens the thread. Resolves once the Chat can accept input.
+     */
+    get pid(): number | undefined {
+        return this.connection?.pid;
+    }
+
+    async start(): Promise<'resumed' | 'started'> {
+        const outcome = await this.open();
+        this.options.apply([{ op: 'state', state: { commands: CODEX_COMMANDS } }]);
+        return outcome;
+    }
+
+    async send(message: AgentChatMessageInput): Promise<void> {
         const connection = this.requireConnection();
-        const input = [{ type: 'text', text, text_elements: [] }];
+        const clientUserMessageId = randomUUID();
+        const input = codexUserInput(message);
+        this.thumbnails.remember(clientUserMessageId, message);
         const { activeTurnId } = this.options.read();
         if (activeTurnId) {
             try {
                 await connection.request(
                     'turn/steer',
-                    { threadId: this.threadId, input, expectedTurnId: activeTurnId },
+                    {
+                        threadId: this.threadId,
+                        input,
+                        expectedTurnId: activeTurnId,
+                        clientUserMessageId,
+                    },
                     TURN_REQUEST_TIMEOUT_MS,
                 );
                 return;
@@ -476,13 +495,30 @@ class CodexChatSession implements AgentChatProviderSession {
         }
         const result = await connection.request(
             'turn/start',
-            { threadId: this.threadId, input, summary: 'detailed' },
+            { threadId: this.threadId, input, summary: 'detailed', clientUserMessageId },
             TURN_REQUEST_TIMEOUT_MS,
         );
         const turn = isRecord(result) && isRecord(result.turn) ? result.turn : undefined;
         const turnId = stringField(turn?.id);
         // `turn/started` normally arrives first; the response covers a provider that reorders them.
         if (turnId) this.beginTurn(turnId);
+    }
+
+    async runCommand(name: string): Promise<void> {
+        if (name !== 'compact')
+            throw new CaxriError('VALIDATION', `/${name} is not available in Codex Chat`);
+        if (this.options.read().activeTurnId)
+            throw new CaxriError(
+                'CONFLICT',
+                'Wait for the current turn to finish before compacting',
+            );
+        const connection = this.requireConnection();
+        // Codex runs compaction as its own turn, so the usual turn and `contextCompaction` events report it.
+        await connection.request(
+            'thread/compact/start',
+            { threadId: this.threadId },
+            TURN_REQUEST_TIMEOUT_MS,
+        );
     }
 
     async interrupt(): Promise<void> {

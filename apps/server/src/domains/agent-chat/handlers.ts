@@ -8,12 +8,20 @@ export function createAgentChatHandlers(
     agentChat: AgentChatService,
 ): Pick<
     DomainHandlers,
-    'agentChat.interrupt' | 'agentChat.read' | 'agentChat.respond' | 'agentChat.send'
+    | 'agentChat.interrupt'
+    | 'agentChat.read'
+    | 'agentChat.respond'
+    | 'agentChat.runCommand'
+    | 'agentChat.send'
 > {
     return {
         'agentChat.read': ({ terminalId }) => agentChat.read(terminalId),
-        'agentChat.send': async ({ terminalId, text }) => {
-            await agentChat.send(terminalId, text);
+        'agentChat.send': async ({ terminalId, text, images }) => {
+            await agentChat.send(terminalId, { text, ...(images && { images }) });
+            return null;
+        },
+        'agentChat.runCommand': async ({ terminalId, name, arguments: arguments_ }) => {
+            await agentChat.runCommand(terminalId, name, arguments_);
             return null;
         },
         'agentChat.interrupt': async ({ terminalId }) => {
