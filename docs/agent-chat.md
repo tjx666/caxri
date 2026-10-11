@@ -506,6 +506,21 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   in the Editor when it exists at that point: an applied change keeps added files, a pending or
   declined one keeps deleted files.
   Parsing and counting live in `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-diff.ts`.
+- A finished turn ends with what it left behind, between its final reply and Copy (or alone when
+  the turn stopped before replying), so the result survives the `Worked for X` fold. The files its
+  completed changes touched merge into one card: `Edited <file>`, `Created <file>`, or
+  `Edited 3 files` over the turn's `+A -D`. Hovering the counts swaps them for `View changes` and
+  previews every diff; View changes (or a row) discloses them in place. A file the turn created and
+  deleted again is left out. Undo restores the turn's files all or nothing: each file is read and
+  its reverse planned first, and if any no longer holds what the turn left (edited since, missing,
+  recreated, or a diff Server Core truncated) nothing is written and a toast names the file.
+  Created files go to the Trash behind its usual confirmation; edits and deletions are reversed
+  through `files.write`/`files.create`, so Session path authorization applies and a file outside
+  the Project cannot be undone. Pull requests and issues the turn created or edited follow as
+  cards opening the page: a completed `gh pr|issue create|edit` whose output printed the URL, or
+  a GitHub or Linear MCP create/update/save call. Collection lives in `agent-chat-turn-artifacts.ts`
+  and `agent-chat-trackers.ts`, Undo in `agent-chat-undo.ts`. Desktop only; the phone shows the
+  plain timeline.
 
 ## Mobile
 
