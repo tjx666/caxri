@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { agentCommanderLogEvents } from './logging-agent-commander';
+import { agentCommanderLogEvents } from './logging-agent-commander.js';
 
 /**
  * Canonical structured-log event registry. Writers use these values so adding or renaming an event is one reviewed,
