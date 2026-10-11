@@ -34,6 +34,7 @@ import {
     persistAllWindowState,
     reopenAuxiliaryWindowsAtStartup,
 } from './auxiliary-window-lifecycle';
+import { stampBuildIdentity } from './build-identity';
 import { consoleErrorLogFields } from './console-error-fields';
 import { createDesktopActions } from './desktop-actions';
 import { createDesktopLogger } from './desktop-logger';
@@ -81,13 +82,7 @@ import { createWorkbenchRootAuthority } from './workbench-root-authority';
 
 const bootStartedAt = performance.now();
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
-/**
- * Stamps these before logging so Server and Desktop records correlate to this build; see `global.d.ts` and
- * `electron.vite.config.ts` for the injected constants.
- */
-const caxriVersion = typeof __CAXRI_VERSION__ === 'string' ? __CAXRI_VERSION__ : 'unknown';
-process.env.CAXRI_APP_VERSION = caxriVersion;
-process.env.CAXRI_GIT_COMMIT = typeof __CAXRI_COMMIT__ === 'string' ? __CAXRI_COMMIT__ : 'unknown';
+const caxriVersion = stampBuildIdentity();
 /**
  * Electron derives automatic native role labels such as `About` and `Hide` from `app.name`, while macOS derives the
  * unpackaged process identity from `process.title`. Configure both so development menus expose product names instead of
@@ -465,6 +460,7 @@ if (ownsProfileInstance) {
 
     const handleMainMethod = createMainMethodHandler({
         ...gpuRecovery.mainMethodOptions,
+        logger: () => mainLogger,
         getProcessExplorer: () => processExplorer,
         getAgentCommander: () => agentCommander,
         revealSessionInWorkbench: async (sessionId) => {

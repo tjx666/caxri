@@ -1,4 +1,5 @@
 import {
+    agentStatusTabPath,
     agentTaskTabPath,
     agentTranscriptTabPath,
     externalEditorTabPath,
@@ -71,5 +72,16 @@ describe('documentTabPresentation', () => {
             icon: 'agent-task',
             label: 'Subagent',
         });
+    });
+
+    it('names an Agent status tab after its Agent, with the gauge glyph', () => {
+        const path = agentStatusTabPath('terminal-1');
+        expect(documentTabPresentation(path, { agentName: 'Codex' })).toEqual({
+            fileIconName: undefined,
+            icon: 'agent-status',
+            label: 'Codex Status',
+            labelTooltip: 'Codex Status',
+        });
+        expect(documentTabPresentation(path, {}).label).toBe('Agent Status');
     });
 });

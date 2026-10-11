@@ -17,6 +17,7 @@ import {
     CaxriError,
     themeImportExtensions,
 } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
 import type { BrowserWindow } from 'electron';
 import { app, clipboard, ClipboardItem, dialog, nativeImage, net, shell } from 'electron';
 
@@ -24,6 +25,7 @@ import { createAcceptanceExternalOpenFixture } from './acceptance-external-open'
 import { createAcceptanceSessionDeleteFixture } from './acceptance-session-delete';
 import { createAcceptanceThemeImportFixture } from './acceptance-theme-import';
 import type { AgentCommanderWindowController } from './agent-commander-window';
+import { createAgentProviderStatus, createE2EStatusPageFetch } from './agent-provider-status';
 import { readArgvConfig, updateArgvConfig } from './argv-config';
 import {
     BUG_REPORT_SCREENSHOT_DIRECTORY,
@@ -86,6 +88,7 @@ interface MainMethodHandlerOptions {
      */
     getRemoteDebugging(): RemoteDebuggingState;
     getUserDataPath(): string;
+    logger?(): StructuredLogger | undefined;
     getSupervisor(): DesktopServerConnection;
     getUpdateService(): UpdateService;
     getWindow(): BrowserWindow | undefined;
@@ -105,6 +108,13 @@ function assertNever(value: never): never {
  */
 export function createMainMethodHandler(options: MainMethodHandlerOptions) {
     const linkFavicon = createLinkFavicons((url, init) => net.fetch(url, init));
+    const agentProviderStatus = createAgentProviderStatus({
+        fetch:
+            process.env.CAXRI_E2E === '1'
+                ? createE2EStatusPageFetch(process.env.CAXRI_E2E_PROVIDER_STATUS_DIR)
+                : (url, init) => net.fetch(url, init),
+        logger: () => options.logger?.(),
+    });
     const externalOpenFixture =
         options.externalOpenFixture ??
         createAcceptanceExternalOpenFixture({
@@ -217,6 +227,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 });
             case 'links.favicon':
                 return linkFavicon(request.params.origin);
+            case 'agentProviderStatus.read':
+                return agentProviderStatus(request.params.provider);
             case 'dialog.selectDirectory':
                 return options.workbenchRootAuthority.selectProjectFolder();
             case 'pathBrowser.start':
