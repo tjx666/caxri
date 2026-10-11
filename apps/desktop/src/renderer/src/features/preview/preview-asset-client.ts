@@ -50,7 +50,7 @@ function requestAsset(source: PreviewAssetSource, path: string) {
 }
 
 /**
- * Decodes one asset's payload.
+ * Decodes one base64 payload: an asset read, or bundled binary data carried as a `data:` URL.
  *
  * `Uint8Array.fromBase64` is the fast path and is what the Renderer actually runs, but it does not exist in the Node
  * runtime this module's unit tests execute under. Without the fallback every decode there threw, the read reported an
@@ -58,7 +58,7 @@ function requestAsset(source: PreviewAssetSource, path: string) {
  * behavior they describe. The fallback reads one character at a time rather than through `Uint8Array.from`, which pays
  * a callback per byte across an asset that may reach the 8 MiB read ceiling.
  */
-function decodeAsset(base64: string): Uint8Array<ArrayBuffer> {
+export function decodeBase64(base64: string): Uint8Array<ArrayBuffer> {
     if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(base64);
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
@@ -71,7 +71,7 @@ async function readAsset(source: PreviewAssetSource, path: string): Promise<stri
     await assetReads.acquire();
     try {
         const asset = await requestAsset(source, path);
-        const blob = new Blob([decodeAsset(asset.base64)], { type: asset.mediaType });
+        const blob = new Blob([decodeBase64(asset.base64)], { type: asset.mediaType });
         return URL.createObjectURL(blob);
     } catch {
         // A missing, oversized, or unauthorized image is an ordinary document defect: the caller shows a placeholder.
@@ -127,4 +127,18 @@ export function releaseAsset(source: PreviewAssetSource, path: string): void {
     if (entry.users > 0) return;
     URL.revokeObjectURL(entry.objectUrl);
     cache.delete(key);
+}
+
+/**
+ * Reads a whole binary file a preview renders itself (a PDF) as bytes, without an object URL or a shared cache entry:
+ * the view owns the decoded document for as long as it is mounted, and a second copy in a cache would double the
+ * largest payload a preview reads.
+ */
+export async function readAssetBytes(
+    sessionId: string,
+    path: string,
+    signal: AbortSignal,
+): Promise<Uint8Array<ArrayBuffer>> {
+    const asset = await caxri.requestWithSignal('files.readAsset', signal, { sessionId, path });
+    return decodeBase64(asset.base64);
 }

@@ -6,7 +6,6 @@ import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import {
     canceledResultSchema,
-    fileAssetSchema,
     fileDocumentSchema,
     fileEntrySchema,
     fileMutationOperationSchema,
@@ -16,6 +15,7 @@ import {
     pathSchema,
 } from './domain.js';
 import { fileSearchModeSchema, fileSearchResultSchema } from './file-search.js';
+import { fileAssetSchema } from './preview-asset.js';
 
 const serverRead = commandPolicy('server', 'read');
 const serverWrite = commandPolicy('server', 'write');

@@ -47,16 +47,20 @@ interface TimeBudget {
  * the file preview loads on demand. Mermaid ships one lazy chunk per diagram type plus two large layout backends (ELK ≈
  * 6.5 MiB and Cytoscape ≈ 2.5 MiB) that only load for the diagram kinds that need them. Stubbing those out would save
  * bytes by silently breaking `architecture` diagrams and ELK layouts, so the size is accepted instead.
+ *
+ * The Renderer and asar ceilings were raised again for the PDF preview (≈ 11 MiB with maps, measured 118.9 → 130.1 MiB
+ * for out/renderer): pdf.js, its worker, and the CMaps, symbol fonts, and image decoders it needs, each in its own lazy
+ * chunk so only an opened PDF loads any of it and only the CMap or decoder that PDF asks for.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export const SIZE_BUDGETS: SizeBudget[] = [
     { path: 'apps/server/dist/server', maxBytes: 150 * MiB },
     { path: 'out/main', maxBytes: 4 * MiB },
     { path: 'out/preload', maxBytes: 256 * 1_024 },
-    { path: 'out/renderer', maxBytes: 126 * MiB },
+    { path: 'out/renderer', maxBytes: 140 * MiB },
     {
         path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar',
-        maxBytes: 130 * MiB,
+        maxBytes: 145 * MiB,
     },
     {
         path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/server',

@@ -1,4 +1,5 @@
 import type { BootstrapState, SessionState } from '@caxri/protocol';
+import { filePreviewTabPath } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -15,7 +16,7 @@ vi.mock('../editor-reveal', () => ({
 
 import { useSessionViewStore } from '../../../stores/session-view';
 import { useWorkbenchStore } from '../../../stores/workbench';
-import { closeOpenEditorsUnderPath, hasUnsavedChangesUnderPath } from '../document-commands';
+import { closeOpenEditorsUnderPath, hasUnsavedChangesUnderPath } from '../document-trash';
 
 const TRASHED = '/project/trashed.ts';
 const PARKED_ROOT_FILE = '/other/session.ts';
@@ -125,6 +126,35 @@ describe('Trash reconciliation across Workbench Roots', () => {
         expect(documents['session-2\0project-2']).toMatchObject({
             [PARKED_ROOT_FILE]: { dirty: true },
         });
+    });
+
+    it('closes the preview of a trashed file and keeps previews of other files', () => {
+        // A PDF opens only as a preview, so a Trash that skipped preview tabs left the deleted document on screen.
+        const keptPreview = filePreviewTabPath('/project/notes.md');
+        useWorkbenchStore.setState({
+            bootstrap: {
+                selectedSessionId: 'session-1',
+                sessions: [
+                    { id: 'session-1', projectId: 'project-1', workbenchProjectId: 'project-1' },
+                ],
+                sessionStates: [
+                    {
+                        sessionId: 'session-1',
+                        workbenchProjectId: 'project-1',
+                        desiredSecondarySidebarViewContainerId: 'caxri.files',
+                        paneLayout: paneLayout([
+                            filePreviewTabPath('/project/docs/manual.pdf'),
+                            keptPreview,
+                        ]),
+                    },
+                ],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+
+        closeOpenEditorsUnderPath('project-1', '/project/docs');
+
+        expect(paneTabPaths(sessionStateOf('session-1')!)).toEqual([keptPreview]);
     });
 
     it('keeps a saved buffer under another root out of the Trash confirmation', () => {
