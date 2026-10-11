@@ -233,20 +233,24 @@ describe('observeExternalStatusCommand', () => {
 
     it('keeps an optional command failure at debug', async () => {
         const logger = await createLogger();
-        const error = new ExternalStatusCliError('git', 'other', 'no upstream configured', 1);
+        const error = new ExternalStatusCliError('git', 'other', 'not a git repository', 128);
         await expect(
             observeExternalStatusCommand({
                 logger,
                 event: 'project_status.cli',
                 command: 'git',
-                arguments: ['rev-parse', '@{upstream}'],
+                arguments: [
+                    'for-each-ref',
+                    '--format=%(refname) %(objectname)',
+                    'refs/remotes/origin/main',
+                ],
                 isOptional: true,
                 run: () => Promise.reject(error),
             }),
         ).rejects.toBe(error);
         expect((await records(logger)).at(-1)).toMatchObject({
             level: 'debug',
-            fields: { operation: 'head.get', result: 'failure', exitCode: 1 },
+            fields: { operation: 'head.get', result: 'failure', exitCode: 128 },
         });
     });
 
