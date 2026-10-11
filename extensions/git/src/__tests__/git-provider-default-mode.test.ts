@@ -4,8 +4,8 @@ import type { GitPullRequestChanges } from 'caxri';
 import { CancellationTokenSource } from 'caxri';
 import { describe, expect, it, vi } from 'vitest';
 
-import { hasDetectedPullRequest } from '../git-provider';
-import { createHarness, repo, scopeId } from './git-provider.fixture';
+import { hasDetectedPullRequest } from '../pull-request-detection';
+import { createHarness, repo, scopeId, summary } from './git-provider.fixture';
 
 const pullRequest: GitPullRequestChanges = {
     repositoryId: repo.id,
@@ -81,6 +81,24 @@ describe('Source Control default mode', () => {
             await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
             await vi.waitFor(() => expect(git.pullRequestChanges).toHaveBeenCalled());
             const view = await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+            expect(view.selectedModeId).toBe('working');
+        } finally {
+            cancellation.dispose();
+            provider.dispose();
+        }
+    });
+
+    it('never looks up a pull request for a detached HEAD', async () => {
+        const { git, provider } = createHarness();
+        vi.mocked(git.summary).mockResolvedValue({
+            ...summary,
+            repositories: [{ ...repo, branch: '(detached)' }],
+        });
+        const cancellation = new CancellationTokenSource();
+        try {
+            const view = await provider.provideView({ scopeId, refresh: 0 }, cancellation.token);
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            expect(git.pullRequestChanges).not.toHaveBeenCalled();
             expect(view.selectedModeId).toBe('working');
         } finally {
             cancellation.dispose();
