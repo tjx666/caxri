@@ -17,7 +17,8 @@ export { renderMarkdown } from './render-markdown.js';
 export { slugify } from './slug.js';
 export type { StreamingMarkdownParser, StreamingMarkdownStats } from './streaming-parser.js';
 export { createStreamingMarkdownParser } from './streaming-parser.js';
-export { repairStreamingMarkdown } from './streaming-repair.js';
+export type { StreamingMarkdownRepair, StreamingMarkdownRepairStats } from './streaming-repair.js';
+export { createStreamingMarkdownRepair, repairStreamingMarkdown } from './streaming-repair.js';
 export type {
     MarkdownAsset,
     MarkdownCodeBlock,
