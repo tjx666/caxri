@@ -431,6 +431,61 @@ function openSession(id: number | string | undefined, sessionId: string) {
     });
 }
 
+/**
+ * Indexes of the frames that start a prompt, in order; a prompt's position in this list is its `prompt_index`.
+ */
+function promptFrameIndexes(frames: readonly StoredFrame[]): number[] {
+    return frames.flatMap((frame, index) =>
+        frame.update.sessionUpdate === 'user_message_chunk' ? [index] : [],
+    );
+}
+
+function promptText(frame: StoredFrame | undefined): string {
+    const content = frame?.update.content as { text?: unknown } | undefined;
+    return typeof content?.text === 'string' ? content.text : '';
+}
+
+/**
+ * Lists one rewind point per prompt with a truncated preview, like Grok Build's `_x.ai/rewind/points`.
+ */
+function rewindPoints(): Record<string, unknown> {
+    const { frames } = currentSession();
+    return {
+        rewind_points: promptFrameIndexes(frames).map((frameIndex, promptIndex) => {
+            const text = promptText(frames[frameIndex]);
+            return {
+                prompt_index: promptIndex,
+                created_at: new Date().toISOString(),
+                num_file_snapshots: 0,
+                has_file_changes: false,
+                prompt_preview: text.length > 20 ? `${text.slice(0, 20)}…` : text,
+            };
+        }),
+    };
+}
+
+/**
+ * Drops the target prompt and everything after it, then logs the call to `rewinds.jsonl` so tests can check the mode. A
+ * real Grok Build appends a rewind marker instead; either way a later `session/load` replays the shorter history.
+ */
+function rewindExecute(parameters: Record<string, unknown>): Record<string, unknown> {
+    const session = currentSession();
+    const targetPromptIndex = Number(parameters.targetPromptIndex);
+    const frameIndex = promptFrameIndexes(session.frames).at(targetPromptIndex);
+    if (frameIndex === undefined || state.prompt)
+        return { success: false, error: `Cannot rewind to prompt ${targetPromptIndex}` };
+    const promptTextAtTarget = promptText(session.frames[frameIndex]);
+    if (parameters.force === true) {
+        session.frames = session.frames.slice(0, frameIndex);
+        save();
+        fs.appendFileSync(
+            path.join(stateDirectory, 'rewinds.jsonl'),
+            `${JSON.stringify({ sessionId: session.id, targetPromptIndex, mode: parameters.mode })}\n`,
+        );
+    }
+    return { success: true, prompt_text: promptTextAtTarget };
+}
+
 function handle(message: RpcMessage) {
     if (message.method === undefined) {
         if (typeof message.id === 'number') {
@@ -533,6 +588,14 @@ function handle(message: RpcMessage) {
             }
             state.model = modelId;
             respond(message.id, { _meta: { model: { Ok: null } } });
+            return;
+        }
+        case '_x.ai/rewind/points': {
+            respond(message.id, rewindPoints());
+            return;
+        }
+        case '_x.ai/rewind/execute': {
+            respond(message.id, rewindExecute(parameters));
             return;
         }
         case 'session/cancel': {

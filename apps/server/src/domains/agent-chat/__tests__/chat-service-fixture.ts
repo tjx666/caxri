@@ -52,6 +52,7 @@ export async function fixture(
         beginTerminalLaunch: vi.fn<() => void>(),
         endTerminalLaunch: vi.fn<() => void>(),
         probeTerminal: vi.fn<() => void>(),
+        prepareTerminalStart: vi.fn<() => void>(),
     };
     const logger = { write: vi.fn() } as unknown as StructuredLogger;
     const agentEnvironment = {
@@ -134,9 +135,34 @@ export async function fixture(
             .trim()
             .split('\n')
             .map((line) => JSON.parse(line) as { method: string; args: string[] });
+    /**
+     * Reads a JSON-lines log a fake provider wrote, or `[]` when it wrote none.
+     */
+    const fakeLog = async (
+        owner: 'claude' | 'codex' | 'grok',
+        name: string,
+    ): Promise<Array<Record<string, unknown>>> => {
+        const roots = {
+            claude: claudeConfigDirectory,
+            codex: stateDirectory,
+            grok: grokStateDirectory,
+        };
+        let text: string;
+        try {
+            text = await readFile(join(roots[owner], name), 'utf8');
+        } catch {
+            return [];
+        }
+        return text
+            .split('\n')
+            .filter((line) => line.trim())
+            .map((line) => JSON.parse(line) as Record<string, unknown>);
+    };
     return {
         database,
         agentEnvironment,
+        claudeConfigDirectory,
+        fakeLog,
         service,
         terminal,
         signals,

@@ -139,6 +139,11 @@ export interface AgentChatSessionHost {
      * Agent Session to resume. Absent for a Chat that has never started a turn.
      */
     agentSessionId?: string;
+    /**
+     * Where the resumed conversation ends, set only for the restart that follows a rewind whose provider rewinds by
+     * resuming at an earlier point of its record (see {@link ChatResumePoint}).
+     */
+    resumeAt?: string;
     clientVersion: string;
     spawnProcess?: SpawnChatProcess;
     /**
@@ -196,6 +201,28 @@ export interface ChatTaskHistory {
 }
 
 /**
+ * What "Edit from here" rewinds: the user message that started `turnId`, which goes away with that turn and the
+ * `removedTurns - 1` turns after it.
+ */
+export interface ChatRewindTarget {
+    itemId: string;
+    turnId: string;
+    /**
+     * The message's text, which a provider can match against its own record before it changes anything.
+     */
+    text: string;
+    removedTurns: number;
+    restoreFiles: boolean;
+}
+
+/**
+ * How the restart after a rewind reopens the conversation. Absent: resume the bound Agent Session as usual (the
+ * provider already rewound its record). `resumeAt`: resume it ending at that point of the record. `fresh`: the rewind
+ * removed every turn, so the restart begins a new Agent Session.
+ */
+export type ChatResumePoint = { kind: 'resumeAt'; at: string } | { kind: 'fresh' };
+
+/**
  * One live provider process bound to one Chat Terminal.
  */
 export interface AgentChatProviderSession {
@@ -228,6 +255,13 @@ export interface AgentChatProviderSession {
      * that lists no models (Grok Build) omits it: validation already rejects every switch it could receive.
      */
     configure?(config: AgentChatModelChange): Promise<void>;
+    /**
+     * Rewinds the provider's own record to just before `target`, restoring files first when asked. The service has
+     * already checked that no turn runs and that the provider offers file restore; it restarts the session afterwards,
+     * so the projection is rebuilt from the rewound record rather than patched here. Fails without changing anything
+     * when the provider refuses, as far as the provider allows.
+     */
+    rewind(target: ChatRewindTarget): Promise<ChatResumePoint | undefined>;
     /**
      * Stops the running turn. Background tasks keep running.
      */

@@ -46,20 +46,25 @@ export const agentChatImageInputSchema = z.strictObject({
 
 const terminalTarget = { terminalId: identifierSchema };
 
+const messageContent = {
+    text: z.string().trim().max(MAX_AGENT_CHAT_MESSAGE_LENGTH),
+    images: z.array(agentChatImageInputSchema).max(MAX_AGENT_CHAT_IMAGES).optional(),
+};
+
+const hasMessageContent = (message: { text: string; images?: unknown[] }): boolean =>
+    message.text.length > 0 || (message.images?.length ?? 0) > 0;
+
 const agentChatSendParametersSchema = z
     .strictObject({
         ...terminalTarget,
-        text: z.string().trim().max(MAX_AGENT_CHAT_MESSAGE_LENGTH),
-        images: z.array(agentChatImageInputSchema).max(MAX_AGENT_CHAT_IMAGES).optional(),
+        ...messageContent,
         /**
          * What a message sent while a turn runs does: `queue` (the default) holds it until the turn ends, `steer` adds
          * it to the running turn. A message sent while the Chat is idle starts a turn either way.
          */
         delivery: z.enum(['queue', 'steer']).optional(),
     })
-    .refine((message) => message.text.length > 0 || (message.images?.length ?? 0) > 0, {
-        message: 'A message needs text or an image',
-    });
+    .refine(hasMessageContent, { message: 'A message needs text or an image' });
 
 /**
  * Agent Chat methods: the structured surface of a Chat Terminal. See `docs/agent-chat.md`.
@@ -110,6 +115,25 @@ export const agentChatMethods = {
             .refine((change) => change.model !== undefined || change.effort !== undefined, {
                 message: 'Choose a model or an effort',
             }),
+        result: z.null(),
+    },
+    /**
+     * "Edit from here": rewinds the conversation to just before user message `itemId` through the provider's own
+     * record, removing that turn and every later one, then sends the edited message as the new next turn.
+     * `restoreFiles` also restores the files those turns changed from the provider's file checkpoints; a provider
+     * without them (`capabilities.chatRewindFiles`) fails with `VALIDATION`. A running turn, or a message that did not
+     * start its turn, fails with `CONFLICT` before anything changes.
+     */
+    'agentChat.rewind': {
+        ...commandPolicy('server', 'control'),
+        params: z
+            .strictObject({
+                ...terminalTarget,
+                itemId: z.string().min(1).max(200),
+                restoreFiles: z.boolean(),
+                ...messageContent,
+            })
+            .refine(hasMessageContent, { message: 'A message needs text or an image' }),
         result: z.null(),
     },
     /**
@@ -198,6 +222,19 @@ export const agentChatMethods = {
             ]),
         }),
         result: z.null(),
+    },
+    /**
+     * Native confirmation before "Edit from here" restores files: putting back the files later turns changed overwrites
+     * whatever is on disk now, including the user's own edits since, so it takes the native sheet DESIGN.md reserves
+     * for destructive actions. Main only asks; the Renderer sends `agentChat.rewind` once the user agrees.
+     */
+    'agentChat.confirmRevertFiles': {
+        ...commandPolicy('desktop', 'control'),
+        params: z.object({
+            providerName: z.string().min(1).max(100),
+            removedTurns: z.number().int().positive(),
+        }),
+        result: z.object({ confirmed: z.boolean() }),
     },
 };
 /* eslint-enable unicorn/max-nested-calls */

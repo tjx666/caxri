@@ -100,6 +100,12 @@ export interface AgentProviderCatalogEntry {
          * Whether an Agent Chat with this provider accepts images with a message.
          */
         chatImages: boolean;
+        /**
+         * Whether "Edit from here" can also restore the files the rewound turns changed, through the provider's own
+         * file checkpoints. Every Chat provider can rewind its conversation; one without native file checkpoints keeps
+         * the files as they are, because Caxri does not snapshot the worktree itself.
+         */
+        chatRewindFiles: boolean;
         messaging: boolean;
         nativeRename: boolean;
     };
@@ -138,6 +144,10 @@ export const agentProviderCatalog = {
             automaticSuspension: true,
             chat: true,
             chatImages: true,
+            /**
+             * Claude Code's SDK file checkpointing (`rewindFiles`).
+             */
+            chatRewindFiles: true,
             messaging: true,
             nativeRename: true,
         },
@@ -154,6 +164,10 @@ export const agentProviderCatalog = {
             automaticSuspension: true,
             chat: true,
             chatImages: true,
+            /**
+             * App-server's `thread/revert` changes only the conversation; Codex keeps no file checkpoints.
+             */
+            chatRewindFiles: false,
             messaging: true,
             nativeRename: true,
         },
@@ -177,6 +191,10 @@ export const agentProviderCatalog = {
              * Grok Build's ACP agent advertises `promptCapabilities.image: false`.
              */
             chatImages: false,
+            /**
+             * Grok Build's `_x.ai/rewind/execute` restores its own per-prompt file snapshots.
+             */
+            chatRewindFiles: true,
             messaging: false,
             nativeRename: false,
         },
