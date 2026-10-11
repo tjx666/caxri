@@ -9,7 +9,7 @@ import type { AgentCommanderServiceOptions } from './service';
 
 export type CommanderHostOptions = Omit<
     AgentCommanderServiceOptions,
-    'database' | 'pullRequests' | 'userDataPath'
+    'database' | 'onLaunching' | 'pullRequests' | 'userDataPath'
 >;
 
 /**

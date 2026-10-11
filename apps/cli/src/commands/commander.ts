@@ -1,11 +1,87 @@
-import { CaxriError, commanderTaskStatuses } from '@caxri/protocol';
+import {
+    CaxriError,
+    commanderInboxAddSchema,
+    commanderInboxKindIds,
+    commanderTaskStatuses,
+    MAX_COMMANDER_INBOX_BODY_LENGTH,
+} from '@caxri/protocol';
 
+import { readBoundedTextFile } from './text-file';
 import type { RemoteCommandDefinition } from './types';
 
 function sessionCreateParameters(tokens: readonly string[]) {
     if (tokens.length !== 2 || tokens[0] !== '--project' || tokens[1].startsWith('--'))
         throw new CaxriError('VALIDATION', 'commander session create requires one --project <id>');
     return { projectId: tokens[1] };
+}
+
+const inboxAddFlags = new Set([
+    '--kind',
+    '--key',
+    '--title',
+    '--body-file',
+    '--session',
+    '--delegation',
+    '--pr',
+    '--head',
+]);
+
+/**
+ * `--option` is the one repeatable flag; every other flag appears at most once.
+ */
+async function inboxAddParameters(tokens: readonly string[]) {
+    const values = new Map<string, string>();
+    const options: string[] = [];
+    for (let index = 0; index < tokens.length; index += 2) {
+        const flag = tokens[index];
+        const value = tokens[index + 1];
+        if (!value || value.startsWith('--'))
+            throw new CaxriError('VALIDATION', `${flag} requires a value`);
+        if (flag === '--option') options.push(value);
+        else if (!inboxAddFlags.has(flag) || values.has(flag))
+            throw new CaxriError('VALIDATION', `Unexpected or repeated argument: ${flag}`);
+        else values.set(flag, value);
+    }
+    const url = values.get('--pr');
+    const headSha = values.get('--head');
+    if (Boolean(url) !== Boolean(headSha))
+        throw new CaxriError('VALIDATION', 'Pass --pr and --head together');
+    const bodyFile = values.get('--body-file');
+    return commanderInboxAddSchema.parse({
+        kind: values.get('--kind'),
+        ...(values.has('--key') && { key: values.get('--key') }),
+        title: values.get('--title'),
+        ...(bodyFile && {
+            body: await readBoundedTextFile(
+                bodyFile,
+                MAX_COMMANDER_INBOX_BODY_LENGTH,
+                'Inbox body',
+            ),
+        }),
+        options,
+        ...(values.has('--session') && { sessionId: values.get('--session') }),
+        ...(values.has('--delegation') && { delegationId: values.get('--delegation') }),
+        ...(url && headSha && { pullRequest: { url, headSha } }),
+    });
+}
+
+function inboxItem(tokens: readonly string[]) {
+    if (tokens.length !== 1 || tokens[0].startsWith('-'))
+        throw new CaxriError('VALIDATION', 'Expected one Inbox item ID');
+    return { id: tokens[0] };
+}
+
+function inboxAcknowledgement(tokens: readonly string[]) {
+    const sequence = Number(tokens[2]);
+    if (
+        tokens.length !== 3 ||
+        tokens[0].startsWith('-') ||
+        tokens[1] !== '--sequence' ||
+        !Number.isSafeInteger(sequence) ||
+        sequence < 1
+    )
+        throw new CaxriError('VALIDATION', 'Expected <item-id> --sequence <n>');
+    return { id: tokens[0], sequence };
 }
 
 /**
@@ -148,5 +224,54 @@ export const COMMANDER_COMMANDS: RemoteCommandDefinition[] = [
             '<taskId> [--title <text>] [--status <status>] [--project <id> | --clear-project] ' +
             '[--delegation <id> | --clear-delegation] [--note <text> | --clear-note] [--pr <url> | --clear-pr]',
         parseParams: taskUpdateParameters,
+    },
+    {
+        kind: 'remote',
+        path: ['commander', 'inbox', 'add'],
+        method: 'commander.inbox.add',
+        summary:
+            'Raise an item for the user: a decision, a step needing their hands, or a verified pull request to merge. Reusing --key (or the same --pr) updates the open item.',
+        usage: `--kind <${commanderInboxKindIds.join('|')}> --title <text> [--key <key>] [--body-file <path>] [--option <text>]... [--session <id>] [--delegation <id>] [--pr <url> --head <sha>]`,
+        ownerConfirmation: 'Add this item to the Agent Commander Inbox?',
+        parseParams: inboxAddParameters,
+    },
+    {
+        kind: 'remote',
+        path: ['commander', 'inbox', 'list'],
+        method: 'commander.inbox.list',
+        summary: 'List open Inbox items, or with --all the recently closed ones too.',
+        usage: '[--all]',
+        parseParams: (tokens) => {
+            if (tokens.length > 1 || (tokens.length === 1 && tokens[0] !== '--all'))
+                throw new CaxriError('VALIDATION', 'Expected only --all');
+            return { includeClosed: tokens.length === 1 };
+        },
+        quietKey: 'items',
+    },
+    {
+        kind: 'remote',
+        path: ['commander', 'inbox', 'show'],
+        method: 'commander.inbox.show',
+        summary: 'Read one Inbox item with every reply from the user.',
+        usage: '<item-id>',
+        parseParams: inboxItem,
+    },
+    {
+        kind: 'remote',
+        path: ['commander', 'inbox', 'resolve'],
+        method: 'commander.inbox.resolve',
+        summary: 'Close an Inbox item whose matter is settled.',
+        usage: '<item-id>',
+        ownerConfirmation: 'Resolve this Agent Commander Inbox item?',
+        parseParams: inboxItem,
+    },
+    {
+        kind: 'remote',
+        path: ['commander', 'inbox', 'ack'],
+        method: 'commander.inbox.ack',
+        summary:
+            "Record that you read the user's replies up to a sequence, so they are not announced again after a restart.",
+        usage: '<item-id> --sequence <n>',
+        parseParams: inboxAcknowledgement,
     },
 ];

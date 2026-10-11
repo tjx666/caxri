@@ -5,6 +5,7 @@ export type {
     ExternalAgentUsageRow,
     PullRequestOutcomeRow,
 } from './models/agent-session-usage';
+export type { StoredCommanderInboxItem } from './models/commander-inbox';
 export type {
     CommanderPendingNotice,
     CommanderPendingNoticesModel,

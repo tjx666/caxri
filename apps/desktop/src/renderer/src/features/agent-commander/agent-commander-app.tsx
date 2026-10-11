@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import { Power } from 'lucide-react';
+import { Inbox, Power } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipProvider } from '../../components/ui/tooltip';
@@ -16,14 +16,19 @@ import { useWindowZoomFactor } from '../window-zoom/use-window-zoom-factor';
 import { CommanderBoardView } from './commander-board-view';
 import { useAgentCommanderStore } from './commander-client';
 import { stopCommander } from './commander-commands';
+import { openCommanderInboxCount } from './commander-inbox';
+import { CommanderInboxColumn } from './commander-inbox-column';
+import { setCommanderInboxVisible, useCommanderInboxUiStore } from './commander-inbox-store';
 import { useCommanderShortcuts } from './commander-shortcuts';
 import { CommanderTerminal } from './commander-terminal';
-import { useAgentCommander } from './use-agent-commander';
+import { useAgentCommander } from './hooks/use-agent-commander';
+import { useCommanderInbox } from './hooks/use-commander-inbox';
 
 /**
- * The Agent Commander window: the board of every Workbench Session on the left, the Commander's own Terminal on the
- * right. It renders no Workbench chrome and runs no Workbench commands; menu accelerators stay with the Workbench
- * window, and the keyboard reaches only its Terminal's own actions.
+ * The Agent Commander window: the board of every Workbench Session on the left, the Commander's own Terminal in the
+ * middle, and on the right the Inbox of what the Commander raised for the user ("Needs you"), which the user can hide.
+ * It renders no Workbench chrome and runs no Workbench commands; menu accelerators stay with the Workbench window, and
+ * the keyboard reaches only its Terminal's own actions.
  */
 export function AgentCommanderApp() {
     const { retry, status } = useAgentCommander();
@@ -36,7 +41,7 @@ export function AgentCommanderApp() {
         <TooltipProvider>
             <div className="agent-commander flex h-screen w-screen flex-col bg-background text-foreground">
                 <AgentCommanderHeader />
-                <div className="flex min-h-0 flex-1">
+                <div className="relative flex min-h-0 flex-1">
                     <aside
                         aria-label="Sessions"
                         className="agent-commander-board flex w-90 flex-none flex-col bg-surface"
@@ -46,6 +51,7 @@ export function AgentCommanderApp() {
                     <main className="agent-commander-terminal relative min-h-0 min-w-0 flex-1">
                         <CommanderTerminal onRetry={retry} status={status} />
                     </main>
+                    <CommanderInboxColumn />
                 </div>
                 <ConfirmationDialog />
                 <ToastOutlet />
@@ -75,6 +81,7 @@ function AgentCommanderHeader() {
                 </span>
             )}
             <div className="ml-auto flex flex-none items-center gap-2 [-webkit-app-region:no-drag]">
+                <InboxToggle />
                 {terminal && canSwitchTerminalSurface(terminal) && (
                     <AgentSurfaceToggle terminal={terminal} />
                 )}
@@ -91,5 +98,33 @@ function AgentCommanderHeader() {
                 </Tooltip>
             </div>
         </header>
+    );
+}
+
+/**
+ * Shows or hides the Inbox column, counting the open items so a hidden Inbox still says that something waits.
+ */
+function InboxToggle() {
+    const isVisible = useCommanderInboxUiStore((state) => state.isVisible);
+    const { data } = useCommanderInbox();
+    const count = data ? openCommanderInboxCount(data.items) : 0;
+    return (
+        <Tooltip content={isVisible ? 'Hide Needs you' : 'Show Needs you'}>
+            <Button
+                aria-pressed={isVisible}
+                variant="ghost"
+                size="sm"
+                className="agent-commander-inbox-toggle text-muted"
+                onClick={() => setCommanderInboxVisible(!isVisible)}
+            >
+                <Inbox size={13} />
+                Needs you
+                {count > 0 && (
+                    <span className="agent-commander-inbox-count rounded-full bg-accent px-1.5 text-[10px] leading-4 text-accent-foreground">
+                        {count}
+                    </span>
+                )}
+            </Button>
+        </Tooltip>
     );
 }

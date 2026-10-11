@@ -84,11 +84,13 @@ the selected profile's delegation configuration. It requires owner capability
 Session and caller provider; it grants only delegation and does not start a Server implicitly.
 See [external callers](agent-delegation.md#external-callers-and-directory-authorization).
 
-`commander board`, `commander session create --project <id>`, and `commander task add|update|list`
-belong to the [Agent Commander](agent-commander.md). They require the `commander` capability, which only the
+`commander board`, `commander session create --project <id>`, `commander task add|update|list`, and
+`commander inbox add|list|show|ack|resolve` belong to the
+[Agent Commander](agent-commander.md). They require the `commander` capability, which only the
 Commander's own Agent Endpoint and the human owner hold. `agent delegate create --new-session --title <title>` (in place of
 `--session <id>`) creates the Commander Session in the same request and names it; only the Commander
-may pass it.
+may pass it. Replying to, dismissing, and merging an [Inbox](agent-commander.md#commander-inbox) item
+are owner-only Desktop and mobile actions with no CLI command.
 
 Agent automation deliberately separates Peer Messages (`agent message`), durable Agent lifecycle
 operations (`agent dispatch` and `agent control`), and owner-only simulated input

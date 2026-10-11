@@ -60,6 +60,8 @@ export type MobileControlRequest = Extract<
             | 'mobile.agentChat.respond'
             | 'mobile.agentChat.retry'
             | 'mobile.agentChat.configure'
+            | 'mobile.commanderInbox.list'
+            | 'mobile.commanderInbox.reply'
             | 'mobile.pairing.create'
             | 'mobile.project.browse'
             | 'mobile.project.add'

@@ -229,6 +229,11 @@ export const serverEventPayloads = {
      */
     'sessionPullRequests.changed': z.object({ sessionIds: z.array(identifierSchema).max(1_024) }),
     /**
+     * Content-free: the Commander Inbox items that were added, updated, replied to, or closed. Readers re-read
+     * `commander.inbox.list`.
+     */
+    'commanderInbox.changed': z.object({ itemIds: z.array(identifierSchema).max(64) }),
+    /**
      * One-shot invalidation after the Server-owned review comment store changed for one Session + repository. The
      * payload is deliberately identity-only, never comment text: see the diagnostics privacy rule in `AGENTS.md`.
      */

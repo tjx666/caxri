@@ -57,7 +57,11 @@ interface PanelDividerProperties {
     /**
      * Custom property this divider drives directly during a drag, bypassing React state.
      */
-    cssVariable: '--primary-sidebar-width' | '--secondary-sidebar-width' | '--panel-height';
+    cssVariable:
+        | '--commander-inbox-width'
+        | '--panel-height'
+        | '--primary-sidebar-width'
+        | '--secondary-sidebar-width';
     /**
      * `1` when the panel grows as the pointer moves right/down (PrimarySidebar), `-1` when it grows as the pointer
      * moves left/up (SecondarySidebar, Panel). Also flips the Arrow key mapping so the "increase" key always matches

@@ -17,6 +17,10 @@ interface CommanderEventEffect {
      */
     ensure: boolean;
     /**
+     * Re-read `commander.inbox.list`.
+     */
+    inbox: boolean;
+    /**
      * Mounted Terminal panes must re-issue `terminal.attach`: a Server restart or a Desktop↔Server reconnect dropped
      * the attachment and any PTY output sent meanwhile.
      */
@@ -36,6 +40,7 @@ interface CommanderEventEffect {
 const NO_EFFECT: CommanderEventEffect = {
     board: false,
     ensure: false,
+    inbox: false,
     pullRequestSessionIds: [],
     reattach: false,
     snapshot: false,
@@ -66,7 +71,14 @@ export function commanderEventEffect(
         }
         case 'runtime.status':
             return event.payload.status === 'ready'
-                ? { ...NO_EFFECT, board: true, ensure: true, reattach: true, snapshot: true }
+                ? {
+                      ...NO_EFFECT,
+                      board: true,
+                      ensure: true,
+                      inbox: true,
+                      reattach: true,
+                      snapshot: true,
+                  }
                 : NO_EFFECT;
         case 'host.connectionChanged':
             // `replaced` means another window took over this profile; the Workbench window reports it.
@@ -76,6 +88,7 @@ export function commanderEventEffect(
                       ...NO_EFFECT,
                       board: true,
                       ensure: event.payload.isHostReplaced,
+                      inbox: true,
                       reattach: true,
                       snapshot: true,
                   };
@@ -84,6 +97,8 @@ export function commanderEventEffect(
         case 'theme.changed':
             // A configuration error is reported by the Workbench window, which owns Settings.
             return event.payload.error ? NO_EFFECT : { ...NO_EFFECT, snapshot: true };
+        case 'commanderInbox.changed':
+            return { ...NO_EFFECT, inbox: true };
         case 'sessionPullRequests.changed':
             return { ...NO_EFFECT, pullRequestSessionIds: event.payload.sessionIds };
         default:

@@ -84,6 +84,7 @@ export class CaxriDatabase {
     readonly mobileAgentSubmitReceipts: CaxriDatabase_['mobileAgentSubmitReceipts'];
     readonly agentDelegations: CaxriDatabase_['agentDelegations'];
     readonly agentSessionUsage: CaxriDatabase_['agentSessionUsage'];
+    readonly commanderInbox: CaxriDatabase_['commanderInbox'];
     readonly commanderTasks: CaxriDatabase_['commanderTasks'];
     readonly commanderPendingNotices: CaxriDatabase_['commanderPendingNotices'];
 
@@ -94,6 +95,7 @@ export class CaxriDatabase {
         this.mobileAgentSubmitReceipts = this.db.mobileAgentSubmitReceipts;
         this.agentDelegations = this.db.agentDelegations;
         this.agentSessionUsage = this.db.agentSessionUsage;
+        this.commanderInbox = this.db.commanderInbox;
         this.commanderTasks = this.db.commanderTasks;
         this.commanderPendingNotices = this.db.commanderPendingNotices;
     }
@@ -695,17 +697,9 @@ export class CaxriDatabase {
     }
 
     remapWorkbenchEditorState(
-        workbenchProjectId: string,
-        operationId: string,
-        previousPath: string,
-        nextPath: string,
+        ...arguments_: Parameters<CaxriDatabase_['remapWorkbenchEditorState']>
     ): number {
-        return this.db.remapWorkbenchEditorState(
-            workbenchProjectId,
-            operationId,
-            previousPath,
-            nextPath,
-        );
+        return this.db.remapWorkbenchEditorState(...arguments_);
     }
 
     removeWorkbenchEditorPath(workbenchProjectId: string, path: string): number {
