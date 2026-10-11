@@ -51,6 +51,7 @@ const UPGRADABLE_COLOR_ROLES = [
     'titleBarInactiveBackground',
     'titleBarInactiveForeground',
     'shadow',
+    'chart',
 ] as const satisfies ReadonlyArray<keyof ThemeTokens['colors']>;
 
 /**
@@ -97,6 +98,10 @@ const CUSTOM_THEME_ROLE_SOURCE = {
     titleBarActiveForeground: 'foreground',
     titleBarInactiveBackground: 'surface',
     titleBarInactiveForeground: 'foreground',
+    /**
+     * Charts painted `success` before the role existed, so a custom theme keeps the chart color it had.
+     */
+    chart: 'success',
 } as const satisfies Record<
     Exclude<(typeof UPGRADABLE_COLOR_ROLES)[number], 'shadow'>,
     keyof ThemeTokens['colors']

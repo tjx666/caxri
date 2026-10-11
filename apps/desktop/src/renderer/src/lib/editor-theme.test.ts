@@ -56,6 +56,7 @@ function themeFixture(): ThemeTokens {
             warning: '#a00000',
             danger: '#ff0000',
             merged: '#c000c0',
+            chart: '#00c000',
             badge: '#d000d0',
             errorBadge: '#d010d0',
             warningBadge: '#d020d0',

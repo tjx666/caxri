@@ -51,6 +51,28 @@ export function formatPercent(ratio: number): string {
     return `${(ratio * 100).toFixed(ratio < 0.1 ? 1 : 0)}%`;
 }
 
+/**
+ * A provider rate-limit window's name (`Weekly`, `5-hour`).
+ */
+export function formatLimitWindowName(minutes: number): string {
+    if (minutes === 10_080) return 'Weekly';
+    if (minutes % 1_440 === 0) return `${minutes / 1_440}-day`;
+    if (minutes % 60 === 0) return `${minutes / 60}-hour`;
+    return `${minutes}-minute`;
+}
+
+/**
+ * When a rate-limit window resets, relative to `now` (`resets in 3h 20m`, `resets in 4d 2h`).
+ */
+export function formatLimitReset(at: number, now: number): string {
+    const ms = at - now;
+    if (ms <= 0) return 'resets now';
+    const hours = Math.floor(ms / 3_600_000);
+    // A weekly window reads better in days than as `95h 59m`.
+    if (hours >= 48) return `resets in ${Math.floor(hours / 24)}d ${hours % 24}h`;
+    return `resets in ${formatDuration(ms)}`;
+}
+
 const DAY_MS = 86_400_000;
 
 /**

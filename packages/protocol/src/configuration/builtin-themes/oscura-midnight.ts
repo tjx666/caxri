@@ -26,6 +26,7 @@ export const oscuraMidnightTheme: ThemeTokens = {
          * keeping the palette's low-saturation character.
          */
         merged: '#a89ec9',
+        chart: '#4ebe96',
         badge: '#e6e7a3',
         errorBadge: '#ff5c5c',
         warningBadge: '#d2d714',

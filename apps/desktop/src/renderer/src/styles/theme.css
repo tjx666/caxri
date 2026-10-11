@@ -41,6 +41,7 @@
     --color-danger: var(--danger);
     --color-danger-foreground: var(--danger-foreground);
     --color-merged: var(--merged);
+    --color-chart: var(--chart);
     --color-badge: var(--badge);
     --color-badge-foreground: var(--badge-foreground);
     --color-error-badge: var(--error-badge);
@@ -91,6 +92,7 @@
     --warning: #f1fa8c;
     --danger: #ff5555;
     --merged: #bd93f9;
+    --chart: #50fa7b;
     --badge: #ff79c6;
     --error-badge: #ff5555;
     --warning-badge: #f1fa8c;

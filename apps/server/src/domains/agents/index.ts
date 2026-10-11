@@ -38,6 +38,7 @@ export { extractClaudeDelegationAnswer } from './providers/claude/delegation';
 export { claudeTranscriptRoot, resolveClaudeConfigDirectory } from './providers/claude/paths';
 export { resolveCodexHome } from './providers/codex/paths';
 export { parseCodexRolloutName } from './providers/codex/rollouts';
+export { locateEarlierCodexRollouts } from './providers/codex/transcript';
 export { grokHome } from './providers/grok/paths';
 export { agentCommandEnvironment } from './rename';
 export { readAgentReplySummary, summarizeLatestAgentReply } from './reply-summary';
@@ -62,6 +63,7 @@ export {
 } from './title-generation';
 export type { AgentTranscriptIdentity, DelegationTranscriptBatch } from './transcript';
 export {
+    boundAgentIdentity,
     isAgentConversationUnwritten,
     locateAgentTranscript,
     locateAgentTranscriptForIdentity,
