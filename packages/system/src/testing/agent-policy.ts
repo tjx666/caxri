@@ -171,7 +171,18 @@ function isAgentProvider(value: string | undefined): value is AgentProvider {
  * silently fall back to another account.
  */
 export function resolveE2EAgentPolicy(input: E2EAgentPolicyInput): E2EAgentPolicy | undefined {
-    if (!input.isE2E) return undefined;
+    if (!input.isE2E) {
+        /**
+         * An Agent mode or fake executable without the E2E switch is an incomplete fake setup. Ignoring it would launch
+         * the host's real Agent CLI against the isolated provider state the same setup exported (#1607).
+         */
+        const hasFakeExecutable = Object.values(input.requestedExecutables ?? {}).some(Boolean);
+        if (hasFakeExecutable || input.requestedMode)
+            throw new Error(
+                'CAXRI_E2E_AGENT_MODE and CAXRI_E2E_FAKE_*_EXECUTABLE require CAXRI_E2E=1; refusing to start a real Agent',
+            );
+        return undefined;
+    }
     // `||` (not `??`) is deliberate: an env-sourced mode/provider explicitly set to `''` must also
     // fail closed to the default rather than flowing through as an empty string.
     // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string must also fall back to the fail-closed default
