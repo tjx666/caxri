@@ -119,5 +119,16 @@ export function useAgentChatAttachments(terminalId: string) {
         release(sent);
         update((current) => attachmentsAfterSend(current, sent));
     };
-    return { attachments, readingCount, isReading: readingCount > 0, add, remove, clearSent };
+    return {
+        attachments,
+        readingCount,
+        isReading: readingCount > 0,
+        /**
+         * Whether the attachment row shows: an attached image, or one still being read and resized.
+         */
+        hasAttachmentRow: attachments.length > 0 || readingCount > 0,
+        add,
+        remove,
+        clearSent,
+    };
 }

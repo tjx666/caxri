@@ -127,8 +127,9 @@ export function createExternalDocumentWatcher(options: ExternalDocumentWatcherOp
                     // An unwatchable folder (removed, or not readable) leaves its documents without change notices.
                 }
             }
+            const watched = new Set(documentIds);
             for (const [documentId, timer] of timers)
-                if (!documentIds.includes(documentId)) {
+                if (!watched.has(documentId)) {
                     clearTimeout(timer);
                     timers.delete(documentId);
                 }
