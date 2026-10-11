@@ -24,7 +24,7 @@ import {
     sourceControlResourceProjection,
 } from './source-control-projection';
 import { boundedSourceControlResourceId } from './source-control-resource-id';
-import { submodulePathsWithOwnSection, visibleChangedFileCount } from './submodule-sections';
+import { hiddenGitlinkPaths, visibleChangedFileCount } from './submodule-sections';
 
 export type GitSourceControlMode = 'commit' | 'pull-request' | 'working';
 
@@ -387,7 +387,7 @@ export function buildSourceControlViewModel({
         ? fileHistoryModel(activeResource, fileHistoryRepositories, revision)
         : undefined;
     const excludedCount = summary.repositories.reduce((total, repo) => {
-        const submodulePaths = submodulePathsWithOwnSection(repo, summary.repositories);
+        const submodulePaths = hiddenGitlinkPaths(mode, repo, summary.repositories);
         const files = repoFiles(
             mode,
             repo,
@@ -443,7 +443,7 @@ export function buildSourceControlViewModel({
         providers: summary.repositories.map((repo) => {
             const details = detailsByRepo.get(repo.id);
             const pullRequest = pullRequestsByRepo.get(repo.id);
-            const submodulePaths = submodulePathsWithOwnSection(repo, summary.repositories);
+            const submodulePaths = hiddenGitlinkPaths(mode, repo, summary.repositories);
             const workingCount = visibleChangedFileCount(repo, summary);
             const modeFiles = repoFiles(mode, repo, details, pullRequest);
             const files = modeFiles.filter((file) => !submodulePaths.has(file.path));
