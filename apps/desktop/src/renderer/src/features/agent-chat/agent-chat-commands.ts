@@ -30,6 +30,41 @@ export async function didSendAgentChatMessage(
 }
 
 /**
+ * "Edit from here": rewinds the Chat to before message `itemId` and sends `message` in its place. Reverting files first
+ * asks for confirmation in a native dialog, since it can discard the user's own edits; declining sends nothing and
+ * keeps the draft. Resolves `true` once Server Core rewound the Chat and accepted the message.
+ */
+export async function didRewindAgentChat(
+    terminalId: string,
+    request: {
+        itemId: string;
+        restoreFiles: boolean;
+        message: Omit<AgentChatMessageInput, 'delivery'>;
+        providerName: string;
+        removedTurns: number;
+    },
+): Promise<boolean> {
+    let isSent = false;
+    await tryCommand('Message could not be edited', async () => {
+        if (request.restoreFiles) {
+            const { confirmed } = await caxri.request('agentChat.confirmRevertFiles', {
+                providerName: request.providerName,
+                removedTurns: request.removedTurns,
+            });
+            if (!confirmed) return;
+        }
+        await caxri.request('agentChat.rewind', {
+            terminalId,
+            itemId: request.itemId,
+            restoreFiles: request.restoreFiles,
+            ...request.message,
+        });
+        isSent = true;
+    });
+    return isSent;
+}
+
+/**
  * Runs one of the provider's slash commands. Resolves `true` once Server Core accepted it.
  */
 export async function didRunAgentChatCommand(

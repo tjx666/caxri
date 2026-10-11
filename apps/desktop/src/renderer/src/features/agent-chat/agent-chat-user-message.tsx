@@ -1,7 +1,11 @@
+import { Undo2 } from 'lucide-react';
+
 import { writeToClipboardWithFeedback } from '../../components/copy-feedback';
 import { CopyIconButton } from '../../components/markdown/copy-icon-button';
 import { WebLink } from '../../components/markdown/web-link';
+import { Tooltip } from '../../components/ui/tooltip';
 import { linkSummary } from '../../lib/link-summary';
+import { cn } from '../../lib/utilities';
 import { AgentChatInvocationChip } from './agent-chat-invocation-chip';
 import { openAgentChatLink } from './agent-chat-links';
 import { AgentChatMessageImages } from './agent-chat-message-images';
@@ -9,13 +13,15 @@ import { AgentChatMessageTime } from './agent-chat-message-time';
 import { agentChatDeliveryCaption } from './agent-chat-presentation';
 import { agentChatLeadingInvocation } from './agent-chat-slash-commands';
 import { agentChatUserMessageSegments } from './agent-chat-user-message-text';
+import { useAgentChatEdit } from './hooks/use-agent-chat-edit';
 import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
 
 /**
  * The user's message, right-aligned. A message steered into a running turn says so in a quiet caption under the bubble
  * (see `agentChatDeliveryCaption`). Under it, a row with the time it was sent and a Copy action appears while the
  * pointer is over the message or keyboard focus reaches it, as under a final reply; the row keeps its height, so
- * revealing it never shifts the transcript.
+ * revealing it never shifts the transcript. A message that started a turn also offers "Edit from here", which puts its
+ * text back into the composer to send in its place; the message being edited keeps an accent outline until then.
  */
 export function AgentChatUserMessage({
     createdAt,
@@ -39,7 +45,10 @@ export function AgentChatUserMessage({
     const terminalId = useAgentChatTerminal();
     const invocation = agentChatLeadingInvocation(text);
     const caption = agentChatDeliveryCaption(delivery);
-    const hasActions = text !== '' || createdAt !== undefined;
+    const edit = useAgentChatEdit();
+    const editAvailability = edit?.availability(id);
+    const isEditing = edit?.editingId === id;
+    const hasActions = text !== '' || createdAt !== undefined || editAvailability !== undefined;
     return (
         <div
             className="group/user-message flex flex-col items-end gap-1.5"
@@ -53,7 +62,12 @@ export function AgentChatUserMessage({
                 />
             )}
             {text && (
-                <div className="max-w-[85%] rounded-lg bg-elevated px-3 py-2 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground select-text">
+                <div
+                    className={cn(
+                        'max-w-[85%] rounded-lg bg-elevated px-3 py-2 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground select-text',
+                        isEditing && 'outline outline-1 outline-accent',
+                    )}
+                >
                     {invocation ? (
                         <>
                             <AgentChatInvocationChip invocation={invocation.invocation} />
@@ -68,6 +82,19 @@ export function AgentChatUserMessage({
             {hasActions && (
                 <div className="-mt-1 flex h-6 items-center gap-1 opacity-0 group-hover/user-message:opacity-100 focus-within:opacity-100">
                     {createdAt !== undefined && <AgentChatMessageTime timestamp={createdAt} />}
+                    {edit && editAvailability !== undefined && (
+                        <Tooltip content={editAvailability ?? 'Edit from here'}>
+                            <button
+                                aria-label="Edit from here"
+                                className="flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
+                                disabled={editAvailability !== null}
+                                type="button"
+                                onClick={() => edit.startEdit(id, text)}
+                            >
+                                <Undo2 className="size-3.5" />
+                            </button>
+                        </Tooltip>
+                    )}
                     {text && (
                         <CopyIconButton
                             className="-mr-1"

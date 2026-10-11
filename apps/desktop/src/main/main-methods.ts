@@ -38,6 +38,7 @@ import {
     discardGitChangesPrompt,
     externalLinkChoice,
     externalLinkPrompt,
+    revertAgentChatFilesPrompt,
     revokeMobileDevicePrompt,
     shellCommandElevationPrompt,
     trashPrompt,
@@ -423,6 +424,13 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     unsavedChangesPrompt(request.params.name),
                 );
                 return { choice: unsavedChangesChoice(result.response) };
+            }
+            case 'agentChat.confirmRevertFiles': {
+                const result = await dialog.showMessageBox(
+                    mainWindow!,
+                    revertAgentChatFilesPrompt(request.params),
+                );
+                return { confirmed: result.response === 0 };
             }
             case 'contextMenu.show': {
                 const window = currentRequestWindow() ?? mainWindow;

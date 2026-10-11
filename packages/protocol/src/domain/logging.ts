@@ -65,6 +65,11 @@ export const logEventCatalog = {
          * A subagent or background shell reached a final status, with its `kind`, closed `status`, and duration.
          */
         taskFinished: 'agent_chat.task_finished',
+        /**
+         * One "Edit from here" with a closed `outcome` (`rewound`, `refused`, `failed`), the provider, whether files
+         * were restored, the turns removed, and the duration through the restart. Never carries message text or paths.
+         */
+        rewound: 'agent_chat.rewound',
     },
     agent: {
         automaticNamingFinished: 'agent.automatic_naming_finished',

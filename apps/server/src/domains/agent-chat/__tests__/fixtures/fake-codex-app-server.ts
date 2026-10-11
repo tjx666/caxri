@@ -481,6 +481,27 @@ function handle(message: RpcMessage) {
             send({ id, result: threadResponse() });
             return;
         }
+        case 'thread/revert': {
+            const thread = currentThread();
+            const index = thread.turns.findIndex((turn) => turn.id === parameters.beforeTurnId);
+            if (index === -1 || state.activeTurn) {
+                send({ id, error: { code: -32600, message: 'cannot revert to that turn' } });
+                return;
+            }
+            // App-server writes a new rollout under the same thread id, even when no turn is left.
+            thread.turns = thread.turns.slice(0, index);
+            fs.writeFileSync(threadPath(thread.id), JSON.stringify(thread));
+            fs.appendFileSync(
+                path.join(stateDirectory, 'thread-reverts.jsonl'),
+                `${JSON.stringify({ threadId: thread.id, kept: index })}\n`,
+            );
+            send({
+                id,
+                result: { thread: { id: thread.id, turns: [] }, turnsBackwardsCursor: null },
+            });
+            notify('thread/reverted', {});
+            return;
+        }
         case 'model/list': {
             send({ id, result: { data: FAKE_MODELS, nextCursor: null } });
             return;

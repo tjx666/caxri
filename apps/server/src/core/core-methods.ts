@@ -17,6 +17,7 @@ export const coreForwardedMethods = [
     'agentChat.removeQueued',
     'agentChat.respond',
     'agentChat.resumeQueue',
+    'agentChat.rewind',
     'agentChat.runCommand',
     'agentChat.send',
     'agentChat.sendQueuedNow',

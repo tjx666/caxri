@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { claudeHistoryOperations } from '../claude-history';
+import { claudeHistoryOperations, claudeRewindPoint } from '../claude-history';
 
 function jsonl(records: unknown[]): string {
     return records.map((record) => JSON.stringify(record)).join('\n');
@@ -194,5 +194,88 @@ describe('Claude transcript history', () => {
         expect(claudeHistoryOperations('', true).at(-1)).toMatchObject({
             state: { truncated: true },
         });
+    });
+});
+
+function prompt(uuid: string, parentUuid: string | null, text: string) {
+    return { type: 'user', uuid, parentUuid, message: { role: 'user', content: text } };
+}
+
+function reply(uuid: string, parentUuid: string, text: string, toolUse?: string) {
+    return {
+        type: 'assistant',
+        uuid,
+        parentUuid,
+        message: {
+            id: `m-${uuid}`,
+            content: [
+                toolUse
+                    ? { type: 'tool_use', id: toolUse, name: 'Bash', input: { command: 'ls' } }
+                    : { type: 'text', text },
+            ],
+        },
+    };
+}
+
+function toolResult(uuid: string, parentUuid: string, toolUseId: string) {
+    return {
+        type: 'user',
+        uuid,
+        parentUuid,
+        message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: toolUseId, content: 'ok' }],
+        },
+    };
+}
+
+function visibleTexts(transcript: string, resumeAt?: string): string[] {
+    return claudeHistoryOperations(transcript, false, resumeAt).flatMap((operation) =>
+        operation.op === 'upsertItem' && 'text' in operation.item ? [operation.item.text] : [],
+    );
+}
+
+describe('Claude transcript rewinds', () => {
+    // u2 was rewound: the conversation was resumed at a1 and continued with u2b.
+    const rewound = jsonl([
+        prompt('u1', null, 'first'),
+        reply('a1', 'u1', 'one'),
+        prompt('u2', 'a1', 'second'),
+        reply('a2', 'u2', 'two'),
+        prompt('u2b', 'a1', 'second again'),
+        reply('a2b', 'u2b', 'two again'),
+    ]);
+
+    it('shows only the branch the conversation continued on', () => {
+        expect(visibleTexts(rewound)).toEqual(['first', 'one', 'second again', 'two again']);
+    });
+
+    it('ends the history at the resume point before anything new was written', () => {
+        expect(visibleTexts(rewound, 'a1')).toEqual(['first', 'one']);
+    });
+
+    it('keeps sibling tool results of parallel tool calls', () => {
+        const parallel = jsonl([
+            prompt('u1', null, 'run both'),
+            reply('t1', 'u1', '', 'tool-1'),
+            reply('t2', 't1', '', 'tool-2'),
+            toolResult('r1', 't1', 'tool-1'),
+            toolResult('r2', 't2', 'tool-2'),
+            reply('a1', 'r2', 'both ran'),
+        ]);
+        const items = claudeHistoryOperations(parallel, false).flatMap((operation) =>
+            operation.op === 'upsertItem' ? [operation.item] : [],
+        );
+        expect(items.filter((item) => item.type === 'command')).toHaveLength(2);
+        expect(items.at(-1)).toMatchObject({ text: 'both ran' });
+    });
+
+    it('resumes at the record right before a message, or fresh for the first one', () => {
+        expect(claudeRewindPoint(rewound, 'u2b')).toEqual({ kind: 'resumeAt', at: 'a1' });
+        expect(claudeRewindPoint(rewound, 'u1')).toEqual({ kind: 'fresh' });
+        expect(claudeRewindPoint(rewound, 'missing')).toBeUndefined();
+        // The tail no longer holds the message's parent.
+        const orphan = jsonl([prompt('u9', 'gone', 'late')]);
+        expect(claudeRewindPoint(orphan, 'u9')).toBeUndefined();
     });
 });
