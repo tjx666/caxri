@@ -248,6 +248,21 @@ describe('AgentChatService with a fake Codex app-server', () => {
         });
     });
 
+    it('reports a conversation another Codex client still holds instead of a lost one', async () => {
+        const { database, service, terminal, holdCodexThreadWriter } = await fixture();
+        database.rebindAgentSession(terminal.id, 'codex', 'thread-held-elsewhere');
+        await holdCodexThreadWriter('thread-held-elsewhere');
+        await service.restart(terminal.id);
+        const snapshot = service.read(terminal.id);
+        expect(snapshot.status).toBe('failed');
+        expect(snapshot.failure?.reason).toBe('conversation_in_use');
+        expect(database.getTerminal(terminal.id)).toMatchObject({
+            agentSessionId: 'thread-held-elsewhere',
+            lastProcessState: 'failed',
+            failureReason: 'agent_session_unavailable',
+        });
+    });
+
     it('marks a crash mid-turn as a failed turn and a dead process', async () => {
         const { database, service, terminal, signals, until } = await fixture();
         await service.send(terminal.id, { text: 'crash now' });
