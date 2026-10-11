@@ -167,6 +167,17 @@ caxri commander board --json
 caxri commander session create --project project-1 --json
 ```
 
+The Commander's task ledger is durable product state, not notes it has to remember to keep. Record
+a request when it is accepted, link the delegation that carries it, and close it when it settles; a
+delegation started without a task gets one recorded automatically:
+
+```bash
+caxri commander task add --title login-retry --project project-1 --json
+caxri commander task update task-1 --delegation delegation-1 --json
+caxri commander task update task-1 --status done --pr https://github.com/example/app/pull/1 --json
+caxri commander task list --all --json
+```
+
 Board rows carry `group` (`attention`, `working`, `waiting`, `failed`, `finished`, `idle`), the
 primary Agent's process state, and a cached pull request with the snapshot's `pullRequestsRefreshedAt`.
 Pass a returned `projectId` and `sessionId` to `agent delegate create`. Delegation into any other

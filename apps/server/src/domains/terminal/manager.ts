@@ -73,16 +73,10 @@ export class TerminalManager {
         private readonly logger: StructuredLogger,
         options: TerminalManagerOptions,
     ) {
-        this.launchPlanner = new TerminalLaunchPlanner({
-            agentEnvironment: options.agentEnvironment,
-            agentLaunchArguments: options.agentLaunchArguments,
-            agentLaunchSettings: options.agentLaunchSettings,
-            lifecycleEnvironment: options.lifecycleEnvironment,
-            shellEnvironment: options.shellEnvironment,
-            logger,
-            resolveExecutable: options.resolveExecutable,
-            shellIntegration: options.shellIntegration,
-        });
+        /**
+         * The planner's options are the launch-resolution subset of the manager's, under the same names.
+         */
+        this.launchPlanner = new TerminalLaunchPlanner({ ...options, logger });
         this.onLaunched = options.onLaunched;
         this.onLifecycleStarted = options.onLifecycleStarted;
         this.onLifecycleRetired = options.onLifecycleRetired;

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentLifecycleSignal } from '../../agents';
 import { createCommanderCompletionNotifier } from '../completion-notice';
+import { pendingStore } from './pending-notices-fake';
 
 function receipt(): AgentDelegationReceipt {
     return {
@@ -37,6 +38,7 @@ describe('createCommanderCompletionNotifier', () => {
                     terminalId: 'commander-terminal',
                     sessionIds: ['session-1'],
                 }),
+                commanderPendingNotices: pendingStore(),
                 getSession: () => ({ lastActivityState: 'idle' }) as SessionRecord,
                 getTerminal: () => ({ id: 'commander-terminal', surface }) as TerminalRecord,
             },
