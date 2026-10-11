@@ -339,11 +339,12 @@ async function executeMobileChatModelScenario(
         await waitForChoice('fake-codex-model', 'medium');
         await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
         await waitForNoCheck(serial, 'agent-chat-model-sheet');
-        await sendFromPhone(serial, 'slow');
-        await waitForMobile(
-            () => chat.read(),
-            (snapshot) => Boolean(snapshot.activeTurnId),
-        );
+        /**
+         * A turn waiting on a command approval stays running while the screen holds still; a streaming turn never lets
+         * UIAutomator read the screen, so it cannot drive the sheet.
+         */
+        await sendFromPhone(serial, 'approve');
+        await waitForCheck(serial, 'agent-chat-approval-accept');
         await openModelSheet(serial);
         await waitForCheck(serial, 'agent-chat-model-note');
         await tapMobileCheckByBounds(serial, 'agent-chat-model-fake-codex-mini');
@@ -351,11 +352,12 @@ async function executeMobileChatModelScenario(
         await capture(environment, 'running-turn-sheet', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
         await waitForNoCheck(serial, 'agent-chat-model-sheet');
-        // The switch must not cut the running turn short.
+        // The switch must not cut the running turn short: it still finishes once approved.
+        await tapMobileCheckByBounds(serial, 'agent-chat-approval-accept');
         await waitForMobile(
             () => chat.read(),
-            (snapshot) => !snapshot.activeTurnId && snapshot.status !== 'failed',
-            60_000,
+            (snapshot) =>
+                agentText(snapshot).includes('The command ran.') && !snapshot.activeTurnId,
         );
         await sendFromPhone(serial, 'again');
         await waitForMobile(
