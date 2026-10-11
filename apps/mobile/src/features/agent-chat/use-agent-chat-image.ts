@@ -36,11 +36,11 @@ const writeOriginal = async (
  * One image of a Chat message, read on demand: a thumbnail as a data URI, or an original as a cached file. Images in a
  * sent message never change, so a loaded one is never refetched, like Desktop's thumbnail fallback.
  */
-export const useAgentChatImage = (target: AgentChatImageTarget) => {
+export const useAgentChatImage = (target: AgentChatImageTarget, isEnabled = true) => {
     const { connectionScopeKey, request, status } = useMobileClient();
     const [progress, setProgress] = useState(0);
     const query = useQuery({
-        enabled: connectionScopeKey !== null && status === 'connected',
+        enabled: isEnabled && connectionScopeKey !== null && status === 'connected',
         gcTime: (target.variant === 'original' ? 2 : 10) * 60_000,
         networkMode: 'always',
         queryKey: [

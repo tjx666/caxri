@@ -123,14 +123,27 @@ const ViewerContent = ({
 }) => {
     const insets = useSafeAreaInsets();
     const original = useAgentChatImage({ ...target, variant: 'original' });
-    const message = original.isMissing
-        ? 'This image is no longer available.'
-        : original.isError
-          ? 'The image could not be loaded.'
-          : null;
+    // Already loaded by the message strip; it stands in when the provider's record has no original (Codex).
+    const thumbnail = useAgentChatImage({ ...target, variant: 'thumbnail' });
+    const preview = original.isMissing ? thumbnail.uri : undefined;
+    const uri = original.uri ?? preview;
+    const message =
+        !preview && original.isMissing
+            ? 'This image is no longer available.'
+            : original.isError
+              ? 'The image could not be loaded.'
+              : null;
     return (
         <GestureHandlerRootView style={styles.backdrop} testID="agent-chat-image-viewer">
-            {original.uri ? <ZoomableImage uri={original.uri} /> : null}
+            {uri ? <ZoomableImage uri={uri} /> : null}
+            {preview ? (
+                <Text
+                    style={[styles.note, { bottom: insets.bottom + 24 }]}
+                    testID="agent-chat-image-viewer-preview-note"
+                >
+                    Showing a preview. The full-size image is not available.
+                </Text>
+            ) : null}
             {original.isLoading ? (
                 <View style={styles.center}>
                     <ActivityIndicator color="#fff" size="large" />
@@ -174,6 +187,14 @@ const styles = StyleSheet.create({
         gap: 12,
         justifyContent: 'center',
         ...StyleSheet.absoluteFill,
+    },
+    note: {
+        color: 'rgba(255, 255, 255, 0.8)',
+        fontSize: 13,
+        left: 24,
+        position: 'absolute',
+        right: 24,
+        textAlign: 'center',
     },
     status: { color: '#fff', fontSize: 15, fontVariant: ['tabular-nums'], textAlign: 'center' },
     retry: { borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10 },

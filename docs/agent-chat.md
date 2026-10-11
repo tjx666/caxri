@@ -601,9 +601,11 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
 - A thumbnail would exhaust the 48 KiB window by itself, so the window replaces a user message's
   image list with empty placeholders that keep only the count. The phone fetches each thumbnail on
   render, and the original on tap, through `mobile.agentChat.readImage` (item id, image position,
-  `thumbnail` or `original`), in 45,000-character chunks so no frame overflows. Originals come from
-  `agentChat.readImage`, so they reach exactly the images Desktop can reopen; a missing one reads
-  "This image is no longer available.". The gateway caches the last two originals for a minute so
+  `thumbnail` or `original`), in 45,000-character chunks so no frame overflows. A resumed Claude Code
+  message has no thumbnail, so its tile shows the original instead, as Desktop rebuilds the preview. Originals come from
+  `agentChat.readImage`, so they reach exactly the images Desktop can reopen. Codex keeps no
+  readable original, so its viewer enlarges the thumbnail and says the full-size image is not
+  available; only an image with neither reads "This image is no longer available.". The gateway caches the last two originals for a minute so
   paging one does not re-read the transcript per chunk. The phone keeps thumbnails in memory and
   writes an opened original only to its cache directory for display.
 
