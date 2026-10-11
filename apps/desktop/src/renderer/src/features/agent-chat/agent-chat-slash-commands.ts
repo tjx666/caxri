@@ -79,13 +79,6 @@ export function completeAgentChatAction(action: AgentAction): string {
 }
 
 /**
- * DOM id of a suggestion row, for the input's `aria-activedescendant`.
- */
-export function agentChatCommandOptionId(listId: string, invocation: string): string {
-    return `${listId}-${invocation}`;
-}
-
-/**
  * The `/name` or `$name` a sent message starts with, the only place the composer puts an invocation, split from what
  * follows it. A name starts with a letter, so `$5` or a path such as `/usr/bin` stays plain text.
  */

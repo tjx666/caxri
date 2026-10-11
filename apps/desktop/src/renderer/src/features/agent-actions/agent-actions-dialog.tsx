@@ -29,8 +29,17 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
 import { useCaxriQuery } from '../../queries/client';
 import { setAgentActionsOpen, useDialogStore } from '../../stores/dialogs';
-import { getBootstrap, useSessions, useSettings, useTerminal } from '../../stores/selectors';
+import {
+    getBootstrap,
+    useProjects,
+    useSessions,
+    useSettings,
+    useTerminal,
+} from '../../stores/selectors';
 import { pushToast } from '../../stores/toasts';
+import type { SessionReferenceCandidate } from '../session/session-reference';
+import { searchSessionReferences, sessionReferenceQuery } from '../session/session-reference';
+import { prepareSessionReference } from '../session/session-reference-commands';
 import { focusTerminalById } from '../terminal/terminal-commands';
 import type { AgentActionSubmitMode } from './agent-action-input';
 import {
@@ -40,6 +49,7 @@ import {
     isAlternateAgentActionChord,
 } from './agent-action-input';
 import { searchAgentActions } from './agent-action-search';
+import { AgentActionSessionGroup } from './agent-action-session-group';
 import { describeAgentActionTarget, resolveAgentActionTargetTitle } from './agent-action-target';
 import { didSendAgentActionInputSteps, recordRecentAgentAction } from './agent-actions-commands';
 
@@ -167,7 +177,17 @@ export function AgentActionsDialog() {
     const settings = useSettings();
     const terminal = useTerminal(terminalId ?? '');
     const sessions = useSessions();
+    const projects = useProjects();
     const session = sessions?.find((candidate) => candidate.id === terminal?.sessionId);
+    /**
+     * A query starting with `@` searches Sessions by title instead of actions, the prefix that cites a Session in the
+     * Chat composer too.
+     */
+    const sessionQuery = sessionReferenceQuery(search);
+    const sessionCandidates =
+        isOpen && sessionQuery !== undefined
+            ? searchSessionReferences(sessions, projects, terminal?.sessionId, sessionQuery)
+            : [];
     const provider = terminal?.provider;
     const isAgentRunning = isAgentProcessRunning(terminal?.lastAgentProcessState);
     const query = useCaxriQuery(
@@ -189,6 +209,7 @@ export function AgentActionsDialog() {
     const actions =
         query.data && !query.isFetching && !query.isError ? query.data.actions : fallbackActions;
     const visibleActionGroups = useMemo(() => {
+        if (sessionReferenceQuery(search) !== undefined) return [];
         const groupedActions = new Map<AgentAction['kind'], AgentAction[]>();
         for (const action of searchAgentActions(actions, search)) {
             const group = groupedActions.get(action.kind);
@@ -239,6 +260,28 @@ export function AgentActionsDialog() {
         })();
     };
 
+    /**
+     * Inserts a reference to the Session's condensed conversation into the Agent's input. It never submits: the user is
+     * mid-sentence, the same as the action picker's Insert. The modal stays focused until the write lands, as for an
+     * action, so a keystroke cannot interleave with the inserted reference.
+     */
+    const insertSessionReference = (candidate: SessionReferenceCandidate): void => {
+        if (!terminalId || inputSequenceInFlightReference.current) return;
+        inputSequenceInFlightReference.current = true;
+        // eslint-disable-next-line no-void -- each request owns its user-visible failure path
+        void (async () => {
+            const reference = await prepareSessionReference(candidate.sessionId);
+            // The Agent may have exited while the file was written; the reference must not reach the Shell behind it.
+            const current = getBootstrap()?.terminals.find(({ id }) => id === terminalId);
+            if (reference && !isAgentProcessRunning(current?.lastAgentProcessState))
+                pushToast('error', 'The selected Agent is no longer running.');
+            else if (reference)
+                await didSendAgentActionInputSteps(terminalId, [{ data: `${reference} ` }]);
+            inputSequenceInFlightReference.current = false;
+            closePicker();
+        })();
+    };
+
     return (
         <Dialog
             open={isOpen}
@@ -276,9 +319,17 @@ export function AgentActionsDialog() {
                          */
                         event.preventDefault();
                         event.stopPropagation();
-                        const selectedInvocation = event.currentTarget.querySelector<HTMLElement>(
+                        const selected = event.currentTarget.querySelector<HTMLElement>(
                             '[cmdk-item][data-selected="true"]',
-                        )?.dataset.agentAction;
+                        )?.dataset;
+                        const selectedSession = sessionCandidates.find(
+                            (candidate) => candidate.sessionId === selected?.sessionReference,
+                        );
+                        if (selectedSession) {
+                            insertSessionReference(selectedSession);
+                            return;
+                        }
+                        const selectedInvocation = selected?.agentAction;
                         const selectedAction = actions.find(
                             (action) => action.invocation === selectedInvocation,
                         );
@@ -289,12 +340,20 @@ export function AgentActionsDialog() {
                     <CommandInput
                         autoFocus
                         aria-describedby={`${targetDescriptionId} ${interactionDescriptionId}`}
-                        placeholder="Search skills and slash commands…"
+                        placeholder="Search skills and slash commands, or type @ for Sessions…"
                         value={search}
                         onValueChange={setSearch}
                     />
                     <CommandList>
-                        <CommandEmpty>No Agent command or skill found.</CommandEmpty>
+                        <CommandEmpty>
+                            {sessionQuery === undefined
+                                ? 'No Agent command or skill found.'
+                                : 'No other Session with an Agent conversation matches.'}
+                        </CommandEmpty>
+                        <AgentActionSessionGroup
+                            candidates={sessionCandidates}
+                            onSelect={insertSessionReference}
+                        />
                         {shouldShowRecent && (
                             <CommandGroup data-agent-action-group="recent" heading="Recently Used">
                                 {recentActions.map((action) => (
@@ -327,7 +386,7 @@ export function AgentActionsDialog() {
                                 ))}
                             </CommandGroup>
                         ))}
-                        {query.isFetching && (
+                        {query.isFetching && sessionQuery === undefined && (
                             <p className="m-0 px-3 py-2 text-[11px] text-muted" role="status">
                                 Discovering skills…
                             </p>
@@ -341,7 +400,8 @@ export function AgentActionsDialog() {
                     </CommandList>
                 </Command>
                 <span id={interactionDescriptionId} className="sr-only">
-                    Enter runs the selected action. Command+Enter inserts it for editing.
+                    Enter runs the selected action. Command+Enter inserts it for editing. Type @ to
+                    insert a reference to another Session's conversation.
                 </span>
                 <div
                     className="flex min-h-10 items-center justify-between gap-3 border-t border-border px-3 py-1.5"
@@ -360,11 +420,17 @@ export function AgentActionsDialog() {
                     </Button>
                     <div className="flex items-center gap-3 text-[10px] text-muted">
                         <span className="flex items-center gap-1" data-agent-action-mode="run">
-                            <ShortcutBadge compact shortcut="enter" /> Run
+                            <ShortcutBadge compact shortcut="enter" />{' '}
+                            {sessionQuery === undefined ? 'Run' : 'Insert'}
                         </span>
-                        <span className="flex items-center gap-1" data-agent-action-mode="insert">
-                            <ShortcutBadge compact shortcut="cmd+enter" /> Insert
-                        </span>
+                        {sessionQuery === undefined && (
+                            <span
+                                className="flex items-center gap-1"
+                                data-agent-action-mode="insert"
+                            >
+                                <ShortcutBadge compact shortcut="cmd+enter" /> Insert
+                            </span>
+                        )}
                     </div>
                 </div>
             </PickerDialogContent>

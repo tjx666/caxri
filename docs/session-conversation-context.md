@@ -82,6 +82,45 @@ Per line, a record carrying neither prose nor a command is answered from the raw
 expressions and no `JSON.parse`, which is the overwhelming majority of a real transcript
 (reasoning records, token accounting, tool results).
 
+## Citing another Session with `@`
+
+An Agent can be pointed at another Session's conversation. In the Agent Chat composer, typing `@` at
+the start of a word lists the other unarchived Sessions that have a Primary Agent, searched by
+title; in a Terminal, the [Agent Commands & Skills](agent-actions.md) picker does the same for a
+search starting with `@`, because the Agent CLI's own `@` list is not Caxri's to extend. Choosing a
+Session sends `session.conversationReference` with only its id, and the Server
+(`apps/server/src/domains/session/conversation-reference.ts`) does the rest:
+
+1. It locates the target Session's Primary Agent transcript with `locateAgentTranscript`, the same
+   safe open the scanners above use.
+2. `readTranscriptConversation` (`apps/server/src/domains/agents/transcript-conversation.ts`) reads
+   it from the start through the same bounded line scanner and the same visible-message boundary
+   Session content search uses (`extractVisibleTranscriptMessage`). Only what the user typed and
+   what the Agent wrote survive: tool calls, tool output, sidechains, and the injected envelopes
+   listed above are dropped. Consecutive records of one role merge into one turn, one message keeps
+   at most its first 16K characters, and the oldest turns are dropped once the retained text
+   passes the budget. A transcript longer than 48 MiB is read only from a window at its end, since
+   reading from the start would spend the scanner's 64 MiB budget before the newest turns; the file
+   then says that only the most recent part was read.
+3. The Markdown keeps whole messages from the newest backwards within 256 KiB and says how many
+   earlier messages it omitted, so the citing Agent never mistakes it for the full record.
+4. The file is written to `$TMPDIR/caxri-session-references/session-<timestamp>-<uuid>.md`. The
+   profile directory is not used because its macOS path contains a space, and an `@` mention ends at
+   the first space in every Agent composer. Because the temporary root can be shared, the Server
+   refuses a directory that is a symlink or owned by another account, keeps it at `0700`, and
+   writes each file with `0600` and an exclusive create.
+
+The Renderer receives only the path and inserts `@<path> contains the conversation from Session
+"<title>".` without sending it. Each write first prunes reference files older than 7 days and the
+oldest ones past a 64 MiB total, the retention long pastes use; files the Server did not name are
+left alone.
+
+The reference is a snapshot of the conversation at the moment it was chosen. The log records
+`session_context.reference_prepared` with counts, bytes, and duration, or
+`session_context.reference_failed` with a closed reason (`sessionMissing`, `noAgent`,
+`transcriptMissing`, `empty`) and the scanner's failure reason; conversation text never reaches a
+log, SQLite, or the reply.
+
 ## Which Linear issue the status bar names
 
 Three sources can name an issue, and they are not equally trustworthy:

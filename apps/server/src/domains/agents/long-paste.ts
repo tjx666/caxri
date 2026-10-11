@@ -1,7 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
-import type { Dirent } from 'node:fs';
-import { chmod, lstat, mkdir, readdir, unlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type {
@@ -13,6 +12,8 @@ import { CaxriError, MAX_LONG_PASTE_BYTES } from '@caxri/protocol';
 import { AsyncSemaphore } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
+import type { OwnedFileRetention } from '../owned-file-retention';
+import { ownedFileTimestamp, pruneOwnedFiles } from '../owned-file-retention';
 import { assertPtyTerminal } from '../pty-guard';
 
 const LONG_PASTE_DIRECTORY_NAME = 'pastes';
@@ -34,58 +35,18 @@ export function countAgentPasteLines(value: string): number {
     return count;
 }
 
-interface LongPasteFile {
-    modifiedAt: number;
-    path: string;
-    size: number;
-}
-
-async function pruneLongPastes(
-    directory: string,
-    now: number,
-    reserveBytes: number,
-): Promise<void> {
-    let entries: Array<Dirent<string>>;
-    try {
-        entries = await readdir(directory, { withFileTypes: true });
-    } catch {
-        return;
-    }
-    const files: LongPasteFile[] = [];
-    for (const entry of entries) {
-        if (!entry.isFile() || !PASTE_FILE_NAME.test(entry.name)) continue;
-        const path = join(directory, entry.name);
-        try {
-            // eslint-disable-next-line no-await-in-loop -- every candidate must be revalidated before cleanup
-            const stats = await lstat(path);
-            if (!stats.isFile() || stats.isSymbolicLink()) continue;
-            if (now - stats.mtimeMs >= LONG_PASTE_RETENTION_MS) {
-                // eslint-disable-next-line no-await-in-loop -- bounded, known files are removed before size accounting
-                await unlink(path);
-                continue;
-            }
-            files.push({ modifiedAt: stats.mtimeMs, path, size: stats.size });
-        } catch {
-            // A concurrent cleanup or external deletion is harmless.
-        }
-    }
-    let totalBytes = files.reduce((sum, file) => sum + file.size, 0);
-    const oldestFirst = files.toSorted((a, b) => a.modifiedAt - b.modifiedAt);
-    for (const file of oldestFirst) {
-        if (totalBytes + reserveBytes <= MAX_LONG_PASTE_DIRECTORY_BYTES) break;
-        try {
-            // eslint-disable-next-line no-await-in-loop -- deletion order preserves the newest references
-            await unlink(file.path);
-            totalBytes -= file.size;
-        } catch {
-            // A concurrent cleanup or external deletion is harmless.
-        }
-    }
-}
-
 function pasteFileName(now: number, identifier: string): string {
-    const timestamp = new Date(now).toISOString().replaceAll(/[-:]/g, '').slice(0, 15);
-    return `paste-${timestamp}-${identifier}.txt`;
+    return `paste-${ownedFileTimestamp(now)}-${identifier}.txt`;
+}
+
+const LONG_PASTE_RETENTION: OwnedFileRetention = {
+    fileName: PASTE_FILE_NAME,
+    maxBytes: MAX_LONG_PASTE_DIRECTORY_BYTES,
+    retentionMs: LONG_PASTE_RETENTION_MS,
+};
+
+function pruneLongPastes(directory: string, now: number, reserveBytes: number): Promise<void> {
+    return pruneOwnedFiles(directory, LONG_PASTE_RETENTION, now, reserveBytes);
 }
 
 /**
