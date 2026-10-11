@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatPermissionLabel,
+    agentChatPermissionView,
     agentChatProjectDefault,
     isAgentChatProjectDefault,
 } from '../agent-chat-permissions';
@@ -51,5 +52,26 @@ describe('Agent Chat permission picker', () => {
         expect(isAgentChatProjectDefault({ permissionMode: 'readOnly' }, undefined, 'codex')).toBe(
             false,
         );
+    });
+
+    it('describes the trigger and whether the Chat already matches the Project default', () => {
+        expect(
+            agentChatPermissionView({ permissionMode: 'fullAccess', planMode: true }, 'claude', {
+                claude: { permissionMode: 'fullAccess', planMode: true },
+            }),
+        ).toEqual({
+            label: 'Full access',
+            ariaLabel: 'Permissions: Full access, plan mode on',
+            isFullAccess: true,
+            projectDefault: { permissionMode: 'fullAccess', planMode: true },
+            isSavedDefault: true,
+        });
+        expect(agentChatPermissionView({ planMode: false }, 'codex', undefined)).toEqual({
+            label: 'Custom',
+            ariaLabel: 'Permissions: Custom',
+            isFullAccess: false,
+            projectDefault: undefined,
+            isSavedDefault: false,
+        });
     });
 });

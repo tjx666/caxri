@@ -85,6 +85,14 @@ describe('Agent Chat permission level and plan mode with a fake Codex app-server
         });
     });
 
+    it('keeps following the launch settings when only plan mode changes', async () => {
+        const { database, service, terminal, until } = await fixture();
+        await until((snapshot) => snapshot.models !== undefined);
+        await service.setPermission(terminal.id, { planMode: true });
+        await until((snapshot) => snapshot.planMode === true);
+        expect(database.getChatPermission(terminal.id)).toEqual({ planMode: true });
+    });
+
     it('shows a launch configuration no level matches as no level', async () => {
         const { until } = await fixture({ launchArgs: ['--ask-for-approval', 'untrusted'] });
         const snapshot = await until((current) => current.models !== undefined);
@@ -139,6 +147,23 @@ describe('Agent Chat permission level and plan mode with a fake Claude Code CLI'
             permissionMode: 'acceptEdits',
             planMode: false,
         });
+    });
+
+    it('leaves an inherited level unstored when an approved plan ends plan mode', async () => {
+        const { database, service, terminal, until } = await fixture({ provider: 'claude' });
+        await until((snapshot) => snapshot.models !== undefined);
+        await service.setPermission(terminal.id, { planMode: true });
+        await until((snapshot) => snapshot.planMode === true);
+        await service.send(terminal.id, { text: 'planmode' });
+        const pending = await until((snapshot) => snapshot.requests.length === 1);
+        service.respond(terminal.id, pending.requests[0].id, {
+            kind: 'decision',
+            decision: 'accept',
+        });
+        await until(
+            (snapshot) => snapshot.turns.at(-1)?.status === 'completed' && !snapshot.planMode,
+        );
+        expect(database.getChatPermission(terminal.id)).toEqual({ planMode: false });
     });
 
     it('launches with the saved level and offers no read-only level', async () => {

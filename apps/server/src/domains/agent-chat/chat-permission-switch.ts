@@ -1,4 +1,4 @@
-import type { AgentChatPermissionRequest } from '@caxri/protocol';
+import type { AgentChatPermission, AgentChatPermissionRequest } from '@caxri/protocol';
 import { CaxriError, resolveAgentChatPermissionChange } from '@caxri/protocol';
 
 import { requireChatTerminal } from './chat-launch';
@@ -48,7 +48,31 @@ export async function switchChatPermission(
                 );
             outcome.isRestartNeeded = true;
         }
-        database.setChatPermission(terminalId, next);
+        database.setChatPermission(
+            terminalId,
+            chatPermissionToStore(
+                database.getChatPermission(terminalId),
+                next,
+                request.permissionMode !== undefined,
+            ),
+        );
     });
     if (outcome.isRestartNeeded) await host.restart(terminalId);
+}
+
+/**
+ * The permission a Chat stores after a change. A level the Chat only inherited from the launch settings (the Settings
+ * autonomy switch) stays unstored until the user picks one, so toggling plan mode alone, or Claude Code leaving plan
+ * mode on its own, does not pin that level and the Chat keeps following the launch settings.
+ */
+export function chatPermissionToStore(
+    stored: AgentChatPermission | undefined,
+    next: AgentChatPermission,
+    isLevelPicked = false,
+): AgentChatPermission {
+    const isLevelKept = isLevelPicked || stored?.permissionMode !== undefined;
+    return {
+        ...(isLevelKept && next.permissionMode && { permissionMode: next.permissionMode }),
+        planMode: next.planMode,
+    };
 }

@@ -851,7 +851,9 @@ untrusted`; such a Chat keeps those settings until the user picks a level. `plan
 only for a provider that has plan mode.
 
 A switch is saved on the Chat's Terminal (`terminals.chat_permission_mode`,
-`terminals.chat_plan_mode`), so a restart, resume, or app relaunch starts with it. How it applies
+`terminals.chat_plan_mode`), so a restart, resume, or app relaunch starts with it. A level the Chat
+only inherited from the launch settings is not saved until the user picks one, so toggling plan mode
+alone leaves the Chat following the Settings autonomy switch. How it applies
 mid-Chat differs per provider:
 
 - **Codex** has no in-place request, so a level rides on the next `turn/start` as

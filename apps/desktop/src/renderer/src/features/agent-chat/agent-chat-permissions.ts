@@ -47,3 +47,50 @@ export function isAgentChatProjectDefault(
         (saved.planMode ?? false) === (chatDefault.planMode ?? false)
     );
 }
+
+/**
+ * What the composer's permission trigger and its menu show for one Chat.
+ */
+export interface AgentChatPermissionView {
+    /**
+     * The level's name in the provider's words, or "Custom".
+     */
+    label: string;
+    /**
+     * The trigger's accessible name, which also says when plan mode is on.
+     */
+    ariaLabel: string;
+    /**
+     * Full access gets a warning shield so the riskiest level reads differently at a glance.
+     */
+    isFullAccess: boolean;
+    /**
+     * What "Use as Project default" would save; `undefined` while the level is "Custom".
+     */
+    projectDefault: AgentChatDefault | undefined;
+    /**
+     * Whether the Project already has this default, so the menu shows it as saved instead.
+     */
+    isSavedDefault: boolean;
+}
+
+/**
+ * Derives everything the permission trigger and menu render, so the component stays wiring only.
+ */
+export function agentChatPermissionView(
+    snapshot: Pick<AgentChatSnapshot, 'permissionMode' | 'planMode'>,
+    provider: AgentProvider,
+    defaults: ProjectChatDefaults | undefined,
+): AgentChatPermissionView {
+    const label = agentChatPermissionLabel(snapshot, provider);
+    const projectDefault = agentChatProjectDefault(snapshot);
+    return {
+        label,
+        ariaLabel: `Permissions: ${label}${snapshot.planMode ? ', plan mode on' : ''}`,
+        isFullAccess: snapshot.permissionMode === 'fullAccess',
+        projectDefault,
+        isSavedDefault:
+            projectDefault !== undefined &&
+            isAgentChatProjectDefault(projectDefault, defaults, provider),
+    };
+}
