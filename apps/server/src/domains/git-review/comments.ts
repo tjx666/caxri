@@ -1,12 +1,12 @@
 import type { GitReviewComment, ServerEvent } from '@caxri/protocol';
 import { CaxriError, reviewSnippet } from '@caxri/protocol';
 
-import type { LongPasteService } from './agents';
-import type { CaxriDatabase } from './db';
-import type { DomainHandlers } from './domain-services';
-import type { GitService } from './git';
-import { createGitReviewSendHandler } from './git-review-send';
-import type { TerminalManager } from './terminal';
+import type { LongPasteService } from '../agents';
+import type { CaxriDatabase } from '../db';
+import type { DomainHandlers } from '../domain-services';
+import type { GitService } from '../git';
+import type { TerminalManager } from '../terminal';
+import { createGitReviewSendHandler } from './send';
 
 type GitReviewCommentMethod =
     | 'gitReview.list'
@@ -156,7 +156,7 @@ export class GitReviewCommentStore {
 
 /**
  * Wires the store's CRUD surface to the public `gitReview.*` methods that own reads and mutations (not the Terminal
- * send, which lives in `git-review-send.ts` because it needs the Terminal and long-paste domains too).
+ * send, which lives in `send.ts` because it needs the Terminal and long-paste domains too).
  */
 export function createGitReviewCommentHandlers(
     store: GitReviewCommentStore,

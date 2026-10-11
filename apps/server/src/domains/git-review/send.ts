@@ -6,13 +6,13 @@ import {
     isLongPasteWithinLimit,
 } from '@caxri/protocol';
 
-import type { LongPasteService } from './agents';
-import type { CaxriDatabase } from './db';
-import type { DomainHandlers } from './domain-services';
-import type { GitService } from './git';
-import type { GitReviewCommentStore } from './git-review-comments';
-import { assertPtyTerminal } from './pty-guard';
-import type { TerminalManager } from './terminal';
+import type { LongPasteService } from '../agents';
+import type { CaxriDatabase } from '../db';
+import type { DomainHandlers } from '../domain-services';
+import type { GitService } from '../git';
+import { assertPtyTerminal } from '../pty-guard';
+import type { TerminalManager } from '../terminal';
+import type { GitReviewCommentStore } from './comments';
 
 /**
  * Duplicated from the Desktop Renderer's `lib/repository-file-path.ts` rather than imported: the Server may not import

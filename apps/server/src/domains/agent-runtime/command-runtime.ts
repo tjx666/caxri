@@ -19,7 +19,7 @@ import {
     readVersion,
 } from '../agents';
 import { createCommanderSession, discardCommanderSession } from '../commander';
-import { mainOwned } from '../service-handlers';
+import { mainOwned } from '../main-owned';
 
 /**
  * Composes managed Terminal commands with private task ownership and their shared launch dependencies.

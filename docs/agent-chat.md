@@ -75,7 +75,7 @@ CLI fixture; the service, reducer, and pane do not change.
 A Chat-capable Agent Terminal reopens on the other surface from the `Terminal | Chat` toggle on the
 tab rail (shown for the active tab), its tab's context menu ("Open as Chat" / "Open as Terminal"),
 or `terminal.switchAgentSurface` (`cmd+shift+j`, also in the command palette), all through
-`terminal.switchSurface` (`apps/server/src/domains/terminal-surface-switch.ts`). The Terminal row,
+`terminal.switchSurface` (`apps/server/src/domains/terminal/surface-switch.ts`). The Terminal row,
 tab, title, and Primary Agent election stay; only the process is replaced.
 
 - The current process stops first: the PTY through the same barrier a suspension uses (cause

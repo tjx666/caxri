@@ -7,11 +7,11 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
-import type { AgentCoordinator } from '../agents';
-import { CaxriDatabase } from '../db';
-import type { TerminalManager } from '../terminal';
-import { InFlightLaunches } from '../terminal/in-flight-launches';
-import { createTerminalSurfaceSwitchHandler } from '../terminal-surface-switch';
+import type { AgentCoordinator } from '../../agents';
+import { CaxriDatabase } from '../../db';
+import { InFlightLaunches } from '../in-flight-launches';
+import type { TerminalManager } from '../manager';
+import { createTerminalSurfaceSwitchHandler } from '../surface-switch';
 
 async function fixture({
     agentSessionId = 'thread-1',

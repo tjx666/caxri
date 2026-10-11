@@ -1,7 +1,7 @@
 import type { GitReviewComment } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createGitReviewCommentHandlers, GitReviewCommentStore } from '../git-review-comments';
+import { createGitReviewCommentHandlers, GitReviewCommentStore } from '../comments';
 
 function makeComment(overrides: Partial<GitReviewComment> = {}): GitReviewComment {
     return {

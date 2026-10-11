@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { LongPasteService } from '../agents';
-import type { DomainHandlers } from '../domain-services';
-import { GitReviewCommentStore } from '../git-review-comments';
-import { createGitReviewSendHandler } from '../git-review-send';
-import type { TerminalManager } from '../terminal/manager';
+import type { LongPasteService } from '../../agents';
+import type { DomainHandlers } from '../../domain-services';
+import type { TerminalManager } from '../../terminal/manager';
+import { GitReviewCommentStore } from '../comments';
+import { createGitReviewSendHandler } from '../send';
 
 function makeOptions(overrides: Partial<Parameters<typeof createGitReviewSendHandler>[0]> = {}) {
     const reviewComments = overrides.reviewComments ?? new GitReviewCommentStore(vi.fn());

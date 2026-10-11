@@ -6,13 +6,14 @@ import type { TerminalRecord } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
-import type { AgentCoordinator } from '../agents';
-import type { ConfigService } from '../config';
-import { CaxriDatabase } from '../db';
-import type { TerminalManager, TerminalWorkingDirectoryIdentity } from '../terminal';
-import { createTerminalCreation } from '../terminal/creation';
-import { InFlightLaunches } from '../terminal/in-flight-launches';
-import { createTerminalRestartHandler } from '../terminal-restart';
+import type { AgentCoordinator } from '../../agents';
+import type { ConfigService } from '../../config';
+import { CaxriDatabase } from '../../db';
+import { createTerminalCreation } from '../creation';
+import { InFlightLaunches } from '../in-flight-launches';
+import type { TerminalManager } from '../manager';
+import type { TerminalWorkingDirectoryIdentity } from '../manager-types';
+import { createTerminalRestartHandler } from '../restart';
 
 /**
  * A `session.detach` waits for `InFlightLaunches.settled` before it returns. These cover the work a launch request does

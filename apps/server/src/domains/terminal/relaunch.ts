@@ -1,9 +1,9 @@
-import type { AgentChatService } from './agent-chat';
-import type { DomainHandlers } from './domain-services';
-import type { MobileTerminalMutationQueue } from './mobile';
-import { createTerminalRestartHandler } from './terminal-restart';
-import type { TerminalSurfaceSwitchOptions } from './terminal-surface-switch';
-import { createTerminalSurfaceSwitchHandler } from './terminal-surface-switch';
+import type { AgentChatService } from '../agent-chat';
+import type { DomainHandlers } from '../domain-services';
+import type { MobileTerminalMutationQueue } from '../mobile';
+import { createTerminalRestartHandler } from './restart';
+import type { TerminalSurfaceSwitchOptions } from './surface-switch';
+import { createTerminalSurfaceSwitchHandler } from './surface-switch';
 
 /**
  * The handlers that replace a Terminal's process in place: `terminal.restart` and `terminal.switchSurface`. A switch

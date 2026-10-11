@@ -4,7 +4,7 @@ import { logEventCatalog } from '@caxri/system';
 
 import type { FileService } from './files';
 import type { GitService } from './git';
-import type { TerminalRestoreOptions } from './terminal-restore';
+import type { TerminalRestoreOptions } from './terminal';
 
 async function updateWatch(
     files: FileService,
