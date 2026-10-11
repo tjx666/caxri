@@ -1,8 +1,12 @@
-import { externalEditorTabPath, isExternalEditorTabPath } from '@caxri/protocol';
+import { errorMessage, externalEditorTabPath, isExternalEditorTabPath } from '@caxri/protocol';
 
+import { getSelectedSession } from '../../stores/selectors';
 import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
+import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
+import { openFilePreview } from '../preview/preview-commands';
 import { didOpenEditorTabForSession } from './document-commands';
+import { openLinkedExternalFile } from './external-document-client';
 
 interface ExternalEditorDocumentResult {
     content: string;
@@ -57,4 +61,34 @@ export function openExternalEditorDocument({
         return false;
     }
     return path;
+}
+
+/**
+ * Follows a link in an external document's preview to another file in that document's folder. Main resolves and reads
+ * it under the linking document's grant; the file opens as an external document of its own, and a previewable one
+ * (another Markdown file) also opens in the reading view, as a Project link does. Never rejects.
+ */
+export async function openLinkedExternalDocument(
+    source: { externalDocumentId: string; directory: string },
+    path: string,
+    shouldPreview: boolean,
+): Promise<void> {
+    const session = getSelectedSession();
+    const prefix = source.directory.endsWith('/') ? source.directory : `${source.directory}/`;
+    if (!session || !path.startsWith(prefix)) return;
+    try {
+        const document = await openLinkedExternalFile(
+            source.externalDocumentId,
+            path.slice(prefix.length),
+        );
+        const opened = openExternalEditorDocument({
+            sessionId: session.id,
+            workbenchProjectId: session.workbenchProjectId,
+            document,
+        });
+        if (!opened) throw new Error('Unable to open the linked file in this Session');
+        if (shouldPreview) openFilePreview(opened);
+    } catch (error) {
+        pushToast('error', errorMessage(error, 'Unable to open the linked file'));
+    }
 }

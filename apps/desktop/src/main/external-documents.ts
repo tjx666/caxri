@@ -1,7 +1,8 @@
 import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
+import type { BigIntStats } from 'node:fs';
 import { constants } from 'node:fs';
-import { open, realpath } from 'node:fs/promises';
+import { open, realpath, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import type { MethodResult } from '@caxri/protocol';
@@ -22,27 +23,50 @@ interface ExternalDocumentTarget {
 }
 
 /**
+ * The file's size and modification time as Main last read or wrote it, in the representation both report to the
+ * Renderer (whole milliseconds from a `bigint` stat), so a change notice compares like with like.
+ */
+export interface ExternalDocumentState {
+    mtimeMs: number;
+    size: number;
+}
+
+interface ExternalDocumentEntry extends ExternalDocumentTarget {
+    known?: ExternalDocumentState;
+    /**
+     * Saves in flight. The watcher holds its verdict until they finish, because a half-written file is neither the old
+     * state nor the one the save will record.
+     */
+    writes: number;
+}
+
+/**
  * Every external document Main read in this process lifetime, keyed by the opaque `documentId` the Renderer holds.
  *
  * This is the whole authority behind writing and the desktop actions: the Renderer can name only an ID Main issued
  * after the user explicitly opened that file, never a path. The map is process-scoped on purpose, matching the
  * Renderer's ephemeral tabs, which are never restored across a restart.
  */
-const documents = new Map<string, ExternalDocumentTarget>();
+const documents = new Map<string, ExternalDocumentEntry>();
 
 /**
  * Registers a file Main just read and returns its ID. Reopening a path keeps the ID it already had: the Renderer finds
  * an open tab by that ID, so a fresh one would leave the reopened tab pointing at an ID that may have been evicted.
  * Reading and saving both move the entry to the newest end of the eviction order.
  */
-export function rememberExternalDocument(target: ExternalDocumentTarget): string {
-    const documentId =
-        [...documents].find(([, existing]) => existing.path === target.path)?.[0] ?? randomUUID();
-    touch(documentId, target);
+export function rememberExternalDocument(
+    target: ExternalDocumentTarget,
+    known: ExternalDocumentState,
+): string {
+    const [documentId, existing] = [...documents].find(
+        ([, entry]) => entry.path === target.path,
+    ) ?? [randomUUID(), undefined];
+    // Updated in place: a save in flight holds this entry and settles its `writes` count on it.
+    touch(documentId, Object.assign(existing ?? { writes: 0 }, target, { known }));
     return documentId;
 }
 
-function touch(documentId: string, target: ExternalDocumentTarget): void {
+function touch(documentId: string, target: ExternalDocumentEntry): void {
     documents.delete(documentId);
     documents.set(documentId, target);
     while (documents.size > MAX_EXTERNAL_DOCUMENTS)
@@ -68,7 +92,46 @@ async function authorizedTarget(documentId: string) {
     if (authorized.kind !== 'file')
         throw new CaxriError('VALIDATION', 'Path is not a regular file');
     touch(documentId, target);
-    return authorized;
+    return { ...authorized, parent: target.parent };
+}
+
+/**
+ * The reauthorized file behind an ID together with the folder identity it was read under.
+ */
+export function authorizedExternalDocument(documentId: string) {
+    return authorizedTarget(documentId);
+}
+
+/**
+ * The path a registered document was read from, without touching the filesystem; the watcher only needs to know which
+ * folder to observe, and every read it triggers is reauthorized.
+ */
+export function externalDocumentWatchPath(documentId: string): string | undefined {
+    return documents.get(documentId)?.path;
+}
+
+/**
+ * Whether the file on disk still matches what Main last read or wrote for this document. `busy` while a save is still
+ * writing it. A file that is gone or no longer a regular file reads as `unchanged`: there is nothing to reload, and a
+ * file written back in its place is reported by the watcher's next event.
+ */
+export async function externalDocumentDiskState(
+    documentId: string,
+): Promise<'busy' | 'changed' | 'unchanged'> {
+    const entry = documents.get(documentId);
+    if (!entry) return 'unchanged';
+    if (entry.writes > 0) return 'busy';
+    let current: BigIntStats;
+    try {
+        current = await stat(entry.path, { bigint: true });
+    } catch {
+        return 'unchanged';
+    }
+    if (!current.isFile()) return 'unchanged';
+    return entry.known?.mtimeMs === Number(current.mtimeMs) &&
+        entry.known.size === Number(current.size)
+        ? 'unchanged'
+        : 'changed';
 }
 
 export async function externalDocumentPath(documentId: string): Promise<string> {
@@ -97,6 +160,7 @@ export async function writeExternalDocument(
             `File exceeds the ${MAX_CONFIGURABLE_FILE_BYTES} byte safety limit`,
         );
     const authorized = await authorizedTarget(documentId);
+    const entry = documents.get(documentId)!;
     let file: Awaited<ReturnType<typeof open>>;
     try {
         file = await open(
@@ -106,6 +170,7 @@ export async function writeExternalDocument(
     } catch (error) {
         return pathFailure(error, 'Unable to open external file for writing');
     }
+    entry.writes += 1;
     try {
         const opened = await file.stat({ bigint: true });
         if (
@@ -119,6 +184,14 @@ export async function writeExternalDocument(
                 'PATH_DENIED',
                 'Files with multiple filesystem links cannot be saved',
             );
+        /**
+         * Every check runs before the first byte is written. Once truncation starts, the descriptor (already proven to
+         * be the authorized file) receives the bytes whatever happens to the path, so a check failing afterwards would
+         * report a failed save for a file that was in fact written.
+         */
+        if ((await realpath(authorized.path)) !== authorized.path)
+            throw new CaxriError('CONFLICT', 'File changed before it was saved');
+        await validateDirectory(authorized.identity.root);
         await file.truncate(0);
         let offset = 0;
         while (offset < bytes.byteLength) {
@@ -132,14 +205,14 @@ export async function writeExternalDocument(
             offset += bytesWritten;
         }
         await file.sync();
-        const written = await file.stat();
-        if ((await realpath(authorized.path)) !== authorized.path)
-            throw new CaxriError('CONFLICT', 'File changed while it was saved');
-        await validateDirectory(authorized.identity.root);
-        return { content, mtimeMs: written.mtimeMs, size: written.size };
+        const written = await file.stat({ bigint: true });
+        const state = { mtimeMs: Number(written.mtimeMs), size: Number(written.size) };
+        entry.known = state;
+        return { content, ...state };
     } catch (error) {
         return pathFailure(error, 'Unable to save external file');
     } finally {
+        entry.writes -= 1;
         await file.close();
     }
 }

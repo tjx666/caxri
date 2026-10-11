@@ -1,14 +1,31 @@
 import { z } from 'zod';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
-import { identifierSchema, pathSchema, terminalRecordSchema } from '../domain/domain.js';
+import {
+    fileAssetSchema,
+    identifierSchema,
+    pathSchema,
+    terminalRecordSchema,
+} from '../domain/domain.js';
 import { commandPolicy } from '../transport/method-spec.js';
+import { externalEditorDocumentSchema } from './path-browser-contract.js';
 
+const desktopRead = commandPolicy('desktop', 'read');
 const desktopWrite = commandPolicy('desktop', 'write');
 const desktopControl = commandPolicy('desktop', 'control');
 const serverControl = commandPolicy('server', 'control');
 
 const documentTarget = z.object({ documentId: identifierSchema });
+/**
+ * A file a document refers to, written as a path relative to the document's folder (what a Markdown link or image
+ * carries). Main resolves it and refuses anything outside that folder.
+ */
+const linkedTarget = documentTarget.extend({ path: z.string().min(1).max(4096) });
+const documentSnapshot = z.object({
+    content: z.string().max(MAX_CONFIGURABLE_FILE_BYTES),
+    mtimeMs: z.number().nonnegative(),
+    size: z.number().int().nonnegative(),
+});
 
 /**
  * Methods acting on an external document: a file outside every added Project that Main already authorized and read.
@@ -27,11 +44,40 @@ export const externalDocumentDesktopMethods = {
         params: documentTarget.extend({
             content: z.string().max(MAX_CONFIGURABLE_FILE_BYTES),
         }),
-        result: z.object({
-            content: z.string().max(MAX_CONFIGURABLE_FILE_BYTES),
-            mtimeMs: z.number().nonnegative(),
-            size: z.number().int().nonnegative(),
-        }),
+        result: documentSnapshot,
+    },
+    /**
+     * Reads the document again, after `externalDocument.changed` reported that another app changed it.
+     */
+    'externalDocument.read': {
+        ...desktopRead,
+        params: documentTarget,
+        result: documentSnapshot,
+    },
+    /**
+     * Replaces the set of documents Main watches for changes made by other apps with the ones the Workbench has open.
+     * An empty list stops watching.
+     */
+    'externalDocument.watch': {
+        ...desktopControl,
+        params: z.object({ documentIds: z.array(identifierSchema).max(512) }),
+        result: z.null(),
+    },
+    /**
+     * Reads an image the document's Markdown preview refers to, from the document's folder or below it.
+     */
+    'externalDocument.readAsset': {
+        ...desktopRead,
+        params: linkedTarget,
+        result: fileAssetSchema,
+    },
+    /**
+     * Opens a file a document's link points to, from the document's folder or below it, as another external document.
+     */
+    'externalDocument.openLinked': {
+        ...desktopRead,
+        params: linkedTarget,
+        result: externalEditorDocumentSchema,
     },
     'externalDocument.reveal': {
         ...desktopControl,

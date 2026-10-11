@@ -28,6 +28,7 @@ export type TransientServerEvent = Extract<
             | 'commanderInbox.changed'
             | 'desktop.openRequested'
             | 'editor.unsavedRequest'
+            | 'externalDocument.changed'
             | 'host.connectionChanged'
             | 'gpu.recoveryRequested'
             | 'gitReview.changed'
@@ -77,6 +78,10 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      * already timed out.
      */
     'editor.unsavedRequest',
+    /**
+     * A change notice for a document the Renderer may no longer have open; a later Renderer re-reads what it opens.
+     */
+    'externalDocument.changed',
     /**
      * A one-shot Main-side resync trigger: replaying it after the Renderer already re-attached would only force a
      * redundant snapshot round-trip.

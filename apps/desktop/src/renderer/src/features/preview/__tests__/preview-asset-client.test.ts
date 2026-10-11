@@ -69,14 +69,14 @@ describe('preview asset client', () => {
             return { path: '/p/image.gif', mediaType: 'image/gif', base64: PIXEL, size: 8 };
         });
         const paths = Array.from({ length: 32 }, (_, index) => `/p/image-${index}.gif`);
-        const reads = paths.map((path) => acquireAsset('bounded-session', path));
+        const reads = paths.map((path) => acquireAsset({ sessionId: 'bounded-session' }, path));
         try {
             await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(4));
             expect(peak).toBe(4);
         } finally {
             releaseReads.resolve();
             await Promise.all(reads);
-            for (const path of paths) releaseAsset('bounded-session', path);
+            for (const path of paths) releaseAsset({ sessionId: 'bounded-session' }, path);
         }
         expect(peak).toBe(4);
         expect(created).toHaveLength(32);
@@ -94,65 +94,65 @@ describe('preview asset client', () => {
             size: expected.byteLength,
         });
         try {
-            await acquireAsset('large-session', '/p/large.png');
+            await acquireAsset({ sessionId: 'large-session' }, '/p/large.png');
             const blob = blobs.at(-1) as Blob;
             expect(blob.type).toBe('image/png');
             const decoded = new Uint8Array(await blob.arrayBuffer());
             expect(decoded.byteLength).toBe(expected.byteLength);
             expect(decoded.every((value, index) => value === expected[index])).toBe(true);
         } finally {
-            releaseAsset('large-session', '/p/large.png');
+            releaseAsset({ sessionId: 'large-session' }, '/p/large.png');
         }
     });
 
     it('reads one asset once and hands the same URL to both holders', async () => {
         const [first, second] = await Promise.all([
-            acquireAsset('s1', '/p/logo.gif'),
-            acquireAsset('s1', '/p/logo.gif'),
+            acquireAsset({ sessionId: 's1' }, '/p/logo.gif'),
+            acquireAsset({ sessionId: 's1' }, '/p/logo.gif'),
         ]);
 
         expect(request).toHaveBeenCalledTimes(1);
         expect(first).toBe(second);
         // The shared read resolves to one URL; revoking it for the second caller would blank the first caller's image.
         expect(revoked).toEqual([]);
-        releaseAsset('s1', '/p/logo.gif');
-        releaseAsset('s1', '/p/logo.gif');
+        releaseAsset({ sessionId: 's1' }, '/p/logo.gif');
+        releaseAsset({ sessionId: 's1' }, '/p/logo.gif');
     });
 
     it('keeps the URL alive until the last holder releases it', async () => {
-        await acquireAsset('s1', '/p/logo.gif');
-        await acquireAsset('s1', '/p/logo.gif');
+        await acquireAsset({ sessionId: 's1' }, '/p/logo.gif');
+        await acquireAsset({ sessionId: 's1' }, '/p/logo.gif');
 
-        releaseAsset('s1', '/p/logo.gif');
+        releaseAsset({ sessionId: 's1' }, '/p/logo.gif');
         expect(revoked).toEqual([]);
-        releaseAsset('s1', '/p/logo.gif');
+        releaseAsset({ sessionId: 's1' }, '/p/logo.gif');
         expect(revoked).toEqual(created);
     });
 
     it('re-reads after the last holder left', async () => {
-        await acquireAsset('s1', '/p/logo.gif');
-        releaseAsset('s1', '/p/logo.gif');
-        const second = await acquireAsset('s1', '/p/logo.gif');
+        await acquireAsset({ sessionId: 's1' }, '/p/logo.gif');
+        releaseAsset({ sessionId: 's1' }, '/p/logo.gif');
+        const second = await acquireAsset({ sessionId: 's1' }, '/p/logo.gif');
 
         expect(request).toHaveBeenCalledTimes(2);
         expect(second).toBe(created[1]);
-        releaseAsset('s1', '/p/logo.gif');
+        releaseAsset({ sessionId: 's1' }, '/p/logo.gif');
     });
 
     it('keeps two Sessions reading the same path apart', async () => {
-        const first = await acquireAsset('s1', '/p/logo.gif');
-        const second = await acquireAsset('s2', '/p/logo.gif');
+        const first = await acquireAsset({ sessionId: 's1' }, '/p/logo.gif');
+        const second = await acquireAsset({ sessionId: 's2' }, '/p/logo.gif');
 
         expect(first).not.toBe(second);
-        releaseAsset('s1', '/p/logo.gif');
+        releaseAsset({ sessionId: 's1' }, '/p/logo.gif');
         expect(revoked).toEqual([first]);
-        releaseAsset('s2', '/p/logo.gif');
+        releaseAsset({ sessionId: 's2' }, '/p/logo.gif');
     });
 
     it('reports a failed read as no URL without caching it', async () => {
         request.mockRejectedValue(new Error('unauthorized'));
 
-        expect(await acquireAsset('s1', '/p/missing.png')).toBeUndefined();
+        expect(await acquireAsset({ sessionId: 's1' }, '/p/missing.png')).toBeUndefined();
         expect(created).toEqual([]);
         // Nothing was cached, so a later read is free to try again.
         request.mockResolvedValue({
@@ -161,13 +161,27 @@ describe('preview asset client', () => {
             base64: PIXEL,
             size: 8,
         });
-        expect(await acquireAsset('s1', '/p/missing.png')).toBe(created[0]);
-        releaseAsset('s1', '/p/missing.png');
+        expect(await acquireAsset({ sessionId: 's1' }, '/p/missing.png')).toBe(created[0]);
+        releaseAsset({ sessionId: 's1' }, '/p/missing.png');
     });
 
     it('ignores a release for an asset it never handed out', () => {
-        releaseAsset('s1', '/p/never.png');
+        releaseAsset({ sessionId: 's1' }, '/p/never.png');
 
         expect(revoked).toEqual([]);
+    });
+
+    it('reads an external document image through Main with only the part below its folder', async () => {
+        const source = { externalDocumentId: 'doc-1', directory: '/tmp/notes' };
+
+        expect(await acquireAsset(source, '/tmp/notes/assets/logo.gif')).toBe(created[0]);
+        expect(request).toHaveBeenCalledWith('externalDocument.readAsset', {
+            documentId: 'doc-1',
+            path: 'assets/logo.gif',
+        });
+        expect(await acquireAsset(source, '/tmp/other/logo.gif')).toBeUndefined();
+        expect(request).toHaveBeenCalledTimes(1);
+        releaseAsset(source, '/tmp/notes/assets/logo.gif');
+        expect(revoked).toEqual([created[0]]);
     });
 });

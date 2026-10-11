@@ -325,6 +325,11 @@ export const serverEventPayloads = {
      * or to reveal the first one after the user cancels (`reveal`). The Renderer answers `inspect` and `saveAll`
      * through `editor.unsavedReply` with the same `requestId`.
      */
+    /**
+     * Main saw another app change an external document the Workbench has open (see `externalDocument.watch`). The
+     * Renderer reads it again through `externalDocument.read` and applies the same disk-wins rule as a Project file.
+     */
+    'externalDocument.changed': z.object({ documentId: identifierSchema }),
     'editor.unsavedRequest': z.object({
         requestId: z.string().min(1).max(64),
         action: z.enum(['inspect', 'saveAll', 'reveal']),

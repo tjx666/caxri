@@ -18,7 +18,7 @@ async function readImage(
     signal: AbortSignal,
     report: (state: ImageState) => void,
 ): Promise<string | undefined> {
-    const objectUrl = await acquireAsset(sessionId, path);
+    const objectUrl = await acquireAsset({ sessionId }, path);
     if (!signal.aborted) report(objectUrl ? { status: 'ready', objectUrl } : { status: 'failed' });
     return objectUrl;
 }
@@ -32,7 +32,7 @@ async function releaseImage(
     sessionId: string,
     path: string,
 ): Promise<void> {
-    if (await read) releaseAsset(sessionId, path);
+    if (await read) releaseAsset({ sessionId }, path);
 }
 
 /**

@@ -9,6 +9,7 @@ import type {
     ArgvConfigChanges,
     MainRequest,
     RemoteDebuggingState,
+    ServerEvent,
     SettingsTarget,
 } from '@caxri/protocol';
 import {
@@ -50,6 +51,7 @@ import {
     handleExternalDocumentRequest,
     isExternalDocumentRequest,
 } from './external-document-methods';
+import { createExternalDocumentWatcher } from './external-document-watcher';
 import { openExternalUrl } from './external-links';
 import { createLinkFavicons } from './link-favicons';
 import { createLinkPreviews } from './link-previews';
@@ -94,6 +96,10 @@ interface MainMethodHandlerOptions {
     getSupervisor(): DesktopServerConnection;
     getUpdateService(): UpdateService;
     getWindow(): BrowserWindow | undefined;
+    /**
+     * Delivers Main's own events to the Workbench; a handler built without it (unit tests) ignores watch requests.
+     */
+    sendEvent?: (event: ServerEvent) => void;
     injectGpuContextLoss?(): { correlationId: string };
     /**
      * Settles Main's pending quit-time question about unsaved Editor buffers; see `createUnsavedEditorsBridge`.
@@ -196,10 +202,18 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
         );
     }
 
+    const { sendEvent } = options;
+    const externalDocumentWatcher = sendEvent
+        ? createExternalDocumentWatcher({
+              emit: (documentId) =>
+                  sendEvent({ event: 'externalDocument.changed', payload: { documentId } }),
+          })
+        : { setWatched: () => {} };
+
     return async function handleMainMethod(request: MainRequest): Promise<unknown> {
         const supervisor = options.getSupervisor();
         if (isExternalDocumentRequest(request))
-            return handleExternalDocumentRequest(request, supervisor);
+            return handleExternalDocumentRequest(request, supervisor, externalDocumentWatcher);
         const mainWindow = options.getWindow();
         switch (request.method) {
             case 'argv.get':
