@@ -10,7 +10,12 @@ import { assertE2EAgentChatLaunch, logEventCatalog, readE2EAgentPolicy } from '@
 
 import { agentCommandEnvironment, readAgentTranscript } from '../agents';
 import type { CaxriDatabase } from '../db';
-import { resolveTerminalExecutable } from '../terminal';
+import type { TerminalWorkingDirectoryIdentity } from '../terminal';
+import {
+    assertTerminalWorkingDirectory,
+    resolveTerminalExecutable,
+    terminalDirectoryIdentity,
+} from '../terminal';
 import { agentChatDrivers } from './chat-drivers';
 import type { AgentChatExit, AgentChatTranscript } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
@@ -44,15 +49,35 @@ export function requireChatTerminal(
     return { ...terminal, provider };
 }
 
+const WORKING_DIRECTORY_CHANGED = 'The working directory changed or is missing; Chat did not start';
+
 /**
- * Resolves what a provider process needs before it spawns: the executable and its environment. Rejects with
- * {@link AgentChatStartError}.
+ * Resolves what a provider process needs before it spawns: the executable, its environment, and a revalidated cwd.
+ * Rejects with {@link AgentChatStartError}.
+ *
+ * A Chat's cwd was authorized when its Terminal was created, but its provider starts lazily, possibly much later, and
+ * every Chat start (first read, restart, a switch to Chat, resume) runs through here. So, like the PTY launch path
+ * (`terminalDirectoryIdentity` in the launch handlers, `assertTerminalWorkingDirectory` in the launch plan), the cwd's
+ * identity is captured first and revalidated as the last await before spawn: a folder swapped for a symlink, replaced,
+ * or removed fails the start instead of running the Agent somewhere else.
  */
 export async function prepareChatLaunch(
     options: AgentChatServiceOptions,
     provider: AgentProvider,
     launch: AgentLaunchSettings,
-): Promise<{ executable: string; environment: NodeJS.ProcessEnv; isRealAgentE2E: boolean }> {
+    cwd: string,
+): Promise<{
+    cwd: string;
+    executable: string;
+    environment: NodeJS.ProcessEnv;
+    isRealAgentE2E: boolean;
+}> {
+    let expectedWorkingDirectory: TerminalWorkingDirectoryIdentity;
+    try {
+        expectedWorkingDirectory = await terminalDirectoryIdentity(cwd);
+    } catch {
+        throw new AgentChatStartError('spawn_failed', WORKING_DIRECTORY_CHANGED);
+    }
     /**
      * Real-Agent E2E may start a Chat only when the run was authorized for the Chat surface; the thread then ignores
      * the user's launch settings for a fixed read-only, approval-free configuration.
@@ -74,7 +99,12 @@ export async function prepareChatLaunch(
     }
     const environment = await (options.environment?.() ??
         agentCommandEnvironment(options.agentEnvironment));
-    return { executable, environment, isRealAgentE2E: e2ePolicy?.mode === 'real' };
+    try {
+        await assertTerminalWorkingDirectory(cwd, expectedWorkingDirectory);
+    } catch {
+        throw new AgentChatStartError('spawn_failed', WORKING_DIRECTORY_CHANGED);
+    }
+    return { cwd, executable, environment, isRealAgentE2E: e2ePolicy?.mode === 'real' };
 }
 
 /**
