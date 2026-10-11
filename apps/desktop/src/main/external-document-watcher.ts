@@ -24,19 +24,29 @@ export interface ExternalDocumentWatcherOptions {
     /**
      * Observes one folder; `filename` is the entry that changed, or `undefined` when the platform could not say.
      */
-    watchDirectory?: (directory: string, onChange: (filename?: string) => void) => DirectoryWatch;
+    watchDirectory?: (
+        directory: string,
+        onChange: (filename?: string) => void,
+        onError: () => void,
+    ) => DirectoryWatch;
 }
 
+/**
+ * A folder that disappears ends its watch and reports `onError`, so the folder is watched afresh if it comes back.
+ */
 function watchDirectoryWithNode(
     directory: string,
     onChange: (filename?: string) => void,
+    onError: () => void,
 ): DirectoryWatch {
     // Not persistent: an open external tab must never keep Main alive past quit.
     const watcher = watch(directory, { persistent: false }, (_event, filename) =>
         onChange(filename ?? undefined),
     );
-    // A folder that disappears ends its watch; the documents in it have nothing left to reload.
-    watcher.on('error', () => watcher.close());
+    watcher.on('error', () => {
+        watcher.close();
+        onError();
+    });
     return watcher;
 }
 
@@ -111,16 +121,23 @@ export function createExternalDocumentWatcher(options: ExternalDocumentWatcherOp
                 try {
                     const entry = {
                         names,
-                        watch: watchDirectory(folder, (filename) => {
-                            const current = folders.get(folder);
-                            if (!current) return;
-                            if (filename === undefined)
-                                for (const documentId of current.names.values()) settle(documentId);
-                            else {
-                                const documentId = current.names.get(basename(filename));
-                                if (documentId) settle(documentId);
-                            }
-                        }),
+                        watch: watchDirectory(
+                            folder,
+                            (filename) => {
+                                const current = folders.get(folder);
+                                if (!current) return;
+                                if (filename === undefined)
+                                    for (const documentId of current.names.values())
+                                        settle(documentId);
+                                else {
+                                    const documentId = current.names.get(basename(filename));
+                                    if (documentId) settle(documentId);
+                                }
+                            },
+                            () => {
+                                if (folders.get(folder) === entry) folders.delete(folder);
+                            },
+                        ),
                     };
                     folders.set(folder, entry);
                 } catch {

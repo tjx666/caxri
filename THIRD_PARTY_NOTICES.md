@@ -56,7 +56,7 @@ Copyright (c) 2023 LobeHub. Licensed under the MIT License. The vendored license
 
 ## Primer Octicons
 
-Caxri bundles the `mark-github` icon path from Primer Octicons as the site icon ahead of GitHub links in Agent Chat.
+Caxri bundles the `mark-github` icon path from Primer Octicons as its GitHub mark, including the site icon ahead of GitHub links in Agent Chat.
 
 Copyright (c) GitHub Inc. Licensed under the MIT License. The vendored license text is in `licenses/PRIMER_OCTICONS_LICENSE.txt`; the upstream source is <https://github.com/primer/octicons>.
 
