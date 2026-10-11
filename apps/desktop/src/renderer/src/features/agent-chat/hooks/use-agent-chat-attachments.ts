@@ -36,7 +36,8 @@ export function useAgentChatAttachments(terminalId: string) {
      * Attached plus still-reading images, so files added in quick succession cannot together pass the count or combined
      * size limit.
      */
-    const reserved = useRef<AgentChatImageReservation>(reservationOf(attachments));
+    const [initialReservation] = useState(() => reservationOf(attachments));
+    const reserved = useRef<AgentChatImageReservation>(initialReservation);
     const update = (next: (current: AgentChatAttachment[]) => AgentChatAttachment[]): void =>
         setAttachments((current) => {
             const updated = next(current);
