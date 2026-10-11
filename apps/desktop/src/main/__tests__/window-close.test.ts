@@ -18,6 +18,7 @@ describe('resolveWindowClose', () => {
                 close,
                 confirm: vi.fn().mockResolvedValue(decision),
                 countRunning: vi.fn().mockResolvedValue(1),
+                decideUnsavedEditors: vi.fn().mockResolvedValue('continue'),
                 detachAll,
                 logFailure: vi.fn(),
                 terminateAll,
@@ -37,6 +38,7 @@ describe('resolveWindowClose', () => {
             close,
             confirm: vi.fn(),
             countRunning: vi.fn().mockRejectedValue(new Error('Runtime unavailable')),
+            decideUnsavedEditors: vi.fn().mockResolvedValue('continue'),
             detachAll: vi.fn(),
             logFailure,
             terminateAll: vi.fn(),
@@ -47,13 +49,14 @@ describe('resolveWindowClose', () => {
     });
 
     it('coalesces repeated close requests while a decision is pending', async () => {
-        const count = Promise.withResolvers<number>();
-        const countRunning = vi.fn(() => count.promise);
+        const unsaved = Promise.withResolvers<'continue'>();
+        const decideUnsavedEditors = vi.fn(() => unsaved.promise);
         const close = vi.fn();
         const requestClose = createWindowCloseHandler({
             close,
             confirm: vi.fn(),
-            countRunning,
+            countRunning: vi.fn().mockResolvedValue(0),
+            decideUnsavedEditors,
             detachAll: vi.fn(),
             logFailure: vi.fn(),
             terminateAll: vi.fn(),
@@ -61,8 +64,8 @@ describe('resolveWindowClose', () => {
 
         const first = requestClose();
         const second = requestClose();
-        expect(countRunning).toHaveBeenCalledOnce();
-        count.resolve(0);
+        expect(decideUnsavedEditors).toHaveBeenCalledOnce();
+        unsaved.resolve('continue');
         await Promise.all([first, second]);
         expect(close).toHaveBeenCalledOnce();
     });
@@ -78,5 +81,50 @@ describe('windowClosePrompt', () => {
         expect(prompt.message).toBe('3 tasks are still running.');
         expect(prompt.detail).toContain('keeps them running in the background');
         expect(prompt.detail).not.toContain('Server');
+    });
+});
+
+describe('resolveWindowClose unsaved Editor buffers', () => {
+    it('keeps the window open without asking about tasks when unsaved buffers are cancelled', async () => {
+        const close = vi.fn();
+        const countRunning = vi.fn().mockResolvedValue(1);
+
+        await resolveWindowClose({
+            close,
+            confirm: vi.fn(),
+            countRunning,
+            decideUnsavedEditors: vi.fn().mockResolvedValue('cancel'),
+            detachAll: vi.fn(),
+            logFailure: vi.fn(),
+            terminateAll: vi.fn(),
+        });
+
+        expect(countRunning).not.toHaveBeenCalled();
+        expect(close).not.toHaveBeenCalled();
+    });
+
+    it('decides unsaved buffers before counting running tasks', async () => {
+        const calls: string[] = [];
+
+        await resolveWindowClose({
+            close: () => calls.push('close'),
+            confirm: vi.fn(),
+            countRunning: () => {
+                calls.push('count');
+                return Promise.resolve(0);
+            },
+            decideUnsavedEditors: () => {
+                calls.push('unsaved');
+                return Promise.resolve('continue');
+            },
+            detachAll: () => {
+                calls.push('detach');
+                return Promise.resolve();
+            },
+            logFailure: vi.fn(),
+            terminateAll: vi.fn(),
+        });
+
+        expect(calls).toEqual(['unsaved', 'count', 'detach', 'close']);
     });
 });

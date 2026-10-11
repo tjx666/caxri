@@ -95,6 +95,12 @@ interface MainMethodHandlerOptions {
     getUpdateService(): UpdateService;
     getWindow(): BrowserWindow | undefined;
     injectGpuContextLoss?(): { correlationId: string };
+    /**
+     * Settles Main's pending quit-time question about unsaved Editor buffers; see `createUnsavedEditorsBridge`.
+     */
+    onUnsavedEditorsReply?(
+        parameters: Extract<MainRequest, { method: 'editor.unsavedReply' }>['params'],
+    ): void;
     restartInGpuSafeMode?(): Promise<void>;
     updateArgvConfig?(changes: ArgvConfigChanges): Promise<ArgvConfig>;
     workbenchRootAuthority: ReturnType<typeof createWorkbenchRootAuthority>;
@@ -432,6 +438,9 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 );
                 return { confirmed: result.response === 0 };
             }
+            case 'editor.unsavedReply':
+                options.onUnsavedEditorsReply?.(request.params);
+                return null;
             case 'contextMenu.show': {
                 const window = currentRequestWindow() ?? mainWindow;
                 if (!window || window.isDestroyed())

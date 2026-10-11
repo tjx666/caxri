@@ -15,6 +15,7 @@ import { ConfirmationDialog } from './features/confirmations/confirmation-dialog
 import { openFileForSession } from './features/editor/document-commands';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { useExternalDocumentSync } from './features/editor/external-sync';
+import { subscribeUnsavedEditorRequests } from './features/editor/unsaved-editor-commands';
 import { CommandPalette } from './features/palette/command-palette';
 import { PathBrowserDialog } from './features/path-browser/path-browser-dialog';
 import { useDeliveryFocusRefresh } from './features/primary-sidebar/hooks/use-delivery-focus-refresh';
@@ -144,6 +145,7 @@ export function App() {
     useEffect(() => subscribeAgentChatPatches(queryClient), []);
     useEffect(() => startViewEventBridge(), []);
     useEffect(() => subscribeHeldMessageQueue(), []);
+    useEffect(() => subscribeUnsavedEditorRequests(), []);
     useEffect(() => registerPickerFallbackFocus(activeWorkbenchFocusElement), []);
     useSessionMruSwitcherLifecycle();
     useSessionNavigationHistory();

@@ -319,6 +319,17 @@ export const serverEventPayloads = {
     ]),
     'window.fullScreen': z.object({ isFullScreen: z.boolean() }),
     /**
+     * Main-originated, one-shot question about the Workbench's unsaved Editor buffers before quitting or closing the
+     * window (issue caxri#1631). Dirty buffers live only in the Renderer's document cache, so Main asks for a
+     * content-free summary (`inspect`), asks the Renderer to write them through the Editor's own save path (`saveAll`),
+     * or to reveal the first one after the user cancels (`reveal`). The Renderer answers `inspect` and `saveAll`
+     * through `editor.unsavedReply` with the same `requestId`.
+     */
+    'editor.unsavedRequest': z.object({
+        requestId: z.string().min(1).max(64),
+        action: z.enum(['inspect', 'saveAll', 'reveal']),
+    }),
+    /**
      * Main's accepted native notification decision, without Agent transcript or notification body.
      */
     'agent.notification': z.object({

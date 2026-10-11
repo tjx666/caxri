@@ -35,6 +35,7 @@ import {
     desktopRootIdentitySchema,
     desktopStatusResultSchema,
 } from '../desktop/desktop-contract.js';
+import { editorPromptDesktopMethods } from '../desktop/editor-prompt-contract.js';
 import {
     externalDocumentDesktopMethods,
     externalDocumentServerMethods,
@@ -277,6 +278,7 @@ export const methods = {
     ...shellCommandDesktopMethods,
     ...contextMenuDesktopMethods,
     ...externalDocumentDesktopMethods,
+    ...editorPromptDesktopMethods,
     ...linkFaviconDesktopMethods,
     ...agentProviderStatusDesktopMethods,
     ...linkPreviewDesktopMethods,
@@ -284,16 +286,6 @@ export const methods = {
         ...desktopControl,
         params: z.object({ url: z.string().min(1).max(16_384) }),
         result: externalOpenResult,
-    },
-    /**
-     * Native "save before closing" prompt for an Editor tab with unsaved changes. It lives in Main because the choice
-     * must be a modal, focus-stealing native sheet: silently discarding an unsaved buffer is the one destructive Editor
-     * action the user cannot undo.
-     */
-    'editor.confirmDiscard': {
-        ...desktopControl,
-        params: z.object({ name: z.string().min(1).max(1_024) }),
-        result: z.object({ choice: z.enum(['save', 'discard', 'cancel']) }),
     },
     'processExplorer.open': { ...desktopControl, params: noParameters, result: z.null() },
     'dialog.selectDirectory': {
