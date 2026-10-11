@@ -6,6 +6,7 @@ import {
     agentChatOutputLanguage,
     agentChatReasoningTitle,
     agentChatTurnLabel,
+    agentChatTurnTimeTooltip,
     agentChatTurnTone,
     agentChatWorkDuration,
     agentChatWorkGroupFailure,
@@ -184,6 +185,42 @@ describe('buildAgentChatTimeline', () => {
             undefined,
         );
         expect(finalReplies(subagent)).toEqual(['s2']);
+    });
+
+    it('keeps Copy in view only on the final reply of the most recent turn', () => {
+        const latest = (entries: readonly AgentChatTimelineEntry[]): string[] =>
+            entries.flatMap((entry) =>
+                entry.kind === 'item' && entry.isLatestReply ? [entry.item.id] : [],
+            );
+        const items = [
+            user('u1', 't1'),
+            command('c1', 't1'),
+            reply('a1', 't1'),
+            user('u2', 't2'),
+            command('c2', 't2'),
+            reply('a2', 't2'),
+        ];
+        const done: AgentChatTurn[] = [
+            { id: 't1', status: 'completed', durationMs: 1000 },
+            { id: 't2', status: 'completed', durationMs: 1000 },
+        ];
+        expect(latest(buildAgentChatTimeline(items, done, undefined))).toEqual(['a2']);
+        // While the last turn runs it has no final reply, and the previous turn's reply is no longer the latest.
+        const running: AgentChatTurn[] = [done[0], { id: 't2', status: 'running' }];
+        expect(latest(buildAgentChatTimeline(items, running, 't2'))).toEqual([]);
+    });
+
+    it('carries when a folded turn started and ended for its tooltip', () => {
+        const items = [user('u', 't1'), command('c', 't1'), reply('a', 't1')];
+        const [, fold] = buildAgentChatTimeline(
+            items,
+            [{ id: 't1', status: 'completed', startedAt: 1000, durationMs: 2500 }],
+            undefined,
+        );
+        expect(fold).toMatchObject({ kind: 'turn', startedAt: 1000, endedAt: 3500 });
+        expect(agentChatTurnTimeTooltip({ startedAt: 1000, endedAt: 3500 })).toMatch(/^Finished /);
+        expect(agentChatTurnTimeTooltip({ startedAt: 1000 })).toMatch(/^Started /);
+        expect(agentChatTurnTimeTooltip({})).toBeUndefined();
     });
 
     it('skips empty reasoning', () => {

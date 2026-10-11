@@ -285,12 +285,14 @@ the CPU reading and the threshold, so a runaway Agent is visible before its aler
 An Agent Terminal also shows its Agent's output speed (`62 tok/s`) once the Agent's transcript has a
 measured response. It is a persistent gauge, not a transient Agent operation, so it lives here. It
 carries no threshold colour: the number is measured, and what counts as slow is the reader's call.
-The hover card breaks it down by last response, turn, and Session, charts the recent responses, and
-states the method (see `docs/agent-throughput.md`). Beside it, the conversation's running usage
-(`1.2M · $3.40 · 5h 62%`: tokens, estimated cost, and the shortest rate-limit window that has not
-reset) appears once the transcript records a billed request. Cost is left out while no model has a
-price, since `$0.00` would read as free. The hover card breaks tokens down by kind and lists every
-limit window with its reset; clicking opens Usage (see `docs/usage.md`). Blame lives here and nowhere else. The editor header once
+The hover card breaks it down by last response, turn, and Agent Session (the turn row folds into the
+Agent Session row while both cover the same responses), lists provider incidents as at most one line
+plus `+N more`, charts the recent responses, and states the method (see `docs/agent-throughput.md`).
+Beside it, the conversation's running usage (`1.2M · $3.40 · 5h 62%`: tokens, estimated cost, and
+the shortest rate-limit window that has not reset) appears once the transcript records a billed
+request. Cost is left out while no model has a price, since `$0.00` would read as free. The hover
+card breaks tokens down by kind and lists every limit window with its reset; clicking opens Usage
+(see `docs/usage.md`). Blame lives here and nowhere else. The editor header once
 carried the file's last commit too, and on any line belonging to that commit the two read
 word-for-word the same; the status bar's is the finer answer, it follows the cursor, and it does not
 take width from the breadcrumbs. Transient Agent operations stay with the owning work tab
@@ -332,7 +334,8 @@ reports what the process is actually doing rather than what `argv.jsonc` now say
 switch off leaves the channel open until the next launch (principle 9). Clicking it opens its setting.
 
 Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
-accessible names and hover tooltips. A multi-fact status-bar tooltip uses the shared `StructuredTooltip`
+accessible names and hover tooltips. Clickable `StatusItem` and read-only `StatusInfo` both set
+figures in `tabular-nums`, so a value that changes on every poll does not nudge its neighbours. A multi-fact status-bar tooltip uses the shared `StructuredTooltip`
 layout rather than a newline-joined string: an optional muted kind line, a semibold title, muted
 label/value rows (paths and addresses in monospace), foreground state lines, muted notes, and a final
 muted `Click to …` hint naming what the chip does. Source Control's repository and group rows use the
@@ -395,7 +398,9 @@ regardless of its exact kind. Motion and shape carry the glance signal without c
 weight, and the accessible label plus the Session hover/focus card preserve exact lifecycle and
 attention details. On pointer hover, Pin and Archive occupy a reserved cluster at the row's right
 edge; the title (and a Pinned row's Project name) clips with the same right-edge fade before that
-cluster, and the trailing delivery glyph collapses so it does not double-reserve. Keyboard focus keeps
+cluster. A running, unread, or detached glyph stays and moves left of Pin and Archive, because it is
+what the user hovers a busy row to check; only the pull request and deployment fallback glyph
+collapses, so it does not double-reserve. Keyboard focus keeps
 the track visible because Delete already owns the keyboard action; the hover buttons stay outside
 the tree's single Tab stop. The Portal
 card opens to the PrimarySidebar's right after a short hover delay (or immediately on intentional keyboard focus),
@@ -411,7 +416,9 @@ and Project names clip with a right-edge fade instead of an ellipsis: the ellips
 row width on punctuation. The fade is about one character at the 13px UI size, matching Codex.
 A Project heading's Customize Icon and New Session buttons follow the same hover-cluster rule: at
 rest they reserve no width, so the name runs to the row's edge; on hover, keyboard focus, or while
-the New Session menu is open the name makes room and fades before them.
+the New Session menu is open the name makes room and fades before them. With a configured default
+Agent, New Session splits like the tab strip's +: a press creates the default Agent (the tooltip
+names it, `New Codex Chat Session`) and hovering lists the Agents.
 Clipped Session names reveal their tail after a 600ms title hover or keyboard-focus pause, moving
 at a steady reading speed and holding at the end. Leaving restores the fade; short names remain
 still.
@@ -585,18 +592,26 @@ label longer than the whole bar, which truncates 6rem short of it so its own clo
 While the whole workbench holds exactly one tab across every
 pane, that tab drops the accent top border: an "active" marker distinguishes nothing when there is
 nothing to distinguish it from, and the pane ring still carries focus. The New Terminal + reserves
-no slot then: it floats over that tab's trailing end, revealed on bar hover or keyboard focus, so the
-tab's fill reaches the bar's edge instead of leaving a block of bar color beside it. Hovering + still
-opens the Agent list. Pressing it (pointer click or keyboard activation) instead creates a Terminal
+no slot then: it floats over that tab's trailing end, revealed on bar hover or keyboard focus, and
+collapses its width at rest, so the tab's fill reaches the bar's edge instead of leaving a block of
+bar color beside it. Hovering + still opens the Agent list, where each Agent row carries one muted
+suffix (`Chat`, `Default`, or `Chat · Default`) and the foot toggle reads `Always Open Agents in
+Chat`, the same as in the New Session menu. Pressing it (pointer click or keyboard activation) instead creates a Terminal
 running whichever Agent the Session's own primary Terminal is currently running, so the press clones
 the conversation already in front of the user instead of asking again; that icon's tooltip names the
-Agent and surface it will create ("New Codex Chat", "New Claude Code Terminal") and shows ⌘T,
-`terminal.new`'s own shortcut, since both create another Terminal in this same Session from this
-same slot. It falls back to `session.defaultAgent`
+Agent and surface it will create ("New Codex Chat", "New Claude Code Terminal") and shows ⌘T only
+when `terminal.new` would create that same Agent on the same surface: a press that clones a live
+Agent other than the default gets no shortcut chip, which would promise what ⌘T does not do. It falls back to `session.defaultAgent`
 when that primary Terminal is a plain shell or has exited, and to opening the Agent list (with no
 tooltip, since there is nothing yet to name) when neither resolves. Either way the chosen Agent
 starts as another Terminal in the same Session. With two or more tabs, + stays visible and keeps the
-same behavior. An empty pane uses its own labelled action, reading New Chat when it will create a
+same behavior. An Agent tab's Terminal | Chat toggle (`Open as Terminal or Chat`) is always visible
+while the active tab can switch, faint at rest and solid on bar hover, focus, or while a switch is
+pending; its pressed segment adds a `--border` to the shared Toggle fill, so it never reads like the
+hovered one. The + sits before the toggle, next to the tabs, so revealing it on hover grows the strip
+toward the tabs and never moves the toggle out from under the pointer. An external file whose name repeats among the Session's open external files shows the
+shortest parent path that tells it apart in `meta` `--muted` after its label (VS Code's tab
+description), and every external tab tells a screen reader it is `Outside every Project`. An empty pane uses its own labelled action, reading New Chat when it will create a
 Chat and New Terminal otherwise.
 A clean preview Editor owns one transient, Session-scoped motion identity: replacing its path
 updates the same DOM tab instantly, pinning preserves that identity, and only the next real tab
@@ -782,6 +797,13 @@ picks its region by content shape, not by which region has room left.
 matches origin says nothing (`Synced` stays on the hover badge); a deployment row names its
 environment and whether it is the latest, not its short SHA; an acceptance row reads `2/2 · r3`, with
 the round spelled out on the hover and in the accessible name.
+A pull request row's inline merge is one click when every check passed, with no confirmation, by
+design. Any other blocker confirms first, and failed checks are named in it (`2 of 9 checks failed:
+lint, e2e.`). The merge glyph's tone grades the blocker: `--danger` for failed checks, `--warning`
+for branch protection or a stale base, neutral for checks still running or a mergeability GitHub has
+not computed. A draft or conflicting pull request keeps the button, which explains why GitHub cannot
+merge it and offers Open on GitHub. An inline action whose tooltip carries state (a blocked merge's
+reason) opens that tooltip on keyboard focus too; a plain action's tooltip stays hover-only.
 
 **Project Status hover**: every row in the tree wears the same card, so one panel never mixes a
 structured card with a multi-line grey string. The card follows the VS Code reference hierarchy:
@@ -835,7 +857,9 @@ not an underline.
 glyph reused for two meanings on one screen is a bug: the Git tab keeps the branch mark, so the
 Source Control caption drops it, repository rows take a repository mark (`FolderGit2`, or the
 vendored `archive` codicon for a submodule) regardless of panel mode, and the mode switch's
-working-tree segment takes a diff mark. Where lucide has no equivalent glyph, vendor the VS Code
+working-tree segment takes a diff mark. The Settings tab takes the gear (`Settings`) because
+`SlidersHorizontal` is the Settings page's own UI view switch; the Agent status tab and the `tok/s`
+chip share `Gauge` because they show the same measurement. Where lucide has no equivalent glyph, vendor the VS Code
 codicon inline (`apps/desktop/src/renderer/src/icons/codicons`) rather than bending a lucide icon
 to fit.
 
@@ -886,8 +910,12 @@ A repository with no pull request keeps the heading
 working tree instead of an absent pull request. A repository row is one line: the folder name, its kind, and its
 counts. The branch (or whatever reference the provider describes) is the section's first child row,
 its glyph in the group captions' chevron column, so a long worktree name and a long branch each get
-a full row instead of ellipsizing each other. Counts are `shrink-0` after the name, which ellipsizes
-first rather than pushing them out of the row.
+a full row instead of ellipsizing each other. On the primary repository, activating the branch row
+opens the branch picker like the status bar's branch item, and clicking its `↑2 ↓1` badge runs sync;
+a treeitem cannot nest a button, so the keyboard reaches sync through the row menu and the header's
+Sync button. Counts are `shrink-0` after the name, which ellipsizes first rather than pushing them out
+of the row. A `+N -M` stat drops a zero half beside a non-zero one (`+3`, not `+3 -0`) and keeps a
+lone `+0` when both are zero, so the column never goes blank on a changed row.
 
 **Git diff exclusions**: `git.diffExclude` hides matching repository-relative paths from Git
 change lists and from `Open Changes`; it ships filtering test files out by default, because a
@@ -972,27 +1000,43 @@ search/path fields use `InputGroup`, never feature-local field chrome.
 
 **Agent Chat composer**: one radius-8 `--surface` card with a 1px `--border` that turns `--muted`
 while focused (the pane ring already carries the accent focus) and `--accent` while a file is
-dragged over it. A dropped image attaches; any other file, Files entry, or Editor tab is inserted at
+dragged over the Chat. The whole pane takes the drop under a faint `--accent` tint with a centered
+`--elevated` label (`Drop to attach images or insert paths`, or `Drop to insert paths` when the
+provider takes no images). A dropped image attaches when the provider accepts images; any other file, Files entry, or Editor tab is inserted at
 the caret as its path, spelled relative to the Agent's directory the way a Terminal drop is. Inside, top to bottom: the attached-image strip (64px radius-6 thumbnails, drawn
 from a preview that covers the 96px sent-message tile at 2x, each with its remove control inset in
-the top-right corner), a borderless auto-growing textarea, and one action row, right-aligned in
+the top-right corner; clicking one previews the full image in a dialog, and an image that takes
+noticeably long to read holds a placeholder tile with a spinner, so a disabled Send has a visible
+cause), a borderless auto-growing textarea, and one action row, right-aligned in
 `--muted`: Attach files (a paperclip ghost icon that turns into a spinner while picked images are
 read or a long paste is saved; pasting or dropping is the common path, so the picker does not claim
-the leading corner), the context meter (a 14px ring that fills with the share of the window in use, its percentage beside it, `--warning` from 80%
-and `--danger` from 95%, the token counts in its tooltip) and the model picker (the model's name and
+the leading corner), the context meter (a 14px ring that fills with the share of the window in use,
+its percentage beside it, `--warning` from 60% and `--danger` from 85%; a `meter` and a Tab stop
+whose hover card gives the token breakdown and, when the provider has a compact command, a Compact
+button) and the model picker (the model's name and
 the next turn's effort, opening a menu of models with their descriptions and the current model's
-efforts, which stays open after a choice), and a single primary action slot: a 28px `--foreground`
-circle holding a `--background` up arrow for Send, or a small filled square for Stop. That slot
+efforts; choosing a model keeps the menu open so its efforts show, choosing an effort closes it, and
+a spinner replaces the chevron until the switch is confirmed), and a single primary action slot: a 28px `--foreground`
+circle holding a `--background` up arrow for Send (a return arrow while the message would queue), or
+a small filled square for Stop. That slot
 shows Stop while a turn runs and the input is empty, and Send as soon as there is content; the two
-never sit side by side. While the Chat is busy (a turn runs or context is compacting), Enter and Send queue
-the message and the placeholder says so; Cmd+Enter steers it into the running turn instead. Queued
+never sit side by side. While Send cannot send, its tooltip says why (`Chat loading…`, `Reading
+image…`, `Type a message to send`, or the recovery row to use). While the Chat is busy (a turn runs or context is compacting), Enter and Send queue
+the message and the placeholder says so (`Queue a follow-up (⌘Enter to steer)`); Cmd+Enter steers it
+into the running turn instead, and once a draft is typed the status row names both keys (`Enter to
+queue · ⌘Enter to steer`). Typing `/` or `$` opens the suggestion list above the card under
+`Commands` and `Skills` headings, with a `meta` footer naming the keys; a query with no match keeps
+it open on a `No matching command or skill` row. Queued
 messages sit above the card as 12px `--surface` cards, each with Edit (back into the composer),
 Delete, and Send now (Steer while a turn runs); after a stopped turn a `Queue paused` row with
-Resume heads them. Above everything in the dock, a recovery row explains why the Chat cannot
-continue: a provider failure in a `--danger` bordered card with Retry, or a hand-over to another
+Resume heads them. The dock above the card (recovery row, plan, requests, and task strip) is capped
+at 60% of the pane and scrolls past it. Above everything in the dock, a recovery row explains why the Chat cannot
+continue: a provider failure in a `--danger` bordered card with Retry (a conversation the provider
+could not resume adds a body naming the cause and Open as Terminal), or a hand-over to another
 client in a neutral `--border` card with the PTY recovery bar's unplugged glyph, its Detached label,
 and Resume; while either shows, Send is disabled. Running subagents and background shells list in a
-strip above the composer with elapsed time and their own Stop; a shell is named by the Agent's
+strip above the composer with elapsed time and their own Stop, and its `N ended` count expands the
+ended tasks, most recent first, with how each ended; a shell is named by the Agent's
 description of it (Claude Code's `Bash` description) when there is one, with its command line atop
 its tab's output, and by the command line in monospace otherwise; clicking one, or the Open action on
 its timeline row, opens it as
@@ -1003,15 +1047,21 @@ interrupts a running turn regardless. While the Chat starts, works, or waits on 
 status row opens the card above a hairline, so the card keeps one rounded outline: a spinner (or a `--warning`
 question glyph while waiting), the label, the elapsed time once it passes a second, and `Esc to
 stop` right-aligned. A working turn's label is one playful verb chosen per turn (`Pondering…`),
-so a long turn reads as progress rather than a stall. References: T3 Code's Chat composer, Claude
+so a long turn reads as progress rather than a stall; a waiting one reads `Waiting for your
+approval` or `Waiting for your answer` by its first pending request. On an idle Chat the same row
+carries context notices instead: an expired prompt cache in `--muted` (a cost fact, not a fault),
+and context high enough to read `consider compacting` in `--danger` with a Compact button. References: T3 Code's Chat composer, Claude
 Code's spinner verbs, and the Codex app's round Send and Stop, context ring, and model and effort
 picker. In the transcript, inline code sits in a lifted `--elevated` chip and links take
 `--accent`; a code block is one radius-8 `--elevated` panel whose header (a code glyph, Monaco's
-language name such as `TypeScript`, wrap and copy) shares its fill; a table is set open, with row
+language name such as `TypeScript`, wrap and copy) shares its fill and sets its code in the 11px
+`meta` size every monospace preview uses; a table is set open, with row
 hairlines and no frame or header tint. All follow the Codex app's Dracula transcript. A path the
 Agent writes as plain prose (`src/app.ts:12`, an absolute path) is a file link like a cited one;
 in the user's bubble a path keeps the text color with a dotted underline that turns `--accent` on
-hover, so the user's words still read as theirs. A web link leads with the site's favicon (the
+hover, so the user's words still read as theirs. A user message longer than 12 lines clamps with
+Show more / Show less; clicking a sent image opens a larger preview, a loading one pulses, and one
+whose data is gone says `Image no longer available`. A web link leads with the site's favicon (the
 GitHub mark for GitHub, a globe when there is none, fading in only on first load) and a dotted
 underline; hovering it opens a 320px card naming the host with an Open action, then where the
 link leads (`owner/repo · #N` beside a pull request, issue, or discussion glyph for GitHub). A user
@@ -1025,7 +1075,11 @@ pending; omitted past ten steps), the `done/total` count (`--success` once compl
 chevron. It starts collapsed and expands in place to the explanation and the step list (scrolling
 past 240px), keeping that choice while the plan updates. Reference: T3 Code's composer task badge.
 A pending approval titles the tool in the timeline's words (`Allow editing app.ts?`, `Allow
-create_issue from github?`), never its raw identifier; a question names the provider (`Codex has a
+create_issue from github?`), never its raw identifier, and names its buttons by outcome: Run for a
+command (Allow when it reaches a network host), Apply Changes for a file edit, Allow for any other
+tool, Start Building for a plan, then `Always Allow in This Chat`, then Deny (Keep Planning for a
+plan). Cmd+Enter approves and Cmd+Backspace denies, answering only the first card and only while the
+composer is empty, where neither chord has another meaning. A question names the provider (`Codex has a
 question`), and each option's description sits under its label in `meta` `--muted`, not in a
 tooltip. While the reader follows the end, the transcript stays pinned when a dock grows and
 shrinks the view.
@@ -1045,16 +1099,21 @@ failed or were declined, whose expanded list scrolls past 240px and fades its cl
 '1,40p' src/app.ts` is `Read app.ts`, `rg foo src` is `Searched foo in src`), keeping its command
 line in the expanded view. A finished turn folds everything except the prompt, the final reply, and
 notices behind one `Worked for 2m 1s` row with a bottom hairline; a failed or stopped turn's row
-(`Failed after 40s`, `Stopped after 3s`) takes `--danger` or `--warning` with its glyph. The final
-reply's Copy stays visible in `--muted` and rises to `--foreground` on hover. Between the final reply
-and Copy, a finished turn shows what it left behind as `--surface` cards with a 36px `--background`
-glyph tile: `Edited 3 files` over the turn's `+N -M` (hovered, the counts become `View changes ↗`
-and preview the diffs), a ghost Undo and a secondary View changes, then one row per file with its
-directory in `--muted` and its name in `--foreground`; then one card per pull request or issue the
-turn created or edited, with the GitHub or Linear mark, the title, a monospace `owner/repo#N` or
-`ENG-12`, the body's first line, and `Created pull request` at the end. `Jump to latest`
+(`Failed after 40s`, `Stopped after 3s`) takes `--danger` or `--warning` with its glyph. A running
+row carries no trailing spinner: its shimmer and ticking time already say it runs. The most recent
+turn's final reply keeps Copy visible in `--muted`, rising to `--foreground` on hover; an earlier
+reply shows it only on hover or keyboard focus, in a row that keeps its height. Between the final
+reply and Copy, a finished turn shows what it left behind as `--surface` cards with a 36px
+`--background` glyph tile: `Edited 3 files` over the turn's `+N -M` (hovered, the counts become
+`View changes ↗` and preview the diffs), a ghost Undo and a secondary View changes, then one row per
+file with its directory in `--muted` and its name in `--foreground`; then one card per pull request
+or issue the turn created or edited, with the GitHub or Linear mark, the title, a monospace
+`owner/repo#N` or `ENG-12`, the body's first line, and `Created pull request` at the end. A screen
+reader hears `Reply ready`, `Turn failed`, or `Stopped` when a turn ends. A Chat that keeps only the
+recent part of a long conversation opens with a `meta` line saying so, since the provider still has
+all of it, and Open as Terminal. `Jump to latest`
 returns focus to the composer (to the scroll view in a read-only task tab). Expanded output renders
-in the shared code view, painted in the language inferred from what produced it (a printed file's
+in the shared code view at the `meta` size diffs, the command preview, and task output use, painted in the language inferred from what produced it (a printed file's
 extension, a Git diff, JSON), any other command output as shell, and capped in height. A new
 tool kind gets its glyph in one table, not a new component. References: the Codex app and T3 Code's
 work log.
@@ -1107,7 +1166,9 @@ dismissal. Every variant auto-dismisses after 4s of visible, non-interacting tim
 such an action routinely opens a confirmation the user can still cancel and deleting the card first
 would take the only way back to the offer. Stack
 bottom-right above the status bar, with three visible cards. Hover or keyboard focus pauses expiry.
-Use the close or action button to dismiss; clicking the message body does not dismiss it. Sonner's
+Use the close or action button to dismiss; clicking the message body does not dismiss it. An
+extension inline action may declare its own success and failure toasts, which carry an `Open on
+GitHub` action when they report on GitHub; the merge-method success toast is one. Sonner's
 internal transition/removal timing is a third-party exception to the motion token layers above;
 its built-in reduced-motion media rule disables animation. Theme overrides live in `styles/styles.css`.
 Notifications are the one floating surface that deliberately outranks a modal: the toaster stacks

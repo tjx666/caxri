@@ -16,6 +16,7 @@ import { didSelectSession } from '../session/session-commands';
 import { createTerminalForSession } from '../terminal/terminal-commands';
 import { writeAgentChatDraft } from './agent-chat-drafts';
 import { agentChatHandoffPrompt } from './agent-chat-handoff';
+import { agentChatConfigureFailureMessage } from './agent-chat-model-selection';
 
 /**
  * Sends a message. An idle Chat starts a turn; while a turn runs, `delivery` decides whether the message waits in the
@@ -167,14 +168,20 @@ export async function didAnswerAgentChatRequest(
 }
 
 /**
- * Switches the model or effort for the next turn onward. The picker reflects the change once the projection reports it,
- * so a failed switch leaves the old choice visible.
+ * Switches the model or effort for the next turn onward. Resolves `true` once Server Core accepted the switch; the
+ * picker shows the choice as pending until the projection reports it, and drops it when the switch failed. The failure
+ * toast names what was being switched.
  */
-export function configureAgentChat(terminalId: string, change: AgentChatModelRequest): void {
-    // eslint-disable-next-line no-void -- tryCommand reports a failed switch through the toast
-    void tryCommand('Unable to switch the model', () =>
-        caxri.request('agentChat.configure', { terminalId, ...change }),
-    );
+export async function didConfigureAgentChat(
+    terminalId: string,
+    change: AgentChatModelRequest,
+): Promise<boolean> {
+    let isConfigured = false;
+    await tryCommand(agentChatConfigureFailureMessage(change), async () => {
+        await caxri.request('agentChat.configure', { terminalId, ...change });
+        isConfigured = true;
+    });
+    return isConfigured;
 }
 
 /**

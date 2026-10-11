@@ -90,11 +90,9 @@ import { treeChildrenResultSchema } from '../domain/tree-item.js';
 import { updateStateSchema } from '../domain/update-state.js';
 import { usageMethods } from '../domain/usage-contract.js';
 import {
-    extensionCommandIdSchema,
     extensionErrorSchema,
     extensionIdSchema,
     extensionViewEventContextSchema,
-    MAX_EXTENSION_COMMAND_ARGUMENTS,
     viewCatalogSnapshotSchema,
     viewIdSchema,
 } from '../domain/views.js';
@@ -186,14 +184,6 @@ export const methods = {
             context: extensionViewEventContextSchema,
         }),
         result: treeChildrenResultSchema,
-    },
-    'viewContainers.executeCommand': {
-        ...serverControl,
-        params: z.object({
-            commandId: extensionCommandIdSchema,
-            arguments: z.array(z.unknown()).max(MAX_EXTENSION_COMMAND_ARGUMENTS).default([]),
-        }),
-        result: z.object({ executed: z.literal(true) }),
     },
     'viewContainers.cancelRequest': {
         ...serverControl,

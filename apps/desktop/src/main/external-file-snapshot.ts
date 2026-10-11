@@ -7,6 +7,7 @@ import type { MethodResult } from '@caxri/protocol';
 import { CaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
 
 import { rememberExternalDocument } from './external-documents';
+import { EXTERNAL_FILE_SIZE_LIMIT_LABEL } from './external-file-limits';
 import type { EntrySnapshot, RootIdentity } from './path-browser-identity';
 import {
     authorizeCandidate,
@@ -43,7 +44,10 @@ export async function readBoundedExternalContent(file: BoundedFileReader): Promi
         offset += bytesRead;
     }
     if (offset > MAX_CONFIGURABLE_FILE_BYTES)
-        throw new CaxriError('CAPACITY', 'File exceeded the read safety limit');
+        throw new CaxriError(
+            'CAPACITY',
+            `File is larger than ${EXTERNAL_FILE_SIZE_LIMIT_LABEL} and can't be opened here.`,
+        );
     return content.subarray(0, offset);
 }
 
@@ -102,12 +106,12 @@ export async function readExternalFile(
         if (opened.nlink > 1n)
             throw new CaxriError(
                 'PATH_DENIED',
-                'Files with multiple filesystem links cannot be opened',
+                "This file is hard-linked elsewhere, so Caxri can't open it safely. Use Open with Default App.",
             );
         if (opened.size > BigInt(MAX_CONFIGURABLE_FILE_BYTES))
             throw new CaxriError(
                 'CAPACITY',
-                `File exceeds the ${MAX_CONFIGURABLE_FILE_BYTES} byte safety limit`,
+                `File is larger than ${EXTERNAL_FILE_SIZE_LIMIT_LABEL} and can't be opened here.`,
             );
         const boundedContent = await readBoundedExternalContent(file);
         if (boundedContent.includes(0))

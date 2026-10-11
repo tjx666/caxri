@@ -145,6 +145,14 @@ catalog. A shortcut reloads a missing, stale, or invalidated catalog before disp
 extension command once, and reports unknown or failed commands through the shared toast path. The
 native application menu does not synthesize dynamic extension accelerators.
 
+A command callback may resolve with a `CommandResult` (`{ message }`) to tell the user what it did.
+The Extension Host keeps only a string `message`, trimmed and capped at 200 characters, and ignores
+any other resolved value; Server Core validates it again at the process boundary, and
+`viewContainers.executeCommand` returns `{ executed: true, message? }`. Every Renderer entry point
+(palette, keybinding, view toolbar, tree row, inline action) shows a returned message as a success
+toast. A failure is a thrown error, never a message. The Status extension's merge commands return
+the merge method Server Core chose (`Squash-merged #123`, `Merged #123`, `Rebase-merged #123`).
+
 Session SQLite persists the free, bounded
 `desiredSecondarySidebarViewContainerId`. Device-local layout persists
 `desiredPanelViewContainerId`. The Renderer derives a currently available resolved ID from the
@@ -344,18 +352,33 @@ and links open through the same external-link policy. HTML, scripts, commands, a
 not part of this contract.
 
 `TreeItem.actions` adds up to three inline actions to an ordinary row. Each is a command, a
-validated theme icon, and an optional `confirmation` (title, message, confirm label). The Renderer
+validated theme icon, an optional `confirmation` (title, message, confirm label), an optional
+`tooltip`, and optional `feedback`. The Renderer
 shows them as icon buttons at the end of the row while it is hovered or holds keyboard focus,
 except an action with a `label` or a `tone`, which stays visible at rest. A `label` makes it the
 row's primary call to action, rendered as a compact text button; a `tone` (`neutral`, `success`,
 `warning`, `danger`) colors it, as a text button or as an icon. Project Status uses them for the
 pull request merge button: green `Merge` text when nothing blocks the merge, otherwise only the merge
-glyph (`danger` for failed checks, `warning` for anything still settling), which leaves the row's
-width to the title, with the blocking reason in the command title. The Renderer
-keeps a running action visible and busy until its command settles, and dispatches through the
-same `viewContainers.executeCommand` path as the row's own command. A `confirmation` is shown as
-literal text in the Workbench confirmation modal; cancelling dispatches nothing and returns focus to
-the action. Inline actions do not replace `TreeItem.command`, which stays the row's activation.
+glyph (`danger` for failed checks, `warning` for branch protection or a base that moved ahead,
+neutral while checks run or GitHub has not computed mergeability), which leaves the row's width to
+the title. The Renderer keeps a running action visible and busy until its command settles, and
+dispatches through the same `viewContainers.executeCommand` path as the row's own command. A
+`confirmation` is shown as literal text in the Workbench confirmation modal; cancelling dispatches
+nothing and returns focus to the action. Inline actions do not replace `TreeItem.command`, which
+stays the row's activation.
+
+`tooltip` states why the action is in its current state (`Checks still running`) so `command.title`
+can stay the plain action name. It is shown on hover and on keyboard focus and becomes the button's
+accessible description; without it the tooltip is the command title and opens on hover only.
+`feedback` declares toast copy, because the action is the only place that knows what the row means:
+`success` is the fallback success toast when the command resolves without its own `message`,
+`failure` prefixes the command's sanitized reason (`Couldn't merge #123: <reason>`), and `githubUrl`
+(credential-free HTTP(S), validated like tooltip URLs) adds an Open on GitHub button to both toasts.
+
+A row command or an inline action whose command is the Workbench's `caxri.openExternal`, with the URL
+as its first argument, opens the page through the external-link policy in the Renderer, without a
+round trip to the extension. Project Status uses it for a draft or conflicting pull request: the
+merge action explains why the pull request cannot merge and confirms with Open on GitHub.
 
 Keyboard users reach them the way an ARIA treegrid reaches a row's cells: Right on a focused leaf or
 expanded row moves into the first action (a collapsed row still expands first, and Down still enters
@@ -365,7 +388,10 @@ lists its actions, and the actions stay out of the Tab order until focus enters 
 keeps one Tab stop. Rows without actions keep the plain tree keys.
 
 The Status extension uses this for its pull request row: a merge action appears on an open pull
-request whose head is known and that GitHub does not report as conflicting. It calls
+request whose head is known and that GitHub does not report as conflicting (a draft or conflicting
+one gets the Open on GitHub explanation above instead). The palette command `Merge Pull Request for
+Current Branch` merges the primary repository's pull request only when nothing would make the row
+confirm, and otherwise refuses with the reason. It calls
 `workspace.git.mergePullRequest`, which needs `git.write`. Server Core reads the repository's allowed
 merge methods, picks squash, then a merge commit, then rebase, and runs `gh pr merge` with
 `--match-head-commit` set to the head the row showed, so a later push makes GitHub refuse the merge

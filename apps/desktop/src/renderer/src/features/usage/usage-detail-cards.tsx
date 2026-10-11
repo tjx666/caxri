@@ -8,7 +8,8 @@ import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
 import { ShareBar } from './share-bar';
-import { usageSessionCount } from './usage-metrics';
+import { UsageCost } from './usage-cost';
+import { countLabel, topCaption, usageCostDisplay, usageSessionCount } from './usage-metrics';
 import { UsageSessionTitle } from './usage-session-title';
 import {
     cellClass,
@@ -23,10 +24,29 @@ function openPullRequest(url: string): void {
 }
 
 const MODEL_COLUMNS = ['Input', 'Output', 'Cache', 'Cost'];
+const MODEL_ROWS = 12;
+const PROJECT_ROWS = 10;
+const SESSION_ROWS = 15;
+const PULL_REQUEST_ROWS = 12;
+
+/**
+ * Projects and Sessions carry no per-model breakdown, so a row is only known to be unpriced when it has tokens but no
+ * cost while the report lists unpriced models.
+ */
+function rowCost(report: UsageReport, costUsd: number, tokens: number) {
+    return usageCostDisplay({
+        costUsd,
+        hasTokens: tokens > 0,
+        hasUnpriced: report.coverage.unpricedModels.length > 0 && costUsd <= 0,
+    });
+}
 
 function ModelsCard({ report }: { report: UsageReport }) {
     return (
-        <ReportCard title="Models">
+        <ReportCard
+            title="Models"
+            caption={topCaption(Math.min(MODEL_ROWS, report.models.length), report.models.length)}
+        >
             {report.models.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">No model usage in this range.</p>
             ) : (
@@ -42,7 +62,7 @@ function ModelsCard({ report }: { report: UsageReport }) {
                         </tr>
                     </thead>
                     <tbody>
-                        {report.models.slice(0, 12).map((row) => (
+                        {report.models.slice(0, MODEL_ROWS).map((row) => (
                             <tr key={`${row.provider}:${row.model}`}>
                                 <td className={cellClass}>
                                     <span className="flex min-w-0 items-center gap-2">
@@ -78,17 +98,10 @@ function ModelsCard({ report }: { report: UsageReport }) {
 }
 
 function ProjectsCard({ report }: { report: UsageReport }) {
-    const top = report.projects.slice(0, 10);
-    const peak = Math.max(0, ...top.map((row) => row.costUsd));
+    const top = report.projects.slice(0, PROJECT_ROWS);
+    const total = report.totals.costUsd;
     return (
-        <ReportCard
-            title="Projects"
-            caption={
-                report.projects.length > top.length
-                    ? `Top ${top.length} of ${report.projects.length}`
-                    : undefined
-            }
-        >
+        <ReportCard title="Projects" caption={topCaption(top.length, report.projects.length)}>
             {top.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">No Project usage in this range.</p>
             ) : (
@@ -104,11 +117,12 @@ function ProjectsCard({ report }: { report: UsageReport }) {
                                 >
                                     {row.title}
                                 </span>
-                                <span className="font-semibold tabular-nums">
-                                    {formatUsd(row.costUsd)}
-                                </span>
+                                <UsageCost
+                                    className="font-semibold"
+                                    display={rowCost(report, row.costUsd, row.tokens)}
+                                />
                             </div>
-                            <ShareBar share={peak > 0 ? row.costUsd / peak : 0} />
+                            <ShareBar share={total > 0 ? row.costUsd / total : 0} />
                             <div className="flex justify-between gap-3 text-[11px] text-muted tabular-nums">
                                 <span>
                                     {formatTokens(row.tokens)} tokens ·{' '}
@@ -117,7 +131,7 @@ function ProjectsCard({ report }: { report: UsageReport }) {
                                 <span>
                                     {formatDuration(row.activeMs)}
                                     {row.pullRequestsMerged > 0 &&
-                                        ` · ${row.pullRequestsMerged} merged ${row.pullRequestsMerged === 1 ? 'PR' : 'PRs'}`}
+                                        ` · ${countLabel(row.pullRequestsMerged, 'merged pull request')}`}
                                 </span>
                             </div>
                         </div>
@@ -129,9 +143,12 @@ function ProjectsCard({ report }: { report: UsageReport }) {
 }
 
 function SessionsCard({ report }: { report: UsageReport }) {
-    const rows = report.sessions.slice(0, 15);
+    const rows = report.sessions.slice(0, SESSION_ROWS);
     return (
-        <ReportCard title="Most expensive Sessions">
+        <ReportCard
+            title="Most expensive Sessions"
+            caption={topCaption(rows.length, report.sessions.length)}
+        >
             {rows.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">No Session usage in this range.</p>
             ) : (
@@ -141,7 +158,7 @@ function SessionsCard({ report }: { report: UsageReport }) {
                             <th className={tableHeadClass}>Session</th>
                             <th className={cn(tableHeadClass, 'w-40')}>Project</th>
                             <th className={cn(numericHeadClass, 'w-20')}>Tokens</th>
-                            <th className={cn(numericHeadClass, 'w-20')}>Time</th>
+                            <th className={cn(numericHeadClass, 'w-24')}>Agent time</th>
                             <th className={cn(numericHeadClass, 'w-20')}>Cost</th>
                         </tr>
                     </thead>
@@ -169,7 +186,10 @@ function SessionsCard({ report }: { report: UsageReport }) {
                                         )}
                                         {row.pullRequestsMerged > 0 && (
                                             <span
-                                                aria-label={`${row.pullRequestsMerged} merged pull requests`}
+                                                aria-label={countLabel(
+                                                    row.pullRequestsMerged,
+                                                    'merged pull request',
+                                                )}
                                                 className="flex flex-none items-center gap-0.5 text-[11px] text-merged"
                                             >
                                                 <GitMerge aria-hidden="true" size={12} />
@@ -181,7 +201,9 @@ function SessionsCard({ report }: { report: UsageReport }) {
                                 <td className={cn(cellClass, 'text-muted')}>{row.projectTitle}</td>
                                 <td className={numericCellClass}>{formatTokens(row.tokens)}</td>
                                 <td className={numericCellClass}>{formatDuration(row.activeMs)}</td>
-                                <td className={numericCellClass}>{formatUsd(row.costUsd)}</td>
+                                <td className={numericCellClass}>
+                                    <UsageCost display={rowCost(report, row.costUsd, row.tokens)} />
+                                </td>
                             </tr>
                         ))}
                     </tbody>
@@ -192,15 +214,18 @@ function SessionsCard({ report }: { report: UsageReport }) {
 }
 
 function PullRequestsCard({ report }: { report: UsageReport }) {
-    const { pullRequestsMerged, linesAdded, linesDeleted, costUsd } = report.totals;
+    const { pullRequestsMerged, costUsd } = report.totals;
+    const shown = Math.min(PULL_REQUEST_ROWS, report.pullRequests.length);
+    const captions = [
+        topCaption(shown, report.pullRequests.length),
+        pullRequestsMerged > 0 && costUsd > 0
+            ? `est. ${formatUsd(costUsd / pullRequestsMerged)} per merged pull request`
+            : undefined,
+    ].filter(Boolean);
     return (
         <ReportCard
             title="Merged pull requests"
-            caption={
-                pullRequestsMerged > 0
-                    ? `est. ${formatUsd(costUsd / pullRequestsMerged)} per merged PR`
-                    : undefined
-            }
+            caption={captions.length > 0 ? captions.join(' · ') : undefined}
         >
             {report.pullRequests.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">
@@ -208,7 +233,7 @@ function PullRequestsCard({ report }: { report: UsageReport }) {
                 </p>
             ) : (
                 <ul className="m-0 grid list-none gap-1 p-0">
-                    {report.pullRequests.slice(0, 12).map((row) => (
+                    {report.pullRequests.slice(0, PULL_REQUEST_ROWS).map((row) => (
                         <li key={row.url}>
                             <button
                                 className="grid w-full cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-2 rounded-sm px-1 py-1 text-left text-[12px] hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
@@ -235,12 +260,6 @@ function PullRequestsCard({ report }: { report: UsageReport }) {
                         </li>
                     ))}
                 </ul>
-            )}
-            {pullRequestsMerged > 0 && (
-                <p className="mt-2 mb-0 text-[11px] text-muted tabular-nums">
-                    {pullRequestsMerged} merged · +{formatLineCount(linesAdded)} -
-                    {formatLineCount(linesDeleted)} lines
-                </p>
             )}
         </ReportCard>
     );

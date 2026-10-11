@@ -238,7 +238,8 @@ esac
 
             if (state === 'open') {
                 // The Status panel's merge action stays visible without hovering the row. While its checks are red it
-                // is only a danger-colored glyph, so the title keeps the row's width; the reason is its accessible name.
+                // is only a danger-colored glyph, so the title keeps the row's width; the reason is its tooltip and
+                // accessible description, which leaves the accessible name the plain action.
                 await statusTab.click();
                 const merge = running.page.locator(
                     '[data-tree-item-action="caxri.project-status.mergePullRequest"]',
@@ -246,7 +247,8 @@ esac
                 await expect(merge).toBeVisible();
                 await expect(merge).toHaveText('');
                 await expect(merge).toHaveClass(/text-danger/u);
-                await expect(merge).toHaveAccessibleName('Merge Pull Request: Checks did not pass');
+                await expect(merge).toHaveAccessibleName('Merge Pull Request');
+                await expect(merge).toHaveAccessibleDescription('Checks did not pass');
                 await running.page
                     .locator('[role="tree"]', { has: merge })
                     .screenshot({ path: test.info().outputPath('status-merge-blocked.png') });

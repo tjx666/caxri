@@ -162,16 +162,18 @@ export async function invokeMobileAgentChatRequest(
                 thumbnail: `data:image/jpeg;base64,${uploaded[index * 2 + 1]}`,
             }));
             /**
-             * Paired devices do not see Desktop's message queue, so a message sent during a turn steers it, as it did
-             * before the queue existed, instead of waiting somewhere the sender cannot see.
+             * A message sent during a turn waits in the follow-up queue by default, as Desktop's Enter does; the phone
+             * sees the queue as a read-only preview in its snapshot. `steer` stays available for the phone's explicit
+             * "Steer now" action.
              */
+            const { delivery } = request.params;
             await forward({
                 method: 'agentChat.send',
                 params: {
                     terminalId,
                     text: request.params.text,
                     ...(images.length > 0 && { images }),
-                    delivery: 'steer',
+                    ...(delivery && { delivery }),
                 },
             });
             return null;

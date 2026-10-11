@@ -8,14 +8,11 @@ import { createE2EAgentEnvironment } from '@caxri/system';
 import { z } from 'zod';
 
 import { delegationFixtureSource } from '../../../../scripts/agent-delegation-fixture';
+import type { AcceptanceAgentFixtureId } from './agent-fixture-ids';
+import { acceptanceAgentFixtureIds, acceptanceAgentFixtureProviders } from './agent-fixture-ids';
+import { chatFixtureSource } from './chat-fixtures';
 import { grokAcceptanceSource } from './grok-fixture';
 
-export const acceptanceAgentFixtureIds = [
-    'agent-features-v1',
-    'grok-build-v1',
-    'agent-delegation-v1',
-] as const;
-type AcceptanceAgentFixtureId = (typeof acceptanceAgentFixtureIds)[number];
 const AGENT_FEATURES_AVAILABILITY = 'provider-availability.json';
 const agentFeaturesAvailabilitySchema = z.strictObject({
     fixtureId: z.literal('agent-features-v1'),
@@ -28,12 +25,6 @@ const agentFeaturesAvailabilityUpdateSchema = z.strictObject({
     provider: z.literal('codex'),
     userDataDir: z.string().min(1),
 });
-
-export const acceptanceAgentFixtureProviders = {
-    'agent-features-v1': ['claude', 'codex'],
-    'grok-build-v1': ['grok'],
-    'agent-delegation-v1': ['claude', 'codex', 'grok'],
-} as const satisfies Record<AcceptanceAgentFixtureId, readonly AgentProvider[]>;
 
 export interface PreparedAcceptanceAgentFixture<Provider extends AgentProvider = never> {
     environment: NodeJS.ProcessEnv;
@@ -604,7 +595,9 @@ export async function prepareAcceptanceAgentFixture(
                         ? grokAcceptanceSource()
                         : options.fixtureId === 'agent-delegation-v1'
                           ? delegationFixtureSource(provider)
-                          : sharedSource(provider, options.isPublicFrame),
+                          : options.fixtureId === 'agent-chat-v1'
+                            ? chatFixtureSource(provider, root)
+                            : sharedSource(provider, options.isPublicFrame),
                     'utf8',
                 );
                 await chmod(executable, 0o700);

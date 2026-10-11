@@ -44,6 +44,14 @@ const MOBILE_AGENT_CHAT_SEND_MAX_BYTES = 16 * 1_024;
  */
 export const MOBILE_AGENT_CHAT_IMAGE_CHUNK_LENGTH = 45_000;
 
+/**
+ * The phone shows the follow-up queue as a short read-only list above its composer, so it receives at most this many
+ * queued messages, each cut to a one-glance preview. The whole queue (up to `MAX_AGENT_CHAT_QUEUE` messages of
+ * `MAX_AGENT_CHAT_QUEUE_TEXT_LENGTH` text) could exceed a frame on its own; these bounds keep it to a few KiB.
+ */
+export const MOBILE_AGENT_CHAT_QUEUE_MAX_ITEMS = 10;
+export const MOBILE_AGENT_CHAT_QUEUE_PREVIEW_LENGTH = 200;
+
 const keepTail = (text: string, limit = MOBILE_AGENT_CHAT_FIELD_MAX_LENGTH): string =>
     text.length <= limit ? text : `${MOBILE_AGENT_CHAT_CLIP_MARKER}${text.slice(-limit)}`;
 
@@ -155,16 +163,41 @@ export function windowAgentChatSnapshotForMobile(full: AgentChatSnapshot): Agent
     return windowed;
 }
 
+const previewText = (text: string): string =>
+    text.length <= MOBILE_AGENT_CHAT_QUEUE_PREVIEW_LENGTH
+        ? text
+        : `${text.slice(0, MOBILE_AGENT_CHAT_QUEUE_PREVIEW_LENGTH)}${MOBILE_AGENT_CHAT_CLIP_MARKER}`;
+
+type AgentChatQueue = NonNullable<AgentChatSnapshot['queue']>;
+
 /**
- * Background tasks and the follow-up queue are Desktop surfaces the phone does not render yet; a queue alone may hold
- * far more text than one frame, so neither travels to the phone.
+ * The phone's copy of the follow-up queue: the first queued messages, in send order, each with a text preview and its
+ * image count. Deterministic, so the snapshot window and later `state` patches agree.
+ */
+export function clipAgentChatQueueForMobile(queue: AgentChatQueue): AgentChatQueue {
+    return queue.slice(0, MOBILE_AGENT_CHAT_QUEUE_MAX_ITEMS).map((message) => ({
+        ...message,
+        text: previewText(message.text),
+        ...(message.command && {
+            command: {
+                name: message.command.name,
+                ...(message.command.arguments !== undefined && {
+                    arguments: previewText(message.command.arguments),
+                }),
+            },
+        }),
+    }));
+}
+
+/**
+ * Background tasks are a Desktop surface the phone does not render yet, so they stay on the computer. The follow-up
+ * queue travels as a bounded preview (see {@link clipAgentChatQueueForMobile}) with its paused flag.
  */
 function withoutDesktopOnlyState(snapshot: AgentChatSnapshot): AgentChatSnapshot {
-    if (!snapshot.tasks && !snapshot.queue && snapshot.queuePaused === undefined) return snapshot;
+    if (!snapshot.tasks && !snapshot.queue) return snapshot;
     const rest = { ...snapshot };
     delete rest.tasks;
-    delete rest.queue;
-    delete rest.queuePaused;
+    if (rest.queue) rest.queue = clipAgentChatQueueForMobile(rest.queue);
     return rest;
 }
 
@@ -176,8 +209,7 @@ function clipOperation(operation: AgentChatPatchOperation): AgentChatPatchOperat
         case 'state': {
             const state = { ...operation.state };
             delete state.tasks;
-            delete state.queue;
-            delete state.queuePaused;
+            if (state.queue) state.queue = clipAgentChatQueueForMobile(state.queue);
             return { op: 'state', state };
         }
         default: {
@@ -229,6 +261,7 @@ export const mobileAgentChatMethods = {
                         new TextEncoder().encode(text).length <= MOBILE_AGENT_CHAT_SEND_MAX_BYTES,
                     'Mobile Chat messages must be at most 16 KiB',
                 ),
+                delivery: agentChatMethods['agentChat.send'].params.shape.delivery,
                 attachments: z
                     .array(
                         z.strictObject({

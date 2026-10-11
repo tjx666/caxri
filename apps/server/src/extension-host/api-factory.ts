@@ -3,8 +3,9 @@ import { randomUUID } from 'node:crypto';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 
-import type { TreeItemDto } from '@caxri/protocol';
+import type { ExtensionCommandResult, TreeItemDto } from '@caxri/protocol';
 import {
+    extensionCommandResult,
     MAX_VIEW_TREE_DEPTH,
     MAX_VIEW_TREE_HANDLES,
     MAX_VIEW_TREE_ITEMS,
@@ -14,7 +15,6 @@ import { disposeAll } from '@caxri/utils';
 import type {
     CancellationToken,
     CaxriApi,
-    DisposableLike,
     ExtensionContext,
     ProjectStatusRequestOptions,
     TreeDataProvider,
@@ -47,6 +47,12 @@ import {
     settleApiReply as settleServerApiReply,
 } from './server-api-request';
 import { serializeTreeItem } from './tree-item-dto';
+import type { ProviderRegistration } from './tree-provider-handles';
+import {
+    collectDescendantHandles,
+    retireTreeHandles,
+    stableTreeHandle,
+} from './tree-provider-handles';
 import type { TreeRefreshBatch } from './tree-refresh-coalescing';
 import { mergeTreeRefresh } from './tree-refresh-coalescing';
 import { currentViewEventContext, withViewEventContext } from './view-event-context';
@@ -63,22 +69,6 @@ interface ApiBinding {
     notifyGit(context: ExtensionViewEventScope): void;
     notifyProjectStatus(context: ExtensionViewEventScope): void;
     runtime: typeof extensionApiRuntime;
-}
-
-interface ProviderRegistration {
-    extensionId: string;
-    generation: number;
-    provider: TreeDataProvider<unknown>;
-    subscription?: DisposableLike;
-    elements: Map<string, unknown>;
-    handles: WeakMap<object, string>;
-    depths: Map<string, number>;
-    children: Map<string, Set<string>>;
-    parents: Map<string, string>;
-    ids: Map<string, string>;
-    itemIds: Map<string, string>;
-    nextHandle: number;
-    refreshEpoch: number;
 }
 
 interface ExtensionInstance {
@@ -485,41 +475,6 @@ export async function activateExtension(extensionId: string, generation: number)
     await runtime.activation;
 }
 
-function stableTreeHandle(id: string): string {
-    return `id:${id}`;
-}
-
-function collectDescendantHandles(
-    provider: ProviderRegistration,
-    parentHandle: string,
-): Set<string> {
-    const descendants = new Set<string>();
-    const visit = (parent: string): void => {
-        const childHandles = provider.children.get(parent) ?? [];
-        for (const child of childHandles) {
-            if (descendants.has(child)) continue;
-            descendants.add(child);
-            visit(child);
-        }
-    };
-    visit(parentHandle);
-    return descendants;
-}
-
-function retireTreeHandles(provider: ProviderRegistration, handles: ReadonlySet<string>): void {
-    for (const handle of handles) {
-        const element = provider.elements.get(handle);
-        if (typeof element === 'object' && element !== null) provider.handles.delete(element);
-        const id = provider.itemIds.get(handle);
-        if (id && provider.ids.get(id) === handle) provider.ids.delete(id);
-        provider.elements.delete(handle);
-        provider.depths.delete(handle);
-        provider.parents.delete(handle);
-        provider.itemIds.delete(handle);
-        provider.children.delete(handle);
-    }
-}
-
 function isRequestCancelled(cancellation: CancellationTokenSource): boolean {
     return cancellation.token.isCancellationRequested;
 }
@@ -699,7 +654,7 @@ export async function executeExtensionCommand(parameters: {
     commandId: string;
     arguments: unknown[];
     context: ExtensionViewEventScope;
-}): Promise<{ executed: true }> {
+}): Promise<ExtensionCommandResult> {
     await activateExtension(parameters.extensionId, parameters.generation);
     const runtime = assertCurrent(parameters.extensionId, parameters.generation);
     const command = commands.get(parameters.commandId);
@@ -713,13 +668,13 @@ export async function executeExtensionCommand(parameters: {
         });
     // Commands have no host cancellation token, so only instance/registration turnover or a host-rejected API call can
     // corroborate a non-fault code; a re-thrown host-minted error loses its origin here like at a provider.
-    await runExtensionCode(
+    const value = await runExtensionCode(
         () => withViewEventContext(parameters.context, () => command.run(...parameters.arguments)),
         () => ({ cancelled: false, generationExpired: !isInstanceCurrent(runtime) }),
         { message: 'Extension command failed', code: 'ACTIVATION_FAILED' },
     );
     assertInstanceCurrent(runtime);
-    return { executed: true };
+    return extensionCommandResult(value);
 }
 
 export function cancelTreeRequest(requestId: string): { cancelled: boolean } {

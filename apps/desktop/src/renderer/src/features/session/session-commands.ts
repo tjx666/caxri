@@ -12,8 +12,7 @@ import { copyFilePath } from '../../lib/copy-file-path';
 import { openExternalUrl } from '../../lib/external-link';
 import { caxriQueryKey, queryClient } from '../../queries/client';
 import { removeSessionQueries } from '../../queries/invalidation';
-import { useChromeLayoutStore } from '../../stores/chrome-layout';
-import { requestSessionRename, useDialogStore } from '../../stores/dialogs';
+import { useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
@@ -27,6 +26,7 @@ import {
     settlePendingSessionTitle,
 } from '../../stores/workbench-session-titles';
 import { beginRendererPerformanceRequest } from '../renderer-performance/controller';
+import { requestPinnedSessionReveal } from './pinned-session-reveal';
 import { activeSessionsInSidebarOrder } from './session-activity-order';
 import type { PendingSessionMruSelection } from './session-mru-switcher-state';
 import {
@@ -268,7 +268,9 @@ export function archiveSelectedSession(): void {
 
 /**
  * Pins or unpins one Session. No toast: unlike archiving, the result is a row appearing or disappearing at the top of
- * the Primary Side Bar, which the user is looking at and can reverse with the same control they just used.
+ * the Primary Side Bar, which the user is looking at and can reverse with the same control they just used. A pin also
+ * asks the sidebar to reveal the row and announce it (`requestPinnedSessionReveal`), because the new row joins the end
+ * of the Pinned order and can land below the group's window, where nothing on screen would show it happened.
  */
 export function setSessionPinned(sessionId: string, shouldPin: boolean): void {
     // Fire-and-forget: `tryCommand` funnels its own failures into a toast.
@@ -277,20 +279,9 @@ export function setSessionPinned(sessionId: string, shouldPin: boolean): void {
         shouldPin ? 'Pin Session failed' : 'Unpin Session failed',
         () => caxri.request('session.setPinned', { sessionId, pinned: shouldPin }),
         { refresh: refreshWorkbench },
-    );
-}
-
-/**
- * Puts the selected Session's sidebar row into rename mode. The rename editor _is_ that row, so a hidden Primary Side
- * Bar is revealed first rather than letting the command type into a surface nobody can see; the same reveal
- * `beginSessionCreation` performs before opening its anchored menu.
- */
-export function renameSelectedSession(): void {
-    const session = getSelectedSession();
-    if (!session) return;
-    if (!useChromeLayoutStore.getState().primarySidebarVisible)
-        useChromeLayoutStore.getState().setPrimarySidebarVisible(true);
-    requestSessionRename(session.id);
+    ).then((pinned) => {
+        if (shouldPin && pinned) requestPinnedSessionReveal(sessionId);
+    });
 }
 
 /**

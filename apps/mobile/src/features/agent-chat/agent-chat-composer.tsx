@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 
 import { ArrowUp, Paperclip, Square } from 'lucide-react-native';
@@ -9,7 +9,14 @@ import { ImageSourceSheet } from '../sessions/components/image-source-sheet';
 import { SessionComposerAttachments } from '../sessions/components/session-composer-extras';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
 import { useImageAttachments } from '../sessions/hooks/use-image-attachments';
-import { agentChatDisabledReason } from './agent-chat-model';
+import {
+    agentChatComposerAvailability,
+    agentChatComposerButton,
+    agentChatComposerSubmission,
+    agentChatDisabledReason,
+    isAgentChatStopping,
+    sentenceStartProvider,
+} from './agent-chat-model';
 import { AgentChatModelButton } from './agent-chat-model-sheet';
 import type { AgentChatController } from './use-agent-chat';
 
@@ -21,8 +28,11 @@ const MOBILE_CHAT_MAX_IMAGES = 4;
 
 /**
  * Runs the composer's one action (send, or Stop on an empty draft during a turn) and keeps its busy and error state.
+ * Stop stays pending, keyed by the turn it stopped, until that turn ends, like the Desktop composer and the Terminal
+ * composer's "Stopping Agent…" state; the interrupt request returning only means the provider was asked.
  */
 const useComposerAction = ({
+    activeTurnId,
     chat,
     draft,
     images,
@@ -30,6 +40,7 @@ const useComposerAction = ({
     onDraftChange,
     provider,
 }: {
+    activeTurnId: string | undefined;
     chat: AgentChatController;
     draft: string;
     images: ReturnType<typeof useImageAttachments>;
@@ -37,45 +48,59 @@ const useComposerAction = ({
     onDraftChange: (draft: string) => void;
     provider: string;
 }) => {
-    const [isBusy, setBusy] = useState(false);
+    const [isSending, setSending] = useState(false);
+    const [stoppingTurnId, setStoppingTurnId] = useState<string>();
     const [error, setError] = useState<string | null>(null);
-    const run = async (): Promise<void> => {
-        setBusy(true);
+    const isStopping = isAgentChatStopping(stoppingTurnId, activeTurnId);
+    const run = async (delivery?: 'steer'): Promise<void> => {
         setError(null);
-        try {
-            if (isStopAction) await chat.interrupt();
-            else {
-                await chat.send(draft.trim(), images.readyChatImages);
-                onDraftChange('');
-                images.clear();
+        if (isStopAction) {
+            if (!activeTurnId || isStopping) return;
+            setStoppingTurnId(activeTurnId);
+            try {
+                await chat.interrupt();
+            } catch {
+                setStoppingTurnId(undefined);
+                setError(`${sentenceStartProvider(provider)} could not be stopped. Try again.`);
             }
+            return;
+        }
+        setSending(true);
+        try {
+            await chat.send(draft.trim(), images.readyChatImages, delivery);
+            onDraftChange('');
+            images.clear();
         } catch {
-            setError(
-                isStopAction
-                    ? `${provider} could not be stopped. Try again.`
-                    : 'Your message was not sent. Try again.',
-            );
+            setError('Your message was not sent. Try again.');
         } finally {
-            setBusy(false);
+            setSending(false);
         }
     };
-    return { error, isBusy, run };
+    return { error, isSending, isStopping, run };
 };
 
-const composerAction = (isStopAction: boolean, provider: string, theme: MobileTheme) =>
-    isStopAction
-        ? {
-              Icon: Square,
-              color: theme.danger,
-              label: `Stop ${provider}`,
-              testID: 'agent-chat-composer-stop',
-          }
-        : {
-              Icon: ArrowUp,
-              color: theme.primary,
-              label: 'Send message',
-              testID: 'agent-chat-composer-send',
-          };
+/**
+ * Focuses the input once when the Session asks for it (a notification reply), as the Terminal composer does.
+ */
+const useFocusRequest = ({
+    focusComposer,
+    isEditable,
+    isVisible,
+    onComposerFocused,
+}: {
+    focusComposer?: boolean;
+    isEditable: boolean;
+    isVisible: boolean;
+    onComposerFocused?: () => void;
+}) => {
+    const inputReference = useRef<TextInput>(null);
+    useEffect(() => {
+        if (!focusComposer || !isVisible || !isEditable || !inputReference.current) return;
+        inputReference.current.focus();
+        if (inputReference.current.isFocused()) onComposerFocused?.();
+    }, [focusComposer, isEditable, isVisible, onComposerFocused]);
+    return inputReference;
+};
 
 const AttachButton = ({
     canAdd,
@@ -104,28 +129,104 @@ const AttachButton = ({
 );
 
 /**
- * Why the composer is disabled, and the last send or stop failure.
+ * The composer's one button: Send (or Queue during a turn), or Stop on an empty draft during a turn. Holding it, or the
+ * screen reader's long-press action, steers the running turn when there is a draft to steer with.
  */
-const ComposerNotes = ({
-    disabledReason,
-    error,
+const AgentChatComposerButton = ({
+    canSteer,
+    canSubmit,
+    isBusy,
+    isRunning,
+    isStopAction,
+    isStopping,
+    onPress,
+    onSteer,
+    provider,
     theme,
 }: {
-    disabledReason: string | undefined;
+    canSteer: boolean;
+    canSubmit: boolean;
+    isBusy: boolean;
+    isRunning: boolean;
+    isStopAction: boolean;
+    isStopping: boolean;
+    onPress: () => Promise<void>;
+    onSteer: () => Promise<void>;
+    provider: string;
+    theme: MobileTheme;
+}) => {
+    const action = agentChatComposerButton({ isRunning, isStopAction, isStopping, provider });
+    const Icon = action.kind === 'stop' ? Square : ArrowUp;
+    return (
+        <Pressable
+            accessibilityActions={canSteer ? [{ name: 'longpress', label: 'Steer now' }] : []}
+            accessibilityHint={
+                canSteer ? `Hold to steer ${provider}'s current turn now.` : undefined
+            }
+            accessibilityLabel={action.label}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canSubmit, busy: isBusy }}
+            disabled={!canSubmit}
+            onAccessibilityAction={({ nativeEvent }) => {
+                // eslint-disable-next-line no-void -- The composer reports a failed send itself.
+                if (nativeEvent.actionName === 'longpress') void onSteer();
+            }}
+            onLongPress={canSteer ? onSteer : undefined}
+            onPress={onPress}
+            style={[
+                styles.sendButton,
+                {
+                    backgroundColor: action.kind === 'stop' ? theme.danger : theme.primary,
+                    opacity: canSubmit || isBusy ? 1 : 0.38,
+                },
+            ]}
+            testID={action.testID}
+        >
+            {isBusy ? (
+                <ActivityIndicator color={theme.primaryForeground} />
+            ) : (
+                <Icon color={theme.primaryForeground} size={20} strokeWidth={2.5} />
+            )}
+        </Pressable>
+    );
+};
+
+/**
+ * The lines under the input: why the composer is disabled, a pending Stop, and a failed send or Stop.
+ */
+const AgentChatComposerStatus = ({
+    error,
+    isStopping,
+    provider,
+    reason,
+    theme,
+}: {
     error: string | null;
+    isStopping: boolean;
+    provider: string;
+    reason: string | undefined;
     theme: MobileTheme;
 }) => (
     <>
         {/* `reason` flexes along the meta row; placed directly in the column block it collapses to zero height. */}
-        {disabledReason ? (
+        {reason ? (
             <View style={styles.composerMeta}>
                 <Text
                     style={[styles.reason, { color: theme.muted }]}
                     testID="agent-chat-composer-reason"
                 >
-                    {disabledReason}
+                    {reason}
                 </Text>
             </View>
+        ) : null}
+        {isStopping ? (
+            <Text
+                accessibilityLiveRegion="polite"
+                style={[styles.sendState, { color: theme.muted }]}
+                testID="agent-chat-composer-stopping"
+            >
+                {`Stopping ${provider}…`}
+            </Text>
         ) : null}
         {error ? (
             <Text
@@ -141,14 +242,18 @@ const ComposerNotes = ({
 
 /**
  * Sends a message to a Chat. While a turn runs, a control device gets Stop in place of Send when the draft is empty,
- * matching the Desktop composer; a message typed during a turn steers it.
+ * matching the Desktop composer. A message sent during a turn joins the follow-up queue, as Desktop's Enter does;
+ * holding Send steers the running turn instead, the phone's stand-in for Desktop's ⌘Enter.
  */
 export const AgentChatComposer = ({
     chat,
     deviceRole,
     draft,
+    focusComposer,
     isConnected,
     isHandedOff,
+    isVisible,
+    onComposerFocused,
     onDraftChange,
     provider,
     sessionId,
@@ -158,11 +263,14 @@ export const AgentChatComposer = ({
     chat: AgentChatController;
     deviceRole: 'view' | 'reply' | 'control' | null;
     draft: string;
+    focusComposer?: boolean;
     isConnected: boolean;
     /**
-     * A detached Chat refuses input until its Session resumes, so the composer says so instead of failing a send.
+     * A detached Chat refuses input until its Session resumes; its banner says so and the composer only disables.
      */
     isHandedOff: boolean;
+    isVisible: boolean;
+    onComposerFocused?: () => void;
     onDraftChange: (draft: string) => void;
     provider: string;
     /**
@@ -178,11 +286,14 @@ export const AgentChatComposer = ({
     });
     const [isChoosingImage, setChoosingImage] = useState(false);
     const access = { deviceRole, isConnected, isHandedOff, snapshot: chat.snapshot };
-    const disabledReason = agentChatDisabledReason(access);
-    const isRunning = Boolean(chat.snapshot?.activeTurnId);
+    const availability = agentChatComposerAvailability(access);
+    const activeTurnId = chat.snapshot?.activeTurnId;
+    const isRunning = activeTurnId !== undefined;
     const hasDraft = draft.trim().length > 0 || images.attachments.length > 0;
-    const isStopAction = isRunning && deviceRole === 'control' && !hasDraft;
-    const { error, isBusy, run } = useComposerAction({
+    const canStop = isRunning && deviceRole === 'control';
+    const isStopAction = canStop && !hasDraft;
+    const { error, isSending, isStopping, run } = useComposerAction({
+        activeTurnId,
         chat,
         draft,
         images,
@@ -190,14 +301,28 @@ export const AgentChatComposer = ({
         onDraftChange,
         provider,
     });
-    const isEditable = !isBusy && disabledReason === undefined;
-    // A message waits for its images to finish uploading, as the Terminal composer does.
-    const canSubmit = isEditable && (isStopAction || (hasDraft && !images.hasUnsentAttachment));
-    const canAttach = supportsImages && (deviceRole === 'reply' || deviceRole === 'control');
+    const isEditable = !isSending && availability.isEnabled;
+    const inputReference = useFocusRequest({
+        focusComposer,
+        isEditable,
+        isVisible,
+        onComposerFocused,
+    });
+    const { canSteer, canSubmit } = agentChatComposerSubmission({
+        // A message waits for its images to finish uploading, as the Terminal composer does.
+        hasDraft: hasDraft && !images.hasUnsentAttachment,
+        isEditable,
+        isRunning,
+        isStopAction,
+        isStopping,
+    });
     const submit = async (): Promise<void> => {
         if (canSubmit) await run();
     };
-    const action = composerAction(isStopAction, provider, theme);
+    const steer = async (): Promise<void> => {
+        if (canSteer) await run('steer');
+    };
+    const canAttach = supportsImages && (deviceRole === 'reply' || deviceRole === 'control');
     return (
         <View
             style={[styles.composerBlock, { borderColor: theme.border }]}
@@ -219,14 +344,18 @@ export const AgentChatComposer = ({
                     />
                 ) : null}
                 <TextInput
-                    accessibilityHint="Return inserts a new line. Use Send message to submit."
+                    accessibilityHint={`Return inserts a new line. Use ${isRunning ? 'Queue' : 'Send'} message to submit.`}
                     accessibilityLabel={`Message ${provider}`}
                     editable={isEditable}
                     multiline
                     numberOfLines={6}
                     onChangeText={onDraftChange}
+                    onFocus={() => {
+                        if (focusComposer) onComposerFocused?.();
+                    }}
+                    ref={inputReference}
                     placeholder={
-                        isRunning ? `Steer ${provider}'s current turn` : `Message ${provider}`
+                        isRunning ? 'Queue a follow-up (hold Send to steer)' : `Message ${provider}`
                     }
                     placeholderTextColor={theme.muted}
                     scrollEnabled
@@ -243,29 +372,26 @@ export const AgentChatComposer = ({
                     textAlignVertical="top"
                     value={draft}
                 />
-                <Pressable
-                    accessibilityLabel={action.label}
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: !canSubmit, busy: isBusy }}
-                    disabled={!canSubmit}
+                <AgentChatComposerButton
+                    canSteer={canSteer}
+                    canSubmit={canSubmit}
+                    isBusy={isSending || isStopping}
+                    isRunning={isRunning}
+                    isStopAction={isStopAction}
+                    isStopping={isStopping}
                     onPress={submit}
-                    style={[
-                        styles.sendButton,
-                        {
-                            backgroundColor: action.color,
-                            opacity: canSubmit ? 1 : 0.38,
-                        },
-                    ]}
-                    testID={action.testID}
-                >
-                    {isBusy ? (
-                        <ActivityIndicator color={theme.primaryForeground} />
-                    ) : (
-                        <action.Icon color={theme.primaryForeground} size={20} strokeWidth={2.5} />
-                    )}
-                </Pressable>
+                    onSteer={steer}
+                    provider={provider}
+                    theme={theme}
+                />
             </View>
-            <ComposerNotes disabledReason={disabledReason} error={error} theme={theme} />
+            <AgentChatComposerStatus
+                error={error}
+                isStopping={isStopping}
+                provider={provider}
+                reason={availability.reason}
+                theme={theme}
+            />
             {isChoosingImage ? (
                 <ImageSourceSheet
                     onClose={() => setChoosingImage(false)}

@@ -50,7 +50,7 @@ test('an expired Claude Code Chat continues in a new Chat that reads its transcr
             Date.now = () => realNow() + 61 * 60_000;
         });
         await message.fill('also add a test');
-        await expect(chat.getByText(/^Cache expired · next message rewrites /u)).toBeVisible();
+        await expect(chat.getByText(/^Idle .* · next reply re-reads the whole conversation/u)).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-cache-expired.png') });
 
         await chat.getByRole('button', { name: 'Continue in new Chat' }).click();

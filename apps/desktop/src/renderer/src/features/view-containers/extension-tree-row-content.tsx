@@ -79,6 +79,7 @@ export function ExtensionTreeRowContent({
             <ExtensionTreeRowActions
                 actions={row.item.actions}
                 descriptionId={actionsDescriptionId}
+                isCollapsedBranch={isCollapsible && !isExpanded}
                 rowElement={rowElement}
             />
         </>

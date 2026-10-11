@@ -39,6 +39,15 @@ export const sessionDetailStyles = StyleSheet.create({
         paddingHorizontal: 12,
     },
     tabText: { fontSize: 14, fontWeight: '600' },
+    tabAttentionDot: {
+        borderRadius: 5,
+        borderWidth: 1.5,
+        height: 10,
+        position: 'absolute',
+        right: -4,
+        top: -3,
+        width: 10,
+    },
     tabBadge: {
         borderRadius: 8,
         fontSize: 12,

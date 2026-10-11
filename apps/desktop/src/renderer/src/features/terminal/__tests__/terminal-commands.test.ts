@@ -87,7 +87,7 @@ function terminalFixture(overrides: Partial<TerminalRecord> = {}): TerminalRecor
 }
 
 function bootstrapWith(terminal: TerminalRecord): BootstrapState {
-    return { terminals: [terminal] } as unknown as BootstrapState;
+    return { terminals: [terminal], sessions: [] } as unknown as BootstrapState;
 }
 
 /**
@@ -287,7 +287,7 @@ describe('startNewAgentSession', () => {
 
         expect(mocks.pushToast).toHaveBeenCalledWith(
             'info',
-            'The active Terminal has no Agent session to replace.',
+            'The active Terminal has no Agent Session to replace.',
         );
         expect(mocks.tryCommand).not.toHaveBeenCalled();
         expect(mocks.caxriRequest).not.toHaveBeenCalled();
@@ -302,7 +302,7 @@ describe('startNewAgentSession', () => {
 
         expect(mocks.pushToast).toHaveBeenCalledWith(
             'info',
-            'The active Terminal has no Agent session to replace.',
+            'The active Terminal has no Agent Session to replace.',
         );
         expect(mocks.caxriRequest).not.toHaveBeenCalled();
     });
@@ -323,7 +323,7 @@ describe('startNewAgentSession', () => {
 
         expect(mocks.pushToast).not.toHaveBeenCalled();
         expect(mocks.tryCommand).toHaveBeenCalledWith(
-            'Starting a new Agent session failed',
+            'Starting a new Agent Session failed',
             expect.any(Function),
             { refresh: mocks.refreshWorkbench },
         );

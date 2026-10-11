@@ -46,7 +46,10 @@ test('a Codex Chat switches its model and effort and shows the context it uses',
         await page.screenshot({ path: testInfo.outputPath('codex-chat-model-menu.png') });
         await menu.getByRole('menuitemradio', { name: 'High' }).click();
         await expect(picker).toHaveAccessibleName('Model: Fake Codex, High effort');
-        // The menu stays open, so a model switch shows the new model's efforts in place.
+        // Choosing an effort completes the selection and closes the menu.
+        await expect(menu).toBeHidden();
+        // A model choice keeps the menu open, so the new model's efforts show in place.
+        await picker.click();
         await menu.getByRole('menuitemradio', { name: /Fake Codex Mini/ }).click();
         await expect(picker).toHaveAccessibleName('Model: Fake Codex Mini, Low effort');
         await expect(menu.getByRole('menuitemradio')).toHaveText([
@@ -67,7 +70,7 @@ test('a Codex Chat switches its model and effort and shows the context it uses',
 
         await message.fill('hello');
         await message.press('Enter');
-        await expect(chat.getByRole('img', { name: '1% of context used' })).toBeVisible();
+        await expect(chat.getByRole('meter', { name: /^1% of context used, /u })).toBeVisible();
 
         await message.fill('table');
         await message.press('Enter');

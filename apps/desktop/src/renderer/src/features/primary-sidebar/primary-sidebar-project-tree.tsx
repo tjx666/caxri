@@ -17,6 +17,7 @@ import {
 import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
 import { usePinnedCollapse } from './hooks/use-pinned-collapse';
 import { usePinnedSessionGroup } from './hooks/use-pinned-session-group';
+import { usePinnedSessionReveal } from './hooks/use-pinned-session-reveal';
 import { usePrimarySidebarTree } from './hooks/use-primary-sidebar-tree';
 import { useProjectCollapse } from './hooks/use-project-collapse';
 import { useProjectOrder } from './hooks/use-project-order';
@@ -98,6 +99,11 @@ export function PrimarySidebarProjectTree() {
         projects: allProjects ?? NO_RECORDS,
         selectedSessionId,
         sessions,
+    });
+    const pinAnnouncement = usePinnedSessionReveal({
+        expandPinned: pinnedCollapse.expand,
+        pinnedSessions: pinnedGroup.sessions,
+        revealSession: pinnedGroup.revealSession,
     });
 
     /**
@@ -309,6 +315,10 @@ export function PrimarySidebarProjectTree() {
                  */}
                 <div className="pinned-order-announcement sr-only" aria-live="polite">
                     {pinnedGroup.sessionOrder.announcement}
+                </div>
+                {/* A pin is a separate event from a reorder, so it gets its own region for the same reason. */}
+                <div className="pinned-session-announcement sr-only" aria-live="polite">
+                    {pinAnnouncement}
                 </div>
             </div>
         </div>

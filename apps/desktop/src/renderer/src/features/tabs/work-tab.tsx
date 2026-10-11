@@ -8,7 +8,7 @@ import type {
 } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import { Bot, ChartColumn, Gauge, SlidersHorizontal, SquareTerminal, X } from 'lucide-react';
+import { Bot, ChartColumn, Gauge, Settings, SquareTerminal, X } from 'lucide-react';
 import { useIsPresent } from 'motion/react';
 import * as m from 'motion/react-m';
 
@@ -23,9 +23,10 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import type { ContextMenuEntries } from '../../lib/context-menu';
 import type { GitDecoration } from '../../lib/git-decorations';
-import { gitDecorationClassName, gitDecorationDescription } from '../../lib/git-decorations';
+import { gitDecorationClassName } from '../../lib/git-decorations';
 import { motionDurationMs } from '../../lib/motion';
 import { cn } from '../../lib/utilities';
+import { workTabDescription } from './work-tab-accessibility';
 
 /**
  * Wraps the tab in the shared `Tooltip` only when there is an untruncated title to reveal, so an Editor tab keeps its
@@ -72,6 +73,15 @@ interface WorkTabProperties {
      */
     closable?: boolean;
     closeLabel: string;
+    /**
+     * Muted text after the label that tells same-named tabs apart, such as the parent directory of an external file
+     * whose filename repeats (VS Code's tab description). It is also spoken through the tab's accessible description.
+     */
+    detail?: string;
+    /**
+     * A fact spoken through the tab's accessible description but not drawn, such as "Outside every Project".
+     */
+    accessibleDetail?: string;
     dirty?: boolean;
     fileIconName?: string;
     /**
@@ -192,10 +202,11 @@ function useWorkTabMotion(shouldFill: boolean) {
 }
 
 /**
- * Built-in glyphs for tabs that show neither a file nor an Agent.
+ * Built-in glyphs for tabs that show neither a file nor an Agent. Settings takes the gear: the sliders glyph is the
+ * Settings page's own "UI" view toggle, and one glyph meaning two things on one screen read as a duplicate.
  */
 const WORK_TAB_GLYPHS = {
-    'settings': SlidersHorizontal,
+    'settings': Settings,
     'usage': ChartColumn,
     'agent-task': Bot,
     'shell-task': SquareTerminal,
@@ -225,6 +236,7 @@ function WorkTabIcon({
  * that label. Split out of {@link WorkTabSelect}, which is left owning the button's tooltip and aria wiring.
  */
 function WorkTabLabel({
+    detail,
     fileIconName,
     gitDecoration,
     icon,
@@ -235,7 +247,7 @@ function WorkTabLabel({
     preview,
 }: Pick<
     WorkTabProperties,
-    'fileIconName' | 'gitDecoration' | 'icon' | 'label' | 'labelTooltip' | 'preview'
+    'detail' | 'fileIconName' | 'gitDecoration' | 'icon' | 'label' | 'labelTooltip' | 'preview'
 > & {
     /**
      * Whether `labelTooltip` holds information the displayed `label` dropped, and so must be spoken in its place.
@@ -272,6 +284,15 @@ function WorkTabLabel({
                 {label}
             </span>
             {isLabelAbbreviated && <span className="sr-only">{labelTooltip}</span>}
+            {detail && (
+                // Spoken through the tab's description instead, so the accessible name stays the bare filename.
+                <span
+                    aria-hidden="true"
+                    className="tab-detail max-w-40 min-w-0 shrink overflow-hidden text-[11px] text-ellipsis whitespace-nowrap text-muted"
+                >
+                    {detail}
+                </span>
+            )}
             {gitDecoration && (
                 <GitFileStatusLetter className="text-[10px]" decoration={gitDecoration} />
             )}
@@ -343,6 +364,7 @@ function WorkTabSelect({
     accessory,
     active,
     description,
+    detail,
     tabDescriptionId,
     fileIconName,
     gitDecoration,
@@ -359,6 +381,7 @@ function WorkTabSelect({
     WorkTabProperties,
     | 'accessory'
     | 'active'
+    | 'detail'
     | 'fileIconName'
     | 'gitDecoration'
     | 'icon'
@@ -371,7 +394,8 @@ function WorkTabSelect({
     | 'tabId'
 > & {
     /**
-     * Everything the tab shows but its name cannot say: its unsaved state and its Git state. Empty when neither.
+     * Everything the tab shows but its name cannot say: its location detail, unsaved state, and Git state. Empty when
+     * none apply.
      */
     description: string;
     tabDescriptionId: string;
@@ -411,6 +435,7 @@ function WorkTabSelect({
                 onKeyDown={onKeyDown}
             >
                 <WorkTabLabel
+                    detail={detail}
                     fileIconName={fileIconName}
                     gitDecoration={gitDecoration}
                     icon={icon}
@@ -431,6 +456,8 @@ export function WorkTab({
     accessory,
     closable = true,
     closeLabel,
+    detail,
+    accessibleDetail,
     dirty,
     fileIconName,
     fill,
@@ -458,18 +485,8 @@ export function WorkTab({
     // out pointer/keyboard interaction while the exit animation plays out.
     const isVisuallyActive = active && isPresent;
     const tabDescriptionId = `${tabId}-description`;
-    /*
-     * Rendered outside the `role="tab"` button below, so the tab's accessible name stays the bare filename and only the
-     * description carries these. "Unsaved changes" and the Git state are genuinely different facts: a file can be
-     * committed-clean with an unsaved buffer, or modified on disk with nothing pending, so both are spoken when both
-     * hold.
-     */
-    const description = [
-        gitDecoration ? gitDecorationDescription(gitDecoration.kind) : undefined,
-        dirty ? 'Unsaved changes.' : undefined,
-    ]
-        .filter(Boolean)
-        .join(' ');
+    // Rendered outside the `role="tab"` button below, so the tab's accessible name stays the bare filename.
+    const description = workTabDescription({ accessibleDetail, detail, dirty, gitDecoration });
     const tab = (
         <m.div
             style={style}
@@ -537,6 +554,7 @@ export function WorkTab({
                 accessory={accessory}
                 active={isVisuallyActive}
                 description={description}
+                detail={detail}
                 tabDescriptionId={tabDescriptionId}
                 fileIconName={fileIconName}
                 gitDecoration={gitDecoration}

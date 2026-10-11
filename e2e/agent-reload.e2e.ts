@@ -25,7 +25,7 @@ const AGENT_SESSION_ID = '5f3c2a1e-7b4d-4e8f-9a6b-0c1d2e3f4a5b';
  */
 function reloadableClaude(argumentsCapturePath: string): string {
     return String.raw`#!${process.execPath}
-// Deterministic Agent boundary for the Reload Agent workflow; no host provider is discovered.
+// Deterministic Agent boundary for the Restart Agent workflow; no host provider is discovered.
 const fs = require('node:fs');
 const path = require('node:path');
 const cp = require('node:child_process');
@@ -52,7 +52,7 @@ process.stdin.resume();
 `;
 }
 
-test('Reload Agent resumes the same conversation in the approval mode it launched with', async () => {
+test('Restart Agent resumes the same conversation in the approval mode it launched with', async () => {
     // Real path, so the transcript the fake writes under its own cwd sits where Caxri derives it from the Project root.
     const temporary = await mkdtemp(join(tmpdir(), 'caxri-agent-reload-e2e-'));
     const directory = await realpath(temporary);
@@ -102,7 +102,7 @@ test('Reload Agent resumes the same conversation in the approval mode it launche
         // The Session launched on the shipped default, which is YOLO.
         expect((await launches())[0]).toContain('--dangerously-skip-permissions');
 
-        // Turning YOLO off in Settings must not silently change the approval mode of the conversation being reloaded.
+        // Turning YOLO off in Settings must not silently change the approval mode of the conversation being restarted.
         await pageRequest(page, 'settings.update', {
             source: JSON.stringify({
                 'agents.providers': { claude: { launch: { executable: 'claude', args: [] } } },
@@ -110,23 +110,23 @@ test('Reload Agent resumes the same conversation in the approval mode it launche
         });
 
         await row.click({ button: 'right' });
-        // Sits beside the Session's other Agent process entry.
+        // Sits in the Agent group, directly before the Session's other Agent process entry.
         const rowLabels = await contextMenuLabels(app);
-        expect(rowLabels.indexOf('Reload Agent')).toBe(rowLabels.indexOf('Detach Agent') + 1);
-        await chooseContextMenuItem(app, 'Reload Agent');
-        // The fake's turn started (`UserPromptSubmit`) and never stopped, so reloading would end it: the user confirms.
+        expect(rowLabels.indexOf('Restart Agent')).toBe(rowLabels.indexOf('Detach Agent') - 1);
+        await chooseContextMenuItem(app, 'Restart Agent');
+        // The fake's turn started (`UserPromptSubmit`) and never stopped, so restarting would end it: the user confirms.
         const confirm = page.getByRole('dialog', { name: 'Stop the running turn?' });
         await expect(confirm).toContainText(
-            'Claude is still working. Reloading stops the current turn and resumes the same conversation.',
+            'Claude is still working. Restarting stops the current turn and resumes the same conversation.',
         );
-        await confirm.getByRole('button', { name: 'Stop and Reload' }).click();
+        await confirm.getByRole('button', { name: 'Stop and Restart' }).click();
         await expectResumedInYolo(1);
 
         const tab = page.locator(
             `${VISIBLE_SESSION} .work-tab:not([inert])[data-terminal-id="${terminalId}"]`,
         );
         await tab.click({ button: 'right' });
-        await chooseContextMenuItem(app, 'Reload Agent');
+        await chooseContextMenuItem(app, 'Restart Agent');
         await expectResumedInYolo(2);
 
         // A new conversation follows the current Settings.

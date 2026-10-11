@@ -9,6 +9,7 @@ import {
 } from '@caxri/protocol';
 
 import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
+import { openAgentStatusTab } from '../features/agent-status/open-agent-status-tab';
 import {
     closeDocumentTabs,
     openEditorTab,
@@ -53,7 +54,6 @@ import {
     openArchivedSessions,
     openSelectedProjectInExternalEditor,
     openSelectedSessionPullRequest,
-    renameSelectedSession,
     resumeSelectedSession,
     selectAdjacentSession,
     switchMruSession,
@@ -64,6 +64,10 @@ import {
     chooseProjectFolder,
 } from '../features/session/session-creation-commands';
 import { lastTabTerminalSessionId } from '../features/session/session-last-tab';
+import {
+    renameSelectedSession,
+    renameSelectedSessionWithAi,
+} from '../features/session/session-rename-commands';
 import {
     installShellCommand,
     uninstallShellCommand,
@@ -229,6 +233,7 @@ const commandContext: CommandContext = {
         openArchived: openArchivedSessions,
         openPullRequestSelected: openSelectedSessionPullRequest,
         renameSelected: renameSelectedSession,
+        renameSelectedWithAi: renameSelectedSessionWithAi,
         resumeSelected: resumeSelectedSession,
         selectAdjacent: selectAdjacentSession,
         switchMru: switchMruSession,
@@ -281,6 +286,11 @@ const commandContext: CommandContext = {
         switchActiveSurface: () => {
             const terminalId = activeTerminalId();
             if (terminalId) switchTerminalToOtherSurface(terminalId);
+        },
+        isActiveAgent: () => Boolean(activeTerminalRecord()?.provider),
+        showActiveAgentStatus: () => {
+            const terminal = activeTerminalRecord();
+            if (terminal?.provider) openAgentStatusTab(terminal.id);
         },
         closeActive: () => {
             const terminalId = activeTerminalId();

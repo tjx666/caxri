@@ -2,6 +2,7 @@ import type { MarkdownInline } from '@caxri/markdown';
 
 import { linkSummary } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
+import { Tooltip } from '../ui/tooltip';
 import { useMarkdownContext } from './markdown-context';
 import { WebLink } from './web-link';
 
@@ -32,17 +33,18 @@ function InlineCode({ node }: { node: Extract<MarkdownInline, { type: 'code' }> 
      * accent color.
      */
     return (
-        <button
-            className={cn(
-                className,
-                'cursor-pointer underline-offset-2 hover:text-accent hover:underline focus-visible:outline focus-visible:outline-accent',
-            )}
-            title={`Open ${file}`}
-            type="button"
-            onClick={() => onOpenFile(file)}
-        >
-            {node.value}
-        </button>
+        <Tooltip content={`Open ${file}`}>
+            <button
+                className={cn(
+                    className,
+                    'cursor-pointer underline-offset-2 hover:text-accent hover:underline focus-visible:outline focus-visible:outline-accent',
+                )}
+                type="button"
+                onClick={() => onOpenFile(file)}
+            >
+                {node.value}
+            </button>
+        </Tooltip>
     );
 }
 
@@ -59,14 +61,11 @@ function InlineLink({ node }: { node: Extract<MarkdownInline, { type: 'link' }> 
             </WebLink>
         );
     return (
-        <button
-            className={LINK_CLASS_NAME}
-            title={href ?? `Open ${file}`}
-            type="button"
-            onClick={open}
-        >
-            <InlineNodes nodes={node.children} />
-        </button>
+        <Tooltip content={href ?? `Open ${file}`}>
+            <button className={LINK_CLASS_NAME} type="button" onClick={open}>
+                <InlineNodes nodes={node.children} />
+            </button>
+        </Tooltip>
     );
 }
 

@@ -1,14 +1,21 @@
 import type { TreeItemDto } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
+import { openExternalUrl } from '../../lib/external-link';
+import { pushToast } from '../../stores/toasts';
 import { dispatchExtensionViewAction } from './view-container-commands';
+
+/**
+ * The Workbench command a provider uses for "open this page", resolved here rather than in the Extension Host.
+ */
+const OPEN_EXTERNAL_COMMAND = 'caxri.openExternal';
 
 export type TreeItemAction = NonNullable<TreeItemDto['actions']>[number];
 
 /**
- * Asks first when the provider attached a confirmation, then dispatches through the same path as the row's own command.
- * Resolves once the command settled, so the button can stay busy for the whole round trip rather than inviting a second
- * click while the first is still running.
+ * Asks first when the provider attached a confirmation, then runs the action's command through
+ * {@link runTreeItemCommand}. Resolves once the command settled, so the button can stay busy for the whole round trip
+ * rather than inviting a second click while the first is still running.
  */
 export async function runTreeItemAction(action: TreeItemAction): Promise<void> {
     if (action.confirmation) {
@@ -19,11 +26,26 @@ export async function runTreeItemAction(action: TreeItemAction): Promise<void> {
         });
         if (!isConfirmed) return;
     }
-    await dispatchExtensionViewAction(
-        action.command.id,
-        action.command.title,
-        action.command.arguments ?? [],
-    );
+    await runTreeItemCommand(action.command, action.feedback);
+}
+
+/**
+ * The one way a tree row's own command or an inline action's command runs: `caxri.openExternal` (a link row, or a
+ * blocked merge's "Open on GitHub") opens the page in the Renderer without a round trip to the extension, and every
+ * other command goes through the shared extension dispatcher with its toasts.
+ */
+export async function runTreeItemCommand(
+    command: TreeItemAction['command'],
+    feedback?: TreeItemAction['feedback'],
+): Promise<void> {
+    if (command.id === OPEN_EXTERNAL_COMMAND) {
+        const [url] = command.arguments ?? [];
+        if (typeof url === 'string')
+            await openExternalUrl(url, (message) => pushToast('error', message));
+        else pushToast('error', `Unable to run ${command.title}. The link is missing.`);
+        return;
+    }
+    await dispatchExtensionViewAction(command.id, command.title, command.arguments ?? [], feedback);
 }
 
 /**

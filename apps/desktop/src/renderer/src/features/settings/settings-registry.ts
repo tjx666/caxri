@@ -148,9 +148,9 @@ function providerRows(provider: AgentProvider): SettingRowSource[] {
             id: `agents.${provider}.messaging`,
             title: 'Peer messaging',
             description:
-                'Lets this managed Agent exchange bounded peer text through the Caxri Inbox. It ' +
-                'never pastes messages into the Terminal. Disabling takes effect immediately ' +
-                'without stopping the Terminal; restart only if the CLI adapter is unavailable.',
+                'Lets this Agent send and receive short messages with other Agents through the ' +
+                'Caxri Inbox. Messages are never typed into the Terminal. Turning this off takes ' +
+                'effect immediately; restart the Terminal only if messaging stays unavailable.',
             binding: { type: 'provider-toggle', provider, field: 'messaging' },
             haystack: lower(['peer messaging', 'inbox', ...providerTerms]),
         },
@@ -159,9 +159,9 @@ function providerRows(provider: AgentProvider): SettingRowSource[] {
             id: `agents.${provider}.recovery`,
             title: 'Network error recovery',
             description:
-                'After parsed Terminal output ends with a built-in provider rule or one of your ' +
-                'additional patterns, waits, sends Esc, then waits again and submits continue. ' +
-                'Disabled by default.',
+                'When the Agent stops on a network error Caxri recognizes, or on one of your ' +
+                'extra patterns, Caxri waits, presses Esc, waits again, and sends “continue”. ' +
+                'Off by default.',
             binding: { type: 'provider-recovery', provider },
             haystack: lower([
                 'network error recovery',

@@ -1,14 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { getToasts } from '../../../stores/toasts';
 import type { TreeItemAction } from '../tree-item-actions';
-import { runTreeItemAction, treeItemActionKeyIntent } from '../tree-item-actions';
+import {
+    runTreeItemAction,
+    runTreeItemCommand,
+    treeItemActionKeyIntent,
+} from '../tree-item-actions';
 
 const mocks = vi.hoisted(() => ({
     dispatch: vi.fn(() => Promise.resolve('executed' as const)),
+    openExternalUrl: vi.fn(() => Promise.resolve()),
     showConfirm: vi.fn<() => Promise<boolean>>(),
 }));
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { window: { showConfirm: mocks.showConfirm } } }));
+vi.mock('../../../lib/external-link', () => ({ openExternalUrl: mocks.openExternalUrl }));
 vi.mock('../view-container-commands', () => ({ dispatchExtensionViewAction: mocks.dispatch }));
 
 const action: TreeItemAction = {
@@ -19,6 +26,37 @@ const action: TreeItemAction = {
     },
     icon: { kind: 'theme', id: 'git-merge' },
 };
+
+describe('runTreeItemCommand', () => {
+    beforeEach(() => {
+        mocks.dispatch.mockClear();
+        mocks.openExternalUrl.mockClear();
+    });
+
+    it("opens a link row's page without dispatching to the extension", async () => {
+        await runTreeItemCommand({
+            id: 'caxri.openExternal',
+            title: 'Open Pull Request',
+            arguments: ['https://github.com/acme/widget/pull/42'],
+        });
+
+        expect(mocks.dispatch).not.toHaveBeenCalled();
+        expect(mocks.openExternalUrl).toHaveBeenCalledWith(
+            'https://github.com/acme/widget/pull/42',
+            expect.any(Function),
+        );
+    });
+
+    it('reports a link command without a URL', async () => {
+        await runTreeItemCommand({ id: 'caxri.openExternal', title: 'Open Pull Request' });
+
+        expect(mocks.openExternalUrl).not.toHaveBeenCalled();
+        expect(getToasts().at(-1)).toMatchObject({
+            type: 'error',
+            title: 'Unable to run Open Pull Request. The link is missing.',
+        });
+    });
+});
 
 describe('runTreeItemAction', () => {
     beforeEach(() => {
@@ -34,6 +72,30 @@ describe('runTreeItemAction', () => {
             'caxri.project-status.mergePullRequest',
             'Merge Pull Request',
             [{ number: 42 }],
+            undefined,
+        );
+    });
+
+    it('opens the page itself for caxri.openExternal after the explanation is confirmed', async () => {
+        mocks.showConfirm.mockResolvedValueOnce(true);
+        await runTreeItemAction({
+            command: {
+                id: 'caxri.openExternal',
+                title: 'Merge Pull Request',
+                arguments: ['https://github.com/acme/widget/pull/42'],
+            },
+            icon: { kind: 'theme', id: 'git-merge' },
+            confirmation: {
+                title: 'Pull request #42 has conflicts',
+                message: 'Resolve them on GitHub.',
+                confirmLabel: 'Open on GitHub',
+            },
+        });
+
+        expect(mocks.dispatch).not.toHaveBeenCalled();
+        expect(mocks.openExternalUrl).toHaveBeenCalledWith(
+            'https://github.com/acme/widget/pull/42',
+            expect.any(Function),
         );
     });
 

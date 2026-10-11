@@ -72,13 +72,16 @@ describe('resolveWindowClose', () => {
 });
 
 describe('windowClosePrompt', () => {
-    it('counts running tasks, not Terminals, and avoids naming the Server', () => {
+    it('asks to close the window and names the running Terminals and Chats, not the Server', () => {
         expect(windowClosePrompt(1)).toMatchObject({
-            title: 'Tasks are still running',
-            message: '1 task is still running.',
+            title: 'Close this window?',
+            message: '1 Terminal or Chat is still running.',
+            buttons: ['Keep Running', 'Terminate and Close', 'Cancel'],
+            cancelId: 2,
+            defaultId: 2,
         });
         const prompt = windowClosePrompt(3);
-        expect(prompt.message).toBe('3 tasks are still running.');
+        expect(prompt.message).toBe('3 Terminals or Chats are still running.');
         expect(prompt.detail).toContain('keeps them running in the background');
         expect(prompt.detail).not.toContain('Server');
     });

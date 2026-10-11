@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     canSuggestSessionTitle,
     decideSessionRename,
+    landSessionTitleSuggestion,
     syncUntouchedRenameDraft,
 } from '../session-rename-draft';
 
@@ -56,5 +57,19 @@ describe('canSuggestSessionTitle', () => {
     it('requires a primary Agent', () => {
         expect(canSuggestSessionTitle({ primaryAgentTerminalId: 'terminal-1' })).toBe(true);
         expect(canSuggestSessionTitle({ primaryAgentTerminalId: undefined })).toBe(false);
+    });
+});
+
+describe('landSessionTitleSuggestion', () => {
+    it("fills the Session's editor when it is still open", () => {
+        expect(landSessionTitleSuggestion('session-1', 'session-1')).toBe('fill');
+    });
+
+    it('reopens the editor prefilled when it was closed while the suggestion was pending', () => {
+        expect(landSessionTitleSuggestion(undefined, 'session-1')).toBe('reopen');
+    });
+
+    it("never takes over another Session's editor", () => {
+        expect(landSessionTitleSuggestion('session-2', 'session-1')).toBe('discard');
     });
 });

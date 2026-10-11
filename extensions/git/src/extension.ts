@@ -8,7 +8,8 @@ function registerProviderCommand(provider: GitProvider, commandId: string) {
     return caxri.commands.registerCommand(commandId, async (...arguments_: readonly unknown[]) => {
         const cancellation = new CancellationTokenSource();
         try {
-            return await provider.executeCommand(commandId, arguments_, cancellation.token);
+            // The action result feeds the Source Control view's own refresh, not the command dispatcher.
+            await provider.executeCommand(commandId, arguments_, cancellation.token);
         } finally {
             cancellation.dispose();
         }

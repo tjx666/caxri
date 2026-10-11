@@ -1,39 +1,15 @@
 import { join } from 'node:path';
-import process from 'node:process';
-import { pathToFileURL } from 'node:url';
 
 import type { Page } from '@playwright/test';
+import { expect } from '@playwright/test';
 
+import {
+    fakeClaudeChatExecutableSource,
+    fakeCodexChatExecutableSource,
+    fakeGrokChatExecutableSource,
+} from '../../apps/server/src/domains/agent-chat/__tests__/fixtures/fake-chat-executables.ts';
 import { createFakeAgentMode } from './agent-fixture.ts';
 import { chooseTerminalFromCreateMenu, VISIBLE_SESSION } from './helpers.ts';
-
-/**
- * The deterministic app-server the Server unit tests drive. Reusing it keeps one fake protocol implementation instead
- * of a second, drifting copy for the desktop workflow.
- */
-const FAKE_APP_SERVER = join(
-    import.meta.dirname,
-    '../..',
-    'apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts',
-);
-
-/**
- * The deterministic Claude Code CLI the Server unit tests drive through the Claude Agent SDK.
- */
-const FAKE_CLAUDE = join(
-    import.meta.dirname,
-    '../..',
-    'apps/server/src/domains/agent-chat/__tests__/fixtures/fake-claude-cli.ts',
-);
-
-/**
- * The deterministic Grok Build ACP agent the Server unit tests drive.
- */
-const FAKE_GROK = join(
-    import.meta.dirname,
-    '../..',
-    'apps/server/src/domains/agent-chat/__tests__/fixtures/fake-grok-acp.ts',
-);
 
 /**
  * The fake Codex provider definition whose `app-server` is the deterministic Server-test fixture; threads persist under
@@ -41,14 +17,9 @@ const FAKE_GROK = join(
  */
 export function fakeCodexChatProvider(directory: string) {
     return {
-        executableSource: String.raw`#!${process.execPath}
-if (process.argv.includes('--version')) {
-  process.stdout.write('codex-cli 0.162.0\n');
-  process.exit(0);
-}
-process.env.FAKE_CODEX_STATE_DIR = ${JSON.stringify(join(directory, 'codex-threads'))};
-import(${JSON.stringify(pathToFileURL(FAKE_APP_SERVER).href)});
-`,
+        executableSource: fakeCodexChatExecutableSource({
+            stateDirectory: join(directory, 'codex-threads'),
+        }),
     };
 }
 
@@ -70,9 +41,7 @@ export function fakeClaudeChatAgentMode(userData: string) {
         userDataDir: userData,
         providers: {
             claude: {
-                executableSource: `#!${process.execPath}
-import(${JSON.stringify(pathToFileURL(FAKE_CLAUDE).href)});
-`,
+                executableSource: fakeClaudeChatExecutableSource(),
             },
         },
     });
@@ -86,10 +55,9 @@ export function fakeGrokChatAgentMode(directory: string, userData: string) {
         userDataDir: userData,
         providers: {
             grok: {
-                executableSource: `#!${process.execPath}
-process.env.FAKE_GROK_STATE_DIR = ${JSON.stringify(join(directory, 'grok-sessions'))};
-import(${JSON.stringify(pathToFileURL(FAKE_GROK).href)});
-`,
+                executableSource: fakeGrokChatExecutableSource({
+                    stateDirectory: join(directory, 'grok-sessions'),
+                }),
             },
         },
     });
@@ -102,9 +70,21 @@ export async function openAgentChat(
     page: Page,
     label: 'Claude Chat' | 'Codex Chat' | 'Grok Build Chat',
 ) {
-    await page.locator(VISIBLE_SESSION).getByRole('button', { name: 'New Terminal' }).click();
-    const terminalMenu = page.getByRole('menu', { name: 'New Terminal' });
+    const session = page.locator(VISIBLE_SESSION);
+    // With one tab beside a Terminal | Chat toggle, + takes its width only once the pointer reaches the tab bar.
+    await session.locator('.work-tabs').hover();
+    /**
+     * The + is named for what a press creates: "New Terminal", or "New Claude Terminal" when it clones the Agent. A
+     * press on a named + creates that Agent at once, so hover it: the Agent list opens on hover either way.
+     */
+    const name = /^New .*(?:Terminal|Chat)$/u;
+    await session.getByRole('button', { name }).hover();
+    // Base UI names the popup after the trigger that opened it.
+    const terminalMenu = page.getByRole('menu', { name });
     const openInChat = terminalMenu.getByRole('menuitemcheckbox', { name: 'Open Agents in Chat' });
     if (!(await openInChat.isChecked())) await openInChat.click();
     await chooseTerminalFromCreateMenu(page, label);
+    // A pointer left on + would reopen the hover list, which takes focus from the new Chat's message box.
+    await page.mouse.move(0, 300);
+    await expect(page.getByRole('menu')).toHaveCount(0);
 }

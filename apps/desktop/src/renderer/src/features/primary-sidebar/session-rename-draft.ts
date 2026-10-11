@@ -49,3 +49,19 @@ export function canSuggestSessionTitle(
 ): boolean {
     return session.primaryAgentTerminalId !== undefined;
 }
+
+/**
+ * Where an AI title suggestion goes when it arrives. It is never saved directly: it lands in the rename input, fully
+ * selected, so Enter accepts it, typing edits it, and Escape keeps the old title.
+ *
+ * - `fill`: that Session's editor is still open; the suggestion replaces its draft.
+ * - `reopen`: no editor is open (the user clicked away while it was pending); the editor opens prefilled.
+ * - `discard`: the user has since started renaming a different Session; their editor is not taken over.
+ */
+export function landSessionTitleSuggestion(
+    renamingSessionId: string | undefined,
+    sessionId: string,
+): 'discard' | 'fill' | 'reopen' {
+    if (renamingSessionId === sessionId) return 'fill';
+    return renamingSessionId === undefined ? 'reopen' : 'discard';
+}

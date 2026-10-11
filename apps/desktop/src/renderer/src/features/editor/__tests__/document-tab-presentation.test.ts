@@ -4,13 +4,14 @@ import {
     agentTranscriptTabPath,
     agentTurnReviewTabPath,
     externalEditorTabPath,
+    filePreviewTabPath,
     gitChangesDiffTabPath,
     gitFileDiffTabPath,
     settingsTabPath,
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { documentTabPresentation } from '../document-tab-presentation';
+import { documentTabPresentation, externalTabParentLabel } from '../document-tab-presentation';
 
 describe('documentTabPresentation', () => {
     it('keeps file names accessible while exposing their full path on hover', () => {
@@ -25,11 +26,45 @@ describe('documentTabPresentation', () => {
                 displayPath: '/outside/notes.md',
             }),
         ).toEqual({
+            accessibleDetail: 'Outside every Project',
             fileIconName: 'notes.md',
             icon: 'file',
             label: 'notes.md',
             labelTooltip: '/outside/notes.md',
         });
+    });
+    it('shows the display path of an external preview, never its opaque identity', () => {
+        const source = externalEditorTabPath('external-1', 'notes.md');
+        const preview = documentTabPresentation(filePreviewTabPath(source), {
+            previewSourceDisplayPath: '/outside/notes.md',
+        });
+        expect(preview).toMatchObject({
+            accessibleDetail: 'Outside every Project',
+            label: 'Preview: notes.md',
+            labelTooltip: '/outside/notes.md',
+        });
+        // Once the source document is gone, the tooltip falls back to the filename rather than the scheme.
+        expect(documentTabPresentation(filePreviewTabPath(source), {}).labelTooltip).toBe(
+            'notes.md',
+        );
+        expect(documentTabPresentation(filePreviewTabPath('/project/a.md'), {})).toMatchObject({
+            labelTooltip: '/project/a.md',
+        });
+    });
+    it('gives a repeated external filename its parent directory as a detail', () => {
+        const path = externalEditorTabPath('external-1', 'README.md');
+        expect(
+            documentTabPresentation(path, {
+                displayPath: '/work/api/README.md',
+                externalDisplayPaths: ['/work/api/README.md', '/work/web/README.md'],
+            }).detail,
+        ).toBe('api');
+        expect(
+            documentTabPresentation(path, {
+                displayPath: '/work/api/README.md',
+                externalDisplayPaths: ['/work/api/README.md', '/work/api/notes.md'],
+            }).detail,
+        ).toBeUndefined();
     });
     it('does not expose opaque virtual identities as hover paths', () => {
         for (const path of [
@@ -95,5 +130,31 @@ describe('documentTabPresentation', () => {
             labelTooltip: 'Codex Status',
         });
         expect(documentTabPresentation(path, {}).label).toBe('Agent Status');
+    });
+
+    it('tells two status tabs for the same Agent apart by their Terminal', () => {
+        expect(
+            documentTabPresentation(agentStatusTabPath('terminal-1'), {
+                agentName: 'Codex',
+                agentTerminalTitle: 'api-fix',
+            }).labelTooltip,
+        ).toBe('Codex Status · api-fix');
+    });
+});
+
+describe('externalTabParentLabel', () => {
+    it('widens to the shortest directory suffix that is unique', () => {
+        expect(
+            externalTabParentLabel('/a/packages/api/README.md', [
+                '/a/packages/api/README.md',
+                '/b/apps/api/README.md',
+            ]),
+        ).toBe('packages/api');
+    });
+
+    it('ignores duplicate entries for the same file', () => {
+        expect(
+            externalTabParentLabel('/a/README.md', ['/a/README.md', '/a/README.md']),
+        ).toBeUndefined();
     });
 });

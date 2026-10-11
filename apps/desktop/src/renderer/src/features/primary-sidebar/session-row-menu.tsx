@@ -28,10 +28,11 @@ import {
     resumeSession,
     setSessionPinned,
 } from '../session/session-commands';
-import { agentReloadMenuEntry } from '../terminal/terminal-reload-commands';
+import { agentRestartMenuEntry } from '../terminal/agent-restart-commands';
 import {
     agentResumeCommandMenuEntry,
     isAgentConversationResumable,
+    terminalSurfaceMenuEntry,
 } from '../terminal/terminal-surface-commands';
 import { canSuggestSessionTitle } from './session-rename-draft';
 
@@ -173,6 +174,10 @@ async function sessionRowMenu({
         isPermissionAutoAllowGranted(session.id),
         isAgentConversationResumable(primaryTerminal),
     ]);
+    /**
+     * Five groups: the Session itself (Rename, Rename with AI, Pin, Archive), its Agent, opening it elsewhere, copying
+     * its Agent's identity, and Delete. `serializeContextMenu` drops a separator left without neighbors.
+     */
     return [
         /**
          * Rename's hint is read from the live keybinding table now that `session.rename` is a real command. Archive
@@ -217,6 +222,15 @@ async function sessionRowMenu({
             shortcut: onMarkRead ? undefined : 'delete',
             onSelect: () => archiveSession(session.id),
         },
+        CONTEXT_MENU_SEPARATOR,
+        /**
+         * The Agent group. The surface switch and Restart Agent act on the Primary Agent, the same Terminal the copy
+         * entries below read, rather than every Agent Terminal the way Detach does: both end a running turn (after
+         * asking), so they must not reach Agents the user did not point at. Each Agent Terminal's own tab menu acts on
+         * that one.
+         */
+        primaryTerminal && terminalSurfaceMenuEntry(primaryTerminal),
+        agentRestartMenuEntry(primaryTerminal, missingConversationReason),
         detached
             ? { label: 'Resume Agent', onSelect: () => resumeSession(session.id) }
             : {
@@ -225,12 +239,6 @@ async function sessionRowMenu({
                   disabledReason: NO_RUNNING_AGENT_REASON,
                   onSelect: () => detachSession(session.id),
               },
-        /**
-         * Reloads the Primary Agent, the same Terminal the copy entries below read, rather than every Agent Terminal
-         * the way Detach does: a reload interrupts a running turn, so it must not reach Agents the user did not point
-         * at. Each Agent Terminal's own tab menu reloads that one.
-         */
-        agentReloadMenuEntry(primaryTerminal, missingConversationReason),
         isAutoAllowGranted && {
             label: 'Turn Off Always Allow in this Session',
             onSelect: () => revokePermissionAutoAllow(session.id),

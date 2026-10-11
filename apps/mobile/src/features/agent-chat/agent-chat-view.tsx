@@ -13,13 +13,17 @@ import type { ConversationTimelineState } from '../conversation/use-conversation
 import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { AgentChatMessageImages } from './agent-chat-message-images';
 import {
-    AGENT_CHAT_HANDED_OFF_NOTICE,
+    AGENT_CHAT_HANDED_OFF_BANNER,
     agentChatActivityLabel,
     agentChatEmptyMessage,
     agentChatFailureMessage,
     agentChatImageCounts,
+    agentChatRequestBlockedReason,
     agentChatTimelineItems,
+    isAgentChatFailureRetryable,
+    sentenceStartProvider,
 } from './agent-chat-model';
+import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatRequestCard } from './agent-chat-request-card';
 import type { AgentChatController } from './use-agent-chat';
 
@@ -181,12 +185,12 @@ const AgentChatBody = ({
 };
 
 const AgentChatRequests = ({
-    canAnswer,
+    blockedReason,
     chat,
     provider,
     theme,
 }: {
-    canAnswer: boolean;
+    blockedReason: ReturnType<typeof agentChatRequestBlockedReason>;
     chat: AgentChatController;
     provider: string;
     theme: MobileTheme;
@@ -196,7 +200,7 @@ const AgentChatRequests = ({
     const renderRequest = useCallback(
         ({ item }: ListRenderItemInfo<AgentChatRequest>) => (
             <AgentChatRequestCard
-                canAnswer={canAnswer}
+                blockedReason={blockedReason}
                 items={items ?? []}
                 onRespond={respond}
                 provider={provider}
@@ -204,7 +208,7 @@ const AgentChatRequests = ({
                 theme={theme}
             />
         ),
-        [canAnswer, items, provider, respond, theme],
+        [blockedReason, items, provider, respond, theme],
     );
     const requests = snapshot?.requests ?? [];
     if (requests.length === 0) return null;
@@ -289,19 +293,30 @@ export const AgentChatView = ({
         try {
             await chat.restart();
         } catch {
-            setRestartError(`${provider} could not be restarted. Try again.`);
+            setRestartError(
+                `${sentenceStartProvider(provider)} could not be restarted. Try again.`,
+            );
         } finally {
             setRestarting(false);
         }
     };
     const failure =
         snapshot?.status === 'failed' && chat.savedAt === undefined ? snapshot.failure : undefined;
+    /**
+     * A missing or outdated provider needs the computer, so its banner explains that step and offers no Retry.
+     */
+    const canRetryFailure =
+        canRetry && failure !== undefined && isAgentChatFailureRetryable(failure.reason);
+    const blockedReason = useMemo(
+        () => agentChatRequestBlockedReason({ deviceRole, isConnected }),
+        [deviceRole, isConnected],
+    );
 
     return (
         <View style={styles.root} testID="agent-chat">
             {failure ? (
                 <Banner
-                    actionLabel={canRetry ? 'Retry' : undefined}
+                    actionLabel={canRetryFailure ? 'Retry' : undefined}
                     isBusy={isRestarting}
                     message={
                         restartError ?? agentChatFailureMessage(failure.reason, provider, canRetry)
@@ -317,7 +332,7 @@ export const AgentChatView = ({
             ) : null}
             {isHandedOff ? (
                 <Banner
-                    message={AGENT_CHAT_HANDED_OFF_NOTICE}
+                    message={AGENT_CHAT_HANDED_OFF_BANNER}
                     testID="agent-chat-handed-off"
                     theme={theme}
                     tone="muted"
@@ -326,7 +341,7 @@ export const AgentChatView = ({
             {isConnected && chat.status === 'stale' ? (
                 <Banner
                     actionLabel="Retry"
-                    message="This Chat could not be updated."
+                    message="This Chat could not be updated. Showing the last loaded messages."
                     onAction={chat.refresh}
                     testID="agent-chat-stale"
                     theme={theme}
@@ -345,13 +360,14 @@ export const AgentChatView = ({
                 />
             </View>
             <AgentChatRequests
-                canAnswer={deviceRole === 'control'}
+                blockedReason={blockedReason}
                 chat={chat}
                 provider={provider}
                 theme={theme}
             />
             <SavedCopyNote savedAt={chat.savedAt} testID="agent-chat-saved" theme={theme} />
             <AgentChatActivity chat={chat} provider={provider} theme={theme} />
+            <AgentChatQueueList snapshot={snapshot} theme={theme} />
         </View>
     );
 };

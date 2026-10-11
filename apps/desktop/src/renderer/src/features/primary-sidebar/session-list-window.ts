@@ -81,3 +81,12 @@ export function sessionListWindow<TSession extends { id: string }>(
 export function nextRevealedSessionCount(windowCount: number): number {
     return windowCount + SESSION_REVEAL_STEP;
 }
+
+/**
+ * The revealed count that brings the Session at `index` into the in-order window, or `undefined` when it is already
+ * inside. Used when a newly pinned Session lands below the Pinned group's window: the user just asked to keep it in
+ * sight, so the window opens down to it rather than hiding it behind `Show N more`.
+ */
+export function revealedCountIncluding(index: number, windowCount: number): number | undefined {
+    return index >= windowCount ? index + 1 : undefined;
+}

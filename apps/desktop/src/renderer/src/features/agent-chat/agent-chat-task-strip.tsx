@@ -1,3 +1,5 @@
+import { useId, useState } from 'react';
+
 import type { AgentChatTask } from '@caxri/protocol';
 import { Square } from 'lucide-react';
 
@@ -5,9 +7,11 @@ import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { stopAgentChatTask } from './agent-chat-commands';
+import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
 import { openAgentChatTaskTab } from './agent-chat-task-opener';
 import {
+    agentChatTaskGlyphStatus,
     agentChatTaskStrip,
     canStopAgentChatTask,
     isAgentChatTaskTitleCommand,
@@ -35,7 +39,11 @@ function TaskEntry({ task, terminalId }: { task: AgentChatTask; terminalId: stri
                 </span>
                 <span className="ml-auto flex shrink-0 items-center gap-2">
                     <AgentChatTaskElapsed task={task} />
-                    <Spinner className="size-3.5" role="presentation" />
+                    {task.status === 'running' ? (
+                        <Spinner className="size-3.5" role="presentation" />
+                    ) : (
+                        <AgentChatStatusGlyph status={agentChatTaskGlyphStatus(task.status)} />
+                    )}
                 </span>
             </button>
             {canStopAgentChatTask(task) && (
@@ -58,7 +66,8 @@ function TaskEntry({ task, terminalId }: { task: AgentChatTask; terminalId: stri
 /**
  * Background work still running, just above the composer: each subagent and background shell with its elapsed time,
  * opened in its side tab on click and stoppable on its own. Stopping the turn with Esc never stops these. Hidden while
- * nothing runs; ended work stays reachable from its timeline row, so the strip only counts it.
+ * nothing runs. Ended work is counted, and the count reveals it (most recent first, with how each ended) so a task that
+ * just finished is one click from its tab without hunting for its timeline row.
  */
 export function AgentChatTaskStrip({
     tasks,
@@ -67,7 +76,9 @@ export function AgentChatTaskStrip({
     tasks: readonly AgentChatTask[] | undefined;
     terminalId: string;
 }) {
-    const { running, endedCount } = agentChatTaskStrip(tasks);
+    const { running, ended } = agentChatTaskStrip(tasks);
+    const [isShowingEnded, setShowingEnded] = useState(false);
+    const endedListId = useId();
     if (running.length === 0) return null;
     return (
         <section
@@ -78,7 +89,20 @@ export function AgentChatTaskStrip({
                 <span className="min-w-0 flex-1 truncate">Background work</span>
                 <span className="shrink-0 tabular-nums">
                     {running.length} running
-                    {endedCount > 0 && ` · ${endedCount} ended`}
+                    {ended.length > 0 && (
+                        <>
+                            {' · '}
+                            <button
+                                aria-controls={endedListId}
+                                aria-expanded={isShowingEnded}
+                                className="cursor-pointer border-0 bg-transparent p-0 text-muted tabular-nums hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-accent"
+                                type="button"
+                                onClick={() => setShowingEnded((value) => !value)}
+                            >
+                                {ended.length} ended
+                            </button>
+                        </>
+                    )}
                 </span>
             </h3>
             <ul className="m-0 flex max-h-32 list-none flex-col overflow-y-auto p-0">
@@ -86,6 +110,17 @@ export function AgentChatTaskStrip({
                     <TaskEntry key={task.id} task={task} terminalId={terminalId} />
                 ))}
             </ul>
+            {isShowingEnded && ended.length > 0 && (
+                <ul
+                    aria-label="Ended background work"
+                    className="m-0 mt-1 flex max-h-32 list-none flex-col overflow-y-auto border-t border-border p-0 pt-1"
+                    id={endedListId}
+                >
+                    {ended.map((task) => (
+                        <TaskEntry key={task.id} task={task} terminalId={terminalId} />
+                    ))}
+                </ul>
+            )}
         </section>
     );
 }

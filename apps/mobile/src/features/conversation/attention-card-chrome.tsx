@@ -2,10 +2,22 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { MethodResult } from '@caxri/protocol';
+import {
+    AGENT_APPROVAL_ALLOW_LABEL,
+    AGENT_APPROVAL_DENY_LABEL,
+    agentApprovalAlwaysAllowLabel,
+} from '@caxri/protocol';
 
 import type { MobileTheme } from '../../theme/tokens';
+import { REQUEST_CONTROL_ACCESS_MESSAGE } from '../agent-chat/agent-chat-model';
 
 type Attention = MethodResult<'mobile.attention.list'>['requests'][number];
+
+/**
+ * A Terminal Agent's permission request names only the tool, so its buttons use the shared generic approval words; the
+ * standing grant is scoped to the Session rather than a Chat.
+ */
+const ALWAYS_ALLOW_LABEL = agentApprovalAlwaysAllowLabel('Session');
 
 const statusLabel = (status: Attention['status']): string => {
     if (status === 'applied') return 'Applied';
@@ -39,8 +51,8 @@ export const AttentionCardChrome = ({
             <Text style={{ color: theme.muted }}>{statusLabel(item.status)}</Text>
         ) : null}
         {role !== 'control' && item.status === 'pending' ? (
-            <Text style={{ color: theme.muted }}>
-                Control access is required to answer this request.
+            <Text style={{ color: theme.muted }} testID="attention-control-required">
+                {REQUEST_CONTROL_ACCESS_MESSAGE}
             </Text>
         ) : null}
     </>
@@ -59,7 +71,7 @@ export const AttentionPermissionActions = ({
     <View style={{ gap: 8 }}>
         <View style={styles.actions}>
             <Pressable
-                accessibilityLabel="Allow once"
+                accessibilityLabel={AGENT_APPROVAL_ALLOW_LABEL}
                 accessibilityRole="button"
                 testID="attention-allow-once"
                 onPress={() => send('allow')}
@@ -73,11 +85,11 @@ export const AttentionPermissionActions = ({
                 ]}
             >
                 <Text style={[styles.actionLabel, { color: theme.primaryForeground }]}>
-                    Allow once
+                    {AGENT_APPROVAL_ALLOW_LABEL}
                 </Text>
             </Pressable>
             <Pressable
-                accessibilityLabel="Deny"
+                accessibilityLabel={AGENT_APPROVAL_DENY_LABEL}
                 accessibilityRole="button"
                 testID="attention-deny"
                 onPress={() => send('deny')}
@@ -85,15 +97,17 @@ export const AttentionPermissionActions = ({
                     styles.action,
                     {
                         backgroundColor: pressed ? theme.elevated : 'transparent',
-                        borderColor: theme.danger,
+                        borderColor: theme.border,
                     },
                 ]}
             >
-                <Text style={[styles.actionLabel, { color: theme.danger }]}>Deny</Text>
+                <Text style={[styles.actionLabel, { color: theme.text }]}>
+                    {AGENT_APPROVAL_DENY_LABEL}
+                </Text>
             </Pressable>
         </View>
         <Pressable
-            accessibilityLabel="Always allow in this Session"
+            accessibilityLabel={ALWAYS_ALLOW_LABEL}
             accessibilityRole="button"
             testID="attention-always-allow"
             onPress={() => send('allow', true)}
@@ -105,12 +119,10 @@ export const AttentionPermissionActions = ({
                 },
             ]}
         >
-            <Text style={[styles.actionLabel, { color: theme.text }]}>
-                Always allow in this Session
-            </Text>
+            <Text style={[styles.actionLabel, { color: theme.text }]}>{ALWAYS_ALLOW_LABEL}</Text>
         </Pressable>
         <Text style={{ color: theme.muted, fontSize: 12 }}>
-            Always allow approves this and every later permission request in this Session
+            {ALWAYS_ALLOW_LABEL} approves this and every later permission request in this Session
             automatically, until it is turned off or the Agent restarts. Agent questions still ask
             you.
         </Text>
@@ -118,7 +130,7 @@ export const AttentionPermissionActions = ({
 );
 
 const styles = StyleSheet.create({
-    actions: { flexDirection: 'row', gap: 12 },
+    actions: { flexDirection: 'row', gap: 8 },
     action: {
         alignItems: 'center',
         borderRadius: 10,

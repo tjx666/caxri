@@ -3,11 +3,15 @@ import { agentProviderIds, canUseAgentChat, terminalKindSchema } from '@caxri/pr
 import { describe, expect, it } from 'vitest';
 
 import {
+    agentChoiceMarker,
+    isSameNewTerminalTarget,
     newAgentSurface,
+    newSessionActionLabel,
     newTerminalActionLabel,
     newTerminalAgentChoices,
     newTerminalButtonText,
     newTerminalCommandKind,
+    newTerminalCommandTarget,
     resolveNewTerminalAgent,
     resolveNewTerminalTarget,
 } from '../new-terminal-agent';
@@ -173,5 +177,42 @@ describe('newTerminalButtonText', () => {
     it('says New Chat only when the press opens a Chat', () => {
         expect(newTerminalButtonText('chat')).toBe('New Chat');
         expect(newTerminalButtonText('pty')).toBe('New Terminal');
+    });
+});
+
+describe('newTerminalCommandTarget', () => {
+    it('is what ⌘T creates: the default Agent on the preferred surface, or a Shell', () => {
+        expect(newTerminalCommandTarget('codex', true)).toEqual({ kind: 'codex', surface: 'chat' });
+        expect(newTerminalCommandTarget(null, true)).toEqual({ kind: 'shell', surface: 'pty' });
+    });
+
+    it('matches the + target only when both create the same Terminal', () => {
+        const shortcut = newTerminalCommandTarget('codex', false);
+        expect(isSameNewTerminalTarget(shortcut, { kind: 'codex', surface: 'pty' })).toBe(true);
+        expect(isSameNewTerminalTarget(shortcut, { kind: 'codex', surface: 'chat' })).toBe(false);
+        expect(isSameNewTerminalTarget(shortcut, { kind: 'claude', surface: 'pty' })).toBe(false);
+    });
+});
+
+describe('newSessionActionLabel', () => {
+    it('names the Agent and, for a Chat, the view', () => {
+        expect(newSessionActionLabel({ kind: 'codex', surface: 'chat' }, 'Codex')).toBe(
+            'New Codex Chat Session',
+        );
+        expect(newSessionActionLabel({ kind: 'codex', surface: 'pty' }, 'Codex')).toBe(
+            'New Codex Session',
+        );
+        expect(newSessionActionLabel({ kind: 'shell', surface: 'pty' }, 'Shell')).toBe(
+            'New Shell Session',
+        );
+    });
+});
+
+describe('agentChoiceMarker', () => {
+    it('merges the Chat and Default markers into one suffix', () => {
+        expect(agentChoiceMarker({ isDefault: true, surface: 'chat' })).toBe('Chat · Default');
+        expect(agentChoiceMarker({ isDefault: false, surface: 'chat' })).toBe('Chat');
+        expect(agentChoiceMarker({ isDefault: true, surface: 'pty' })).toBe('Default');
+        expect(agentChoiceMarker({ isDefault: false, surface: 'pty' })).toBeUndefined();
     });
 });

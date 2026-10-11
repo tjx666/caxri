@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { workPanelId, workTabId, workTabNavigationTarget } from '../work-tab-accessibility';
+import {
+    workPanelId,
+    workTabDescription,
+    workTabId,
+    workTabNavigationTarget,
+} from '../work-tab-accessibility';
 
 describe('work tab accessibility', () => {
     const tabIds = ['tab-1', 'tab-2', 'tab-3'];
@@ -22,5 +27,18 @@ describe('work tab accessibility', () => {
         expect(workTabNavigationTarget(tabIds, 'missing', 'ArrowRight')).toBe(tabIds[0]);
         expect(workTabNavigationTarget(tabIds, 'missing', 'ArrowLeft')).toBe(tabIds[2]);
         expect(workTabNavigationTarget([], undefined, 'Home')).toBeUndefined();
+    });
+
+    it('describes the detail, hidden fact, Git state, and unsaved buffer in a stable order', () => {
+        expect(workTabDescription({})).toBe('');
+        expect(
+            workTabDescription({
+                accessibleDetail: 'Outside every Project',
+                detail: 'docs',
+                dirty: true,
+                gitDecoration: { kind: 'modified' },
+            }),
+        ).toBe('In docs. Outside every Project. Git: modified. Unsaved changes.');
+        expect(workTabDescription({ dirty: true })).toBe('Unsaved changes.');
     });
 });

@@ -14,6 +14,7 @@ import { SessionRenameInput } from './session-rename-input';
 import { SessionRowActions } from './session-row-actions';
 import { SessionRowMenu } from './session-row-menu';
 import { SessionRowTrigger } from './session-row-trigger';
+import { sessionStatus } from './session-status';
 import { SessionStatusIndicator } from './session-status-indicator';
 
 interface ActiveSessionRowProperties {
@@ -131,6 +132,7 @@ export function ActiveSessionRow({
      * is open keeps one popup on screen at a time.
      */
     const [menuOpen, setMenuOpen] = useState(false);
+    const hasLifecycleGlyph = sessionStatus(session, terminal).kind !== 'default';
     const { viewportReference, textReference, setHovered, setFocused } = useSessionTitleScroll(
         session.displayTitle,
         renaming || menuOpen,
@@ -203,13 +205,21 @@ export function ActiveSessionRow({
             {/*
              * Lifecycle signals take priority over the PR. The wrapper follows the rendered glyph's width, so an idle
              * Session with no PR gives the otherwise invisible 14px slot back to its title; every visible glyph still
-             * lands on the same right edge. The PR remains available from the hover card and menu while temporarily
-             * hidden. Pointer hover collapses the slot entirely: Pin/Archive need ~42px, and leaving a 14px ghost
-             * track would still let the title paint through those glyphs.
+             * lands on the same right edge. On pointer hover only the PR fallback steps aside for Pin/Archive (~42px):
+             * its slot collapses entirely, because a 14px ghost track would still let the title paint through those
+             * glyphs, and the PR stays reachable from the hover card and menu. A running, unread, or detached glyph
+             * stays: it is the one thing the user hovers a busy row to check, so it moves left of Pin/Archive, into
+             * the space the row reserves for them, instead of disappearing under them.
              */}
-            <span className="session-indicators flex flex-none items-center justify-end group-hover/session-row:w-0 group-hover/session-row:min-w-0 group-hover/session-row:overflow-hidden">
+            <span
+                className={cn(
+                    'session-indicators flex flex-none items-center justify-end',
+                    hasLifecycleGlyph
+                        ? 'group-hover/session-row:mr-0.5'
+                        : 'group-hover/session-row:w-0 group-hover/session-row:min-w-0 group-hover/session-row:overflow-hidden',
+                )}
+            >
                 <SessionStatusIndicator
-                    className="transition-opacity group-hover/session-row:opacity-0"
                     fallback={
                         !renaming && (
                             <SessionPullRequestIndicator

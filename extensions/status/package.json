@@ -62,6 +62,11 @@
                 "command": "caxri.project-status.mergePullRequest",
                 "title": "Merge Pull Request",
                 "palette": false
+            },
+            {
+                "command": "caxri.project-status.mergeCurrentPullRequest",
+                "title": "Merge Pull Request for Current Branch",
+                "description": "Merge the current branch's pull request when nothing blocks it"
             }
         ]
     }

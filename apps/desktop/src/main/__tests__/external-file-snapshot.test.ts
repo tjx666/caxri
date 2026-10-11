@@ -1,7 +1,8 @@
-import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { link, mkdtemp, rm, symlink, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { readExternalFileSnapshot } from '../external-file-snapshot';
@@ -52,6 +53,28 @@ describe('readExternalFileSnapshot', () => {
     it('requires an absolute path', async () => {
         await expect(readExternalFileSnapshot('relative/note.txt')).rejects.toThrow(
             /must be absolute/,
+        );
+    });
+
+    it('states the open size limit in the same human units as the save error', async () => {
+        const directory = await temporaryDirectory();
+        const path = join(directory, 'large.log');
+        await writeFile(path, '');
+        // Sparse: the size check runs on `stat()` before any content is read.
+        await truncate(path, MAX_CONFIGURABLE_FILE_BYTES + 1);
+
+        await expect(readExternalFileSnapshot(path)).rejects.toThrow(
+            "File is larger than 16 MB and can't be opened here.",
+        );
+    });
+
+    it('explains a hard-linked file the way the save error does', async () => {
+        const directory = await temporaryDirectory();
+        await writeFile(join(directory, 'note.txt'), 'note');
+        await link(join(directory, 'note.txt'), join(directory, 'alias.txt'));
+
+        await expect(readExternalFileSnapshot(join(directory, 'note.txt'))).rejects.toThrow(
+            "This file is hard-linked elsewhere, so Caxri can't open it safely. Use Open with Default App.",
         );
     });
 });

@@ -31,7 +31,7 @@ export function AgentChatInvocationChip({ invocation }: { invocation: string }) 
         <Popover open={isOpen} onOpenChange={setIsOpen}>
             <PopoverTrigger
                 aria-label={`Show ${invocation}`}
-                className={`${CHIP_CLASS_NAME} cursor-pointer border-0 text-[13px] leading-5 transition-[background-color,scale] duration-150 hover:bg-accent/25 focus-visible:outline focus-visible:outline-accent active:scale-[0.97] data-popup-open:bg-accent/25`}
+                className={`${CHIP_CLASS_NAME} cursor-pointer border-0 text-[13px] leading-5 transition-colors duration-(--motion-overlay-enter) ease-(--motion-ease-enter) hover:bg-accent/25 focus-visible:outline focus-visible:outline-accent data-popup-open:bg-accent/25`}
             >
                 {label}
             </PopoverTrigger>
@@ -64,8 +64,11 @@ function AgentChatInvocationDetails({
             </div>
             <div className="min-h-0 overflow-y-auto px-3 py-2.5">
                 {action.isPending && <Spinner className="size-3.5" />}
+                {/* The raw error names Server Core internals; the user only needs to know the file is not readable. */}
                 {action.error && (
-                    <p className="m-0 text-[12px] text-muted">{action.error.message}</p>
+                    <p className="m-0 text-[12px] text-muted">
+                        The instructions for {invocation} could not be loaded.
+                    </p>
                 )}
                 {action.data && (
                     <AgentChatMessage isStreaming={false} text={action.data.markdown} />
