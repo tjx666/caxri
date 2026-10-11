@@ -7,6 +7,7 @@ import { agentText, hasCheck, waitForCheck, waitForNoCheck } from './mobile-agen
 import {
     adbShell,
     androidBounds,
+    mobileRegionFingerprint,
     mobileSemantics,
     setMobileNetworkAvailable,
     tapMobileCheck,
@@ -34,17 +35,31 @@ async function checkBounds(serial: string, id: string) {
 
 /**
  * Double-taps the viewer's picture in one device shell so both taps land inside the gesture's double-tap window, then
- * waits until the picture's on-screen bounds grow past the fitted size.
+ * waits until the picture has grown into a band above the fitted square fixture and settled there. The picture's own
+ * node fills the viewer at any scale, so only its pixels show the zoom.
  */
 async function zoomViewer(serial: string): Promise<void> {
-    const fitted = await checkBounds(serial, VIEWER_IMAGE);
-    if (!fitted) throw new Error('The full-size image is not laid out');
-    const x = Math.floor((fitted.left + fitted.right) / 2);
-    const y = Math.floor((fitted.top + fitted.bottom) / 2);
+    const viewer = await checkBounds(serial, VIEWER_IMAGE);
+    if (!viewer) throw new Error('The full-size image is not laid out');
+    const height = viewer.bottom - viewer.top;
+    const band = {
+        left: viewer.left,
+        right: viewer.right,
+        top: viewer.top + Math.floor(height * 0.2),
+        bottom: viewer.top + Math.floor(height * 0.22),
+    };
+    const fitted = await mobileRegionFingerprint(serial, band);
+    const x = Math.floor((viewer.left + viewer.right) / 2);
+    const y = Math.floor((viewer.top + viewer.bottom) / 2);
     await adbShell(serial, ['sh', '-c', `input tap ${x} ${y}; input tap ${x} ${y}`]);
+    let previous = fitted;
     await waitForMobile(
-        () => checkBounds(serial, VIEWER_IMAGE),
-        (bounds) => bounds !== undefined && bounds.right - bounds.left > fitted.right - fitted.left,
+        () => mobileRegionFingerprint(serial, band),
+        (current) => {
+            const isSettled = current !== fitted && current === previous;
+            previous = current;
+            return isSettled;
+        },
     );
 }
 
@@ -106,6 +121,9 @@ export async function executeMobileChatImageScenario(
 
         await tapMobileCheckByBounds(serial, `agent-chat-message-image-${message.id}-0`);
         await waitForCheck(serial, VIEWER_IMAGE, 60_000);
+        // A resumed Claude transcript keeps the original, so the viewer shows it rather than the preview fallback.
+        if (hasCheck(await mobileSemantics(serial), 'agent-chat-image-viewer-preview-note'))
+            throw new Error('The viewer fell back to the preview instead of the original');
         await capture(environment, 'viewer', artifacts);
         await zoomViewer(serial);
         await capture(environment, 'viewer-zoomed', artifacts);
