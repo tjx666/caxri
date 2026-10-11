@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentLifecycleSignal } from '../../agents';
 import { createCommanderCompletionNotifier } from '../completion-notice';
+import { commanderRowReader } from './commander-rows-fake';
 import { pendingStore } from './pending-notices-fake';
 
 function receipt(): AgentDelegationReceipt {
@@ -38,9 +39,15 @@ describe('createCommanderCompletionNotifier', () => {
                     terminalId: 'commander-terminal',
                     sessionIds: ['session-1'],
                 }),
+                ...commanderRowReader(() => 'commander-terminal'),
                 commanderPendingNotices: pendingStore(),
-                getSession: () => ({ lastActivityState: 'idle' }) as SessionRecord,
-                getTerminal: () => ({ id: 'commander-terminal', surface }) as TerminalRecord,
+                getSession: () =>
+                    ({
+                        lastActivityState: 'idle',
+                        projectId: 'commander-project',
+                    }) as SessionRecord,
+                getTerminal: (id: string) =>
+                    ({ id, sessionId: 'commander-session', surface }) as TerminalRecord,
             },
             logger: {
                 write: (_level: unknown, event: unknown) => {

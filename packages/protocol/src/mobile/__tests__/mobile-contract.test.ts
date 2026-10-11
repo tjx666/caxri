@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { mobileSessionCreateResultSchema } from '../mobile/mobile-contract.js';
+import { mobileSessionCreateResultSchema } from '../mobile-contract.js';
 
 describe('mobile Session creation result', () => {
     it('contains only navigation IDs and a bounded safe launch error', () => {

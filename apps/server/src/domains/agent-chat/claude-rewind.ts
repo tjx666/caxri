@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -14,6 +14,7 @@ import { clip } from './chat-items';
 import type {
     AgentChatSessionHost,
     AgentChatTranscript,
+    ChatFork,
     ChatForkTarget,
     ChatResumePoint,
     ChatRewindTarget,
@@ -75,11 +76,24 @@ function configDirectory(environment: NodeJS.ProcessEnv): string {
 const STORE_KEY_PART = /^[\w.-]{1,255}$/u;
 
 /**
+ * The largest transcript a fork loads. The SDK's session store contract hands it the whole session (no tail read), so
+ * this only stops a runaway file from being read into memory; real transcripts are far smaller.
+ */
+const MAX_CLAUDE_FORK_TRANSCRIPT_BYTES = 256 * 1024 * 1024;
+
+/**
  * Claude Code's own transcript files under `configDirectory`, as an Agent SDK session store. The SDK's session
  * functions otherwise find the folder through Server Core's environment, resolved once per process, while each Chat's
  * Claude Code runs with its own environment.
+ *
+ * `load` skips a line that is not valid JSON (a truncated trailing line from an interrupted write, a corrupt record)
+ * the way the SDK's own loader does, and counts it in `skippedRecords` so the fork can log it. A file above `maxBytes`
+ * fails with `CAPACITY` before it is read.
  */
-function claudeTranscriptStore(configDirectory: string): SessionStore {
+function claudeTranscriptStore(
+    configDirectory: string,
+    maxBytes = MAX_CLAUDE_FORK_TRANSCRIPT_BYTES,
+): SessionStore & { readonly skippedRecords: number } {
     const file = (key: SessionKey): string => {
         const parts = [key.projectKey, key.sessionId, ...(key.subpath ? [key.subpath] : [])];
         if (parts.some((part) => !STORE_KEY_PART.test(part) || /^\.+$/u.test(part)))
@@ -87,19 +101,36 @@ function claudeTranscriptStore(configDirectory: string): SessionStore {
         const name = key.subpath ? join(key.sessionId, key.subpath) : key.sessionId;
         return join(configDirectory, 'projects', key.projectKey, `${name}.jsonl`);
     };
+    let skippedRecords = 0;
     return {
+        get skippedRecords() {
+            return skippedRecords;
+        },
         async load(key) {
+            const path = file(key);
             let text: string;
             try {
-                text = await readFile(file(key), 'utf8');
+                const { size } = await stat(path);
+                if (size > maxBytes)
+                    throw new CaxriError(
+                        'CAPACITY',
+                        `This Claude conversation is too large to fork (${Math.ceil(size / 1024 / 1024)} MiB; the limit is ${Math.floor(maxBytes / 1024 / 1024)} MiB)`,
+                    );
+                text = await readFile(path, 'utf8');
             } catch (error) {
                 if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
                 throw error;
             }
-            return text
-                .split('\n')
-                .filter((line) => line.trim())
-                .map((line) => JSON.parse(line) as SessionStoreEntry);
+            const entries: SessionStoreEntry[] = [];
+            for (const line of text.split('\n')) {
+                if (!line.trim()) continue;
+                try {
+                    entries.push(JSON.parse(line) as SessionStoreEntry);
+                } catch {
+                    skippedRecords += 1;
+                }
+            }
+            return entries;
         },
         async append(key, entries) {
             const path = file(key);
@@ -112,30 +143,35 @@ function claudeTranscriptStore(configDirectory: string): SessionStore {
 /**
  * The Agent SDK's `forkSession` copies the transcript, with new message ids, up to and including the record a rewind
  * would resume at, into a new session the new Chat resumes. File checkpoints are not copied, so the fork can rewind
- * only the conversation it adds. `undefined` when the message opened the conversation.
+ * only the conversation it adds. No `agentSessionId` when the message opened the conversation; `skippedRecords` counts
+ * the transcript lines that were not valid JSON and were left out.
  */
 export async function forkClaudeSession(
     sessionId: string,
     host: Pick<AgentChatSessionHost, 'cwd' | 'environment'>,
     transcript: AgentChatTranscript | undefined,
     target: ChatForkTarget,
-): Promise<string | undefined> {
+    maxBytes?: number,
+): Promise<ChatFork> {
     const point = transcript && claudeRewindPoint(transcript.content, target.itemId);
-    if (point?.kind === 'fresh') return undefined;
+    if (point?.kind === 'fresh') return { agentSessionId: undefined };
     if (!point)
         throw new CaxriError(
             'CONFLICT',
             "This message is older than the part of Claude's record Caxri reads",
         );
     const { forkSession } = await import('@anthropic-ai/claude-agent-sdk');
+    const sessionStore = claudeTranscriptStore(configDirectory(host.environment), maxBytes);
     try {
         const forked = await forkSession(sessionId, {
             dir: host.cwd,
             upToMessageId: point.at,
-            sessionStore: claudeTranscriptStore(configDirectory(host.environment)),
+            sessionStore,
         });
-        return forked.sessionId;
+        return { agentSessionId: forked.sessionId, skippedRecords: sessionStore.skippedRecords };
     } catch (error) {
+        // The store's own refusal (an oversized transcript) already says what happened.
+        if (error instanceof CaxriError) throw error;
         throw new CaxriError(
             'UNAVAILABLE',
             clip(

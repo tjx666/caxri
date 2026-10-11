@@ -26,6 +26,48 @@ const RESTORE_REFUSALS: Record<AgentChatRewindRefusal, string> = {
     unknownMessage: 'This message is no longer in the conversation',
 };
 
+/**
+ * Why a rewind or file restore did not happen, as `agent_chat.rewound` and `agent_chat.files_restored` record it: one
+ * of the shared rewind refusals, or `capability` when the provider cannot restore files.
+ */
+type ChatRewindReason = AgentChatRewindRefusal | 'capability';
+
+/**
+ * The Chat declined the rewind or restore before anything changed, as opposed to a provider or Session failure.
+ */
+class ChatRewindRefusal extends CaxriError {
+    constructor(
+        readonly reason: ChatRewindReason,
+        code: 'CONFLICT' | 'VALIDATION',
+        message: string,
+    ) {
+        super(code, message);
+    }
+}
+
+/**
+ * A driver whose catalog entry promises file restore but whose session cannot do it: a build defect, so it logs as
+ * `failed` while the user still sees the same `VALIDATION` refusal.
+ */
+class ChatRewindCapabilityMismatch extends CaxriError {}
+
+/**
+ * The closed log fields for a thrown rewind or restore error: a refusal is `refused` with its reason, anything else
+ * `failed`, both with the CaxriError code (null for an unclassified throw).
+ */
+function rewindErrorFields(error: unknown): {
+    outcome: 'failed' | 'refused';
+    reason: ChatRewindReason | null;
+    code: string | null;
+} {
+    const code = error instanceof CaxriError ? error.code : null;
+    if (error instanceof ChatRewindRefusal)
+        return { outcome: 'refused', reason: error.reason, code };
+    if (error instanceof ChatRewindCapabilityMismatch)
+        return { outcome: 'failed', reason: 'capability', code };
+    return { outcome: 'failed', reason: null, code };
+}
+
 export interface ChatRewindRequest {
     itemId: string;
     restoreFiles: boolean;
@@ -48,7 +90,8 @@ interface ChatRewindHost {
  * removed turns changed when asked), restarts the Chat so the projection is rebuilt from the rewound record, and sends
  * the edited message as the next turn. The rewind and the send happen in one request so a provider that rewinds by
  * resuming at an earlier point (Claude Code) writes the new branch right away: an abandoned branch is never the newest
- * record a later resume would pick up. Logs `agent_chat.rewound` with a closed outcome.
+ * record a later resume would pick up. Logs `agent_chat.rewound` once, after the send: a closed outcome with its reason
+ * and error code, and `resendFailed` when the rewind happened but the restart or send did not.
  */
 export async function rewindChat(
     host: ChatRewindHost,
@@ -59,33 +102,42 @@ export async function rewindChat(
     const { provider } = requireChatTerminal(host.options.database, terminalId);
     const { restoreFiles } = request;
     const startedAt = Date.now();
-    const log = (outcome: 'failed' | 'refused' | 'rewound', removedTurns?: number): void =>
+    let removedTurns: number | undefined;
+    const log = (
+        outcome: 'failed' | 'refused' | 'resendFailed' | 'rewound',
+        reason: ChatRewindReason | null = null,
+        code: string | null = null,
+    ): void =>
         host.options.logger.write('info', logEventCatalog.agentChat.rewound, {
             fields: {
                 terminalId,
                 provider,
                 outcome,
+                reason,
+                code,
                 restoreFiles,
                 removedTurns: removedTurns ?? null,
                 durationMs: Date.now() - startedAt,
             },
         });
-    const providerEntry = agentProviderCatalog[provider];
-    if (restoreFiles && !providerEntry.capabilities.chatRewindFiles) {
-        log('refused');
-        throw new CaxriError(
-            'VALIDATION',
-            `${providerEntry.displayName} cannot restore files; edit the message without reverting them`,
-        );
-    }
-    let removedTurns: number | undefined;
     let resumePoint: ChatResumePoint | undefined;
     try {
+        const providerEntry = agentProviderCatalog[provider];
+        if (restoreFiles && !providerEntry.capabilities.chatRewindFiles)
+            throw new ChatRewindRefusal(
+                'capability',
+                'VALIDATION',
+                `${providerEntry.displayName} cannot restore files; edit the message without reverting them`,
+            );
         await host.enqueue(terminalId, async (session, state) => {
             const { snapshot } = state.projection;
             const result = agentChatRewindTarget(snapshot, request.itemId);
             if ('refusal' in result)
-                throw new CaxriError('CONFLICT', REWIND_REFUSALS[result.refusal]);
+                throw new ChatRewindRefusal(
+                    result.refusal,
+                    'CONFLICT',
+                    REWIND_REFUSALS[result.refusal],
+                );
             const item = snapshot.items.find((candidate) => candidate.id === request.itemId);
             removedTurns = result.target.removedTurns;
             resumePoint = await session.rewind({
@@ -100,18 +152,12 @@ export async function rewindChat(
             state.retiring ??= 'replaced';
         });
     } catch (error) {
-        log(
-            error instanceof CaxriError &&
-                (error.code === 'CONFLICT' || error.code === 'VALIDATION')
-                ? 'refused'
-                : 'failed',
-            removedTurns,
-        );
+        const { outcome, reason, code } = rewindErrorFields(error);
+        log(outcome, reason, code);
         throw error;
     }
     // Every turn is gone: the next start opens a new Agent Session instead of resuming the emptied one.
     if (resumePoint?.kind === 'fresh') host.options.coordinator.prepareTerminalStart(terminalId);
-    log('rewound', removedTurns);
     try {
         await host.restart(
             terminalId,
@@ -119,12 +165,15 @@ export async function rewindChat(
         );
         await host.send(terminalId, request.message);
     } catch (error) {
+        // The provider record is already rewound, so this is its own outcome rather than `failed`.
+        log('resendFailed', null, error instanceof CaxriError ? error.code : null);
         // The rewind already happened; say so, or the user would expect the old conversation to still be there.
         throw new CaxriError(
             error instanceof CaxriError ? error.code : 'UNAVAILABLE',
             `The conversation was rewound, but the message was not sent: ${errorMessage(error, 'unknown error')}`,
         );
     }
+    log('rewound');
 }
 
 /**
@@ -139,7 +188,7 @@ interface ChatRestoreHost {
  * "Restore code to here": restores the files the turns from user message `itemId` onward changed, from the provider's
  * file checkpoints, and keeps the conversation, as Claude Code's `/rewind` offers "Restore code". The same refusals as
  * "Edit from here" apply, since the provider checkpoints files per turn-starting message. Logs
- * `agent_chat.files_restored` with a closed outcome.
+ * `agent_chat.files_restored` with a closed outcome, reason, and error code.
  */
 export async function restoreChatFiles(
     host: ChatRestoreHost,
@@ -149,29 +198,41 @@ export async function restoreChatFiles(
     const { provider } = requireChatTerminal(host.options.database, terminalId);
     const startedAt = Date.now();
     let restoredTurns: number | undefined;
-    const log = (outcome: 'failed' | 'refused' | 'restored'): void =>
+    const log = (
+        outcome: 'failed' | 'refused' | 'restored',
+        reason: ChatRewindReason | null = null,
+        code: string | null = null,
+    ): void =>
         host.options.logger.write('info', logEventCatalog.agentChat.filesRestored, {
             fields: {
                 terminalId,
                 provider,
                 outcome,
+                reason,
+                code,
                 restoredTurns: restoredTurns ?? null,
                 durationMs: Date.now() - startedAt,
             },
         });
-    const providerEntry = agentProviderCatalog[provider];
-    if (!providerEntry.capabilities.chatRewindFiles) {
-        log('refused');
-        throw new CaxriError('VALIDATION', `${providerEntry.displayName} cannot restore files`);
-    }
     try {
+        const providerEntry = agentProviderCatalog[provider];
+        if (!providerEntry.capabilities.chatRewindFiles)
+            throw new ChatRewindRefusal(
+                'capability',
+                'VALIDATION',
+                `${providerEntry.displayName} cannot restore files`,
+            );
         await host.enqueue(terminalId, async (session, state) => {
             const { snapshot } = state.projection;
             const result = agentChatRewindTarget(snapshot, itemId);
             if ('refusal' in result)
-                throw new CaxriError('CONFLICT', RESTORE_REFUSALS[result.refusal]);
+                throw new ChatRewindRefusal(
+                    result.refusal,
+                    'CONFLICT',
+                    RESTORE_REFUSALS[result.refusal],
+                );
             if (!session.restoreFiles)
-                throw new CaxriError(
+                throw new ChatRewindCapabilityMismatch(
                     'VALIDATION',
                     `${providerEntry.displayName} cannot restore files`,
                 );
@@ -184,12 +245,8 @@ export async function restoreChatFiles(
             });
         });
     } catch (error) {
-        log(
-            error instanceof CaxriError &&
-                (error.code === 'CONFLICT' || error.code === 'VALIDATION')
-                ? 'refused'
-                : 'failed',
-        );
+        const { outcome, reason, code } = rewindErrorFields(error);
+        log(outcome, reason, code);
         throw error;
     }
     log('restored');

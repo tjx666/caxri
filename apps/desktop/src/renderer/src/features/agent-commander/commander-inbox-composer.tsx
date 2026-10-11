@@ -1,13 +1,13 @@
 import { useRef } from 'react';
 
 import type { CommanderInboxItem } from '@caxri/protocol';
-import { commanderInboxKindLabel } from '@caxri/protocol';
 import { CornerDownLeft, X } from 'lucide-react';
 
+import { SuggestionList } from '../../components/suggestion-list';
 import { Button } from '../../components/ui/button';
 import { Textarea } from '../../components/ui/textarea';
 import { Tooltip } from '../../components/ui/tooltip';
-import { cn } from '../../lib/utilities';
+import { inboxMentionSuggestion } from './commander-inbox';
 import { useCommanderInboxComposer } from './hooks/use-commander-inbox-composer';
 
 /**
@@ -17,39 +17,19 @@ export function CommanderInboxComposer({ items }: { items: readonly CommanderInb
     const textareaReference = useRef<HTMLTextAreaElement>(null);
     const composer = useCommanderInboxComposer(items, textareaReference);
     const { target } = composer;
-    const listboxId = 'commander-inbox-mentions';
     return (
         <div className="commander-inbox-composer relative flex flex-none flex-col gap-1.5 border-t border-border p-2">
             {composer.candidates.length > 0 && (
-                <ul
-                    id={listboxId}
-                    role="listbox"
-                    aria-label="Inbox items"
-                    className="commander-inbox-mentions absolute right-2 bottom-full left-2 mb-1 max-h-56 overflow-auto rounded-md border border-border bg-elevated p-1 shadow-lg"
-                >
-                    {composer.candidates.map((item, index) => (
-                        <li
-                            key={item.id}
-                            role="option"
-                            aria-selected={index === composer.highlight}
-                            className={cn(
-                                'flex cursor-pointer flex-col rounded px-2 py-1 text-[12px]',
-                                index === composer.highlight &&
-                                    'bg-[color-mix(in_srgb,var(--accent)_25%,transparent)]',
-                            )}
-                            onMouseDown={(event) => {
-                                // Keeps focus in the textarea, so the caret the mention is measured from survives.
-                                event.preventDefault();
-                                composer.choose(item);
-                            }}
-                        >
-                            <span className="truncate">{item.title}</span>
-                            <span className="text-[11px] text-muted">
-                                {commanderInboxKindLabel(item.kind)}
-                            </span>
-                        </li>
-                    ))}
-                </ul>
+                <SuggestionList
+                    activeIndex={composer.activeIndex}
+                    className="inset-x-2"
+                    footer="↑↓ to move · Enter to choose"
+                    label="Inbox items"
+                    listId={composer.listId}
+                    suggestions={composer.candidates.map(inboxMentionSuggestion)}
+                    onChoose={composer.chooseAt}
+                    onHover={composer.highlight}
+                />
             )}
             <div className="flex h-5 min-w-0 items-center gap-1 text-[11px] text-muted">
                 {target ? (
@@ -77,8 +57,7 @@ export function CommanderInboxComposer({ items }: { items: readonly CommanderInb
                 <Textarea
                     ref={textareaReference}
                     aria-label="Reply to the Commander"
-                    aria-controls={composer.candidates.length > 0 ? listboxId : undefined}
-                    aria-expanded={composer.candidates.length > 0}
+                    {...composer.inputAria}
                     role="combobox"
                     rows={2}
                     className="commander-inbox-input min-h-0 resize-none text-[12px]"

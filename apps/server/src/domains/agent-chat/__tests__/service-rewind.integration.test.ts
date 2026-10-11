@@ -1,5 +1,8 @@
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { describe, expect, it } from 'vitest';
+import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
+import type { Mock } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { fixture } from './chat-service-fixture';
 
@@ -36,15 +39,30 @@ async function threeTurns(provider: Provider) {
     return { ...context, secondId: second.id };
 }
 
+/**
+ * The fields of the only `event` record written so far.
+ */
+function loggedFields(logWrite: Mock<StructuredLogger['write']>, event: string) {
+    const records = logWrite.mock.calls.filter(([, name]) => name === event);
+    expect(records).toHaveLength(1);
+    return records[0][2]?.fields;
+}
+
 describe('AgentChatService rewind', () => {
     it.each<Provider>(['claude', 'codex', 'grok'])(
         'edits a %s conversation from an earlier message',
         async (provider) => {
-            const { service, terminal, until, secondId } = await threeTurns(provider);
+            const { service, terminal, until, secondId, logWrite } = await threeTurns(provider);
             await service.rewind(terminal.id, {
                 itemId: secondId,
                 restoreFiles: false,
                 message: { text: 'second, rewritten' },
+            });
+            expect(loggedFields(logWrite, 'agent_chat.rewound')).toMatchObject({
+                outcome: 'rewound',
+                reason: null,
+                code: null,
+                removedTurns: 2,
             });
             const edited = await until((snapshot) => isSettled(snapshot, 2));
             expect(userTexts(edited)).toEqual(['first', 'second, rewritten']);
@@ -83,8 +101,14 @@ describe('AgentChatService rewind', () => {
     });
 
     it('restores Claude code to an earlier message and keeps the conversation', async () => {
-        const { service, terminal, secondId, fakeLog } = await threeTurns('claude');
+        const { service, terminal, secondId, fakeLog, logWrite } = await threeTurns('claude');
         await service.restoreFiles(terminal.id, secondId);
+        expect(loggedFields(logWrite, 'agent_chat.files_restored')).toMatchObject({
+            outcome: 'restored',
+            reason: null,
+            code: null,
+            restoredTurns: 2,
+        });
         expect(await fakeLog('claude', 'rewinds.jsonl')).toEqual([
             { userMessageId: secondId, dryRun: true },
             { userMessageId: secondId, dryRun: false },
@@ -108,11 +132,22 @@ describe('AgentChatService rewind', () => {
         await expect(
             codex.service.restoreFiles(codex.terminal.id, codex.secondId),
         ).rejects.toMatchObject({ code: 'VALIDATION' });
+        expect(loggedFields(codex.logWrite, 'agent_chat.files_restored')).toMatchObject({
+            outcome: 'refused',
+            reason: 'capability',
+            code: 'VALIDATION',
+        });
 
-        const { service, terminal, until, secondId, fakeLog } = await threeTurns('claude');
+        const { service, terminal, until, secondId, fakeLog, logWrite } =
+            await threeTurns('claude');
         await service.send(terminal.id, { text: 'slow' });
         await until((snapshot) => snapshot.activeTurnId !== undefined);
         await expect(service.restoreFiles(terminal.id, secondId)).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+        expect(loggedFields(logWrite, 'agent_chat.files_restored')).toMatchObject({
+            outcome: 'refused',
+            reason: 'turnRunning',
             code: 'CONFLICT',
         });
         expect(await fakeLog('claude', 'rewinds.jsonl')).toEqual([]);
@@ -131,7 +166,7 @@ describe('AgentChatService rewind', () => {
     });
 
     it('refuses to restore Codex files and leaves the conversation alone', async () => {
-        const { service, terminal, secondId, fakeLog } = await threeTurns('codex');
+        const { service, terminal, secondId, fakeLog, logWrite } = await threeTurns('codex');
         await expect(
             service.rewind(terminal.id, {
                 itemId: secondId,
@@ -139,12 +174,17 @@ describe('AgentChatService rewind', () => {
                 message: { text: 'again' },
             }),
         ).rejects.toMatchObject({ code: 'VALIDATION' });
+        expect(loggedFields(logWrite, 'agent_chat.rewound')).toMatchObject({
+            outcome: 'refused',
+            reason: 'capability',
+            code: 'VALIDATION',
+        });
         expect(await fakeLog('codex', 'thread-reverts.jsonl')).toEqual([]);
         expect(userTexts(service.read(terminal.id))).toEqual(['first', 'second', 'third']);
     });
 
     it('refuses while a turn is running', async () => {
-        const { service, terminal, until, secondId } = await threeTurns('codex');
+        const { service, terminal, until, secondId, logWrite } = await threeTurns('codex');
         await service.send(terminal.id, { text: 'slow' });
         await until((snapshot) => snapshot.activeTurnId !== undefined);
         await expect(
@@ -154,5 +194,49 @@ describe('AgentChatService rewind', () => {
                 message: { text: 'again' },
             }),
         ).rejects.toMatchObject({ code: 'CONFLICT' });
+        expect(loggedFields(logWrite, 'agent_chat.rewound')).toMatchObject({
+            outcome: 'refused',
+            reason: 'turnRunning',
+            code: 'CONFLICT',
+        });
+    });
+
+    it('logs resendFailed when the edited message is not sent after the rewind', async () => {
+        const { service, terminal, secondId, logWrite } = await threeTurns('codex');
+        vi.spyOn(service, 'send').mockRejectedValueOnce(
+            new CaxriError('UNAVAILABLE', 'The provider stopped'),
+        );
+        await expect(
+            service.rewind(terminal.id, {
+                itemId: secondId,
+                restoreFiles: false,
+                message: { text: 'again' },
+            }),
+        ).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+        expect(loggedFields(logWrite, 'agent_chat.rewound')).toMatchObject({
+            outcome: 'resendFailed',
+            reason: null,
+            code: 'UNAVAILABLE',
+            removedTurns: 2,
+        });
+    });
+
+    it('logs a driver without file restore as a failed capability, not a refusal', async () => {
+        const { service, terminal, secondId, logWrite } = await threeTurns('codex');
+        // A catalog entry that promises file restore to a driver whose session cannot do it.
+        const { capabilities } = agentProviderCatalog.codex;
+        const promised = capabilities.chatRewindFiles;
+        Object.assign(capabilities, { chatRewindFiles: true });
+        onTestFinished(() => {
+            Object.assign(capabilities, { chatRewindFiles: promised });
+        });
+        await expect(service.restoreFiles(terminal.id, secondId)).rejects.toMatchObject({
+            code: 'VALIDATION',
+        });
+        expect(loggedFields(logWrite, 'agent_chat.files_restored')).toMatchObject({
+            outcome: 'failed',
+            reason: 'capability',
+            code: 'VALIDATION',
+        });
     });
 });

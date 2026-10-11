@@ -120,3 +120,17 @@ export function terminalSearchResultLabel(query: string, results: TerminalSearch
     if (results.resultIndex < 0) return `${results.resultCount} results`;
     return `${results.resultIndex + 1}/${results.resultCount}`;
 }
+
+/**
+ * Whether the find bar shows its count in the danger tone: the query matches nothing or cannot be searched.
+ */
+export function isTerminalSearchNoMatch(query: string, results: TerminalSearchResults): boolean {
+    return query !== '' && (Boolean(results.error) || results.resultCount === 0);
+}
+
+/**
+ * Whether there is a match for the find bar's previous and next buttons to step to.
+ */
+export function isTerminalSearchNavigable(query: string, results: TerminalSearchResults): boolean {
+    return query !== '' && !results.error && results.resultCount > 0;
+}
