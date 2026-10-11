@@ -5,7 +5,7 @@ import { logEventCatalog } from '@caxri/system';
 
 import type { AgentChatService } from '../agent-chat';
 import type { AgentCoordinator, AgentLifecycleSignal } from '../agents';
-import type { CaxriDatabase, CommanderPendingNoticesModel } from '../db';
+import type { CaxriDatabase, CommanderPendingNoticesModel, DeliveredNotice } from '../db';
 import type { TerminalManager } from '../terminal';
 
 /**
@@ -169,7 +169,14 @@ export interface CommanderCompletionNotifierOptions {
  * What the launch prompt built for one Commander launch carried, settled once that launch is running.
  */
 interface LaunchPromptClaim {
-    delegationIds: string[];
+    /**
+     * When the prompt was built. A turn marker set after it belongs to the new launch, not the one this prompt resumed.
+     */
+    claimedAt: number;
+    /**
+     * The exact revisions the prompt reported; a newer transition that lands before the launch runs stays owed.
+     */
+    delegations: DeliveredNotice[];
     hasInterruptedTurn: boolean;
     oldestQueuedAt: number;
     terminalId: string;
@@ -181,13 +188,13 @@ interface LaunchPromptClaim {
  * rounds. This is a Server Core-owned exception to the peer-message rule: the text never comes from another Agent, and
  * it can never carry a permission, a setting change, or a slash command (see `docs/agent-messaging.md`).
  *
- * Delivery into a running Commander only ever happens through the exact same fence `AgentDelegationService` uses
- * before resuming a follow-up: the finished turn's idle proof, and an input epoch unchanged since that turn started,
- * unless the last input since then submitted its line (a steer or queued message leaves no draft behind). A draft
- * typed mid-turn or after it, or a pending attention/permission request, defers delivery to the next clean idle point
- * instead of guessing whether Enter is safe to send. The residual risk is the same in-flight-keystroke race every
- * exact-launch write already accepts: a keystroke sent in the same event-loop turn as the write, before its epoch bump
- * is observed here, is not detectable.
+ * Delivery into a running Commander only ever happens through the exact same fence `AgentDelegationService` uses before
+ * resuming a follow-up: the finished turn's idle proof, and an input epoch unchanged since that turn started, unless
+ * the last input since then submitted its line (a steer or queued message leaves no draft behind). A draft typed
+ * mid-turn or after it, or a pending attention/permission request, defers delivery to the next clean idle point instead
+ * of guessing whether Enter is safe to send. The residual risk is the same in-flight-keystroke race every exact-launch
+ * write already accepts: a keystroke sent in the same event-loop turn as the write, before its epoch bump is observed
+ * here, is not detectable.
  *
  * Pending notices are persisted (`commander_pending_notices`), so a Server restart no longer loses them. A relaunched
  * Commander has no finished turn to prove idle against, so instead of waiting for the user to speak first it receives
@@ -319,9 +326,7 @@ export class CommanderCompletionNotifier {
          * delivery holds regardless of what happens after this point. Mirrors `SessionCompaction.compact`'s own
          * consume-before-send comment for the identical reason.
          */
-        this.options.database.commanderPendingNotices.removeDelegations(
-            pending.map((notice) => notice.delegationId),
-        );
+        this.options.database.commanderPendingNotices.removeDelegations(pending);
         const waitMs = Math.max(0, this.now() - pending[0].queuedAt);
         const { blockedTurns } = this;
         this.resetBatch();
@@ -408,14 +413,19 @@ export class CommanderCompletionNotifier {
      * `onLaunched` settles exactly what this prompt carried.
      */
     launchPrompt(terminalId: string): string | undefined {
-        this.launchClaim = undefined;
+        /**
+         * Every Agent launch without its own first prompt asks, restores included. Another Terminal resolving while the
+         * Commander's launch is still between this call and `onLaunched` must leave the Commander's claim alone.
+         */
         if (this.options.database.agentCommanderRows()?.terminalId !== terminalId) return undefined;
+        this.launchClaim = undefined;
         const notices = this.options.database.commanderPendingNotices.list();
         if (notices.length === 0) return undefined;
         const delegations = notices.filter((notice) => notice.kind === 'delegation');
         const hasInterruptedTurn = notices.some((notice) => notice.kind === 'interrupted_turn');
         this.launchClaim = {
-            delegationIds: delegations.map((notice) => notice.delegationId),
+            claimedAt: this.now(),
+            delegations,
             hasInterruptedTurn,
             oldestQueuedAt: notices[0].queuedAt,
             terminalId,
@@ -432,16 +442,29 @@ export class CommanderCompletionNotifier {
         if (!didLaunchAgent || !claim || claim.terminalId !== terminalId) return;
         this.launchClaim = undefined;
         const store = this.options.database.commanderPendingNotices;
-        store.removeDelegations(claim.delegationIds);
-        if (claim.hasInterruptedTurn) store.clearTurn();
+        store.removeDelegations(claim.delegations);
+        if (claim.hasInterruptedTurn) store.clearTurn(claim.claimedAt);
         this.lastFinishedTurn = undefined;
         this.turnStartBaseline = undefined;
         this.options.logger?.write('info', logEventCatalog.agentCommander.resumePromptDelivered, {
             fields: {
-                count: claim.delegationIds.length,
+                count: claim.delegations.length,
                 interruptedTurn: claim.hasInterruptedTurn,
                 waitMs: Math.max(0, this.now() - claim.oldestQueuedAt),
             },
+        });
+    }
+
+    /**
+     * A Chat Commander has no launch argv to carry a first prompt, so the same resume prompt goes in as its first Chat
+     * message once the provider is ready. The Chat path of `write` ignores the launch ID. The claim settles only after
+     * the Chat accepted the message, so a send that failed leaves the notices owed to the next launch.
+     */
+    onChatReady(terminalId: string): void {
+        const prompt = this.launchPrompt(terminalId);
+        if (prompt === undefined) return;
+        this.options.write(terminalId, prompt, '', (wasAccepted) => {
+            if (wasAccepted) this.onLaunched(terminalId, true);
         });
     }
 

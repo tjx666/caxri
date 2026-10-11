@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, lte, or } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
 import { commanderPendingNotices } from '../schema-commander';
@@ -19,6 +19,14 @@ export type CommanderPendingNotice =
           queuedAt: number;
       }
     | { kind: 'interrupted_turn'; queuedAt: number };
+
+/**
+ * A delegation notice identified by the revision it reported.
+ */
+export interface DeliveredNotice {
+    delegationId: string;
+    revision: number;
+}
 
 const INTERRUPTED_TURN_KEY = 'interrupted_turn';
 
@@ -96,18 +104,41 @@ export class CommanderPendingNoticesModel {
             .run();
     }
 
-    clearTurn(): void {
+    /**
+     * With `startedBy`, a marker set after that time survives: it belongs to a turn that started later.
+     */
+    clearTurn(startedBy?: number): void {
         this.database
             .delete(commanderPendingNotices)
-            .where(eq(commanderPendingNotices.key, INTERRUPTED_TURN_KEY))
+            .where(
+                and(
+                    eq(commanderPendingNotices.key, INTERRUPTED_TURN_KEY),
+                    startedBy === undefined
+                        ? undefined
+                        : lte(commanderPendingNotices.queuedAt, startedBy),
+                ),
+            )
             .run();
     }
 
-    removeDelegations(delegationIds: readonly string[]): void {
-        if (delegationIds.length === 0) return;
+    /**
+     * Removes exactly the revisions that were delivered. A newer transition that replaced a row in the meantime keeps
+     * it, so that update is still owed.
+     */
+    removeDelegations(delivered: readonly DeliveredNotice[]): void {
+        if (delivered.length === 0) return;
         this.database
             .delete(commanderPendingNotices)
-            .where(inArray(commanderPendingNotices.key, delegationIds.map(delegationKey)))
+            .where(
+                or(
+                    ...delivered.map((notice) =>
+                        and(
+                            eq(commanderPendingNotices.key, delegationKey(notice.delegationId)),
+                            eq(commanderPendingNotices.revision, notice.revision),
+                        ),
+                    ),
+                ),
+            )
             .run();
     }
 }

@@ -235,7 +235,13 @@ describe('Commander pending notices', () => {
             },
             { kind: 'interrupted_turn', queuedAt: 3_000 },
         ]);
-        notices().removeDelegations(['delegation-1']);
+        // The revision a launch prompt carried before the newer transition landed is not removed.
+        notices().removeDelegations([{ delegationId: 'delegation-1', revision: 2 }]);
+        expect(notices().list()).toHaveLength(2);
+        notices().removeDelegations([{ delegationId: 'delegation-1', revision: 4 }]);
+        // A marker set after the cutoff belongs to a later turn.
+        notices().clearTurn(2_999);
+        expect(notices().list()).toEqual([{ kind: 'interrupted_turn', queuedAt: 3_000 }]);
         notices().clearTurn();
         expect(notices().list()).toEqual([]);
     });

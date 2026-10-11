@@ -2,49 +2,13 @@ import type { AgentDelegationReceipt, SessionRecord } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentLifecycleSignal } from '../../agents';
-import type { CommanderPendingNotice } from '../../db';
 import {
     classifyCommanderCompletionNotice,
     CommanderCompletionNotifier,
     formatCommanderCompletionNotice,
     formatCommanderResumePrompt,
 } from '../completion-notice';
-
-/**
- * In-memory stand-in for `CommanderPendingNoticesModel` with the same keying: one row per delegation and one
- * interrupted-turn marker. The model's SQL is covered by its own integration test.
- */
-function pendingStore() {
-    const rows = new Map<string, CommanderPendingNotice>();
-    return {
-        rows,
-        list: () =>
-            rows
-                .values()
-                .toArray()
-                .toSorted((left, right) => left.queuedAt - right.queuedAt),
-        putDelegation(
-            notice: Omit<Extract<CommanderPendingNotice, { kind: 'delegation' }>, 'kind'>,
-        ) {
-            const key = `delegation:${notice.delegationId}`;
-            const existing = rows.get(key);
-            rows.set(key, {
-                kind: 'delegation',
-                ...notice,
-                queuedAt: existing?.queuedAt ?? notice.queuedAt,
-            });
-        },
-        markTurnStarted(now: number) {
-            rows.set('interrupted_turn', { kind: 'interrupted_turn', queuedAt: now });
-        },
-        clearTurn() {
-            rows.delete('interrupted_turn');
-        },
-        removeDelegations(ids: readonly string[]) {
-            for (const id of ids) rows.delete(`delegation:${id}`);
-        },
-    };
-}
+import { pendingStore } from './pending-notices-fake';
 
 function receipt(overrides: Partial<AgentDelegationReceipt> = {}): AgentDelegationReceipt {
     return {
@@ -574,6 +538,38 @@ describe('CommanderCompletionNotifier', () => {
         f.notifier.notifyReceiptChanged(receipt({ delegationId: 'd2', status: 'failed' }));
         f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
         expect(f.notices.list()).toMatchObject([{ kind: 'delegation', delegationId: 'd2' }]);
+    });
+
+    it('keeps a newer transition of a delegation the launch prompt already reported', () => {
+        f.notifier.notifyReceiptChanged(
+            receipt({ status: 'blocked', failure: 'permission_required', revision: 2 }),
+        );
+        f.notifier.launchPrompt(COMMANDER_TERMINAL_ID);
+        f.notifier.notifyReceiptChanged(receipt({ status: 'completed', revision: 3 }));
+        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
+        expect(f.notices.list()).toMatchObject([{ status: 'completed', revision: 3 }]);
+    });
+
+    it('keeps the Commander claim while another Agent launch resolves before the Commander runs', () => {
+        f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
+        f.notifier.launchPrompt(COMMANDER_TERMINAL_ID);
+        expect(f.notifier.launchPrompt('other-terminal')).toBeUndefined();
+        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
+        expect(f.notices.list()).toHaveLength(0);
+    });
+
+    it('sends a ready Chat Commander what it missed as its first message, settled only once accepted', () => {
+        f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
+        f.writeResult = false;
+        f.notifier.onChatReady(COMMANDER_TERMINAL_ID);
+        expect(f.writeCalls.at(-1)?.data).toContain('Missed 1 delegation update');
+        expect(f.notices.list()).toHaveLength(1);
+
+        f.writeResult = true;
+        f.notifier.onChatReady(COMMANDER_TERMINAL_ID);
+        expect(f.notices.list()).toHaveLength(0);
+        f.notifier.onChatReady(COMMANDER_TERMINAL_ID);
+        expect(f.writeCalls).toHaveLength(2);
     });
 
     it('marks only a main-thread turn as interrupted until it finishes, fails, or the user stops the Commander', () => {
