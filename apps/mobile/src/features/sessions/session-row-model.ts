@@ -19,3 +19,11 @@ export const archivedAgeLabel = (archivedAt: number, now: number): string => {
     const age = sessionAgeLabel(archivedAt, now);
     return age === 'now' ? 'archived just now' : `archived ${age} ago`;
 };
+
+/**
+ * How old a saved copy shown in place of a live read is, as in `Showing Sessions saved 5m ago.`
+ */
+export const savedAgeLabel = (savedAt: number, now: number): string => {
+    const age = sessionAgeLabel(savedAt, now);
+    return age === 'now' ? 'saved just now' : `saved ${age} ago`;
+};
