@@ -95,6 +95,42 @@ describe('ExtensionService tree children', () => {
         expect(treeRequests.every(({ parameters }) => !parameters?.parentHandle)).toBe(true);
     });
 
+    it('cancels instead of failing when the provider refreshes again during the root retry', async () => {
+        const service = new ExtensionService({
+            ...observationIdentity,
+            appVersion: '0.0.17',
+            commit: 'test',
+            extensionHostPath: '/out/main/extension-host.js',
+            extensionRoots: ['/extensions'],
+            includeTestOnly: true,
+            logger: new StructuredLogger(
+                '/tmp/caxri-extension-service-test',
+                'server-core',
+                'error',
+            ),
+            activeContext: () => Promise.resolve({}),
+            projectIds: () => Promise.resolve([]),
+            projectStatus: () => Promise.resolve({ repositories: [], refreshedAt: 1 }),
+            workspaceRequest: () => Promise.resolve(null),
+        });
+        await service.start();
+        supervisorHarness.activation.resolve();
+        supervisorHarness.treeChildrenFailure = Object.assign(
+            new Error('Tree provider refreshed while the request was running'),
+            { code: 'GENERATION_EXPIRED' },
+        );
+        supervisorHarness.treeChildrenFailureCount = 2;
+
+        await expect(
+            service.treeChildren({
+                viewId: 'publisher.fixture.tree',
+                parentHandle: 'stale-handle',
+                requestId: 'request-1',
+                context: { kind: 'no-session' },
+            }),
+        ).rejects.toMatchObject({ code: 'CANCELLED' });
+    });
+
     it('cancels a tree read when the active Session changes while the request is in flight', async () => {
         let active: { ownerProjectId?: string; sessionId?: string; workbenchProjectId?: string } = {
             ownerProjectId: 'project-1',
