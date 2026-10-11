@@ -104,6 +104,7 @@ export function CsvPreview({ path, source }: { path: string; source: string }) {
                     This file has no rows.
                 </div>
             ) : (
+                // react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- rows are absolutely positioned by the virtualizer, which a native <table> layout cannot host.
                 <div
                     ref={scrollReference}
                     aria-colcount={table.header.length + 1}
