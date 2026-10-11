@@ -1,6 +1,6 @@
 {
     "name": "@caxri/agent-skills",
-    "version": "0.0.91",
+    "version": "0.0.92",
     "private": true,
     "description": "Provider-neutral Caxri Agent skill installation and health integration.",
     "type": "module",
