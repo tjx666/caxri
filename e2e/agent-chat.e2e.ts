@@ -444,10 +444,24 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await expect(chat.getByRole('button', { name: 'Attach images' })).toHaveCount(0);
         // Claude Code names its model only in a turn's init, so the picker reads as the default until then.
         await expect(chat.getByRole('button', { name: 'Model: Default' })).toBeVisible();
+
+        // The Terminal | Chat switch stays out of sight until the pointer enters the tab bar.
+        const surfaceToggle = chat.locator('.agent-surface-toggle').locator('..');
+        await message.hover();
+        await expect(surfaceToggle).toHaveCSS('opacity', '0');
+        await chat.locator('.work-tabs').first().hover();
+        await expect(surfaceToggle).toHaveCSS('opacity', '1');
+        await page.screenshot({ path: testInfo.outputPath('claude-chat-tab-hover.png') });
+        await message.hover();
+        await expect(surfaceToggle).toHaveCSS('opacity', '0');
+
         await message.fill('hi there');
         await message.press('Enter');
         await expect(chat.getByText('Hello from fake Claude. You said: hi there')).toBeVisible();
-        await expect(chat.getByRole('button', { name: 'Model: Fake' })).toBeVisible();
+        // The init names the model, and the turn's hook input names the effort Claude Code actually applied.
+        await expect(
+            chat.getByRole('button', { name: 'Model: Fake, Medium effort', exact: true }),
+        ).toBeVisible();
         await expect(chat.getByRole('img', { name: /^\d+% of context used, /u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-reply.png') });
 

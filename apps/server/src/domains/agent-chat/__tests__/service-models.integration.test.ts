@@ -66,9 +66,20 @@ describe('Agent Chat model and effort with a fake Claude Code CLI', () => {
             (snapshot) => snapshot.model === 'fake-claude-opus' && snapshot.effort === 'max',
         );
 
-        // The next turn's init message reports what the CLI now runs, and it agrees.
+        // The next turn's init message and hook input report what the CLI now runs, and they agree.
         await service.send(terminal.id, { text: 'hello' });
         const snapshot = await until((current) => current.turns.at(-1)?.status === 'completed');
         expect(snapshot).toMatchObject({ model: 'fake-claude-opus', effort: 'max' });
+    });
+
+    it('learns the effort Claude Code applies from hook input when the user never chose one', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        const ready = await until((snapshot) => snapshot.models !== undefined);
+        // An SDK-hosted init carries no effort, so nothing is known before the first turn.
+        expect(ready.effort).toBeUndefined();
+
+        await service.send(terminal.id, { text: 'hello' });
+        const snapshot = await until((current) => current.turns.at(-1)?.status === 'completed');
+        expect(snapshot.effort).toBe('medium');
     });
 });
