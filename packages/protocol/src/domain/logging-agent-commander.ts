@@ -1,7 +1,6 @@
 /**
  * Agent Commander events of the structured-log registry (`logEventCatalog.agentCommander` in `./logging.ts`): the
- * Commander window, its Server lifecycle, completion notices, its task ledger, and the
- * Commander Inbox.
+ * Commander window, its Server lifecycle, completion notices, its task ledger, and the Commander Inbox.
  */
 export const agentCommanderLogEvents = {
     consoleError: 'agent_commander.console_error',

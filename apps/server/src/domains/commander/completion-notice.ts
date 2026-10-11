@@ -7,13 +7,12 @@ import type { AgentChatService } from '../agent-chat';
 import type { AgentCoordinator, AgentLifecycleSignal } from '../agents';
 import type { CaxriDatabase, CommanderPendingNoticesModel, DeliveredNotice } from '../db';
 import type { TerminalManager } from '../terminal';
-import {
-    type CommanderInboxNoticeEntry,
-    type CommanderCompletionNoticeStatus,
-    type CommanderInboxNoticeEvent,
-    formatCommanderCompletionNotice,
-    formatCommanderResumePrompt,
+import type {
+    CommanderCompletionNoticeStatus,
+    CommanderInboxNoticeEntry,
+    CommanderInboxNoticeEvent,
 } from './notice-text';
+import { formatCommanderCompletionNotice, formatCommanderResumePrompt } from './notice-text';
 
 /**
  * Why a consumed notice batch's PTY write did not provably land. Both are rare: the Commander Terminal was just
@@ -142,7 +141,10 @@ export class CommanderCompletionNotifier {
      * Inbox events by item, in memory only: the Inbox service re-queues unacknowledged replies after a restart. A later
      * event replaces an earlier one, since the Commander reads the item's current state with `commander inbox show`.
      */
-    private readonly pendingInbox = new Map<string, CommanderInboxNoticeEntry & { queuedAt: number }>();
+    private readonly pendingInbox = new Map<
+        string,
+        CommanderInboxNoticeEntry & { queuedAt: number }
+    >();
     /**
      * Highest receipt revision already turned into a pending or delivered notice, per delegation. Guards against a
      * duplicate `notifyReceiptChanged` call re-queuing the same transition; `AgentDelegationService.save` already

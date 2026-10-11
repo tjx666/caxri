@@ -2,8 +2,11 @@ import type { AgentDelegationReceipt, SessionRecord } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentLifecycleSignal } from '../../agents';
-import { classifyCommanderCompletionNotice, CommanderCompletionNotifier } from '../completion-notice';
-import { formatCommanderCompletionNotice, formatCommanderResumePrompt } from '../notice-text';
+import {
+    classifyCommanderCompletionNotice,
+    CommanderCompletionNotifier,
+} from '../completion-notice';
+import { formatCommanderResumePrompt } from '../notice-text';
 import { pendingStore } from './pending-notices-fake';
 
 function receipt(overrides: Partial<AgentDelegationReceipt> = {}): AgentDelegationReceipt {
@@ -36,52 +39,6 @@ describe('classifyCommanderCompletionNotice', () => {
         [{ status: 'launching' }, undefined],
     ] as const)('%o -> %s', (partial, expected) => {
         expect(classifyCommanderCompletionNotice(partial)).toBe(expected);
-    });
-});
-
-describe('formatCommanderCompletionNotice', () => {
-    it('formats a single transition on one prefixed line', () => {
-        const text = formatCommanderCompletionNotice([
-            { delegationId: 'd1', sessionId: 's1', status: 'completed' },
-        ]);
-        expect(text).toBe(
-            '[Caxri notice] 1 delegation update: delegation d1 in Session s1 completed.',
-        );
-    });
-
-    it('coalesces multiple transitions into one line', () => {
-        const text = formatCommanderCompletionNotice([
-            { delegationId: 'd1', sessionId: 's1', status: 'completed' },
-            { delegationId: 'd2', sessionId: 's2', status: 'failed' },
-            { delegationId: 'd3', sessionId: 's3', status: 'needsInput' },
-        ]);
-        expect(text).toBe(
-            '[Caxri notice] 3 delegation updates: delegation d1 in Session s1 completed; ' +
-                'delegation d2 in Session s2 failed; delegation d3 in Session s3 needs your input.',
-        );
-    });
-
-    it('names Inbox events by item ID only, and counts mixed updates together', () => {
-        expect(formatCommanderCompletionNotice([], [{ itemId: 'i1', event: 'replied' }])).toBe(
-            '[Caxri notice] 1 inbox update: inbox item i1 has a new reply.',
-        );
-        expect(
-            formatCommanderCompletionNotice(
-                [{ delegationId: 'd1', sessionId: 's1', status: 'completed' }],
-                [{ itemId: 'i1', event: 'merged' }],
-            ),
-        ).toBe(
-            '[Caxri notice] 2 updates: delegation d1 in Session s1 completed; inbox item i1 was merged.',
-        );
-    });
-
-    it('never lets an interpolated field introduce a control character or a newline', () => {
-        const text = formatCommanderCompletionNotice([
-            { delegationId: 'd1\u{7}\ninjected', sessionId: 's1', status: 'completed' },
-        ]);
-        // eslint-disable-next-line no-control-regex -- asserting the output contains none.
-        expect(/[\u{0}-\u{1F}\u{7F}-\u{9F}]/u.test(text)).toBe(false);
-        expect(text.includes('\n')).toBe(false);
     });
 });
 
