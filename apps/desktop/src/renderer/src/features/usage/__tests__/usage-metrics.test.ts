@@ -14,7 +14,9 @@ import {
     HEATMAP_WEEKS,
     peakHour,
     usageCoverageNotes,
+    usageDayTooltip,
     usageEmptyState,
+    usageHourTooltip,
     usageScanCaption,
     usageSessionCount,
 } from '../usage-metrics';
@@ -109,6 +111,23 @@ describe('activityHighlights and peakHour', () => {
         expect(highlights.busiestDay?.date).toBe('2026-03-09');
         expect(peakHour(Array.from({ length: 24 }, (_, hour) => (hour === 14 ? 9 : 1)))).toBe(14);
         expect(peakHour(Array.from({ length: 24 }, () => 0))).toBeUndefined();
+    });
+});
+
+describe('usageDayTooltip and usageHourTooltip', () => {
+    it('names the day or hour span with its figures, or says there was no usage', () => {
+        expect(
+            usageDayTooltip('2026-03-09', {
+                date: '2026-03-09',
+                tokens: 2_500_000,
+                costUsd: 1.5,
+                activeMs: 90 * 60_000,
+            }),
+        ).toBe('Mar 9, 2026 · 2.5M tokens · $1.50 · 1h 30m active');
+        expect(usageDayTooltip('2026-03-08', day('2026-03-08', 0))).toBe('Mar 8, 2026 · No usage');
+        expect(usageDayTooltip('2026-03-07', undefined)).toBe('Mar 7, 2026 · No usage');
+        expect(usageHourTooltip(11, 12_300_000)).toBe('11:00–12:00 · 12.3M tokens');
+        expect(usageHourTooltip(23, 0)).toBe('23:00–00:00 · No usage');
     });
 });
 
