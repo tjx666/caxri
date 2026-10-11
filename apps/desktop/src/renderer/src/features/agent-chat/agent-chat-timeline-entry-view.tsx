@@ -28,6 +28,7 @@ const AgentChatMessageItem = memo(
                 return (
                     <AgentChatUserMessage
                         delivery={item.delivery}
+                        id={item.id}
                         images={item.images}
                         text={item.text}
                         onOpenFile={onOpenFile}
