@@ -148,7 +148,10 @@ export function CommanderBoardItem({
                         </span>
                     </Tooltip>
                     <span className="sr-only">{presentation.agentLabel}</span>
-                    <span className="overflow-fade min-w-0 shrink">{row.projectTitle}</span>
+                    {/* The fade masks the box's last 8px; the matching padding keeps a name that fits clear of it. */}
+                    <span className="overflow-fade -mr-1.5 min-w-0 shrink pr-2">
+                        {row.projectTitle}
+                    </span>
                     {ProcessIcon ? (
                         <Tooltip content={presentation.statePhrase}>
                             <span
