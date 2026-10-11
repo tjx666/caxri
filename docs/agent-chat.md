@@ -656,6 +656,15 @@ minute clock: once the Chat has idled past the cache lifetime, a `--warning` not
 message rewrites the context and what that costs; from 70% of the compaction window, a `--danger`
 notice suggests `/compact`. Both can show at once, cache first.
 
+The expired-cache notice also offers **Continue in new Chat**, the cheaper way out of a large cold
+context. It opens a new Chat of the same Agent in the same Session and sends it a handoff prompt
+(`agentChatHandoffPrompt`) naming the previous conversation, session ID, transcript path (from
+`terminal.agentTranscript`), and working directory. The prompt has the new Chat dispatch one
+subagent on a cheap model to condense the transcript before it continues, so the old context is
+never loaded whole. An unsent draft travels with the prompt as the request to handle after
+catching up, and leaves the old composer only once the new Chat accepted the prompt. A Chat with
+no transcript on disk refuses with an error instead of opening an empty Chat.
+
 ## Model and effort
 
 The snapshot's `models` lists the models the provider lets this Chat switch to, each with the
