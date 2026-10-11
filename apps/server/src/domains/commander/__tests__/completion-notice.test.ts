@@ -1,10 +1,11 @@
-import type { AgentDelegationReceipt, SessionRecord } from '@caxri/protocol';
+import type { AgentDelegationReceipt, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentLifecycleSignal } from '../../agents';
 import {
     classifyCommanderCompletionNotice,
     CommanderCompletionNotifier,
+    createCommanderCompletionNotifier,
     formatCommanderCompletionNotice,
 } from '../completion-notice';
 
@@ -188,7 +189,7 @@ describe('CommanderCompletionNotifier', () => {
         expect(f.writeCalls).toHaveLength(1);
         expect(f.writeCalls[0].terminalId).toBe(COMMANDER_TERMINAL_ID);
         expect(f.writeCalls[0].data).toContain('delegation delegation-1');
-        expect(f.writeCalls[0].data.endsWith('\r')).toBe(true);
+        expect(f.writeCalls[0].data).toMatch(/^\[Caxri notice\] .*\.$/);
     });
 
     it('delivers immediately when the Commander is already idle before the transition arrives', () => {
@@ -524,5 +525,72 @@ describe('CommanderCompletionNotifier', () => {
                 lastDeferral: 'draft_input',
             },
         });
+    });
+});
+
+describe('createCommanderCompletionNotifier', () => {
+    /**
+     * Drives one notice through a real notifier bound to fakes, with the Commander Terminal on the given surface.
+     */
+    async function deliver(surface: 'chat' | 'pty') {
+        const send = vi.fn(() => Promise.resolve());
+        const writeAgentExact = vi.fn(() => true);
+        const delivered = vi.fn();
+        const notifier = createCommanderCompletionNotifier({
+            agentChat: { send },
+            coordinator: { hasIdleProof: () => true },
+            database: {
+                agentCommanderRows: () => ({
+                    projectId: 'commander-project',
+                    sessionId: 'commander-session',
+                    terminalId: 'commander-terminal',
+                    sessionIds: ['session-1'],
+                }),
+                getSession: () => ({ lastActivityState: 'idle' }) as SessionRecord,
+                getTerminal: () => ({ id: 'commander-terminal', surface }) as TerminalRecord,
+            },
+            logger: {
+                write: (_level: unknown, event: unknown) => {
+                    if (String(event).endsWith('completion_notice_delivered')) delivered();
+                },
+            } as never,
+            terminals: { inputEpoch: () => 0, writeAgentExact },
+        });
+        const commanderSignal = (phase: AgentLifecycleSignal['phase']) =>
+            ({
+                phase,
+                agentTurnId: 'turn-1',
+                launchId: 'launch-1',
+                provider: 'codex',
+                terminalId: 'commander-terminal',
+            }) as AgentLifecycleSignal;
+        notifier.onLifecycleApplied(commanderSignal('turnStarted'));
+        notifier.onLifecycleApplied(commanderSignal('turnFinished'));
+        notifier.notifyReceiptChanged(receipt());
+        await Promise.resolve();
+        return { delivered, send, writeAgentExact };
+    }
+
+    it('sends a Chat Commander the notice as a Chat message, without a line terminator', async () => {
+        const { delivered, send, writeAgentExact } = await deliver('chat');
+
+        expect(writeAgentExact).not.toHaveBeenCalled();
+        expect(send).toHaveBeenCalledWith('commander-terminal', {
+            text: '[Caxri notice] 1 delegation update: delegation delegation-1 in Session session-1 completed.',
+        });
+        expect(delivered).toHaveBeenCalledOnce();
+    });
+
+    it('presses Enter after the line for a PTY Commander', async () => {
+        const { send, writeAgentExact } = await deliver('pty');
+
+        expect(send).not.toHaveBeenCalled();
+        expect(writeAgentExact).toHaveBeenCalledWith(
+            'commander-terminal',
+            expect.stringMatching(/completed\.\r$/),
+            'launch-1',
+            'delegation',
+            expect.any(Function),
+        );
     });
 });

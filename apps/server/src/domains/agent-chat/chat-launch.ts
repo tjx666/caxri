@@ -8,6 +8,7 @@ import type {
 import { agentProviderCatalog, CaxriError, errorMessage, isChatTerminal } from '@caxri/protocol';
 import { assertE2EAgentChatLaunch, logEventCatalog, readE2EAgentPolicy } from '@caxri/system';
 
+import type { AgentLifecycleSignal } from '../agents';
 import { agentCommandEnvironment, readAgentTranscript } from '../agents';
 import type { CaxriDatabase } from '../db';
 import type { TerminalWorkingDirectoryIdentity } from '../terminal';
@@ -204,4 +205,33 @@ export function didPersistChatStartFailure(
     );
     database.updateAgentProcessState(terminalId, 'failed');
     return true;
+}
+
+/**
+ * Hands a lifecycle signal synthesized from the provider protocol to the shared Agent lifecycle path. Delivery is
+ * ordered by the coordinator, not by this caller, so it runs in the background and logs a rejection.
+ */
+export function forwardChatLifecycle(
+    options: Pick<AgentChatServiceOptions, 'logger' | 'observeLifecycleSignal'>,
+    signal: AgentLifecycleSignal,
+): void {
+    // eslint-disable-next-line no-void -- lifecycle delivery is ordered by the coordinator, not by this caller.
+    void observeChatLifecycle(options, signal);
+}
+
+async function observeChatLifecycle(
+    options: Pick<AgentChatServiceOptions, 'logger' | 'observeLifecycleSignal'>,
+    signal: AgentLifecycleSignal,
+): Promise<void> {
+    try {
+        await options.observeLifecycleSignal(signal);
+    } catch (error: unknown) {
+        options.logger.write('warn', logEventCatalog.agentChat.protocolRejected, {
+            fields: {
+                terminalId: signal.terminalId,
+                reason: 'lifecycleFailed',
+                error: errorMessage(error, 'unknown'),
+            },
+        });
+    }
 }

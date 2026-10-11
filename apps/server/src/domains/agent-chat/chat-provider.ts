@@ -35,7 +35,7 @@ type ChatLifecyclePhase = Extract<
     | 'turnStarted'
 >;
 
-export interface ChatLifecycleEvent {
+interface ChatLifecycleEvent {
     phase: ChatLifecyclePhase;
     agentSessionId?: string;
     agentTurnId?: string;
