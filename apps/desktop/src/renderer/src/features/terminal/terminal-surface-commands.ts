@@ -115,19 +115,59 @@ export async function switchTerminalSurface(
 }
 
 /**
+ * A native menu cannot change once it is showing, so the menu waits for this read; bounded like the Session row's grant
+ * read so a slow Server never turns a right-click into nothing happening.
+ */
+const RESUMABLE_READ_TIMEOUT_MS = 300;
+
+/**
+ * Whether the bound Agent Session has a conversation its provider can resume, by the same rule the Server applies
+ * before a relaunch (`resumableAgentSessionId`): a provider whose transcript path is known but not yet written (a
+ * Claude Code session bound before its first reply landed) has nothing to resume, so `claude --resume <id>` would fail.
+ * A provider without an on-disk transcript counts as resumable. A failed or timed-out read falls back to the binding
+ * alone.
+ */
+export async function isAgentConversationResumable(
+    terminal: Pick<TerminalRecord, 'agentSessionId' | 'id' | 'provider'> | undefined,
+): Promise<boolean> {
+    if (!terminal?.provider || !terminal.agentSessionId) return false;
+    const { id: terminalId } = terminal;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<true>((resolve) => {
+        timer = setTimeout(() => resolve(true), RESUMABLE_READ_TIMEOUT_MS);
+    });
+    try {
+        const isWritten = async (): Promise<boolean> => {
+            const transcript = await caxri.request('terminal.agentTranscript', {
+                terminalId,
+                withContent: false,
+            });
+            return !transcript || transcript.exists;
+        };
+        return await Promise.race([isWritten(), timeout]);
+    } catch {
+        return true;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+/**
  * "Copy Resume Command" for an Agent tab and a Session row (its Primary Agent): a shell command that continues the
- * bound Agent Session in the provider's own TUI outside Caxri. Disabled until the Agent has a conversation to continue;
- * `disabledReason` lets a menu reuse the wording of its other conversation entries.
+ * bound Agent Session in the provider's own TUI outside Caxri. Disabled until the Agent has a conversation to continue
+ * (`isResumable`, from `isAgentConversationResumable`); `disabledReason` lets a menu reuse the wording of its other
+ * conversation entries.
  */
 export function agentResumeCommandMenuEntry(
     terminal: Pick<TerminalRecord, 'agentSessionId' | 'cwd' | 'provider'> | undefined,
+    isResumable: boolean,
     disabledReason = 'Send a message first; there is no conversation to resume yet',
 ): ContextMenuEntry {
     const provider = terminal?.provider;
     const agentSessionId = terminal?.agentSessionId;
     return {
         label: 'Copy Resume Command',
-        disabled: !provider || !agentSessionId,
+        disabled: !provider || !agentSessionId || !isResumable,
         disabledReason,
         onSelect: () =>
             provider &&

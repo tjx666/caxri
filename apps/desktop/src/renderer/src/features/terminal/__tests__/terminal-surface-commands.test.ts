@@ -9,15 +9,26 @@ const mocks = vi.hoisted(() => ({
         Promise.resolve(false),
     ),
     pushToast: vi.fn(),
+    refreshWorkbench: vi.fn<() => Promise<void>>(() => Promise.resolve()),
     shortcut: 'cmd+shift+j' as string | undefined,
     writeText: vi.fn<(text: string) => Promise<void>>(() => Promise.resolve()),
-    tryCommand: vi.fn(async (...[, run]: [string, () => Promise<unknown>]): Promise<unknown> => {
-        try {
-            return await run();
-        } catch {
-            return undefined;
-        }
-    }),
+    tryCommand: vi.fn(
+        async (
+            ...[, run, options]: [
+                string,
+                () => Promise<unknown>,
+                { refresh?: () => Promise<void> }?,
+            ]
+        ): Promise<unknown> => {
+            try {
+                const result = await run();
+                await options?.refresh?.();
+                return result;
+            } catch {
+                return undefined;
+            }
+        },
+    ),
 }));
 
 vi.mock('../../../lib/caxri', () => ({
@@ -29,10 +40,11 @@ vi.mock('../../../stores/toasts', () => ({
 }));
 vi.mock('../../../lib/keybindings', () => ({ readCommandShortcut: () => mocks.shortcut }));
 vi.stubGlobal('navigator', { clipboard: { writeText: mocks.writeText } });
-vi.mock('../../../stores/workbench', () => ({ refreshWorkbench: vi.fn() }));
+vi.mock('../../../stores/workbench', () => ({ refreshWorkbench: mocks.refreshWorkbench }));
 
 import {
     agentResumeCommandMenuEntry,
+    isAgentConversationResumable,
     switchTerminalSurface,
     switchTerminalSurfaceTo,
     terminalSurfaceMenuEntry,
@@ -55,6 +67,7 @@ function agentTerminal(
 
 beforeEach(() => {
     mocks.caxriRequest.mockClear();
+    mocks.refreshWorkbench.mockClear();
     mocks.showConfirm.mockClear();
     mocks.writeText.mockClear();
     mocks.pushToast.mockClear();
@@ -137,7 +150,7 @@ describe('switchTerminalSurfaceTo', () => {
 
 describe('agentResumeCommandMenuEntry', () => {
     it("copies the command that continues the Agent's conversation in its own TUI", async () => {
-        const entry = agentResumeCommandMenuEntry(agentTerminal('codex'));
+        const entry = agentResumeCommandMenuEntry(agentTerminal('codex'), true);
         expect(entry).toMatchObject({ label: 'Copy Resume Command', disabled: false });
         if (entry.type === 'separator' || entry.type === 'submenu') throw new Error('item');
         await entry.onSelect();
@@ -149,10 +162,46 @@ describe('agentResumeCommandMenuEntry', () => {
         expect(
             agentResumeCommandMenuEntry(
                 agentTerminal('claude', { agentSessionId: undefined }),
+                true,
                 'No conversation yet',
             ),
         ).toMatchObject({ disabled: true, disabledReason: 'No conversation yet' });
-        expect(agentResumeCommandMenuEntry(undefined)).toMatchObject({ disabled: true });
+        expect(agentResumeCommandMenuEntry(undefined, true)).toMatchObject({ disabled: true });
+    });
+
+    it('is disabled for a bound Agent Session whose conversation is not resumable yet', () => {
+        expect(agentResumeCommandMenuEntry(agentTerminal('claude'), false)).toMatchObject({
+            disabled: true,
+            disabledReason: 'Send a message first; there is no conversation to resume yet',
+        });
+    });
+});
+
+describe('isAgentConversationResumable', () => {
+    it('is false for a bound Claude Code session whose transcript has not been written', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce({ path: '/t.jsonl', exists: false });
+        await expect(isAgentConversationResumable(agentTerminal('claude'))).resolves.toBe(false);
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.agentTranscript', {
+            terminalId: 'terminal-1',
+            withContent: false,
+        });
+    });
+
+    it('is true once the transcript exists, or when the provider keeps none on disk', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce({ path: '/t.jsonl', exists: true });
+        await expect(isAgentConversationResumable(agentTerminal('claude'))).resolves.toBe(true);
+        mocks.caxriRequest.mockResolvedValueOnce(null);
+        await expect(isAgentConversationResumable(agentTerminal('grok'))).resolves.toBe(true);
+    });
+
+    it('falls back to the binding when the read fails, and is false without one', async () => {
+        mocks.caxriRequest.mockRejectedValueOnce(new Error('offline'));
+        await expect(isAgentConversationResumable(agentTerminal('codex'))).resolves.toBe(true);
+        mocks.caxriRequest.mockClear();
+        await expect(
+            isAgentConversationResumable(agentTerminal('claude', { agentSessionId: undefined })),
+        ).resolves.toBe(false);
+        expect(mocks.caxriRequest).not.toHaveBeenCalled();
     });
 });
 
@@ -171,5 +220,25 @@ describe('switchTerminalSurfaceTo re-entry', () => {
         expect(switches.pendingSurface('terminal-1')).toBeUndefined();
         await switchTerminalSurfaceTo(agentTerminal('codex'), 'chat', switches);
         expect(mocks.caxriRequest).toHaveBeenCalledTimes(2);
+    });
+
+    it('stays pending until the Workbench refreshed, so a quick second press switches back', async () => {
+        const switches = new TerminalSurfaceSwitchRegistry();
+        const refreshed = Promise.withResolvers<undefined>();
+        mocks.refreshWorkbench.mockReturnValueOnce(refreshed.promise);
+        const first = switchTerminalSurfaceTo(agentTerminal('codex'), 'chat', switches);
+        await vi.waitFor(() => expect(mocks.refreshWorkbench).toHaveBeenCalledTimes(1));
+        // The bootstrap still says PTY here, so a press now would aim at Chat again: it must not run.
+        expect(switchTerminalSurfaceTo(agentTerminal('codex'), 'chat', switches)).toBeUndefined();
+        expect(switches.pendingSurface('terminal-1')).toBe('chat');
+
+        refreshed.resolve(undefined);
+        await first;
+        expect(switches.pendingSurface('terminal-1')).toBeUndefined();
+        await switchTerminalSurfaceTo(agentTerminal('codex', { surface: 'chat' }), 'pty', switches);
+        expect(mocks.caxriRequest).toHaveBeenLastCalledWith('terminal.switchSurface', {
+            terminalId: 'terminal-1',
+            surface: 'pty',
+        });
     });
 });

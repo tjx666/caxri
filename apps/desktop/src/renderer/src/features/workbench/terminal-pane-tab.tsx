@@ -128,12 +128,12 @@ export function TerminalPaneTab({
                 onNavigate(event.key as WorkTabNavigationKey);
             }}
             onSelect={() => selectPaneTab(tab.id)}
-            contextMenu={() =>
+            contextMenu={async () =>
                 paneTabMenu({
                     paneId,
                     paneLayout,
                     tabId: tab.id,
-                    resourceEntries: terminalTabMenuEntries(terminal, isOnlySessionTerminal),
+                    resourceEntries: await terminalTabMenuEntries(terminal, isOnlySessionTerminal),
                 })
             }
         />

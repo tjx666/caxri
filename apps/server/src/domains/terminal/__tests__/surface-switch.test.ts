@@ -1,6 +1,6 @@
-import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import type { AgentProvider, TerminalRecord, TerminalSurface } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -8,6 +8,7 @@ import { logEventCatalog } from '@caxri/system';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { AgentCoordinator } from '../../agents';
+import { resolveAgentTranscriptLocation } from '../../agents/transcript';
 import { CaxriDatabase } from '../../db';
 import { InFlightLaunches } from '../in-flight-launches';
 import type { TerminalManager } from '../manager';
@@ -97,6 +98,7 @@ async function fixture({
         chat,
         coordinator,
         database,
+        directory,
         handler,
         loggedOutcomes,
         markPrimaryTurn,
@@ -211,6 +213,37 @@ describe('terminal.switchSurface', () => {
         );
         expect(coordinator.prepareTerminalStart).toHaveBeenCalledWith(terminal.id);
         expect(loggedOutcomes()).toEqual(['startedNew']);
+    });
+
+    it('resumes a Claude Code first turn whose transcript lands while Stop and Switch stops it', async () => {
+        const {
+            chat,
+            coordinator,
+            database,
+            directory,
+            handler,
+            loggedOutcomes,
+            terminal,
+            terminals,
+        } = await fixture({ provider: 'claude', surface: 'chat' });
+        chat.hasActiveTurn.mockReturnValue(true);
+        chat.close.mockImplementationOnce(async (terminalId: string) => {
+            const location = resolveAgentTranscriptLocation(database, terminalId, {
+                homeDirectory: directory,
+                variables: {},
+            });
+            await mkdir(dirname(location!.path), { recursive: true });
+            await writeFile(location!.path, '{}\n');
+        });
+        await expect(
+            handler({ terminalId: terminal.id, surface: 'pty', interruptTurn: true }),
+        ).resolves.toMatchObject({ status: 'switched' });
+        expect(terminals.restart).toHaveBeenCalledWith(
+            terminal.id,
+            expect.objectContaining({ resumeAgentSessionId: 'thread-1' }),
+        );
+        expect(coordinator.prepareTerminalResume).toHaveBeenCalledWith(terminal.id);
+        expect(loggedOutcomes()).toEqual(['switched']);
     });
 
     it('reopens a bound Grok Build conversation in Chat', async () => {

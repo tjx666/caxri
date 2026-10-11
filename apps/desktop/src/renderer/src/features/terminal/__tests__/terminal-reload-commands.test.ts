@@ -23,7 +23,12 @@ vi.mock('../terminal-commands', () => ({
 vi.mock('../../agent-chat/agent-chat-client', () => ({
     readAgentChatSnapshot: mocks.readAgentChatSnapshot,
 }));
-vi.mock('../../../lib/caxri', () => ({ caxri: { window: { showConfirm: mocks.showConfirm } } }));
+vi.mock('../../../lib/caxri', () => ({
+    caxri: {
+        request: () => Promise.resolve({ path: '/t.jsonl', exists: true }),
+        window: { showConfirm: mocks.showConfirm },
+    },
+}));
 vi.mock('../../../stores/selectors', () => ({ getBootstrap: mocks.getBootstrap }));
 vi.mock('../../../stores/toasts', () => ({ tryCommand: mocks.tryCommand }));
 vi.mock('../../../lib/keybindings', () => ({ readCommandShortcut: () => {} }));
@@ -242,14 +247,14 @@ describe('reloadAgent', () => {
 });
 
 describe('terminalTabMenuEntries', () => {
-    function labels(terminal: TerminalRecord): Array<string | undefined> {
-        return serializeContextMenu(terminalTabMenuEntries(terminal, false)).items.map((item) =>
-            item.type === 'separator' ? undefined : item.label,
+    async function labels(terminal: TerminalRecord): Promise<Array<string | undefined>> {
+        return serializeContextMenu(await terminalTabMenuEntries(terminal, false)).items.map(
+            (item) => (item.type === 'separator' ? undefined : item.label),
         );
     }
 
-    it('groups the Agent actions, the move, and the copy with separators', () => {
-        expect(labels(agentTerminal({ kind: 'codex', provider: 'codex' }))).toEqual([
+    it('groups the Agent actions, the move, and the copy with separators', async () => {
+        expect(await labels(agentTerminal({ kind: 'codex', provider: 'codex' }))).toEqual([
             'Open as Chat',
             'Reload Agent',
             undefined,
@@ -259,9 +264,9 @@ describe('terminalTabMenuEntries', () => {
         ]);
     });
 
-    it('leaves a Shell tab only its move, with no stray separators', () => {
+    it('leaves a Shell tab only its move, with no stray separators', async () => {
         expect(
-            labels(
+            await labels(
                 agentTerminal({ kind: 'shell', provider: undefined, agentSessionId: undefined }),
             ),
         ).toEqual(['Move to New Session']);
