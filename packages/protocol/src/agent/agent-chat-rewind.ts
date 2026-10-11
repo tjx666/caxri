@@ -71,9 +71,10 @@ export function agentChatRewindTarget(
  */
 export function agentChatRewindableMessageIds(snapshot: RewindSnapshot): Set<string> {
     const turnIds = new Set(snapshot.turns.map((turn) => turn.id));
+    const items = new Map(snapshot.items.map((item) => [item.id, item]));
     const ids = new Set<string>();
     for (const [turnId, itemId] of firstUserMessageIds(snapshot)) {
-        const item = snapshot.items.find((candidate) => candidate.id === itemId);
+        const item = items.get(itemId);
         if (turnIds.has(turnId) && item?.type === 'userMessage' && item.delivery !== 'steered')
             ids.add(itemId);
     }

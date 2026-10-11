@@ -10,15 +10,14 @@ import { agentChatEditCaption } from './agent-chat-edit';
  * The composer's first row while "Edit from here" is in progress, in the activity bar's shape: how much of the
  * conversation sending replaces, whether it also reverts the files those turns changed, and Cancel (or Escape). A
  * provider that cannot restore files keeps the choice visible but disabled, with the reason on hover, so the user
- * learns why only the conversation rewinds.
+ * learns why only the conversation rewinds. Renders nothing while no edit is in progress (`edit` is `undefined`).
  */
-export function AgentChatEditBar({
-    filesUnsupportedReason,
-    removedTurns,
-    shouldRestoreFiles,
-    onCancel,
-    onRestoreFilesChange,
-}: {
+export function AgentChatEditBar({ edit }: { edit: AgentChatEditBarProperties | undefined }) {
+    if (!edit) return null;
+    return <EditBar {...edit} />;
+}
+
+export interface AgentChatEditBarProperties {
     /**
      * Why the provider cannot revert files, or `undefined` when it can.
      */
@@ -27,7 +26,15 @@ export function AgentChatEditBar({
     shouldRestoreFiles: boolean;
     onCancel: () => void;
     onRestoreFilesChange: (shouldRestoreFiles: boolean) => void;
-}) {
+}
+
+function EditBar({
+    filesUnsupportedReason,
+    removedTurns,
+    shouldRestoreFiles,
+    onCancel,
+    onRestoreFilesChange,
+}: AgentChatEditBarProperties) {
     const checkboxId = useId();
     const isFilesDisabled = filesUnsupportedReason !== undefined;
     return (

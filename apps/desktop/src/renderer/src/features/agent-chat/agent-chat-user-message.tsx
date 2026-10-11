@@ -46,9 +46,9 @@ export function AgentChatUserMessage({
     const invocation = agentChatLeadingInvocation(text);
     const caption = agentChatDeliveryCaption(delivery);
     const edit = useAgentChatEdit();
-    const editAvailability = edit?.availability(id);
     const isEditing = edit?.editingId === id;
-    const hasActions = text !== '' || createdAt !== undefined || editAvailability !== undefined;
+    const hasActions =
+        text !== '' || createdAt !== undefined || edit?.availability(id) !== undefined;
     return (
         <div
             className="group/user-message flex flex-col items-end gap-1.5"
@@ -82,19 +82,7 @@ export function AgentChatUserMessage({
             {hasActions && (
                 <div className="-mt-1 flex h-6 items-center gap-1 opacity-0 group-hover/user-message:opacity-100 focus-within:opacity-100">
                     {createdAt !== undefined && <AgentChatMessageTime timestamp={createdAt} />}
-                    {edit && editAvailability !== undefined && (
-                        <Tooltip content={editAvailability ?? 'Edit from here'}>
-                            <button
-                                aria-label="Edit from here"
-                                className="flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
-                                disabled={editAvailability !== null}
-                                type="button"
-                                onClick={() => edit.startEdit(id, text)}
-                            >
-                                <Undo2 className="size-3.5" />
-                            </button>
-                        </Tooltip>
-                    )}
+                    <EditFromHereButton id={id} text={text} />
                     {text && (
                         <CopyIconButton
                             className="-mr-1"
@@ -105,6 +93,29 @@ export function AgentChatUserMessage({
                 </div>
             )}
         </div>
+    );
+}
+
+/**
+ * "Edit from here" in a user message's action row, when the Chat offers it for this message; disabled with the reason
+ * on hover while it cannot run.
+ */
+function EditFromHereButton({ id, text }: { id: string; text: string }) {
+    const edit = useAgentChatEdit();
+    const availability = edit?.availability(id);
+    if (!edit || availability === undefined) return null;
+    return (
+        <Tooltip content={availability ?? 'Edit from here'}>
+            <button
+                aria-label="Edit from here"
+                className="flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
+                disabled={availability !== null}
+                type="button"
+                onClick={() => edit.startEdit(id, text)}
+            >
+                <Undo2 className="size-3.5" />
+            </button>
+        </Tooltip>
     );
 }
 

@@ -17,6 +17,7 @@ import {
 export function useAgentChatPromptHistory({
     draft,
     hasAttachments,
+    isEditing,
     items,
     setDraft,
 }: {
@@ -26,6 +27,10 @@ export function useAgentChatPromptHistory({
      * image, which is never what ArrowUp meant.
      */
     hasAttachments: boolean;
+    /**
+     * "Edit from here" owns the input: recalling a sent prompt would overwrite the message being edited.
+     */
+    isEditing: boolean;
     items: readonly AgentChatItem[] | undefined;
     setDraft: (update: (current: string) => string) => void;
 }) {
@@ -38,7 +43,7 @@ export function useAgentChatPromptHistory({
         event: KeyboardEvent<HTMLTextAreaElement>,
         isMenuOpen: boolean,
     ): boolean => {
-        if (hasAttachments) return false;
+        if (hasAttachments || isEditing) return false;
         // A typed draft with no recall in progress never steps, so skip building the history.
         if (!position.current && draft.length > 0) return false;
         if (isMenuOpen && position.current?.recalled !== draft) return false;

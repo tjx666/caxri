@@ -26,20 +26,10 @@ import { agentChatContextUsage } from './agent-chat-context';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { AgentChatContextMeter } from './agent-chat-context-meter';
 import { draftWithInsertion, readAgentChatDraft, writeAgentChatDraft } from './agent-chat-drafts';
-import type { AgentChatEdit } from './agent-chat-edit';
-import {
-    agentChatEditRemovedTurns,
-    readAgentChatEdit,
-    writeAgentChatEdit,
-} from './agent-chat-edit';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
 import { AgentChatModelMenu } from './agent-chat-model-menu';
 import type { AgentChatActivity } from './agent-chat-presentation';
-import {
-    agentChatSendAction,
-    agentChatSubmitDelivery,
-    isAgentChatInterruptKey,
-} from './agent-chat-presentation';
+import { agentChatEscapeAction, agentChatSubmitDelivery } from './agent-chat-presentation';
 import { draftAfterQueueEdit } from './agent-chat-queue';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { completeAgentChatAction } from './agent-chat-slash-commands';
@@ -49,49 +39,14 @@ import {
 } from './agent-chat-stop-button';
 import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
+import type { AgentChatComposerEditOptions } from './hooks/use-agent-chat-composer-edit';
+import { useAgentChatComposerEdit } from './hooks/use-agent-chat-composer-edit';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatFileInput } from './hooks/use-agent-chat-file-input';
 import { useAgentChatPromptHistory } from './hooks/use-agent-chat-prompt-history';
 import { useAgentChatSubmit } from './hooks/use-agent-chat-submit';
 
-/**
- * Message input. Enter sends, Shift+Enter adds a line. While a turn runs (or the context compacts), Enter queues the
- * message for after the turn and Cmd+Enter steers it into the running turn; queued messages wait as cards above the
- * input. Escape or the Stop button that replaces Send while the input is empty interrupts the turn. Images can be
- * pasted, dropped, or picked when the provider accepts them; any other dropped file, Files entry, or Editor tab is
- * inserted as its path. A leading `/` or `$` offers the provider's commands and the discovered skills. It shares the
- * timeline's centered column so the input lines up with the conversation, and keeps the activity row, attachments, the
- * input, and its actions inside one card so they read as a single control. The action row picks the model and effort
- * for the next turn and shows how full the context window is. Clicking Send, Stop, or a chip or queue action hands
- * focus back to the input, since each of those controls disables or unmounts itself and would otherwise drop focus to
- * the document body. The unsent text survives switching Sessions and restarting Caxri, and ArrowUp on an empty input
- * recalls the prompts this Chat already sent. "Edit from here" on an earlier message (`startEdit` on
- * `editHandleReference`) puts its text in the input and the edit bar above it; sending then rewinds the Chat to before
- * that message and sends the draft in its place, and Escape or Cancel puts the previous draft back.
- */
-export interface AgentChatComposerEditHandle {
-    startEdit: (itemId: string, text: string) => void;
-}
-
-export function AgentChatComposer({
-    activeTurnId,
-    activity,
-    canSend,
-    commands,
-    dropHandlersReference,
-    editHandleReference,
-    filesUnsupportedReason,
-    inputReference,
-    isBusy,
-    isQueuePaused,
-    onEditingChange,
-    onSent,
-    providerName,
-    queue,
-    snapshot,
-    supportsImages,
-    terminalId,
-}: {
+interface AgentChatComposerProperties {
     /**
      * The running turn, which a message steers and Stop interrupts.
      */
@@ -110,21 +65,13 @@ export function AgentChatComposer({
      * the way down to the input is a long trip.
      */
     dropHandlersReference: RefObject<AgentChatDropHandlers | null>;
-    editHandleReference: RefObject<AgentChatComposerEditHandle | null>;
-    /**
-     * Why "Edit from here" cannot revert files with this provider (`capabilities.chatRewindFiles`), or `undefined`.
-     */
-    filesUnsupportedReason: string | undefined;
+    edit: AgentChatComposerEditOptions;
     inputReference: RefObject<HTMLTextAreaElement | null>;
     /**
      * Whether a message sent now waits in the queue (`isAgentChatBusy`).
      */
     isBusy: boolean;
     isQueuePaused: boolean;
-    /**
-     * Reports the message being edited, so the timeline can mark it.
-     */
-    onEditingChange: (itemId: string | undefined) => void;
     /**
      * Runs after Server Core accepted a message from this composer (sent, queued, or steered) or a slash command it
      * ran; never after a failed or refused send. The pane uses it to scroll the timeline to the latest entry.
@@ -149,9 +96,41 @@ export function AgentChatComposer({
      */
     supportsImages: boolean;
     terminalId: string;
-}) {
+}
+
+/**
+ * Message input. Enter sends, Shift+Enter adds a line. While a turn runs (or the context compacts), Enter queues the
+ * message for after the turn and Cmd+Enter steers it into the running turn; queued messages wait as cards above the
+ * input. Escape or the Stop button that replaces Send while the input is empty interrupts the turn. Images can be
+ * pasted, dropped, or picked when the provider accepts them; any other dropped file, Files entry, or Editor tab is
+ * inserted as its path. A leading `/` or `$` offers the provider's commands and the discovered skills. It shares the
+ * timeline's centered column so the input lines up with the conversation, and keeps the activity row, attachments, the
+ * input, and its actions inside one card so they read as a single control. The action row picks the model and effort
+ * for the next turn and shows how full the context window is. Clicking Send, Stop, or a chip or queue action hands
+ * focus back to the input, since each of those controls disables or unmounts itself and would otherwise drop focus to
+ * the document body. The unsent text survives switching Sessions and restarting Caxri, and ArrowUp on an empty input
+ * recalls the prompts this Chat already sent. "Edit from here" on an earlier message (`useAgentChatComposerEdit`) puts
+ * its text in the input and the edit bar above it; sending then rewinds the Chat to before that message and sends the
+ * draft in its place, and Escape or Cancel puts the previous draft back.
+ */
+export function AgentChatComposer({
+    activeTurnId,
+    activity,
+    canSend,
+    commands,
+    dropHandlersReference,
+    edit: editOptions,
+    inputReference,
+    isBusy,
+    isQueuePaused,
+    onSent,
+    providerName,
+    queue,
+    snapshot,
+    supportsImages,
+    terminalId,
+}: AgentChatComposerProperties) {
     const [draft, setDraftState] = useState(() => readAgentChatDraft(terminalId));
-    const [edit, setEditState] = useState(() => readAgentChatEdit(terminalId));
     /**
      * The turn a Stop was requested for. Keyed by turn so the pending state ends by itself when that turn does, and a
      * later turn starts with a live Stop button.
@@ -173,16 +152,6 @@ export function AgentChatComposer({
             writeAgentChatDraft(terminalId, next);
             return next;
         });
-    const setEdit = (next: AgentChatEdit | undefined): void => {
-        writeAgentChatEdit(terminalId, next);
-        setEditState(next);
-        onEditingChange(next?.itemId);
-    };
-    /**
-     * An edit whose message the Chat no longer holds (it was reset, or restarted onto other history) is over.
-     */
-    const removedTurns = edit && snapshot ? agentChatEditRemovedTurns(snapshot, edit) : undefined;
-    const activeEdit = removedTurns === undefined ? undefined : edit;
     const terminal = useTerminal(terminalId);
     const workbenchRoot = usePaneViewSession()?.rootPath;
     /**
@@ -229,62 +198,32 @@ export function AgentChatComposer({
         setDraft,
         terminalId,
     });
+    const edit = useAgentChatComposerEdit({
+        canSend,
+        draft,
+        focusInput,
+        inputReference,
+        isTurnRunning,
+        options: editOptions,
+        isBusy,
+        providerName,
+        snapshot,
+        submitEdit,
+        terminalId,
+        setDraft,
+    });
     const history = useAgentChatPromptHistory({
         draft,
         hasAttachments: images.attachments.length > 0,
+        isEditing: edit.isEditing,
         items: snapshot?.items,
         setDraft,
     });
     const contextUsage = agentChatContextUsage(snapshot);
-    /**
-     * A provider rewinds only a settled conversation, so an edit waits for the running turn to end or be stopped.
-     */
-    const isSendable =
-        canSend && !isSending && !images.isReading && hasContent && !(activeEdit && isTurnRunning);
-    const sendAction = activeEdit
-        ? {
-              label: 'Send edit',
-              tooltip: isTurnRunning ? 'Stop the running turn to send the edit' : 'Send edit',
-              placeholder: `Edit the message for ${providerName}`,
-          }
-        : agentChatSendAction({ isTurnRunning, isBusy }, providerName);
+    const isSendable = edit.canSend && !isSending && !images.isReading && hasContent;
+    const { sendAction } = edit;
     const submit = async (delivery?: 'steer'): Promise<void> => {
-        if (!isSendable) return;
-        if (activeEdit && removedTurns !== undefined) {
-            await submitEdit(
-                draft,
-                {
-                    ...activeEdit,
-                    restoreFiles: activeEdit.restoreFiles && filesUnsupportedReason === undefined,
-                    providerName,
-                    removedTurns,
-                },
-                () => setEdit(undefined),
-            );
-            return;
-        }
-        await submitDraft(draft, delivery);
-    };
-    const startEdit = (itemId: string, text: string): void => {
-        setDraft(() => text);
-        setEdit({
-            itemId,
-            restoreFiles: activeEdit?.restoreFiles ?? false,
-            // Switching to another message keeps the draft from before the first edit.
-            previousDraft: activeEdit ? activeEdit.previousDraft : draft,
-        });
-        requestAnimationFrame(() => {
-            const textarea = inputReference.current;
-            textarea?.focus();
-            textarea?.setSelectionRange(text.length, text.length);
-        });
-    };
-    useImperativeHandle(editHandleReference, () => ({ startEdit }));
-    const cancelEdit = (): void => {
-        if (!activeEdit) return;
-        setDraft(() => activeEdit.previousDraft);
-        setEdit(undefined);
-        focusInput();
+        if (isSendable) await edit.submit(draft, async () => submitDraft(draft, delivery));
     };
     const restoreQueued = (text: string): void => {
         setDraft((current) => draftAfterQueueEdit(current, text));
@@ -341,19 +280,8 @@ export function AgentChatComposer({
                         focusInput();
                     }}
                 />
-                {activeEdit && removedTurns !== undefined && (
-                    <AgentChatEditBar
-                        filesUnsupportedReason={filesUnsupportedReason}
-                        removedTurns={removedTurns}
-                        shouldRestoreFiles={activeEdit.restoreFiles}
-                        onCancel={cancelEdit}
-                        onRestoreFilesChange={(shouldRestoreFiles) => {
-                            setEdit({ ...activeEdit, restoreFiles: shouldRestoreFiles });
-                            focusInput();
-                        }}
-                    />
-                )}
-                {!activity && !activeEdit && snapshot?.usage && (
+                <AgentChatEditBar edit={edit.bar} />
+                {!activity && !edit.isEditing && snapshot?.usage && (
                     <AgentChatContextAlerts usage={snapshot.usage} />
                 )}
                 {menu.isOpen && (
@@ -388,8 +316,7 @@ export function AgentChatComposer({
                         setDraft(() => value);
                     }}
                     onKeyDown={(event) => {
-                        // An edit owns the input: recalling a sent prompt would overwrite the message being edited.
-                        if (!activeEdit && history.didHandleKey(event, menu.isOpen)) return;
+                        if (history.didHandleKey(event, menu.isOpen)) return;
                         if (menu.didHandleKey(event, { choose, complete })) return;
                         const key = {
                             key: event.key,
@@ -397,14 +324,14 @@ export function AgentChatComposer({
                             isComposing: event.nativeEvent.isComposing,
                             repeat: event.repeat,
                         };
-                        if (isTurnRunning && isAgentChatInterruptKey(key)) {
+                        const escape = agentChatEscapeAction(key, {
+                            isTurnRunning,
+                            isEditing: edit.isEditing,
+                        });
+                        if (escape) {
                             event.preventDefault();
-                            stop();
-                            return;
-                        }
-                        if (activeEdit && isAgentChatInterruptKey(key)) {
-                            event.preventDefault();
-                            cancelEdit();
+                            if (escape === 'stop') stop();
+                            else edit.cancel();
                             return;
                         }
                         const delivery = agentChatSubmitDelivery(

@@ -14,7 +14,6 @@ import { parseTerminalFileLocation } from '../terminal/terminal-file-location';
 import { TerminalLinkPicker } from '../terminal/terminal-link-picker';
 import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import { usePaneViewSession } from '../workbench/pane-view-session';
-import type { AgentChatComposerEditHandle } from './agent-chat-composer';
 import { AgentChatComposer } from './agent-chat-composer';
 import { agentChatEditAvailability, readAgentChatEdit } from './agent-chat-edit';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
@@ -40,6 +39,7 @@ import { agentChatDayBreaks } from './agent-chat-time';
 import { buildAgentChatTimeline } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
+import type { AgentChatComposerEditHandle } from './hooks/use-agent-chat-composer-edit';
 import type { AgentChatEditActions } from './hooks/use-agent-chat-edit';
 import { AgentChatEditContext } from './hooks/use-agent-chat-edit';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
@@ -334,17 +334,17 @@ export function AgentChatPane({
                 canSend={canSendAgentChatMessage(snapshot, processState)}
                 commands={snapshot?.commands}
                 dropHandlersReference={composerDrop}
-                editHandleReference={composerEdit}
-                filesUnsupportedReason={
-                    supportsRewindFiles
+                edit={{
+                    handleReference: composerEdit,
+                    filesUnsupportedReason: supportsRewindFiles
                         ? undefined
-                        : `${providerName} cannot restore files; only the conversation rewinds`
-                }
+                        : `${providerName} cannot restore files; only the conversation rewinds`,
+                    onEditingChange: setEditingId,
+                }}
                 inputReference={inputReference}
                 isBusy={isAgentChatBusy(snapshot)}
                 isQueuePaused={snapshot?.queuePaused ?? false}
                 providerName={providerName}
-                onEditingChange={setEditingId}
                 onSent={jumpToLatest}
                 queue={snapshot?.queue}
                 snapshot={snapshot}
