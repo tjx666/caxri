@@ -1,12 +1,11 @@
 import type { ReactNode } from 'react';
 
-import type { AgentProvider } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
+import { cn } from '../lib/utilities';
 
-import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
-import { cn } from '../../lib/utilities';
-
-export function UsageCard({
+/**
+ * A titled section of a report page (Usage, Agent status), with an optional caption aligned to the title's baseline.
+ */
+export function ReportCard({
     title,
     caption,
     className,
@@ -55,31 +54,3 @@ export function StatTile({
         </div>
     );
 }
-
-/**
- * A horizontal share bar. The figure it encodes is always printed beside it, so the bar is decoration.
- */
-export function ShareBar({ share }: { share: number }) {
-    return (
-        <div aria-hidden="true" className="h-1 w-full overflow-hidden rounded-sm bg-elevated">
-            <div
-                className="h-full rounded-sm bg-success"
-                style={{ width: `${Math.max(share > 0 ? 2 : 0, Math.min(1, share) * 100)}%` }}
-            />
-        </div>
-    );
-}
-
-export function ProviderLabel({ provider }: { provider: AgentProvider }) {
-    return (
-        <span className="flex min-w-0 items-center gap-2">
-            <AgentIdentityIcon identity={provider} size={14} />
-            <span className="truncate">{agentProviderCatalog[provider].displayName}</span>
-        </span>
-    );
-}
-
-export const tableHeadClass = 'pb-2 text-left text-[11px] font-normal text-muted';
-export const numericHeadClass = 'pb-2 text-right text-[11px] font-normal text-muted';
-export const cellClass = 'truncate py-1 pr-3 text-[12px]';
-export const numericCellClass = 'py-1 pl-3 text-right text-[12px] tabular-nums whitespace-nowrap';

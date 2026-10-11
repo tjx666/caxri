@@ -1,11 +1,14 @@
 import type { AgentThroughputSample } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
+import { agentProviderCatalog, agentStatusTabPath } from '@caxri/protocol';
 import { Timer } from 'lucide-react';
 
 import { usePolledQuery } from '@/hooks/use-polled-query';
 import { useRelativeTime } from '@/hooks/use-relative-time';
 
 import { StructuredTooltip } from '../../components/structured-tooltip';
+import { ProviderStatusSummary } from '../agent-status/provider-status-summary';
+import { useAgentProviderStatus } from '../agent-status/use-agent-provider-status';
+import { openEditorTab } from '../editor/document-commands';
 import {
     AGENT_THROUGHPUT_METHOD_NOTE,
     describeThroughputAggregate,
@@ -14,7 +17,7 @@ import {
     formatThroughputRate,
     throughputRate,
 } from './agent-throughput-label';
-import { StatusInfo } from './status-info';
+import { StatusItem } from './status-item';
 
 const BAR_WIDTH = 4;
 const BAR_GAP = 2;
@@ -61,8 +64,10 @@ function ThroughputBars({ samples }: { samples: readonly AgentThroughputSample[]
 }
 
 /**
- * Output speed of the Agent in the active Terminal, measured from the provider's own transcript. Renders nothing for a
- * Shell, an unsupported provider, or before the first measured response, so it never holds a slot to say "none".
+ * Output speed of the Agent in the active Terminal, measured from the provider's own transcript, with the provider's
+ * public service status beside it so a slow Agent can be told apart from a provider incident. Clicking opens the
+ * Terminal's Agent status tab. Renders nothing for a Shell, an unsupported provider, or before the first measured
+ * response, so it never holds a slot to say "none".
  */
 export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
     const throughput = usePolledQuery(
@@ -70,6 +75,7 @@ export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
         { terminalId },
         { label: 'terminal.agentThroughput', intervalMs: 2_000, staleTime: 1_000, retry: false },
     ).data;
+    const providerStatus = useAgentProviderStatus(throughput?.provider).data;
     const latest = throughput?.samples.at(-1);
     const lastResponseAgo = useRelativeTime(latest?.completedAt);
     const rate = throughput ? throughputRate(throughput.recent) : undefined;
@@ -80,12 +86,11 @@ export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
     const recentLabel =
         recentCount === 1 ? 'the last response' : `the last ${recentCount} responses`;
     return (
-        <StatusInfo
+        <StatusItem
             ariaLabel={`${agentName} output speed: ${label} over ${recentLabel}`}
             className="statusbar-agent-throughput"
-            // Keyboard-reachable like the Linear chip: the tooltip card is the only place the breakdown is shown.
-            focusable
             icon={<Timer />}
+            onClick={() => openEditorTab(agentStatusTabPath(terminalId))}
             title={
                 <StructuredTooltip
                     eyebrow={`${agentName} output speed`}
@@ -133,12 +138,22 @@ export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
                                   },
                               ]
                             : []),
+                        // Null means the provider publishes no status page; the row is left out rather than saying so.
+                        ...(providerStatus === null
+                            ? []
+                            : [
+                                  {
+                                      label: 'API status',
+                                      value: <ProviderStatusSummary status={providerStatus} />,
+                                  },
+                              ]),
                     ]}
                     notes={[AGENT_THROUGHPUT_METHOD_NOTE]}
+                    hint={`Click to open ${agentName} status`}
                 />
             }
         >
             {label}
-        </StatusInfo>
+        </StatusItem>
     );
 }

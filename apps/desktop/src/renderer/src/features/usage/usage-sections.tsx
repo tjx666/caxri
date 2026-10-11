@@ -7,10 +7,12 @@ import {
     formatUsd,
 } from '@caxri/protocol';
 
+import { ReportCard, StatTile } from '../../components/report-card';
 import { Progress } from '../../components/ui/progress';
 import { cn } from '../../lib/utilities';
+import { ProviderLabel } from './provider-label';
+import { ShareBar } from './share-bar';
 import { UsageActivityCard } from './usage-activity-card';
-import { ProviderLabel, ShareBar, StatTile, UsageCard } from './usage-card';
 import { UsageDetailCards } from './usage-detail-cards';
 import type { UsageMetric } from './usage-metrics';
 import {
@@ -71,7 +73,7 @@ function KpiTiles({ report }: { report: UsageReport }) {
 function InsightsCard({ report }: { report: UsageReport }) {
     const insights = buildUsageInsights(report);
     return (
-        <UsageCard title="Highlights">
+        <ReportCard title="Highlights">
             {insights.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">
                     Highlights appear once Agents have used some tokens.
@@ -83,7 +85,7 @@ function InsightsCard({ report }: { report: UsageReport }) {
                     ))}
                 </ul>
             )}
-        </UsageCard>
+        </ReportCard>
     );
 }
 
@@ -120,7 +122,7 @@ function BurnCard({ report }: { report: UsageReport }) {
         { label: 'Last 30 days', window: last30Days, perDay: last30Days.costUsd / 30 },
     ];
     return (
-        <UsageCard title="Burn rate" caption={burnRateCaption(last30Days.costUsd)}>
+        <ReportCard title="Burn rate" caption={burnRateCaption(last30Days.costUsd)}>
             <div className="grid gap-2">
                 {rows.map(({ label, window, perDay }) => (
                     <div
@@ -137,7 +139,7 @@ function BurnCard({ report }: { report: UsageReport }) {
                     </div>
                 ))}
             </div>
-        </UsageCard>
+        </ReportCard>
     );
 }
 
@@ -160,7 +162,7 @@ function formatReset(at: number, now: number): string {
 function LimitsCard({ report }: { report: UsageReport }) {
     if (report.limits.length === 0) return null;
     return (
-        <UsageCard
+        <ReportCard
             title="Plan limits"
             caption="Current windows, account-wide, as last reported by the Agent"
         >
@@ -200,14 +202,14 @@ function LimitsCard({ report }: { report: UsageReport }) {
                     </div>
                 ))}
             </div>
-        </UsageCard>
+        </ReportCard>
     );
 }
 
 function AgentsCard({ report }: { report: UsageReport }) {
     const total = report.totals.costUsd;
     return (
-        <UsageCard title="Agents">
+        <ReportCard title="Agents">
             {report.providers.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">No Agent usage in this range.</p>
             ) : (
@@ -240,7 +242,7 @@ function AgentsCard({ report }: { report: UsageReport }) {
                     ))}
                 </div>
             )}
-        </UsageCard>
+        </ReportCard>
     );
 }
 
@@ -248,7 +250,7 @@ function HourOfDayCard({ report }: { report: UsageReport }) {
     const peak = Math.max(0, ...report.hourOfDay);
     const busiest = peakHour(report.hourOfDay);
     return (
-        <UsageCard
+        <ReportCard
             title="Time of day"
             caption={busiest === undefined ? undefined : `Peak at ${formatHour(busiest)}`}
         >
@@ -280,7 +282,7 @@ function HourOfDayCard({ report }: { report: UsageReport }) {
                 <span>12</span>
                 <span>18</span>
             </div>
-        </UsageCard>
+        </ReportCard>
     );
 }
 

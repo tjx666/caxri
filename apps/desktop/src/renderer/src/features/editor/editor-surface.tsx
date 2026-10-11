@@ -12,6 +12,7 @@ import {
     isExternalEditorTabPath,
     isSettingsTabPath,
     isUsageTabPath,
+    parseAgentStatusTab,
     parseAgentTaskTab,
     parseAgentTranscriptTab,
     parseFilePreviewTab,
@@ -53,6 +54,11 @@ const AgentTranscriptEditor = lazy(async () => {
 const AgentChatTaskTab = lazy(async () => {
     const module = await import('../agent-chat/agent-chat-task-tab');
     return { default: module.AgentChatTaskTab };
+});
+
+const AgentStatusPage = lazy(async () => {
+    const module = await import('../agent-status/agent-status-page');
+    return { default: module.AgentStatusPage };
 });
 
 /**
@@ -224,6 +230,13 @@ function EditorSurfaceContent({ paneId, path }: { paneId: string; path: string }
         return (
             <Suspense fallback={<div className={emptyWorkClassName}>Loading task…</div>}>
                 <AgentChatTaskTab key={path} tab={agentTaskTab} />
+            </Suspense>
+        );
+    const agentStatusTab = parseAgentStatusTab(path);
+    if (agentStatusTab)
+        return (
+            <Suspense fallback={<div className={emptyWorkClassName}>Loading Agent status…</div>}>
+                <AgentStatusPage key={path} terminalId={agentStatusTab.terminalId} />
             </Suspense>
         );
     const previewTab = parseFilePreviewTab(path);
