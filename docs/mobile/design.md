@@ -310,6 +310,8 @@ message.` The user sends it; nothing is sent automatically.
 │ Agent                         │
 │ [✳ Claude]      [◎ Codex]     │  brand glyph chips; catalog displayName
 │ [𝕏 Grok Build]  [>_ Shell]    │
+│ Open as                       │  Chat-capable Agents only
+│ [💬 Chat]       [>_ Terminal] │
 │ Project                       │
 │ [🔍 Filter Projects        ]  │  only with more than 6 Projects
 │ 📁 caxri                    ✓ │
@@ -322,8 +324,13 @@ message.` The user sends it; nothing is sent automatically.
 - Agent comes first so it is visible without scrolling however many Projects exist.
 - Only granted Projects are listed, most recently used first. Unavailable Agents are shown disabled
   with a short reason.
-- Create opens the new Session screen with the composer focused, so the first instruction is typed
-  there. Desktop's selected Session does not change.
+- `Open as` picks the new Agent's surface. It defaults to the computer's `Open Agents in Chat`
+  setting, a pick here applies only to this screen and never writes that setting, and it is hidden
+  for Shell, which always opens in a Terminal. A Chat streams its reply as it is written; a Terminal
+  Agent's Conversation updates block by block from the Agent transcript.
+- Create opens the new Session screen. A Terminal Session focuses the composer, so the first
+  instruction is typed there; a Chat Session opens its Agent Chat view. Desktop's selected Session
+  does not change.
 - Failures keep the choices and explain the error; the button shows progress while creating.
 
 ## Add Project

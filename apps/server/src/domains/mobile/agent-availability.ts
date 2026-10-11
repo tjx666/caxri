@@ -19,11 +19,10 @@ export function createMobileAgentAvailabilityHandler(options: {
             options.database.listVisibleProjects().every((project) => project.id !== projectId)
         )
             throw new CaxriError('NOT_FOUND', 'Project not found');
+        const settings = options.configuration.getSettings().value;
         const providers = await Promise.all(
             agentProviderIds.map(async (kind: AgentProvider) => {
-                const requested =
-                    options.configuration.getSettings().value['agents.providers'][kind].launch
-                        .executable;
+                const requested = settings['agents.providers'][kind].launch.executable;
                 const executable = await (options.discover ?? discoverExecutable)(kind, requested);
                 return {
                     kind,
@@ -32,6 +31,9 @@ export function createMobileAgentAvailabilityHandler(options: {
                 };
             }),
         );
-        return { agents: [...providers, { kind: 'shell' as const, available: true }] };
+        return {
+            agents: [...providers, { kind: 'shell' as const, available: true }],
+            openAgentsInChat: settings['session.openAgentsInChat'],
+        };
     };
 }

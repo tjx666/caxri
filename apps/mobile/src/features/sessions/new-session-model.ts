@@ -1,4 +1,5 @@
-import type { TerminalKind } from '@caxri/protocol';
+import type { TerminalKind, TerminalSurface } from '@caxri/protocol';
+import { canUseAgentChat } from '@caxri/protocol';
 
 import type { MobileConnectionStatus } from '../connection/connection-state';
 
@@ -17,6 +18,10 @@ export interface NewSessionAgent {
 export interface NewSessionSelection {
     agent: TerminalKind | null;
     projectId: string | null;
+    /**
+     * The surface the user picked on this screen; `null` follows the Mac's `session.openAgentsInChat` setting.
+     */
+    surface: TerminalSurface | null;
 }
 
 export type NewSessionCreateState =
@@ -29,6 +34,7 @@ export type NewSessionCreateState =
 export const emptyNewSessionSelection = (): NewSessionSelection => ({
     agent: null,
     projectId: null,
+    surface: null,
 });
 
 export const markUncertainSessionsChecked = (
@@ -67,6 +73,19 @@ export const availableNewSessionAgent = (
             agents.some((agent) => agent.kind === kind && agent.available),
         ) ?? null
     );
+};
+
+/**
+ * The surface a new Session opens with, or `null` when the Agent has no Chat and the surface choice is hidden. An
+ * explicit pick wins; otherwise the Mac's `session.openAgentsInChat` setting decides, matching Desktop's menus.
+ */
+export const newSessionSurface = (
+    preferred: TerminalSurface | null,
+    agent: TerminalKind | null,
+    isChatDefault: boolean,
+): TerminalSurface | null => {
+    if (!agent || !canUseAgentChat(agent)) return null;
+    return preferred ?? (isChatDefault ? 'chat' : 'pty');
 };
 
 export const selectedNewSessionProject = (

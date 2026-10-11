@@ -15,6 +15,7 @@ import {
     executeMobileFileEditScenario,
     executeMobileImageAttachmentScenario,
     finish,
+    openComposerSession,
 } from './support/mobile-agent-actions-scenarios.ts';
 import { executeMobileAgentChatCase } from './support/mobile-agent-chat-scenario.ts';
 import {
@@ -75,22 +76,6 @@ function requireEnvironment(): {
         throw new Error('Mobile Acceptance scenario identity is incomplete');
     }
     return { artifactManifestPath, assetsDirectory, caseId, scenarioReceiptPath, serial };
-}
-
-async function openComposerSession(serial: string, sessionId: string): Promise<void> {
-    await tapMobileCheck(serial, `session-row-${sessionId}`);
-    await waitForMobile(
-        () => mobileSemantics(serial),
-        (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail'),
-    );
-    /**
-     * The synthetic Agent has no Conversation; a control device uses the composer from Changes.
-     */
-    await tapMobileCheck(serial, 'session-segment-changes');
-    await waitForMobile(
-        () => mobileSemantics(serial),
-        (nodes) => nodes.some(({ checkId }) => checkId === 'session-composer-input'),
-    );
 }
 
 function requireRemoteVideoPath(): string {
@@ -642,6 +627,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
             break;
         case 'MOB-CHAT-01':
         case 'MOB-CHAT-02':
+        case 'MOB-CHAT-03':
             await executeMobileAgentChatCase(environment, artifacts);
             break;
         case 'MOB-CONV-05':
