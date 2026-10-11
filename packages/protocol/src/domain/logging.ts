@@ -378,6 +378,9 @@ export const logEventCatalog = {
          * every-60-seconds-per-visible-Session path stays answerable without a per-poll record.
          */
         scanWindow: 'session_context.scan_window',
+        // `@` Session references: counts and closed reasons only, never conversation text.
+        referenceFailed: 'session_context.reference_failed',
+        referencePrepared: 'session_context.reference_prepared',
     },
     sessionRename: {
         providerSyncSkipped: 'session_rename.provider_sync_skipped',

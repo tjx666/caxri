@@ -88,6 +88,7 @@ export const coreForwardedMethods = [
     'projectStatus.summary',
     'session.archive',
     'session.compactWarm',
+    'session.conversationReference',
     'session.create',
     'session.detach',
     'session.dismissWorkbenchCandidate',

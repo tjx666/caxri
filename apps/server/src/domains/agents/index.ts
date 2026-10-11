@@ -70,6 +70,11 @@ export {
     resolveAgentTranscriptLocation,
 } from './transcript';
 export {
+    readTranscriptConversation,
+    type TranscriptConversation,
+    type TranscriptConversationMessage,
+} from './transcript-conversation';
+export {
     createTranscriptPullRequestScan,
     resetTranscriptPullRequestScan,
     scanTranscriptPullRequestLine,
