@@ -258,7 +258,7 @@ async function openModelSheet(serial: string): Promise<void> {
 }
 
 /**
- * `MOB-CHAT-03`: a phone chooses the model and effort of a new Codex Chat before its first message, switches them again
+ * `MOB-CHAT-04`: a phone chooses the model and effort of a new Codex Chat before its first message, switches them again
  * while a turn runs (the sheet says the change applies from the next turn), and sees the sheet disabled with its reason
  * when the connection drops. Each choice is proven against the Server's Chat projection, which Desktop's menu reads.
  */
@@ -368,7 +368,7 @@ export async function executeMobileAgentChatCase(
             return executeMobileAgentChatScenario(environment, artifacts);
         case 'MOB-CHAT-02':
             return executeMobileClaudeToolApprovalScenario(environment, artifacts);
-        case 'MOB-CHAT-03':
+        case 'MOB-CHAT-04':
             return executeMobileChatModelScenario(environment, artifacts);
         default:
             throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
