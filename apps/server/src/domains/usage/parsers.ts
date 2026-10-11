@@ -20,6 +20,11 @@ export interface UsageParserOptions {
      * their gaps would double count wall-clock time.
      */
     isSideStream?: boolean;
+    /**
+     * The file continues a conversation recorded in another file (a reverted Codex thread's `<thread>_<rollout>`
+     * rollout), so its first cumulative total repeats usage that file already holds and only sets the baseline.
+     */
+    isContinuation?: boolean;
 }
 
 /**
@@ -185,7 +190,10 @@ function codexRateLimits(value: unknown, at: number): RateLimitObservation | und
  * whole new total would double count history it may repeat. Codex counts cached input inside `input_tokens` and
  * reasoning inside `output_tokens`.
  */
-export function codexUsageParser(accumulator: UsageAccumulator): UsageLineParser {
+export function codexUsageParser(
+    accumulator: UsageAccumulator,
+    options: UsageParserOptions = {},
+): UsageLineParser {
     const trackPullRequests = pullRequestTracker(accumulator);
     let model = 'unknown';
     let previous: CodexTotals | undefined;
@@ -211,6 +219,7 @@ export function codexUsageParser(accumulator: UsageAccumulator): UsageLineParser
             if (!totals) return;
             const base = previous;
             previous = totals;
+            if (!base && options.isContinuation) return;
             if (base && (totals.input < base.input || totals.output < base.output)) return;
             const delta = (key: keyof CodexTotals) => totals[key] - (base?.[key] ?? 0);
             const cached = Math.max(0, delta('cached'));

@@ -10,6 +10,13 @@ import { identifierSchema } from './domain.js';
 export const usageRangeIds = ['7d', '30d', '90d', '365d', 'all'] as const;
 export type UsageRange = (typeof usageRangeIds)[number];
 
+/**
+ * Which Agent Sessions a report counts: `caxri` only those Caxri Sessions hosted (the usage ledger), `all` every Agent
+ * transcript on this machine, including conversations run outside Caxri.
+ */
+export const usageScopeIds = ['caxri', 'all'] as const;
+export type UsageScope = (typeof usageScopeIds)[number];
+
 export const usagePullRequestStateSchema = z.enum(['open', 'merged', 'closed', 'missing']);
 export type UsagePullRequestState = z.infer<typeof usagePullRequestStateSchema>;
 
@@ -40,6 +47,10 @@ export const usageReportParametersSchema = z.object({
     timeZone: z.string().min(1).max(64),
     range: z.enum(usageRangeIds),
     provider: agentProvider.optional(),
+    /**
+     * Defaults to `caxri`.
+     */
+    scope: z.enum(usageScopeIds).optional(),
 });
 export type UsageReportParameters = z.infer<typeof usageReportParametersSchema>;
 
@@ -79,6 +90,10 @@ export const usageProjectRowSchema = z.object({
      * True when the Project's metadata was removed after the usage was recorded.
      */
     isRemoved: z.boolean(),
+    /**
+     * The bucket for Agent Sessions run outside Caxri whose working directory is in no Project.
+     */
+    isOutsideCaxri: z.boolean(),
     costUsd: usd,
     tokens: count,
     sessions: count,
@@ -93,6 +108,10 @@ export const usageSessionRowSchema = z.object({
     projectTitle: z.string(),
     isArchived: z.boolean(),
     isDeleted: z.boolean(),
+    /**
+     * One Agent Session run outside Caxri rather than a Caxri Session; its title is the working directory's name.
+     */
+    isOutsideCaxri: z.boolean(),
     providers: z.array(agentProvider).max(agentProviderIds.length),
     costUsd: usd,
     tokens: count,
@@ -139,6 +158,7 @@ export const usageReportSchema = z.object({
     timeZone: z.string(),
     range: z.enum(usageRangeIds),
     provider: agentProvider.optional(),
+    scope: z.enum(usageScopeIds),
     today: localDate,
     /**
      * First local day of the selected range; absent for `all`.
@@ -155,6 +175,10 @@ export const usageReportSchema = z.object({
         sessionsCreated: count,
         sessionsArchived: count,
         sessionsWithUsage: count,
+        /**
+         * Agent Sessions run outside Caxri with usage in range; always 0 for the `caxri` scope.
+         */
+        outsideSessionsWithUsage: count,
         pullRequestsCreated: count,
         pullRequestsMerged: count,
         linesAdded: count,
@@ -200,6 +224,21 @@ export const usageReportSchema = z.object({
          */
         pendingPullRequests: count,
         unpricedModels: z.array(modelName).max(50),
+        /**
+         * Present for the `all` scope.
+         */
+        outsideCaxri: z
+            .object({
+                /**
+                 * Agent transcripts found outside the usage ledger.
+                 */
+                agentSessions: count,
+                /**
+                 * Transcripts the first background scan has not read yet; their usage is missing until it does.
+                 */
+                pendingScans: count,
+            })
+            .optional(),
     }),
 });
 export type UsageReport = z.infer<typeof usageReportSchema>;

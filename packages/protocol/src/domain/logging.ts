@@ -372,6 +372,7 @@ export const logEventCatalog = {
         providerTitleMismatch: 'session_rename.provider_title_mismatch',
     },
     usage: {
+        externalScan: 'usage.external_scan',
         pricing: 'usage.pricing',
         pullRequests: 'usage.pull_requests',
         scan: 'usage.scan',

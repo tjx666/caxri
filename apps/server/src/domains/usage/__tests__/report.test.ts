@@ -2,11 +2,16 @@ import type { ProjectRecord, SessionRecord, UsageReportParameters } from '@caxri
 import { usageReportSchema } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import type { AgentSessionUsageRow, PullRequestOutcomeRow } from '../../db';
+import type { AgentSessionUsageRow, ExternalAgentUsageRow, PullRequestOutcomeRow } from '../../db';
 import type { ModelPrice } from '../pricing';
 import type { UsageRecord } from '../record';
 import type { UsageReportInput } from '../report';
-import { buildUsageReport, DELETED_SESSION_TITLE, LocalClock } from '../report';
+import {
+    buildUsageReport,
+    DELETED_SESSION_TITLE,
+    LocalClock,
+    OUTSIDE_CAXRI_TITLE,
+} from '../report';
 
 /**
  * 2026-03-10 12:00 in Shanghai (UTC+8).
@@ -32,6 +37,20 @@ function row(overrides: Partial<AgentSessionUsageRow>): AgentSessionUsageRow {
     };
 }
 
+function outsideRow(overrides: Partial<ExternalAgentUsageRow>): ExternalAgentUsageRow {
+    return {
+        provider: 'claude',
+        transcriptId: 'outside-1',
+        agentSessionId: 'outside-1',
+        path: '/transcripts/outside-1.jsonl',
+        cwd: '/work/widgets/src',
+        sourceFingerprint: 'v1|1:1',
+        scannedAt: NOW,
+        usageJson: '{}',
+        ...overrides,
+    };
+}
+
 function usage(at: number, input: number, overrides: Partial<UsageRecord> = {}): UsageRecord {
     const hour = Math.floor(at / HOUR) * 3600;
     return {
@@ -44,9 +63,14 @@ function usage(at: number, input: number, overrides: Partial<UsageRecord> = {}):
     };
 }
 
-const project = { id: 'project-1', displayTitle: 'Widgets' } as ProjectRecord;
+const project = {
+    id: 'project-1',
+    rootPath: '/work/widgets',
+    displayTitle: 'Widgets',
+} as ProjectRecord;
 const worktree = {
     id: 'project-2',
+    rootPath: '/work/widgets-worktrees/fix',
     displayTitle: 'widgets-worktree',
     ownerProjectId: 'project-1',
 } as ProjectRecord;
@@ -198,5 +222,79 @@ describe('buildUsageReport', () => {
             }),
         ]);
         expect(result.projects[0].pullRequestsMerged).toBe(1);
+    });
+
+    it('adds Agent Sessions run outside Caxri for the all scope without double counting', () => {
+        const entries = [{ row: row({}), record: usage(NOW, 100) }];
+        const caxri = report({ entries });
+        expect(caxri.scope).toBe('caxri');
+        expect(caxri.coverage.outsideCaxri).toBeUndefined();
+
+        const result = report({
+            entries,
+            outside: {
+                pendingScans: 3,
+                entries: [
+                    // Inside a linked worktree: rolls up into the owning Project.
+                    {
+                        row: outsideRow({ cwd: '/work/widgets-worktrees/fix/lib' }),
+                        record: usage(NOW, 10),
+                    },
+                    // Two files of one reverted Codex thread are one Agent Session.
+                    {
+                        row: outsideRow({
+                            provider: 'codex',
+                            transcriptId: 'thread-1',
+                            agentSessionId: 'thread-1',
+                            cwd: '/tmp/scratch',
+                        }),
+                        record: usage(NOW, 20),
+                    },
+                    {
+                        row: outsideRow({
+                            provider: 'codex',
+                            transcriptId: 'rollout-2',
+                            agentSessionId: 'thread-1',
+                            cwd: '/tmp/scratch',
+                        }),
+                        record: usage(NOW, 30),
+                    },
+                    // Already in the ledger: counted once, from the ledger.
+                    {
+                        row: outsideRow({ transcriptId: 'agent-1', agentSessionId: 'agent-1' }),
+                        record: usage(NOW, 1_000),
+                    },
+                ],
+            },
+        });
+
+        expect(usageReportSchema.parse(result)).toEqual(result);
+        expect(result.scope).toBe('all');
+        expect(result.totals.tokens.total).toBe(160);
+        expect(result.totals).toMatchObject({ sessionsWithUsage: 1, outsideSessionsWithUsage: 2 });
+        expect(result.coverage.outsideCaxri).toEqual({ agentSessions: 2, pendingScans: 3 });
+        expect(result.projects).toEqual([
+            expect.objectContaining({
+                projectId: 'project-1',
+                tokens: 110,
+                sessions: 2,
+                isOutsideCaxri: false,
+            }),
+            expect.objectContaining({
+                title: OUTSIDE_CAXRI_TITLE,
+                tokens: 50,
+                sessions: 1,
+                isOutsideCaxri: true,
+                isRemoved: false,
+            }),
+        ]);
+        expect(result.sessions.find((item) => item.tokens === 50)).toMatchObject({
+            title: 'scratch',
+            projectTitle: OUTSIDE_CAXRI_TITLE,
+            isOutsideCaxri: true,
+            isDeleted: false,
+            providers: ['codex'],
+        });
+        expect(result.providers.find((item) => item.provider === 'claude')?.sessions).toBe(2);
     });
 });

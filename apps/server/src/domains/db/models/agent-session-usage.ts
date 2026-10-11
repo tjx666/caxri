@@ -2,7 +2,13 @@ import type { AgentProvider, UsagePullRequestState } from '@caxri/protocol';
 import { and, eq, isNotNull, sql } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import { agentSessionUsage, pullRequestOutcomes, sessions, terminals } from '../schema';
+import {
+    agentSessionUsage,
+    externalAgentUsage,
+    pullRequestOutcomes,
+    sessions,
+    terminals,
+} from '../schema';
 
 export interface AgentSessionUsageRow {
     provider: AgentProvider;
@@ -17,6 +23,17 @@ export interface AgentSessionUsageRow {
     usageJson: string | null;
 }
 
+export interface ExternalAgentUsageRow {
+    provider: AgentProvider;
+    transcriptId: string;
+    agentSessionId: string;
+    path: string;
+    cwd: string | null;
+    sourceFingerprint: string;
+    scannedAt: number;
+    usageJson: string;
+}
+
 export interface PullRequestOutcomeRow {
     url: string;
     state: UsagePullRequestState;
@@ -29,8 +46,9 @@ export interface PullRequestOutcomeRow {
 }
 
 /**
- * Durable ledger of Agent Sessions hosted by Caxri plus the GitHub outcomes of the pull requests they created. See the
- * table docs in `schema.ts` for why neither table references Sessions or Terminals through a foreign key.
+ * Durable ledger of Agent Sessions hosted by Caxri, the scan cache of Agent transcripts found outside it, plus the
+ * GitHub outcomes of the pull requests they created. See the table docs in `schema.ts` for why neither table references
+ * Sessions or Terminals through a foreign key.
  */
 export class AgentSessionUsageModel {
     constructor(private readonly database: CaxriDrizzleDatabase) {}
@@ -98,6 +116,21 @@ export class AgentSessionUsageModel {
                     eq(agentSessionUsage.agentSessionId, agentSessionId),
                 ),
             )
+            .run();
+    }
+
+    listExternal(): ExternalAgentUsageRow[] {
+        return this.database.select().from(externalAgentUsage).all() as ExternalAgentUsageRow[];
+    }
+
+    saveExternalScan(row: ExternalAgentUsageRow): void {
+        this.database
+            .insert(externalAgentUsage)
+            .values(row)
+            .onConflictDoUpdate({
+                target: [externalAgentUsage.provider, externalAgentUsage.transcriptId],
+                set: row,
+            })
             .run();
     }
 
