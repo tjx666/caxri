@@ -2,6 +2,9 @@ import { constants } from 'node:fs';
 import { chmod, lstat, mkdir, open } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
+import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
+
 export interface ShellIntegrationLaunch {
     args: string[];
     environment: NodeJS.ProcessEnv;
@@ -257,6 +260,23 @@ export class ShellIntegrationService {
                 args: ['--init-file', join(this.directory, 'bashrc'), '-i'],
                 environment: { ...environment },
             };
+        return undefined;
+    }
+}
+
+/**
+ * Creates shell integration, or logs why it is unavailable so Terminals launch without it instead of failing startup.
+ */
+export async function createShellIntegration(
+    userDataPath: string,
+    logger: StructuredLogger,
+): Promise<ShellIntegrationService | undefined> {
+    try {
+        return await ShellIntegrationService.create(userDataPath);
+    } catch (error: unknown) {
+        logger.write('warn', logEventCatalog.pty.shellIntegrationUnavailable, {
+            fields: { error: error instanceof Error ? error.message : String(error) },
+        });
         return undefined;
     }
 }

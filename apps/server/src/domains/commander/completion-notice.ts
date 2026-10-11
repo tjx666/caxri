@@ -50,7 +50,8 @@ export type CommanderCompletionNoticeDeferral =
      */
     | 'turn_baseline_missing'
     /**
-     * Someone typed into the Commander since its turn started; delivering would press Enter on their draft.
+     * Someone typed into the Commander since its turn started and did not submit it; delivering would press Enter on
+     * their draft.
      */
     | 'draft_input'
     /**
@@ -147,11 +148,11 @@ export interface CommanderCompletionNotifierOptions {
  * it can never carry a permission, a setting change, or a slash command (see `docs/agent-messaging.md`).
  *
  * Delivery only ever happens through the exact same fence `AgentDelegationService` uses before resuming a follow-up:
- * the finished turn's idle proof, and an input epoch unchanged since that turn started. A draft typed mid-turn or after
- * it, or a pending attention/permission request, defers delivery to the next clean idle point instead of guessing
- * whether Enter is safe to send. The residual risk is the same in-flight-keystroke race every exact-launch write
- * already accepts: a keystroke sent in the same event-loop turn as the write, before its epoch bump is observed here,
- * is not detectable.
+ * the finished turn's idle proof, and an input epoch unchanged since that turn started, unless the last input since
+ * then submitted its line (a steer or queued message leaves no draft behind). A draft typed mid-turn or after it, or a
+ * pending attention/permission request, defers delivery to the next clean idle point instead of guessing whether Enter
+ * is safe to send. The residual risk is the same in-flight-keystroke race every exact-launch write already accepts: a
+ * keystroke sent in the same event-loop turn as the write, before its epoch bump is observed here, is not detectable.
  *
  * Pending notices live only in memory: a delegation transition consumed by a batch (see `tryFlush`) can never be sent
  * twice, and an undelivered batch waits through a Codex relaunch for the new launch's first clean turn, but it does not
@@ -185,6 +186,16 @@ export class CommanderCompletionNotifier {
      */
     private loggedDeferral: CommanderCompletionNoticeDeferral | undefined;
     /**
+     * The Commander Terminal's input epoch right after its last human input was a submitted line (a standalone Enter
+     * outside a bracketed paste). While the epoch still equals it, the composer holds no draft: the last thing the user
+     * did was send what they typed, as a mid-turn steer or a queued message (#1520).
+     */
+    private submittedEpoch: number | undefined;
+    /**
+     * Whether the Commander Terminal is inside a bracketed paste, whose Enter keys are part of the draft.
+     */
+    private isPasting = false;
+    /**
      * Finished Commander turns that could not take the current batch. The deferral is logged once per gate change, so
      * without this count five consecutive turns held back by the same draft read as a single log line.
      */
@@ -200,7 +211,8 @@ export class CommanderCompletionNotifier {
             return 'commander_busy';
         const baseline = this.turnStartBaseline;
         if (!baseline || baseline.launchId !== finished.launchId) return 'turn_baseline_missing';
-        if (this.options.inputEpoch(terminalId) !== baseline.epoch) return 'draft_input';
+        const epoch = this.options.inputEpoch(terminalId);
+        if (epoch !== baseline.epoch && epoch !== this.submittedEpoch) return 'draft_input';
         const session = this.options.database.getSession(rows.sessionId);
         /**
          * Only a pending permission/attention prompt blocks delivery. `hasUnread` is deliberately not a gate: every
@@ -250,6 +262,9 @@ export class CommanderCompletionNotifier {
                             reason: deferral,
                             pendingCount: this.pending.size,
                             blockedTurns: this.blockedTurns,
+                            ...(deferral === 'draft_input' && {
+                                inputsSinceTurnStart: this.inputsSinceTurnStart(terminalId),
+                            }),
                         },
                     },
                 );
@@ -287,6 +302,29 @@ export class CommanderCompletionNotifier {
                 logEventCatalog.agentCommander.completionNoticeDelivered,
                 { fields: { count: entries.length, waitMs, blockedTurns } },
             );
+    }
+
+    /**
+     * Keystrokes counted since the finished turn started, for a `draft_input` deferral: a count, never the input.
+     */
+    private inputsSinceTurnStart(terminalId: string): number {
+        return this.options.inputEpoch(terminalId) - (this.turnStartBaseline?.epoch ?? 0);
+    }
+
+    /**
+     * Feeds every human input written to a Terminal, after its input epoch counted it. Only whether the input submitted
+     * a line is kept; the text itself is never retained. A lone Enter outside a paste counts as a submission, so an
+     * Enter that only accepted a completion popup and was the draft's last keystroke reads as submitted too: the TUI's
+     * popup state is not visible here, and leaving the Commander silent after every steered message was the larger
+     * harm.
+     */
+    observeInput(terminalId: string, data: string): void {
+        const rows = this.options.database.agentCommanderRows();
+        if (!rows?.terminalId || rows.terminalId !== terminalId) return;
+        if (data.includes('\u{1B}[200~')) this.isPasting = true;
+        this.submittedEpoch =
+            data === '\r' && !this.isPasting ? this.options.inputEpoch(terminalId) : undefined;
+        if (data.includes('\u{1B}[201~')) this.isPasting = false;
     }
 
     /**
