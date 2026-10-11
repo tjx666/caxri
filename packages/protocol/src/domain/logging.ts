@@ -218,6 +218,13 @@ export const logEventCatalog = {
         unhandledRejection: 'desktop.unhandled_rejection',
     },
     externalStatus: {
+        /**
+         * Main could not read an Agent provider's public status page. `fields.provider` and the closed `fields.reason`
+         * (`AgentProviderStatusFailureReason`) say which page and why; a page that answers again writes
+         * `external_status.provider_status_recovered`.
+         */
+        providerStatusFailed: 'external_status.provider_status_failed',
+        providerStatusRecovered: 'external_status.provider_status_recovered',
         paused: 'external_status.paused',
         quota: 'external_status.quota',
         resumed: 'external_status.resumed',

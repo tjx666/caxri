@@ -73,6 +73,7 @@ const MAIN_OWNED_METHODS = [
     'desktop.openFile',
     'external.open',
     'links.favicon',
+    'agentProviderStatus.read',
     'argv.get',
     'argv.update',
     'gpu.restartInSafeMode',

@@ -5,6 +5,7 @@ import type {
     ProjectStatusOverview,
 } from '@caxri/protocol';
 import {
+    isAgentStatusTabPath,
     isAgentTaskTabPath,
     isExternalEditorTabPath,
     isSettingsTabPath,
@@ -142,6 +143,7 @@ function ActivePaneStatus({
         !isSettingsTabPath(activeResource.path) &&
         !isUsageTabPath(activeResource.path) &&
         !isAgentTaskTabPath(activeResource.path) &&
+        !isAgentStatusTabPath(activeResource.path) &&
         !parseGitDiffTab(activeResource.path)
     )
         return (

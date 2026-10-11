@@ -23,6 +23,10 @@ last response, the current turn, the whole Session, Codex's own time-to-first-to
 and a bar chart of the last `AGENT_THROUGHPUT_SAMPLE_LIMIT` (20) responses. There are no
 thresholds or colours: what counts as slow is the reader's call.
 
+Clicking the chip opens an Agent status tab (`caxri-agent-status://<terminalId>`) for that
+Terminal: the same figures as tiles, a larger per-response chart with the recent average drawn as a
+dashed line, and the provider's API status below.
+
 A response whose start was never recorded (a resumed rollout, a compaction request, a Claude
 message with no input after the previous one) is skipped rather than estimated. Until the first
 measured response the chip is absent instead of holding a placeholder.
@@ -51,3 +55,23 @@ scans only bytes appended since the previous read. Each transcript keeps running
 last 20 samples, so cost stays constant however long the Session gets; a rewritten or truncated
 transcript resets its state. No transcript content is retained or logged, only token counts and
 timestamps.
+
+## Provider API status
+
+The hover card and the status tab also show the provider's public service status, so a slow Agent
+can be told apart from a provider incident. Only the components an Agent depends on are read:
+Claude's `Claude API` and `Claude Code` components from its Statuspage summary, and OpenAI's
+`Codex` group from its incident.io page. Grok has no public status page, so its status row is
+omitted. Unresolved incidents touching those components are listed with their phase and latest
+update; incidents on other components (such as claude.ai) are left out.
+
+`agentProviderStatus.read` is a Desktop Main method
+(`apps/desktop/src/main/agent-provider-status.ts`). Main fetches through Electron's `net.fetch`
+because it honors the system proxy, which Server Core's Node `fetch` does not, and the Renderer's
+CSP forbids the request. Results are cached per provider (60 s after success, 30 s after failure)
+and concurrent reads share one request. A failure is reported to the UI with a closed reason
+(`network`, `http`, `invalidResponse`) plus a link to the page; the log records
+`external_status.provider_status_failed` once per reason change and
+`external_status.provider_status_recovered` when the page reads again. Under `CAXRI_E2E=1` Main
+never touches the network: it reads `<hostname>.json` fixtures from
+`CAXRI_E2E_PROVIDER_STATUS_DIR`, and reports `network` without one.

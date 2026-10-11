@@ -61,17 +61,51 @@ const response = (seconds: number, id: string, outputTokens: number) =>
         message: { id, model: 'claude-fixture', usage: { output_tokens: outputTokens } },
     });
 
+/**
+ * A synthetic Claude status page in Statuspage's summary shape: Claude Code is degraded by an open incident, and a
+ * component the Agent does not use is down to prove it is left out.
+ */
+const claudeStatusPage = {
+    page: { name: 'Claude', url: 'https://status.claude.com' },
+    components: [
+        { id: 'web', name: 'claude.ai', status: 'major_outage' },
+        { id: 'api', name: 'Claude API (api.anthropic.com)', status: 'operational' },
+        { id: 'code', name: 'Claude Code', status: 'degraded_performance' },
+    ],
+    incidents: [
+        {
+            id: 'fixture-incident',
+            name: 'Slow Claude Code responses',
+            status: 'identified',
+            impact: 'minor',
+            updated_at: new Date(BASE).toISOString(),
+            components: [{ id: 'code' }],
+            incident_updates: [
+                { body: 'A fix is being deployed.', updated_at: new Date(BASE).toISOString() },
+            ],
+        },
+    ],
+};
+
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('the status bar shows the active Agent Terminal output speed from its transcript', async ({}, testInfo) => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-throughput-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
+    const statusPages = join(testDirectory, 'status-pages');
+    await mkdir(statusPages);
+    await writeFile(join(statusPages, 'status.claude.com.json'), JSON.stringify(claudeStatusPage));
     const agentMode = await createFakeAgentMode({
         userDataDir: userData,
         providers: { claude: { executableSource: claudeFixtureSource() } },
     });
-    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({
+        agentMode,
+        env: { CAXRI_E2E_PROVIDER_STATUS_DIR: statusPages },
+        userDataDir: userData,
+        testRootPath: root,
+    });
     try {
         const sessionId = await createProjectSession(running.page, 'claude');
         await expect
@@ -128,7 +162,28 @@ test('the status bar shows the active Agent Terminal output speed from its trans
         await expect(tooltip).toContainText('90 tok/s over the last 3 responses');
         await expect(tooltip).toContainText('300 tokens in 2.0s · 150 tok/s');
         await expect(tooltip).toContainText('Includes waiting for the first token');
+        await expect(tooltip).toContainText('API status');
+        await expect(tooltip).toContainText('Degraded performance: Claude Code');
+        await expect(tooltip).toContainText('Slow Claude Code responses (identified)');
+        await expect(tooltip).not.toContainText('claude.ai');
         await testInfo.attach('agent-throughput-tooltip', {
+            body: await running.page.screenshot(),
+            contentType: 'image/png',
+        });
+
+        await chip.click();
+        const statusPage = running.page.locator('[data-agent-status-page]');
+        await expect(statusPage).toBeVisible();
+        await expect(statusPage.getByRole('heading', { name: 'Claude status' })).toBeVisible();
+        await expect(statusPage).toContainText('300 tokens in 2.0s · 150 tok/s');
+        await expect(
+            statusPage.getByRole('list', { name: 'Output speed of the last 3 responses' }),
+        ).toBeVisible();
+        await expect(statusPage).toContainText('Claude API (api.anthropic.com)');
+        await expect(statusPage).toContainText('Identified · Degraded performance · Claude Code');
+        await expect(statusPage).toContainText('A fix is being deployed.');
+        await expect(statusPage.getByRole('button', { name: 'Open status page' })).toBeVisible();
+        await testInfo.attach('agent-status-page', {
             body: await running.page.screenshot(),
             contentType: 'image/png',
         });
