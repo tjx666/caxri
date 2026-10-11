@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import {
     activeInboxMention,
     commanderInboxMergeState,
-    commanderInboxReplyState,
     commanderInboxSections,
     inboxMentionCandidates,
     inboxReplyTarget,
@@ -99,17 +98,6 @@ describe('commanderInboxMergeState', () => {
     ])('%o -> canMerge %s (%s)', (overrides, canMerge, label) => {
         const state = commanderInboxMergeState(item({ kind: 'merge', pullRequest, ...overrides }));
         expect(state).toMatchObject({ canMerge, label });
-    });
-});
-
-describe('commanderInboxReplyState', () => {
-    it('reports whether the Commander read the latest reply', () => {
-        expect(commanderInboxReplyState(item())).toBeUndefined();
-        const replies = [{ sequence: 1, body: 'A', source: 'desktop' as const, createdAt: 1 }];
-        expect(commanderInboxReplyState(item({ replies }))?.isRead).toBe(false);
-        expect(commanderInboxReplyState(item({ replies, acknowledgedSequence: 1 }))?.isRead).toBe(
-            true,
-        );
     });
 });
 

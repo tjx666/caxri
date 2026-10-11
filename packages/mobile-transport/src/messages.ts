@@ -19,6 +19,11 @@ export const mobileSubscriptionResourceSchema = z.discriminatedUnion('kind', [
      * when a patch could not fit one frame.
      */
     z.strictObject({ kind: z.literal('agentChat'), terminalId: identifierSchema }),
+    /**
+     * The owner's Commander Inbox. Content-free like the dashboard: each `commanderInbox.changed` asks the phone to
+     * re-read `mobile.commanderInbox.list`.
+     */
+    z.strictObject({ kind: z.literal('commanderInbox') }),
 ]);
 
 export const mobileSubscribeResultSchema = z.strictObject({ subscriptionId: identifierSchema });
@@ -64,6 +69,7 @@ export const mobileEventPayloadSchema = z.union([
             'conversation.changed',
             'changes.changed',
             'agentChat.changed',
+            'commanderInbox.changed',
         ]),
     }),
     z.strictObject({

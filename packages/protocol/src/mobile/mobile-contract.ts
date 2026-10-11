@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 import { agentActionSchema } from '../agent/agent-action-contract.js';
 import { agentEndpointRefSchema as agentEndpointReferenceSchema } from '../agent/agent-endpoint-contract.js';
-import { hexColorSchema } from '../domain/color.js';
 import {
     canceledResultSchema,
     identifierSchema,
@@ -14,7 +13,6 @@ import {
 } from '../domain/domain.js';
 import { sessionRenameTitleSchema } from '../domain/session.js';
 import { terminalSurfaceSchema } from '../domain/terminal-surface.js';
-import { viewIdSchema } from '../domain/views.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
@@ -28,12 +26,17 @@ import {
     mobileChangesDiffResultSchema,
     mobileChangesListResultSchema,
 } from './mobile-changes-contract.js';
+import {
+    mobileCommanderInboxInternalMethods,
+    mobileCommanderInboxMethods,
+} from './mobile-commander-inbox-contract.js';
 import { mobileFilesInternalMethods, mobileFilesMethods } from './mobile-files-contract.js';
 import {
     mobileAttachmentIdSchema,
     mobileImageReadInternalParametersSchema,
     mobileImageUploadParametersSchema,
 } from './mobile-image-contract.js';
+import { mobilePanelsMethods } from './mobile-panels-contract.js';
 import { mobileTerminalMethods } from './mobile-terminal-contract.js';
 import {
     mobileTimelineReadParametersSchema,
@@ -46,9 +49,11 @@ export { mobileDeviceRoleSchema } from './device-role.js';
 export * from './mobile-agent-chat-contract.js';
 export * from './mobile-attention-contract.js';
 export * from './mobile-changes-contract.js';
+export * from './mobile-commander-inbox-contract.js';
 export { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
 export * from './mobile-files-contract.js';
 export * from './mobile-image-contract.js';
+export * from './mobile-panels-contract.js';
 export * from './mobile-terminal-contract.js';
 export * from './mobile-timeline-contract.js';
 export * from './mobile-update-contract.js';
@@ -59,9 +64,6 @@ export const MOBILE_MAX_PROJECT_GRANTS = 128;
 export const MOBILE_SHORT_REPLY_MAX_BYTES = 1_024;
 export const MOBILE_AGENT_SUBMIT_MAX_BYTES = 16 * 1_024;
 export const MOBILE_PROJECT_BROWSE_MAX_ENTRIES = 200;
-export const MOBILE_PANELS_MAX_CONTAINERS = 64;
-export const MOBILE_PANELS_MAX_VIEWS = 32;
-export const MOBILE_TREE_MAX_ITEMS = 500;
 export const mobileProjectIdsSchema = z
     .array(z.string().min(1).max(200))
     .min(1)
@@ -236,75 +238,6 @@ export const mobileProjectAddResultSchema = z.strictObject({
     project: mobileProjectSummarySchema,
 });
 
-/**
- * Bounded stand-in for the full {@link import('../domain/views.js').viewIconSchema}: a `resource` (data URL) icon is
- * dropped rather than projected, since every core-contributed secondary-sidebar container uses a `builtin` or `theme`
- * icon today and an extension-supplied image is not yet part of the mobile read surface.
- */
-const mobilePanelIconSchema = z.strictObject({
-    kind: z.enum(['builtin', 'theme']),
-    id: z.string().min(1).max(100),
-    /**
-     * The same externally owned glyph tint as `viewIconSchema`'s theme `color`, such as a Linear workflow state.
-     */
-    color: hexColorSchema.optional(),
-});
-
-export const mobilePanelsListParametersSchema = z.strictObject({ sessionId: identifierSchema });
-
-/**
- * How a phone renders a secondary-sidebar view: `files` browses the Project with `mobile.files.*`, `changes` is the Git
- * source-control view served by `mobile.changes.*`, `tree` reads `mobile.tree.children`, and `unsupported` is a
- * Desktop-only view the phone lists but cannot show.
- */
-export const mobilePanelViewKindSchema = z.enum(['files', 'changes', 'tree', 'unsupported']);
-
-const mobilePanelViewSchema = z.strictObject({
-    id: viewIdSchema,
-    title: z.string().min(1).max(200),
-    kind: mobilePanelViewKindSchema,
-    /**
-     * Whether the view has a live badge provider. The mobile read surface does not fetch the current badge value, which
-     * requires a separate per-view Extension Host round trip; this only tells the reader one exists.
-     */
-    hasBadge: z.boolean().optional(),
-});
-
-const mobilePanelContainerSchema = z.strictObject({
-    id: z.string().min(1).max(200),
-    title: z.string().min(1).max(200),
-    icon: mobilePanelIconSchema.optional(),
-    views: z.array(mobilePanelViewSchema).max(MOBILE_PANELS_MAX_VIEWS),
-});
-
-export const mobilePanelsListResultSchema = z.strictObject({
-    panels: z.array(mobilePanelContainerSchema).max(MOBILE_PANELS_MAX_CONTAINERS),
-});
-
-export const mobileTreeChildrenParametersSchema = z.strictObject({
-    sessionId: identifierSchema,
-    viewId: viewIdSchema,
-    parentHandle: z.string().min(1).max(512).optional(),
-});
-
-/**
- * Projects `treeItemSchema` down to what a read-only mobile row renders: label, description, a bounded icon, and
- * collapsible state. `tooltip` and `command` are deliberately absent: mobile Conversation Tree is read-only and never
- * executes a command from a tree row.
- */
-const mobileTreeItemSchema = z.strictObject({
-    handle: z.string().min(1).max(512),
-    label: z.string().min(1).max(1_024),
-    description: z.string().max(1_024).optional(),
-    icon: mobilePanelIconSchema.optional(),
-    collapsibleState: z.enum(['none', 'collapsed', 'expanded']),
-});
-
-export const mobileTreeChildrenResultSchema = z.strictObject({
-    items: z.array(mobileTreeItemSchema).max(MOBILE_TREE_MAX_ITEMS),
-    reset: z.literal(true).optional(),
-});
-
 export const mobileAgentActionsResultSchema = z.strictObject({
     actions: z.array(agentActionSchema).max(40),
     truncated: z.boolean(),
@@ -469,18 +402,10 @@ export const mobileMethods = {
         params: mobileProjectAddParametersSchema,
         result: mobileProjectAddResultSchema,
     },
-    'mobile.panels.list': {
-        ...commandPolicy('server', 'read', ['sessions.read']),
-        params: mobilePanelsListParametersSchema,
-        result: mobilePanelsListResultSchema,
-    },
-    'mobile.tree.children': {
-        ...commandPolicy('server', 'read', ['sessions.read']),
-        params: mobileTreeChildrenParametersSchema,
-        result: mobileTreeChildrenResultSchema,
-    },
+    ...mobilePanelsMethods,
     ...mobileFilesMethods,
     ...mobileUpdateMethods,
+    ...mobileCommanderInboxMethods,
 } as const satisfies Record<string, MethodSpec>;
 
 /**
@@ -590,15 +515,13 @@ export const mobileInternalMethods = {
         result: mobileProjectAddResultSchema,
     },
     ...mobileFilesInternalMethods,
+    ...mobileCommanderInboxInternalMethods,
 } as const satisfies Record<string, MethodSpec>;
 
 export type MobileAccessStatus = z.infer<typeof mobileAccessStatusSchema>;
 export type MobileDashboardResult = z.infer<typeof mobileDashboardResultSchema>;
 export type MobileArchivedSessionsResult = z.infer<typeof mobileArchivedSessionsResultSchema>;
 export type MobileDeviceSummary = z.infer<typeof mobileDeviceSummarySchema>;
-export type MobilePanelViewKind = z.infer<typeof mobilePanelViewKindSchema>;
 export type MobileProjectSummary = z.infer<typeof mobileProjectSummarySchema>;
 export type MobileProjectBrowseResult = z.infer<typeof mobileProjectBrowseResultSchema>;
 export type MobileProjectAddResult = z.infer<typeof mobileProjectAddResultSchema>;
-export type MobilePanelsListResult = z.infer<typeof mobilePanelsListResultSchema>;
-export type MobileTreeChildrenResult = z.infer<typeof mobileTreeChildrenResultSchema>;

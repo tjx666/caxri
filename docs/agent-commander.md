@@ -408,6 +408,15 @@ and `resolve`. Only the owner's window can `reply`, `dismiss`, and `merge`: thos
 commands the Agent Commander window admits, and the CLI exposes none of them, so the Commander can
 never merge its own report.
 
+**Mobile.** A paired phone with the `control` role opens the same list as "Needs you" from the
+computer menu on its Sessions screen. It shows the open items, questions first, with Desktop's kind
+labels, the pull request as `repo#number`, the Commander's Markdown, numbered options, and the
+owner's replies with the same read state. Reply on a card opens a composer; the reply is stored
+with source `mobile` and reaches the Commander exactly like a Desktop reply. Merge and Dismiss stay
+on Desktop, and the phone has no Inbox notification. Bodies and older replies are shortened to fit
+one mobile frame, and a `commanderInbox` subscription refreshes the screen live. Authorization and
+wire details are in [mobile authorization](mobile/authorization.md#commander-inbox-from-mobile).
+
 ## Observability
 
 Every step of a Commander workflow leaves a content-free log line in Server Core's
