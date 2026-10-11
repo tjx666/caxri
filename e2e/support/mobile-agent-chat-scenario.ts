@@ -340,11 +340,12 @@ async function executeMobileChatModelScenario(
         await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
         await waitForNoCheck(serial, 'agent-chat-model-sheet');
         /**
-         * A turn waiting on a command approval stays running while the screen holds still; a streaming turn never lets
-         * UIAutomator read the screen, so it cannot drive the sheet.
+         * A turn waiting on a question stays running while the screen holds still; a streaming turn never lets
+         * UIAutomator read the screen, so it cannot drive the sheet. A command approval would show the fixture's
+         * working directory, which evidence must not capture.
          */
-        await sendFromPhone(serial, 'approve');
-        await waitForCheck(serial, 'agent-chat-approval-accept');
+        await sendFromPhone(serial, 'ask');
+        await waitForCheck(serial, 'agent-chat-question-0-option-1');
         await openModelSheet(serial);
         await waitForCheck(serial, 'agent-chat-model-note');
         await tapMobileCheckByBounds(serial, 'agent-chat-model-fake-codex-mini');
@@ -352,12 +353,12 @@ async function executeMobileChatModelScenario(
         await capture(environment, 'running-turn-sheet', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
         await waitForNoCheck(serial, 'agent-chat-model-sheet');
-        // The switch must not cut the running turn short: it still finishes once approved.
-        await tapMobileCheckByBounds(serial, 'agent-chat-approval-accept');
+        // The switch must not cut the running turn short: it still finishes once answered.
+        await tapMobileCheckByBounds(serial, 'agent-chat-question-0-option-1');
+        await tapMobileCheckByBounds(serial, 'agent-chat-question-submit');
         await waitForMobile(
             () => chat.read(),
-            (snapshot) =>
-                agentText(snapshot).includes('The command ran.') && !snapshot.activeTurnId,
+            (snapshot) => agentText(snapshot).includes('You chose Blue.') && !snapshot.activeTurnId,
         );
         await sendFromPhone(serial, 'again');
         await waitForMobile(
