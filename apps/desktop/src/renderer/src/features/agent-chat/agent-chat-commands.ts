@@ -87,6 +87,25 @@ export async function forkAgentChat(
 }
 
 /**
+ * "Restore code to here": puts back the files the turns from message `itemId` onward changed and keeps the
+ * conversation. It overwrites the user's own edits since, so it asks first in the same native dialog an edit that
+ * reverts files uses; Cancel is the default.
+ */
+export async function restoreAgentChatFiles(
+    terminalId: string,
+    request: { itemId: string; providerName: string; restoredTurns: number },
+): Promise<void> {
+    await tryCommand('Code could not be restored', async () => {
+        const { confirmed } = await caxri.request('agentChat.confirmRevertFiles', {
+            providerName: request.providerName,
+            removedTurns: request.restoredTurns,
+        });
+        if (!confirmed) return;
+        await caxri.request('agentChat.restoreFiles', { terminalId, itemId: request.itemId });
+    });
+}
+
+/**
  * Runs one of the provider's slash commands. Resolves `true` once Server Core accepted it.
  */
 export async function didRunAgentChatCommand(

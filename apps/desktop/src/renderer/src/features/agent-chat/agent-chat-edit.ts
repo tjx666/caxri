@@ -65,6 +65,22 @@ export function agentChatForkAvailability(
 }
 
 /**
+ * Whether a message's "Restore code to here" action is enabled: the turns whose file changes it undoes, or the reason
+ * shown on it when it is not. Unlike an edit, a message with images can restore code, since nothing returns to the
+ * composer.
+ */
+export function agentChatRestoreAvailability(
+    snapshot: EditSnapshot,
+    itemId: string,
+): { restoredTurns: number } | { reason: string } {
+    const result = agentChatRewindTarget(snapshot, itemId);
+    if ('target' in result) return { restoredTurns: result.target.removedTurns };
+    if (result.refusal === 'turnRunning')
+        return { reason: 'Stop the running turn to restore code' };
+    return { reason: 'Code cannot be restored to this message' };
+}
+
+/**
  * How many turns sending the edit removes, counting a turn that is running now, or `undefined` when the message is no
  * longer one the Chat can rewind to (the Chat was reset or restarted onto other history), which ends the edit.
  */

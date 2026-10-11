@@ -281,6 +281,12 @@ export interface AgentChatProviderSession {
      */
     fork(target: ChatForkTarget): Promise<string | undefined>;
     /**
+     * "Restore code to here": restores the files changed since `target` from the provider's file checkpoints and keeps
+     * the conversation. The service has already checked that no turn runs and that the provider offers file restore
+     * (`capabilities.chatRewindFiles`); a provider without them omits it.
+     */
+    restoreFiles?(target: ChatRewindTarget): Promise<void>;
+    /**
      * Stops the running turn. Background tasks keep running.
      */
     interrupt(): Promise<void>;

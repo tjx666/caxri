@@ -389,6 +389,11 @@ export const agentChatSnapshotSchema = z.strictObject({
      */
     effort: agentChatEffortSchema.optional(),
     /**
+     * Claude Code's ultracode: standing multi-agent Workflow orchestration at any effort level. Present only while the
+     * provider offers it for the current model; `agentChat.configure` turns it on or off.
+     */
+    ultracode: z.boolean().optional(),
+    /**
      * Models `agentChat.configure` can switch to. Absent until the provider has listed them.
      */
     models: z.array(agentChatModelSchema).max(MAX_AGENT_CHAT_MODELS).optional(),
@@ -435,6 +440,7 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 plan: agentChatSnapshotSchema.shape.plan.unwrap().nullable(),
                 model: agentChatSnapshotSchema.shape.model.unwrap().nullable(),
                 effort: agentChatSnapshotSchema.shape.effort.unwrap().nullable(),
+                ultracode: agentChatSnapshotSchema.shape.ultracode.unwrap().nullable(),
                 models: agentChatSnapshotSchema.shape.models.unwrap(),
                 commands: agentChatSnapshotSchema.shape.commands.unwrap(),
                 usage: agentChatSnapshotSchema.shape.usage.unwrap().nullable(),

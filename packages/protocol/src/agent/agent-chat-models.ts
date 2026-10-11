@@ -14,11 +14,12 @@ export function findAgentChatModel(
 }
 
 /**
- * A model or effort switch as a Client asks for it, by identifier.
+ * A model, effort, or ultracode switch as a Client asks for it, by identifier.
  */
 export interface AgentChatModelRequest {
     model?: string;
     effort?: string;
+    ultracode?: boolean;
 }
 
 /**
@@ -33,6 +34,10 @@ export interface AgentChatModelChange {
      * The effort to switch to; absent when the provider should keep the current one.
      */
     effort?: string;
+    /**
+     * Turns Claude Code's ultracode on or off; absent when it should stay as it is.
+     */
+    ultracode?: boolean;
 }
 
 /**
@@ -41,6 +46,16 @@ export interface AgentChatModelChange {
  * default, because a provider handed an effort its model rejects fails the next turn.
  */
 export function resolveAgentChatModelChange(
+    snapshot: Pick<AgentChatSnapshot, 'effort' | 'model' | 'models' | 'ultracode'>,
+    change: AgentChatModelRequest,
+): AgentChatModelChange {
+    if (change.ultracode !== undefined && snapshot.ultracode === undefined)
+        throw new CaxriError('VALIDATION', 'Ultracode is not available in this Chat');
+    const ultracode = change.ultracode === undefined ? {} : { ultracode: change.ultracode };
+    return { ...resolveModelAndEffort(snapshot, change), ...ultracode };
+}
+
+function resolveModelAndEffort(
     snapshot: Pick<AgentChatSnapshot, 'effort' | 'model' | 'models'>,
     change: AgentChatModelRequest,
 ): AgentChatModelChange {

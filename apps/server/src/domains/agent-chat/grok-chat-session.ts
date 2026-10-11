@@ -505,6 +505,17 @@ class GrokChatSession implements AgentChatProviderSession {
         return forkGrokSession(this.requireConnection(), source, this.options.read(), target);
     }
 
+    async restoreFiles(target: ChatRewindTarget): Promise<void> {
+        const snapshot = this.options.read();
+        await rewindGrokSession(
+            this.requireConnection(),
+            this.sessionId,
+            snapshot,
+            target,
+            'files',
+        );
+    }
+
     async interrupt(): Promise<void> {
         const connection = this.requireConnection();
         const turn = this.activeTurn;

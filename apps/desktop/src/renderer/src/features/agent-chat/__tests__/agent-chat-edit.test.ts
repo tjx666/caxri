@@ -6,6 +6,7 @@ import {
     agentChatEditCaption,
     agentChatEditRemovedTurns,
     agentChatForkAvailability,
+    agentChatRestoreAvailability,
 } from '../agent-chat-edit';
 
 type EditSnapshot = Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'>;
@@ -45,6 +46,17 @@ describe('Agent Chat edit from here', () => {
         expect(agentChatForkAvailability(settled, 'missing')).toEqual({
             canFork: false,
             reason: 'The conversation cannot fork from this message',
+        });
+    });
+
+    it('restores code to any settled message, images included, and explains a running turn', () => {
+        expect(agentChatRestoreAvailability(settled, 'u1')).toEqual({ restoredTurns: 3 });
+        expect(agentChatRestoreAvailability(settled, 'u2')).toEqual({ restoredTurns: 2 });
+        expect(agentChatRestoreAvailability({ ...settled, activeTurnId: 't3' }, 'u3')).toEqual({
+            reason: 'Stop the running turn to restore code',
+        });
+        expect(agentChatRestoreAvailability(settled, 'gone')).toEqual({
+            reason: 'Code cannot be restored to this message',
         });
     });
 

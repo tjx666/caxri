@@ -22,9 +22,8 @@ import { claudeRewindPoint } from './claude-history';
 
 /**
  * Claude Code rewinds a conversation only by resuming it at an earlier record (`resumeSessionAt`), so this finds that
- * point in the transcript and leaves the resume to the restart that follows. Files go back first through the SDK's file
- * checkpoints: a dry run proves a checkpoint exists for the message (a turn that ran before checkpointing was enabled
- * has none) before anything on disk changes.
+ * point in the transcript and leaves the resume to the restart that follows. Files go back first through
+ * {@link restoreClaudeFiles}.
  */
 export async function rewindClaudeSession(
     query: Query,
@@ -37,8 +36,20 @@ export async function rewindClaudeSession(
             'CONFLICT',
             "This message is older than the part of Claude's record Caxri reads",
         );
-    if (!target.restoreFiles) return point;
-    const preview = await query.rewindFiles(target.itemId, { dryRun: true });
+    if (target.restoreFiles) await restoreClaudeFiles(query, target.itemId);
+    return point;
+}
+
+/**
+ * Restores the files Claude Code changed since user message `itemId` from the SDK's file checkpoints, leaving the
+ * conversation as it is. A dry run first proves a checkpoint exists for the message (a turn that ran before
+ * checkpointing was enabled has none) before anything on disk changes.
+ */
+export async function restoreClaudeFiles(
+    query: Pick<Query, 'rewindFiles'>,
+    itemId: string,
+): Promise<void> {
+    const preview = await query.rewindFiles(itemId, { dryRun: true });
     if (!preview.canRewind)
         throw new CaxriError(
             'CONFLICT',
@@ -47,13 +58,12 @@ export async function rewindClaudeSession(
                 300,
             ),
         );
-    const applied = await query.rewindFiles(target.itemId);
+    const applied = await query.rewindFiles(itemId);
     if (!applied.canRewind)
         throw new CaxriError(
             'UNAVAILABLE',
             clip(`Claude could not restore files: ${applied.error ?? 'unknown error'}`, 300),
         );
-    return point;
 }
 
 function configDirectory(environment: NodeJS.ProcessEnv): string {

@@ -19,6 +19,13 @@ const REWIND_REFUSALS: Record<AgentChatRewindRefusal, string> = {
     unknownMessage: 'This message is no longer in the conversation',
 };
 
+const RESTORE_REFUSALS: Record<AgentChatRewindRefusal, string> = {
+    turnRunning: 'Stop the running turn before restoring code',
+    notTurnStart:
+        'This message joined a turn that was already running, so its code cannot be restored on its own',
+    unknownMessage: 'This message is no longer in the conversation',
+};
+
 export interface ChatRewindRequest {
     itemId: string;
     restoreFiles: boolean;
@@ -118,4 +125,72 @@ export async function rewindChat(
             `The conversation was rewound, but the message was not sent: ${errorMessage(error, 'unknown error')}`,
         );
     }
+}
+
+/**
+ * The parts of `AgentChatService` a file restore drives: only the per-Chat send chain, since the conversation stays.
+ */
+interface ChatRestoreHost {
+    options: AgentChatServiceOptions;
+    enqueue: (terminalId: string, deliver: ChatStateDelivery) => Promise<void>;
+}
+
+/**
+ * "Restore code to here": restores the files the turns from user message `itemId` onward changed, from the provider's
+ * file checkpoints, and keeps the conversation, as Claude Code's `/rewind` offers "Restore code". The same refusals as
+ * "Edit from here" apply, since the provider checkpoints files per turn-starting message. Logs
+ * `agent_chat.files_restored` with a closed outcome.
+ */
+export async function restoreChatFiles(
+    host: ChatRestoreHost,
+    terminalId: string,
+    itemId: string,
+): Promise<void> {
+    const { provider } = requireChatTerminal(host.options.database, terminalId);
+    const startedAt = Date.now();
+    let restoredTurns: number | undefined;
+    const log = (outcome: 'failed' | 'refused' | 'restored'): void =>
+        host.options.logger.write('info', logEventCatalog.agentChat.filesRestored, {
+            fields: {
+                terminalId,
+                provider,
+                outcome,
+                restoredTurns: restoredTurns ?? null,
+                durationMs: Date.now() - startedAt,
+            },
+        });
+    const providerEntry = agentProviderCatalog[provider];
+    if (!providerEntry.capabilities.chatRewindFiles) {
+        log('refused');
+        throw new CaxriError('VALIDATION', `${providerEntry.displayName} cannot restore files`);
+    }
+    try {
+        await host.enqueue(terminalId, async (session, state) => {
+            const { snapshot } = state.projection;
+            const result = agentChatRewindTarget(snapshot, itemId);
+            if ('refusal' in result)
+                throw new CaxriError('CONFLICT', RESTORE_REFUSALS[result.refusal]);
+            if (!session.restoreFiles)
+                throw new CaxriError(
+                    'VALIDATION',
+                    `${providerEntry.displayName} cannot restore files`,
+                );
+            const item = snapshot.items.find((candidate) => candidate.id === itemId);
+            restoredTurns = result.target.removedTurns;
+            await session.restoreFiles({
+                ...result.target,
+                text: item?.type === 'userMessage' ? item.text : '',
+                restoreFiles: true,
+            });
+        });
+    } catch (error) {
+        log(
+            error instanceof CaxriError &&
+                (error.code === 'CONFLICT' || error.code === 'VALIDATION')
+                ? 'refused'
+                : 'failed',
+        );
+        throw error;
+    }
+    log('restored');
 }

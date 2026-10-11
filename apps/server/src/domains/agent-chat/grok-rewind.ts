@@ -52,7 +52,7 @@ async function grokPromptIndex(
     sessionId: string,
     snapshot: Pick<AgentChatSnapshot, 'items' | 'turns'>,
     target: ChatForkTarget,
-    action: 'edit' | 'fork',
+    action: 'edit' | 'fork' | 'restore',
 ): Promise<number> {
     /**
      * A steered message reached Grok Build as `_x.ai/interject`, which may count as a prompt of its own, so the Chat's
@@ -71,7 +71,7 @@ async function grokPromptIndex(
     )
         throw new CaxriError(
             'CONFLICT',
-            `A message was steered into a later turn; restart the Chat, then ${action} from here`,
+            `A message was steered into a later turn; restart the Chat, then ${action === 'restore' ? 'restore code' : `${action} from here`}`,
         );
     let listed: unknown;
     try {
@@ -84,7 +84,7 @@ async function grokPromptIndex(
         if (!(error instanceof JsonRpcRequestError)) throw error;
         throw new CaxriError(
             'UNAVAILABLE',
-            `This Grok Build version cannot ${action === 'edit' ? 'rewind' : 'fork'} a conversation; update Grok Build`,
+            `This Grok Build version cannot ${action === 'fork' ? 'fork' : 'rewind'} a conversation; update Grok Build`,
         );
     }
     const point = grokRewindPoint(listed, target);
@@ -97,16 +97,35 @@ async function grokPromptIndex(
 }
 
 /**
+ * Grok Build's `RewindMode`: `files_only` restores the per-prompt file snapshots and keeps the conversation, the way
+ * "Restore code to here" asks.
+ */
+function grokRewindMode(
+    scope: 'conversation' | 'files',
+    target: Pick<ChatRewindTarget, 'restoreFiles'>,
+): string {
+    if (scope === 'files') return 'files_only';
+    return target.restoreFiles ? 'all' : 'conversation_only';
+}
+
+function failedAction(scope: 'conversation' | 'files'): string {
+    return scope === 'files' ? 'restore code' : 'rewind this conversation';
+}
+
+/**
  * `_x.ai/rewind/execute` returns the session to before one prompt and appends a rewind marker that a later
- * `session/load` honors; `mode: all` also restores Grok Build's per-prompt file snapshots.
+ * `session/load` honors; `mode: all` also restores Grok Build's per-prompt file snapshots, and `files_only` restores
+ * them alone.
  */
 export async function rewindGrokSession(
     connection: JsonRpcConnection,
     sessionId: string,
     snapshot: Pick<AgentChatSnapshot, 'items' | 'turns'>,
     target: ChatRewindTarget,
+    scope: 'conversation' | 'files' = 'conversation',
 ): Promise<undefined> {
-    const point = await grokPromptIndex(connection, sessionId, snapshot, target, 'edit');
+    const action = scope === 'files' ? 'restore' : 'edit';
+    const point = await grokPromptIndex(connection, sessionId, snapshot, target, action);
     let result: unknown;
     try {
         result = await connection.request(
@@ -115,19 +134,19 @@ export async function rewindGrokSession(
                 sessionId,
                 targetPromptIndex: point,
                 force: true,
-                mode: target.restoreFiles ? 'all' : 'conversation_only',
+                mode: grokRewindMode(scope, target),
             },
             REWIND_REQUEST_TIMEOUT_MS,
         );
     } catch (error) {
         if (!(error instanceof JsonRpcRequestError)) throw error;
-        throw new CaxriError('UNAVAILABLE', 'Grok Build could not rewind this conversation');
+        throw new CaxriError('UNAVAILABLE', `Grok Build could not ${failedAction(scope)}`);
     }
     if (!isRecord(result) || result.success !== true)
         throw new CaxriError(
             'UNAVAILABLE',
             clip(
-                `Grok Build could not rewind this conversation${
+                `Grok Build could not ${failedAction(scope)}${
                     isRecord(result) && stringField(result.error)
                         ? `: ${stringField(result.error)}`
                         : ''
