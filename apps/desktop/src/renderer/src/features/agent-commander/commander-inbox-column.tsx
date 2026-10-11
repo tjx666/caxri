@@ -24,7 +24,7 @@ export function CommanderInboxColumn() {
     if (!isVisible) return null;
     return (
         <>
-            <div className="flex-none max-[1080px]:hidden">
+            <div className="flex flex-none max-[1080px]:hidden">
                 <PanelDivider
                     ariaLabel="Resize Needs you"
                     size={width}
