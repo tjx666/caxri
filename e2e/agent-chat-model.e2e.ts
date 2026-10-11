@@ -71,8 +71,15 @@ test('a Codex Chat switches its model and effort and shows the context it uses',
 
         await message.fill('table');
         await message.press('Enter');
-        await expect(chat.getByRole('button', { name: 'the Markdown guide' })).toBeVisible();
-        await expect(chat.getByRole('button', { name: 'https://example.com/faq' })).toBeVisible();
+        const guide = chat.getByRole('button', { name: 'the Markdown guide' });
+        const faq = chat.getByRole('button', { name: 'https://example.com/faq' });
+        const issue = chat.getByRole('button', { name: 'the tracking issue' });
+        await expect(guide).toBeVisible();
+        await expect(faq).toBeVisible();
+        // Both link forms lead with an icon kept out of the accessible name: GitHub's mark, else the site's icon or a globe.
+        await expect(issue.locator('[data-link-icon="github"]')).toBeVisible();
+        await expect(guide.locator('[data-link-icon]')).toHaveCount(1);
+        await expect(faq.locator('[data-link-icon]')).toHaveCount(1);
         await expect(chat.getByText('Esc to stop')).toBeHidden();
         await page.screenshot({ path: testInfo.outputPath('codex-chat-markdown.png') });
     } finally {
