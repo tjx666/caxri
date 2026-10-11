@@ -20,12 +20,12 @@ import {
     commanderLaunchArguments,
     createCommanderCompletionNotifier,
 } from './commander';
+import { coreRoutedHandlers } from './core-routed';
 import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
 import { createGitReviewHandlers } from './git-review';
 import { createIntrospectionServices } from './introspection';
-import { mainOwned, mainOwnedHandlers } from './main-owned';
 import { createMobileDomainHandlers, MobileTerminalMutationQueue } from './mobile';
 import { createOrderingHandlers } from './ordering-handlers';
 import { createSessionParkingHandlers, createTerminateAllHandler } from './parking-handlers';
@@ -436,7 +436,7 @@ export async function createDomainServices(
     });
     const terminalInput = createTerminalInputHandler({ coordinator, database, send, terminals });
     const handlers: DomainHandlers = {
-        ...mainOwnedHandlers,
+        ...coreRoutedHandlers,
         'session.compactWarm': (_parameters, signal) => compaction.run(signal),
         ...agentCommands.handlers,
         'app.bootstrap': () => snapshots.bootstrap(),
@@ -450,7 +450,7 @@ export async function createDomainServices(
         }),
         ...createAgentChatHandlers(agentChat, { database, agentEnvironment }),
         ...createWindowStateHandlers(database),
-        ...createWorkbenchRootHandlers(workbenchRoots, mainOwned),
+        ...createWorkbenchRootHandlers(workbenchRoots),
         ...createTerminalMoveHandler({
             coordinator,
             database,
@@ -461,12 +461,6 @@ export async function createDomainServices(
         }),
         'bugReport.context': () => diagnostics.reportContext(),
         ...createBugReportDeliveryHandler({ database, terminals }),
-        'project.cancelCreate': () => {
-            throw new CaxriError(
-                'CONFLICT',
-                'Project creation cancellation is owned by the Main process',
-            );
-        },
         'project.list': () => ({ view: 'desktop', projects: database.listVisibleProjects() }),
         'project.queryForPrincipal': ({ principal, query }) =>
             introspection.records.project(query, principal),

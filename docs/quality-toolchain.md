@@ -38,6 +38,7 @@ Server `structure`, and Renderer `design-contract` tests already used.
 | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
 | Renderer never imports Node/Electron/native APIs                                                 | `eslint.config.ts` `no-restricted-imports` scoped to `apps/desktop/src/renderer/**` |
 | 800 physical line cap                                                                            | `eslint.config.ts` `max-lines`                                                      |
+| 600-line growth ratchet: a changed source file may not grow to or past 600 lines                 | `scripts/source-size-ratchet.ts`                                                    |
 | No default export on `.tsx` under `src/`                                                         | `eslint.config.ts` `no-restricted-syntax` (`ExportDefaultDeclaration`)              |
 | `packages/protocol` stays browser-safe; `apps/cli` production graph excludes Desktop native deps | `scripts/__tests__/workspace-contract.test.ts`                                      |
 | protocol/CLI locked domain lists and barrels                                                     | `scripts/__tests__/workspace-contract.test.ts`                                      |

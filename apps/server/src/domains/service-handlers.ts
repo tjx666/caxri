@@ -30,7 +30,6 @@ import type { FileService } from './files';
 import type { GitService } from './git';
 import { withGitRequestSignal } from './git';
 import type { createIntrospectionServices } from './introspection';
-import { mainOwned } from './main-owned';
 import { resolveOwnerProjectRoot, resolveProjectRoot } from './project';
 import type { ProjectStatusService, VercelDeploymentStore } from './project-status';
 import { SessionPullRequestService } from './project-status';
@@ -42,17 +41,6 @@ import { resolveTerminalFileLink } from './terminal';
 import { UsageService } from './usage';
 
 type ServiceHandlerMethods =
-    | 'agent.message.send'
-    | 'agent.message.reply'
-    | 'agent.message.wait'
-    | 'agent.message.check'
-    | 'agent.message.receipt'
-    | 'agent.message.policy.get'
-    | 'agent.message.policy.set'
-    | 'agent.message.held'
-    | 'agent.message.held.get'
-    | 'agent.message.approve'
-    | 'agent.message.deny'
     | 'agent.replySummary'
     | 'agent.delegation.access.bootstrap'
     | 'agentActions.list'
@@ -91,7 +79,6 @@ type ServiceHandlerMethods =
     | 'git.branches'
     | 'git.switchBranch'
     | 'git.sync'
-    | 'git.discard'
     | 'git.discard.preflight'
     | 'git.discard.apply'
     | 'git.mergePullRequest'
@@ -133,12 +120,7 @@ type ServiceHandlerMethods =
     | 'config.paths'
     | 'diagnostics.exportPath'
     | 'diagnostics.snapshot'
-    | 'logs.query'
-    | 'pathBrowser.browse'
-    | 'pathBrowser.close'
-    | 'pathBrowser.navigate'
-    | 'pathBrowser.open'
-    | 'pathBrowser.start';
+    | 'logs.query';
 
 /**
  * Handlers that only delegate to an already-constructed Server service, with no dependency on the composition root's
@@ -235,17 +217,6 @@ export function createServiceHandlers(services: {
         sessionPullRequests,
     });
     return {
-        'agent.message.send': () => mainOwned('agent.message.send'),
-        'agent.message.reply': () => mainOwned('agent.message.reply'),
-        'agent.message.wait': () => mainOwned('agent.message.wait'),
-        'agent.message.check': () => mainOwned('agent.message.check'),
-        'agent.message.receipt': () => mainOwned('agent.message.receipt'),
-        'agent.message.policy.get': () => mainOwned('agent.message.policy.get'),
-        'agent.message.policy.set': () => mainOwned('agent.message.policy.set'),
-        'agent.message.held': () => mainOwned('agent.message.held'),
-        'agent.message.held.get': () => mainOwned('agent.message.held.get'),
-        'agent.message.approve': () => mainOwned('agent.message.approve'),
-        'agent.message.deny': () => mainOwned('agent.message.deny'),
         'agent.replySummary': ({ sessionId }) =>
             readAgentReplySummary(database, timeline, sessionId),
         'agent.delegation.access.bootstrap': async ({
@@ -299,11 +270,6 @@ export function createServiceHandlers(services: {
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'session.searchContent': ({ query }, signal) => sessionContentSearch.search(query, signal),
         'files.search': (parameters, signal) => files.search(parameters, signal),
-        'pathBrowser.start': () => mainOwned('pathBrowser.start'),
-        'pathBrowser.browse': () => mainOwned('pathBrowser.browse'),
-        'pathBrowser.navigate': () => mainOwned('pathBrowser.navigate'),
-        'pathBrowser.open': () => mainOwned('pathBrowser.open'),
-        'pathBrowser.close': () => mainOwned('pathBrowser.close'),
         'terminal.agentThroughput': ({ terminalId }) => agentThroughput.read(terminalId),
         'terminal.agentTranscript': async ({ terminalId, withContent }) => {
             if (withContent) await transcripts.watch(terminalId);
@@ -350,7 +316,6 @@ export function createServiceHandlers(services: {
         'git.switchBranch': (parameters) => git.switchBranch(parameters),
         'git.sync': (parameters, signal) =>
             withGitRequestSignal(signal, () => git.sync(parameters)),
-        'git.discard': () => mainOwned('git.discard'),
         'git.discard.preflight': (parameters) => git.discardPreflight(parameters),
         'git.discard.apply': (parameters) => git.discardApply(parameters),
         'git.mergePullRequest': async (parameters) => {

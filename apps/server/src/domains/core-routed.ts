@@ -1,19 +1,26 @@
 import type { ServerOperation } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
+import type { DomainOperation } from './domain-services';
+
 /**
- * Methods the Renderer may call but that only Electron Main can satisfy.
+ * Rejects a Server-owned or internal method that Server Core answers itself (Host control, events, mobile access, Agent
+ * endpoints, Extension Host views, Desktop routing) and therefore never forwards to a domain handler.
  */
-export function mainOwned(method: ServerOperation): never {
-    throw new CaxriError('CONFLICT', `${method} must be handled by Electron Main`);
+export function coreRouted(method: ServerOperation): never {
+    throw new CaxriError(
+        'CONFLICT',
+        `${method} is routed by Server Core and never reaches a domain handler`,
+    );
 }
 
 /**
- * Every method the Server rejects outright because Electron Main answers it before the request reaches Core. Listed
- * here rather than as one handler line each in `create-domain-services.ts` to keep that file under its physical-line
- * budget.
+ * Core-answered methods that `DomainHandlers` still names because the protocol owner metadata cannot tell them apart
+ * from domain-served Server methods. Desktop-owned methods are excluded from `DomainOperation` and need no entry here.
+ * Listed here rather than as one handler line each in `create-domain-services.ts` to keep that file under its
+ * physical-line budget.
  */
-const MAIN_OWNED_METHODS = [
+const CORE_ROUTED_METHODS = [
     'extensions.retry',
     'requests.cancel',
     'viewContainers.cancelRequest',
@@ -64,58 +71,21 @@ const MAIN_OWNED_METHODS = [
     'mobile.agentChat.interrupt',
     'mobile.agentChat.respond',
     'mobile.agentChat.retry',
-    'mobile.device.revoke',
     'mobile.device.revoke.apply',
     'desktop.status',
     'desktop.focus',
     'desktop.openPath',
     'desktop.openProject',
     'desktop.openFile',
-    'external.open',
-    'links.favicon',
-    'agentProviderStatus.read',
-    'links.preview',
-    'argv.get',
-    'argv.update',
-    'gpu.restartInSafeMode',
-    'gpu.testInjectContextLoss',
-    'contextMenu.show',
-    'processExplorer.open',
-    'agentCommander.open',
-    'agentCommander.openFileLink',
-    'agentCommander.openSettings',
-    'agentCommander.revealSession',
-    'agentCommander.stop',
-    'dialog.selectDirectory',
-    'editor.confirmDiscard',
-    'diagnostics.export',
-    'bugReport.captureScreenshot',
-    'bugReport.saveScreenshot',
-    'bugReport.send',
     'files.reveal',
     'files.openWithDefaultApp',
-    'externalDocument.write',
-    'externalDocument.reveal',
-    'externalDocument.openWithDefaultApp',
-    'externalDocument.openInTerminal',
     'project.openInEditor',
     'project.openRoot',
-    'files.trash',
-    'updates.getState',
-    'updates.check',
-    'updates.acknowledge',
-    'updates.download',
-    'updates.cancel',
-    'updates.open',
-    'shellCommand.install',
-    'shellCommand.uninstall',
-    'theme.import',
     'project.query',
     'session.query',
-    'terminal.openFileLink',
     'terminal.query',
-] as const satisfies readonly ServerOperation[];
+] as const satisfies readonly DomainOperation[];
 
-export const mainOwnedHandlers = Object.fromEntries(
-    MAIN_OWNED_METHODS.map((method) => [method, () => mainOwned(method)]),
-) as Record<(typeof MAIN_OWNED_METHODS)[number], () => never>;
+export const coreRoutedHandlers = Object.fromEntries(
+    CORE_ROUTED_METHODS.map((method) => [method, () => coreRouted(method)]),
+) as Record<(typeof CORE_ROUTED_METHODS)[number], () => never>;

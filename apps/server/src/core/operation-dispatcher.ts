@@ -1,7 +1,8 @@
-import type { WorkbenchRequestContext } from '@caxri/protocol';
+import type { ServerOperation, WorkbenchRequestContext } from '@caxri/protocol';
 import {
     CaxriError,
     fromWireError,
+    getMethodSpec,
     parseServerOperationRequest,
     toWireError,
     workbenchRequestContextSchema,
@@ -9,7 +10,7 @@ import {
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { DomainHandlers } from '../domains/domain-services';
+import type { DomainHandlers, DomainOperation } from '../domains/domain-services';
 import {
     delegationRequestLogFields,
     requestFailureLogLevel,
@@ -30,6 +31,32 @@ interface DomainOperationEnvelope {
 export interface DomainOperationDispatcher {
     (envelope: DomainOperationEnvelope): Promise<unknown>;
     cancel(requestId: string): boolean;
+}
+
+type DomainHandler = (
+    parameters: unknown,
+    signal?: AbortSignal,
+    finalizeDurably?: <Result>(commit: () => Result) => Result,
+) => unknown;
+
+/**
+ * Looks up the handler for a validated operation. `DomainHandlers` covers only `DomainOperation`, so a registry method
+ * Electron Main answers itself has no entry; if one still reaches Server it fails with a clear CONFLICT instead of
+ * crashing on an `undefined` handler. `request` is a discriminated union, but a table lookup by a value cannot be
+ * correlated with the method literal, so the handler is narrowed once here instead of per method.
+ */
+export function resolveDomainHandler(
+    handlers: DomainHandlers,
+    method: ServerOperation,
+): DomainHandler {
+    if (Object.hasOwn(handlers, method))
+        return handlers[method as DomainOperation] as DomainHandler;
+    throw new CaxriError(
+        'CONFLICT',
+        getMethodSpec(method)?.owner === 'desktop'
+            ? `${method} must be handled by Electron Main`
+            : `${method} has no Server domain handler`,
+    );
 }
 
 const MAX_CANCEL_TOMBSTONES = 256;
@@ -64,17 +91,9 @@ export function createOperationDispatcher(
             pruneCancelTombstones(cancelTombstones);
             if (cancelTombstones.delete(envelope.id))
                 throw new CaxriError('CANCELLED', 'Runtime request was canceled before admission');
-            /**
-             * `request` is a discriminated union, but a table lookup by a value cannot be correlated with the method
-             * literal, so the handler is narrowed once here instead of per method.
-             */
+            const handler = resolveDomainHandler(handlers, request.method);
             cancellation = new AbortController();
             active.set(envelope.id, cancellation);
-            const handler = handlers[request.method] as (
-                parameters: unknown,
-                signal: AbortSignal,
-                finalizeDurably?: <Result>(commit: () => Result) => Result,
-            ) => Promise<unknown>;
             const result = await handler(
                 request.params,
                 cancellation.signal,

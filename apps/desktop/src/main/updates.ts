@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import type { FileHandle } from 'node:fs/promises';
 import { mkdir, open, rename, rm } from 'node:fs/promises';
@@ -6,6 +7,8 @@ import { join } from 'node:path';
 import type { UpdateState } from '@caxri/protocol';
 import { compareStableVersions, errorMessage } from '@caxri/protocol';
 import { z } from 'zod';
+
+import { readCappedBody } from './read-capped-body';
 
 const LATEST_RELEASE_URL = 'https://api.github.com/repos/tjx666/caxri/releases/latest';
 const MAX_RELEASE_RESPONSE_BYTES = 1024 * 1024;
@@ -154,32 +157,14 @@ async function readBoundedResponse(response: Response, maximumBytes: number): Pr
         throw new Error('The update response is larger than expected.');
     if (!response.body) throw new Error('The update response was empty.');
 
-    const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
-    let totalBytes = 0;
-    try {
-        while (true) {
-            // Each read must observe the previous chunk before deciding whether to request more,
-            // so this stream cannot be drained in parallel.
-            // eslint-disable-next-line no-await-in-loop -- sequential stream read, see comment above
-            const result = await readUpdateNetwork(() => reader.read());
-            if (result.done) break;
-            totalBytes += result.value.byteLength;
-            if (totalBytes > maximumBytes)
-                throw new Error('The update response is larger than expected.');
-            chunks.push(result.value);
-        }
-    } finally {
-        reader.releaseLock();
-    }
-
-    const bytes = new Uint8Array(totalBytes);
-    let offset = 0;
-    for (const chunk of chunks) {
-        bytes.set(chunk, offset);
-        offset += chunk.byteLength;
-    }
-    return bytes;
+    const end = await readUpdateNetwork(() =>
+        readCappedBody(response, maximumBytes, (chunk) => {
+            chunks.push(chunk);
+        }),
+    );
+    if (end === 'limit') throw new Error('The update response is larger than expected.');
+    return Buffer.concat(chunks);
 }
 
 function isExactReleaseAssetUrl(url: string, version: string, fileName: string): boolean {

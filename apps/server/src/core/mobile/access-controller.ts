@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 
 import type { MobileSubscriptionResource } from '@caxri/mobile-transport';
@@ -19,7 +18,7 @@ import { invokeMobileFileRequest } from './file-requests';
 import { MobileGateway } from './gateway';
 import { adoptCurrentPairedPrincipal } from './gateway/principal-grant';
 import { mobileHostDisplayName } from './host-display-name';
-import { mobilePanelViewKind, projectMobileIcon, projectMobileTreeItem } from './panel-projection';
+import { invokeMobilePanelRequest } from './panel-requests';
 import { isMobileGatewayMethodAllowedForRole } from './role-methods';
 import {
     applyMobileSessionManagement,
@@ -592,57 +591,16 @@ export const openMobileAccessController = async (options: {
                         activeGateway.prepareUpdateDownload(context, source),
                     );
                 }
-                case 'mobile.panels.list': {
-                    const principal = currentPairedPrincipal(context.principal, request.method);
-                    await sessionForPrincipal(domainService, principal, request.params.sessionId);
-                    const extensionService = getExtensionService?.();
-                    if (!extensionService)
-                        throw new CaxriError('UNAVAILABLE', 'Extension catalog is unavailable');
-                    const catalog = extensionService.catalog();
-                    const panels = catalog.containers
-                        .filter((container) => container.location === 'secondarySidebar')
-                        .map((container) => ({
-                            id: container.id,
-                            title: container.title,
-                            ...(projectMobileIcon(container.icon) && {
-                                icon: projectMobileIcon(container.icon),
-                            }),
-                            views: catalog.views
-                                .filter((view) => view.containerId === container.id)
-                                .map((view) => ({
-                                    id: view.id,
-                                    title: view.title,
-                                    kind: mobilePanelViewKind(view.viewKind),
-                                    ...(view.badge === true && { hasBadge: true }),
-                                })),
-                        }));
-                    currentPairedPrincipal(principal, request.method);
-                    return { panels };
-                }
+                case 'mobile.panels.list':
                 case 'mobile.tree.children': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
-                    await sessionForPrincipal(domainService, principal, request.params.sessionId);
-                    const activeContext = await domainService.request('app.activeContext', {});
-                    if (activeContext.sessionId !== request.params.sessionId)
-                        throw new CaxriError(
-                            'CONFLICT',
-                            'Conversation Tree only reflects the Desktop active Session',
-                        );
-                    const extensionService = getExtensionService?.();
-                    if (!extensionService)
-                        throw new CaxriError('UNAVAILABLE', 'Extension Host is unavailable');
-                    const result = await extensionService.treeChildren({
-                        viewId: request.params.viewId,
-                        ...(request.params.parentHandle && {
-                            parentHandle: request.params.parentHandle,
-                        }),
-                        requestId: randomUUID(),
-                    });
-                    currentPairedPrincipal(principal, request.method);
-                    return {
-                        items: result.items.map((item) => projectMobileTreeItem(item)),
-                        ...(result.reset && { reset: result.reset }),
-                    };
+                    return invokeMobilePanelRequest(
+                        request,
+                        principal,
+                        domainService,
+                        getExtensionService?.(),
+                        () => currentPairedPrincipal(principal, request.method),
+                    );
                 }
                 default:
                     return assertNever(request, 'Mobile control method is not implemented');

@@ -168,11 +168,27 @@ export class ChatStates {
      * Callers check it when input is accepted, again when that input reaches the head of the send chain, after a start
      * it joined, and right before a provider spawns, because each of those awaits leaves room for a close, delete,
      * archive, detach, restart, or surface switch.
+     *
+     * A Session that left the Workbench (archived, or its Project hidden) is refused too, the same predicate
+     * `TerminalSuspensionService` parks a landing PTY launch with. Archive and hide write that mark before they close
+     * the Session's Chats, but the close reaches only the states that exist then: a restart or a switch to Chat that
+     * was stopping the old provider opens a fresh state afterward, and only this check keeps it from spawning.
      */
     admit(terminalId: string, state: ChatState): ChatTerminal {
-        const terminal = requireChatTerminal(this.options.database, terminalId);
+        const { database } = this.options;
+        const terminal = requireChatTerminal(database, terminalId);
         if (this.states.get(terminalId) !== state || state.retiring !== undefined)
             throw new CaxriError('CONFLICT', 'This Chat stopped before the input reached it');
+        const session = database.getSession(terminal.sessionId);
+        if (
+            session &&
+            (session.archivedAt !== undefined ||
+                database.getProject(session.projectId)?.hiddenAt !== undefined)
+        )
+            throw new CaxriError(
+                'CONFLICT',
+                'This Chat belongs to an archived Session or a hidden Project',
+            );
         if (terminal.lastProcessState === 'detached')
             throw new CaxriError(
                 'UNAVAILABLE',

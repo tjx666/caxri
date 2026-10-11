@@ -18,10 +18,10 @@ import { extensionHostParentMessageSchema } from '../../../extension-host/protoc
 import { extensionHostProtocolRejectionReasons } from '../../../extension-host/protocol-diagnostics';
 import {
     extensionHostReplyError,
-    ExtensionHostSupervisor,
     isExtensionHostMessage,
     isExtensionHostResult,
-} from '../supervisor';
+} from '../host-message-validation';
+import { ExtensionHostSupervisor } from '../supervisor';
 
 vi.mock('node:child_process', async (importOriginal) => ({
     ...(await importOriginal()),

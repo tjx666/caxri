@@ -3,8 +3,6 @@ import type { WorkbenchRootService } from './roots';
 
 type WorkbenchRootHandlers = Pick<
     DomainHandlers,
-    | 'session.authorizeWorkbenchRoot'
-    | 'session.continueInWorktree'
     | 'session.dismissWorkbenchCandidate'
     | 'session.selectWorkbenchRoot'
     | 'session.validateWorkbenchRoots'
@@ -22,15 +20,10 @@ type WorkbenchRootHandlers = Pick<
  * module because `roots.ts` holds the whole state machine and is already at the 800-line ceiling; the
  * request-to-service mapping is the part that can leave without splitting that machine.
  */
-export function createWorkbenchRootHandlers(
-    service: WorkbenchRootService,
-    mainOwned: (method: 'session.authorizeWorkbenchRoot' | 'session.continueInWorktree') => never,
-): WorkbenchRootHandlers {
+export function createWorkbenchRootHandlers(service: WorkbenchRootService): WorkbenchRootHandlers {
     return {
-        'session.authorizeWorkbenchRoot': () => mainOwned('session.authorizeWorkbenchRoot'),
         'session.workbenchRoot.resolve': ({ sessionId, worktreeId }) =>
             service.resolveWorktree(sessionId, worktreeId),
-        'session.continueInWorktree': () => mainOwned('session.continueInWorktree'),
         'session.workbenchRoots': ({ sessionId }) => service.listOptions(sessionId),
         'session.selectWorkbenchRoot': ({ sessionId, projectId }) =>
             service.select(sessionId, projectId),

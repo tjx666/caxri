@@ -44,6 +44,7 @@ import {
     settledSessionState,
 } from './workbench-session-patches';
 import { withPendingSessionTitles } from './workbench-session-titles';
+import { reportSnapshotFailure } from './workbench-snapshot-failure';
 import {
     acceptTerminalReads,
     applyFullTerminalSnapshot,
@@ -500,11 +501,7 @@ async function runLoadBootstrap(): Promise<void> {
         applySnapshot(state, readStamp, terminalReadSequence);
     } catch (error: unknown) {
         finishPerformanceRequest();
-        // Quit refuses every queued Renderer request, so the last `state.changed` before the window closes lands here
-        // as a cancellation. Reporting it raised "Unable to attach to the Runtime" over an application that is already
-        // gone; `tryCommand` and `shouldToastQueryError` apply the same rule to the other two failure funnels.
-        if (!isCancelledRequest(error))
-            pushToast('error', describeFailure(error, 'Unable to attach to the Runtime'));
+        reportSnapshotFailure(error, Boolean(useWorkbenchStore.getState().bootstrap));
     } finally {
         finishTerminalRead(terminalReadSequence);
         bootstrapRead.inFlight = undefined;
