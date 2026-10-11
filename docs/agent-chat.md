@@ -547,6 +547,22 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   clicking it stops following new output and jumps there. Ticks shrink together rather than scroll
   when a long conversation would overflow the view
   (`apps/desktop/src/renderer/src/features/agent-chat/agent-chat-rail-marks.ts`).
+- Cmd+F in a Chat opens a find bar at the conversation's top right, clear of the message rail and
+  Jump to latest. It reuses the Terminal's `terminal.find` command: a Chat registers itself as its
+  Terminal's search handler, so the same key reaches it in a pane or the Commander window. Every
+  occurrence of the query in the rendered conversation is painted through the CSS Custom Highlight
+  API (`::highlight(agent-chat-find)` and `agent-chat-find-active` in `styles.css`), leaving the
+  Markdown DOM untouched; matching ignores case, treats the query as plain text, and never spans
+  two blocks. The bar counts `i/N`; Enter and Shift+Enter step with wraparound and scroll the
+  current match to a third of the view, which stops following new output. A new query starts at
+  the first match on screen rather than the top of the conversation. Matches are recomputed as a
+  reply streams without moving the view. A finished turn folded behind `Worked for` opens when one
+  of its messages mentions a query of three or more characters, since folded content is not in the
+  DOM, and folds back when a refined query stops matching. Escape closes the
+  bar, clears the highlights, leaves opened turns open, and returns focus to the composer. Times in
+  a message's hover row are not searched, since they are invisible until hovered. Find does not read tool output
+  inside a collapsed work row, earlier messages the window has truncated, or regular expressions.
+  Logic lives in `agent-chat-find.ts` and `hooks/use-agent-chat-find.ts`.
 - A web link in a reply or pasted into a user message shows the site's favicon and opens a hover
   card naming the host with an Open action. For HTTPS links, the card previews the page's share
   image, title, and description. Main reads them through the `links.preview` desktop method

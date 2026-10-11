@@ -83,7 +83,10 @@ export function AgentChatReply({
             />
             {artifacts && <AgentChatTurnArtifactList artifacts={artifacts} />}
             {canCopy && (
-                <div className="mt-0.5 flex h-6 items-center gap-1 opacity-0 group-hover/reply:opacity-100 focus-within:opacity-100">
+                <div
+                    className="mt-0.5 flex h-6 items-center gap-1 opacity-0 group-hover/reply:opacity-100 focus-within:opacity-100"
+                    data-agent-chat-find-ignore=""
+                >
                     {!item.streaming && (
                         <>
                             <CopyIconButton

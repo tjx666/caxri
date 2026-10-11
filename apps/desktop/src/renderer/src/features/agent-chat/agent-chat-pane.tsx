@@ -22,6 +22,7 @@ import {
     agentChatRestoreAvailability,
     readAgentChatEdit,
 } from './agent-chat-edit';
+import { AgentChatFindScope } from './agent-chat-find-scope';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { AgentChatMessageRail } from './agent-chat-message-rail';
 import { AgentChatDayBreak } from './agent-chat-message-time';
@@ -38,9 +39,7 @@ import {
 import { agentChatRailMarks } from './agent-chat-rail-marks';
 import { AgentChatRequestCard } from './agent-chat-request-card';
 import { announceAgentChatSelectionCopy } from './agent-chat-selection-copy';
-import { openAgentChatTaskTab } from './agent-chat-task-opener';
 import { AgentChatTaskStrip } from './agent-chat-task-strip';
-import { agentChatTasksByItem } from './agent-chat-tasks';
 import { agentChatDayBreaks } from './agent-chat-time';
 import { buildAgentChatTimeline } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
@@ -51,8 +50,7 @@ import { AgentChatEditContext } from './hooks/use-agent-chat-edit';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatMessageRail } from './hooks/use-agent-chat-message-rail';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
-import type { AgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
-import { AgentChatTaskLinksContext } from './hooks/use-agent-chat-task-link';
+import { AgentChatTaskLinksContext, useAgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
 import { AgentChatTerminalContext } from './hooks/use-agent-chat-terminal';
 
 /**
@@ -186,18 +184,7 @@ export function AgentChatPane({
         stopFollowing();
         rail.jumpTo(id);
     };
-    const tasks = snapshot?.tasks;
-    /**
-     * Rows that started a subagent or background shell open its tab beside this Chat. Memoized on the task list so a
-     * streamed delta that leaves tasks alone does not re-render every memoized work row.
-     */
-    const taskLinks = useMemo<AgentChatTaskLinks>(
-        () => ({
-            tasksByItem: agentChatTasksByItem(tasks),
-            openTask: (taskId) => openAgentChatTaskTab(terminalId, taskId),
-        }),
-        [tasks, terminalId],
-    );
+    const taskLinks = useAgentChatTaskLinks(snapshot?.tasks, terminalId);
     /**
      * "Edit from here", and "Restore code to here" when the provider restores files, on each message that started a
      * turn. Memoized on what the availability reads, so a streamed delta does not re-render every user message.
@@ -283,56 +270,68 @@ export function AgentChatPane({
             onDrop={(event) => composerDrop.current?.onDrop(event)}
         >
             <div className="relative min-h-0 flex-1">
-                <div className="h-full overflow-y-auto" ref={scrollReference} onScroll={onScroll}>
+                <AgentChatFindScope
+                    contentReference={contentReference}
+                    focusComposer={focusComposer}
+                    scrollReference={scrollReference}
+                    stopFollowing={stopFollowing}
+                    terminalId={terminalId}
+                >
                     <div
-                        className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4 select-none"
-                        ref={contentReference}
-                        onCopy={announceAgentChatSelectionCopy}
+                        className="h-full overflow-y-auto"
+                        ref={scrollReference}
+                        onScroll={onScroll}
                     >
-                        {snapshot?.truncated && (
-                            <p className="m-0 text-center text-[11px] text-muted">
-                                Earlier messages are not shown
-                            </p>
-                        )}
-                        <AgentChatTaskLinksContext value={taskLinks}>
-                            <AgentChatTerminalContext value={terminalId}>
-                                <AgentChatEditContext value={editActions}>
-                                    {timeline.map((entry) => {
-                                        const key =
-                                            entry.kind === 'item' ? entry.item.id : entry.id;
-                                        const dayBreak = dayBreaks.get(key);
-                                        return (
-                                            <Fragment key={key}>
-                                                {dayBreak !== undefined && (
-                                                    <AgentChatDayBreak timestamp={dayBreak} />
-                                                )}
-                                                <AgentChatTimelineEntryView
-                                                    entry={entry}
-                                                    onOpenFile={openFile}
-                                                />
-                                            </Fragment>
-                                        );
-                                    })}
-                                </AgentChatEditContext>
-                            </AgentChatTerminalContext>
-                        </AgentChatTaskLinksContext>
-                        {emptyMessage && (
-                            <p className="m-0 py-8 text-center text-[13px] text-muted">
-                                {emptyMessage}
-                            </p>
-                        )}
+                        <div
+                            className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4 select-none"
+                            ref={contentReference}
+                            onCopy={announceAgentChatSelectionCopy}
+                        >
+                            {snapshot?.truncated && (
+                                <p className="m-0 text-center text-[11px] text-muted">
+                                    Earlier messages are not shown
+                                </p>
+                            )}
+                            <AgentChatTaskLinksContext value={taskLinks}>
+                                <AgentChatTerminalContext value={terminalId}>
+                                    <AgentChatEditContext value={editActions}>
+                                        {timeline.map((entry) => {
+                                            const key =
+                                                entry.kind === 'item' ? entry.item.id : entry.id;
+                                            const dayBreak = dayBreaks.get(key);
+                                            return (
+                                                <Fragment key={key}>
+                                                    {dayBreak !== undefined && (
+                                                        <AgentChatDayBreak timestamp={dayBreak} />
+                                                    )}
+                                                    <AgentChatTimelineEntryView
+                                                        entry={entry}
+                                                        onOpenFile={openFile}
+                                                    />
+                                                </Fragment>
+                                            );
+                                        })}
+                                    </AgentChatEditContext>
+                                </AgentChatTerminalContext>
+                            </AgentChatTaskLinksContext>
+                            {emptyMessage && (
+                                <p className="m-0 py-8 text-center text-[13px] text-muted">
+                                    {emptyMessage}
+                                </p>
+                            )}
+                        </div>
                     </div>
-                </div>
-                <AgentChatMessageRail
-                    activeIndex={rail.activeIndex}
-                    marks={railMarks}
-                    onJump={jumpToMessage}
-                />
-                <AgentChatJumpToLatest
-                    focusTarget={inputReference}
-                    isFollowing={isFollowing}
-                    onJump={jumpToLatest}
-                />
+                    <AgentChatMessageRail
+                        activeIndex={rail.activeIndex}
+                        marks={railMarks}
+                        onJump={jumpToMessage}
+                    />
+                    <AgentChatJumpToLatest
+                        focusTarget={inputReference}
+                        isFollowing={isFollowing}
+                        onJump={jumpToLatest}
+                    />
+                </AgentChatFindScope>
             </div>
             <div className="mx-auto flex max-h-[45%] w-full max-w-3xl shrink-0 flex-col gap-2 overflow-y-auto px-4 empty:hidden">
                 <AgentChatRecoveryBanner notice={recoveryNotice} onRecover={recover} />
@@ -357,7 +356,7 @@ export function AgentChatPane({
                         terminalId={terminalId}
                     />
                 ))}
-                <AgentChatTaskStrip tasks={tasks} terminalId={terminalId} />
+                <AgentChatTaskStrip tasks={snapshot?.tasks} terminalId={terminalId} />
             </div>
             <TerminalLinkPicker
                 isOpen={linkPicker.isOpen}
