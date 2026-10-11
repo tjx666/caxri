@@ -134,10 +134,6 @@ export function AgentChatComposer({
 }: AgentChatComposerProperties) {
     const [draft, setDraftState] = useState(() => readAgentChatDraft(terminalId));
     /**
-     * Where the caret sits, for the `@` Sessions list, which follows the word being typed rather than the whole draft.
-     */
-    const [caret, setCaret] = useState(draft.length);
-    /**
      * The turn a Stop was requested for. Keyed by turn so the pending state ends by itself when that turn does, and a
      * later turn starts with a live Stop button.
      */
@@ -160,13 +156,12 @@ export function AgentChatComposer({
         });
     const terminal = useTerminal(terminalId);
     const sessionMenu = useAgentChatSessionMenu({
-        caret,
         currentSessionId: terminal?.sessionId,
         draft,
         inputReference,
+        isSuppressed: menu.isOpen,
         setDraft,
     });
-    const isSuggestionOpen = menu.isOpen || sessionMenu.isOpen;
     const workbenchRoot = usePaneViewSession()?.rootPath;
     /**
      * A dropped file is cited by path the way a drop into a Terminal pastes one, relative to where the Agent runs, and
@@ -298,27 +293,11 @@ export function AgentChatComposer({
                 {!activity && !edit.isEditing && snapshot?.usage && (
                     <AgentChatContextAlerts usage={snapshot.usage} />
                 )}
-                {menu.isOpen && (
-                    <AgentChatSuggestionMenu
-                        activeIndex={menu.activeIndex}
-                        label="Commands and skills"
-                        listId={menu.listId}
-                        suggestions={menu.suggestions}
-                        onChoose={(index) => choose(menu.matches[index])}
-                        onHover={menu.highlight}
-                    />
-                )}
-                {!menu.isOpen && sessionMenu.isOpen && (
-                    <AgentChatSuggestionMenu
-                        activeIndex={sessionMenu.activeIndex}
-                        heading="Sessions"
-                        label="Sessions"
-                        listId={sessionMenu.listId}
-                        suggestions={sessionMenu.suggestions}
-                        onChoose={sessionMenu.chooseAt}
-                        onHover={sessionMenu.highlight}
-                    />
-                )}
+                <AgentChatSuggestionMenu
+                    commandMenu={menu}
+                    sessionMenu={sessionMenu}
+                    onChooseCommand={(index) => choose(menu.matches[index])}
+                />
                 {images.attachments.length > 0 && (
                     <AgentChatAttachmentList
                         attachments={images.attachments}
@@ -329,9 +308,7 @@ export function AgentChatComposer({
                     />
                 )}
                 <Textarea
-                    {...(sessionMenu.inputAria && !menu.isOpen
-                        ? sessionMenu.inputAria
-                        : menu.inputAria)}
+                    {...(sessionMenu.inputAria ?? menu.inputAria)}
                     aria-label="Message"
                     className="field-sizing-content max-h-48 min-h-10 resize-none rounded-none border-0 bg-transparent px-3 pt-2.5 pb-1 leading-5 focus-visible:shadow-none"
                     maxLength={MAX_AGENT_CHAT_MESSAGE_LENGTH}
@@ -340,13 +317,13 @@ export function AgentChatComposer({
                     rows={1}
                     value={draft}
                     onChange={(event) => {
-                        const { selectionStart, value } = event.target;
+                        const { value } = event.target;
                         setDraft(() => value);
-                        setCaret(selectionStart);
+                        sessionMenu.trackCaret(event.target);
                     }}
-                    onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
+                    onSelect={(event) => sessionMenu.trackCaret(event.currentTarget)}
                     onKeyDown={(event) => {
-                        if (history.didHandleKey(event, isSuggestionOpen)) return;
+                        if (history.didHandleKey(event, menu.isOpen || sessionMenu.isOpen)) return;
                         if (menu.didHandleKey(event, { choose, complete })) return;
                         if (sessionMenu.didHandleKey(event)) return;
                         const key = {

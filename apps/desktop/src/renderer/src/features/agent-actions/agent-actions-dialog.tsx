@@ -1,20 +1,10 @@
 import type { KeyboardEvent } from 'react';
-import { useId, useMemo, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 
-import type {
-    AgentAction,
-    AgentActionRecentSettings,
-    AgentActionsSettings,
-    AgentProvider,
-} from '@caxri/protocol';
-import {
-    agentProviderCatalog,
-    mergeAgentActions,
-    resolveRecentAgentActions,
-} from '@caxri/protocol';
+import type { AgentAction, AgentProvider } from '@caxri/protocol';
+import { agentProviderCatalog } from '@caxri/protocol';
 import { Settings2 } from 'lucide-react';
 
-import { ShortcutBadge } from '../../components/shortcut-badge';
 import { Button } from '../../components/ui/button';
 import {
     Command,
@@ -27,19 +17,10 @@ import {
 import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
-import { useCaxriQuery } from '../../queries/client';
 import { setAgentActionsOpen, useDialogStore } from '../../stores/dialogs';
-import {
-    getBootstrap,
-    useProjects,
-    useSessions,
-    useSettings,
-    useTerminal,
-} from '../../stores/selectors';
+import { getBootstrap, useSessions, useTerminal } from '../../stores/selectors';
 import { pushToast } from '../../stores/toasts';
 import type { SessionReferenceCandidate } from '../session/session-reference';
-import { searchSessionReferences, sessionReferenceQuery } from '../session/session-reference';
-import { prepareSessionReference } from '../session/session-reference-commands';
 import { focusTerminalById } from '../terminal/terminal-commands';
 import type { AgentActionSubmitMode } from './agent-action-input';
 import {
@@ -48,10 +29,11 @@ import {
     canExecuteAgentAction,
     isAlternateAgentActionChord,
 } from './agent-action-input';
-import { searchAgentActions } from './agent-action-search';
-import { AgentActionSessionGroup } from './agent-action-session-group';
+import { AgentActionFooterModes, AgentActionSessionGroup } from './agent-action-session-group';
 import { describeAgentActionTarget, resolveAgentActionTargetTitle } from './agent-action-target';
 import { didSendAgentActionInputSteps, recordRecentAgentAction } from './agent-actions-commands';
+import { useAgentActionCatalog } from './use-agent-action-catalog';
+import { useAgentActionSessionReferences } from './use-agent-action-session-references';
 
 const sourceLabels: Record<AgentAction['source'], string> = {
     builtIn: 'Built-in',
@@ -92,25 +74,6 @@ function AgentActionRow({ action, location, onSelect }: AgentActionRowProperties
             <small className="shrink-0 text-[10px] text-muted">{sourceLabels[action.source]}</small>
         </CommandItem>
     );
-}
-
-/**
- * The recents to render. `recordRecent` returns the list the Server just persisted, which arrives before the settings
- * push that carries it, so an override wins over `actionSettings`, but only for the provider it was recorded against,
- * since switching Terminals can change the provider before that push lands.
- */
-function visibleRecentActions(
-    actions: readonly AgentAction[],
-    actionSettings: AgentActionsSettings | undefined,
-    provider: AgentProvider | undefined,
-    override: { provider: AgentProvider; recent: AgentActionRecentSettings } | undefined,
-): AgentAction[] {
-    if (!actionSettings) return [];
-    return resolveRecentAgentActions(actions, {
-        ...actionSettings,
-        recent:
-            override && override.provider === provider ? override.recent : actionSettings.recent,
-    });
 }
 
 /**
@@ -162,71 +125,74 @@ function AgentActionTargetNote({
     );
 }
 
+/**
+ * Command+Enter inserts the selected row for editing instead of running it. The chord is always consumed before cmdk
+ * can reinterpret it as ordinary Enter; a missing selection is a no-op, never an accidental insertion. A Session row
+ * only ever inserts, so the chord inserts it too.
+ */
+function handleAlternateChord(
+    event: KeyboardEvent<HTMLDivElement>,
+    {
+        actions,
+        insertSession,
+        sessionFor,
+        submit,
+    }: {
+        actions: readonly AgentAction[];
+        insertSession: (candidate: SessionReferenceCandidate) => void;
+        sessionFor: (dataset: DOMStringMap | undefined) => SessionReferenceCandidate | undefined;
+        submit: (action: AgentAction, mode: AgentActionSubmitMode) => void;
+    },
+): void {
+    if (!isAlternateAgentActionChord(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const selected = event.currentTarget.querySelector<HTMLElement>(
+        '[cmdk-item][data-selected="true"]',
+    )?.dataset;
+    const selectedSession = sessionFor(selected);
+    if (selectedSession) {
+        insertSession(selectedSession);
+        return;
+    }
+    const selectedAction = actions.find((action) => action.invocation === selected?.agentAction);
+    if (selectedAction) submit(selectedAction, agentActionSubmitModes.alternate);
+}
+
 export function AgentActionsDialog() {
     const targetDescriptionId = useId();
     const interactionDescriptionId = useId();
     const shouldRestoreTerminalFocusReference = useRef(true);
     const inputSequenceInFlightReference = useRef(false);
     const [search, setSearch] = useState('');
-    const [recentOverride, setRecentOverride] = useState<{
-        provider: AgentProvider;
-        recent: AgentActionRecentSettings;
-    }>();
     const isOpen = useDialogStore((state) => state.agentActionsOpen);
     const terminalId = useDialogStore((state) => state.agentActionsTerminalId);
-    const settings = useSettings();
     const terminal = useTerminal(terminalId ?? '');
-    const sessions = useSessions();
-    const projects = useProjects();
-    const session = sessions?.find((candidate) => candidate.id === terminal?.sessionId);
-    /**
-     * A query starting with `@` searches Sessions by title instead of actions, the prefix that cites a Session in the
-     * Chat composer too.
-     */
-    const sessionQuery = sessionReferenceQuery(search);
-    const sessionCandidates =
-        isOpen && sessionQuery !== undefined
-            ? searchSessionReferences(sessions, projects, terminal?.sessionId, sessionQuery)
-            : [];
+    const session = useSessions()?.find((candidate) => candidate.id === terminal?.sessionId);
     const provider = terminal?.provider;
-    const isAgentRunning = isAgentProcessRunning(terminal?.lastAgentProcessState);
-    const query = useCaxriQuery(
-        'agentActions.list',
-        { terminalId: terminalId ?? '' },
-        { enabled: Boolean(isOpen && terminalId && provider && isAgentRunning), staleTime: 0 },
-    );
-    const fallbackActions = useMemo(
-        () =>
-            provider && settings
-                ? mergeAgentActions(provider, [], settings['agents.providers'][provider].actions)
-                : [],
-        [provider, settings],
-    );
-    /**
-     * A zero-stale-time refetch can retain the previous result while it runs. Render only the current settings fallback
-     * until this open's discovery settles, so a deleted or newly disabled skill never flashes as selectable.
-     */
-    const actions =
-        query.data && !query.isFetching && !query.isError ? query.data.actions : fallbackActions;
-    const visibleActionGroups = useMemo(() => {
-        if (sessionReferenceQuery(search) !== undefined) return [];
-        const groupedActions = new Map<AgentAction['kind'], AgentAction[]>();
-        for (const action of searchAgentActions(actions, search)) {
-            const group = groupedActions.get(action.kind);
-            if (group) group.push(action);
-            else groupedActions.set(action.kind, [action]);
-        }
-        return [...groupedActions].map(([kind, grouped]) => ({ grouped, kind }));
-    }, [actions, search]);
-    const actionSettings = provider ? settings?.['agents.providers'][provider].actions : undefined;
-    const recentActions = visibleRecentActions(actions, actionSettings, provider, recentOverride);
-    const shouldShowRecent = search.trim() === '' && recentActions.length > 0;
+    const catalog = useAgentActionCatalog({ isOpen, search, terminalId });
+    const { actions } = catalog;
 
     const closePicker = (shouldRestoreTerminalFocus = true): void => {
         shouldRestoreTerminalFocusReference.current = shouldRestoreTerminalFocus;
         setSearch('');
         setAgentActionsOpen(false);
     };
+    const sessionReferences = useAgentActionSessionReferences({
+        currentSessionId: terminal?.sessionId,
+        isOpen,
+        runInputSequence: (task) => {
+            if (inputSequenceInFlightReference.current) return;
+            inputSequenceInFlightReference.current = true;
+            // eslint-disable-next-line no-void -- each request owns its user-visible failure path
+            void task().finally(() => {
+                inputSequenceInFlightReference.current = false;
+                closePicker();
+            });
+        },
+        search,
+        terminalId,
+    });
 
     const submit = (action: AgentAction, mode: AgentActionSubmitMode): void => {
         if (inputSequenceInFlightReference.current) return;
@@ -256,29 +222,7 @@ export function AgentActionsDialog() {
             closePicker();
             if (!inputSucceeded) return;
             const recent = await recordRecentAgentAction(current.id, action.invocation);
-            if (recent) setRecentOverride({ provider: currentProvider, recent });
-        })();
-    };
-
-    /**
-     * Inserts a reference to the Session's condensed conversation into the Agent's input. It never submits: the user is
-     * mid-sentence, the same as the action picker's Insert. The modal stays focused until the write lands, as for an
-     * action, so a keystroke cannot interleave with the inserted reference.
-     */
-    const insertSessionReference = (candidate: SessionReferenceCandidate): void => {
-        if (!terminalId || inputSequenceInFlightReference.current) return;
-        inputSequenceInFlightReference.current = true;
-        // eslint-disable-next-line no-void -- each request owns its user-visible failure path
-        void (async () => {
-            const reference = await prepareSessionReference(candidate.sessionId);
-            // The Agent may have exited while the file was written; the reference must not reach the Shell behind it.
-            const current = getBootstrap()?.terminals.find(({ id }) => id === terminalId);
-            if (reference && !isAgentProcessRunning(current?.lastAgentProcessState))
-                pushToast('error', 'The selected Agent is no longer running.');
-            else if (reference)
-                await didSendAgentActionInputSteps(terminalId, [{ data: `${reference} ` }]);
-            inputSequenceInFlightReference.current = false;
-            closePicker();
+            if (recent) catalog.setRecentOverride({ provider: currentProvider, recent });
         })();
     };
 
@@ -311,31 +255,14 @@ export function AgentActionsDialog() {
                     className="w-full"
                     label="Agent Commands & Skills"
                     shouldFilter={false}
-                    onKeyDownCapture={(event: KeyboardEvent<HTMLDivElement>) => {
-                        if (!isAlternateAgentActionChord(event)) return;
-                        /**
-                         * Always consume the alternate insert chord before cmdk can reinterpret it as ordinary Enter. A
-                         * missing selection is a no-op, never an accidental insertion.
-                         */
-                        event.preventDefault();
-                        event.stopPropagation();
-                        const selected = event.currentTarget.querySelector<HTMLElement>(
-                            '[cmdk-item][data-selected="true"]',
-                        )?.dataset;
-                        const selectedSession = sessionCandidates.find(
-                            (candidate) => candidate.sessionId === selected?.sessionReference,
-                        );
-                        if (selectedSession) {
-                            insertSessionReference(selectedSession);
-                            return;
-                        }
-                        const selectedInvocation = selected?.agentAction;
-                        const selectedAction = actions.find(
-                            (action) => action.invocation === selectedInvocation,
-                        );
-                        if (!selectedAction) return;
-                        submit(selectedAction, agentActionSubmitModes.alternate);
-                    }}
+                    onKeyDownCapture={(event: KeyboardEvent<HTMLDivElement>) =>
+                        handleAlternateChord(event, {
+                            actions,
+                            insertSession: sessionReferences.insert,
+                            sessionFor: sessionReferences.candidateFor,
+                            submit,
+                        })
+                    }
                 >
                     <CommandInput
                         autoFocus
@@ -345,18 +272,14 @@ export function AgentActionsDialog() {
                         onValueChange={setSearch}
                     />
                     <CommandList>
-                        <CommandEmpty>
-                            {sessionQuery === undefined
-                                ? 'No Agent command or skill found.'
-                                : 'No other Session with an Agent conversation matches.'}
-                        </CommandEmpty>
+                        <CommandEmpty>{sessionReferences.emptyText}</CommandEmpty>
                         <AgentActionSessionGroup
-                            candidates={sessionCandidates}
-                            onSelect={insertSessionReference}
+                            candidates={sessionReferences.candidates}
+                            onSelect={sessionReferences.insert}
                         />
-                        {shouldShowRecent && (
+                        {catalog.recentActions.length > 0 && (
                             <CommandGroup data-agent-action-group="recent" heading="Recently Used">
-                                {recentActions.map((action) => (
+                                {catalog.recentActions.map((action) => (
                                     <AgentActionRow
                                         key={action.invocation}
                                         action={action}
@@ -368,7 +291,7 @@ export function AgentActionsDialog() {
                                 ))}
                             </CommandGroup>
                         )}
-                        {visibleActionGroups.map(({ grouped, kind }) => (
+                        {catalog.visibleActionGroups.map(({ grouped, kind }) => (
                             <CommandGroup
                                 key={kind}
                                 data-agent-action-group={kind}
@@ -386,12 +309,12 @@ export function AgentActionsDialog() {
                                 ))}
                             </CommandGroup>
                         ))}
-                        {query.isFetching && sessionQuery === undefined && (
+                        {catalog.isDiscovering && (
                             <p className="m-0 px-3 py-2 text-[11px] text-muted" role="status">
                                 Discovering skills…
                             </p>
                         )}
-                        {(query.isError || query.data?.discovery === 'partial') && (
+                        {catalog.isPartial && (
                             <p className="m-0 px-3 py-2 text-[11px] text-warning" role="status">
                                 Some commands or skills were unavailable or exceeded discovery
                                 limits. Available commands and skills are still ready.
@@ -418,20 +341,7 @@ export function AgentActionsDialog() {
                     >
                         <Settings2 size={13} /> Manage in Settings…
                     </Button>
-                    <div className="flex items-center gap-3 text-[10px] text-muted">
-                        <span className="flex items-center gap-1" data-agent-action-mode="run">
-                            <ShortcutBadge compact shortcut="enter" />{' '}
-                            {sessionQuery === undefined ? 'Run' : 'Insert'}
-                        </span>
-                        {sessionQuery === undefined && (
-                            <span
-                                className="flex items-center gap-1"
-                                data-agent-action-mode="insert"
-                            >
-                                <ShortcutBadge compact shortcut="cmd+enter" /> Insert
-                            </span>
-                        )}
-                    </div>
+                    <AgentActionFooterModes isSessionMode={sessionReferences.isActive} />
                 </div>
             </PickerDialogContent>
         </Dialog>

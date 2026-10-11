@@ -1,3 +1,4 @@
+import { ShortcutBadge } from '../../components/shortcut-badge';
 import { CommandGroup, CommandItem } from '../../components/ui/command';
 import type { SessionReferenceCandidate } from '../session/session-reference';
 
@@ -31,5 +32,24 @@ export function AgentActionSessionGroup({
                 </CommandItem>
             ))}
         </CommandGroup>
+    );
+}
+
+/**
+ * The footer's key hints. In `@` mode Enter inserts the Session reference and there is no separate run, so the
+ * Command+Enter hint is dropped.
+ */
+export function AgentActionFooterModes({ isSessionMode }: { isSessionMode: boolean }) {
+    return (
+        <div className="flex items-center gap-3 text-[10px] text-muted">
+            <span className="flex items-center gap-1" data-agent-action-mode="run">
+                <ShortcutBadge compact shortcut="enter" /> {isSessionMode ? 'Insert' : 'Run'}
+            </span>
+            {!isSessionMode && (
+                <span className="flex items-center gap-1" data-agent-action-mode="insert">
+                    <ShortcutBadge compact shortcut="cmd+enter" /> Insert
+                </span>
+            )}
+        </div>
     );
 }

@@ -20,19 +20,24 @@ import {
  * arrows move, Enter or Tab chooses, Escape dismisses until the next edit.
  */
 export function useAgentChatSessionMenu({
-    caret,
     currentSessionId,
     draft,
     inputReference,
+    isSuppressed,
     setDraft,
 }: {
-    caret: number;
     currentSessionId: string | undefined;
     draft: string;
     inputReference: RefObject<HTMLTextAreaElement | null>;
+    /**
+     * The slash-command list is open; it owns the keys and the space above the input.
+     */
+    isSuppressed: boolean;
     setDraft: (update: (current: string) => string) => void;
 }) {
     const listId = useId();
+    // The list follows the word at the caret rather than the whole draft.
+    const [caret, setCaret] = useState(draft.length);
     const sessions = useSessions();
     const projects = useProjects();
     const mention = agentChatMentionAt(draft, caret);
@@ -44,7 +49,8 @@ export function useAgentChatSessionMenu({
         ? searchSessionReferences(sessions, projects, currentSessionId, mention.query)
         : [];
     const [active, setActive] = useState({ query: mention?.query, index: 0 });
-    const isOpen = candidates.length > 0 && dismissedDraft !== draft && !isPreparing;
+    const isOpen =
+        candidates.length > 0 && dismissedDraft !== draft && !isPreparing && !isSuppressed;
     const activeIndex =
         active.query === mention?.query ? Math.min(active.index, candidates.length - 1) : 0;
     const activeCandidate = isOpen ? candidates[activeIndex] : undefined;
@@ -92,6 +98,10 @@ export function useAgentChatSessionMenu({
                   'aria-controls': listId,
               }
             : undefined,
+        /**
+         * Call from the input's change and select events so the list follows the caret.
+         */
+        trackCaret: (element: HTMLTextAreaElement) => setCaret(element.selectionStart),
         highlight: (index: number) => setActive({ query: mention?.query, index }),
         chooseAt: (index: number) => {
             const candidate = candidates.at(index);
