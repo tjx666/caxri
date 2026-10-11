@@ -460,7 +460,7 @@ function handle(message: RpcMessage) {
             send({
                 id,
                 ...forkThread(currentThread(), parameters.beforeTurnId, {
-                    stateDirectory,
+                    stateDirectory: fakeCodexStateDirectory(),
                     threadPath,
                 }),
             });
