@@ -1,3 +1,6 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { fixture } from './chat-service-fixture';
@@ -110,5 +113,17 @@ describe('Agent Chat model and effort with a fake Claude Code CLI', () => {
         await expect(service.configure(terminal.id, { ultracode: true })).rejects.toMatchObject({
             code: 'VALIDATION',
         });
+    });
+
+    it('rejects a model change the CLI refuses and keeps the model it runs', async () => {
+        const { claudeConfigDirectory, service, terminal, until } = await fixture({
+            provider: 'claude',
+        });
+        const ready = await until((snapshot) => snapshot.models !== undefined);
+        await mkdir(claudeConfigDirectory, { recursive: true });
+        await writeFile(join(claudeConfigDirectory, 'reject-model-change'), '');
+
+        await expect(service.configure(terminal.id, { model: 'opus' })).rejects.toThrow();
+        expect(service.read(terminal.id).model).toBe(ready.model);
     });
 });

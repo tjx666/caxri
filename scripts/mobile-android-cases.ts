@@ -205,6 +205,24 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'read-cache',
     },
+    'MOB-CHAT-07': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-image-preview',
+    },
+    'MOB-CHAT-08': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-missing-image',
+    },
+    'MOB-CHAT-09': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-chat-model-refused',
+    },
     'MOB-CONV-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],
