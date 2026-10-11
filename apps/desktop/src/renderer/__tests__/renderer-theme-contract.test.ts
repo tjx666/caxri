@@ -20,6 +20,7 @@ const semanticColorRoles = [
     'success',
     'warning',
     'danger',
+    'chart',
     'overlay',
     'shadow',
     'indicator',

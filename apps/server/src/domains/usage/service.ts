@@ -1,8 +1,13 @@
 import { homedir } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import type { UsageReport, UsageReportParameters } from '@caxri/protocol';
-import { logEventCatalog } from '@caxri/protocol';
+import type {
+    AgentProvider,
+    AgentUsageReadout,
+    UsageReport,
+    UsageReportParameters,
+} from '@caxri/protocol';
+import { agentProviderIds, logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { mapWithConcurrency } from '@caxri/system';
 
@@ -12,16 +17,19 @@ import type { ExternalStatusRunner } from '../external-status';
 import { SingleFlight } from '../single-flight';
 import type { DiscoveredTranscript } from './external';
 import { discoverTranscripts, readTranscriptCwd } from './external';
+import { UsageKeyIndex } from './key-index';
+import { LiveAgentUsage } from './live-usage';
 import { ModelPricing } from './pricing';
 import {
     fetchPullRequestOutcomes,
     isRefreshDue,
     MAX_PULL_REQUESTS_PER_PASS,
 } from './pull-requests';
+import type { UsageRecord } from './record';
 import { parseUsageRecord } from './record';
 import type { OutsideUsageEntry, UsageLedgerEntry, UsageReportInput } from './report';
 import { buildUsageReport } from './report';
-import type { UsageTranscriptFiles } from './scanner';
+import type { ClaudeTranscriptMisses, UsageTranscriptFiles } from './scanner';
 import { scanUsage, UsageTranscriptLocator } from './scanner';
 
 /**
@@ -29,10 +37,16 @@ import { scanUsage, UsageTranscriptLocator } from './scanner';
  */
 const SCAN_CONCURRENCY = 4;
 /**
- * How long an `all` report waits for the outside-Caxri scan before answering with what is already cached. A first scan
- * of years of transcripts takes about a minute; later ones only stat files and finish well inside this budget.
+ * How long a report waits for a running scan before answering with what is already stored. A first scan of years of
+ * transcripts (after an upgrade that changes what an aggregate holds, every transcript) takes about a minute and would
+ * outlast the Client's request timeout; later ones only stat files and finish well inside this budget.
  */
-const OUTSIDE_SCAN_WAIT_MS = 1_000;
+const REPORT_SCAN_WAIT_MS = 1_000;
+const PROVIDER_IDS = new Set<string>(agentProviderIds);
+/**
+ * Passes one sync makes: the second rescans the transcripts the first found to be copies of a source it indexed later.
+ */
+const MAX_SYNC_PASSES = 2;
 
 export interface UsageServiceOptions {
     database: CaxriDatabase;
@@ -66,11 +80,33 @@ export function describeOutsideTranscripts(
     }));
 }
 
+function ledgerReference(row: Pick<AgentSessionUsageRow, 'provider' | 'agentSessionId'>): string {
+    return `ledger:${row.provider}:${row.agentSessionId}`;
+}
+
+function outsideReference(row: Pick<ExternalAgentUsageRow, 'provider' | 'transcriptId'>): string {
+    return `outside:${row.provider}:${row.transcriptId}`;
+}
+
 /**
- * Owns the usage ledger: records Agent Session bindings, keeps each content-free usage aggregate in step with its
- * transcript files, resolves pull request outcomes in the background, and builds reports on demand. Nothing runs until
- * a Client asks for a report, so an unused Usage page costs nothing.
+ * Settles when `task` does or after {@link REPORT_SCAN_WAIT_MS}, whichever is first; the task keeps running.
  */
+async function waitBriefly(task: Promise<unknown>): Promise<void> {
+    const abort = new AbortController();
+    const settle = async (promise: Promise<unknown>) => {
+        try {
+            await promise;
+        } catch {
+            // A failed scan or the cancelled timer only ends the wait; the next report retries the scan.
+        }
+    };
+    await Promise.race([
+        settle(task),
+        settle(delay(REPORT_SCAN_WAIT_MS, undefined, { signal: abort.signal })),
+    ]);
+    abort.abort();
+}
+
 /**
  * Transcripts a report says are still being read. Discovery runs before the queue is counted, so a running scan reports
  * at least one: otherwise the page would read as finished and stop polling quickly while discovery is still walking a
@@ -80,6 +116,11 @@ export function reportedPendingScans(isScanning: boolean, counted: number): numb
     return isScanning ? Math.max(1, counted) : 0;
 }
 
+/**
+ * Owns the usage ledger: records Agent Session bindings, keeps each content-free usage aggregate in step with its
+ * transcript files, resolves pull request outcomes in the background, and builds reports on demand. Nothing runs until
+ * a Client asks for a report, so an unused Usage page costs nothing.
+ */
 export class UsageService {
     private readonly pricing: ModelPricing;
     private readonly syncs = new SingleFlight<'ledger' | 'outside', void>();
@@ -88,6 +129,19 @@ export class UsageService {
      * Transcripts the running outside-Caxri scan has not reached yet.
      */
     private outsidePendingScans = 0;
+    /**
+     * Ledger rows the running ledger scan has not reached yet.
+     */
+    private ledgerPendingScans = 0;
+    private hasSyncedLedger = false;
+    private readonly claudeMisses: ClaudeTranscriptMisses = new Map();
+    private keyIndex?: UsageKeyIndex;
+    /**
+     * Rows invalidated by {@link UsageKeyIndex.store} that the running sync still has to rescan.
+     */
+    private readonly staleLedgerRows = new Set<string>();
+    private readonly staleOutsideRows = new Set<string>();
+    private readonly live: LiveAgentUsage;
 
     constructor(private readonly options: UsageServiceOptions) {
         this.pricing = new ModelPricing({
@@ -95,6 +149,12 @@ export class UsageService {
             fetch: options.fetch,
             now: options.now,
         });
+        this.live = new LiveAgentUsage(
+            options.database,
+            options.environment,
+            (model) => this.pricing.priceOf(model),
+            () => this.now(),
+        );
     }
 
     private now(): number {
@@ -113,6 +173,46 @@ export class UsageService {
     }
 
     /**
+     * The digests of every stored aggregate, built once from the database and kept current as scans store new ones.
+     * Outside rows for a conversation the ledger hosts are left out: the report counts that conversation from the
+     * ledger.
+     */
+    private usageKeys(): UsageKeyIndex {
+        if (this.keyIndex) return this.keyIndex;
+        const index = new UsageKeyIndex();
+        const { agentSessionUsage } = this.options.database;
+        const ledger = agentSessionUsage.list();
+        const hosted = new Set(ledger.map((row) => `${row.provider}:${row.agentSessionId}`));
+        for (const row of ledger)
+            index.store(ledgerReference(row), parseUsageRecord(row.usageJson));
+        for (const row of agentSessionUsage.listExternal())
+            if (!hosted.has(`${row.provider}:${row.agentSessionId}`))
+                index.store(outsideReference(row), parseUsageRecord(row.usageJson));
+        this.keyIndex = index;
+        return index;
+    }
+
+    /**
+     * Stores the index's answer for a freshly saved aggregate: every transcript that counted a unit this one owns is
+     * marked for a rescan.
+     */
+    private indexScan(reference: string, record: UsageRecord, scannedSince: number): void {
+        const { agentSessionUsage } = this.options.database;
+        for (const stale of this.usageKeys().store(reference, record, scannedSince)) {
+            const [kind, provider, ...rest] = stale.split(':');
+            if (!PROVIDER_IDS.has(provider)) continue;
+            const id = rest.join(':');
+            if (kind === 'ledger') {
+                agentSessionUsage.invalidateScan(provider as AgentProvider, id);
+                this.staleLedgerRows.add(stale);
+            } else {
+                agentSessionUsage.invalidateExternalScan(provider as AgentProvider, id);
+                this.staleOutsideRows.add(stale);
+            }
+        }
+    }
+
+    /**
      * Copies current bindings into the ledger (covering any binding recorded before the ledger existed), then rescans
      * exactly the rows whose transcript fingerprint changed. A transcript the provider already pruned keeps its last
      * aggregate.
@@ -122,24 +222,50 @@ export class UsageService {
         const { database, environment, logger } = this.options;
         database.agentSessionUsage.recordBindings(undefined, this.now());
         const rows = database.agentSessionUsage.list();
-        const locator = new UsageTranscriptLocator(environment);
+        const locator = new UsageTranscriptLocator(environment, this.claudeMisses, () =>
+            this.now(),
+        );
         const outcomes: Record<ScanOutcome, number> = {
             scanned: 0,
             unchanged: 0,
             unavailable: 0,
             failed: 0,
         };
-        const queue = [...rows];
-        const worker = async () => {
-            for (let row = queue.shift(); row; row = queue.shift()) {
-                // eslint-disable-next-line no-await-in-loop -- each worker parses one transcript at a time
-                outcomes[await this.syncRow(row, locator)] += 1;
+        let rescans = 0;
+        let queue = [...rows];
+        this.ledgerPendingScans = queue.length;
+        try {
+            for (let pass = 0; pass < MAX_SYNC_PASSES && queue.length > 0; pass++) {
+                this.staleLedgerRows.clear();
+                const worker = async () => {
+                    for (let row = queue.shift(); row; row = queue.shift()) {
+                        // eslint-disable-next-line no-await-in-loop -- each worker parses one transcript at a time
+                        outcomes[await this.syncRow(row, locator)] += 1;
+                        this.ledgerPendingScans = Math.max(0, this.ledgerPendingScans - 1);
+                    }
+                };
+                // eslint-disable-next-line no-await-in-loop -- the next pass rescans what this one invalidated
+                await Promise.all(Array.from({ length: SCAN_CONCURRENCY }, worker));
+                queue = database.agentSessionUsage
+                    .list()
+                    .filter((row) => this.staleLedgerRows.has(ledgerReference(row)));
+                rescans += queue.length;
+                this.ledgerPendingScans = queue.length;
             }
-        };
-        await Promise.all(Array.from({ length: SCAN_CONCURRENCY }, worker));
+        } finally {
+            this.ledgerPendingScans = 0;
+        }
+        const isFirst = !this.hasSyncedLedger;
+        this.hasSyncedLedger = true;
         logger.write(outcomes.failed > 0 ? 'warn' : 'debug', logEventCatalog.usage.scan, {
             durationMs: performance.now() - startedAt,
-            fields: { rows: rows.length, ...outcomes },
+            fields: {
+                rows: rows.length,
+                ...outcomes,
+                rescans,
+                isFirst,
+                skippedSearches: locator.skippedSearches,
+            },
         });
     }
 
@@ -151,12 +277,17 @@ export class UsageService {
             const files = await locator.locate(row);
             if (!files) return 'unavailable';
             if (files.fingerprint === row.sourceFingerprint && row.usageJson) return 'unchanged';
-            const record = await scanUsage(row.provider, files);
+            const reference = ledgerReference(row);
+            const scannedSince = this.usageKeys().version;
+            const record = await scanUsage(row.provider, files, {
+                isCountedElsewhere: this.usageKeys().countedElsewhere(reference, files.bornAt),
+            });
             this.options.database.agentSessionUsage.saveScan(row.provider, row.agentSessionId, {
                 sourceFingerprint: files.fingerprint,
                 scannedAt: this.now(),
                 usageJson: JSON.stringify(record),
             });
+            this.indexScan(reference, record, scannedSince);
             return 'scanned';
         } catch {
             return 'failed';
@@ -173,17 +304,35 @@ export class UsageService {
         const hosted = new Set(
             database.agentSessionUsage.list().map((row) => `${row.provider}:${row.agentSessionId}`),
         );
-        const cached = new Map(
-            database.agentSessionUsage
-                .listExternal()
-                .map((row) => [`${row.provider}:${row.transcriptId}`, row]),
-        );
+        const listCached = () =>
+            new Map(
+                database.agentSessionUsage
+                    .listExternal()
+                    .map((row) => [`${row.provider}:${row.transcriptId}`, row]),
+            );
+        let cached = listCached();
         const discovered = await discoverTranscripts(environment);
         const queue = discovered.filter(
             (transcript) => !hosted.has(`${transcript.provider}:${transcript.agentSessionId}`),
         );
-        this.outsidePendingScans = queue.length;
-        const locator = new UsageTranscriptLocator(environment);
+        const cachedRow = (transcript: DiscoveredTranscript) =>
+            cached.get(`${transcript.provider}:${transcript.transcriptId}`);
+        /**
+         * Only transcripts that will actually be parsed count as pending. A resync finds nearly every file unchanged in
+         * a couple of seconds, and counting those flashed "Reading 8,000 more transcripts" on every refresh. Until the
+         * files are described, a transcript without a stored aggregate is the best estimate.
+         */
+        this.outsidePendingScans = queue.filter((transcript) => !cachedRow(transcript)).length;
+        const shouldScan = ({
+            transcript,
+            files,
+        }: {
+            transcript: DiscoveredTranscript;
+            files?: UsageTranscriptFiles;
+        }) => files !== undefined && files.fingerprint !== cachedRow(transcript)?.sourceFingerprint;
+        const locator = new UsageTranscriptLocator(environment, this.claudeMisses, () =>
+            this.now(),
+        );
         const outcomes: Record<ScanOutcome, number> = {
             scanned: 0,
             unchanged: 0,
@@ -195,22 +344,39 @@ export class UsageService {
         );
         const mtime = (fingerprint: string | undefined) =>
             Number(fingerprint?.split('|', 2)[1]?.split(':', 2)[1] ?? 0);
-        const work = described.toSorted(
+        const sorted = described.toSorted(
             (a, b) => mtime(b.files?.fingerprint) - mtime(a.files?.fingerprint),
         );
-        const worker = async () => {
-            for (let item = work.shift(); item; item = work.shift()) {
-                const previous = cached.get(
-                    `${item.transcript.provider}:${item.transcript.transcriptId}`,
-                );
-                // eslint-disable-next-line no-await-in-loop -- each worker parses one transcript at a time
-                outcomes[await this.syncOutsideTranscript(item.transcript, item.files, previous)] +=
-                    1;
-                this.outsidePendingScans = Math.max(0, this.outsidePendingScans - 1);
-            }
-        };
+        let work = [...sorted];
+        let rescans = 0;
+        this.outsidePendingScans = work.filter(shouldScan).length;
         try {
-            await Promise.all(Array.from({ length: SCAN_CONCURRENCY }, worker));
+            for (let pass = 0; pass < MAX_SYNC_PASSES && work.length > 0; pass++) {
+                this.staleOutsideRows.clear();
+                const worker = async () => {
+                    for (let item = work.shift(); item; item = work.shift()) {
+                        const previous = cachedRow(item.transcript);
+                        const isPending = shouldScan(item);
+                        // eslint-disable-next-line no-await-in-loop -- each worker parses one transcript at a time
+                        const outcome = await this.syncOutsideTranscript(
+                            item.transcript,
+                            item.files,
+                            previous,
+                        );
+                        outcomes[outcome] += 1;
+                        if (isPending)
+                            this.outsidePendingScans = Math.max(0, this.outsidePendingScans - 1);
+                    }
+                };
+                // eslint-disable-next-line no-await-in-loop -- the next pass rescans what this one invalidated
+                await Promise.all(Array.from({ length: SCAN_CONCURRENCY }, worker));
+                cached = listCached();
+                work = sorted.filter(({ transcript }) =>
+                    this.staleOutsideRows.has(outsideReference(transcript)),
+                );
+                rescans += work.length;
+                this.outsidePendingScans = work.filter(shouldScan).length;
+            }
         } finally {
             this.outsidePendingScans = 0;
         }
@@ -220,6 +386,8 @@ export class UsageService {
                 discovered: discovered.length,
                 hosted: discovered.length - queue.length,
                 ...outcomes,
+                rescans,
+                skippedSearches: locator.skippedSearches,
             },
         });
     }
@@ -232,8 +400,11 @@ export class UsageService {
         try {
             if (!files) return 'unavailable';
             if (files.fingerprint === previous?.sourceFingerprint) return 'unchanged';
+            const reference = outsideReference(transcript);
+            const scannedSince = this.usageKeys().version;
             const record = await scanUsage(transcript.provider, files, {
                 isContinuation: transcript.isContinuation,
+                isCountedElsewhere: this.usageKeys().countedElsewhere(reference, files.bornAt),
             });
             this.options.database.agentSessionUsage.saveExternalScan({
                 provider: transcript.provider,
@@ -249,6 +420,7 @@ export class UsageService {
                 scannedAt: this.now(),
                 usageJson: JSON.stringify(record),
             });
+            this.indexScan(reference, record, scannedSince);
             return 'scanned';
         } catch {
             return 'failed';
@@ -260,19 +432,7 @@ export class UsageService {
      * many transcripts it has not read yet.
      */
     private async loadOutside(): Promise<NonNullable<UsageReportInput['outside']>> {
-        const abort = new AbortController();
-        const settle = async (task: Promise<unknown>) => {
-            try {
-                await task;
-            } catch {
-                // A failed scan or the cancelled timer only ends the wait; the next report retries the scan.
-            }
-        };
-        await Promise.race([
-            settle(this.syncs.run('outside', () => this.syncOutside())),
-            settle(delay(OUTSIDE_SCAN_WAIT_MS, undefined, { signal: abort.signal })),
-        ]);
-        abort.abort();
+        await waitBriefly(this.syncs.run('outside', () => this.syncOutside()));
         const entries: OutsideUsageEntry[] = this.options.database.agentSessionUsage
             .listExternal()
             .map((row) => ({ row, record: parseUsageRecord(row.usageJson) }));
@@ -327,8 +487,23 @@ export class UsageService {
         }
     }
 
+    /**
+     * Running usage of the conversation bound to one Agent Terminal, for the status bar.
+     */
+    async readTerminal(terminalId: string): Promise<AgentUsageReadout | null> {
+        await this.loadPricing();
+        return this.live.read(terminalId);
+    }
+
+    /**
+     * Answers within about a second: a ledger scan still running after that (a first open over hundreds of transcripts)
+     * continues in the background, and the report says how many rows it has not read yet.
+     */
     async report(parameters: UsageReportParameters): Promise<UsageReport> {
-        await Promise.all([this.loadPricing(), this.syncs.run('ledger', () => this.syncLedger())]);
+        await Promise.all([
+            this.loadPricing(),
+            waitBriefly(this.syncs.run('ledger', () => this.syncLedger())),
+        ]);
         const { database } = this.options;
         const entries: UsageLedgerEntry[] = database.agentSessionUsage
             .list()
@@ -346,6 +521,7 @@ export class UsageService {
             pullRequests,
             priceOf: (model) => this.pricing.priceOf(model),
             pricing: { source: this.pricing.source, updatedAt: this.pricing.updatedAt },
+            pendingScans: reportedPendingScans(this.syncs.has('ledger'), this.ledgerPendingScans),
         });
     }
 }

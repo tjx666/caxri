@@ -117,6 +117,7 @@ export const coreForwardedMethods = [
     'settings.delegation.import',
     'settings.update',
     'terminal.agentThroughput',
+    'terminal.agentUsage',
     'terminal.agentTranscript',
     'terminal.attach',
     'terminal.close',

@@ -1,6 +1,8 @@
 import type { UsageReport } from '@caxri/protocol';
 import {
     formatDuration,
+    formatLimitReset,
+    formatLimitWindowName,
     formatLineCount,
     formatPercent,
     formatTokens,
@@ -136,22 +138,6 @@ function BurnCard({ report }: { report: UsageReport }) {
     );
 }
 
-function windowName(minutes: number): string {
-    if (minutes === 10_080) return 'Weekly';
-    if (minutes % 1_440 === 0) return `${minutes / 1_440}-day`;
-    if (minutes % 60 === 0) return `${minutes / 60}-hour`;
-    return `${minutes}-minute`;
-}
-
-function formatReset(at: number, now: number): string {
-    const ms = at - now;
-    if (ms <= 0) return 'resets now';
-    const hours = Math.floor(ms / 3_600_000);
-    // A weekly window reads better in days than as `95h 59m`.
-    if (hours >= 48) return `resets in ${Math.floor(hours / 24)}d ${hours % 24}h`;
-    return `resets in ${formatDuration(ms)}`;
-}
-
 function LimitsCard({ report }: { report: UsageReport }) {
     if (report.limits.length === 0) return null;
     return (
@@ -174,20 +160,24 @@ function LimitsCard({ report }: { report: UsageReport }) {
                             <div key={window.windowMinutes} className="grid gap-1">
                                 <div className="flex justify-between gap-2 text-[11px]">
                                     <span className="text-muted">
-                                        {windowName(window.windowMinutes)}
+                                        {formatLimitWindowName(window.windowMinutes)}
                                     </span>
                                     <span className="tabular-nums">
                                         {Math.round(window.usedPercent)}% used
                                         {window.resetsAt !== undefined && (
                                             <span className="text-muted">
                                                 {' '}
-                                                · {formatReset(window.resetsAt, report.generatedAt)}
+                                                ·{' '}
+                                                {formatLimitReset(
+                                                    window.resetsAt,
+                                                    report.generatedAt,
+                                                )}
                                             </span>
                                         )}
                                     </span>
                                 </div>
                                 <Progress
-                                    aria-label={`${windowName(window.windowMinutes)} limit used`}
+                                    aria-label={`${formatLimitWindowName(window.windowMinutes)} limit used`}
                                     value={window.usedPercent}
                                 />
                             </div>
@@ -263,7 +253,7 @@ function HourOfDayCard({ report }: { report: UsageReport }) {
                             <div
                                 className={cn(
                                     'w-full rounded-sm',
-                                    tokens > 0 ? 'bg-success/60' : 'bg-elevated',
+                                    tokens > 0 ? 'bg-chart/60' : 'bg-elevated',
                                 )}
                                 style={{
                                     height:

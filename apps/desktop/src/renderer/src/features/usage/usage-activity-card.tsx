@@ -24,15 +24,9 @@ const ACTIVITY_VIEWS: ReadonlyArray<{ value: ActivityView; label: string }> = [
 ];
 
 /**
- * Intensity steps over the `--success` role, GitHub style. Level 0 is an empty day on the card's own elevated fill.
+ * Intensity steps over the `--chart` role, GitHub style. Level 0 is an empty day on the card's own elevated fill.
  */
-const LEVEL_CLASSES = [
-    'bg-elevated',
-    'bg-success/25',
-    'bg-success/50',
-    'bg-success/75',
-    'bg-success',
-];
+const LEVEL_CLASSES = ['bg-elevated', 'bg-chart/25', 'bg-chart/50', 'bg-chart/75', 'bg-chart'];
 const WEEKDAY_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
 
 interface HoverTarget {
@@ -164,11 +158,11 @@ function CumulativeChart({
             }}
         >
             <path
-                className="fill-success/15"
+                className="fill-chart/15"
                 d={`${line} L${CHART_WIDTH},${CHART_HEIGHT} L0,${CHART_HEIGHT} Z`}
             />
             <path
-                className="fill-none stroke-success"
+                className="fill-none stroke-chart"
                 d={line}
                 strokeWidth={2}
                 vectorEffect="non-scaling-stroke"

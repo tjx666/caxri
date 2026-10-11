@@ -1,10 +1,14 @@
 import { opendir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import type { AgentEnvironment } from '../../contract';
 import type { AgentTranscriptLocation } from '../../transcript-security';
 import { resolveCodexHome, resolveCodexStateDirectories } from './paths';
-import { CODEX_ROLLOUT_NAME_PATTERN, readCodexCurrentRolloutId } from './rollouts';
+import {
+    CODEX_ROLLOUT_NAME_PATTERN,
+    parseCodexRolloutName,
+    readCodexCurrentRolloutId,
+} from './rollouts';
 
 /**
  * One day of local Codex activity is a few hundred rollouts; a folder past this budget fails closed.
@@ -14,6 +18,11 @@ const MAX_CODEX_SESSION_DAY_ENTRIES = 4_096;
  * Codex thread ids are UUIDv7, so the first 48 bits carry the thread's creation time in milliseconds.
  */
 const UUID_V7_PATTERN = /^([\da-f]{8})-([\da-f]{4})-7[\da-f]{3}-[\da-f]{4}-[\da-f]{12}$/i;
+/**
+ * Day folders searched for the earlier rollouts of one reverted thread; a thread reverted after this long keeps only
+ * the rollouts written within it.
+ */
+const MAX_THREAD_ROLLOUT_DAYS = 62;
 
 function codexSessionsRoot(environment: AgentEnvironment): string {
     return join(resolveCodexHome(environment), 'sessions');
@@ -29,11 +38,12 @@ function pad(value: number): string {
     return String(value).padStart(2, '0');
 }
 
-async function findRolloutName(
+async function listRolloutNames(
     directory: string,
-    suffix: string,
-    signal?: AbortSignal,
-): Promise<string | undefined> {
+    isWanted: (name: string) => boolean,
+    { limit, signal }: { limit: number; signal?: AbortSignal },
+): Promise<string[]> {
+    const names: string[] = [];
     let handle: Awaited<ReturnType<typeof opendir>> | undefined;
     let scanned = 0;
     try {
@@ -42,10 +52,12 @@ async function findRolloutName(
         for await (const entry of handle) {
             signal?.throwIfAborted();
             scanned += 1;
-            if (scanned > MAX_CODEX_SESSION_DAY_ENTRIES) return;
+            if (scanned > MAX_CODEX_SESSION_DAY_ENTRIES) return [];
             const name = entry.name.toLowerCase();
-            if (entry.isFile() && name.endsWith(suffix) && CODEX_ROLLOUT_NAME_PATTERN.test(name))
-                return entry.name;
+            if (entry.isFile() && CODEX_ROLLOUT_NAME_PATTERN.test(name) && isWanted(name)) {
+                names.push(entry.name);
+                if (names.length >= limit) return names;
+            }
         }
     } catch {
         signal?.throwIfAborted();
@@ -57,7 +69,72 @@ async function findRolloutName(
             // Async directory iteration already closes an exhausted handle.
         }
     }
-    return undefined;
+    return names;
+}
+
+async function findRolloutName(
+    directory: string,
+    suffix: string,
+    signal?: AbortSignal,
+): Promise<string | undefined> {
+    const names = await listRolloutNames(directory, (name) => name.endsWith(suffix), {
+        limit: 1,
+        signal,
+    });
+    return names[0];
+}
+
+function dayFolder(sessionsRoot: string, day: Date): { baseRoot: string; root: string } {
+    const baseRoot = join(sessionsRoot, String(day.getFullYear()), pad(day.getMonth() + 1));
+    return { baseRoot, root: join(baseRoot, pad(day.getDate())) };
+}
+
+/**
+ * Every rollout of a reverted Codex thread written before `current`, oldest first: the original `rollout-<wall
+ * clock>-<thread id>.jsonl` and each earlier `<thread id>_<rollout id>` continuation. Reverting leaves these files in
+ * place, and the turns they hold are not repeated in later rollouts; only their running total is. The day folders from
+ * the thread's creation to the current rollout are listed by name only.
+ */
+export async function locateEarlierCodexRollouts(
+    current: AgentTranscriptLocation,
+    environment: AgentEnvironment,
+): Promise<AgentTranscriptLocation[]> {
+    const rollout = parseCodexRolloutName(basename(current.path));
+    if (!rollout || rollout.rolloutId === rollout.threadId) return [];
+    const threadCreatedAt = uuidV7Timestamp(rollout.threadId);
+    if (threadCreatedAt === undefined) return [];
+    const sessionsRoot = codexSessionsRoot(environment);
+    const thread = rollout.threadId.toLowerCase();
+    const currentName = basename(current.path);
+    const isEarlierRollout = (name: string) =>
+        parseCodexRolloutName(name)?.threadId.toLowerCase() === thread &&
+        name !== currentName.toLowerCase() &&
+        name < currentName.toLowerCase();
+    const first = new Date(threadCreatedAt);
+    first.setDate(first.getDate() - 1);
+    const last = dirname(current.path);
+    const folders: Array<ReturnType<typeof dayFolder>> = [];
+    for (let offset = 0; offset < MAX_THREAD_ROLLOUT_DAYS; offset++) {
+        const day = new Date(first);
+        day.setDate(first.getDate() + offset);
+        const folder = dayFolder(sessionsRoot, day);
+        folders.push(folder);
+        if (folder.root === last) break;
+    }
+    const listed = await Promise.all(
+        folders.map(async (folder) =>
+            (
+                await listRolloutNames(folder.root, isEarlierRollout, {
+                    limit: MAX_CODEX_SESSION_DAY_ENTRIES,
+                })
+            ).map((name) => ({
+                anchorRoot: sessionsRoot,
+                ...folder,
+                path: join(folder.root, name),
+            })),
+        ),
+    );
+    return listed.flat().toSorted((a, b) => basename(a.path).localeCompare(basename(b.path)));
 }
 
 /**

@@ -39,6 +39,7 @@ export const draculaTheme: ThemeTokens = {
          * on the theme's real active-edge pink the palette's own violet is free for the landed-work role.
          */
         merged: '#bd93f9',
+        chart: '#50fa7b',
         badge: '#ff79c6',
         errorBadge: '#ff5555',
         warningBadge: '#f1fa8c',

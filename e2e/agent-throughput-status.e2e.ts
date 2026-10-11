@@ -18,6 +18,7 @@ async function closeAppQuietly(app: E2EApp): Promise<void> {
 
 const AGENT_SESSION_ID = 'e2e-throughput-project';
 const BASE = Date.now() - 60_000;
+const USAGE_LABEL = '121k · $0.37';
 
 function claudeFixtureSource(): string {
     return String.raw`#!${process.execPath}
@@ -58,7 +59,11 @@ const toolResult = (seconds: number) =>
 const response = (seconds: number, id: string, outputTokens: number) =>
     line(seconds, {
         type: 'assistant',
-        message: { id, model: 'claude-fixture', usage: { output_tokens: outputTokens } },
+        message: {
+            id,
+            model: 'claude-sonnet-4-5',
+            usage: { input_tokens: 40_000, output_tokens: outputTokens },
+        },
     });
 
 /**
@@ -88,7 +93,7 @@ const claudeStatusPage = {
 };
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('the status bar shows the active Agent Terminal output speed from its transcript', async ({}, testInfo) => {
+test('the status bar shows the active Agent Terminal output speed and usage from its transcript', async ({}, testInfo) => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-throughput-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -167,6 +172,21 @@ test('the status bar shows the active Agent Terminal output speed from its trans
         await expect(tooltip).toContainText('Slow Claude Code responses (identified)');
         await expect(tooltip).not.toContainText('claude.ai');
         await testInfo.attach('agent-throughput-tooltip', {
+            body: await running.page.screenshot(),
+            contentType: 'image/png',
+        });
+
+        // The same transcript prices at list price: 120k input and 900 output tokens of Claude Sonnet 4.5.
+        const usageChip = running.page.locator('.statusbar-agent-usage');
+        await expect(usageChip).toHaveText(USAGE_LABEL);
+        await usageChip.hover();
+        // The output speed card may still be fading out beside the usage card.
+        const usageTooltip = running.page.locator('.tooltip-popup[data-open]');
+        await expect(usageTooltip).toContainText('Claude conversation usage');
+        await expect(usageTooltip).toContainText('121k: 120k input, 900 output');
+        await expect(usageTooltip).not.toContainText('cache read');
+        await expect(usageTooltip).toContainText('claude-sonnet-4-5');
+        await testInfo.attach('agent-usage-tooltip', {
             body: await running.page.screenshot(),
             contentType: 'image/png',
         });

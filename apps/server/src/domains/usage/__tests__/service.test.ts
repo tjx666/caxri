@@ -34,7 +34,7 @@ describe('describeOutsideTranscripts', () => {
             peak = Math.max(peak, active);
             await new Promise((resolve) => setTimeout(resolve, 0));
             active -= 1;
-            return { main, side: [], fingerprint: main.path };
+            return { main, earlier: [], side: [], fingerprint: main.path, bornAt: 0 };
         });
         expect(peak).toBeLessThanOrEqual(4);
         expect(described.map((item) => item.transcript.transcriptId)).toEqual(
