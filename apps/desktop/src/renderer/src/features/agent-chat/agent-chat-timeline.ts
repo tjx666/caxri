@@ -13,6 +13,7 @@ import {
 } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
+import { agentChatMessageFullTime } from './agent-chat-time';
 import type { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
 import { collectAgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
 
@@ -41,6 +42,11 @@ export type AgentChatTimelineEntry =
            * What the finished turn this reply ends changed and filed, shown under the reply above its Copy action.
            */
           artifacts?: AgentChatTurnArtifacts;
+          /**
+           * The final reply of the most recent turn: its Copy action stays visible instead of waiting for hover, since
+           * it is the reply the user most likely wants to take away. Earlier replies reveal theirs on hover or focus.
+           */
+          isLatestReply?: true;
       }
     | { kind: 'work'; id: string; items: readonly AgentChatWorkItem[] }
     | {
@@ -59,6 +65,12 @@ export type AgentChatTimelineEntry =
            * How the turn ended, so a failed or stopped turn's fold row carries its tone, not only its words.
            */
           status: AgentChatTurn['status'];
+          /**
+           * When the turn started and ended (epoch ms), for the fold row's tooltip; absent when the provider did not
+           * say.
+           */
+          startedAt?: number;
+          endedAt?: number;
           entries: ReadonlyArray<Exclude<AgentChatTimelineEntry, { kind: 'turn' }>>;
       };
 
@@ -132,6 +144,18 @@ export function agentChatTurnLabel(turn: AgentChatTurn): string {
 }
 
 /**
+ * The fold row's tooltip: when the turn finished, or when it started if its end is unknown.
+ */
+export function agentChatTurnTimeTooltip(
+    entry: Pick<Extract<AgentChatTimelineEntry, { kind: 'turn' }>, 'endedAt' | 'startedAt'>,
+): string | undefined {
+    if (entry.endedAt !== undefined) return `Finished ${agentChatMessageFullTime(entry.endedAt)}`;
+    if (entry.startedAt !== undefined)
+        return `Started ${agentChatMessageFullTime(entry.startedAt)}`;
+    return undefined;
+}
+
+/**
  * The semantic tone of a finished turn's fold row: a failed turn is `danger`, a stopped one `warning`, and a turn that
  * completed stays quiet (`undefined`), because a column of green fold rows would be noise.
  */
@@ -174,6 +198,9 @@ function foldTurn(
             id: `turn:${turn.id}`,
             label: agentChatTurnLabel(turn),
             status: turn.status,
+            ...(turn.startedAt !== undefined && { startedAt: turn.startedAt }),
+            ...(turn.startedAt !== undefined &&
+                turn.durationMs !== undefined && { endedAt: turn.startedAt + turn.durationMs }),
             entries: groupWork(folded),
         });
     }
@@ -231,7 +258,8 @@ function withTurnArtifacts(
  * Builds the rendered timeline from the projection. Items arrive in order and each turn's items are contiguous, so a
  * run of items sharing a `turnId` is one turn. A turn still running (or with no recorded end) stays expanded. Every
  * turn not running ends on its last reply, which is the only one marked `isFinalReply`; a running turn's latest reply
- * may still be followed by more work, so it is not marked until the turn ends.
+ * may still be followed by more work, so it is not marked until the turn ends. The last turn's final reply is also
+ * `isLatestReply`; while the last turn still runs, no reply is.
  */
 export function buildAgentChatTimeline(
     items: readonly AgentChatItem[],
@@ -249,6 +277,7 @@ export function buildAgentChatTimeline(
     if (activeTurnId !== undefined) running.add(activeTurnId);
     const entries: AgentChatTimelineEntry[] = [];
     let start = 0;
+    let latestReplyId: string | undefined;
     while (start < items.length) {
         const turnId = items[start]?.turnId;
         let end = start + 1;
@@ -267,9 +296,16 @@ export function buildAgentChatTimeline(
                   )
                 : groupWork(segment, finalReplyId)),
         );
+        latestReplyId = finalReplyId;
         start = end;
     }
-    return entries;
+    return latestReplyId === undefined
+        ? entries
+        : entries.map((entry) =>
+              entry.kind === 'item' && entry.item.id === latestReplyId
+                  ? { ...entry, isLatestReply: true }
+                  : entry,
+          );
 }
 
 const REASONING_TITLE = /^\*\*([^*\n]+)\*\*[ \t]*$/gmu;

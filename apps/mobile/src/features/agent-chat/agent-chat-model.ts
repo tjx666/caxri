@@ -6,7 +6,7 @@ import type {
     AgentChatSnapshot,
     AgentTimelineItem,
 } from '@caxri/protocol';
-import { agentProviderCatalog, describeAgentTool } from '@caxri/protocol';
+import { agentChatWaitingText, agentProviderCatalog } from '@caxri/protocol';
 
 import { mobileAgentDisplayName } from '../sessions/agent-display-name';
 import type { MobileTerminal } from '../sessions/session-model';
@@ -46,6 +46,13 @@ export const canAttachAgentChatImages = (
 };
 
 /**
+ * The provider name at the start of a sentence. Catalog names are already capitalized; only the providerless fallback
+ * (`the Agent`) needs its first letter raised.
+ */
+export const sentenceStartProvider = (provider: string): string =>
+    provider.charAt(0).toUpperCase() + provider.slice(1);
+
+/**
  * The same closed failure copy the Desktop Chat pane shows; provider text never selects the message. `canRetry` is
  * false on a view-only device, which has no Retry button, so the copy names the access it needs instead of asking it to
  * retry.
@@ -55,20 +62,21 @@ export const agentChatFailureMessage = (
     provider: string,
     canRetry = true,
 ): string => {
+    const subject = sentenceStartProvider(provider);
     switch (reason) {
         case 'executable_not_found': {
-            return `${provider} is not installed or is not on your computer's PATH.`;
+            return `${subject} is not installed or is not on your computer's PATH. Install it on your computer.`;
         }
         case 'spawn_failed': {
-            return `${provider} could not be started on your computer.`;
+            return `${subject} could not be started on your computer.`;
         }
         case 'handshake_failed': {
-            return `${provider} started but did not respond.`;
+            return `${subject} started but did not respond.`;
         }
         case 'process_exited': {
             return canRetry
-                ? `${provider} stopped unexpectedly. Retry to resume the conversation.`
-                : `${provider} stopped unexpectedly. Reply access is required to retry.`;
+                ? `${subject} stopped unexpectedly. Retry to resume the conversation.`
+                : `${subject} stopped unexpectedly. Reply access is required to retry.`;
         }
         case 'resume_failed': {
             return 'The previous conversation could not be resumed.';
@@ -81,6 +89,13 @@ export const agentChatFailureMessage = (
         }
     }
 };
+
+/**
+ * Whether Retry can fix a failure from the phone. A missing or outdated provider fails the same way again until someone
+ * installs or updates it on the computer, so those failures explain that step instead of offering a Retry.
+ */
+export const isAgentChatFailureRetryable = (reason: AgentChatFailureReason): boolean =>
+    reason !== 'executable_not_found' && reason !== 'unsupported_version';
 
 const toolStatus = (status: AgentChatItemStatus): ToolCall['status'] => {
     switch (status) {
@@ -229,7 +244,8 @@ export const agentChatTimelineItems = (snapshot: AgentChatSnapshot): AgentTimeli
 };
 
 /**
- * What the Chat is doing now, for the line above the composer. A pending request means the turn waits on the user.
+ * What the Chat is doing now, for the line above the composer. A pending request means the turn waits on the user, for
+ * an approval or an answer as the shared `agentChatWaitingText` words it on Desktop.
  */
 export const agentChatActivityLabel = (
     snapshot: Pick<AgentChatSnapshot, 'status' | 'activeTurnId' | 'requests'> | undefined,
@@ -238,62 +254,22 @@ export const agentChatActivityLabel = (
     if (!snapshot || snapshot.status === 'starting')
         return { text: `Starting ${provider}…`, isBusy: true };
     if (!snapshot.activeTurnId) return undefined;
-    if (snapshot.requests.length > 0) return { text: 'Waiting for your answer', isBusy: false };
+    if (snapshot.requests.length > 0)
+        return { text: agentChatWaitingText(snapshot.requests), isBusy: false };
     return { text: 'Working…', isBusy: true };
 };
 
 /**
- * The approval buttons in a fixed order, limited to the decisions the provider offers. `cancel` is never a button:
- * declining already answers the request without stopping the turn.
+ * The approval buttons laid out in rows: the one-time answers (Accept, Decline) side by side, then the standing "for
+ * this Chat" answer on its own row, as the Desktop request card groups them. Empty rows are dropped.
  */
-export const agentChatApprovalChoices = (
-    request: Extract<AgentChatRequest, { kind: 'command' | 'fileChange' | 'tool' }>,
-): Array<{ decision: 'accept' | 'acceptForSession' | 'decline'; label: string }> => {
-    const choices = [
-        { decision: 'accept', label: 'Accept' },
-        { decision: 'acceptForSession', label: 'Accept for this Chat' },
-        { decision: 'decline', label: 'Decline' },
-    ] as const;
-    const allowed = request.decisions;
-    return choices.filter((choice) => !allowed || allowed.includes(choice.decision));
-};
-
-/**
- * A tool's name as a person reads it: an MCP tool (`mcp__github__create_issue`) reads as `create_issue from github`,
- * and any other tool keeps the name the provider reported.
- */
-const approvalToolName = (name: string): string => {
-    const presentation = describeAgentTool({ name, summary: name });
-    return presentation.kind === 'mcp' && presentation.subject
-        ? `${presentation.subject} from ${presentation.label}`
-        : name;
-};
-
-export const agentChatRequestTitle = (request: AgentChatRequest, provider: string): string => {
-    switch (request.kind) {
-        case 'command': {
-            return request.networkHost
-                ? `Allow network access to ${request.networkHost}?`
-                : 'Run this command?';
-        }
-        case 'fileChange': {
-            return 'Apply these file changes?';
-        }
-        case 'tool': {
-            /**
-             * Claude Code asks to leave plan mode through this tool; its summary is the plan.
-             */
-            return request.name === 'ExitPlanMode'
-                ? 'Start with this plan?'
-                : `Allow ${approvalToolName(request.name)}?`;
-        }
-        case 'question': {
-            return request.questions.length === 1
-                ? `${provider} has a question`
-                : `${provider} has ${request.questions.length} questions`;
-        }
-    }
-};
+export const agentChatApprovalRows = <Choice extends { decision: string }>(
+    choices: readonly Choice[],
+): Choice[][] =>
+    [
+        choices.filter((choice) => choice.decision !== 'acceptForSession'),
+        choices.filter((choice) => choice.decision === 'acceptForSession'),
+    ].filter((row) => row.length > 0);
 
 /**
  * The files a file-change approval would touch, read from the timeline item it gates.
@@ -346,7 +322,12 @@ export const isAgentChatHandedOff = (
 export const AGENT_CHAT_HANDED_OFF_NOTICE = 'Chat was handed off on your computer';
 
 /**
- * The body copy for a Chat with no items. Neither a handed-off Chat (whose history returns only when it resumes) nor a
+ * The handed-off banner: the notice plus the way back, said once here so the body and composer need not repeat it.
+ */
+export const AGENT_CHAT_HANDED_OFF_BANNER = `${AGENT_CHAT_HANDED_OFF_NOTICE}. Resume it there to continue.`;
+
+/**
+ * The body copy for a Chat with no items. Neither a handed-off Chat (whose banner already says how to continue) nor a
  * device that cannot message the Chat is invited to send one.
  */
 export const agentChatEmptyMessage = ({
@@ -358,7 +339,7 @@ export const agentChatEmptyMessage = ({
     isHandedOff: boolean;
     provider: string;
 }): string => {
-    if (isHandedOff) return 'Messages appear here once the Chat resumes.';
+    if (isHandedOff) return 'No messages to show.';
     return canSend
         ? `No messages yet. Send a message to start working with ${provider}.`
         : 'No messages yet.';
@@ -418,4 +399,105 @@ export const agentChatImageCounts = (
         item.type === 'userMessage' && item.images?.length ? [[item.id, item.images.length]] : [],
     );
     return counts.length > 0 ? JSON.stringify(counts) : '';
+};
+
+/**
+ * Whether this device can type into the Chat right now, and the reason to show when it cannot. A handed-off or failed
+ * Chat disables the composer without a reason: its banner above already names the state and the way out, and saying it
+ * twice is noise. Access and connection keep {@link agentChatDisabledReason}'s precedence.
+ */
+export const agentChatComposerAvailability = (
+    input: Omit<Parameters<typeof agentChatDisabledReason>[0], 'action'>,
+): { isEnabled: boolean; reason?: string } => {
+    const reason = agentChatDisabledReason(input);
+    if (reason === undefined) return { isEnabled: true };
+    const isBannerOwned =
+        reason === DISABLED_REASONS.send.handedOff || reason === DISABLED_REASONS.send.failed;
+    return isBannerOwned ? { isEnabled: false } : { isEnabled: false, reason };
+};
+
+/**
+ * What a device without control access sees on a pending request it cannot answer, Chat or Terminal alike, with the way
+ * to get that access.
+ */
+export const REQUEST_CONTROL_ACCESS_MESSAGE =
+    'This device cannot answer requests. Pair it again on your computer with control access.';
+
+/**
+ * Why this device cannot answer a pending request, or `undefined` when it can. Answering needs control access and a
+ * live connection, mirroring the composer's "Reconnect to send messages.".
+ */
+export const agentChatRequestBlockedReason = ({
+    deviceRole,
+    isConnected,
+}: {
+    deviceRole: 'view' | 'reply' | 'control' | null;
+    isConnected: boolean;
+}): { kind: 'access' | 'offline'; message: string } | undefined => {
+    if (deviceRole !== 'control')
+        return { kind: 'access', message: REQUEST_CONTROL_ACCESS_MESSAGE };
+    if (!isConnected) return { kind: 'offline', message: 'Reconnect to answer.' };
+    return undefined;
+};
+
+/**
+ * Whether Stop was pressed for the turn still running. Keyed by turn id, as on Desktop, so the pending state ends by
+ * itself when that turn ends or another one starts, without a timer.
+ */
+export const isAgentChatStopping = (
+    stoppingTurnId: string | undefined,
+    activeTurnId: string | undefined,
+): boolean => activeTurnId !== undefined && stoppingTurnId === activeTurnId;
+
+/**
+ * Whether the composer's one button can act now, and whether holding it steers. A pending Stop refuses further presses
+ * until its turn ends; steering needs a running turn and a draft, since Stop owns the button on an empty one.
+ */
+export const agentChatComposerSubmission = ({
+    hasDraft,
+    isEditable,
+    isRunning,
+    isStopAction,
+    isStopping,
+}: {
+    hasDraft: boolean;
+    isEditable: boolean;
+    isRunning: boolean;
+    isStopAction: boolean;
+    isStopping: boolean;
+}): { canSteer: boolean; canSubmit: boolean } => {
+    const canSubmit = isEditable && !isStopping && (isStopAction || hasDraft);
+    return { canSteer: canSubmit && isRunning && !isStopAction, canSubmit };
+};
+
+/**
+ * What the composer's button says and does. A pending Stop keeps its button even if the user starts typing, so the
+ * state does not flicker back to Send while the turn is still ending.
+ */
+export const agentChatComposerButton = ({
+    isRunning,
+    isStopAction,
+    isStopping,
+    provider,
+}: {
+    isRunning: boolean;
+    isStopAction: boolean;
+    isStopping: boolean;
+    provider: string;
+}): {
+    kind: 'send' | 'stop';
+    label: string;
+    testID: 'agent-chat-composer-send' | 'agent-chat-composer-stop';
+} => {
+    if (isStopAction || isStopping)
+        return {
+            kind: 'stop',
+            label: isStopping ? `Stopping ${provider}` : `Stop ${provider}`,
+            testID: 'agent-chat-composer-stop',
+        };
+    return {
+        kind: 'send',
+        label: isRunning ? 'Queue message' : 'Send message',
+        testID: 'agent-chat-composer-send',
+    };
 };

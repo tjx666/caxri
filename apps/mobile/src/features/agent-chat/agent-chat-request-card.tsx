@@ -1,24 +1,31 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useState } from 'react';
 import type { StyleProp, TextStyle } from 'react-native';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { AgentChatItem, AgentChatRequest } from '@caxri/protocol';
+import { agentChatApprovalChoices, agentChatRequestTitle } from '@caxri/protocol';
 
 import type { MobileTheme } from '../../theme/tokens';
+import type { agentChatRequestBlockedReason } from './agent-chat-model';
 import {
-    agentChatApprovalChoices,
     agentChatApprovalFiles,
+    agentChatApprovalRows,
     agentChatQuestionAnswers,
-    agentChatRequestTitle,
+    sentenceStartProvider,
 } from './agent-chat-model';
 import type { AgentChatResponse } from './use-agent-chat';
 
 type QuestionRequest = Extract<AgentChatRequest, { kind: 'question' }>;
 type ApprovalRequest = Extract<AgentChatRequest, { kind: 'command' | 'fileChange' | 'tool' }>;
 
+/**
+ * One answer button. `primary` is the filled default answer; every other answer, Decline included, is the outlined
+ * ghost style the Desktop request card uses. The pressed button carries its own spinner while its answer is in flight.
+ */
 const ActionButton = ({
     disabled,
+    isPending,
     label,
     onPress,
     testID,
@@ -26,23 +33,19 @@ const ActionButton = ({
     tone,
 }: {
     disabled: boolean;
+    isPending: boolean;
     label: string;
     onPress: () => void;
     testID: string;
     theme: MobileTheme;
-    tone: 'primary' | 'danger' | 'plain';
+    tone: 'primary' | 'plain';
 }) => {
-    const color =
-        tone === 'primary'
-            ? theme.primaryForeground
-            : tone === 'danger'
-              ? theme.danger
-              : theme.text;
+    const color = tone === 'primary' ? theme.primaryForeground : theme.text;
     return (
         <Pressable
             accessibilityLabel={label}
             accessibilityRole="button"
-            accessibilityState={{ disabled }}
+            accessibilityState={{ busy: isPending, disabled }}
             disabled={disabled}
             onPress={onPress}
             style={({ pressed }) => [
@@ -54,18 +57,17 @@ const ActionButton = ({
                             : pressed
                               ? theme.elevated
                               : 'transparent',
-                    borderColor:
-                        tone === 'primary'
-                            ? theme.primary
-                            : tone === 'danger'
-                              ? theme.danger
-                              : theme.border,
-                    opacity: disabled ? 0.5 : pressed ? 0.76 : 1,
+                    borderColor: tone === 'primary' ? theme.primary : theme.border,
+                    opacity: disabled && !isPending ? 0.5 : pressed ? 0.76 : 1,
                 },
             ]}
             testID={testID}
         >
-            <Text style={[styles.actionLabel, { color }]}>{label}</Text>
+            {isPending ? (
+                <ActivityIndicator color={color} />
+            ) : (
+                <Text style={[styles.actionLabel, { color }]}>{label}</Text>
+            )}
         </Pressable>
     );
 };
@@ -259,18 +261,20 @@ const QuestionBody = ({
 );
 
 /**
- * One pending Chat request: an approval with the decisions the provider offers, or questions with their options. Only a
- * control device answers; others see the request and why they cannot act on it.
+ * One pending Chat request: an approval with the decisions the provider offers (worded by the shared protocol module,
+ * so the phone reads like the Desktop Chat), or questions with their options. Only a connected control device answers.
+ * A device without control access sees the request and how to get access, with no buttons it could never press; an
+ * offline control device keeps the buttons disabled until it reconnects.
  */
 export const AgentChatRequestCard = ({
-    canAnswer,
+    blockedReason,
     items,
     onRespond,
     provider,
     request,
     theme,
 }: {
-    canAnswer: boolean;
+    blockedReason: ReturnType<typeof agentChatRequestBlockedReason>;
     items: readonly AgentChatItem[];
     onRespond: (request: AgentChatRequest, response: AgentChatResponse) => Promise<void>;
     provider: string;
@@ -279,20 +283,24 @@ export const AgentChatRequestCard = ({
 }) => {
     const [selected, setSelected] = useState<Record<string, string>>({});
     const [other, setOther] = useState<Record<string, string>>({});
-    const [isSending, setSending] = useState(false);
+    /**
+     * The test id of the button whose answer is in flight, so only that button shows a spinner.
+     */
+    const [pendingAction, setPendingAction] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const respond = async (response: AgentChatResponse): Promise<void> => {
-        setSending(true);
+    const respond = async (action: string, response: AgentChatResponse): Promise<void> => {
+        setPendingAction(action);
         setError(null);
         try {
             await onRespond(request, response);
         } catch {
             setError('Your answer was not delivered. Try again.');
         } finally {
-            setSending(false);
+            setPendingAction(null);
         }
     };
-    const isDisabled = !canAnswer || isSending;
+    const isDisabled = blockedReason !== undefined || pendingAction !== null;
+    const isShowsActions = blockedReason?.kind !== 'access';
     const answers =
         request.kind === 'question' ? agentChatQuestionAnswers(request, selected, other) : null;
     return (
@@ -301,7 +309,7 @@ export const AgentChatRequestCard = ({
             testID="agent-chat-request"
         >
             <Text style={[styles.title, { color: theme.text }]}>
-                {agentChatRequestTitle(request, provider)}
+                {agentChatRequestTitle(request, sentenceStartProvider(provider))}
             </Text>
             {request.kind === 'question' ? (
                 <QuestionBody
@@ -317,19 +325,26 @@ export const AgentChatRequestCard = ({
             ) : (
                 <ApprovalBody items={items} request={request} theme={theme} />
             )}
-            {canAnswer ? null : (
-                <Text style={[styles.meta, { color: theme.muted }]}>
-                    Control access is required to answer this request.
+            {blockedReason ? (
+                <Text
+                    style={[styles.meta, { color: theme.muted }]}
+                    testID="agent-chat-request-blocked"
+                >
+                    {blockedReason.message}
                 </Text>
-            )}
-            {request.kind === 'question' ? (
+            ) : null}
+            {!isShowsActions ? null : request.kind === 'question' ? (
                 <View style={styles.actions}>
                     <ActionButton
                         disabled={isDisabled}
+                        isPending={pendingAction === 'agent-chat-question-skip'}
                         label="Skip"
                         onPress={() => {
                             // eslint-disable-next-line no-void -- The card reports a failed answer itself.
-                            void respond({ kind: 'decision', decision: 'cancel' });
+                            void respond('agent-chat-question-skip', {
+                                kind: 'decision',
+                                decision: 'cancel',
+                            });
                         }}
                         testID="agent-chat-question-skip"
                         theme={theme}
@@ -337,11 +352,15 @@ export const AgentChatRequestCard = ({
                     />
                     <ActionButton
                         disabled={isDisabled || !answers?.isComplete}
+                        isPending={pendingAction === 'agent-chat-question-submit'}
                         label="Submit"
                         onPress={() => {
                             if (!answers) return;
                             // eslint-disable-next-line no-void -- The card reports a failed answer itself.
-                            void respond({ kind: 'answers', answers: answers.answers });
+                            void respond('agent-chat-question-submit', {
+                                kind: 'answers',
+                                answers: answers.answers,
+                            });
                         }}
                         testID="agent-chat-question-submit"
                         theme={theme}
@@ -350,25 +369,30 @@ export const AgentChatRequestCard = ({
                 </View>
             ) : (
                 <View style={styles.choices}>
-                    {agentChatApprovalChoices(request).map((choice) => (
-                        <ActionButton
-                            key={choice.decision}
-                            disabled={isDisabled}
-                            label={choice.label}
-                            onPress={() => {
-                                // eslint-disable-next-line no-void -- The card reports a failed answer itself.
-                                void respond({ kind: 'decision', decision: choice.decision });
-                            }}
-                            testID={`agent-chat-approval-${choice.decision.toLowerCase()}`}
-                            theme={theme}
-                            tone={
-                                choice.decision === 'accept'
-                                    ? 'primary'
-                                    : choice.decision === 'decline'
-                                      ? 'danger'
-                                      : 'plain'
-                            }
-                        />
+                    {agentChatApprovalRows(agentChatApprovalChoices(request)).map((row) => (
+                        <View key={row[0].decision} style={styles.actions}>
+                            {row.map((choice) => {
+                                const testID = `agent-chat-approval-${choice.decision.toLowerCase()}`;
+                                return (
+                                    <ActionButton
+                                        key={choice.decision}
+                                        disabled={isDisabled}
+                                        isPending={pendingAction === testID}
+                                        label={choice.label}
+                                        onPress={() => {
+                                            // eslint-disable-next-line no-void -- The card reports a failed answer itself.
+                                            void respond(testID, {
+                                                kind: 'decision',
+                                                decision: choice.decision,
+                                            });
+                                        }}
+                                        testID={testID}
+                                        theme={theme}
+                                        tone={choice.decision === 'accept' ? 'primary' : 'plain'}
+                                    />
+                                );
+                            })}
+                        </View>
                     ))}
                 </View>
             )}
@@ -406,7 +430,7 @@ const styles = StyleSheet.create({
         minHeight: 44,
         paddingHorizontal: 12,
     },
-    actions: { flexDirection: 'row', gap: 12 },
+    actions: { flexDirection: 'row', gap: 8 },
     choices: { gap: 8 },
     action: {
         alignItems: 'center',

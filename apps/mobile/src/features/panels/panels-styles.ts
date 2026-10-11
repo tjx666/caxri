@@ -42,6 +42,16 @@ export const panelsStyles = StyleSheet.create({
     status: { alignItems: 'center', gap: 12, justifyContent: 'center', padding: 32 },
     statusText: { fontSize: 14, lineHeight: 20, textAlign: 'center' },
     retry: { fontSize: 14, fontWeight: '700' },
+    /**
+     * A 44pt target around the short Retry label, the platform minimum, instead of relying on `hitSlop`.
+     */
+    retryButton: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 44,
+        minWidth: 44,
+        paddingHorizontal: 12,
+    },
     preview: { flex: 1 },
     previewText: { fontFamily: 'monospace', fontSize: 12, lineHeight: 18, padding: 16 },
 });

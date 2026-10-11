@@ -65,7 +65,7 @@ export const ProjectPanelView = ({
     if (query.isError)
         return (
             <PanelStatus
-                message="Unable to load this Session's Project views."
+                message="Unable to load this view."
                 onRetry={() => {
                     // eslint-disable-next-line no-void -- The query renders its own error state.
                     void query.refetch();

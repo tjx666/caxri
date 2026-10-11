@@ -10,10 +10,11 @@ import { StatusTooltip } from './status-tooltip';
  * Lucide component, a Linear workflow glyph, without every call site having to know which of the two status-bar heights
  * it is rendering into. CSS wins over an SVG's `width`/`height` attributes, and neither icon family scales its
  * `viewBox` with `size`, so the result is identical to the prop. 13px is the `base` type tier this item sits at;
- * DESIGN.md "Spacing and radius" records why the two bar glyph boxes are allowed to state it.
+ * DESIGN.md "Spacing and radius" records why the two bar glyph boxes are allowed to state it. Figures are tabular, as
+ * on `StatusInfo`, so a value that changes on every poll (`9 tok/s` to `10 tok/s`) does not nudge its neighbours.
  */
 export const statusItemClassName =
-    'statusbar-item inline-flex h-5 min-w-0 items-center gap-[5px] overflow-hidden rounded border-0 bg-transparent px-[5px] text-foreground no-underline cursor-pointer hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--foreground)] [&>svg]:flex-none [&>svg]:size-[13px] [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap';
+    'statusbar-item inline-flex h-5 min-w-0 items-center gap-[5px] overflow-hidden rounded border-0 bg-transparent px-[5px] text-foreground tabular-nums no-underline cursor-pointer hover:bg-[color-mix(in_srgb,var(--foreground)_10%,transparent)] focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--foreground)] [&>svg]:flex-none [&>svg]:size-[13px] [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap';
 
 /**
  * Same hover-tooltip contract as `StatusInfo`, for the clickable status-bar entries.

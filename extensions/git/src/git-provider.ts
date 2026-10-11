@@ -493,7 +493,7 @@ export class GitProvider implements SourceControlProvider {
                 const detail = state.commitDetails.get(repo.id);
                 if (detail?.status === 'error') detailErrors.set(repo.id, true);
                 else if (detail?.value) details.set(repo.id, detail.value);
-            } else if (state.mode === 'pull-request') {
+            } else if (state.mode === 'pull-request' && canDetectPullRequest(repo)) {
                 this.loadPullRequest(state, repo);
                 const detail = state.pullRequests.get(repo.id);
                 if (detail?.status === 'error')

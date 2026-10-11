@@ -22,11 +22,50 @@ export function throughputRate(
 const groupedCount = new Intl.NumberFormat('en-US');
 
 /**
+ * Joins a number to its unit so a wrapping line or a narrow tile never strands `tok/s` away from its value.
+ */
+const NO_BREAK_SPACE = '\u{A0}';
+
+/**
  * Whole tokens per second, `<1` below one. A decimal place flickered on every 2s poll and changed the chip's width
  * between `9.8` and `10`, while the tenth carries no decision a user makes.
  */
 export function formatThroughputRate(rate: number): string {
-    return `${rate < 1 ? '<1' : groupedCount.format(Math.round(rate))} tok/s`;
+    return `${rate < 1 ? '<1' : groupedCount.format(Math.round(rate))}${NO_BREAK_SPACE}tok/s`;
+}
+
+/**
+ * The spoken form of {@link formatThroughputRate} for accessible names: `62 tokens per second`.
+ */
+export function spokenThroughputRate(rate: number): string {
+    if (rate < 1) return 'less than 1 token per second';
+    const rounded = Math.round(rate);
+    return `${groupedCount.format(rounded)} ${rounded === 1 ? 'token' : 'tokens'} per second`;
+}
+
+/**
+ * The one phrase every surface (status-bar chip, its hover card, the Agent status tab) uses for the headline figure:
+ * `Average of the last 12 responses`.
+ */
+export function recentAverageLabel(responseCount: number): string {
+    return responseCount === 1
+        ? 'Last response only'
+        : `Average of the last ${responseCount} responses`;
+}
+
+/**
+ * True when two totals cover the same responses, so a card can show one row instead of two identical ones (the first
+ * turn of an Agent Session is the whole Agent Session).
+ */
+export function isSameThroughputAggregate(
+    left: AgentThroughputAggregate,
+    right: AgentThroughputAggregate,
+): boolean {
+    return (
+        left.responseCount === right.responseCount &&
+        left.outputTokens === right.outputTokens &&
+        left.durationMs === right.durationMs
+    );
 }
 
 /**

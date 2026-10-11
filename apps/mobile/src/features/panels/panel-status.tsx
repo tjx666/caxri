@@ -25,7 +25,7 @@ export const PanelStatus = ({
             <Text style={[styles.statusText, { color: theme.muted }]}>{message}</Text>
         ) : null}
         {onRetry ? (
-            <Pressable accessibilityRole="button" hitSlop={8} onPress={onRetry}>
+            <Pressable accessibilityRole="button" onPress={onRetry} style={styles.retryButton}>
                 <Text style={[styles.retry, { color: theme.primary }]}>Retry</Text>
             </Pressable>
         ) : null}

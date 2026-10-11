@@ -2,9 +2,12 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/domain.js';
+import { extensionCommandResultSchema } from '../domain/extension-command-result.js';
 import { viewBadgeSchema } from '../domain/view-badges.js';
 import {
+    extensionCommandIdSchema,
     extensionViewEventContextSchema,
+    MAX_EXTENSION_COMMAND_ARGUMENTS,
     sourceControlActionResultSchema,
     sourceControlHistoryDetailsSchema,
     sourceControlHistoryPageSchema,
@@ -152,6 +155,14 @@ export const extensionViewMethods = {
         ...commandPolicy('server', 'control'),
         params: extensionViewOperationSchema,
         result: extensionViewOperationResultSchema,
+    },
+    'viewContainers.executeCommand': {
+        ...commandPolicy('server', 'control'),
+        params: z.object({
+            commandId: extensionCommandIdSchema,
+            arguments: z.array(z.unknown()).max(MAX_EXTENSION_COMMAND_ARGUMENTS).default([]),
+        }),
+        result: extensionCommandResultSchema,
     },
 } as const satisfies Record<string, MethodSpec>;
 /* eslint-enable unicorn/max-nested-calls */

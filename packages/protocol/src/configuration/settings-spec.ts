@@ -121,7 +121,7 @@ export const settingsSpec = [
     {
         kind: 'enum',
         key: 'session.defaultAgent',
-        title: 'Default agent',
+        title: 'Default Agent',
         description:
             'Starts new Sessions and new Terminals with this Agent. Ask each time opens the list instead, and the New Terminal button always offers the other Agents.',
         category: 'general',
@@ -141,7 +141,7 @@ export const settingsSpec = [
         key: 'session.openAgentsInChat',
         title: 'Open Agents in Chat',
         description:
-            'Starts new Agents as a Chat instead of a terminal. Shell always opens in a terminal. The New Session and New Terminal menus toggle this too.',
+            'Starts new Agents as a Chat instead of a Terminal. Shell always opens in a Terminal. The New Session and New Terminal menus toggle this too.',
         category: 'general',
         keywords: ['chat', 'surface', 'terminal', 'claude', 'codex', 'grok', 'conversation', 'tui'],
         default: false,
@@ -345,7 +345,8 @@ export const settingsSpec = [
         kind: 'boolean',
         key: 'terminal.osc52ClipboardWrite',
         title: 'Allow OSC 52 clipboard writes',
-        description: 'Remote programs may request bounded writes; clipboard reads stay blocked',
+        description:
+            'Programs in the Terminal may copy text to your clipboard; they can never read it',
         category: 'terminal',
         keywords: ['clipboard', 'escape sequence', 'security'],
         default: true,
@@ -355,7 +356,7 @@ export const settingsSpec = [
         key: 'terminal.wordSeparators',
         title: 'Word separators',
         description:
-            'Characters that separate words for double-click selection and fallback file-link detection; explicit line:column links are parsed independently',
+            'Characters that end a word when you double-click to select, and when Caxri looks for file names to link. Links such as file.ts:12 are found either way',
         category: 'terminal',
         keywords: ['link', 'path', 'word', 'separator', 'double click', 'selection'],
         nullable: false,
@@ -367,7 +368,7 @@ export const settingsSpec = [
         kind: 'complex',
         key: 'terminal.referenceLinks',
         title: 'Reference links',
-        description: 'Open issue markers such as TASK-123 with a bounded HTTP(S) URL template',
+        description: 'Turn issue markers such as TASK-123 into links, using a web address template',
         category: 'terminal',
         keywords: ['link', 'issue', 'linear', 'jira', 'prefix', 'autolink'],
     },
@@ -474,9 +475,9 @@ export const settingsSpec = [
     {
         kind: 'boolean',
         key: 'projectStatus.notifyAgentOnMerge',
-        title: 'Tell the Agent after you merge from Status',
+        title: 'Tell the Agent after you merge from Project Status',
         description:
-            "Sends 'Pull request <link> has been merged.' to this Session's Agent as a new message. Merges made on GitHub are not reported.",
+            'Sends “Pull request <link> has been merged.” to the Session’s Agent as a new message. Merges made on GitHub are not reported.',
         category: 'projectStatus',
         keywords: ['merge', 'pull request', 'pr', 'agent', 'message', 'notify', 'github'],
         default: false,

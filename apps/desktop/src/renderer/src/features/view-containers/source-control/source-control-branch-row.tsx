@@ -1,7 +1,11 @@
-import type { SourceControlViewModel } from '@caxri/protocol';
+import type { SourceControlAction, SourceControlViewModel } from '@caxri/protocol';
 import { GitBranch, GitCommitHorizontal } from 'lucide-react';
 
+import { executeCommand } from '../../../commands/execute';
 import { StructuredTooltip } from '../../../components/structured-tooltip';
+import { cn } from '../../../lib/utilities';
+import { branchRowInteraction, branchRowTooltipDetails } from './source-control-row-labels';
+import { sourceControlActionMenuItems } from './source-control-row-menu';
 import { SourceControlTreeRow } from './source-control-tree-row';
 
 type ProviderModel = SourceControlViewModel['providers'][number];
@@ -9,24 +13,64 @@ type ProviderModel = SourceControlViewModel['providers'][number];
 /**
  * The repository's branch (or whatever reference the provider describes) as the section's first child row, laid out on
  * the directory rows' grid: the same height, padding, base text, a glyph in their file-icon column, and an optional
- * trailing status such as `↑2 ↓1` in their right-aligned `+N -M` column. It carries no action of its own, so it has no
- * hover fill; hovering or focusing it shows the same detail the header tooltip does. An empty description means the
- * provider judged the row redundant with the header, and it is omitted.
+ * trailing status such as `↑2 ↓1` in their right-aligned `+N -M` column. Like the status bar's branch item, activating
+ * the primary repository's row opens the branch picker, and clicking the ahead/behind badge runs the repository's sync
+ * action. The badge is not its own button: a treeitem cannot nest one, so keyboard users reach sync through the row's
+ * `Shift+F10` menu and the provider header's Sync button. An empty description means the provider judged the row
+ * redundant with the header, and it is omitted.
  */
-export function SourceControlBranchRow({ provider }: { provider: ProviderModel }) {
+export function SourceControlBranchRow({
+    provider,
+    runAction,
+}: {
+    provider: ProviderModel;
+    runAction: (action: SourceControlAction) => void;
+}) {
     if (!provider.description) return null;
     const Icon = provider.descriptionKind === 'commit' ? GitCommitHorizontal : GitBranch;
+    const { canSwitchBranch, hints, syncAction } = branchRowInteraction(provider);
+    const isInteractive = canSwitchBranch || Boolean(syncAction);
     return (
         <SourceControlTreeRow
             rowId={`provider-branch:${provider.id}`}
             level={2}
-            className="git-repository-branch-row flex h-7 w-full min-w-0 cursor-default items-center gap-1.5 border-0 bg-surface pr-2 pl-2 text-left text-foreground"
+            className={cn(
+                'git-repository-branch-row flex h-7 w-full min-w-0 items-center gap-1.5 border-0 bg-surface pr-2 pl-2 text-left text-foreground',
+                isInteractive ? 'cursor-pointer hover:bg-elevated' : 'cursor-default',
+            )}
+            aria-description={hints.join('. ') || undefined}
             tooltip={
                 <StructuredTooltip
                     title={provider.description}
-                    details={[provider.descriptionTooltip]}
+                    details={branchRowTooltipDetails(
+                        provider.description,
+                        provider.descriptionTooltip,
+                    )}
+                    hint={hints.length > 0 ? hints : undefined}
                 />
             }
+            menuItems={[
+                ...(canSwitchBranch
+                    ? [
+                          {
+                              id: 'switch-branch',
+                              label: 'Switch Branch…',
+                              run: () => executeCommand('git.switchBranch'),
+                          },
+                      ]
+                    : []),
+                ...sourceControlActionMenuItems(syncAction && [syncAction], runAction),
+            ]}
+            onClick={(event) => {
+                const isOnBadge =
+                    event.target instanceof Element &&
+                    event.target.closest('[data-branch-sync-badge]') !== null;
+                if (isOnBadge && syncAction) {
+                    runAction(syncAction);
+                    return;
+                }
+                if (canSwitchBranch) executeCommand('git.switchBranch');
+            }}
         >
             {/* Empty chevron column: the row never expands, and the glyph and name line up with the directory rows'. */}
             <span aria-hidden="true" className="w-[13px] flex-none" />
@@ -41,7 +85,13 @@ export function SourceControlBranchRow({ provider }: { provider: ProviderModel }
                     {provider.description}
                 </span>
                 {provider.descriptionBadge && (
-                    <span className="git-repository-branch-badge shrink-0 text-[11px] whitespace-nowrap text-muted tabular-nums">
+                    <span
+                        className={cn(
+                            'git-repository-branch-badge shrink-0 text-[11px] whitespace-nowrap text-muted tabular-nums',
+                            syncAction && 'hover:text-foreground',
+                        )}
+                        data-branch-sync-badge={syncAction ? '' : undefined}
+                    >
                         {provider.descriptionBadge}
                     </span>
                 )}

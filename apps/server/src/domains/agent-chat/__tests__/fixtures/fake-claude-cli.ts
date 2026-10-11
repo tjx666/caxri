@@ -196,7 +196,7 @@ function sessionState(value: 'idle' | 'running') {
 }
 
 function turnCacheReadTokens(): number {
-    return state.isLargeContextTurn ? 125_000 : 800;
+    return state.isLargeContextTurn ? 140_000 : 800;
 }
 
 function assistant(messageId: string, block: Json) {

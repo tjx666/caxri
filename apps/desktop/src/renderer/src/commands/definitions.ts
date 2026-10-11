@@ -93,6 +93,7 @@ export const commandDefinitions: CommandDefinition[] = [
         { confirm: true },
     ),
     fromCatalog('session.rename', (context) => context.session.renameSelected()),
+    fromCatalog('session.renameWithAi', (context) => context.session.renameSelectedWithAi()),
     fromCatalog('session.archive', (context) => context.session.archiveSelected()),
     fromCatalog('session.compactWarm', (context) => context.session.compactWarm()),
     fromCatalog('session.detach', (context) => context.session.detachSelected()),
@@ -196,6 +197,9 @@ export const commandDefinitions: CommandDefinition[] = [
             when: (context) => context.terminal.canSwitchActiveSurface(),
         },
     ),
+    fromCatalog('terminal.showAgentStatus', (context) => context.terminal.showActiveAgentStatus(), {
+        when: (context) => context.terminal.isActiveAgent(),
+    }),
     fromCatalog('terminal.close', (context) => context.terminal.closeActive(), {
         allowInEditable: true,
     }),

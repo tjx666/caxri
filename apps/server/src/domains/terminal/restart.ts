@@ -29,7 +29,7 @@ interface TerminalRestartHandlerOptions {
  * edit or disturb foreground job control. Restarting updates recency, but a validated lifecycle signal still owns
  * whether the Agent is executing a turn.
  *
- * A `resume` restart (the Terminal's Restart, the menus' Reload Agent) continues the same Agent Session, so it also
+ * A `resume` restart (the Terminal's Restart, the menus' Restart Agent) continues the same Agent Session, so it also
  * keeps the approval mode the replaced Agent Run launched with: a run started in YOLO comes back in YOLO even if the
  * Settings switch was turned off since, and the reverse. Every other launch argument follows the current Settings, so a
  * reload still picks up a changed model or flag. A `fresh` restart starts a new conversation on the current Settings.

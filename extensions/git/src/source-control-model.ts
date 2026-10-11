@@ -7,7 +7,6 @@ import type {
     SourceControlAction,
     SourceControlCommandBinding,
     SourceControlFileHistory,
-    SourceControlGroup,
     SourceControlHistoryDescriptor,
     SourceControlResource,
     SourceControlViewModel,
@@ -16,6 +15,7 @@ import { isGlobMatch, ProjectStatusSummaryErrorMessage } from 'caxri';
 
 import { commitFilesToStatuses } from './commit-file-statuses';
 import { formatRepoCountLabel, repoBranchRow as repoBranchRow } from './repo-row-labels';
+import { emptyStateForMode } from './source-control-empty-state';
 import {
     boundedActionLabel,
     boundedEditorResource,
@@ -305,52 +305,6 @@ function repoFiles(
 ): readonly GitFileStatus[] {
     if (mode === 'working') return repo.files;
     return mode === 'commit' ? commitFilesToStatuses(details) : (pullRequest?.files ?? []);
-}
-
-function loading(emptyMessage: string): Pick<SourceControlGroup, 'emptyMessage' | 'isLoading'> {
-    return { emptyMessage, isLoading: true };
-}
-
-/**
- * The group body shown when a repository contributes no visible rows. `isLoading` marks the states that will resolve on
- * their own, so the Workbench can draw a progress glyph instead of a caption that reads like a settled empty result.
- */
-function emptyStateForMode(
-    mode: GitSourceControlMode,
-    repo: GitRepositorySummary,
-    details: GitCommitDetails | undefined,
-    detailError: true | string | undefined,
-    pullRequest: GitPullRequestChanges | null | undefined,
-    selectedCommitSha?: string,
-): Pick<SourceControlGroup, 'emptyMessage' | 'isLoading'> {
-    if (mode === 'working') return { emptyMessage: 'Working tree clean.' };
-    if (mode === 'commit') {
-        if (!repo.head) return { emptyMessage: 'No commits yet.' };
-        if (detailError)
-            return {
-                emptyMessage: selectedCommitSha
-                    ? `Unable to load commit ${selectedCommitSha.slice(0, 7)}.`
-                    : 'Unable to load the last commit.',
-            };
-        if (selectedCommitSha)
-            return details
-                ? { emptyMessage: `Commit ${selectedCommitSha.slice(0, 7)} has no file changes.` }
-                : loading(`Loading commit ${selectedCommitSha.slice(0, 7)}…`);
-        return details
-            ? { emptyMessage: 'Last commit has no file changes.' }
-            : loading('Loading last commit…');
-    }
-    if (detailError)
-        return {
-            emptyMessage:
-                typeof detailError === 'string'
-                    ? detailError
-                    : 'Unable to load pull request changes.',
-        };
-    if (pullRequest === null) return { emptyMessage: 'No pull request for this branch.' };
-    return pullRequest
-        ? { emptyMessage: 'Pull request has no file changes.' }
-        : loading('Loading pull request changes…');
 }
 
 function summaryErrorMessage(error: string | undefined): string {

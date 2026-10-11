@@ -165,7 +165,8 @@ export function publicationDescription(state: ProjectStatusPublication['state'])
         'diverged': 'Both branches have commits absent from the other at the checked time.',
         'unknown': 'Could not verify the branch on origin. Refresh Project Status to check again.',
         'unsupported': 'Remote verification currently supports GitHub origins only.',
-        'no-origin': 'This repository has no origin remote.',
+        'no-origin':
+            'Project Status compares this branch with a GitHub remote named origin, and this repository has none. Add one with `git remote add origin <url>`, then refresh.',
         'detached': 'HEAD is not attached to a local branch.',
         'unborn': 'This branch has no commits yet.',
         'checking': 'Checking the same-named branch on origin.',

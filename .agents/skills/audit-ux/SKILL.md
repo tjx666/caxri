@@ -131,9 +131,12 @@ Do not paste subagent output through. Merge, then:
    - **Low: friction and polish**: awkward copy, magic-number layout coupling, missing empty-state
      affordances, inconsistent icon treatment. Also: a count above its expectation with a named but
      cheap cause.
-3. **Separate decision-needed items** (semantic color re-mapping, lock granularity, naming
-   schemes) from directly implementable fixes. Product decisions go to the user, not into a fix
-   batch.
+3. **Decide routine product choices yourself** (thresholds, copy, naming, which of two reasonable
+   treatments): state the chosen default with a one-line reason and put it in the fix batch. Resolve
+   a code-versus-DESIGN.md conflict by choosing one side and updating the other. For example, the
+   context meter's warning threshold or whether a reply's Copy stays visible is decided, not asked.
+   Escalate only what `AGENTS.md` escalates: schema design, a large feature needing design,
+   destructive or credential steps, and genuinely ambiguous requirements.
 4. Keep DESIGN.md violations explicitly labeled as such: they outrank taste.
 5. Discard render findings whose cause is a deliberate design decision the code documents. The
    known one: a Panel or secondary-sidebar container stays mounted after its first show
@@ -173,8 +176,8 @@ The audit itself is read-only. When the user asks for implementation:
   `bun run check <all changed files> --lint --test --type`, run `bun run knip` when renderer or
   shared files changed, and only then commit: one cohesive commit per package, excluding
   pre-existing unrelated worktree changes.
-- Defer anything needing new product decisions or new infrastructure (e.g. toast action buttons
-  for undo) back to the user as scoped follow-ups; do not improvise them mid-batch.
+- Defer only new infrastructure or a large feature (e.g. toast action buttons for undo) as scoped
+  follow-ups; do not improvise them mid-batch. Routine product choices were already decided in §4.
 - A render fix is verified by re-sampling the same scenario at the same instance state and
   reporting before → after counts, not by "feels faster". Lower state to its consumers instead of
   adding memo barriers; the Renderer runs React Compiler, so a hand-written `React.memo` is a smell

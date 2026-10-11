@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 import {
     agentChatLeadingInvocation,
     agentChatMenuActions,
+    agentChatMenuGroupHeading,
     agentChatMenuKeyAction,
+    agentChatSkillDiscoveryNotice,
     agentChatSlashQuery,
     completeAgentChatAction,
     filterAgentChatActions,
@@ -49,19 +51,52 @@ describe('Agent Chat slash commands', () => {
         expect(actions[0]).toMatchObject({ kind: 'command', argumentHint: '<instructions>' });
     });
 
-    it('ranks name matches like the Agent Commands & Skills picker', () => {
+    it('ranks name matches like the Agent Commands & Skills picker within each group', () => {
         const actions = agentChatMenuActions(commands, [skill('$commit', 'Review and commit')]);
         expect(filterAgentChatActions(actions, 'rev').map((action) => action.invocation)).toEqual([
             '/review',
             '/security-review',
             '$commit',
         ]);
+        // The skill ranks first, but commands are drawn (and walked) above skills.
         expect(filterAgentChatActions(actions, 'com').map((action) => action.invocation)).toEqual([
-            '$commit',
             '/compact',
+            '$commit',
         ]);
+        // A `$` draft asks for a skill, so skills lead.
+        expect(
+            filterAgentChatActions(actions, 'com', '$').map((action) => action.invocation),
+        ).toEqual(['$commit', '/compact']);
         expect(filterAgentChatActions(actions, '')).toHaveLength(4);
         expect(filterAgentChatActions(actions, 'zzz')).toEqual([]);
+    });
+
+    it('heads each group once, where it starts', () => {
+        const actions = filterAgentChatActions(
+            agentChatMenuActions(commands, [skill('$commit')]),
+            '',
+        );
+        expect(actions.map((_, index) => agentChatMenuGroupHeading(actions, index))).toEqual([
+            'Commands',
+            undefined,
+            undefined,
+            'Skills',
+        ]);
+        expect(agentChatMenuGroupHeading([skill('$commit')], 0)).toBe('Skills');
+    });
+
+    it('explains missing skills until discovery answers', () => {
+        expect(agentChatSkillDiscoveryNotice({ isAgentRunning: false, isLoading: false })).toEqual({
+            text: 'Skills appear once the Agent is running',
+            isLoading: false,
+        });
+        expect(agentChatSkillDiscoveryNotice({ isAgentRunning: true, isLoading: true })).toEqual({
+            text: 'Loading skills…',
+            isLoading: true,
+        });
+        expect(
+            agentChatSkillDiscoveryNotice({ isAgentRunning: true, isLoading: false }),
+        ).toBeUndefined();
     });
 
     it('runs a listed command with its arguments and sends anything else as a message', () => {

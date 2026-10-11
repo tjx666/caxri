@@ -61,16 +61,34 @@ export const sessionSegments = ({
             (hasConversation || option !== 'conversation') && !(isChat && option === 'terminal'),
     );
 
-/**
- * Whether a Chat is on screen: its own tab, or the wide layout's background beside Changes.
- */
-export const isChatSegmentShown = (segment: SessionSegment, isWideChanges: boolean): boolean =>
-    segment === 'conversation' || (isWideChanges && segment === 'changes');
-
 export const isSideSessionSegment = (
     segment: SessionSegment,
 ): segment is 'changes' | PanelSessionSegment =>
     segment === 'changes' || isPanelSessionSegment(segment);
+
+/**
+ * Whether a Chat is on screen: its own tab, or the wide layout's background beside any side segment (Changes or a
+ * Project view), which `SessionDetailBody` renders next to every side segment alike.
+ */
+export const isChatSegmentShown = (segment: SessionSegment, isWideLayout: boolean): boolean =>
+    segment === 'conversation' || (isWideLayout && isSideSessionSegment(segment));
+
+/**
+ * Whether a tab shows the pending-answer dot: the Chat tab while the Session waits on the user (a pending approval or
+ * question) and the user is on another tab, so the request is not missed. The selected tab already shows the request.
+ */
+export const isSegmentAwaitingAnswer = ({
+    isChat,
+    isSelected,
+    lastActivityState,
+    segment,
+}: {
+    isChat: boolean;
+    isSelected: boolean;
+    lastActivityState: string;
+    segment: SessionSegment;
+}): boolean =>
+    isChat && !isSelected && segment === 'conversation' && lastActivityState === 'waiting';
 
 /**
  * Whether the selected Session's detail is on screen. A phone shows it only on its own route; a tablet shows it beside

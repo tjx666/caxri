@@ -2,6 +2,7 @@ import type { TreeItemDto } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    extensionTreeActionsHint,
     extensionTreeHorizontalIntent,
     isNavigableExtensionTreeRow,
     nextExtensionTreeRowIndex,
@@ -209,5 +210,19 @@ describe('extensionTreeHorizontalIntent for rows with inline actions', () => {
         expect(extensionTreeHorizontalIntent(expandedActionBranch, 0, 'ArrowLeft')).toEqual({
             toggle: true,
         });
+    });
+});
+
+describe('extensionTreeActionsHint', () => {
+    const actions = [{ command: { title: 'Merge Pull Request' }, tooltip: 'Checks still running' }];
+
+    it('promises Right Arrow only where Right reaches the actions', () => {
+        expect(extensionTreeActionsHint(actions, false)).toBe(
+            'Actions: Merge Pull Request (Checks still running). Press Right Arrow to reach them.',
+        );
+        // A collapsed branch expands on the first Right, so the hint must say so.
+        expect(extensionTreeActionsHint(actions, true)).toContain(
+            'Press Right Arrow to expand the row, then Right Arrow again to reach them.',
+        );
     });
 });

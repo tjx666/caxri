@@ -70,7 +70,7 @@ export const SessionDetail = ({
     const changes = useChangesList(isVisible, session.id);
     const panels = useSessionPanels(session.id);
     /**
-     * A Chat stays observed while its tab or the wide layout's background shows it.
+     * A Chat stays observed while its tab shows it, or while the wide layout keeps it beside Changes or a Project view.
      */
     const chat = useSessionAgentChat({
         isObserved: isVisible && isChatSegmentShown(segment, wideChanges),
@@ -163,8 +163,11 @@ export const SessionDetail = ({
                     chat={chat.controller}
                     deviceRole={deviceRole}
                     draft={draft}
+                    focusComposer={focusComposer}
                     isConnected={isConnected}
                     isHandedOff={chat.isHandedOff}
+                    isVisible={isVisible}
+                    onComposerFocused={onComposerFocused}
                     onDraftChange={onDraftChange}
                     provider={chat.provider}
                     sessionId={session.id}

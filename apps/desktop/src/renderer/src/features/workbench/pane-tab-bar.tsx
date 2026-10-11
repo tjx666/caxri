@@ -90,12 +90,10 @@ function DocumentPaneTab({
             closable={closable}
             closeLabel="Close Editor"
             dirty={document?.dirty}
-            fileIconName={presentation.fileIconName}
             gitDecoration={gitDecoration}
-            icon={presentation.icon}
-            label={presentation.label}
-            // Ordinary files expose their full path on hover; virtual resources reuse their descriptive label.
-            labelTooltip={presentation.labelTooltip}
+            // Icon, label, and location detail. Ordinary files expose their full path on hover (`labelTooltip`);
+            // virtual resources reuse their descriptive label.
+            {...presentation}
             // The full path is a different detail than the filename, not a fuller version of it, so it must not
             // replace the filename a screen reader announces the way a Terminal's untruncated title does.
             keepLabelAsAccessibleName

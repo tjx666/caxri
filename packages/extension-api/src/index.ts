@@ -1,10 +1,21 @@
 import type { CancellationToken, DisposableLike, Event } from './events.js';
 import { Disposable } from './events.js';
+import type { Command, TreeItemAction, TreeItemRichTooltip } from './tree-item-actions.js';
 import type { SourceControlProvider } from './view-providers.js';
 import type { WorkspaceGit } from './workspace.js';
 
 export type { CancellationToken, DisposableLike, Event } from './events.js';
 export { CancellationTokenSource, Disposable, EventEmitter } from './events.js';
+export type {
+    Command,
+    TreeItemAction,
+    TreeItemActionConfirmation,
+    TreeItemActionFeedback,
+    TreeItemActionTone,
+    TreeItemRichTooltip,
+    TreeItemTooltipRow,
+    TreeItemTooltipTone,
+} from './tree-item-actions.js';
 export type {
     ControlledViewProviderResult,
     SourceControlAction,
@@ -76,88 +87,6 @@ export type TreeItemCollapsibleState =
     (typeof TreeItemCollapsibleState)[keyof typeof TreeItemCollapsibleState];
 
 export type TreeItemVariant = 'header' | 'message';
-
-export interface Command {
-    command: string;
-    title: string;
-    arguments?: readonly unknown[];
-}
-
-export type TreeItemTooltipTone = 'neutral' | 'success' | 'warning' | 'danger';
-
-export interface TreeItemTooltipRow {
-    label: string;
-    value: string;
-    /**
-     * HTTP(S) destination opened through Caxri's trusted-origin policy.
-     */
-    url?: string;
-}
-
-/**
- * Bounded interactive content for a TreeItem hover card. Text is rendered literally (`markdown` through a closed,
- * HTML-free subset) and URLs are validated by the Extension Host before reaching the Renderer, so extensions cannot
- * inject HTML, scripts, or command links.
- */
-export interface TreeItemRichTooltip {
-    kind: 'rich';
-    title: string;
-    /**
-     * Prose that explains the title, such as a provider error's recovery hint. Structured facts belong in `rows`.
-     */
-    description?: string;
-    /**
-     * Markdown body for authored prose such as a pull request review comment; takes the place of `description`. The
-     * Renderer shows a closed subset (paragraphs, lists, quotes, code, emphasis, HTTP(S) links) as text nodes. Raw HTML
-     * is dropped and images collapse to their alt text, so this does not widen what an extension can inject.
-     */
-    markdown?: string;
-    badge?: { label: string; tone: TreeItemTooltipTone };
-    /**
-     * Omitted or empty when the title and badge already carry the whole hover, so a row without structured facts keeps
-     * the same card instead of falling back to a plain-text tooltip.
-     */
-    rows?: readonly TreeItemTooltipRow[];
-}
-
-/**
- * Asks the user before an inline action runs. The copy contract mirrors the Workbench confirmation modal: `title` asks
- * the question, `message` states what confirming changes and how reversible it is, and `confirmLabel` names the
- * action.
- */
-export interface TreeItemActionConfirmation {
-    title: string;
-    message: string;
-    confirmLabel: string;
-}
-
-/**
- * Semantic color of a labeled inline action, mapped to the theme's status tokens.
- */
-export type TreeItemActionTone = 'neutral' | 'success' | 'warning' | 'danger';
-
-/**
- * A command shown as an icon button at the end of its row while the row is hovered or focused, like VS Code's inline
- * `view/item/context` actions. `command.title` is the button's tooltip and accessible name.
- */
-export interface TreeItemAction {
-    command: Command;
-    icon: ThemeIcon;
-    /**
-     * Short visible text. A labeled action is the row's primary call to action: it renders as a text button and stays
-     * visible at rest instead of revealing on hover.
-     */
-    label?: string;
-    /**
-     * Color of the action, which keeps it visible at rest: a colored text button with `label`, else a colored icon.
-     */
-    tone?: TreeItemActionTone;
-    /**
-     * Set when this occurrence of the action needs a second look before it runs. The Workbench shows the question and
-     * only dispatches the command once the user confirms.
-     */
-    confirmation?: TreeItemActionConfirmation;
-}
 
 export class TreeItem {
     id?: string;
@@ -499,11 +428,22 @@ export interface WorkspaceChangeContext {
     scopeId: string;
 }
 
+/**
+ * What a command may resolve with. `message` is a short success sentence (`Squash-merged #123`) that the Workbench
+ * shows as a toast; it is trimmed and capped at 200 characters. Resolve with nothing when there is nothing to say. A
+ * failure is a thrown error, never a message.
+ */
+export interface CommandResult {
+    message: string;
+}
+
 export interface CaxriApi {
     readonly commands: {
         registerCommand(
             commandId: string,
-            callback: (...arguments_: readonly unknown[]) => unknown,
+            callback: (
+                ...arguments_: readonly unknown[]
+            ) => CommandResult | void | Promise<CommandResult | void>,
         ): Disposable;
     };
     readonly views: {

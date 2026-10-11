@@ -3,11 +3,10 @@ import type {
     AgentChatItem,
     AgentChatItemStatus,
     AgentChatPlan,
-    AgentChatRequest,
     AgentChatSnapshot,
     ProcessState,
 } from '@caxri/protocol';
-import { agentToolActiveLabel, describeAgentTool } from '@caxri/protocol';
+import { agentChatWaitingText } from '@caxri/protocol';
 
 import { projectRelativePath } from '../../lib/file-path';
 import { getTerminalExitPresentation } from '../terminal/terminal-exit-presentation';
@@ -57,7 +56,7 @@ export function canSendAgentChatMessage(
     snapshot: AgentChatSnapshot | undefined,
     processState: ProcessState | undefined,
 ): boolean {
-    return snapshot !== undefined && snapshot.status !== 'failed' && processState !== 'detached';
+    return agentChatSendBlock(snapshot, processState) === undefined;
 }
 
 /**
@@ -78,6 +77,16 @@ export function agentChatEmptyMessage(
 }
 
 /**
+ * The `meta` line under an empty, ready Chat's invitation, naming the composer gestures nobody finds by looking: the
+ * `/` and `$` menus, attaching (images only when the provider takes them; any other file is inserted as its path), and
+ * Shift+Enter.
+ */
+export function agentChatEmptyHint(canAttachImages: boolean): string {
+    const files = canAttachImages ? 'paste or drop images and files' : 'drop files to insert paths';
+    return `Type / for commands, $ for skills · ${files} · ⇧Enter for a new line`;
+}
+
+/**
  * Why the Chat cannot continue here, for the banner above the composer. `recovery` is what its one action does:
  * `restart` relaunches the provider on its bound conversation, which clears a failure and ends a hand-over; `reload`
  * reads a projection that never loaded again.
@@ -87,6 +96,20 @@ export interface AgentChatRecoveryNotice {
     message: string;
     detail?: string;
     recovery: 'reload' | 'restart';
+    /**
+     * Offers reopening the conversation in the provider's own TUI as a second way out, for a failure the Chat surface
+     * cannot explain further (the provider could not resume the conversation).
+     */
+    canOpenAsTerminal?: true;
+}
+
+/**
+ * The banner body for a conversation the provider could not resume. The heading already says that it failed, and the
+ * provider's own detail only says so again (`Claude could not resume this conversation`), so the body names the cause
+ * Caxri knows and the next step instead.
+ */
+export function agentChatResumeFailureDetail(providerName: string): string {
+    return `${providerName} could not reopen its saved record of this conversation. Retry, or open it as a Terminal to see what ${providerName} reports.`;
 }
 
 /**
@@ -114,6 +137,14 @@ export function agentChatRecoveryNotice(
     const recovery = isFailed ? 'restart' : 'reload';
     if (!snapshot?.failure)
         return { kind: 'failed', message: 'The conversation could not be loaded.', recovery };
+    if (snapshot.failure.reason === 'resume_failed')
+        return {
+            kind: 'failed',
+            message: agentChatFailureMessage('resume_failed', providerName),
+            detail: agentChatResumeFailureDetail(providerName),
+            recovery,
+            canOpenAsTerminal: true,
+        };
     return {
         kind: 'failed',
         message: agentChatFailureMessage(snapshot.failure.reason, providerName),
@@ -170,21 +201,25 @@ export type AgentChatActivity =
 
 /**
  * What the Chat is doing right now, for the status line on the composer. A pending request means the turn is blocked on
- * the user, not working, so it says so instead of animating. Compacting the context names itself instead of a playful
- * verb, so a `/compact` the user asked for visibly runs; it can happen inside a turn (automatic compaction), which Esc
- * still stops.
+ * the user, not working, so it says so instead of animating, and says whether it waits on an approval or an answer.
+ * Compacting the context names itself instead of a playful verb, so a `/compact` the user asked for visibly runs; it
+ * can happen inside a turn (automatic compaction), which Esc still stops. Before the projection is first read, a Chat
+ * that already has a conversation is loading it, not starting its Agent, so it says so (`hasConversation` is whether
+ * the Terminal is bound to an Agent Session).
  */
 export function agentChatActivity(
     snapshot:
         | Pick<AgentChatSnapshot, 'status' | 'activeTurnId' | 'operation' | 'requests' | 'turns'>
         | undefined,
     providerName: string,
+    { hasConversation = false }: { hasConversation?: boolean } = {},
 ): AgentChatActivity | undefined {
+    if (!snapshot && hasConversation) return { kind: 'starting', text: 'Loading conversation…' };
     if (!snapshot || snapshot.status === 'starting')
         return { kind: 'starting', text: `Starting ${providerName}…` };
     const turnId = snapshot.activeTurnId;
     if (turnId && snapshot.requests.length > 0)
-        return { kind: 'waiting', text: 'Waiting for your answer' };
+        return { kind: 'waiting', text: agentChatWaitingText(snapshot.requests) };
     if (snapshot.operation === 'compacting')
         return { kind: 'compacting', text: 'Compacting context…', isStoppable: Boolean(turnId) };
     if (!turnId) return undefined;
@@ -275,8 +310,57 @@ export function agentChatSendAction(
             placeholder: 'Queue a follow-up (⌘Enter to steer)',
         };
     if (state.isBusy)
-        return { label: 'Queue message', tooltip: 'Queue', placeholder: 'Queue a follow-up' };
-    return { label: 'Send', tooltip: 'Send', placeholder: `Message ${providerName}` };
+        return {
+            label: 'Queue message',
+            tooltip: 'Queue (Enter)',
+            placeholder: 'Queue a follow-up',
+        };
+    return { label: 'Send', tooltip: 'Send (Enter)', placeholder: `Message ${providerName}` };
+}
+
+/**
+ * Why the Chat itself refuses a message right now (`canSendAgentChatMessage`), or `undefined` when it accepts one.
+ */
+export function agentChatSendBlock(
+    snapshot: Pick<AgentChatSnapshot, 'status'> | undefined,
+    processState: ProcessState | undefined,
+): 'detached' | 'failed' | 'loading' | undefined {
+    if (processState === 'detached') return 'detached';
+    if (!snapshot) return 'loading';
+    return snapshot.status === 'failed' ? 'failed' : undefined;
+}
+
+/**
+ * The Send button's tooltip: what it does, or, while it is disabled, why, so a dead button never leaves the user
+ * guessing. The Chat's own refusal wins over the composer's state, since no draft or image fixes it.
+ */
+export function agentChatSendTooltip(
+    action: { tooltip: string },
+    state: {
+        block: ReturnType<typeof agentChatSendBlock>;
+        hasContent: boolean;
+        isAttaching: boolean;
+        isSending: boolean;
+    },
+): string {
+    switch (state.block) {
+        case 'loading': {
+            return 'Chat loading…';
+        }
+        case 'failed': {
+            return 'Chat stopped. Retry above';
+        }
+        case 'detached': {
+            return 'Chat detached. Resume above';
+        }
+        case undefined: {
+            break;
+        }
+    }
+    if (state.isAttaching) return 'Attaching…';
+    if (state.isSending) return 'Sending…';
+    if (!state.hasContent) return 'Type a message to send';
+    return action.tooltip;
 }
 
 /**
@@ -385,75 +469,6 @@ export function agentChatCommandCwd(
     const relative = projectRelativePath(cwd, projectRoot);
     if (relative === '.') return undefined;
     return relative ?? cwd;
-}
-
-/**
- * The approval buttons to show, in a fixed order. The provider may restrict them; `cancel` is never a button here
- * because declining already answers the request without stopping the turn.
- */
-export function agentChatApprovalChoices(
-    request: Extract<AgentChatRequest, { kind: 'command' | 'fileChange' | 'tool' }>,
-): Array<{ decision: 'accept' | 'acceptForSession' | 'decline'; label: string }> {
-    const choices = [
-        { decision: 'accept', label: 'Accept' },
-        { decision: 'acceptForSession', label: 'Accept for this Chat' },
-        { decision: 'decline', label: 'Decline' },
-    ] as const;
-    const allowed = request.decisions;
-    return choices.filter((choice) => !allowed || allowed.includes(choice.decision));
-}
-
-/**
- * A tool subject longer than this stays out of the approval title; the card shows it in full below.
- */
-const REQUEST_TITLE_SUBJECT_LENGTH = 60;
-
-/**
- * What a tool approval asks to do, in the timeline's words rather than the provider's identifier: `Allow editing
- * app.ts?`, `Allow create_issue from github?`. A long or multi-line subject is left to the card body; a tool the shared
- * table does not know keeps its name.
- */
-function agentChatToolRequestTitle(request: { name: string; summary?: string }): string {
-    const presentation = describeAgentTool(request);
-    if (presentation.kind === 'mcp' && presentation.subject)
-        return `Allow ${presentation.subject} from ${presentation.label}?`;
-    const subject = presentation.subject;
-    if (!subject || presentation.kind === 'other') return `Allow ${request.name}?`;
-    const gerund = agentToolActiveLabel(presentation);
-    const action = `${gerund.charAt(0).toLowerCase()}${gerund.slice(1)}`;
-    return subject.length <= REQUEST_TITLE_SUBJECT_LENGTH && !subject.includes('\n')
-        ? `Allow ${action} ${subject}?`
-        : `Allow ${action}?`;
-}
-
-/**
- * The approval card's heading. `providerName` is the provider catalog's display name, which a question names as the one
- * asking.
- */
-export function agentChatRequestTitle(request: AgentChatRequest, providerName: string): string {
-    switch (request.kind) {
-        case 'command': {
-            return request.networkHost
-                ? `Allow network access to ${request.networkHost}?`
-                : 'Run this command?';
-        }
-        case 'fileChange': {
-            return 'Apply these file changes?';
-        }
-        case 'tool': {
-            /**
-             * Claude Code asks to leave plan mode through this tool; its summary is the plan.
-             */
-            return request.name === 'ExitPlanMode'
-                ? 'Start with this plan?'
-                : agentChatToolRequestTitle(request);
-        }
-        case 'question': {
-            return request.questions.length === 1
-                ? `${providerName} has a question`
-                : `${providerName} has ${request.questions.length} questions`;
-        }
-    }
 }
 
 /**

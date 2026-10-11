@@ -139,7 +139,7 @@ describe('mobile Agent Chat requests', () => {
         expect(forward.mock.calls.map(([operation]) => operation)).toEqual([
             {
                 method: 'agentChat.send',
-                params: { terminalId: 'terminal-1', text: 'hi', delivery: 'steer' },
+                params: { terminalId: 'terminal-1', text: 'hi' },
             },
             {
                 method: 'agentChat.respond',
@@ -185,7 +185,6 @@ describe('mobile Agent Chat requests', () => {
                         thumbnail: 'data:image/jpeg;base64,VEhVTUI=',
                     },
                 ],
-                delivery: 'steer',
             },
         });
     });
@@ -257,6 +256,37 @@ describe('mobile Agent Chat requests', () => {
         expect(forward.mock.calls.map(([operation]) => operation)).toEqual([
             { method: 'agentChat.configure', params: { terminalId: 'terminal-1', model: 'opus' } },
             { method: 'agentChat.configure', params: { terminalId: 'terminal-1', effort: 'high' } },
+        ]);
+    });
+
+    it('queues a message sent during a turn unless the phone asks to steer', async () => {
+        const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
+        const domain = domainFixture({ surface: 'chat' });
+        await invoke(
+            {
+                method: 'mobile.agentChat.send',
+                params: { terminalId: 'terminal-1', text: 'now', delivery: 'steer' },
+            },
+            domain,
+            forward,
+        );
+        await invoke(
+            {
+                method: 'mobile.agentChat.send',
+                params: { terminalId: 'terminal-1', text: 'later', delivery: 'queue' },
+            },
+            domain,
+            forward,
+        );
+        expect(forward.mock.calls.map(([operation]) => operation)).toEqual([
+            {
+                method: 'agentChat.send',
+                params: { terminalId: 'terminal-1', text: 'now', delivery: 'steer' },
+            },
+            {
+                method: 'agentChat.send',
+                params: { terminalId: 'terminal-1', text: 'later', delivery: 'queue' },
+            },
         ]);
     });
 

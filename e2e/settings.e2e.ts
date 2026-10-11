@@ -80,7 +80,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await settingsTab.getByRole('button', { name: 'UI' }).click();
         await expect(settingsTab.getByLabel('Search settings')).toBeVisible();
         const defaultAgent = settingsTab.getByRole('combobox', {
-            name: 'Default agent',
+            name: 'Default Agent',
         });
         await expect(defaultAgent).toContainText('Ask each time');
         await expect(defaultAgent.locator('[data-agent-icon="unknown"]')).toBeVisible();
@@ -100,7 +100,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                 ).toBeVisible(),
             ),
         );
-        // Dismisses the "Default agent" dropdown popup, not Settings itself; Settings is a
+        // Dismisses the "Default Agent" dropdown popup, not Settings itself; Settings is a
         // persistent Workbench tab now and Escape has nothing of its own to close here.
         await running.page.keyboard.press('Escape');
 
@@ -158,7 +158,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await settingsTab.getByRole('switch', { name: 'Claude lifecycle hooks' }).uncheck();
         await expect(
             settingsTab.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
-        ).toHaveText('Disabled');
+        ).toHaveText('Installation: Disabled');
         await settingsTab.getByRole('switch', { name: 'Claude lifecycle hooks' }).check();
         await expect(settingsTab.locator('[data-setting-row="agents.claude.hooks"]')).toContainText(
             'Restart Agent Terminals opened before lifecycle hooks were enabled.',
@@ -226,11 +226,11 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await expect(
             settingsTab.getByRole('spinbutton', { name: 'Terminal Font size' }),
         ).toBeVisible();
-        await expect(settingsTab.getByRole('combobox', { name: 'Default agent' })).toHaveCount(0);
+        await expect(settingsTab.getByRole('combobox', { name: 'Default Agent' })).toHaveCount(0);
         await searchInput.fill('no-setting-matches-this');
         await expect(settingsTab.getByText(/No settings match/)).toBeVisible();
         await settingsTab.getByRole('button', { name: 'Clear settings search' }).click();
-        await expect(settingsTab.getByRole('combobox', { name: 'Default agent' })).toBeVisible();
+        await expect(settingsTab.getByRole('combobox', { name: 'Default Agent' })).toBeVisible();
 
         // "Keeps actions visible" now means the header's UI/Source toggle stays pinned above the
         // scrollable tab content instead of scrolling out of view with it (there is no footer).

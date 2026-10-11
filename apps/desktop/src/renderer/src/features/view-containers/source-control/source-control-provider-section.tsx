@@ -27,6 +27,7 @@ import type {
 import { SourceControlBranchRow } from './source-control-branch-row';
 import { SourceControlHistory } from './source-control-history';
 import { SourceControlIcon } from './source-control-icon';
+import { changedFileCountLabel } from './source-control-row-labels';
 import type { SourceControlRowMenuItem } from './source-control-row-menu';
 import { sourceControlActionMenuItems } from './source-control-row-menu';
 import {
@@ -377,7 +378,12 @@ function GroupCaption({
                 className="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
                 aria-expanded={expanded}
                 aria-keyshortcuts={externalLink ? 'Meta Alt' : 'Alt'}
-                aria-description={lineStats && diffStatLabel(lineStats)}
+                aria-description={[
+                    changedFileCountLabel(group.count),
+                    lineStats && diffStatLabel(lineStats),
+                ]
+                    .filter(Boolean)
+                    .join(', ')}
                 tooltip={rowTooltip({ title: group.label }, externalLink)}
                 menuItems={sourceControlActionMenuItems(group.actions, controller.runAction)}
                 onClick={(event) => {
@@ -410,7 +416,9 @@ function GroupCaption({
                         className="mr-1 text-[11px] font-normal tracking-normal normal-case"
                     />
                 )}
-                <span>{group.count}</span>
+                <Tooltip content={changedFileCountLabel(group.count)}>
+                    <span className="git-changes-count tabular-nums">{group.count}</span>
+                </Tooltip>
             </span>
         </div>
     );
@@ -498,7 +506,10 @@ export function SourceControlProviderSection({
             <DisclosureMotion animate expanded={expanded} kind="git-repository">
                 {() => (
                     <div className="git-files overflow-visible">
-                        <SourceControlBranchRow provider={provider} />
+                        <SourceControlBranchRow
+                            provider={provider}
+                            runAction={controller.runAction}
+                        />
                         {foldedGroup ? (
                             <GroupBody
                                 controller={controller}

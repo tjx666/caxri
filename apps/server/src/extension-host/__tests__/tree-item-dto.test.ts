@@ -43,6 +43,34 @@ describe('serializeTreeItem', () => {
         ]);
     });
 
+    it('carries an action tooltip and settle feedback, and rejects an unsafe feedback link', () => {
+        const item = new TreeItem('#42 Delivery');
+        const action = {
+            command: {
+                command: 'caxri.project-status.mergePullRequest',
+                title: 'Merge Pull Request',
+            },
+            icon: new ThemeIcon('git-merge'),
+            tone: 'neutral' as const,
+            tooltip: 'Checks still running',
+            feedback: {
+                success: 'Merged #42',
+                failure: "Couldn't merge #42",
+                githubUrl: 'https://github.com/acme/widget/pull/42',
+            },
+        };
+        item.actions = [action];
+        expect(serializeTreeItem('handle-1', item).actions?.[0]).toMatchObject({
+            tooltip: 'Checks still running',
+            feedback: action.feedback,
+        });
+
+        item.actions = [
+            { ...action, feedback: { githubUrl: 'https://user:secret@github.com/acme/widget' } },
+        ];
+        expect(() => serializeTreeItem('handle-1', item)).toThrow();
+    });
+
     it('omits an empty action list and rejects more actions than a row can show', () => {
         const item = new TreeItem('Row');
         item.actions = [];

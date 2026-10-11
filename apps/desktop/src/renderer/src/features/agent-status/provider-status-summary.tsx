@@ -1,10 +1,16 @@
-import type { AgentProviderServiceStatus, AgentProviderStatus } from '@caxri/protocol';
+import type {
+    AgentProviderServiceStatus,
+    AgentProviderStatus,
+    AgentProviderStatusIncident,
+} from '@caxri/protocol';
 
 import { cn } from '../../lib/utilities';
 import {
     describeProviderStatus,
+    incidentPhaseLabel,
     providerStatusDotClassName,
     providerStatusFailureLabel,
+    summarizeIncidents,
 } from './agent-provider-status-label';
 
 export function ProviderStatusDot({
@@ -26,9 +32,23 @@ export function ProviderStatusDot({
     );
 }
 
+function IncidentLine({ incidents }: { incidents: readonly AgentProviderStatusIncident[] }) {
+    const { first, moreLabel } = summarizeIncidents(incidents);
+    if (!first) return null;
+    return (
+        <span className="flex min-w-0 gap-1.5 text-muted">
+            <span className="min-w-0 truncate">
+                {first.name} ({incidentPhaseLabel(first.phase)})
+            </span>
+            {moreLabel && <span className="flex-none">{moreLabel}</span>}
+        </span>
+    );
+}
+
 /**
- * The status-bar card's `API status` value: the watched components' state in one line, then each open incident's title.
- * `undefined` is the first read still in flight.
+ * The status-bar card's `API status` value: the watched components' state in one line, then the first open incident on
+ * one truncated line with a `+N more` count; the Agent status tab lists them all. `undefined` is the first read still
+ * in flight.
  */
 export function ProviderStatusSummary({ status }: { status: AgentProviderStatus | undefined }) {
     if (!status) return <span className="text-muted">Checking…</span>;
@@ -41,11 +61,7 @@ export function ProviderStatusSummary({ status }: { status: AgentProviderStatus 
                 <ProviderStatusDot className="translate-y-[-1px]" status={status.status} />
                 <span>{describeProviderStatus(status)}</span>
             </span>
-            {status.incidents.map((incident) => (
-                <span key={incident.url} className="text-muted">
-                    {incident.name} ({incident.phase})
-                </span>
-            ))}
+            <IncidentLine incidents={status.incidents} />
         </span>
     );
 }

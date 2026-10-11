@@ -93,10 +93,9 @@ export interface NewTerminalTarget {
  * Deliberately not shared with {@link newTerminalCommandKind}: `⌘T`/`terminal.new` is a global shortcut with no
  * Session-scoped button to read a Primary Agent Terminal from at the call site, and dozens of E2E specs already rely on
  * it answering the configured default (or a shell) regardless of what a Session's other Terminals are doing; see
- * `pressNewTerminal` in `e2e/support/helpers.ts`. The `CommandTooltip` on this button still names `⌘T` as its shortcut
- * because both create _a_ Terminal in the current Session from the same tab-strip slot; the two can name a different
- * Agent only when a live primary Agent Terminal differs from the configured default, which is the uncommon case this
- * button exists to shortcut past.
+ * `pressNewTerminal` in `e2e/support/helpers.ts`. The button's tooltip shows `⌘T` only while both create the same
+ * Terminal ({@link isSameNewTerminalTarget}): a shortcut chip beside a tooltip naming a different Agent would promise
+ * something the shortcut does not do.
  */
 export function resolveNewTerminalTarget(
     primaryTerminal: TerminalRecord | undefined,
@@ -119,6 +118,27 @@ export function resolveNewTerminalTarget(
  */
 export function newTerminalCommandKind(defaultAgent: ConfiguredDefaultAgent): TerminalKind {
     return resolveNewTerminalAgent(defaultAgent) ?? FALLBACK_NEW_TERMINAL_KIND;
+}
+
+/**
+ * What `terminal.new` (`⌘T`) creates, as a target the tab strip's `+` can compare with its own.
+ */
+export function newTerminalCommandTarget(
+    defaultAgent: ConfiguredDefaultAgent,
+    openInChat: OpenAgentsInChat,
+): NewTerminalTarget {
+    const kind = newTerminalCommandKind(defaultAgent);
+    return { kind, surface: newAgentSurface(kind, openInChat) };
+}
+
+/**
+ * Whether two New Terminal targets create the same Agent on the same surface.
+ */
+export function isSameNewTerminalTarget(
+    left: NewTerminalTarget,
+    right: NewTerminalTarget,
+): boolean {
+    return left.kind === right.kind && left.surface === right.surface;
 }
 
 /**
@@ -155,4 +175,27 @@ export function newTerminalActionLabel(target: NewTerminalTarget, agentLabel: st
  */
 export function newTerminalButtonText(surface: TerminalSurface | undefined): string {
     return surface === 'chat' ? 'New Chat' : 'New Terminal';
+}
+
+/**
+ * What a New Session control with a default Agent says it will create ("New Codex Chat Session", "New Codex Session"),
+ * named the way {@link newTerminalActionLabel} names a Terminal, so the Project heading's button and the tab strip's `+`
+ * read alike. A Shell default is "New Shell Session".
+ */
+export function newSessionActionLabel(target: NewTerminalTarget, agentLabel: string): string {
+    return `New ${agentLabel}${target.surface === 'chat' ? ' Chat' : ''} Session`;
+}
+
+/**
+ * The one muted suffix an Agent row in the New Session and New Terminal menus carries: `Chat` when choosing it opens a
+ * Chat, `Default` for the configured default Agent, `Chat · Default` for both, or nothing. One suffix rather than two
+ * separate markers, so both menus mark a row the same way and the words stay text a screen reader reads.
+ */
+export function agentChoiceMarker(
+    choice: Pick<NewTerminalAgentChoice, 'isDefault' | 'surface'>,
+): string | undefined {
+    const parts = [choice.surface === 'chat' && 'Chat', choice.isDefault && 'Default'].filter(
+        (part): part is string => typeof part === 'string',
+    );
+    return parts.length > 0 ? parts.join(' · ') : undefined;
 }

@@ -1,7 +1,13 @@
 import type { ProjectStatusRepository, TreeItemRichTooltip } from 'caxri';
 import { describe, expect, it } from 'vitest';
 
-import { MERGE_PULL_REQUEST_COMMAND, mergeBlocker, mergeReadinessLabel } from '../status-merge';
+import {
+    currentBranchMerge,
+    failedChecksSummary,
+    MERGE_PULL_REQUEST_COMMAND,
+    mergeBlocker,
+    mergeReadinessLabel,
+} from '../status-merge';
 import { buildRepoNode } from '../status-tree';
 
 type PullRequest = NonNullable<ProjectStatusRepository['pullRequest']>;
@@ -47,6 +53,11 @@ describe('Status panel merge action', () => {
         expect(action.icon.id).toBe('git-merge');
         expect(action).toMatchObject({ label: 'Merge', tone: 'success' });
         expect(action.confirmation).toBeUndefined();
+        expect(action.feedback).toEqual({
+            success: 'Merged #42',
+            failure: "Couldn't merge #42",
+            githubUrl: 'https://github.com/acme/widget/pull/42',
+        });
         expect((row.tooltip as TreeItemRichTooltip).rows).toContainEqual({
             label: 'merge',
             value: 'Ready to merge',
@@ -66,11 +77,23 @@ describe('Status panel merge action', () => {
     it.each([
         [{ state: 'pending' }, 'Checks are still running.'],
         [{ state: 'failure' }, 'Some checks did not pass.'],
+        [
+            {
+                state: 'failure',
+                checks: [
+                    { name: 'lint', state: 'failure' },
+                    { name: 'unit', state: 'success' },
+                    { name: 'e2e', state: 'cancelled' },
+                ],
+            },
+            '2 of 3 checks failed: lint, e2e.',
+        ],
         [{ mergeState: 'blocked' }, 'branch protection requirement'],
         [{ mergeState: 'behind' }, 'behind its base'],
         [{ mergeState: 'unknown' }, 'has not finished checking'],
     ] as const)('asks before merging when %o', (pullRequest, reason) => {
-        const confirmation = pullRequestRow(pullRequest).actions?.[0]?.confirmation;
+        const confirmation = pullRequestRow(pullRequest as Parameters<typeof pullRequestRow>[0])
+            .actions?.[0]?.confirmation;
 
         expect(confirmation).toMatchObject({
             title: 'Merge pull request #42?',
@@ -81,28 +104,54 @@ describe('Status panel merge action', () => {
 
     it.each([
         [{ state: 'failure' }, 'Checks did not pass', 'danger'],
-        [{ state: 'pending' }, 'Checks still running', 'warning'],
+        // Settles by itself, so it is not a warning the user has to act on.
+        [{ state: 'pending' }, 'Checks still running', 'neutral'],
         [{ mergeState: 'blocked' }, 'Blocked by branch protection', 'warning'],
         [{ mergeState: 'behind' }, 'Behind its base branch', 'warning'],
-        [{ mergeState: 'unknown' }, 'Checking mergeability', 'warning'],
+        [{ mergeState: 'unknown' }, 'Checking mergeability', 'neutral'],
     ] as const)('flags a blocked merge %o and names why', (pullRequest, reason, tone) => {
         const action = pullRequestRow(pullRequest).actions?.[0];
         // A blocked merge is not the next step, so it is a colored glyph and leaves the row's width to the title.
         expect(action).toMatchObject({ tone });
         expect(action?.label).toBeUndefined();
         expect(action?.icon.id).toBe('git-merge');
-        expect(action?.command.title).toBe(`Merge Pull Request: ${reason}`);
+        // The reason is the tooltip, never the command title, so a failure toast cannot repeat a stale reason.
+        expect(action?.command.title).toBe('Merge Pull Request');
+        expect(action?.tooltip).toBe(reason);
     });
 
     it.each([
-        { lifecycle: 'draft' },
-        { lifecycle: 'merged' },
-        { lifecycle: 'closed' },
-        { mergeState: 'conflicting' },
-        { headSha: undefined },
-    ] as const)('offers no merge for %o', (pullRequest) => {
-        expect(pullRequestRow(pullRequest).actions).toBeUndefined();
+        [{ mergeState: 'conflicting' }, 'danger', 'has conflicts'],
+        [{ lifecycle: 'draft' }, 'neutral', 'is a draft'],
+    ] as const)(
+        'keeps an explaining button for %o that opens GitHub instead of merging',
+        (pullRequest, tone, title) => {
+            const row = pullRequestRow(pullRequest);
+            const action = row.actions?.[0];
+            expect(action).toMatchObject({
+                tone,
+                command: {
+                    command: 'caxri.openExternal',
+                    arguments: ['https://github.com/acme/widget/pull/42'],
+                },
+                confirmation: { confirmLabel: 'Open on GitHub' },
+            });
+            expect(action?.confirmation?.title).toContain(title);
+        },
+    );
+
+    it('names a conflict in the row accessible label', () => {
+        expect(
+            pullRequestRow({ mergeState: 'conflicting' }).accessibilityInformation?.label,
+        ).toContain('has conflicts');
     });
+
+    it.each([{ lifecycle: 'merged' }, { lifecycle: 'closed' }, { headSha: undefined }] as const)(
+        'offers no merge for %o',
+        (pullRequest) => {
+            expect(pullRequestRow(pullRequest).actions).toBeUndefined();
+        },
+    );
 });
 
 describe('mergeBlocker', () => {
@@ -139,5 +188,61 @@ describe('mergeBlocker', () => {
             label: 'merge',
             value: 'Checks did not pass',
         });
+    });
+});
+
+describe('failedChecksSummary', () => {
+    it('names at most three failing checks and counts the rest', () => {
+        const checks = ['a', 'b', 'c', 'd', 'e'].map((name) => ({
+            name,
+            state: 'failure' as const,
+        }));
+        expect(failedChecksSummary({ checks: [...checks, { name: 'ok', state: 'success' }] })).toBe(
+            '5 of 6 checks failed: a, b, c, and 2 more.',
+        );
+    });
+});
+
+describe('currentBranchMerge', () => {
+    const repo = (pullRequest?: Partial<PullRequest>): ProjectStatusRepository => ({
+        id: 'repository-1',
+        kind: 'primary',
+        name: 'widget',
+        branch: 'feat/merge',
+        acceptances: [],
+        linearIssues: [],
+        errors: [],
+        ...(pullRequest && {
+            pullRequest: {
+                number: 42,
+                title: 'Delivery',
+                url: 'https://github.com/acme/widget/pull/42',
+                lifecycle: 'open',
+                state: 'success',
+                checks: [],
+                hiddenCheckCount: 0,
+                headSha: HEAD,
+                mergeState: 'clean',
+                ...pullRequest,
+            },
+        }),
+    });
+
+    it('merges a clean pull request on the primary repository', () => {
+        expect(currentBranchMerge([repo({})])).toEqual({
+            kind: 'merge',
+            arguments: { repositoryId: 'repository-1', number: 42, headSha: HEAD },
+        });
+    });
+
+    it.each([
+        [undefined, 'has no pull request'],
+        [{ lifecycle: 'draft' }, 'is a draft'],
+        [{ mergeState: 'conflicting' }, 'has conflicts'],
+        [{ state: 'failure' }, 'Use the merge button in the Status panel'],
+    ] as const)('refuses %o instead of merging without a confirmation', (pullRequest, message) => {
+        const decision = currentBranchMerge([repo(pullRequest)]);
+        expect(decision.kind).toBe('refuse');
+        expect(decision.kind === 'refuse' && decision.message).toContain(message);
     });
 });

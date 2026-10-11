@@ -5,6 +5,7 @@ import {
     applyLatestConversationPage,
     applyOlderConversationPage,
     groupConversationItems,
+    imageCountLabel,
     isConversationObservableThroughBlur,
     mergeLatestConversationItems,
     prependConversationPage,
@@ -194,5 +195,10 @@ describe('Conversation projection', () => {
                 isConversationObservableThroughBlur(false, true),
             ),
         ).toBe('stale');
+    });
+
+    it('names an image count in the singular or plural', () => {
+        expect(imageCountLabel(1)).toBe('1 image');
+        expect(imageCountLabel(3)).toBe('3 images');
     });
 });

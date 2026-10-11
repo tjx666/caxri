@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { memo, useContext, useId, useMemo, useRef, useState } from 'react';
+import { memo, useContext, useId, useMemo, useRef } from 'react';
 
 import type { AgentChatTask, AgentToolKind } from '@caxri/protocol';
 import { agentToolActiveLabel, unwrapShellCommand } from '@caxri/protocol';
@@ -36,6 +36,7 @@ import { diffStatLabel } from '../../lib/diff-stat-label';
 import { cn } from '../../lib/utilities';
 import { agentChatFileChangesStat } from './agent-chat-diff';
 import { agentChatChevronMotion } from './agent-chat-disclosure';
+import { agentChatItemExpansionKey, agentChatSummaryExpansionKey } from './agent-chat-expansion';
 import { AgentChatFileChanges } from './agent-chat-file-changes';
 import { AgentChatMessage } from './agent-chat-message';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
@@ -54,6 +55,7 @@ import {
     stripLineNumberGutter,
     summarizeAgentChatWork,
 } from './agent-chat-timeline';
+import { useAgentChatExpansion } from './hooks/use-agent-chat-expansion';
 import { AgentChatTaskLinksContext, useAgentChatTaskLink } from './hooks/use-agent-chat-task-link';
 
 /**
@@ -115,11 +117,16 @@ const WORK_LIST_FADE = '24px';
  * a control of its own (a file the row names) without nesting a button inside another; that control sits above the
  * toggle, and the rest of the row still toggles. The toggle takes its accessible name from the title and trailing facts
  * (`aria-labelledby`), since its visible text is a sibling now.
+ *
+ * Its expanded state lives with the Chat pane under `expansionKey` (see `useAgentChatExpansion`), so a row keeps it
+ * when the timeline rebuilds around it, such as a live row merging into a summary group once it settles.
  */
 function DisclosureRow({
     action,
     children,
+    containedItems,
     disclosureKind,
+    expansionKey,
     glyph,
     isRunning = false,
     title,
@@ -130,7 +137,12 @@ function DisclosureRow({
      */
     action?: ReactNode;
     children: ReactNode;
+    /**
+     * Items listed inside this row; it opens by default when the user expanded one of them on its own.
+     */
+    containedItems?: readonly AgentChatWorkItem[];
     disclosureKind: string;
+    expansionKey: string;
     glyph: ReactNode;
     /**
      * Sweeps the activity highlight across the whole title while the work runs, the way the Codex app marks its live
@@ -140,7 +152,7 @@ function DisclosureRow({
     title: ReactNode;
     trailing?: ReactNode;
 }) {
-    const [isExpanded, setExpanded] = useState(false);
+    const { isExpanded, toggle } = useAgentChatExpansion(expansionKey, { containedItems });
     const detailId = useId();
     const titleId = useId();
     const trailingId = useId();
@@ -152,7 +164,7 @@ function DisclosureRow({
                 aria-labelledby={`${titleId} ${trailingId}`}
                 className="absolute inset-0 cursor-pointer rounded border-0 bg-transparent outline-none"
                 type="button"
-                onClick={() => setExpanded((value) => !value)}
+                onClick={(event) => toggle(event.currentTarget)}
             />
             <span className="flex size-4 shrink-0 items-center justify-center">{glyph}</span>
             <span
@@ -364,7 +376,8 @@ function AgentChatWorkTrailing({ item, task }: { item: AgentChatWorkItem; task?:
             {task ? (
                 <>
                     <AgentChatTaskElapsed task={task} />
-                    {task.status !== 'completed' && (
+                    {/* A running task already sweeps its title and ticks its timer; a spinner would say it a third time. */}
+                    {task.status !== 'completed' && task.status !== 'running' && (
                         <AgentChatStatusGlyph status={agentChatTaskGlyphStatus(task.status)} />
                     )}
                 </>
@@ -396,6 +409,7 @@ const AgentChatWorkRow = memo(
             <DisclosureRow
                 action={link && <AgentChatTaskOpenButton link={link} />}
                 disclosureKind="agent-chat-item"
+                expansionKey={agentChatItemExpansionKey(item.id)}
                 glyph={<WorkGlyph kind={presentation.kind} />}
                 isRunning={isRunning}
                 title={
@@ -424,7 +438,9 @@ const AgentChatWorkRow = memo(
 
 /**
  * The file a work row names, underlined like a link and opening in the editor. It sits above the row's stretched
- * toggle, so clicking the name opens the file while the rest of the row still expands it.
+ * toggle, so clicking the name opens the file while the rest of the row still expands it. Its underline, not a dimmer
+ * text, sets it apart from the row's muted verb, and it brightens with the underline on hover; the full path is one
+ * hover away.
  */
 function WorkFileLink({
     path,
@@ -436,14 +452,15 @@ function WorkFileLink({
     onOpenFile: (target: string) => void;
 }) {
     return (
-        <button
-            className="relative min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-inherit underline decoration-current/40 underline-offset-2 opacity-80 hover:opacity-100 focus-visible:outline focus-visible:outline-accent"
-            title={path}
-            type="button"
-            onClick={() => onOpenFile(path)}
-        >
-            {subject}
-        </button>
+        <Tooltip content={path}>
+            <button
+                className="relative min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-inherit underline decoration-current/40 underline-offset-2 hover:text-foreground hover:decoration-current focus-visible:outline focus-visible:outline-accent"
+                type="button"
+                onClick={() => onOpenFile(path)}
+            >
+                {subject}
+            </button>
+        </Tooltip>
     );
 }
 
@@ -493,7 +510,9 @@ function AgentChatWorkSummary({
     const summary = summarizeAgentChatWork(items);
     return (
         <DisclosureRow
+            containedItems={items}
             disclosureKind="agent-chat-work-group"
+            expansionKey={agentChatSummaryExpansionKey(items)}
             glyph={<WorkGlyph kind={agentChatWorkKind(items)} />}
             title={<span className="min-w-0 truncate">{summary}</span>}
             trailing={failureStatus && <AgentChatStatusGlyph status={failureStatus} />}

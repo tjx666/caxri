@@ -15,27 +15,31 @@ import {
     MenuSeparator,
     MenuTrigger,
 } from '../../components/ui/menu';
-import { configureAgentChat } from './agent-chat-commands';
+import { Spinner } from '../../components/ui/spinner';
+import { useAgentChatModelSelection } from './hooks/use-agent-chat-model-selection';
 
 const LABEL_CLASS_NAME = 'flex min-w-0 items-center gap-1 text-[12px] leading-4 text-muted';
 
 /**
  * The model and reasoning effort the next turn uses, and the menu that switches them, as the Codex app and Claude Code
- * keep beside their input. The menu stays open after a choice so switching the model shows its efforts right away. A
- * provider that listed no models shows the model it reported as plain text. As in the Codex app, the model name reads
- * in the foreground color and the effort stays muted beside it.
+ * keep beside their input. Choosing a model keeps the menu open so its efforts show right away; choosing an effort
+ * finishes the choice and closes it. The choice shows at once with a spinner beside it until the snapshot confirms it
+ * (`AgentChatPendingSelection`), and reverts with a toast naming what failed. A provider that listed no models shows
+ * the model it reported as plain text. As in the Codex app, the model name reads in the foreground color and the effort
+ * stays muted beside it.
  *
  * Claude Code's ultracode is a toggle beside the effort rather than an effort level, as in its own `/effort` picker
  * since 2.1.284: it stays on at any effort. The row appears only while the provider offers it for the current model.
  */
 export function AgentChatModelMenu({
-    snapshot,
+    snapshot: reported,
     terminalId,
 }: {
     snapshot: Pick<AgentChatSnapshot, 'effort' | 'model' | 'models' | 'ultracode'> | undefined;
     terminalId: string;
 }) {
     const [isOpen, setOpen] = useState(false);
+    const { configure, isPending, snapshot } = useAgentChatModelSelection(reported, terminalId);
     const label = agentChatModelLabel(snapshot);
     if (!label) return null;
     const text = (
@@ -55,14 +59,18 @@ export function AgentChatModelMenu({
                 className={`${LABEL_CLASS_NAME} h-7 shrink cursor-pointer rounded-md border-0 bg-transparent px-1.5 transition-colors duration-(--motion-overlay-enter) ease-(--motion-ease-enter) hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent data-popup-open:bg-elevated data-popup-open:text-foreground`}
             >
                 {text}
-                <ChevronDown className="size-3 shrink-0" />
+                {isPending ? (
+                    <Spinner aria-label="Switching" className="size-3 shrink-0" />
+                ) : (
+                    <ChevronDown className="size-3 shrink-0" />
+                )}
             </MenuTrigger>
             <MenuContent align="end" className="max-w-80 min-w-56" side="top">
                 <MenuGroup>
                     <MenuGroupLabel>Model</MenuGroupLabel>
                     <MenuRadioGroup
                         value={current?.id ?? null}
-                        onValueChange={(model: string) => configureAgentChat(terminalId, { model })}
+                        onValueChange={(model: string) => configure({ model })}
                     >
                         {models.map((model) => (
                             <MenuRadioItem key={model.id} value={model.id}>
@@ -85,9 +93,10 @@ export function AgentChatModelMenu({
                             <MenuGroupLabel>Reasoning effort</MenuGroupLabel>
                             <MenuRadioGroup
                                 value={snapshot.effort ?? null}
-                                onValueChange={(effort: string) =>
-                                    configureAgentChat(terminalId, { effort })
-                                }
+                                onValueChange={(effort: string) => {
+                                    configure({ effort });
+                                    setOpen(false);
+                                }}
                             >
                                 {current.efforts.map((effort) => (
                                     <MenuRadioItem key={effort} value={effort}>
@@ -104,25 +113,35 @@ export function AgentChatModelMenu({
                     </>
                 )}
                 {snapshot.ultracode !== undefined && (
-                    <>
-                        <MenuSeparator />
-                        <MenuCheckboxItem
-                            className="h-auto min-h-7 py-1"
-                            checked={snapshot.ultracode}
-                            onCheckedChange={(isOn: boolean) =>
-                                configureAgentChat(terminalId, { ultracode: isOn })
-                            }
-                        >
-                            <span className="flex min-w-0 flex-col">
-                                <span className="truncate">Ultracode</span>
-                                <span className="truncate text-[11px] leading-4 text-muted">
-                                    Multi-agent workflows at any effort
-                                </span>
-                            </span>
-                        </MenuCheckboxItem>
-                    </>
+                    <UltracodeItem
+                        isOn={snapshot.ultracode}
+                        onChange={(isOn) => configure({ ultracode: isOn })}
+                    />
                 )}
             </MenuContent>
         </Menu>
+    );
+}
+
+/**
+ * Claude Code's ultracode toggle, below the efforts.
+ */
+function UltracodeItem({ isOn, onChange }: { isOn: boolean; onChange: (isOn: boolean) => void }) {
+    return (
+        <>
+            <MenuSeparator />
+            <MenuCheckboxItem
+                checked={isOn}
+                className="h-auto min-h-7 py-1"
+                onCheckedChange={onChange}
+            >
+                <span className="flex min-w-0 flex-col">
+                    <span className="truncate">Ultracode</span>
+                    <span className="truncate text-[11px] leading-4 text-muted">
+                        Multi-agent workflows at any effort
+                    </span>
+                </span>
+            </MenuCheckboxItem>
+        </>
     );
 }

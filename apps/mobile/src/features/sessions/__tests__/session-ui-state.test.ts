@@ -4,6 +4,7 @@ import {
     emptyHostSessionUiState,
     hasKnownConversationAgent,
     isChatSegmentShown,
+    isSegmentAwaitingAnswer,
     isSessionDetailVisible,
     isSideSessionSegment,
     preferredSessionSegment,
@@ -231,10 +232,26 @@ describe('Chat Session tabs', () => {
         ]);
     });
 
-    it('observes a Chat on its tab or behind wide Changes only', () => {
+    it('observes a Chat on its tab or behind any wide side segment', () => {
         expect(isChatSegmentShown('conversation', false)).toBe(true);
         expect(isChatSegmentShown('changes', false)).toBe(false);
+        expect(isChatSegmentShown('panel:notes', false)).toBe(false);
         expect(isChatSegmentShown('changes', true)).toBe(true);
-        expect(isChatSegmentShown('panel:notes', true)).toBe(false);
+        expect(isChatSegmentShown('panel:notes', true)).toBe(true);
+        expect(isChatSegmentShown('terminal', true)).toBe(false);
+    });
+
+    it('marks the Chat tab while a request waits and the user is on another tab', () => {
+        const waiting = {
+            isChat: true,
+            isSelected: false,
+            lastActivityState: 'waiting',
+            segment: 'conversation',
+        } as const;
+        expect(isSegmentAwaitingAnswer(waiting)).toBe(true);
+        expect(isSegmentAwaitingAnswer({ ...waiting, isSelected: true })).toBe(false);
+        expect(isSegmentAwaitingAnswer({ ...waiting, isChat: false })).toBe(false);
+        expect(isSegmentAwaitingAnswer({ ...waiting, lastActivityState: 'running' })).toBe(false);
+        expect(isSegmentAwaitingAnswer({ ...waiting, segment: 'changes' })).toBe(false);
     });
 });

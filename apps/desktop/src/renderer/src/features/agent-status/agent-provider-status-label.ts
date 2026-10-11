@@ -60,3 +60,22 @@ export function describeProviderStatus(
         ? label
         : `${label}: ${affected.map((component) => component.name).join(', ')}`;
 }
+
+/**
+ * An incident's phase as both the status-bar card and the Agent status tab print it: `Identified`. The page words it in
+ * lower case; one casing keeps the two surfaces reading as the same fact.
+ */
+export function incidentPhaseLabel(phase: string): string {
+    return phase.charAt(0).toUpperCase() + phase.slice(1);
+}
+
+/**
+ * The status-bar card has room for one incident line: the first incident, and how many more the Agent status tab lists.
+ */
+export function summarizeIncidents<T>(incidents: readonly T[]): {
+    first: T | undefined;
+    moreLabel: string | undefined;
+} {
+    const more = incidents.length - 1;
+    return { first: incidents[0], moreLabel: more > 0 ? `+${more} more` : undefined };
+}

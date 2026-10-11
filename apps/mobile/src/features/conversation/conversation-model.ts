@@ -13,6 +13,13 @@ export interface ConversationHistoryState {
     truncated: boolean;
 }
 
+/**
+ * How many images a message carries, as `1 image` or `3 images`; the queue preview names a queued message's images this
+ * way.
+ */
+export const imageCountLabel = (count: number): string =>
+    count === 1 ? '1 image' : `${count} images`;
+
 export type ConversationEntry =
     | AgentTimelineItem
     | { id: string; type: 'toolGroup'; tools: ToolCall[]; summary: string; durationMs?: number };

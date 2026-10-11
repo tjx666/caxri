@@ -2,7 +2,7 @@ import type { ProjectStatusRequestOptions, ProjectStatusSummary } from 'caxri';
 import { CancellationTokenSource } from 'caxri';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ProjectStatusProvider } from '../extension';
+import { mergePullRequest, ProjectStatusProvider } from '../extension';
 
 const emptySummary: ProjectStatusSummary = {
     refreshedAt: 1,
@@ -40,5 +40,35 @@ describe('ProjectStatusProvider', () => {
         subscription.dispose();
         cancellation.dispose();
         provider.dispose();
+    });
+});
+
+describe('mergePullRequest', () => {
+    const target = { repositoryId: 'repo-1', number: 123, headSha: 'a'.repeat(40) };
+
+    it.each([
+        ['squash', 'Squash-merged #123'],
+        ['merge', 'Merged #123'],
+        ['rebase', 'Rebase-merged #123'],
+    ] as const)('names the %s method in its result and refreshes', async (method, message) => {
+        const refresh = vi.fn();
+        const git = {
+            mergePullRequest: vi.fn(() =>
+                Promise.resolve({ method, url: 'https://github.com/example/repo/pull/123' }),
+            ),
+        };
+        await expect(mergePullRequest({ refresh }, target, git)).resolves.toEqual({ message });
+        expect(git.mergePullRequest).toHaveBeenCalledWith('repo-1', {
+            number: 123,
+            headSha: target.headSha,
+        });
+        expect(refresh).toHaveBeenCalledWith(true);
+    });
+
+    it('refreshes and rethrows when the merge fails', async () => {
+        const refresh = vi.fn();
+        const git = { mergePullRequest: vi.fn(() => Promise.reject(new Error('not mergeable'))) };
+        await expect(mergePullRequest({ refresh }, target, git)).rejects.toThrow('not mergeable');
+        expect(refresh).toHaveBeenCalledWith(true);
     });
 });

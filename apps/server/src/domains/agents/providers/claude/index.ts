@@ -87,7 +87,7 @@ function parseClaudeRenameResponse(
     try {
         response = JSON.parse(stdout.trim()) as ClaudeRenameResponse;
     } catch {
-        throw new Error('Claude Code returned invalid rename output');
+        throw new Error('Claude returned invalid rename output');
     }
     if (
         response.type !== 'result' ||
@@ -97,9 +97,9 @@ function parseClaudeRenameResponse(
         typeof response.result !== 'string' ||
         !response.result.startsWith(CLAUDE_RENAME_RESULT_PREFIX)
     )
-        throw new Error('Claude Code rejected the Session rename');
+        throw new Error('Claude rejected the Session rename');
     const displayTitle = response.result.slice(CLAUDE_RENAME_RESULT_PREFIX.length).trim();
-    if (!displayTitle) throw new Error('Claude Code returned an empty Session name');
+    if (!displayTitle) throw new Error('Claude returned an empty Session name');
     return { displayTitle };
 }
 

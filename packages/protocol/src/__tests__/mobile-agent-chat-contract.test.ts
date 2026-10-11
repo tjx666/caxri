@@ -6,9 +6,12 @@ import { applyAgentChatPatch } from '../agent/agent-chat-reducer.js';
 import {
     clipAgentChatItemForMobile,
     clipAgentChatPatchForMobile,
+    clipAgentChatQueueForMobile,
     MOBILE_AGENT_CHAT_CLIP_MARKER,
     MOBILE_AGENT_CHAT_FIELD_MAX_LENGTH,
     MOBILE_AGENT_CHAT_MAX_BYTES,
+    MOBILE_AGENT_CHAT_QUEUE_MAX_ITEMS,
+    MOBILE_AGENT_CHAT_QUEUE_PREVIEW_LENGTH,
     mobileAgentChatMethods,
     windowAgentChatSnapshotForMobile,
 } from '../mobile/mobile-agent-chat-contract.js';
@@ -161,7 +164,7 @@ describe('mobile Agent Chat projection', () => {
         expect(next?.revision).toBe(8);
     });
 
-    it('keeps Desktop-only tasks and queue out of the phone projection', () => {
+    it('keeps Desktop-only tasks out of the phone projection but sends the queue', () => {
         const desktopOnly = {
             tasks: [
                 {
@@ -182,8 +185,8 @@ describe('mobile Agent Chat projection', () => {
             operation: 'compacting',
         });
         expect(windowed).not.toHaveProperty('tasks');
-        expect(windowed).not.toHaveProperty('queue');
-        expect(windowed).not.toHaveProperty('queuePaused');
+        expect(windowed.queue).toEqual([{ id: 'q-1', text: 'next' }]);
+        expect(windowed.queuePaused).toBe(true);
         expect(windowed.operation).toBe('compacting');
         const patch = clipAgentChatPatchForMobile({
             terminalId: 'terminal-1',
@@ -191,7 +194,44 @@ describe('mobile Agent Chat projection', () => {
             revision: 8,
             operations: [{ op: 'state', state: { ...desktopOnly, status: 'ready' } }],
         });
-        expect(patch?.operations).toEqual([{ op: 'state', state: { status: 'ready' } }]);
+        expect(patch?.operations).toEqual([
+            {
+                op: 'state',
+                state: { queue: [{ id: 'q-1', text: 'next' }], queuePaused: true, status: 'ready' },
+            },
+        ]);
+    });
+
+    it('bounds the queue a phone receives to a few previews', () => {
+        const long = 'x'.repeat(50_000);
+        const queue = Array.from({ length: 20 }, (_, index) => ({
+            id: `q-${index}`,
+            text: long,
+            imageCount: 2,
+        }));
+        const clipped = clipAgentChatQueueForMobile([
+            { id: 'cmd', text: '', command: { name: 'review', arguments: long } },
+            ...queue,
+        ]);
+        expect(clipped).toHaveLength(MOBILE_AGENT_CHAT_QUEUE_MAX_ITEMS);
+        expect(clipped[0].command?.arguments).toBe(
+            `${'x'.repeat(MOBILE_AGENT_CHAT_QUEUE_PREVIEW_LENGTH)}${MOBILE_AGENT_CHAT_CLIP_MARKER}`,
+        );
+        expect(clipped[1]).toEqual({
+            id: 'q-0',
+            text: `${'x'.repeat(MOBILE_AGENT_CHAT_QUEUE_PREVIEW_LENGTH)}${MOBILE_AGENT_CHAT_CLIP_MARKER}`,
+            imageCount: 2,
+        });
+        const windowed = windowAgentChatSnapshotForMobile({
+            ...snapshot([message('item-1', 'Hi')]),
+            queue,
+        });
+        expect(windowed.queue).toHaveLength(MOBILE_AGENT_CHAT_QUEUE_MAX_ITEMS);
+        expect(bytes(windowed)).toBeLessThan(MOBILE_AGENT_CHAT_MAX_BYTES);
+        expect(agentChatSnapshotSchema.safeParse(windowed).success).toBe(true);
+        expect(clipAgentChatQueueForMobile([{ id: 'short', text: 'hi' }])).toEqual([
+            { id: 'short', text: 'hi' },
+        ]);
     });
 
     it('refuses a patch that cannot fit one frame', () => {

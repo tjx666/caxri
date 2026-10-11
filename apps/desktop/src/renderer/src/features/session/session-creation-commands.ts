@@ -72,6 +72,14 @@ export function beginSessionCreation(
         void createSession(projectId, defaultAgent);
         return;
     }
+    openSessionCreationMenu(projectId, anchor);
+}
+
+/**
+ * Opens the anchored Agent list even when a default Agent is configured: the Project heading's button creates the
+ * default on press and opens this list on hover, the same split the tab strip's `+` makes.
+ */
+export function openSessionCreationMenu(projectId: string, anchor: CreateSessionAnchor): void {
     if (!useChromeLayoutStore.getState().primarySidebarVisible)
         useChromeLayoutStore.getState().setPrimarySidebarVisible(true);
     useDialogStore.getState().openCreateSessionMenu(projectId, anchor);

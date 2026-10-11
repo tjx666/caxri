@@ -23,6 +23,10 @@ export interface ToastActionParameters {
         workbenchProjectId?: string;
         tabId?: string;
     };
+    /**
+     * Opens a GitHub page, such as the pull request a merge reported on, through the external-link policy.
+     */
+    'github.open': { url: string };
     'processExplorer.open': undefined;
     'session.unarchive': { sessionId: string };
     'settings.open': undefined;
@@ -87,6 +91,7 @@ export type ToastAction = {
 export const toastActionLabels: Record<ToastActionId, string> = {
     'diagnostics.copyFailure': 'Copy details',
     'editor.retrySave': 'Retry',
+    'github.open': 'Open on GitHub',
     'processExplorer.open': 'View details',
     'session.unarchive': 'Undo',
     'settings.open': 'Open Settings',

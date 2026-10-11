@@ -15,20 +15,22 @@ import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { useSettings, useTerminals } from '../../stores/selectors';
-import { ChatSurfaceMarker, OpenInChatMenuItem } from '../session/open-in-chat-menu-item';
+import { AgentChoiceMarker, OpenInChatMenuItem } from '../session/open-in-chat-menu-item';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import {
+    isSameNewTerminalTarget,
     newAgentSurface,
     newTerminalActionLabel,
     newTerminalAgentChoices,
     newTerminalButtonText,
+    newTerminalCommandTarget,
     resolveNewTerminalAgent,
     resolveNewTerminalTarget,
 } from './new-terminal-agent';
 import { createTerminal } from './terminal-commands';
 
-const MENU_LABEL = 'Select a different agent';
+const MENU_LABEL = 'Select a different Agent';
 
 /**
  * The in-Session New Terminal control. The tab strip's + opens the Agent list on hover; the empty pane's labelled
@@ -80,9 +82,8 @@ export function NewTerminalButton({
                     <MenuItem key={kind} onClick={() => create(kind, surface)}>
                         <AgentIdentityIcon identity={kind} size={14} />
                         <span className="flex-1 truncate">{resolveAgentIcon(kind).label}</span>
-                        {surface === 'chat' && <ChatSurfaceMarker />}
                         {/* A text twin rather than a color or a check glyph: the marker has to survive a screen reader. */}
-                        {isDefault && <span className="text-muted">Default</span>}
+                        <AgentChoiceMarker isDefault={isDefault} surface={surface} />
                     </MenuItem>
                 ),
             )}
@@ -97,6 +98,15 @@ export function NewTerminalButton({
         // stale setting. See `resolveNewTerminalTarget`.
         const target = resolveNewTerminalTarget(primaryTerminal, defaultAgent, openInChat);
         if (target) {
+            const actionLabel = newTerminalActionLabel(target, resolveAgentIcon(target.kind).label);
+            /**
+             * `⌘T` creates the configured default, while a press here may clone the Session's live Agent instead; the
+             * chip shows only when both create the same Terminal, so it never promises what the shortcut will not do.
+             */
+            const isShortcutSameTarget = isSameNewTerminalTarget(
+                target,
+                newTerminalCommandTarget(settings?.['session.defaultAgent'], openInChat),
+            );
             const icon = (
                 <MenuTrigger
                     openOnHover
@@ -104,15 +114,10 @@ export function NewTerminalButton({
                     closeDelay={150}
                     render={
                         /**
-                         * Names what a click will actually create, for the screen reader that never sees the hover
-                         * preview. The `Tooltip` below names the same Agent for sighted users, plus the ⌘T shortcut it
-                         * shares with `terminal.new`.
+                         * Names what a click will actually create, in the same words as the `Tooltip` below, for the
+                         * screen reader that never sees the hover preview.
                          */
-                        <Button
-                            aria-label={`New Terminal (${resolveAgentIcon(target.kind).label}${target.surface === 'chat' ? ' Chat' : ''})`}
-                            size="icon"
-                            variant="ghost"
-                        >
+                        <Button aria-label={actionLabel} size="icon" variant="ghost">
                             <Plus size={14} />
                         </Button>
                     }
@@ -138,11 +143,8 @@ export function NewTerminalButton({
                     }}
                 >
                     <Tooltip
-                        content={newTerminalActionLabel(
-                            target,
-                            resolveAgentIcon(target.kind).label,
-                        )}
-                        shortcut={newTerminalShortcut}
+                        content={actionLabel}
+                        shortcut={isShortcutSameTarget ? newTerminalShortcut : undefined}
                     >
                         {icon}
                     </Tooltip>

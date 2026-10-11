@@ -1,7 +1,12 @@
 import type { AgentProviderStatus } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { describeProviderStatus, providerStatusFailureLabel } from '../agent-provider-status-label';
+import {
+    describeProviderStatus,
+    incidentPhaseLabel,
+    providerStatusFailureLabel,
+    summarizeIncidents,
+} from '../agent-provider-status-label';
 
 type AvailableStatus = Extract<AgentProviderStatus, { state: 'available' }>;
 
@@ -54,5 +59,17 @@ describe('providerStatusFailureLabel', () => {
         expect(providerStatusFailureLabel('network')).toBe(
             'Status unavailable: the status page could not be reached',
         );
+    });
+});
+
+describe('incident lines', () => {
+    it('capitalizes the phase the same way on the card and the tab', () => {
+        expect(incidentPhaseLabel('identified')).toBe('Identified');
+    });
+
+    it('keeps the first incident and counts the rest', () => {
+        expect(summarizeIncidents([])).toEqual({ first: undefined, moreLabel: undefined });
+        expect(summarizeIncidents(['a'])).toEqual({ first: 'a', moreLabel: undefined });
+        expect(summarizeIncidents(['a', 'b', 'c'])).toEqual({ first: 'a', moreLabel: '+2 more' });
     });
 });

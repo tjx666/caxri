@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { GitFork, History, Undo2 } from 'lucide-react';
 
@@ -17,16 +17,18 @@ import { agentChatLeadingInvocation } from './agent-chat-slash-commands';
 import { agentChatUserMessageSegments } from './agent-chat-user-message-text';
 import { useAgentChatEdit } from './hooks/use-agent-chat-edit';
 import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
+import { useIsAgentChatClamped } from './hooks/use-is-agent-chat-clamped';
 
 /**
  * The user's message, right-aligned. A message steered into a running turn says so in a quiet caption under the bubble
  * (see `agentChatDeliveryCaption`). Under it, a row with the time it was sent and a Copy action appears while the
- * pointer is over the message or keyboard focus reaches it, as under a final reply; the row keeps its height, so
- * revealing it never shifts the transcript. A message that started a turn also offers "Edit from here", which puts its
- * text back into the composer to send in its place (the message being edited keeps an accent outline until then), "Fork
- * from here", which opens the conversation before it in a new Session with its text in the composer, and, when the
- * provider restores files, "Restore code to here", which reverts the files changed since and keeps the conversation, as
- * Claude Code's `/rewind` "Restore code" does.
+ * pointer is over the message or keyboard focus reaches it, as under an earlier reply; the row keeps its height, so
+ * revealing it never shifts the transcript. A long message (a pasted log, a spec) clamps to twelve lines with Show
+ * more, so one prompt does not push the reply it asked for off screen; Copy still takes the whole text. A message that
+ * started a turn also offers "Edit from here", which puts its text back into the composer to send in its place (the
+ * message being edited keeps an accent outline until then), "Fork from here", which opens the conversation before it in
+ * a new Session with its text in the composer, and, when the provider restores files, "Restore code to here", which
+ * reverts the files changed since and keeps the conversation, as Claude Code's `/rewind` "Restore code" does.
  */
 export function AgentChatUserMessage({
     createdAt,
@@ -48,7 +50,6 @@ export function AgentChatUserMessage({
     onOpenFile?: (target: string) => void;
 }) {
     const terminalId = useAgentChatTerminal();
-    const invocation = agentChatLeadingInvocation(text);
     const caption = agentChatDeliveryCaption(delivery);
     const edit = useAgentChatEdit();
     const isEditing = edit?.editingId === id;
@@ -70,21 +71,7 @@ export function AgentChatUserMessage({
                 />
             )}
             {text && (
-                <div
-                    className={cn(
-                        'max-w-[85%] rounded-lg bg-elevated px-3 py-2 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground select-text',
-                        isEditing && 'outline outline-1 outline-accent',
-                    )}
-                >
-                    {invocation ? (
-                        <>
-                            <AgentChatInvocationChip invocation={invocation.invocation} />
-                            <UserMessageText text={invocation.rest} onOpenFile={onOpenFile} />
-                        </>
-                    ) : (
-                        <UserMessageText text={text} onOpenFile={onOpenFile} />
-                    )}
-                </div>
+                <UserMessageBubble isEditing={isEditing} text={text} onOpenFile={onOpenFile} />
             )}
             {caption && <span className="-mt-0.5 text-[11px] leading-4 text-muted">{caption}</span>}
             {hasActions && (
@@ -111,6 +98,54 @@ export function AgentChatUserMessage({
 
 const ACTION_BUTTON_CLASS =
     'flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted';
+
+/**
+ * The message bubble. A long message clamps to twelve lines with Show more; the message being edited keeps an accent
+ * outline.
+ */
+function UserMessageBubble({
+    isEditing,
+    text,
+    onOpenFile,
+}: {
+    isEditing: boolean;
+    text: string;
+    onOpenFile?: (target: string) => void;
+}) {
+    const invocation = agentChatLeadingInvocation(text);
+    const [isExpanded, setExpanded] = useState(false);
+    const textReference = useRef<HTMLDivElement>(null);
+    const isCut = useIsAgentChatClamped(textReference, { content: text, isClamped: !isExpanded });
+    return (
+        <div
+            className={cn(
+                'max-w-[85%] rounded-lg bg-elevated px-3 py-2 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground select-text',
+                isEditing && 'outline outline-1 outline-accent',
+            )}
+        >
+            <div className={cn(!isExpanded && 'line-clamp-12')} ref={textReference}>
+                {invocation ? (
+                    <>
+                        <AgentChatInvocationChip invocation={invocation.invocation} />
+                        <UserMessageText text={invocation.rest} onOpenFile={onOpenFile} />
+                    </>
+                ) : (
+                    <UserMessageText text={text} onOpenFile={onOpenFile} />
+                )}
+            </div>
+            {isCut && (
+                <button
+                    aria-expanded={isExpanded}
+                    className="mt-1 block cursor-pointer border-0 bg-transparent p-0 text-[12px] text-muted hover:text-foreground focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
+                    type="button"
+                    onClick={() => setExpanded((value) => !value)}
+                >
+                    {isExpanded ? 'Show less' : 'Show more'}
+                </button>
+            )}
+        </div>
+    );
+}
 
 /**
  * "Edit from here" in a user message's action row, when the Chat offers it for this message; disabled with the reason
@@ -180,7 +215,7 @@ function RestoreCodeButton({ id }: { id: string }) {
                 type="button"
                 onClick={() => restore.run(id)}
             >
-                <History className={ACTION_BUTTON_CLASS} />
+                <History className="size-3.5" />
             </button>
         </Tooltip>
     );
@@ -210,18 +245,18 @@ function UserMessageText({
              * the anchor focusable and Enter-activated); the click opens the file instead.
              */
             return (
-                <a
-                    className="cursor-pointer underline decoration-muted decoration-dotted underline-offset-3 transition-colors hover:text-accent hover:decoration-solid focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
-                    href={segment.file}
-                    key={position}
-                    title={`Open ${segment.file}`}
-                    onClick={(event) => {
-                        event.preventDefault();
-                        onOpenFile?.(segment.file);
-                    }}
-                >
-                    {segment.text}
-                </a>
+                <Tooltip content={`Open ${segment.file}`} key={position}>
+                    <a
+                        className="cursor-pointer underline decoration-muted decoration-dotted underline-offset-3 transition-colors hover:text-accent hover:decoration-solid focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
+                        href={segment.file}
+                        onClick={(event) => {
+                            event.preventDefault();
+                            onOpenFile?.(segment.file);
+                        }}
+                    >
+                        {segment.text}
+                    </a>
+                </Tooltip>
             );
         const summary = linkSummary(segment.url);
         if (!summary) return segment.text;

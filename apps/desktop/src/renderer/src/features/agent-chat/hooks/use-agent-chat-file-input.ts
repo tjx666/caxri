@@ -4,7 +4,12 @@ import { useState } from 'react';
 import { hasTerminalDraggedPath, PROJECT_PATH_DRAG_TYPE } from '../../../lib/file-drag';
 import { pushToast } from '../../../stores/toasts';
 import { EDITOR_PATH_DRAG_TYPE } from '../../workbench/pane-drop-zone';
-import { agentChatImageFiles, agentChatImagesUnsupportedMessage } from '../agent-chat-images';
+import {
+    agentChatDroppedImagePlan,
+    agentChatImageFiles,
+    agentChatImagesUnsupportedMessage,
+    agentChatInsertedImagePathMessage,
+} from '../agent-chat-images';
 
 /**
  * Whether a drag carries something the composer takes: files from another application, a Files entry, an Editor tab, or
@@ -24,20 +29,22 @@ export type AgentChatDropHandlers = ReturnType<typeof useAgentChatFileInput>['dr
 
 /**
  * Paste, drag-and-drop, and file picker handlers for the composer. Images go to `add` when the provider accepts them;
- * every other dropped or picked file, Files entry, Editor tab, or Project is cited by path through `insertPaths`, as a
- * drop into a Terminal is. `insertPaths` receives the drop (absent for a pick) and the files it should cite. A pasted
- * image the provider cannot take has no path to cite, so it says why in an info toast instead of silently doing
- * nothing. Pasted text goes to `takeLongPaste` first, which keeps a long paste out of the input.
+ * every other dropped or picked file, Files entry, Editor tab, or Project is cited by path through `didInsertPaths`, as
+ * a drop into a Terminal is. A dropped or picked image whose format or size cannot be attached is cited by path too,
+ * with an info toast saying so, because it has a path on disk to cite. `didInsertPaths` receives the drop (absent for a
+ * pick) and the files it should cite, and returns whether it inserted anything. A pasted image the provider cannot take
+ * has no path to cite, so it says why in an info toast instead of silently doing nothing. Pasted text goes to
+ * `takeLongPaste` first, which keeps a long paste out of the input.
  */
 export function useAgentChatFileInput({
     add,
-    insertPaths,
+    didInsertPaths,
     isImageInputEnabled,
     providerName,
     takeLongPaste,
 }: {
     add: (files: readonly File[]) => Promise<void>;
-    insertPaths: (event: DragEvent | undefined, files: readonly File[]) => void;
+    didInsertPaths: (event: DragEvent | undefined, files: readonly File[]) => boolean;
     isImageInputEnabled: boolean;
     /**
      * The provider catalog's display name, for the toast that says it takes no images.
@@ -57,13 +64,19 @@ export function useAgentChatFileInput({
      * Splits files between image attachments and path references, the same way for a drop and a pick.
      */
     const route = (event: DragEvent | undefined, files: readonly File[]): void => {
-        const images = isImageInputEnabled ? agentChatImageFiles(files) : [];
-        attach(images);
-        const attached = new Set(images);
-        insertPaths(
+        const plan = agentChatDroppedImagePlan(
+            isImageInputEnabled ? agentChatImageFiles(files) : [],
+        );
+        attach(plan.attach);
+        const attached = new Set(plan.attach);
+        const didInsert = didInsertPaths(
             event,
             files.filter((file) => !attached.has(file)),
         );
+        const message = agentChatInsertedImagePathMessage(
+            plan.inserted.map((entry) => entry.rejection),
+        );
+        if (didInsert && message) pushToast('info', message);
     };
     return {
         isDragOver,
