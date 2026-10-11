@@ -1,4 +1,5 @@
 import type { BootstrapState, SessionState } from '@caxri/protocol';
+import { externalEditorTabPath } from '@caxri/protocol';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
@@ -9,7 +10,7 @@ const mocks = vi.hoisted(() => {
             state.handler = handler;
             return () => {};
         }),
-        request: vi.fn((_method: unknown, parameters: unknown) =>
+        request: vi.fn((_method: unknown, parameters: unknown): Promise<unknown> =>
             Promise.resolve({
                 path: (parameters as { path: string }).path,
                 content: 'content',
@@ -452,5 +453,126 @@ describe('subscribeExternalDocumentSync', () => {
             }),
         );
         unsubscribe();
+    });
+
+    describe('external documents', () => {
+        const externalPath = externalEditorTabPath('doc-1', 'notes.md');
+
+        function cacheExternal(content: string, isDirty: boolean): void {
+            useSessionViewStore.getState().cacheDocument('session-1', {
+                path: externalPath,
+                content,
+                dirty: isDirty,
+                mtimeMs: 1,
+                size: content.length,
+                ephemeral: true,
+                displayPath: '/tmp/notes.md',
+            });
+        }
+
+        function answerExternalRead(content: string, mtimeMs = 2): void {
+            mocks.request.mockImplementation((method: unknown) =>
+                method === 'externalDocument.read'
+                    ? Promise.resolve({ content, mtimeMs, size: content.length })
+                    : Promise.resolve(null),
+            );
+        }
+
+        afterEach(() => {
+            mocks.request.mockReset();
+        });
+
+        it('asks Main to watch the open external documents and stops when they close', () => {
+            answerExternalRead('unused');
+            cacheExternal('# Notes', false);
+            const unsubscribe = subscribeExternalDocumentSync();
+
+            expect(mocks.request).toHaveBeenCalledWith('externalDocument.watch', {
+                documentIds: ['doc-1'],
+            });
+            useSessionViewStore.getState().evictDocument('session-1', externalPath);
+            expect(mocks.request).toHaveBeenLastCalledWith('externalDocument.watch', {
+                documentIds: [],
+            });
+            unsubscribe();
+        });
+
+        it('silently reloads a clean external buffer another app changed', async () => {
+            answerExternalRead('# Notes from disk');
+            cacheExternal('# Notes', false);
+            const unsubscribe = subscribeExternalDocumentSync();
+
+            mocks.state.handler?.({
+                event: 'externalDocument.changed',
+                payload: { documentId: 'doc-1' },
+            });
+
+            await vi.waitFor(() => {
+                expect(getSessionDocuments('session-1', 'project-1')?.[externalPath]).toMatchObject(
+                    {
+                        content: '# Notes from disk',
+                        dirty: false,
+                        ephemeral: true,
+                        displayPath: '/tmp/notes.md',
+                    },
+                );
+            });
+            expect(mocks.request).toHaveBeenCalledWith('externalDocument.read', {
+                documentId: 'doc-1',
+            });
+            expect(getToasts()).toEqual([]);
+            unsubscribe();
+        });
+
+        it('lets the disk win over unsaved edits and names the file in the lasting notice', async () => {
+            answerExternalRead('# Notes from disk');
+            cacheExternal('# Unsaved draft', true);
+            const unsubscribe = subscribeExternalDocumentSync();
+
+            mocks.state.handler?.({
+                event: 'externalDocument.changed',
+                payload: { documentId: 'doc-1' },
+            });
+
+            await vi.waitFor(() => {
+                expect(getToasts()).toContainEqual(
+                    expect.objectContaining({
+                        title: 'notes.md reloaded from disk; external changes take precedence.',
+                        duration: Infinity,
+                    }),
+                );
+            });
+            expect(getSessionDocuments('session-1', 'project-1')?.[externalPath]?.content).toBe(
+                '# Notes from disk',
+            );
+            unsubscribe();
+        });
+
+        it('keeps the buffer when the read finds nothing new or fails', async () => {
+            answerExternalRead('# Notes', 1);
+            cacheExternal('# Notes', false);
+            const unsubscribe = subscribeExternalDocumentSync();
+
+            mocks.state.handler?.({
+                event: 'externalDocument.changed',
+                payload: { documentId: 'doc-1' },
+            });
+            mocks.request.mockImplementation(() => Promise.reject(new Error('gone')));
+            mocks.state.handler?.({
+                event: 'externalDocument.changed',
+                payload: { documentId: 'doc-1' },
+            });
+
+            await vi.waitFor(() => {
+                expect(mocks.request).toHaveBeenCalledWith('externalDocument.read', {
+                    documentId: 'doc-1',
+                });
+            });
+            expect(getSessionDocuments('session-1', 'project-1')?.[externalPath]?.content).toBe(
+                '# Notes',
+            );
+            expect(getToasts()).toEqual([]);
+            unsubscribe();
+        });
     });
 });

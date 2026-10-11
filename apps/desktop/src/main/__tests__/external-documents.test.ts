@@ -1,12 +1,30 @@
-import { link, mkdtemp, readFile, rename, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
+import {
+    link,
+    mkdir,
+    mkdtemp,
+    readFile,
+    rename,
+    rm,
+    stat,
+    symlink,
+    utimes,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+    openLinkedExternalDocument,
+    readExternalDocument,
+    readExternalDocumentAsset,
+} from '../external-document-reads';
+import {
     clearExternalDocumentsForTesting,
     externalDocumentDirectory,
+    externalDocumentDiskState,
     externalDocumentPath,
     writeExternalDocument,
 } from '../external-documents';
@@ -97,6 +115,106 @@ describe('external documents', () => {
 
         await expect(writeExternalDocument(document.id, 'shared')).rejects.toThrow(
             /multiple filesystem links/,
+        );
+    });
+});
+
+describe('external document changes on disk', () => {
+    it('stays quiet for its own save and reports another app writing the file', async () => {
+        const { document } = await externalFile();
+        expect(await externalDocumentDiskState(document.id)).toBe('unchanged');
+
+        await writeExternalDocument(document.id, '# Saved by Caxri\n');
+        expect(await externalDocumentDiskState(document.id)).toBe('unchanged');
+
+        await writeFile(document.displayPath, '# Changed elsewhere, longer\n', 'utf8');
+        expect(await externalDocumentDiskState(document.id)).toBe('changed');
+        expect(await readExternalDocument(document.id)).toMatchObject({
+            content: '# Changed elsewhere, longer\n',
+        });
+        expect(await externalDocumentDiskState(document.id)).toBe('unchanged');
+    });
+
+    it('notices a same-size rewrite through its modification time', async () => {
+        const { document } = await externalFile('guide.md', 'aaaa');
+        await writeFile(document.displayPath, 'bbbb', 'utf8');
+        await utimes(document.displayPath, new Date(), new Date(Date.now() + 5000));
+
+        expect(await externalDocumentDiskState(document.id)).toBe('changed');
+    });
+
+    it('reads a file that another editor replaced through a rename', async () => {
+        const { directory, document } = await externalFile();
+        await writeFile(join(directory, 'guide.md.tmp'), 'renamed over', 'utf8');
+        await rename(join(directory, 'guide.md.tmp'), document.displayPath);
+
+        expect(await externalDocumentDiskState(document.id)).toBe('changed');
+        expect((await readExternalDocument(document.id)).content).toBe('renamed over');
+    });
+
+    it('treats a deleted file as unchanged', async () => {
+        const { document } = await externalFile();
+        await rm(document.displayPath);
+
+        expect(await externalDocumentDiskState(document.id)).toBe('unchanged');
+    });
+});
+
+const PIXEL = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64',
+);
+
+describe('files an external document refers to', () => {
+    it('reads an image beside the document or in a folder below it', async () => {
+        const { directory, document } = await externalFile();
+        await writeFile(join(directory, 'diagram.png'), PIXEL);
+        await mkdir(join(directory, 'assets'));
+        await writeFile(join(directory, 'assets', 'logo.png'), PIXEL);
+
+        const assets = await Promise.all(
+            ['diagram.png', 'assets/logo.png', './assets/../diagram.png'].map((path) =>
+                readExternalDocumentAsset(document.id, path),
+            ),
+        );
+        for (const asset of assets) {
+            expect(asset).toMatchObject({ mediaType: 'image/png', size: PIXEL.byteLength });
+            expect(Buffer.from(asset.base64, 'base64')).toEqual(PIXEL);
+        }
+    });
+
+    it('refuses an image outside the document folder, through a link, or of another type', async () => {
+        const { directory, document } = await externalFile();
+        const outside = await mkdtemp(join(tmpdir(), 'caxri-external-outside-'));
+        created.push(outside);
+        await writeFile(join(outside, 'secret.png'), PIXEL);
+        await symlink(outside, join(directory, 'linked'));
+        await writeFile(join(directory, 'notes.txt'), 'text');
+
+        await expect(
+            readExternalDocumentAsset(document.id, `../${outside.split('/').at(-1)}/secret.png`),
+        ).rejects.toThrow(/outside the document folder/);
+        await expect(readExternalDocumentAsset(document.id, 'linked/secret.png')).rejects.toThrow(
+            /outside the document folder/,
+        );
+        await expect(readExternalDocumentAsset(document.id, 'notes.txt')).rejects.toThrow(
+            /cannot be previewed/,
+        );
+        await expect(readExternalDocumentAsset(document.id, 'missing.png')).rejects.toThrow(
+            /not found/,
+        );
+    });
+
+    it('opens a linked document in the same folder as another external document', async () => {
+        const { directory, document } = await externalFile();
+        await writeFile(join(directory, 'next.md'), '# Next\n', 'utf8');
+
+        const linked = await openLinkedExternalDocument(document.id, 'next.md');
+
+        expect(linked).toMatchObject({ name: 'next.md', content: '# Next\n' });
+        expect(linked.id).not.toBe(document.id);
+        await expect(openLinkedExternalDocument(document.id, '../next.md')).rejects.toThrow(
+            /outside the document folder/,
         );
     });
 });

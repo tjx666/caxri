@@ -188,6 +188,7 @@ export const effectfulCommandRecovery = {
     'pathBrowser.open': 'memory',
     'pathBrowser.close': 'memory',
     'externalDocument.write': 'memory',
+    'externalDocument.watch': 'memory',
     'externalDocument.reveal': 'durable',
     'externalDocument.openWithDefaultApp': 'durable',
     'externalDocument.openInTerminal': 'memory',

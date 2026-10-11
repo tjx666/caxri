@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 
 import type { FilePreviewTab } from '@caxri/protocol';
-import { isExternalEditorTabPath } from '@caxri/protocol';
+import { isExternalEditorTabPath, parseExternalEditorTab } from '@caxri/protocol';
 
 import { useResourceLoad } from '../../hooks/use-resource-load';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
@@ -59,6 +59,24 @@ function MarkdownPreviewSurface({
         ) : (
             <div className={emptyWorkClassName}>Loading file…</div>
         );
+    const external = parseExternalEditorTab(path);
+    /**
+     * An external document resolves its relative images and links against its own folder, which is the whole grant Main
+     * holds for it; a Project document resolves against the Project.
+     */
+    if (external && document.displayPath) {
+        const { displayPath } = document;
+        return (
+            <MarkdownPreview
+                sessionId={sessionId}
+                externalDocumentId={external.documentId}
+                documentPath={displayPath}
+                projectRoot={displayPath.slice(0, displayPath.lastIndexOf('/')) || '/'}
+                source={document.content}
+                theme={theme}
+            />
+        );
+    }
     return (
         <MarkdownPreview
             sessionId={sessionId}

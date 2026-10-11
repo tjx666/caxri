@@ -123,14 +123,14 @@ export async function readExternalFile(
         )
             throw new CaxriError('CONFLICT', 'File changed while it was opened');
         await validateDirectory(parent);
-        const id = rememberExternalDocument({ parent, path: authorized.path });
+        const state = { mtimeMs: Number(opened.mtimeMs), size: Number(opened.size) };
+        const id = rememberExternalDocument({ parent, path: authorized.path }, state);
         return {
             id,
             name,
             displayPath: authorized.path,
             content: boundedContent.toString('utf8'),
-            mtimeMs: Number(opened.mtimeMs),
-            size: Number(opened.size),
+            ...state,
         };
     } catch (error) {
         return pathFailure(error, 'Unable to read external file');

@@ -480,6 +480,7 @@ if (ownsProfileInstance) {
         getSupervisor: () => supervisor,
         getUpdateService: () => updateService,
         getWindow: () => mainWindow,
+        sendEvent,
         workbenchRootAuthority,
     });
 

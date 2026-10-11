@@ -3,6 +3,12 @@ import { CaxriError } from '@caxri/protocol';
 import { shell } from 'electron';
 
 import {
+    openLinkedExternalDocument,
+    readExternalDocument,
+    readExternalDocumentAsset,
+} from './external-document-reads';
+import type { ExternalDocumentWatcher } from './external-document-watcher';
+import {
     externalDocumentDirectory,
     externalDocumentPath,
     writeExternalDocument,
@@ -24,10 +30,20 @@ export function isExternalDocumentRequest(
 export async function handleExternalDocumentRequest(
     request: ExternalDocumentRequest,
     server: Pick<DesktopServerConnection, 'request'>,
+    watcher: Pick<ExternalDocumentWatcher, 'setWatched'>,
 ): Promise<unknown> {
     switch (request.method) {
         case 'externalDocument.write':
             return writeExternalDocument(request.params.documentId, request.params.content);
+        case 'externalDocument.read':
+            return readExternalDocument(request.params.documentId);
+        case 'externalDocument.watch':
+            watcher.setWatched(request.params.documentIds);
+            return null;
+        case 'externalDocument.readAsset':
+            return readExternalDocumentAsset(request.params.documentId, request.params.path);
+        case 'externalDocument.openLinked':
+            return openLinkedExternalDocument(request.params.documentId, request.params.path);
         case 'externalDocument.reveal':
             shell.showItemInFolder(await externalDocumentPath(request.params.documentId));
             return null;
