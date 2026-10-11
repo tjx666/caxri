@@ -49,7 +49,7 @@ const SIGN_CLASS_NAME: Partial<Record<AgentChatDiffLine['kind'], string>> = {
  * gutters. Long lines scroll horizontally instead of wrapping so the gutters stay aligned; a tall diff scrolls inside
  * its own bounded box. A diff Server Core cut says so at the cut instead of ending silently.
  */
-function AgentChatDiff({
+export function AgentChatDiff({
     lines,
     truncated,
 }: {

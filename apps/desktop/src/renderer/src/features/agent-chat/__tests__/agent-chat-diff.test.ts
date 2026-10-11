@@ -87,6 +87,18 @@ describe('agentChatDiffLines', () => {
         ]);
         expect(agentChatDiffLines({ kind: 'add', diff: '' })).toEqual([]);
     });
+
+    it('strips the marker and prefixes of a replacement body for a created file', () => {
+        expect(agentChatDiffLines({ kind: 'add', diff: '@@\n+one\n++two' })).toEqual([
+            { kind: 'added', text: 'one', newLine: 1 },
+            { kind: 'added', text: '+two', newLine: 2 },
+        ]);
+        expect(agentChatDiffLines({ kind: 'update', diff: '@@\n-a\n+b' })).toEqual([
+            { kind: 'hunk', text: '@@' },
+            { kind: 'removed', text: 'a' },
+            { kind: 'added', text: 'b' },
+        ]);
+    });
 });
 
 describe('diff stats', () => {
