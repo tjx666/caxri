@@ -2,28 +2,21 @@ import type { CSSProperties } from 'react';
 
 import { Bot, TerminalSquare } from 'lucide-react';
 
-import type { AgentIconTone } from './agent-icon-registry';
 import { resolveAgentIcon, resolveAgentIconRenderSource } from './agent-icon-registry';
 
 export function AgentIdentityIcon({
     identity,
     size = 14,
-    tone = 'brand',
 }: {
     identity?: string | null;
     size?: number;
-    /**
-     * See {@link AgentIconTone}. Defaults to `'brand'`: a `color-asset` identity (Claude Code, Codex) keeps its
-     * full-color mark. Only the Agent Commander board's metadata line passes `'state'`.
-     */
-    tone?: AgentIconTone;
 }) {
     const icon = resolveAgentIcon(identity);
     if (icon.kind === 'shell')
         return <TerminalSquare aria-hidden="true" data-agent-icon="shell" size={size} />;
     if (icon.kind === 'unknown')
         return <Bot aria-hidden="true" data-agent-icon="unknown" size={size} />;
-    const resolved = resolveAgentIconRenderSource(icon, tone);
+    const resolved = resolveAgentIconRenderSource(icon);
     if (!resolved) return null;
     const scale = icon.opticalScale ?? 1;
     if (resolved.kind === 'image')
