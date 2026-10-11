@@ -218,7 +218,7 @@ Check the Terminal before sending again.` Never resend automatically.
 the next turn.` Without access or a connection the row is plain text, and an open sheet disables
   its lists and names the reason. A new Chat opens with this row, so the model is chosen before the
   first message. A change the provider refuses keeps the current choice checked and shows Desktop's
-  `Unable to switch the model.` with `Try again.` in the sheet (`MOB-CHAT-07`). See
+  `Unable to switch the model.` with `Try again.` in the sheet (`MOB-CHAT-09`). See
   [Agent Chat](../agent-chat.md#mobile).
 
 ### Conversation
