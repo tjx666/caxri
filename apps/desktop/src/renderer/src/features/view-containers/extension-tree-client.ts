@@ -85,13 +85,22 @@ function isScopedTreeChildrenQuery(
  * ancestor, a collapse) and the Extension Host needs the id to drop the superseded work.
  */
 export function requestTreeChildren(
-    viewId: string,
+    scope: ExtensionTreeScope,
     parentHandle: string,
     requestId: string,
 ): Promise<TreeChildrenResult> {
     return caxri.request('viewContainers.treeChildren', {
-        viewId,
+        viewId: scope.viewId,
         requestId,
+        /**
+         * Server Core rejects the read with CANCELLED once this scope is no longer the active Session, so a branch
+         * computed for another Session can never be delivered into this tree.
+         */
+        context: {
+            kind: 'session',
+            sessionId: scope.sessionId,
+            workbenchProjectId: scope.workbenchProjectId,
+        },
         ...(parentHandle !== ROOT_HANDLE && { parentHandle }),
     });
 }

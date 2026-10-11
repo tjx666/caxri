@@ -1,5 +1,5 @@
+import { coreRouted } from '../core-routed';
 import type { DomainHandlers } from '../domain-services';
-import { mainOwned } from '../main-owned';
 import type { AgentDelegationService } from './service';
 
 type DelegationMethod =
@@ -20,20 +20,20 @@ export function createDelegationHandlers(
     service: AgentDelegationService,
 ): Pick<DomainHandlers, DelegationMethod> {
     return {
-        'agent.delegation.presets': () => mainOwned('agent.delegation.presets'),
+        'agent.delegation.presets': () => coreRouted('agent.delegation.presets'),
         'agent.delegation.presetsInternal': ({
             projectId,
             sessionId,
             callerProvider,
             ...authority
         }) => service.presets(authority, { projectId, sessionId, callerProvider }),
-        'agent.delegation.stop': () => mainOwned('agent.delegation.stop'),
+        'agent.delegation.stop': () => coreRouted('agent.delegation.stop'),
         'agent.delegation.stopInternal': ({ delegationId, ...authority }) =>
             service.stop(delegationId, authority),
-        'agent.delegation.create': () => mainOwned('agent.delegation.create'),
-        'agent.delegation.status': () => mainOwned('agent.delegation.status'),
-        'agent.delegation.result': () => mainOwned('agent.delegation.result'),
-        'agent.delegation.wait': () => mainOwned('agent.delegation.wait'),
+        'agent.delegation.create': () => coreRouted('agent.delegation.create'),
+        'agent.delegation.status': () => coreRouted('agent.delegation.status'),
+        'agent.delegation.result': () => coreRouted('agent.delegation.result'),
+        'agent.delegation.wait': () => coreRouted('agent.delegation.wait'),
         'agent.delegation.waitInternal': (
             { delegationId, otherDelegationIds = [], timeoutMs, ...authority },
             signal,

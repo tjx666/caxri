@@ -32,7 +32,7 @@ function observeErrorToasts(binding: string): void {
      */
     const classify = (element: Element): string => {
         const title = element.querySelector('[data-title]')?.textContent ?? '';
-        if (title.startsWith('Unable to attach to the Runtime')) return 'runtime.attach';
+        if (title.includes('Projects and Sessions from the Server')) return 'workbench.snapshot';
         if (title.startsWith('Session layout could not be saved')) return 'session.layout';
         if (title.startsWith('Session selection failed')) return 'session.select';
         if (title.startsWith('Session creation failed')) return 'session.create';

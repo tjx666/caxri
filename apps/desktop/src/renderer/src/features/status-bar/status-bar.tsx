@@ -4,14 +4,6 @@ import type {
     ProjectRecord,
     ProjectStatusOverview,
 } from '@caxri/protocol';
-import {
-    isAgentStatusTabPath,
-    isAgentTaskTabPath,
-    isExternalEditorTabPath,
-    isSettingsTabPath,
-    isUsageTabPath,
-    parseGitDiffTab,
-} from '@caxri/protocol';
 import { Monitor } from 'lucide-react';
 
 import { useContainerWidth } from '@/hooks/use-container-width';
@@ -26,6 +18,7 @@ import { useWorkbenchStore } from '../../stores/workbench';
 import { NotificationCenter } from '../toasts/notification-center';
 import { useActivePaneTab } from '../workbench/pane-actions';
 import { ActiveFileStatus } from './active-file-status';
+import { shouldShowActiveFileStatus } from './active-file-status-target';
 import { ActiveTerminalStatus } from './active-terminal-status';
 import { BranchPicker } from './branch-picker';
 import type { ChipVisibility } from './chip-priority';
@@ -139,12 +132,7 @@ function ActivePaneStatus({
     if (
         session &&
         activeResource?.kind === 'file' &&
-        !isExternalEditorTabPath(activeResource.path) &&
-        !isSettingsTabPath(activeResource.path) &&
-        !isUsageTabPath(activeResource.path) &&
-        !isAgentTaskTabPath(activeResource.path) &&
-        !isAgentStatusTabPath(activeResource.path) &&
-        !parseGitDiffTab(activeResource.path)
+        shouldShowActiveFileStatus(activeResource.path)
     )
         return (
             <ActiveFileStatus

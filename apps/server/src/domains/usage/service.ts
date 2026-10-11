@@ -4,6 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type { UsageReport, UsageReportParameters } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { mapWithConcurrency } from '@caxri/system';
 
 import type { AgentEnvironment } from '../agents';
 import type { AgentSessionUsageRow, CaxriDatabase, ExternalAgentUsageRow } from '../db';
@@ -44,6 +45,26 @@ export interface UsageServiceOptions {
 }
 
 type ScanOutcome = 'scanned' | 'unchanged' | 'unavailable' | 'failed';
+
+export interface DescribedTranscript {
+    transcript: DiscoveredTranscript;
+    files: UsageTranscriptFiles | undefined;
+}
+
+/**
+ * Stats every outside transcript so the scan can order them newest first. A long history holds thousands of them, and
+ * each describe walks the filesystem for side files, so the walks share the parse step's concurrency budget instead of
+ * all starting at once.
+ */
+export function describeOutsideTranscripts(
+    queue: readonly DiscoveredTranscript[],
+    describe: UsageTranscriptLocator['describe'],
+): Promise<DescribedTranscript[]> {
+    return mapWithConcurrency(queue, SCAN_CONCURRENCY, async (transcript) => ({
+        transcript,
+        files: await describe(transcript.provider, transcript.main),
+    }));
+}
 
 /**
  * Owns the usage ledger: records Agent Session bindings, keeps each content-free usage aggregate in step with its
@@ -169,11 +190,8 @@ export class UsageService {
             unavailable: 0,
             failed: 0,
         };
-        const described = await Promise.all(
-            queue.map(async (transcript) => ({
-                transcript,
-                files: await locator.describe(transcript.provider, transcript.main),
-            })),
+        const described = await describeOutsideTranscripts(queue, (provider, main) =>
+            locator.describe(provider, main),
         );
         const mtime = (fingerprint: string | undefined) =>
             Number(fingerprint?.split('|', 2)[1]?.split(':', 2)[1] ?? 0);

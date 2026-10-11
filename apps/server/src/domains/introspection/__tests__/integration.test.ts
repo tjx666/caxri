@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { createTestDomainServices } from '../../../__tests__/support/domain-services';
 import { createFakePty } from '../../__tests__/create-test-domain-services';
+import type { DomainOperation } from '../../domain-services';
 
 const temporaryDirectories: string[] = [];
 
@@ -70,7 +71,7 @@ describe('Runtime business introspection', () => {
 
             const adapter: CommandAdapter = {
                 invoke: (request) => {
-                    const handler = runtime.handlers[request.method] as (
+                    const handler = runtime.handlers[request.method as DomainOperation] as (
                         parameters: unknown,
                     ) => unknown;
                     return handler(request.params);
