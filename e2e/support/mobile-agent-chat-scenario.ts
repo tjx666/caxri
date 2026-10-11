@@ -250,13 +250,127 @@ async function executeMobileClaudeToolApprovalScenario(
 }
 
 /**
+ * Opens the model sheet from the composer row and waits until it is on screen.
+ */
+async function openModelSheet(serial: string): Promise<void> {
+    await tapMobileCheckByBounds(serial, 'agent-chat-model-button');
+    await waitForCheck(serial, 'agent-chat-model-sheet');
+}
+
+/**
+ * `MOB-CHAT-03`: a phone chooses the model and effort of a new Codex Chat before its first message, switches them again
+ * while a turn runs (the sheet says the change applies from the next turn), and sees the sheet disabled with its reason
+ * when the connection drops. Each choice is proven against the Server's Chat projection, which Desktop's menu reads.
+ */
+async function executeMobileChatModelScenario(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> {
+    const { serial } = environment;
+    const fixture = await createMobileAcceptanceFixture({ mode: 'agent-chat', serial });
+    let isNetworkDisabled = false;
+    try {
+        await fixture.pair();
+        const chat = fixture.agentChat;
+        if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
+        await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
+        await waitForCheck(serial, 'agent-chat-status-empty');
+        await waitForCheck(serial, 'agent-chat-model-button');
+        await capture(environment, 'new-chat-model-row', artifacts);
+
+        await openModelSheet(serial);
+        await capture(environment, 'model-sheet', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-model-fake-codex-mini');
+        // The smaller model accepts only `low`, so the effort falls back with the switch.
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => snapshot.model === 'fake-codex-mini' && snapshot.effort === 'low',
+        );
+        await tapMobileCheckByBounds(serial, 'agent-chat-model-fake-codex-model');
+        await waitForCheck(serial, 'agent-chat-effort-high');
+        await tapMobileCheckByBounds(serial, 'agent-chat-effort-high');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => snapshot.model === 'fake-codex-model' && snapshot.effort === 'high',
+        );
+        await capture(environment, 'model-switched-sheet', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
+        await waitForNoCheck(serial, 'agent-chat-model-sheet');
+
+        await sendFromPhone(serial, 'hello');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
+        );
+        await waitForNoCheck(serial, 'agent-chat-activity');
+        await capture(environment, 'first-turn', artifacts);
+
+        await sendFromPhone(serial, 'slow');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => Boolean(snapshot.activeTurnId),
+        );
+        await openModelSheet(serial);
+        await waitForCheck(serial, 'agent-chat-model-note');
+        await tapMobileCheckByBounds(serial, 'agent-chat-effort-low');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => snapshot.effort === 'low',
+        );
+        await capture(environment, 'running-turn-sheet', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
+        await waitForNoCheck(serial, 'agent-chat-model-sheet');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => !snapshot.activeTurnId,
+            60_000,
+        );
+
+        await openModelSheet(serial);
+        await setMobileNetworkAvailable(serial, false);
+        isNetworkDisabled = true;
+        await waitForCheck(serial, 'agent-chat-model-disabled-reason', 60_000);
+        await capture(environment, 'offline-sheet', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
+        await waitForCheck(serial, 'agent-chat-model-label');
+        await capture(environment, 'offline-row', artifacts);
+        await setMobileNetworkAvailable(serial, true);
+        isNetworkDisabled = false;
+        await waitForCheck(serial, 'agent-chat-model-button', 60_000);
+
+        await finish(environment, artifacts, {
+            firstTurn: 'configured-before-send',
+            midSession: 'configured-during-turn',
+            offline: 'disabled-with-reason',
+            status: 'passed',
+        });
+    } finally {
+        if (isNetworkDisabled) {
+            try {
+                await setMobileNetworkAvailable(serial, true);
+            } catch {
+                // Teardown must still stop the fixture; the scenario's own failure is the useful error.
+            }
+        }
+        await fixture.stop();
+    }
+}
+
+/**
  * Runs the Agent Chat Acceptance case `environment.caseId` names.
  */
 export async function executeMobileAgentChatCase(
     environment: MobileAgentScenarioEnvironment,
     artifacts: string[],
 ): Promise<void> {
-    await (environment.caseId === 'MOB-CHAT-02'
-        ? executeMobileClaudeToolApprovalScenario(environment, artifacts)
-        : executeMobileAgentChatScenario(environment, artifacts));
+    switch (environment.caseId) {
+        case 'MOB-CHAT-01':
+            return executeMobileAgentChatScenario(environment, artifacts);
+        case 'MOB-CHAT-02':
+            return executeMobileClaudeToolApprovalScenario(environment, artifacts);
+        case 'MOB-CHAT-03':
+            return executeMobileChatModelScenario(environment, artifacts);
+        default:
+            throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
+    }
 }

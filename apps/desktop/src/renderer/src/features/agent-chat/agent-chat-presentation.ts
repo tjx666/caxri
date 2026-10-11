@@ -2,13 +2,12 @@ import type {
     AgentChatFailureReason,
     AgentChatItem,
     AgentChatItemStatus,
-    AgentChatModel,
     AgentChatPlan,
     AgentChatRequest,
     AgentChatSnapshot,
     ProcessState,
 } from '@caxri/protocol';
-import { agentToolActiveLabel, describeAgentTool, findAgentChatModel } from '@caxri/protocol';
+import { agentToolActiveLabel, describeAgentTool } from '@caxri/protocol';
 
 import { projectRelativePath } from '../../lib/file-path';
 import { getTerminalExitPresentation } from '../terminal/terminal-exit-presentation';
@@ -118,73 +117,6 @@ export function agentChatRecoveryNotice(
         ...(snapshot.failure.detail && { detail: snapshot.failure.detail }),
         recovery,
     };
-}
-
-/**
- * Display names for the effort levels the providers use; an unknown level is shown capitalized.
- */
-const EFFORT_LABELS: Record<string, string> = {
-    none: 'None',
-    minimal: 'Minimal',
-    low: 'Low',
-    medium: 'Medium',
-    high: 'High',
-    xhigh: 'Extra high',
-    max: 'Max',
-};
-
-export function agentChatEffortLabel(effort: string): string {
-    return EFFORT_LABELS[effort] ?? `${effort.charAt(0).toUpperCase()}${effort.slice(1)}`;
-}
-
-/**
- * The model picker's trigger: the model's listed name and the effort the next turn uses, as Codex shows `GPT-5.6 Sol
- * Extra high`. A model the provider did not list keeps its raw identifier.
- */
-export function agentChatModelLabel(
-    snapshot: Pick<AgentChatSnapshot, 'effort' | 'model' | 'models'> | undefined,
-): { model: string; effort?: string } | undefined {
-    // Claude Code reports the model in each turn's init message, so a new Chat lists its models before it names the
-    // one in use; the picker still opens and reads as the provider default until then, with the effort Claude Code
-    // already reported it will apply.
-    if (!snapshot?.model)
-        return snapshot?.models?.length
-            ? {
-                  model: 'Default',
-                  ...(snapshot.effort && { effort: agentChatEffortLabel(snapshot.effort) }),
-              }
-            : undefined;
-    const listed = findAgentChatModel(snapshot.models, snapshot.model);
-    const effort =
-        snapshot.effort && (listed?.efforts.length ?? 1) > 0
-            ? agentChatEffortLabel(snapshot.effort)
-            : undefined;
-    const model = listed && concreteModelName(snapshot.models ?? [], listed, snapshot.model);
-    return { model: model ?? snapshot.model, ...(effort && { effort }) };
-}
-
-/**
- * The name the picker shows for the model in use. Claude Code lists its default as an alias, "Default (recommended)",
- * whose description names the model it currently resolves to ("Use the default model (currently Opus 5.5)"); that name
- * says which model actually runs. Failing that, a named entry that resolves to the same model does; the default may add
- * a variant suffix (`claude-opus-5-5[1m]`) the named entry lacks, so the suffix is ignored when matching. With neither
- * the alias reads as plain "Default".
- */
-function concreteModelName(
-    models: readonly AgentChatModel[],
-    listed: AgentChatModel,
-    model: string,
-): string {
-    if (listed.id !== 'default') return listed.displayName;
-    const current = /\(currently ([^)]+)\)/.exec(listed.description ?? '')?.[1]?.trim();
-    if (current) return current;
-    const base = model.replace(/\[[^\]]*\]$/, '');
-    const named = models.find(
-        (candidate) =>
-            candidate.id !== 'default' &&
-            [candidate.id, candidate.resolvedId].some((id) => id === model || id === base),
-    );
-    return named?.displayName ?? listed.displayName.replace(/\s*\(recommended\)$/i, '');
 }
 
 /**
