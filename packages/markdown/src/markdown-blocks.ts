@@ -431,6 +431,19 @@ function convertBlocks(tokens: readonly Token[], options: MarkdownBlockOptions):
 export interface TopLevelMarkdownEntry {
     block?: MarkdownBlock;
     line: number;
+    /**
+     * For a list: its marker (`-`, `*`, `+`, `.`, `)`) and the start line of each item, aligned with `block.items`.
+     */
+    list?: { marker: string; itemLines: number[] };
+}
+
+function listShape(tokens: readonly Token[], start: number, end: number) {
+    const open = tokens[start]!;
+    const itemLines = tokens
+        .slice(start + 1, end)
+        .filter((token) => token.type === 'list_item_open' && token.level === open.level + 1)
+        .map((token) => token.map?.[0] ?? 0);
+    return { marker: open.markup, itemLines };
 }
 
 /**
@@ -449,7 +462,13 @@ export function parseTopLevelMarkdown(
     while (index < tokens.length) {
         const line = tokens[index]!.map?.[0] ?? 0;
         const { block, next } = convertBlockAt(tokens, index, options);
-        entries.push(block ? { block, line } : { line });
+        entries.push(
+            block?.type === 'list'
+                ? { block, line, list: listShape(tokens, index, next - 1) }
+                : block
+                  ? { block, line }
+                  : { line },
+        );
         index = next;
     }
     return {

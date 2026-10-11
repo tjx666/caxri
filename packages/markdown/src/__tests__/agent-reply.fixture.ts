@@ -42,6 +42,19 @@ function section(index: number): string {
 }
 
 /**
+ * A reply that is one long top-level list, the shape of an Agent's change summary or findings report. It stresses the
+ * open construct rather than the settled prefix: without item-level reuse every delta re-parses the whole list.
+ */
+export function agentListReplyFixture(items = 200): string {
+    return Array.from({ length: items }, (_, index) => {
+        const marker = `${index + 1}. `;
+        return index % 10 === 9
+            ? `${marker}Checked \`src/server/route-${index}.ts:${index}\`\n${' '.repeat(marker.length)}- kept the existing **retry** budget`
+            : `${marker}Updated \`src/server/route-${index}.ts:${index}\` so the handler reads the timeout before the *retry* budget`;
+    }).join('\n');
+}
+
+/**
  * The successive texts a streaming reply shows, cut at deterministic chunk sizes that cycle through the range a
  * provider's text deltas usually span, ending with the complete text.
  */
