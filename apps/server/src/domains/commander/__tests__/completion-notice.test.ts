@@ -532,8 +532,9 @@ describe('createCommanderCompletionNotifier', () => {
     /**
      * Drives one notice through a real notifier bound to fakes, with the Commander Terminal on the given surface.
      */
-    async function deliver(surface: 'chat' | 'pty') {
-        const send = vi.fn(() => Promise.resolve());
+    async function deliver(surface: 'chat' | 'pty', sendResult: Promise<void> = Promise.resolve()) {
+        const send = vi.fn(() => sendResult);
+        const failed = vi.fn();
         const writeAgentExact = vi.fn(() => true);
         const delivered = vi.fn();
         const notifier = createCommanderCompletionNotifier({
@@ -552,6 +553,7 @@ describe('createCommanderCompletionNotifier', () => {
             logger: {
                 write: (_level: unknown, event: unknown) => {
                     if (String(event).endsWith('completion_notice_delivered')) delivered();
+                    if (String(event).endsWith('completion_notice_delivery_failed')) failed();
                 },
             } as never,
             terminals: { inputEpoch: () => 0, writeAgentExact },
@@ -567,8 +569,11 @@ describe('createCommanderCompletionNotifier', () => {
         notifier.onLifecycleApplied(commanderSignal('turnStarted'));
         notifier.onLifecycleApplied(commanderSignal('turnFinished'));
         notifier.notifyReceiptChanged(receipt());
+        await vi.waitFor(() =>
+            expect(send.mock.calls.length + writeAgentExact.mock.calls.length).toBe(1),
+        );
         await Promise.resolve();
-        return { delivered, send, writeAgentExact };
+        return { delivered, failed, send, writeAgentExact };
     }
 
     it('sends a Chat Commander the notice as a Chat message, without a line terminator', async () => {
@@ -579,6 +584,12 @@ describe('createCommanderCompletionNotifier', () => {
             text: '[Caxri notice] 1 delegation update: delegation delegation-1 in Session session-1 completed.',
         });
         expect(delivered).toHaveBeenCalledOnce();
+    });
+
+    it('reports a Chat notice the Chat refused as unconfirmed', async () => {
+        const { failed } = await deliver('chat', Promise.reject(new Error('Chat is not running')));
+
+        await vi.waitFor(() => expect(failed).toHaveBeenCalledOnce());
     });
 
     it('presses Enter after the line for a PTY Commander', async () => {
