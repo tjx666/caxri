@@ -39,6 +39,7 @@ import { projectStatusCliError } from './external';
 import { loadOverviewLinearIssues, loadPullRequestLinearIssues } from './linear';
 import type { ProjectStatusServiceOptions } from './options';
 import { parseGitHubPullRequest } from './parse';
+import { refreshLogRecord } from './refresh-log';
 import { ReviewThreadStore } from './review-threads';
 import type { PullRequestTarget, SessionPullRequestResolver } from './session-pull-request';
 import {
@@ -70,6 +71,12 @@ const SUMMARY_SETTLED_CACHE_TTL_MS = 120_000;
  * `gh` twice as often as a healthy one, which is how a transient limit turned into a sustained one.
  */
 const SUMMARY_FAILURE_CACHE_TTL_MS = 5 * 60_000;
+/**
+ * Only a slow local preparation is written. Every watch round prepares each watched Session, which wrote ~6,000
+ * `project_status.local` records per 4 hours with a 30ms median; `project_status.watch` already aggregates the round,
+ * so the per-call record is kept only as the outlier signal (production p99 was ~600ms, max ~10s).
+ */
+const SLOW_LOCAL_PREPARE_MS = 250;
 /**
  * Floor and ceiling for the resident poll. The floor keeps a refresh that is still in flight from being re-triggered in
  * a tight loop; the ceiling bounds how long a rate-limit back-off can leave the panel unattended.
@@ -295,10 +302,12 @@ export class ProjectStatusService {
                 context.trackingHead,
             ]),
         ]);
-        this.logger.write('debug', logEventCatalog.projectStatus.local, {
-            durationMs: performance.now() - startedAt,
-            fields: { repositories: repositories.length },
-        });
+        const durationMs = performance.now() - startedAt;
+        if (durationMs >= SLOW_LOCAL_PREPARE_MS)
+            this.logger.write('info', logEventCatalog.projectStatus.local, {
+                durationMs,
+                fields: { repositories: repositories.length },
+            });
         return { fingerprint, repositories, summary };
     }
 
@@ -611,29 +620,11 @@ export class ProjectStatusService {
                     refreshToken: this.summaries.get(sessionId)?.refreshToken,
                     value,
                 });
-                this.logger.write(
-                    hasFailures ? 'warn' : 'info',
-                    logEventCatalog.projectStatus.refresh,
-                    {
-                        durationMs: performance.now() - startedAt,
-                        fields: {
-                            repositories: repositories.length,
-                            result: hasFailures ? 'failure' : 'success',
-                            ttlMs: ttl,
-                            publicationConfirmed: repositories.filter((repo) =>
-                                ['published', 'synced', 'ahead', 'behind', 'diverged'].includes(
-                                    repo.publication?.state ?? '',
-                                ),
-                            ).length,
-                            publicationAbsent: repositories.filter(
-                                (repo) => repo.publication?.state === 'unpublished',
-                            ).length,
-                            publicationUnknown: repositories.filter(
-                                (repo) => repo.publication?.state === 'unknown',
-                            ).length,
-                        },
-                    },
-                );
+                const record = refreshLogRecord(repositories, ttl);
+                this.logger.write(record.level, logEventCatalog.projectStatus.refresh, {
+                    durationMs: performance.now() - startedAt,
+                    fields: record.fields,
+                });
                 this.publishAlerts(sessionId, value);
                 this.options.emit?.({ event: 'projectStatus.changed', payload: { sessionId } });
                 // The fresh TTL is what paces the next resident poll, so re-arm against it rather than the stale one.
