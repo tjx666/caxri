@@ -19,7 +19,7 @@ import {
     readVersion,
 } from '../agents';
 import { createCommanderSession, discardCommanderSession } from '../commander';
-import { mainOwned } from '../main-owned';
+import { coreRouted } from '../core-routed';
 
 /**
  * Composes managed Terminal commands with private task ownership and their shared launch dependencies.
@@ -118,7 +118,11 @@ export function createAgentCommandRuntime(
         delegationService,
         handlers: {
             ...createDelegationHandlers(delegationService),
-            ...createAgentCommandHandlers({ ...options, dispatch: dispatchService, mainOwned }),
+            ...createAgentCommandHandlers({
+                ...options,
+                dispatch: dispatchService,
+                mainOwned: coreRouted,
+            }),
         },
     };
 }

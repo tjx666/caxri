@@ -1,6 +1,9 @@
 import type {
     AgentProvider,
+    CaxriMethod,
+    DesktopServerOperation,
     ServerEvent,
+    ServerMethod,
     ServerOperation,
     ServerOperationParameters,
     ServerOperationResult,
@@ -13,8 +16,20 @@ import type { AgentAdapter, AgentEnvironment } from './agents';
 import type { ProtocolRecoveryState } from './protocol-recovery';
 import type { TerminalExecutionPort, TerminalManagerOptions } from './terminal';
 
+/**
+ * Desktop-owned public methods that Electron Main answers itself and never delegates to Server Core.
+ */
+type MainAnsweredMethod = Exclude<CaxriMethod, ServerMethod | DesktopServerOperation>;
+
+/**
+ * Every operation a Server domain handler may serve, derived from the protocol's owner metadata: Server-owned public
+ * methods, internal methods, and the `desktopServerOperationIds` Main delegates after its native step. A new
+ * Desktop-owned method therefore needs no edit here; if one still reaches the dispatcher it is rejected there.
+ */
+export type DomainOperation = Exclude<ServerOperation, MainAnsweredMethod>;
+
 export type DomainHandlers = {
-    [M in ServerOperation]: (
+    [M in DomainOperation]: (
         parameters: ServerOperationParameters<M>,
         signal?: AbortSignal,
         finalizeDurably?: <Result>(commit: () => Result) => Result,
