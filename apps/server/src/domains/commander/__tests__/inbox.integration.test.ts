@@ -288,12 +288,16 @@ describe('CommanderInboxService', () => {
 });
 
 describe('commander inbox migration', () => {
-    it('creates the Inbox tables when upgrading from the previous schema version', async () => {
+    it('creates the Inbox tables when upgrading from the schema version before them', async () => {
         const { database, databasePath } = await fixture();
         database.close();
         const raw = new Database(databasePath);
         raw.exec('DROP TABLE commander_inbox_replies; DROP TABLE commander_inbox_items');
-        raw.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
+        // `0006_chat_permission_modes` came after the Inbox, so that version predates its columns too.
+        raw.exec(
+            'ALTER TABLE projects DROP COLUMN chat_defaults; ALTER TABLE terminals DROP COLUMN chat_permission_mode; ALTER TABLE terminals DROP COLUMN chat_plan_mode',
+        );
+        raw.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 2}`);
         raw.close();
 
         const upgraded = new CaxriDatabase(databasePath);
