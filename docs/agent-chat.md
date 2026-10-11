@@ -386,8 +386,18 @@ several callbacks can share one item, so the transport id is never the key.
   history never hides them. The plan stays one collapsed row (the current step and `done/total`)
   until the user expands it, so a long plan never pushes the transcript out of view. The timeline follows new output until the user scrolls up; Jump to
   latest returns to the end.
-- The composer keeps an unsent draft per Chat across tab switches, clears only the text that was
-  actually sent, and treats Escape as Stop while a turn runs. Its action row shows how much of the
+- The composer keeps an unsent draft per Chat across tab and Session switches and across a full
+  restart, clears only the text that was actually sent, and treats Escape as Stop while a turn
+  runs. The draft text is device-local Renderer state in `localStorage` (bounded to the 50 most
+  recently edited Chats), never sent to Server Core; attached images stay in memory only, because
+  a few encoded images would exhaust the storage quota. ArrowUp on an empty composer recalls the
+  prompts this Chat sent, newest first, and ArrowDown walks forward and back to an empty input,
+  like a shell. The history is read from the user messages in the Chat's projection, so it needs
+  no storage of its own and reaches only as far back as the projection keeps (see
+  `truncated`). ArrowUp is left alone while the input holds the user's own text, an image is
+  attached, or the command menu is open for typed text; a recalled `/command` that opens the menu
+  still walks on. A recalled prompt left in the input is an ordinary draft, so it persists like
+  one and editing it ends the walk. Its action row shows how much of the
   context window is used, as a filling ring and a percentage with the token counts and what fills
   the window in its tooltip, and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
   a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another

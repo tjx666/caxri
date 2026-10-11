@@ -1,4 +1,4 @@
-import type { ClipboardEvent, DragEvent, RefObject } from 'react';
+import type { DragEvent, RefObject } from 'react';
 import { useImperativeHandle, useState } from 'react';
 
 import type {
@@ -25,12 +25,7 @@ import { interruptAgentChat } from './agent-chat-commands';
 import { agentChatContextUsage } from './agent-chat-context';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { AgentChatContextMeter } from './agent-chat-context-meter';
-import {
-    agentChatPasteTruncationWarning,
-    draftWithInsertion,
-    readAgentChatDraft,
-    writeAgentChatDraft,
-} from './agent-chat-drafts';
+import { draftWithInsertion, readAgentChatDraft, writeAgentChatDraft } from './agent-chat-drafts';
 import { AgentChatModelMenu } from './agent-chat-model-menu';
 import type { AgentChatActivity } from './agent-chat-presentation';
 import {
@@ -49,6 +44,7 @@ import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatFileInput } from './hooks/use-agent-chat-file-input';
+import { useAgentChatPromptHistory } from './hooks/use-agent-chat-prompt-history';
 import { useAgentChatSubmit } from './hooks/use-agent-chat-submit';
 
 /**
@@ -61,7 +57,8 @@ import { useAgentChatSubmit } from './hooks/use-agent-chat-submit';
  * input, and its actions inside one card so they read as a single control. The action row picks the model and effort
  * for the next turn and shows how full the context window is. Clicking Send, Stop, or a chip or queue action hands
  * focus back to the input, since each of those controls disables or unmounts itself and would otherwise drop focus to
- * the document body.
+ * the document body. The unsent text survives switching Sessions and restarting Caxri, and ArrowUp on an empty input
+ * recalls the prompts this Chat already sent.
  */
 export function AgentChatComposer({
     activeTurnId,
@@ -114,9 +111,10 @@ export function AgentChatComposer({
     providerName: string;
     queue: readonly AgentChatQueuedMessage[] | undefined;
     /**
-     * The model, effort, and context usage the action row shows.
+     * The model, effort, and context usage the action row shows, and the sent prompts ArrowUp recalls.
      */
-    snapshot: Pick<AgentChatSnapshot, 'effort' | 'model' | 'models' | 'usage'> | undefined;
+    snapshot:
+        Pick<AgentChatSnapshot, 'effort' | 'items' | 'model' | 'models' | 'usage'> | undefined;
     /**
      * Whether the provider's Chat accepts image input (`capabilities.chatImages`).
      */
@@ -190,6 +188,12 @@ export function AgentChatComposer({
         setDraft,
         terminalId,
     });
+    const history = useAgentChatPromptHistory({
+        draft,
+        hasAttachments: images.attachments.length > 0,
+        items: snapshot?.items,
+        setDraft,
+    });
     const contextUsage = agentChatContextUsage(snapshot);
     const isSendable = canSend && !isSending && !images.isReading && hasContent;
     const sendAction = agentChatSendAction({ isTurnRunning, isBusy }, providerName);
@@ -220,19 +224,6 @@ export function AgentChatComposer({
         if (!activeTurnId || isStopping) return;
         setStoppingTurnId(activeTurnId);
         interruptAgentChat(terminalId);
-    };
-    const paste = (event: ClipboardEvent<HTMLTextAreaElement>): void => {
-        const { selectionEnd, selectionStart, value } = event.currentTarget;
-        const warning = agentChatPasteTruncationWarning(
-            {
-                currentLength: value.length,
-                pastedLength: event.clipboardData.getData('text/plain').length,
-                selectedLength: selectionEnd - selectionStart,
-            },
-            MAX_AGENT_CHAT_MESSAGE_LENGTH,
-        );
-        if (warning) pushToast('warning', warning);
-        fileInput.onPaste(event);
     };
     return (
         <div className="mx-auto w-full max-w-3xl px-4 pt-1 pb-3">
@@ -297,6 +288,7 @@ export function AgentChatComposer({
                         setDraft(() => value);
                     }}
                     onKeyDown={(event) => {
+                        if (history.didHandleKey(event, menu.isOpen)) return;
                         if (menu.didHandleKey(event, { choose, complete })) return;
                         const key = {
                             key: event.key,
@@ -322,7 +314,7 @@ export function AgentChatComposer({
                         // eslint-disable-next-line no-void -- submit reports its own failures through tryCommand
                         void submit(delivery === 'steer' ? 'steer' : undefined);
                     }}
-                    onPaste={paste}
+                    onPaste={fileInput.onPaste}
                 />
                 <div className="flex items-center gap-1 px-2 pb-2">
                     <div className="flex min-w-0 flex-1 items-center justify-end gap-0.5">
