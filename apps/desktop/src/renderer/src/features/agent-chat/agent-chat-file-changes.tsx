@@ -1,7 +1,8 @@
-import { useId, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { Fragment, useId, useMemo, useState } from 'react';
 
 import type { AgentChatItemStatus } from '@caxri/protocol';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Plus } from 'lucide-react';
 
 import { DiffStat } from '../../components/diff-stat';
 import { DisclosureMotion } from '../../components/disclosure-motion';
@@ -22,6 +23,8 @@ import {
     canOpenAgentChatChange,
 } from './agent-chat-diff';
 import { agentChatChevronMotion } from './agent-chat-disclosure';
+import type { AgentChatReviewRange } from './agent-chat-turn-review';
+import { isAgentChatReviewableLine } from './agent-chat-turn-review';
 
 const LINE_CLASS_NAME: Record<AgentChatDiffLine['kind'], string> = {
     added: 'bg-diff-stat-added/15',
@@ -45,15 +48,31 @@ const SIGN_CLASS_NAME: Partial<Record<AgentChatDiffLine['kind'], string>> = {
 };
 
 /**
+ * Commenting on a diff's lines, for the turn review: each line of code gets a `+` button that starts a comment on it
+ * (Shift extends the open comment's range to it), the commented range is highlighted, and `renderAfter` places the
+ * comment cards under the line their range ends on.
+ */
+export interface AgentChatDiffReview {
+    selected: AgentChatReviewRange | undefined;
+    onComment: (index: number, isExtending: boolean) => void;
+    renderAfter: (index: number) => ReactNode;
+}
+
+/**
  * A unified diff colored with the same `--diff-stat-*` roles as every `+N -M` count, with old and new line-number
  * gutters. Long lines scroll horizontally instead of wrapping so the gutters stay aligned; a tall diff scrolls inside
- * its own bounded box. A diff Server Core cut says so at the cut instead of ending silently.
+ * its own bounded box unless `isBounded` is off, as in the turn review, which scrolls as a whole. A diff Server Core
+ * cut says so at the cut instead of ending silently.
  */
 export function AgentChatDiff({
+    isBounded = true,
     lines,
+    review,
     truncated,
 }: {
+    isBounded?: boolean;
     lines: readonly AgentChatDiffLine[];
+    review?: AgentChatDiffReview;
     truncated: boolean | undefined;
 }) {
     if (!truncated && lines.length === 0)
@@ -63,47 +82,80 @@ export function AgentChatDiff({
         0,
     );
     const gutterWidth = `${Math.max(2, String(lastLine).length) + 1}ch`;
+    const isSelected = (index: number): boolean =>
+        review?.selected !== undefined &&
+        index >= review.selected.start &&
+        index <= review.selected.end;
     return (
-        <div className="max-h-60 overflow-auto font-mono text-[11px] leading-4">
+        <div
+            className={cn('font-mono text-[11px] leading-4', isBounded && 'max-h-60 overflow-auto')}
+        >
             <div className="w-max min-w-full">
                 {lines.map((line, index) => (
-                    <div
-                        className={cn('flex', LINE_CLASS_NAME[line.kind])}
-                        data-diff-line={line.kind}
-                        key={index}
-                    >
-                        {line.kind === 'hunk' || line.kind === 'meta' ? (
-                            <span className="px-2 whitespace-pre">{line.text}</span>
-                        ) : (
-                            <>
-                                <span
-                                    aria-hidden="true"
-                                    className="shrink-0 pr-1 text-right text-muted select-none"
-                                    style={{ width: gutterWidth }}
-                                >
-                                    {line.oldLine}
-                                </span>
-                                <span
-                                    aria-hidden="true"
-                                    className="shrink-0 pr-1 text-right text-muted select-none"
-                                    style={{ width: gutterWidth }}
-                                >
-                                    {line.newLine}
-                                </span>
-                                <span
-                                    className={cn(
-                                        'w-4 shrink-0 text-center select-none',
-                                        SIGN_CLASS_NAME[line.kind],
+                    // react-doctor-disable-next-line react-doctor/no-array-index-as-key -- a diff's lines never reorder, so position is their identity.
+                    <Fragment key={index}>
+                        <div
+                            className={cn(
+                                'group/line flex',
+                                LINE_CLASS_NAME[line.kind],
+                                isSelected(index) && 'bg-accent/20',
+                            )}
+                            data-diff-line={line.kind}
+                        >
+                            {review && (
+                                <span className="flex w-5 shrink-0 items-center justify-center">
+                                    {isAgentChatReviewableLine(line) && (
+                                        <button
+                                            aria-label={
+                                                line.kind === 'removed'
+                                                    ? `Comment on old line ${line.oldLine}`
+                                                    : `Comment on line ${line.newLine}`
+                                            }
+                                            className="flex size-4 cursor-pointer items-center justify-center rounded-sm border-0 bg-accent p-0 text-accent-foreground opacity-0 group-hover/line:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-accent"
+                                            type="button"
+                                            onClick={(event) =>
+                                                review.onComment(index, event.shiftKey)
+                                            }
+                                        >
+                                            <Plus aria-hidden="true" className="size-3" />
+                                        </button>
                                     )}
-                                >
-                                    {SIGN[line.kind]}
                                 </span>
-                                <span className="pr-2 whitespace-pre text-foreground">
-                                    {line.text}
-                                </span>
-                            </>
-                        )}
-                    </div>
+                            )}
+                            {line.kind === 'hunk' || line.kind === 'meta' ? (
+                                <span className="px-2 whitespace-pre">{line.text}</span>
+                            ) : (
+                                <>
+                                    <span
+                                        aria-hidden="true"
+                                        className="shrink-0 pr-1 text-right text-muted select-none"
+                                        style={{ width: gutterWidth }}
+                                    >
+                                        {line.oldLine}
+                                    </span>
+                                    <span
+                                        aria-hidden="true"
+                                        className="shrink-0 pr-1 text-right text-muted select-none"
+                                        style={{ width: gutterWidth }}
+                                    >
+                                        {line.newLine}
+                                    </span>
+                                    <span
+                                        className={cn(
+                                            'w-4 shrink-0 text-center select-none',
+                                            SIGN_CLASS_NAME[line.kind],
+                                        )}
+                                    >
+                                        {SIGN[line.kind]}
+                                    </span>
+                                    <span className="pr-2 whitespace-pre text-foreground">
+                                        {line.text}
+                                    </span>
+                                </>
+                            )}
+                        </div>
+                        {review?.renderAfter(index)}
+                    </Fragment>
                 ))}
                 {truncated && (
                     <p className="m-0 border-t border-border px-2 py-1 font-sans text-muted">

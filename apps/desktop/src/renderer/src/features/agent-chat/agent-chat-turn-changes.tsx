@@ -1,7 +1,7 @@
 import { useId, useMemo, useState } from 'react';
 
 import { pathBasename } from '@caxri/utils';
-import { ArrowUpRight, FileDiff, LoaderCircle, Undo2 } from 'lucide-react';
+import { ArrowUpRight, FileDiff, LoaderCircle, MessageSquareDiff, Undo2 } from 'lucide-react';
 
 import { DiffStat } from '../../components/diff-stat';
 import { DisclosureMotion } from '../../components/disclosure-motion';
@@ -12,6 +12,7 @@ import { diffStatLabel } from '../../lib/diff-stat-label';
 import { parentDirectoryPath, projectRelativePath } from '../../lib/file-path';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatDiff } from './agent-chat-file-changes';
+import { openAgentChatTurnReview } from './agent-chat-task-opener';
 import type { AgentChatEditedFile } from './agent-chat-turn-artifacts';
 import {
     agentChatEditedFileLines,
@@ -23,6 +24,7 @@ import {
     undoAgentChatTurn,
     useAgentChatUndoStore,
 } from './agent-chat-undo-commands';
+import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
 
 /**
  * One file's diff across the turn, under a header naming it with its counts. The hover preview and an expanded row
@@ -95,7 +97,8 @@ function EditedFileRow({
 /**
  * The files a finished turn changed, as the Codex app ends a turn: a glyph tile, `Edited app.ts` or `Edited 3 files`
  * over the turn's `+N -M` (which, hovered, turns into `View changes` and previews the diff), Undo, and View changes.
- * More than one file lists each under the header; a row or View changes discloses the diffs in place.
+ * More than one file lists each under the header; a row or View changes discloses the diffs in place. Review opens the
+ * whole turn as one diff beside the Chat, where its lines can be commented on.
  */
 export function AgentChatTurnChanges({
     files,
@@ -105,6 +108,7 @@ export function AgentChatTurnChanges({
     turnId: string;
 }) {
     const session = usePaneViewSession();
+    const terminalId = useAgentChatTerminal();
     const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
     const detailId = useId();
     const undoStatus = useAgentChatUndoStore((state) =>
@@ -214,6 +218,20 @@ export function AgentChatTurnChanges({
                             </Button>
                         </Tooltip>
                     ))}
+                {terminalId !== undefined && (
+                    <Tooltip content="Review this turn's changes and comment on them">
+                        {/* Icon-only so the card's title keeps its room in a half-width Chat. */}
+                        <Button
+                            aria-label="Review"
+                            className="size-7 shrink-0 text-muted hover:text-foreground"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openAgentChatTurnReview(terminalId, turnId)}
+                        >
+                            <MessageSquareDiff aria-hidden="true" className="size-3.5" />
+                        </Button>
+                    </Tooltip>
+                )}
                 <Button
                     aria-controls={only && files.length === 1 ? detailId : undefined}
                     aria-expanded={isAllExpanded}
