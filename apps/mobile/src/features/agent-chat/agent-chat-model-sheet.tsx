@@ -114,8 +114,8 @@ const AgentChatModelSheet = ({
         } catch {
             setError(
                 next.kind === 'model'
-                    ? 'The model could not be changed. Try again.'
-                    : 'The reasoning effort could not be changed. Try again.',
+                    ? 'Unable to switch the model. Try again.'
+                    : 'Unable to switch the reasoning effort. Try again.',
             );
         } finally {
             setPending(null);
