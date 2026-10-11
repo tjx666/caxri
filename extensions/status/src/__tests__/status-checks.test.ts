@@ -64,6 +64,8 @@ describe('partitionPullRequestChecks', () => {
 
         expect(nodes.map(({ item }) => item.label)).toEqual(['Test', '4 checks in progress']);
         expect(nodes[1].item.iconPath?.id).toBe('loading');
+        // Unfinished checks are what the user is watching, so their fold opens by default.
+        expect(nodes[1].item.collapsibleState).toBe(TreeItemCollapsibleState.Expanded);
         expect(nodes[1].children?.map(({ item }) => item.label)).toEqual(
             waiting.map((check) => check.name),
         );
