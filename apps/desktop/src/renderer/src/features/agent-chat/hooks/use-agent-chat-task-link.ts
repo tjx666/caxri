@@ -1,9 +1,10 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useMemo } from 'react';
 
 import type { AgentChatItem, AgentChatTask } from '@caxri/protocol';
 
+import { openAgentChatTaskTab } from '../agent-chat-task-opener';
 import type { AgentChatTaskLink } from '../agent-chat-tasks';
-import { agentChatTaskLinkForItem } from '../agent-chat-tasks';
+import { agentChatTaskLinkForItem, agentChatTasksByItem } from '../agent-chat-tasks';
 
 /**
  * What a Chat's timeline needs to turn a row into a door to its task: the tasks keyed by the item that started each,
@@ -16,6 +17,23 @@ export interface AgentChatTaskLinks {
 }
 
 export const AgentChatTaskLinksContext = createContext<AgentChatTaskLinks | undefined>(undefined);
+
+/**
+ * What the Chat pane provides: rows that started a subagent or background shell open its tab beside this Chat. Memoized
+ * on the task list so a streamed delta that leaves tasks alone does not re-render every memoized work row.
+ */
+export function useAgentChatTaskLinks(
+    tasks: readonly AgentChatTask[] | undefined,
+    terminalId: string,
+): AgentChatTaskLinks {
+    return useMemo(
+        () => ({
+            tasksByItem: agentChatTasksByItem(tasks),
+            openTask: (taskId) => openAgentChatTaskTab(terminalId, taskId),
+        }),
+        [tasks, terminalId],
+    );
+}
 
 /**
  * The task a timeline row opens, with the opener, or `undefined` for an ordinary row.
