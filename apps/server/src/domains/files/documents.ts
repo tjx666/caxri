@@ -6,7 +6,7 @@ import { lstat, open, realpath, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, join, relative, sep } from 'node:path';
 
 import type { FileAsset, FileDocument, ServerOperationResult } from '@caxri/protocol';
-import { CaxriError, MAX_PREVIEW_ASSET_BYTES, previewAssetMediaType } from '@caxri/protocol';
+import { CaxriError, previewAssetByteLimit, previewAssetMediaType } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -182,11 +182,11 @@ export class DocumentService {
     }
 
     /**
-     * Reads an image a preview surface refers to.
+     * Reads an image or PDF a preview surface shows.
      *
      * Shares `read`'s authorization and handle validation, and differs only where binary content demands it: no UTF-8
-     * decode, no NUL-byte rejection, a smaller size ceiling, and a media type derived from the extension rather than
-     * from anything the caller sent. Extensions outside the allowlist are refused before the file is opened, so a
+     * decode, no NUL-byte rejection, a per-media-type size ceiling, and a media type derived from the extension rather
+     * than from anything the caller sent. Extensions outside the allowlist are refused before the file is opened, so a
      * document cannot use a preview to pull arbitrary bytes into the Renderer.
      */
     async readAsset(
@@ -218,11 +218,9 @@ export class DocumentService {
                     'IO',
                     'File changed during read or has multiple filesystem links',
                 );
-            if (openedStats.size > MAX_PREVIEW_ASSET_BYTES)
-                throw new CaxriError(
-                    'CAPACITY',
-                    `Asset exceeds the ${MAX_PREVIEW_ASSET_BYTES} byte preview limit`,
-                );
+            const limit = previewAssetByteLimit(mediaType);
+            if (openedStats.size > limit)
+                throw new CaxriError('CAPACITY', `Asset exceeds the ${limit} byte preview limit`);
             const buffer = await file.readFile(signal ? { signal } : undefined);
             return {
                 path: resolved.workspacePath ?? resolved.path,

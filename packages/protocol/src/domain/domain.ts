@@ -521,40 +521,6 @@ export const fileDocumentSchema = z.object({
     readOnly: z.boolean().optional(),
 });
 
-/**
- * Upper bound on one previewable binary asset. Images referenced by a document are the only consumer, and a preview
- * that inlines a file larger than this would cost more than it shows; the Renderer falls back to a placeholder.
- */
-export const MAX_PREVIEW_ASSET_BYTES = 8 * 1_048_576;
-
-/**
- * Media types a preview may load. The allowlist is the type contract: the Server never echoes a caller-supplied one.
- */
-export const previewAssetMediaTypes = [
-    'image/apng',
-    'image/avif',
-    'image/bmp',
-    'image/gif',
-    'image/jpeg',
-    'image/png',
-    'image/svg+xml',
-    'image/webp',
-    'image/x-icon',
-] as const;
-
-export const previewAssetMediaTypeSchema = z.enum(previewAssetMediaTypes);
-
-/**
- * One image read for a preview surface. Carried as base64 over the ordinary request channel so every client (Renderer
- * today, a mobile client later) reaches it the same way, without an Electron-only protocol handler.
- */
-export const fileAssetSchema = z.object({
-    path: pathSchema,
-    mediaType: previewAssetMediaTypeSchema,
-    base64: z.string().max(Math.ceil(MAX_PREVIEW_ASSET_BYTES / 3) * 4),
-    size: z.number().int().nonnegative().max(MAX_PREVIEW_ASSET_BYTES),
-});
-
 const gitCommitFileSchema = z.object({
     path: pathSchema,
     previousPath: pathSchema.optional(),
@@ -637,8 +603,6 @@ export type MovedFileEntry = z.infer<typeof movedFileEntrySchema>;
 export type FileMutationOperation = z.infer<typeof fileMutationOperationSchema>;
 export type FileChange = z.infer<typeof fileChangeSchema>;
 export type FileDocument = z.infer<typeof fileDocumentSchema>;
-export type FileAsset = z.infer<typeof fileAssetSchema>;
-export type PreviewAssetMediaType = z.infer<typeof previewAssetMediaTypeSchema>;
 export type GitCommitFile = z.infer<typeof gitCommitFileSchema>;
 export type GitCommitDetails = z.infer<typeof gitCommitDetailsSchema>;
 export type GitDiffDocument = z.infer<typeof gitDiffDocumentSchema>;

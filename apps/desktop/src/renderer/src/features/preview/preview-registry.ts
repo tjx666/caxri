@@ -3,7 +3,7 @@ import { filePreviewExtension } from '@caxri/protocol';
 /**
  * Which rendered view a preview tab shows. One entry per registered format family.
  */
-type PreviewViewId = 'image' | 'markdown';
+type PreviewViewId = 'image' | 'markdown' | 'mermaid' | 'pdf' | 'table';
 
 export interface PreviewerRegistration {
     id: PreviewViewId;
@@ -14,9 +14,10 @@ export interface PreviewerRegistration {
     /**
      * What double-clicking the file in the explorer opens.
      *
-     * Every format registered today is also readable as text, so source stays the default and the preview is an
-     * explicit command; VS Code makes the same call with `priority.textEditor: 'option'`. A format with no useful text
-     * form (a spreadsheet, say) registers `preview` instead, and nothing else about the surface changes.
+     * A format that is also readable as text keeps source as the default and the preview as an explicit command; VS
+     * Code makes the same call with `priority.textEditor: 'option'`. A format with no useful text form (a PDF)
+     * registers `preview`, and every open path (Files, Quick Open, a Terminal link) lands on the preview tab instead of
+     * failing a text read.
      */
     defaultView: 'preview' | 'source';
 }
@@ -24,6 +25,9 @@ export interface PreviewerRegistration {
 const PREVIEWERS: readonly PreviewerRegistration[] = [
     { id: 'markdown', extensions: ['markdown', 'md', 'mdx'], defaultView: 'source' },
     { id: 'image', extensions: ['svg'], defaultView: 'source' },
+    { id: 'table', extensions: ['csv', 'tsv'], defaultView: 'source' },
+    { id: 'mermaid', extensions: ['mermaid', 'mmd'], defaultView: 'source' },
+    { id: 'pdf', extensions: ['pdf'], defaultView: 'preview' },
 ];
 
 export function previewerForPath(path: string): PreviewerRegistration | undefined {
@@ -34,4 +38,11 @@ export function previewerForPath(path: string): PreviewerRegistration | undefine
 
 export function canPreviewPath(path: string): boolean {
     return previewerForPath(path) !== undefined;
+}
+
+/**
+ * Whether opening `path` should show its preview rather than its source: true only for a format with no text form.
+ */
+export function shouldOpenAsPreview(path: string): boolean {
+    return previewerForPath(path)?.defaultView === 'preview';
 }
