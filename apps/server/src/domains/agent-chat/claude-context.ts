@@ -17,7 +17,7 @@ const CONTEXT_USAGE_TIMEOUT_MS = 5_000;
  *
  * @see https://platform.claude.com/docs/en/build-with-claude/prompt-caching#1-hour-cache-duration
  */
-export const DEFAULT_CLAUDE_CACHE_TTL_MINUTES = 60;
+const DEFAULT_CLAUDE_CACHE_TTL_MINUTES = 60;
 
 /**
  * The cache lifetime a response's `usage.cache_creation` split reveals: any one-hour write means the hour, otherwise
