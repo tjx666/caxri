@@ -10,7 +10,7 @@ type RootServices = Awaited<ReturnType<typeof createRootServices>>;
  * Builds Project Status with its delivery watch and binds it to Workbench Root changes. Kept out of
  * `create-domain-services.ts` to stay under the file's physical-line budget.
  */
-export function createProjectStatusRuntime({
+export function createStatusServices({
     configuration,
     database,
     externalStatus,

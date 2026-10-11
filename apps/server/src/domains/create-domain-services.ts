@@ -29,7 +29,6 @@ import { createMobileDomainHandlers, MobileTerminalMutationQueue } from './mobil
 import { createOrderingHandlers } from './ordering-handlers';
 import { createSessionParkingHandlers, createTerminateAllHandler } from './parking-handlers';
 import { createProjectHidingHandlers } from './project';
-import { createProjectStatusRuntime } from './project-status-runtime';
 import { createRootServices } from './root-services';
 import { createServiceHandlers } from './service-handlers';
 import {
@@ -39,6 +38,7 @@ import {
     SessionCompaction,
     SessionSelectionQueue,
 } from './session';
+import { createStatusServices } from './status-service-creation';
 import {
     createCommanderTerminalRestorer,
     createInterruptedTerminalRestorer,
@@ -217,7 +217,7 @@ export async function createDomainServices(
         terminals,
         watchHub,
     });
-    const { projectStatus, vercel } = createProjectStatusRuntime({
+    const { projectStatus, vercel } = createStatusServices({
         configuration,
         database,
         externalStatus,
