@@ -28,7 +28,8 @@ test('a Codex Chat switches its permission level and plan mode, and a new Chat s
         const picker = chat
             .getByRole('button', { name: /^Permissions: / })
             .filter({ visible: true });
-        await expect(picker).toHaveAccessibleName('Permissions: Default');
+        // Codex launches with its default autonomy flag, which is the Full access level.
+        await expect(picker).toHaveAccessibleName('Permissions: Full access');
 
         await picker.click();
         const menu = page.getByRole('menu');
