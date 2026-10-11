@@ -71,3 +71,18 @@ export function agentChatEditCaption(removedTurns: number): string {
         ? 'Editing an earlier message · its turn will be replaced'
         : `Editing an earlier message · ${removedTurns} turns will be replaced`;
 }
+
+/**
+ * The Send button while editing. A provider rewinds only a settled conversation, so an edit waits for the running turn
+ * to end or be stopped.
+ */
+export function agentChatEditSendAction(
+    isTurnRunning: boolean,
+    providerName: string,
+): { label: string; tooltip: string; placeholder: string } {
+    return {
+        label: 'Send edit',
+        tooltip: isTurnRunning ? 'Stop the running turn to send the edit' : 'Send edit',
+        placeholder: `Edit the message for ${providerName}`,
+    };
+}
