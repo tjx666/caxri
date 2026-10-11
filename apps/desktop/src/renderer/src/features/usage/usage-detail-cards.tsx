@@ -8,6 +8,7 @@ import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
 import { ShareBar } from './share-bar';
+import { usageSessionCount } from './usage-metrics';
 import { UsageSessionTitle } from './usage-session-title';
 import {
     cellClass,
@@ -95,7 +96,12 @@ function ProjectsCard({ report }: { report: UsageReport }) {
                     {top.map((row) => (
                         <div key={row.projectId} className="grid gap-1">
                             <div className="flex items-center justify-between gap-3 text-[12px]">
-                                <span className={cn('truncate', row.isRemoved && 'text-muted')}>
+                                <span
+                                    className={cn(
+                                        'truncate',
+                                        (row.isRemoved || row.isOutsideCaxri) && 'text-muted',
+                                    )}
+                                >
                                     {row.title}
                                 </span>
                                 <span className="font-semibold tabular-nums">
@@ -105,8 +111,8 @@ function ProjectsCard({ report }: { report: UsageReport }) {
                             <ShareBar share={peak > 0 ? row.costUsd / peak : 0} />
                             <div className="flex justify-between gap-3 text-[11px] text-muted tabular-nums">
                                 <span>
-                                    {formatTokens(row.tokens)} tokens · {row.sessions}{' '}
-                                    {row.sessions === 1 ? 'Session' : 'Sessions'}
+                                    {formatTokens(row.tokens)} tokens ·{' '}
+                                    {usageSessionCount(row.sessions, row.isOutsideCaxri)}
                                 </span>
                                 <span>
                                     {formatDuration(row.activeMs)}
