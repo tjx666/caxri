@@ -258,9 +258,30 @@ async function openModelSheet(serial: string): Promise<void> {
 }
 
 /**
- * `MOB-CHAT-04`: a phone chooses the model and effort of a new Codex Chat before its first message, switches them again
- * while a turn runs (the sheet says the change applies from the next turn), and sees the sheet disabled with its reason
- * when the connection drops. Each choice is proven against the Server's Chat projection, which Desktop's menu reads.
+ * Waits until the sheet marks exactly `checkIds` as the checked options, so the phone's own display is proven and not
+ * only the Server's projection.
+ */
+async function waitForCheckedOptions(serial: string, checkIds: string[]): Promise<void> {
+    const expected = checkIds.toSorted((left, right) => left.localeCompare(right)).join(',');
+    await waitForMobile(
+        () => mobileSemantics(serial),
+        (nodes) =>
+            nodes
+                .filter(
+                    ({ checked, checkId }) =>
+                        checked && /^agent-chat-(?:model|effort)-[a-z]/u.test(checkId),
+                )
+                .map(({ checkId }) => checkId)
+                .toSorted((left, right) => left.localeCompare(right))
+                .join(',') === expected,
+    );
+}
+
+/**
+ * `MOB-CHAT-04`: a phone chooses the model and effort of a new Codex Chat before its first message, changes them again
+ * between turns and while a turn runs (the sheet says the change applies from the next turn, and the next turn keeps
+ * it), and sees the sheet disabled with its reason when the connection drops. Each choice is proven on the phone's
+ * checked options and against the Server's Chat projection, which Desktop's menu reads.
  */
 async function executeMobileChatModelScenario(
     environment: MobileAgentScenarioEnvironment,
@@ -273,38 +294,51 @@ async function executeMobileChatModelScenario(
         await fixture.pair();
         const chat = fixture.agentChat;
         if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
+        const waitForChoice = async (model: string, effort: string): Promise<void> => {
+            await waitForMobile(
+                () => chat.read(),
+                (snapshot) => snapshot.model === model && snapshot.effort === effort,
+            );
+            await waitForCheckedOptions(serial, [
+                `agent-chat-model-${model}`,
+                `agent-chat-effort-${effort}`,
+            ]);
+        };
         await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
         await waitForCheck(serial, 'agent-chat-status-empty');
         await waitForCheck(serial, 'agent-chat-model-button');
         await capture(environment, 'new-chat-model-row', artifacts);
 
+        // 1. Before the first message.
         await openModelSheet(serial);
         await capture(environment, 'model-sheet', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-model-fake-codex-mini');
         // The smaller model accepts only `low`, so the effort falls back with the switch.
-        await waitForMobile(
-            () => chat.read(),
-            (snapshot) => snapshot.model === 'fake-codex-mini' && snapshot.effort === 'low',
-        );
+        await waitForChoice('fake-codex-mini', 'low');
+        await capture(environment, 'mini-sheet', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-model-fake-codex-model');
         await waitForCheck(serial, 'agent-chat-effort-high');
         await tapMobileCheckByBounds(serial, 'agent-chat-effort-high');
-        await waitForMobile(
-            () => chat.read(),
-            (snapshot) => snapshot.model === 'fake-codex-model' && snapshot.effort === 'high',
-        );
+        await waitForChoice('fake-codex-model', 'high');
         await capture(environment, 'model-switched-sheet', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
         await waitForNoCheck(serial, 'agent-chat-model-sheet');
-
         await sendFromPhone(serial, 'hello');
         await waitForMobile(
             () => chat.read(),
             (snapshot) => agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
         );
         await waitForNoCheck(serial, 'agent-chat-activity');
+        if ((await chat.read()).effort !== 'high')
+            throw new Error('The first turn lost the chosen effort');
         await capture(environment, 'first-turn', artifacts);
 
+        // 2. Mid-session: between turns, then while a turn runs.
+        await openModelSheet(serial);
+        await tapMobileCheckByBounds(serial, 'agent-chat-effort-medium');
+        await waitForChoice('fake-codex-model', 'medium');
+        await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
+        await waitForNoCheck(serial, 'agent-chat-model-sheet');
         await sendFromPhone(serial, 'slow');
         await waitForMobile(
             () => chat.read(),
@@ -312,24 +346,42 @@ async function executeMobileChatModelScenario(
         );
         await openModelSheet(serial);
         await waitForCheck(serial, 'agent-chat-model-note');
-        await tapMobileCheckByBounds(serial, 'agent-chat-effort-low');
-        await waitForMobile(
-            () => chat.read(),
-            (snapshot) => snapshot.effort === 'low',
-        );
+        await tapMobileCheckByBounds(serial, 'agent-chat-model-fake-codex-mini');
+        await waitForChoice('fake-codex-mini', 'low');
         await capture(environment, 'running-turn-sheet', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
         await waitForNoCheck(serial, 'agent-chat-model-sheet');
+        // The switch must not cut the running turn short.
         await waitForMobile(
             () => chat.read(),
-            (snapshot) => !snapshot.activeTurnId,
+            (snapshot) => !snapshot.activeTurnId && snapshot.status !== 'failed',
             60_000,
         );
+        await sendFromPhone(serial, 'again');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => agentText(snapshot).includes('You said: again') && !snapshot.activeTurnId,
+        );
+        const next = await chat.read();
+        if (next.model !== 'fake-codex-mini' || next.effort !== 'low')
+            throw new Error('The next turn did not keep the choice made during the running turn');
+        await waitForNoCheck(serial, 'agent-chat-activity');
+        await capture(environment, 'next-turn', artifacts);
 
+        // 3. Offline.
         await openModelSheet(serial);
         await setMobileNetworkAvailable(serial, false);
         isNetworkDisabled = true;
         await waitForCheck(serial, 'agent-chat-model-disabled-reason', 60_000);
+        const options = await mobileSemantics(serial);
+        if (
+            options.some(
+                ({ checkId, enabled }) =>
+                    enabled &&
+                    /^agent-chat-(?:model|effort)-fake|^agent-chat-effort-low$/u.test(checkId),
+            )
+        )
+            throw new Error('An option stayed enabled while offline');
         await capture(environment, 'offline-sheet', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
         await waitForCheck(serial, 'agent-chat-model-label');
@@ -337,10 +389,14 @@ async function executeMobileChatModelScenario(
         await setMobileNetworkAvailable(serial, true);
         isNetworkDisabled = false;
         await waitForCheck(serial, 'agent-chat-model-button', 60_000);
+        await openModelSheet(serial);
+        await waitForChoice('fake-codex-mini', 'low');
+        await capture(environment, 'reconnected-sheet', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
 
         await finish(environment, artifacts, {
             firstTurn: 'configured-before-send',
-            midSession: 'configured-during-turn',
+            midSession: 'configured-between-and-during-turns',
             offline: 'disabled-with-reason',
             status: 'passed',
         });

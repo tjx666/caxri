@@ -228,7 +228,7 @@ export const AgentChatModelButton = ({
 }: {
     chat: AgentChatController;
     /**
-     * The composer's own disabled reason: configuring needs the same access and connection as sending.
+     * Why the device cannot configure the Chat now; see `agentChatDisabledReason`.
      */
     disabledReason: string | undefined;
     theme: MobileTheme;
