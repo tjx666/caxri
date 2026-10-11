@@ -437,12 +437,14 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
 - While a reply streams, `repairStreamingMarkdown` completes the last block's unfinished emphasis,
   inline code, and links so raw syntax never flashes. `createStreamingMarkdownParser`
   (`packages/markdown/src/streaming-parser.ts`) parses the reply incrementally: a top-level construct
-  whose first line is complete and unchanged closes every construct before it, so a delta re-parses
+  whose first line and the line after it are complete and unchanged closes every construct before
+  it (the second line because a delimiter row decides whether a line opens a table), so a delta re-parses
   only the source from the last such line on, and every settled block keeps its object identity. The
   memoized block renderer then skips settled blocks on a reference check and compares only the tail
-  by value. A link reference definition is document-global and turns reuse off for that reply. On a
+  by value. A link reference definition, as markdown-it resolves it, is document-global and turns reuse off
+  for that reply. On a
   13 KB reply streamed in 503 deltas this cut the characters handed to markdown-it from 251x the
-  reply length to 6.7x, and the whole stream's parse time from about 145 ms to 11 ms.
+  reply length to 8x, and the whole stream's parse time from about 140 ms to 10 ms.
 - A file path the Agent cites in inline code or a link (a `path:line` code span, or a link whose destination is a relative path with an optional `#L` anchor)
   opens in the editor through the same resolver and Project candidate picker as a Terminal file
   link.
@@ -609,7 +611,7 @@ real CLI or calls a model.
 Streaming Markdown has a machine-independent CI gate in
 `packages/markdown/src/__tests__/streaming-parser.test.ts`: the incremental parse must equal a full
 parse at every character of boundary-sensitive sources and at every delta of a long reply, parse
-work must stay below 8x the reply length, and settled blocks must keep their identity across
+work must stay below 10x the reply length, and settled blocks must keep their identity across
 deltas. Wall-clock timing is a trend only: `bun run benchmark:markdown` prints both the incremental
 and the full re-parse pipeline for the same reply.
 
