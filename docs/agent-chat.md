@@ -435,8 +435,18 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   Open Graph then Twitter Card then `<title>` fallbacks, HTTPS images only, and an LRU of 256
   URLs. A page that declares nothing keeps the card's link summary.
 - While a reply streams, `repairStreamingMarkdown` completes the last block's unfinished emphasis,
-  inline code, and links so raw syntax never flashes, and blocks are memoized by value so a delta
-  re-renders only the block it changed.
+  inline code, and links so raw syntax never flashes. `createStreamingMarkdownParser`
+  (`packages/markdown/src/streaming-parser.ts`) parses the reply incrementally: a top-level construct
+  whose first line and the line after it are complete and unchanged closes every construct before
+  it (the second line because a delimiter row decides whether a line opens a table), so a delta re-parses
+  only the source from the last such line on, and every settled block keeps its object identity. The
+  memoized block renderer then skips settled blocks on a reference check and compares only the tail
+  by value. An open list, the usual shape of a long reply, re-parses only from its latest item whose
+  marker line is complete and splices the earlier item objects back in, because a new item closes
+  the ones before it. A link reference definition, as markdown-it resolves it, is document-global
+  and turns reuse off for that reply. On a 13 KB mixed reply streamed in 503 deltas this cut the
+  characters handed to markdown-it from 251x the reply length to 7x (parse time about 140 ms to
+  10 ms for the whole stream), and on a 20 KB reply that is one 200-item list from 378x to 6.5x.
 - A file path the Agent cites in inline code or a link (a `path:line` code span, or a link whose destination is a relative path with an optional `#L` anchor)
   opens in the editor through the same resolver and Project candidate picker as a Terminal file
   link.
@@ -599,6 +609,14 @@ with images by counting them and implement compaction, so the E2E covers paste, 
 slash list for each provider. The Grok fake persists its frames so `session/load` replays them,
 and takes no images. Unit, integration, and fake-mode E2E tests drive them; no test launches the
 real CLI or calls a model.
+
+Streaming Markdown has a machine-independent CI gate in
+`packages/markdown/src/__tests__/streaming-parser.test.ts`: the incremental parse must equal a full
+parse at every character of boundary-sensitive sources and at every delta of a long reply, parse
+work must stay below 10x the reply length for both a mixed reply and one long list, and settled
+blocks and list items must keep their identity across deltas. Wall-clock timing is a trend only:
+`bun run benchmark:markdown` prints both the incremental and the full re-parse pipeline for both
+replies.
 
 `bun run test:e2e:real-agent` is the manual, never-CI smoke against the real CLI (see the `e2e-testing` skill). Its
 Chat case runs under a real-Agent policy authorized for the Chat surface only: that run cannot open a PTY or Shell
