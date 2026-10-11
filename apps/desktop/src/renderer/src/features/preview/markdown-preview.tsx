@@ -9,13 +9,22 @@ import { attachImages } from './markdown-images';
 import { createPreviewLinkHandler } from './markdown-links';
 import { sanitizeMarkdownHtml } from './markdown-sanitize';
 import { followSourceScroll } from './markdown-scroll-follow';
+import type { PreviewAssetSource } from './preview-asset-client';
 
 export interface MarkdownPreviewProperties {
     sessionId: string;
     /**
+     * Set for an external document: its relative images and links are read through Main's grant for the document's
+     * folder, which is then `projectRoot`, instead of through the Session's Project.
+     */
+    externalDocumentId?: string;
+    /**
      * Absolute path of the document being previewed; resolves its relative images and links.
      */
     documentPath: string;
+    /**
+     * Root that relative images and links must stay inside: the Project, or an external document's folder.
+     */
     projectRoot: string;
     source: string;
     theme: ThemeTokens;
@@ -34,6 +43,7 @@ export interface MarkdownPreviewProperties {
  */
 export function MarkdownPreview({
     sessionId,
+    externalDocumentId,
     documentPath,
     projectRoot,
     source,
@@ -46,14 +56,26 @@ export function MarkdownPreview({
         const result = renderMarkdown(deferredSource, { documentPath, projectRoot });
         return { ...result, html: sanitizeMarkdownHtml(result.html) };
     }, [deferredSource, documentPath, projectRoot]);
+    const assetSource = useMemo<PreviewAssetSource>(
+        () =>
+            externalDocumentId === undefined
+                ? { sessionId }
+                : { externalDocumentId, directory: projectRoot },
+        [externalDocumentId, projectRoot, sessionId],
+    );
     const linksReference = useRef(rendered.links);
+    const assetSourceReference = useRef(assetSource);
     const followedPathReference = useRef<string | undefined>(undefined);
 
     useEffect(() => {
         const container = containerReference.current;
         if (!container) return;
         // Read through a ref so one registration survives every re-render of the document below it.
-        const handler = createPreviewLinkHandler(container, () => linksReference.current);
+        const handler = createPreviewLinkHandler(
+            container,
+            () => linksReference.current,
+            () => assetSourceReference.current,
+        );
         container.addEventListener('click', handler);
         return () => container.removeEventListener('click', handler);
     }, []);
@@ -64,13 +86,14 @@ export function MarkdownPreview({
         // The click handler above resolves a link through this ref, so the table it reads is refreshed here rather
         // than during render.
         linksReference.current = rendered.links;
+        assetSourceReference.current = assetSource;
         // React replaced the whole document; without this the view jumps to the top on every keystroke.
         container.scrollTop = scrollTopReference.current;
         const controller = new AbortController();
         const releaseImages = attachImages(
             container,
             rendered.assets,
-            sessionId,
+            assetSource,
             controller.signal,
         );
         decorateCodeBlocks(container, rendered.codeBlocks, theme, controller.signal);
@@ -86,7 +109,7 @@ export function MarkdownPreview({
             stopFollowing();
             releaseImages();
         };
-    }, [documentPath, rendered, sessionId, theme]);
+    }, [assetSource, documentPath, rendered, theme]);
 
     return (
         <div

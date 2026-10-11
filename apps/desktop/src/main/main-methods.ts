@@ -9,6 +9,7 @@ import type {
     ArgvConfigChanges,
     MainRequest,
     RemoteDebuggingState,
+    ServerEvent,
     SettingsTarget,
 } from '@caxri/protocol';
 import {
@@ -47,6 +48,7 @@ import {
 } from './confirmations';
 import { showContextMenu } from './context-menu';
 import {
+    createExternalDocumentChangeWatcher,
     handleExternalDocumentRequest,
     isExternalDocumentRequest,
 } from './external-document-methods';
@@ -94,7 +96,17 @@ interface MainMethodHandlerOptions {
     getSupervisor(): DesktopServerConnection;
     getUpdateService(): UpdateService;
     getWindow(): BrowserWindow | undefined;
+    /**
+     * Delivers Main's own events to the Workbench; a handler built without it (unit tests) ignores watch requests.
+     */
+    sendEvent?: (event: ServerEvent) => void;
     injectGpuContextLoss?(): { correlationId: string };
+    /**
+     * Settles Main's pending quit-time question about unsaved Editor buffers; see `createUnsavedEditorsBridge`.
+     */
+    onUnsavedEditorsReply?(
+        parameters: Extract<MainRequest, { method: 'editor.unsavedReply' }>['params'],
+    ): void;
     restartInGpuSafeMode?(): Promise<void>;
     updateArgvConfig?(changes: ArgvConfigChanges): Promise<ArgvConfig>;
     workbenchRootAuthority: ReturnType<typeof createWorkbenchRootAuthority>;
@@ -190,10 +202,12 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
         );
     }
 
+    const externalDocumentWatcher = createExternalDocumentChangeWatcher(options.sendEvent);
+
     return async function handleMainMethod(request: MainRequest): Promise<unknown> {
         const supervisor = options.getSupervisor();
         if (isExternalDocumentRequest(request))
-            return handleExternalDocumentRequest(request, supervisor);
+            return handleExternalDocumentRequest(request, supervisor, externalDocumentWatcher);
         const mainWindow = options.getWindow();
         switch (request.method) {
             case 'argv.get':
@@ -432,6 +446,9 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 );
                 return { confirmed: result.response === 0 };
             }
+            case 'editor.unsavedReply':
+                options.onUnsavedEditorsReply?.(request.params);
+                return null;
             case 'contextMenu.show': {
                 const window = currentRequestWindow() ?? mainWindow;
                 if (!window || window.isDestroyed())

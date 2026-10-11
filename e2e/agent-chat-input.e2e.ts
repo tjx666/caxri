@@ -47,6 +47,31 @@ async function pasteImage(message: Locator): Promise<void> {
 }
 
 /**
+ * Pastes a noise PNG over the 5 MB image limit, like a Retina screenshot of dense content; noise does not compress, so
+ * the file stays large and the composer must resize it before attaching.
+ */
+async function pasteOversizedImage(message: Locator): Promise<number> {
+    return message.evaluate(async (element) => {
+        const width = 2400;
+        const height = 1600;
+        const canvas = new OffscreenCanvas(width, height);
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('2D canvas unavailable');
+        const pixels = context.createImageData(width, height);
+        const random = new Uint32Array(pixels.data.buffer);
+        for (let offset = 0; offset < random.length; offset += 16_384)
+            crypto.getRandomValues(random.subarray(offset, offset + 16_384));
+        for (let index = 3; index < pixels.data.length; index += 4) pixels.data[index] = 255;
+        context.putImageData(pixels, 0, 0);
+        const blob = await canvas.convertToBlob({ type: 'image/png' });
+        const clipboardData = new DataTransfer();
+        clipboardData.items.add(new File([blob], 'retina.png', { type: 'image/png' }));
+        element.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, clipboardData }));
+        return blob.size;
+    });
+}
+
+/**
  * Drops a PNG from another application onto `target` with the drag events Chromium dispatches.
  */
 async function dropImage(target: Locator): Promise<void> {
@@ -88,11 +113,17 @@ test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}
         // A drop anywhere on the Chat, here the empty transcript far above the input, attaches like one on the composer.
         await dropImage(chat.getByText('Send a message to start working with Codex.'));
         await expect(attached.getByRole('button', { name: 'Remove image 2' })).toBeVisible();
+        // An image over the 5 MB limit is resized under it and attached, not refused.
+        expect(await pasteOversizedImage(message)).toBeGreaterThan(5 * 1024 * 1024);
+        await expect(
+            attached.getByRole('img', { name: 'retina.png (resized to fit the 5 mb limit)' }),
+        ).toBeVisible();
         await message.fill('what are these');
         await page.screenshot({ path: testInfo.outputPath('codex-chat-attachments.png') });
         await message.press('Enter');
 
-        await expect(chat.getByText('Received 2 images.')).toBeVisible();
+        // The Server refuses any image over the limit, so this receipt proves the resized bytes fit.
+        await expect(chat.getByText('Received 3 images.')).toBeVisible();
         await expect(attached).toHaveCount(0);
         await expect(chat.getByRole('img', { name: 'Attachment 1' })).toBeVisible();
         await expect(chat.getByRole('img', { name: 'Attachment 2' })).toBeVisible();

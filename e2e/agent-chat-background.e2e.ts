@@ -146,12 +146,12 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
         await message.fill('use a subagent');
         await message.press('Enter');
         await expect(chat.getByText('The subagent finished.')).toBeVisible();
-        // A finished subagent leaves the strip; its timeline row still opens it.
-        await chat
-            .getByRole('button', { name: /^Worked(?: for |$)/u })
-            .first()
-            .click();
-        await chat.getByRole('button', { name: 'Open subagent' }).first().click();
+        // A finished subagent leaves the strip; the folded turn's row still opens it without being expanded.
+        const fold = chat.getByRole('button', { name: /^Worked(?: for |$)/u }).first();
+        await expect(fold).toHaveAttribute('aria-expanded', 'false');
+        await page.screenshot({ path: testInfo.outputPath('claude-turn-subagent-entry.png') });
+        await chat.getByRole('button', { name: 'Open subagent Survey the project' }).click();
+        await expect(fold).toHaveAttribute('aria-expanded', 'false');
         const subagent = page.getByRole('region', { name: 'Survey the project' });
         await expect(subagent.getByText('Found a README.').first()).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-subagent-tab.png') });

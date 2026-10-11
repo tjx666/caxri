@@ -1,15 +1,16 @@
 import type { MarkdownAsset } from '@caxri/markdown';
 
+import type { PreviewAssetSource } from './preview-asset-client';
 import { acquireAsset, releaseAsset } from './preview-asset-client';
 
 async function attachImage(
     element: HTMLImageElement,
-    sessionId: string,
+    source: PreviewAssetSource,
     path: string,
     signal: AbortSignal,
     held: string[],
 ): Promise<void> {
-    const objectUrl = await acquireAsset(sessionId, path);
+    const objectUrl = await acquireAsset(source, path);
     if (objectUrl) held.push(path);
     if (signal.aborted) return;
     if (objectUrl) element.src = objectUrl;
@@ -22,27 +23,28 @@ async function attachImage(
  */
 async function releaseImages(
     reads: ReadonlyArray<Promise<unknown>>,
-    sessionId: string,
+    source: PreviewAssetSource,
     held: readonly string[],
 ): Promise<void> {
     await Promise.allSettled(reads);
-    for (const path of held) releaseAsset(sessionId, path);
+    for (const path of held) releaseAsset(source, path);
 }
 
 /**
  * Points every `img` the document declared at something it is allowed to load.
  *
- * A project-relative image becomes an object URL read through the Session's authorized file channel; a remote one keeps
- * its own URL, which the Renderer's Content-Security-Policy narrows to HTTPS. An image that resolves to neither (a path
- * escaping the Project root, a scheme the app will not fetch) is marked instead of silently rendering as a broken
- * glyph, so the document reads as "this reference is unresolved" rather than "the preview is broken".
+ * A relative image becomes an object URL read through the channel that authorizes the document (the Session's Project,
+ * or Main's grant for an external document's folder); a remote one keeps its own URL, which the Renderer's
+ * Content-Security-Policy narrows to HTTPS. An image that resolves to neither (a path escaping the Project root, a
+ * scheme the app will not fetch) is marked instead of silently rendering as a broken glyph, so the document reads as
+ * "this reference is unresolved" rather than "the preview is broken".
  *
  * Returns the release for the object URLs this pass acquired.
  */
 export function attachImages(
     container: HTMLElement,
     assets: readonly MarkdownAsset[],
-    sessionId: string,
+    source: PreviewAssetSource,
     signal: AbortSignal,
 ): () => void {
     const held: string[] = [];
@@ -58,11 +60,11 @@ export function attachImages(
             element.dataset.state = 'unresolved';
             continue;
         }
-        reads.push(attachImage(element, sessionId, asset.path, signal, held));
+        reads.push(attachImage(element, source, asset.path, signal, held));
     }
     return () => {
         // Fire-and-forget: nothing observes when the release lands, only that it happens after the reads.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void releaseImages(reads, sessionId, held);
+        void releaseImages(reads, source, held);
     };
 }

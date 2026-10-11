@@ -26,9 +26,10 @@ where images come from.
 | Follow an external link              | Click it: opens in the system browser                                              |
 
 A Markdown file opened from outside every Project (an external document) previews too, rendered
-from the editor's buffer. Its relative links and images do not resolve, because there is no Project
-root to contain them; an external `.svg` has no preview, because the image view loads its asset
-through Project file reads.
+from the editor's buffer. Its relative images and links resolve against the document's own folder
+and the folders below it: a link that climbs out (`../`) or reaches outside through a symbolic link
+is refused, and a linked file opens as another external document. An external `.svg` has no
+preview, because the image view loads its asset through Project file reads.
 
 Double-clicking a Markdown or SVG file in the explorer still opens the source. Both formats are
 readable as text, so the preview stays an explicit command; VS Code makes the same call with

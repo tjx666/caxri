@@ -570,8 +570,11 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   Open Graph then Twitter Card then `<title>` fallbacks, HTTPS images only, and a per-app-lifetime
   cache of 256 URLs that evicts the oldest inserted entry (a repeat hover does not refresh it; an
   outright network failure is not cached). A page that declares nothing keeps the card's link summary.
-- While a reply streams, `repairStreamingMarkdown` completes the last block's unfinished emphasis,
-  inline code, and links so raw syntax never flashes. `createStreamingMarkdownParser`
+- While a reply streams, `createStreamingMarkdownRepair` (`packages/markdown/src/streaming-repair.ts`)
+  completes the last block's unfinished emphasis, inline code, and links so raw syntax never
+  flashes. It keeps one reply's scan state: a delta that extends the previous text scans only its
+  last two lines, because complete lines' fence state and span counts are already tallied, so a
+  long list no longer costs a rescan of the whole list per delta. `createStreamingMarkdownParser`
   (`packages/markdown/src/streaming-parser.ts`) parses the reply incrementally: a top-level construct
   whose first line and the line after it are complete and unchanged closes every construct before
   it (the second line because a delimiter row decides whether a line opens a table), so a delta re-parses
@@ -867,7 +870,10 @@ Streaming Markdown has a machine-independent CI gate in
 `packages/markdown/src/__tests__/streaming-parser.test.ts`: the incremental parse must equal a full
 parse at every character of boundary-sensitive sources and at every delta of a long reply, parse
 work must stay below 10x the reply length for both a mixed reply and one long list, and settled
-blocks and list items must keep their identity across deltas. Wall-clock timing is a trend only:
+blocks and list items must keep their identity across deltas.
+`packages/markdown/src/__tests__/streaming-repair.test.ts` holds the repair to the same bar: it
+matches the frozen rescan implementation byte for byte at every character prefix, and its scanned
+characters stay below 10x the reply length. Wall-clock timing is a trend only:
 `bun run benchmark:markdown` prints both the incremental and the full re-parse pipeline for both
 replies.
 

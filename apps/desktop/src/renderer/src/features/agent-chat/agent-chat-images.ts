@@ -28,6 +28,32 @@ const THUMBNAIL_MAX_EDGE = 768;
  */
 const THUMBNAIL_QUALITIES = [0.9, 0.8, 0.65, 0.5];
 
+/**
+ * A first resize aims a little under the byte limit, since encoded size only roughly follows pixel area.
+ */
+const RESIZE_TARGET_RATIO = 0.85;
+/**
+ * Each further attempt shrinks both edges by this factor, and a lossy format also steps down its quality.
+ */
+const RESIZE_STEP = 0.8;
+const RESIZE_QUALITIES = [0.9, 0.85, 0.8, 0.75, 0.7, 0.65];
+/**
+ * Below this long edge a resized image is too small to be worth sending, so it is refused as too large instead.
+ */
+const RESIZE_MIN_EDGE = 320;
+
+/**
+ * Formats a canvas can re-encode as themselves. GIF cannot (its animation would be lost), so an oversized GIF is still
+ * refused up front.
+ */
+const RESIZABLE_IMAGE_TYPES: ReadonlySet<string> = new Set([
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+]);
+
+export const AGENT_CHAT_IMAGE_RESIZED_NOTE = `Resized to fit the ${MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024} MB limit`;
+
 export type AgentChatImageRejection = 'count' | 'size' | 'total' | 'type';
 
 /**
@@ -36,6 +62,24 @@ export type AgentChatImageRejection = 'count' | 'size' | 'total' | 'type';
 export interface AgentChatImageReservation {
     bytes: number;
     count: number;
+}
+
+/**
+ * Bytes a file reserves against the combined limit while it is read: an oversized one is resized to at most the
+ * per-image limit, so it cannot reserve more than that.
+ */
+export function agentChatImageReservedBytes(file: { size: number }): number {
+    return Math.min(file.size, MAX_AGENT_CHAT_IMAGE_BYTES);
+}
+
+/**
+ * Thrown by `readAgentChatImage` when an oversized image could not be resized under the limit.
+ */
+export class AgentChatImageTooLargeError extends Error {
+    constructor() {
+        super('Image is too large even after resizing');
+        this.name = 'AgentChatImageTooLargeError';
+    }
 }
 
 function isAgentChatImageType(type: string): type is AgentChatImageMediaType {
@@ -50,9 +94,11 @@ export function agentChatImageRejection(
     reserved: AgentChatImageReservation,
 ): AgentChatImageRejection | undefined {
     if (!isAgentChatImageType(file.type)) return 'type';
-    if (file.size > MAX_AGENT_CHAT_IMAGE_BYTES) return 'size';
+    if (file.size > MAX_AGENT_CHAT_IMAGE_BYTES && !RESIZABLE_IMAGE_TYPES.has(file.type))
+        return 'size';
     if (reserved.count >= MAX_AGENT_CHAT_IMAGES) return 'count';
-    if (reserved.bytes + file.size > MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES) return 'total';
+    if (reserved.bytes + agentChatImageReservedBytes(file) > MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES)
+        return 'total';
     return undefined;
 }
 
@@ -122,6 +168,45 @@ export function agentChatThumbnailSize(
     };
 }
 
+export interface AgentChatImageResizeAttempt {
+    width: number;
+    height: number;
+    /**
+     * Encoder quality for a lossy format; a PNG stays lossless, keeping its transparency and crisp screenshot text.
+     */
+    quality?: number;
+}
+
+/**
+ * The re-encodings tried, in order, to bring an oversized image of `bytes` under `MAX_AGENT_CHAT_IMAGE_BYTES` in its
+ * own format. Encoded size grows roughly with pixel area, so the first attempt scales both edges by the square root of
+ * the shrink needed, and each later one shrinks further. Empty when even the first attempt would fall under
+ * `RESIZE_MIN_EDGE`.
+ */
+export function agentChatImageResizeAttempts(
+    width: number,
+    height: number,
+    bytes: number,
+    mediaType: AgentChatImageMediaType,
+): AgentChatImageResizeAttempt[] {
+    const isLossy = mediaType !== 'image/png';
+    let scale = Math.min(
+        1,
+        Math.sqrt((MAX_AGENT_CHAT_IMAGE_BYTES * RESIZE_TARGET_RATIO) / Math.max(bytes, 1)),
+    );
+    const attempts: AgentChatImageResizeAttempt[] = [];
+    for (const quality of RESIZE_QUALITIES) {
+        const size = {
+            width: Math.max(1, Math.round(width * scale)),
+            height: Math.max(1, Math.round(height * scale)),
+        };
+        if (Math.max(size.width, size.height) < RESIZE_MIN_EDGE) break;
+        attempts.push(isLossy ? { ...size, quality } : size);
+        scale *= RESIZE_STEP;
+    }
+    return attempts;
+}
+
 /**
  * The image files among those a paste, drop, or pick carries. Other files, and text, are left to other handling.
  */
@@ -162,12 +247,47 @@ async function thumbnailDataUrl(image: Blob): Promise<string> {
 }
 
 /**
- * Reads an accepted image file into a message attachment. Rejects when the file cannot be decoded as an image.
+ * Re-encodes an oversized image in its own format, trying `agentChatImageResizeAttempts` until one fits the limit.
  */
-export async function readAgentChatImage(file: File): Promise<AgentChatImageInput> {
+async function resizeAgentChatImage(file: File, mediaType: AgentChatImageMediaType): Promise<Blob> {
+    const bitmap = await createImageBitmap(file);
+    try {
+        const attempts = agentChatImageResizeAttempts(
+            bitmap.width,
+            bitmap.height,
+            file.size,
+            mediaType,
+        );
+        for (const attempt of attempts) {
+            const canvas = new OffscreenCanvas(attempt.width, attempt.height);
+            const context = canvas.getContext('2d');
+            if (context) context.imageSmoothingQuality = 'high';
+            context?.drawImage(bitmap, 0, 0, attempt.width, attempt.height);
+            // Encoded one at a time on purpose: the first attempt usually fits.
+            // eslint-disable-next-line no-await-in-loop -- each smaller attempt runs only when the previous one is too large
+            const blob = await canvas.convertToBlob({ type: mediaType, quality: attempt.quality });
+            // A browser that cannot encode the format falls back to PNG; sending that under another type would lie.
+            if (blob.type === mediaType && blob.size <= MAX_AGENT_CHAT_IMAGE_BYTES) return blob;
+        }
+        throw new AgentChatImageTooLargeError();
+    } finally {
+        bitmap.close();
+    }
+}
+
+/**
+ * Reads an accepted image file into a message attachment, first resizing an oversized PNG, JPEG, or WebP under the
+ * limit (`isResized`). Rejects when the file cannot be decoded, or with `AgentChatImageTooLargeError` when no resize
+ * fits.
+ */
+export async function readAgentChatImage(
+    file: File,
+): Promise<{ image: AgentChatImageInput; isResized: boolean }> {
     if (!isAgentChatImageType(file.type)) throw new Error('Unsupported image type');
-    const [data, thumbnail] = await Promise.all([blobToBase64(file), thumbnailDataUrl(file)]);
-    return { mediaType: file.type, data, thumbnail };
+    const isResized = file.size > MAX_AGENT_CHAT_IMAGE_BYTES;
+    const source = isResized ? await resizeAgentChatImage(file, file.type) : file;
+    const [data, thumbnail] = await Promise.all([blobToBase64(source), thumbnailDataUrl(source)]);
+    return { image: { mediaType: file.type, data, thumbnail }, isResized };
 }
 
 /**

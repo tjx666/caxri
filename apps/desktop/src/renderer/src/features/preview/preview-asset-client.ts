@@ -6,7 +6,7 @@ import { caxri } from '../../lib/caxri';
  * Resolves images a preview refers to into object URLs.
  *
  * Bytes arrive over the ordinary request channel and become a `blob:` URL, so the document's `img` elements never carry
- * a filesystem path and the Renderer's Content-Security-Policy keeps forbidding `file:`. Entries are cached per Session
+ * a filesystem path and the Renderer's Content-Security-Policy keeps forbidding `file:`. Entries are cached per source
  * and path because one document usually shows the same asset in several places, and a re-render must not re-read it.
  */
 interface CacheEntry {
@@ -23,8 +23,30 @@ const assetReads = new Semaphore(4);
 const cache = new Map<string, CacheEntry>();
 const pending = new Map<string, Promise<string | undefined>>();
 
-function cacheKey(sessionId: string, path: string): string {
-    return `${sessionId}\0${path}`;
+/**
+ * Who authorizes an image read: a Session's Project for a Project document, or Main's grant for an external document,
+ * which covers the document's folder (`directory`) and the folders below it.
+ */
+export type PreviewAssetSource =
+    { sessionId: string } | { externalDocumentId: string; directory: string };
+
+function cacheKey(source: PreviewAssetSource, path: string): string {
+    return 'sessionId' in source
+        ? `${source.sessionId}\0${path}`
+        : `external:${source.externalDocumentId}\0${path}`;
+}
+
+function requestAsset(source: PreviewAssetSource, path: string) {
+    if ('sessionId' in source)
+        return caxri.request('files.readAsset', { sessionId: source.sessionId, path });
+    // Main resolves the path against the document's folder itself; only the part below that folder crosses IPC.
+    const prefix = source.directory.endsWith('/') ? source.directory : `${source.directory}/`;
+    if (!path.startsWith(prefix))
+        return Promise.reject(new Error('Image is outside the document folder'));
+    return caxri.request('externalDocument.readAsset', {
+        documentId: source.externalDocumentId,
+        path: path.slice(prefix.length),
+    });
 }
 
 /**
@@ -45,10 +67,10 @@ function decodeAsset(base64: string): Uint8Array<ArrayBuffer> {
     return bytes;
 }
 
-async function readAsset(sessionId: string, path: string): Promise<string | undefined> {
+async function readAsset(source: PreviewAssetSource, path: string): Promise<string | undefined> {
     await assetReads.acquire();
     try {
-        const asset = await caxri.request('files.readAsset', { sessionId, path });
+        const asset = await requestAsset(source, path);
         const blob = new Blob([decodeAsset(asset.base64)], { type: asset.mediaType });
         return URL.createObjectURL(blob);
     } catch {
@@ -64,14 +86,17 @@ async function readAsset(sessionId: string, path: string): Promise<string | unde
  *
  * Every successful call must be paired with `releaseAsset` so the last user revokes the URL.
  */
-export async function acquireAsset(sessionId: string, path: string): Promise<string | undefined> {
-    const key = cacheKey(sessionId, path);
+export async function acquireAsset(
+    source: PreviewAssetSource,
+    path: string,
+): Promise<string | undefined> {
+    const key = cacheKey(source, path);
     const cached = cache.get(key);
     if (cached) {
         cached.users += 1;
         return cached.objectUrl;
     }
-    const inFlight = pending.get(key) ?? readAsset(sessionId, path);
+    const inFlight = pending.get(key) ?? readAsset(source, path);
     pending.set(key, inFlight);
     try {
         const objectUrl = await inFlight;
@@ -94,8 +119,8 @@ export async function acquireAsset(sessionId: string, path: string): Promise<str
     }
 }
 
-export function releaseAsset(sessionId: string, path: string): void {
-    const key = cacheKey(sessionId, path);
+export function releaseAsset(source: PreviewAssetSource, path: string): void {
+    const key = cacheKey(source, path);
     const entry = cache.get(key);
     if (!entry) return;
     entry.users -= 1;

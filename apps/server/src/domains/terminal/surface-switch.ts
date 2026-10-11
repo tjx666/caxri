@@ -88,7 +88,6 @@ export function createTerminalSurfaceSwitchHandler(
          */
         const prepared = options.terminals.launches.begin(current.sessionId);
         try {
-            const agentSessionId = await resumableAgentSessionId(options, current, 'surfaceSwitch');
             const isTurnRunning =
                 from === 'chat'
                     ? options.chat.hasActiveTurn(terminalId)
@@ -101,8 +100,18 @@ export function createTerminalSurfaceSwitchHandler(
             try {
                 if (from === 'chat') await options.chat.close(terminalId);
                 else await options.terminals.suspend(terminalId, 'stopped', 'surfaceSwitched');
-                if (!options.database.getTerminal(terminalId))
+                const stopped = options.database.getTerminal(terminalId);
+                if (!stopped)
                     throw new CaxriError('CONFLICT', 'Terminal was closed while switching');
+                /**
+                 * Judged only after the stop: a first turn interrupted by "Stop and Switch" writes its transcript while
+                 * the old process shuts down, and judging earlier would drop that conversation as unwritten.
+                 */
+                const agentSessionId = await resumableAgentSessionId(
+                    options,
+                    stopped,
+                    'surfaceSwitch',
+                );
                 options.database.updateTerminalSurface(terminalId, surface);
                 // Starting fresh drops a binding whose conversation was never written, so neither surface tries to resume it.
                 if (agentSessionId) options.coordinator.prepareTerminalResume(terminalId);

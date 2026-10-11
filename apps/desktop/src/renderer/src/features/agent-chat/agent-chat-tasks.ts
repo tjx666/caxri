@@ -56,6 +56,36 @@ export function agentChatTaskLinkForItem(
 }
 
 /**
+ * A subagent a finished turn started, which the turn's `Worked for` row opens directly (issue caxri#1613). `title` is
+ * unset for a subagent the live task list no longer knows (a resumed conversation).
+ */
+export interface AgentChatTurnSubagent {
+    taskId: string;
+    title: string | undefined;
+}
+
+/**
+ * The subagents among a turn's items, in timeline order and once each, so a finished turn can reopen them without its
+ * fold being expanded. A background shell is left out: it outlives its turn in the Background work strip.
+ */
+export function agentChatTurnSubagents(
+    items: Iterable<AgentChatItem>,
+    tasksByItem: ReadonlyMap<string, AgentChatTask>,
+): AgentChatTurnSubagent[] {
+    const subagents = new Map<string, AgentChatTurnSubagent>();
+    for (const item of items) {
+        const link = agentChatTaskLinkForItem(item, tasksByItem);
+        if (!link || link.task?.kind === 'shell' || subagents.has(link.taskId)) continue;
+        const title = link.task?.title;
+        subagents.set(link.taskId, {
+            taskId: link.taskId,
+            title: title === '' ? undefined : title,
+        });
+    }
+    return subagents.values().toArray();
+}
+
+/**
  * The Chat's task with this key, matched by its own id or by the item that started it (the two keys a task tab path may
  * carry).
  */
