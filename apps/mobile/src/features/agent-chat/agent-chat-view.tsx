@@ -10,6 +10,7 @@ import type { MobileTheme } from '../../theme/tokens';
 import { ConversationUserAttachments } from '../conversation/conversation-user-attachments';
 import { ConversationView } from '../conversation/conversation-view';
 import type { ConversationTimelineState } from '../conversation/use-conversation-timeline';
+import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { AgentChatMessageImages } from './agent-chat-message-images';
 import {
     AGENT_CHAT_HANDED_OFF_NOTICE,
@@ -75,6 +76,7 @@ const AgentChatBody = ({
     canSend,
     chat,
     enterFrom,
+    isConnected,
     isHandedOff,
     provider,
     theme,
@@ -85,6 +87,7 @@ const AgentChatBody = ({
     canSend: boolean;
     chat: AgentChatController;
     enterFrom: -1 | 0 | 1 | null;
+    isConnected: boolean;
     isHandedOff: boolean;
     provider: string;
     theme: MobileTheme;
@@ -148,6 +151,15 @@ const AgentChatBody = ({
                 >
                     <Text style={[styles.bannerButtonText, { color: theme.text }]}>Retry</Text>
                 </Pressable>
+            </View>
+        );
+    // Offline with no saved copy, the read cannot start; say so instead of spinning until the connection returns.
+    if (!snapshot && !isConnected)
+        return (
+            <View style={styles.status} testID="agent-chat-status-offline">
+                <Text style={[styles.statusText, { color: theme.muted }]}>
+                    Reconnect to load this Chat.
+                </Text>
             </View>
         );
     if (!snapshot || snapshot.status === 'starting')
@@ -220,7 +232,9 @@ const AgentChatActivity = ({
 }) => {
     const { snapshot } = chat;
     const activity = agentChatActivityLabel(snapshot, provider);
-    if (!activity || !snapshot || snapshot.status === 'starting') return null;
+    // A saved copy's activity is however the Chat stood when it was saved, not what it is doing now.
+    if (!activity || !snapshot || snapshot.status === 'starting' || chat.savedAt !== undefined)
+        return null;
     return (
         <View style={styles.activity} testID="agent-chat-activity">
             {activity.isBusy ? <ActivityIndicator color={theme.muted} size="small" /> : null}
@@ -280,7 +294,8 @@ export const AgentChatView = ({
             setRestarting(false);
         }
     };
-    const failure = snapshot?.status === 'failed' ? snapshot.failure : undefined;
+    const failure =
+        snapshot?.status === 'failed' && chat.savedAt === undefined ? snapshot.failure : undefined;
 
     return (
         <View style={styles.root} testID="agent-chat">
@@ -323,6 +338,7 @@ export const AgentChatView = ({
                     canSend={canRetry}
                     chat={chat}
                     enterFrom={enterFrom}
+                    isConnected={isConnected}
                     isHandedOff={isHandedOff}
                     provider={provider}
                     theme={theme}
@@ -334,6 +350,7 @@ export const AgentChatView = ({
                 provider={provider}
                 theme={theme}
             />
+            <SavedCopyNote savedAt={chat.savedAt} testID="agent-chat-saved" theme={theme} />
             <AgentChatActivity chat={chat} provider={provider} theme={theme} />
         </View>
     );

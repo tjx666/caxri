@@ -14,6 +14,7 @@ import {
 import type { MobileSessionItem, MobileSessionSections } from '../session-model';
 import type { MobileDashboardSnapshot } from '../session-refresh';
 import { fetchMobileSessionDashboard } from '../session-refresh';
+import { showDashboard, useSavedDashboard } from './use-saved-dashboard';
 
 const emptySections: MobileSessionSections = {
     needsAttention: [],
@@ -83,6 +84,7 @@ export const useSessionPolling = (isVisible = true) => {
         subscriptionAvailable,
     } = useMobileClient();
     const queryClient = useQueryClient();
+    const { save: saveDashboard, saved } = useSavedDashboard(connectionScopeKey);
     const queryKey = useMemo(
         () => dashboardQueryKey(connectionScopeKey ?? 'unpaired'),
         [connectionScopeKey],
@@ -165,7 +167,14 @@ export const useSessionPolling = (isVisible = true) => {
         networkMode: 'always',
         queryFn: () =>
             readDashboardSnapshot(
-                () => fetchMobileSessionDashboard({ dashboard: () => request('mobile.dashboard') }),
+                () =>
+                    fetchMobileSessionDashboard({
+                        dashboard: async () => {
+                            const dashboard = await request('mobile.dashboard');
+                            saveDashboard(dashboard);
+                            return dashboard;
+                        },
+                    }),
                 () => eventVersion.current,
                 scheduleInvalidation,
             ),
@@ -178,8 +187,12 @@ export const useSessionPolling = (isVisible = true) => {
         staleTime: 0,
     });
 
+    const { savedAt, snapshot } = useMemo(
+        () => showDashboard(saved, connectionScopeKey, query.data),
+        [connectionScopeKey, query.data, saved],
+    );
     const { hasLoaded, sections, selectedId } = projectSessionList(
-        query.data,
+        snapshot,
         frozenSections,
         requestedSelectedId,
     );
@@ -198,14 +211,18 @@ export const useSessionPolling = (isVisible = true) => {
         beginListInteraction: (): void => {
             setFrozenSections((current) => current ?? sections);
         },
-        deviceRole: query.data?.deviceRole ?? null,
+        deviceRole: snapshot?.deviceRole ?? null,
         entries: useMemo(() => flattenMobileSessionSections(sections), [sections]),
         error: query.isError ? 'Unable to load Sessions.' : null,
         finishListInteraction,
         hasLoaded,
-        hostDisplayName: query.data?.hostDisplayName ?? 'Caxri',
+        hostDisplayName: snapshot?.hostDisplayName ?? 'Caxri',
         isLoading: isObservable && query.isFetching,
-        projects: query.data?.projects ?? [],
+        projects: snapshot?.projects ?? [],
+        /**
+         * When the list shows a saved copy instead of a live read; `null` once the Server answered.
+         */
+        savedAt,
         refresh,
         sections,
         selected: sessions.find((session) => session.id === selectedId) ?? null,

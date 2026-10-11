@@ -10,6 +10,8 @@ import { StatusBar } from 'expo-status-bar';
 
 import { RouteErrorScreen } from '../src/components/route-error-screen';
 import { MobileClientProvider } from '../src/features/connection/mobile-client-provider';
+import { expoReadCache } from '../src/features/read-cache/expo-read-cache';
+import { ReadCacheContext } from '../src/features/read-cache/read-cache-context';
 
 const styles = StyleSheet.create({ root: { flex: 1 } });
 
@@ -42,14 +44,18 @@ export default function RootLayout() {
         <GestureHandlerRootView style={styles.root}>
             <SafeAreaProvider>
                 <QueryClientProvider client={queryClient}>
-                    <MobileClientProvider>
-                        <StatusBar style="light" />
-                        <Stack screenOptions={{ animation: 'ios_from_right', headerShown: false }}>
-                            {/* Boot and pairing redirects land on the host; sliding a whole new app in reads as a jump. */}
-                            <Stack.Screen name="h/[host-id]" options={{ animation: 'fade' }} />
-                            <Stack.Screen name="sessions" options={{ animation: 'none' }} />
-                        </Stack>
-                    </MobileClientProvider>
+                    <ReadCacheContext.Provider value={expoReadCache}>
+                        <MobileClientProvider>
+                            <StatusBar style="light" />
+                            <Stack
+                                screenOptions={{ animation: 'ios_from_right', headerShown: false }}
+                            >
+                                {/* Boot and pairing redirects land on the host; sliding a whole new app in reads as a jump. */}
+                                <Stack.Screen name="h/[host-id]" options={{ animation: 'fade' }} />
+                                <Stack.Screen name="sessions" options={{ animation: 'none' }} />
+                            </Stack>
+                        </MobileClientProvider>
+                    </ReadCacheContext.Provider>
                 </QueryClientProvider>
             </SafeAreaProvider>
         </GestureHandlerRootView>

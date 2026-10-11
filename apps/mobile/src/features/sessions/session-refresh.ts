@@ -14,18 +14,22 @@ export interface MobileDashboardSnapshot {
     sections: MobileSessionSections;
 }
 
+/**
+ * The phone's view of one Dashboard read, live or saved.
+ */
+export const projectMobileDashboard = (
+    dashboard: MethodResult<'mobile.dashboard'>,
+): MobileDashboardSnapshot => ({
+    deviceRole: dashboard.deviceRole,
+    hostDisplayName: dashboard.hostDisplayName,
+    projects: dashboard.projects,
+    sections: buildMobileSessionSections({
+        sessions: dashboard.sessions,
+        total: dashboard.total,
+        truncated: dashboard.truncated,
+    }),
+});
+
 export const fetchMobileSessionDashboard = async (
     source: MobileSessionRefreshSource,
-): Promise<MobileDashboardSnapshot> => {
-    const dashboard = await source.dashboard();
-    return {
-        deviceRole: dashboard.deviceRole,
-        hostDisplayName: dashboard.hostDisplayName,
-        projects: dashboard.projects,
-        sections: buildMobileSessionSections({
-            sessions: dashboard.sessions,
-            total: dashboard.total,
-            truncated: dashboard.truncated,
-        }),
-    };
-};
+): Promise<MobileDashboardSnapshot> => projectMobileDashboard(await source.dashboard());

@@ -422,10 +422,36 @@ rejected by the Server. `view` and `reply` devices never see the entry point.
   dashboard in the same change. Server events are invalidation hints; the authenticated Server
   response is the source of truth.
 - Terminal bytes and conversation updates arrive through Server subscriptions and never enter the
-  query cache or any durable store.
+  query cache. Only the bounded [read cache](#read-cache) below keeps a copy on the device.
 - Only visible views subscribe or poll. Leaving a screen or backgrounding the app ends its
   subscriptions.
-- Nothing remote is persisted to device storage except the device credential in the secure store.
+- The device credential lives in the secure store. Apart from it, only the read cache persists
+  remote data on the device.
+
+### Read cache
+
+A cold start or a phone without a connection shows what the phone last read instead of a spinner:
+the Session list, and the newest messages of recently opened Conversations and Chats. It is a read
+cache only; nothing is sent from it (see the offline outbox under [Deferred](#deferred)).
+
+- Each saved copy is labeled: `Showing Sessions saved 5m ago.` above the list and
+  `Showing messages saved 5m ago.` under a Conversation or Chat. The app-wide `Reconnecting…`
+  banner and every disabled mutation keep explaining why it is not live.
+- The first live read replaces the saved copy as a whole; the label disappears with it. A saved
+  copy is never merged into live history, because it has no cursor into it.
+- What is kept: the Session dashboard as the Server returned it, and per Conversation or Chat the
+  newest 50 items, for at most 20 Conversations and Chats (least recently saved go first).
+  Conversation tool and system-event details, Chat command and tool output, file diffs, image
+  previews, and pending approvals or questions are dropped before writing: like diagnostics, the
+  cache keeps no Terminal output or source. It never holds the device credential, pairing links,
+  or any key. A saved Chat keeps the model in use, so the composer names it as Desktop does, and
+  keeps each image's place as an empty tile until the connection returns and the thumbnail loads.
+- Entries are files in the app's private document directory, each tagged with the pairing scope
+  (host, device, generation) that read it. An entry from another scope or an older format reads as
+  a miss. Forgetting the computer, a revoked device, and a new pairing delete the whole cache, and a
+  write still pending at that moment is dropped.
+- Writes trail the live view by one second and flush when the app goes to the background. Every
+  read or write failure counts as a miss, so a broken file never blocks the live view.
 
 ## Performance budgets
 
@@ -450,13 +476,13 @@ rejected by the Server. `view` and `reply` devices never see the entry point.
 
 ## Deferred
 
-| Capability                      | Why it waits                                                                                                   |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Offline outbox                  | Bounded Agent-submit receipts can remain unknown and do not prove Agent execution; automatic resend is unsafe. |
-| System push and Live Activities | Requires a push service outside LAN/Tailscale; designed together with notification privacy (#499).             |
-| Multiple hosts                  | Routes and query keys already carry `hostId`; the UI waits for demand.                                         |
-| Voice beyond system dictation   | The system keyboard's dictation already works in the composer.                                                 |
-| iPad keyboard shortcuts         | Tablet layout ships first; hardware-keyboard behavior follows.                                                 |
+| Capability                      | Why it waits                                                                                                                                                                      |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Offline outbox                  | Bounded Agent-submit receipts can remain unknown and do not prove Agent execution; automatic resend is unsafe. The [read cache](#read-cache) shows saved content but never sends. |
+| System push and Live Activities | Requires a push service outside LAN/Tailscale; designed together with notification privacy (#499).                                                                                |
+| Multiple hosts                  | Routes and query keys already carry `hostId`; the UI waits for demand.                                                                                                            |
+| Voice beyond system dictation   | The system keyboard's dictation already works in the composer.                                                                                                                    |
+| iPad keyboard shortcuts         | Tablet layout ships first; hardware-keyboard behavior follows.                                                                                                                    |
 
 ## Open verification gates
 

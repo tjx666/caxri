@@ -114,7 +114,9 @@ While Conversation is visible in the foreground, the app subscribes to that Sess
 subscribes before its initial snapshot, serializes reads, and refreshes again if an event arrives
 during a read. If subscription is unavailable, it polls while visible every 2.5 seconds. Background,
 unmount, disconnect, and revocation end the active observation. Reconnect obtains a fresh snapshot;
-the last visible items are marked stale until then.
+the last visible items are marked stale until then. Before the first snapshot, a Conversation or
+Chat opened earlier shows the trimmed copy the phone saved in its
+[read cache](design.md#read-cache), labeled with its age; the first live snapshot replaces it.
 
 Latest-page updates replace the overlapping suffix without replacing the pagination cursor of
 the oldest retained item. Once earlier pages are loaded, live updates therefore preserve progress
