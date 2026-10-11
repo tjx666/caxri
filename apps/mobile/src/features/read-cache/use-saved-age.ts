@@ -1,0 +1,18 @@
+import { useEffect, useState } from 'react';
+
+import { savedAgeLabel } from '../sessions/session-row-model';
+
+const SAVED_AGE_TICK_MS = 30_000;
+
+/**
+ * `saved 5m ago` for a saved copy on screen, kept current while it stays there; `null` for a live view.
+ */
+export const useSavedAge = (savedAt: number | null): string | null => {
+    const [now, setNow] = useState(Date.now);
+    useEffect(() => {
+        if (savedAt === null) return;
+        const timer = setInterval(() => setNow(Date.now()), SAVED_AGE_TICK_MS);
+        return () => clearInterval(timer);
+    }, [savedAt]);
+    return savedAt === null ? null : savedAgeLabel(savedAt, now);
+};

@@ -125,6 +125,7 @@ export const SessionHome = ({
         isLoading,
         projects,
         refresh,
+        savedAt,
         sections,
         selectedId,
     } = sessions;
@@ -271,7 +272,9 @@ export const SessionHome = ({
                 error={error}
                 hasLoaded={hasLoaded}
                 isLoading={isLoading}
+                now={now}
                 onRetry={refresh}
+                savedAt={savedAt}
                 sections={sections}
                 theme={theme}
             />

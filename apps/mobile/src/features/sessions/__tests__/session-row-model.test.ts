@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest';
 
 import { mobileAgentDisplayName } from '../agent-display-name';
 import type { MobileSessionItem } from '../session-model';
-import { archivedAgeLabel, sessionAgeLabel, sessionAgentLabel } from '../session-row-model';
+import {
+    archivedAgeLabel,
+    savedAgeLabel,
+    sessionAgeLabel,
+    sessionAgentLabel,
+} from '../session-row-model';
 
 describe('Session row labels', () => {
     it('shows human Agent names without provider jargon', () => {
@@ -46,5 +51,13 @@ describe('archivedAgeLabel', () => {
         const now = 1_000_000_000;
         expect(archivedAgeLabel(now, now)).toBe('archived just now');
         expect(archivedAgeLabel(now - 3_600_000, now)).toBe('archived 1h ago');
+    });
+});
+
+describe('savedAgeLabel', () => {
+    it('reads as the age of the saved copy', () => {
+        const now = 1_000_000_000;
+        expect(savedAgeLabel(now, now)).toBe('saved just now');
+        expect(savedAgeLabel(now - 5 * 60_000, now)).toBe('saved 5m ago');
     });
 });

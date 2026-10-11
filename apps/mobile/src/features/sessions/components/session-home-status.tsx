@@ -5,6 +5,7 @@ import type { MobileConnectionStatus } from '../../connection/connection-state';
 import { allMobileSessions } from '../hooks/use-session-polling';
 import { describeSessionHomeEmptyState } from '../session-home-empty-state';
 import type { MobileSessionSections } from '../session-model';
+import { savedAgeLabel } from '../session-row-model';
 
 const styles = StyleSheet.create({
     banner: {
@@ -30,18 +31,32 @@ export const SessionHomeStatus = ({
     error,
     hasLoaded,
     isLoading,
+    now,
     onRetry,
+    savedAt,
     sections,
     theme,
 }: {
     error: string | null;
     hasLoaded: boolean;
     isLoading: boolean;
+    now: number;
     onRetry: () => Promise<void>;
+    /**
+     * Set while the list is the copy saved on this phone rather than a live read.
+     */
+    savedAt: number | null;
     sections: MobileSessionSections;
     theme: MobileTheme;
 }) => (
     <>
+        {savedAt === null ? null : (
+            <View style={[styles.limit, { borderColor: theme.border }]} testID="session-list-saved">
+                <Text style={[styles.limitText, { color: theme.muted }]}>
+                    Showing Sessions {savedAgeLabel(savedAt, now)}.
+                </Text>
+            </View>
+        )}
         {hasLoaded && error ? (
             <View
                 style={[

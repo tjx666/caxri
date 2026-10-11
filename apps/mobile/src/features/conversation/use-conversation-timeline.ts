@@ -3,6 +3,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentTimelineItem, MobileTimelineReadResult } from '@caxri/protocol';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
+import { useReadCache } from '../read-cache/read-cache-context';
+import {
+    cachedTimelineSchema,
+    READ_CACHE_MAX_ITEMS,
+    trimTimelineItems,
+} from '../read-cache/read-cache-model';
 import {
     applyLatestConversationPage,
     applyOlderConversationPage,
@@ -18,6 +24,10 @@ export interface ConversationTimelineState {
     isLoadingOlder: boolean;
     items: AgentTimelineItem[];
     olderCursor?: string;
+    /**
+     * Set while the items are the copy saved on this phone; the first live read replaces them.
+     */
+    savedAt?: number;
     status: 'loading' | 'available' | 'unsupported' | 'missing' | 'error' | 'stale';
     truncated: boolean;
 }
@@ -40,6 +50,7 @@ export const useConversationTimeline = ({
 }) => {
     const {
         connectionEpoch,
+        connectionScopeKey,
         isForeground,
         request,
         retryConnection,
@@ -52,6 +63,7 @@ export const useConversationTimeline = ({
         state: ConversationTimelineState;
     }>(() => ({ sessionId, state: initialState() }));
     const [retry, setRetry] = useState(0);
+    const readCache = useReadCache();
     const olderInFlight = useRef(false);
     const olderRequestId = useRef(0);
     const storedState = record.sessionId === sessionId ? record.state : initialState();
@@ -98,7 +110,11 @@ export const useConversationTimeline = ({
             onRetry: () => setRetry((value) => value + 1),
             onResult: (result) =>
                 update((current) => ({
-                    ...applyLatestConversationPage(current, result),
+                    // A saved copy has no cursor into the live history, so the live page replaces it.
+                    ...applyLatestConversationPage(
+                        current.savedAt === undefined ? current : initialState(),
+                        result,
+                    ),
                     error: null,
                     status: result.status,
                 })),
@@ -116,6 +132,51 @@ export const useConversationTimeline = ({
             stop();
         };
     }, [connectionEpoch, observable, request, retry, sessionId, subscribe, subscriptionAvailable]);
+
+    useEffect(() => {
+        if (sessionId === null || connectionScopeKey === null) return;
+        let isActive = true;
+        // eslint-disable-next-line no-void -- A missing or unreadable copy leaves the Conversation loading as before.
+        void readCache
+            .load(connectionScopeKey, { kind: 'timeline', sessionId }, cachedTimelineSchema)
+            .then((entry) => {
+                if (!isActive || !entry) return;
+                setRecord((current) => {
+                    const base = current.sessionId === sessionId ? current.state : initialState();
+                    // Only fills a Conversation nothing live has answered yet; a failed first read still shows it.
+                    if (base.status !== 'loading' && base.status !== 'error') return current;
+                    return {
+                        sessionId,
+                        state: {
+                            ...base,
+                            items: entry.value.items,
+                            savedAt: entry.savedAt,
+                            status: 'available',
+                            truncated: entry.value.truncated,
+                        },
+                    };
+                });
+            });
+        return () => {
+            isActive = false;
+        };
+    }, [connectionScopeKey, readCache, sessionId]);
+
+    const liveItems =
+        storedState.status === 'available' && storedState.savedAt === undefined
+            ? storedState.items
+            : null;
+    useEffect(() => {
+        if (liveItems === null || sessionId === null || connectionScopeKey === null) return;
+        readCache.save(
+            connectionScopeKey,
+            { kind: 'timeline', sessionId },
+            {
+                items: trimTimelineItems(liveItems),
+                truncated: storedState.truncated || liveItems.length > READ_CACHE_MAX_ITEMS,
+            },
+        );
+    }, [connectionScopeKey, liveItems, readCache, sessionId, storedState.truncated]);
 
     const loadOlder = useCallback(async (): Promise<void> => {
         if (!observable || !state.olderCursor || olderInFlight.current) return;

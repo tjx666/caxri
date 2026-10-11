@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AgentChatRequest, AgentChatSnapshot, ParametersArgument } from '@caxri/protocol';
 
 import { useMobileClient } from '../connection/mobile-client-provider';
+import { useReadCache } from '../read-cache/read-cache-context';
+import { cachedChatSchema, trimChatSnapshot } from '../read-cache/read-cache-model';
 import { startAgentChatReader } from './agent-chat-sync';
 
 export type AgentChatResponse = NonNullable<
@@ -19,6 +21,10 @@ export interface AgentChatAttachment {
 
 export interface AgentChatState {
     error: string | null;
+    /**
+     * Set while the snapshot is the copy saved on this phone; the first live snapshot replaces it.
+     */
+    savedAt?: number;
     snapshot: AgentChatSnapshot | undefined;
     /**
      * `stale` keeps the last copy on screen while the phone cannot observe the Chat.
@@ -45,6 +51,7 @@ export const useAgentChat = ({
 }) => {
     const {
         connectionEpoch,
+        connectionScopeKey,
         isForeground,
         request,
         status: connectionStatus,
@@ -55,6 +62,7 @@ export const useAgentChat = ({
         () => ({ terminalId, state: initialState() }),
     );
     const [retry, setRetry] = useState(0);
+    const readCache = useReadCache();
     const observable =
         enabled && terminalId !== null && isForeground && connectionStatus === 'connected';
     const stored = record.terminalId === terminalId ? record.state : initialState();
@@ -90,6 +98,39 @@ export const useAgentChat = ({
             stop();
         };
     }, [connectionEpoch, observable, request, retry, subscribe, subscriptionAvailable, terminalId]);
+
+    useEffect(() => {
+        if (terminalId === null || connectionScopeKey === null) return;
+        let isActive = true;
+        // eslint-disable-next-line no-void -- A missing or unreadable copy leaves the Chat loading as before.
+        void readCache
+            .load(connectionScopeKey, { kind: 'chat', terminalId }, cachedChatSchema)
+            .then((entry) => {
+                if (!isActive || !entry) return;
+                setRecord((current) => {
+                    const base = current.terminalId === terminalId ? current.state : initialState();
+                    // Only fills a Chat nothing live has answered yet; a failed first read still shows it.
+                    if (base.snapshot) return current;
+                    return {
+                        terminalId,
+                        state: { ...base, savedAt: entry.savedAt, snapshot: entry.value },
+                    };
+                });
+            });
+        return () => {
+            isActive = false;
+        };
+    }, [connectionScopeKey, readCache, terminalId]);
+
+    const liveSnapshot = stored.savedAt === undefined ? stored.snapshot : undefined;
+    useEffect(() => {
+        if (!liveSnapshot || connectionScopeKey === null) return;
+        readCache.save(
+            connectionScopeKey,
+            { kind: 'chat', terminalId: liveSnapshot.terminalId },
+            trimChatSnapshot(liveSnapshot),
+        );
+    }, [connectionScopeKey, liveSnapshot, readCache]);
 
     const refresh = useCallback((): void => {
         setRetry((value) => value + 1);
