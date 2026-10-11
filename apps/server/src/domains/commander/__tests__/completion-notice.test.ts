@@ -188,7 +188,7 @@ describe('CommanderCompletionNotifier', () => {
         expect(f.writeCalls).toHaveLength(1);
         expect(f.writeCalls[0].terminalId).toBe(COMMANDER_TERMINAL_ID);
         expect(f.writeCalls[0].data).toContain('delegation delegation-1');
-        expect(f.writeCalls[0].data.endsWith('\r')).toBe(true);
+        expect(f.writeCalls[0].data).toMatch(/^\[Caxri notice\] .*\.$/);
     });
 
     it('delivers immediately when the Commander is already idle before the transition arrives', () => {

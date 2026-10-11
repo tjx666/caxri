@@ -32,8 +32,24 @@ const ADMITTED_METHODS = new Set<string>([
  * `commander.snapshot`. `terminal.restart` backs the pane's own Resume and Restart actions; `terminal.referenceContext`
  * is the read the pane issues on mount to resolve file links; `agentCommander.openFileLink` hands a detected file link
  * to the Workbench (see that method's JSDoc for why this cannot grant cross-Project authority).
+ * `terminal.switchSurface` backs the title bar's `Terminal | Chat` toggle, and the `agentChat.*` and `agentActions.*`
+ * methods are the Chat pane's whole surface once the Commander runs as a Chat.
  */
 const TERMINAL_METHODS = new Set<string>([
+    'agentActions.list',
+    'agentActions.read',
+    'agentChat.configure',
+    'agentChat.interrupt',
+    'agentChat.read',
+    'agentChat.readImage',
+    'agentChat.readTask',
+    'agentChat.removeQueued',
+    'agentChat.respond',
+    'agentChat.resumeQueue',
+    'agentChat.runCommand',
+    'agentChat.send',
+    'agentChat.sendQueuedNow',
+    'agentChat.stopTask',
     'agentCommander.openFileLink',
     'terminal.attach',
     'terminal.detach',
@@ -44,6 +60,7 @@ const TERMINAL_METHODS = new Set<string>([
     'terminal.referenceContext',
     'terminal.resize',
     'terminal.restart',
+    'terminal.switchSurface',
 ]);
 
 /**

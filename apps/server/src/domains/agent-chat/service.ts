@@ -13,30 +13,25 @@ import {
     agentChatTaskSnapshotSchema,
     agentProviderCatalog,
     CaxriError,
-    errorMessage,
     resolveAgentChatModelChange,
 } from '@caxri/protocol';
 import { assertE2EAgentChatInput, logEventCatalog, readE2EAgentPolicy } from '@caxri/system';
 
-import type { AgentLifecycleSignal } from '../agents';
 import { AgentRunAutonomy } from '../agents';
 import { SingleFlight } from '../single-flight';
 import { agentChatDrivers } from './chat-drivers';
+import { ChatEndpointLease } from './chat-endpoint-lease';
 import { isAgentChatCommandListed } from './chat-items';
 import {
     chatStartFailure,
     didPersistChatStartFailure,
+    forwardChatLifecycle,
     logChatProcessExited,
     prepareChatLaunch,
     readChatTranscript,
     requireChatTerminal,
 } from './chat-launch';
-import type {
-    AgentChatExit,
-    AgentChatProviderSession,
-    AgentChatResponse,
-    ChatLifecycleEvent,
-} from './chat-provider';
+import type { AgentChatExit, AgentChatProviderSession, AgentChatResponse } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
 import { chatSessionLogCallbacks } from './chat-session-logs';
 import type { ChatState, ChatStateDelivery, ChatTerminal } from './chat-states';
@@ -58,9 +53,12 @@ export class AgentChatService {
 
     private readonly agentRunAutonomy = new AgentRunAutonomy();
 
+    private readonly endpoint: ChatEndpointLease;
+
     private isShuttingDown = false;
 
     constructor(private readonly options: AgentChatServiceOptions) {
+        this.endpoint = new ChatEndpointLease(options);
         this.states = new ChatStates({
             database: options.database,
             logger: options.logger,
@@ -130,6 +128,7 @@ export class AgentChatService {
     ): void {
         const { coordinator, database, logger } = this.options;
         if (state.launchId === launchId) state.launchId = undefined;
+        this.endpoint.retire(terminalId);
         coordinator.endTerminalLaunch(terminalId);
         logger.write('info', logEventCatalog.agentChat.processStarted, {
             fields: {
@@ -173,11 +172,12 @@ export class AgentChatService {
                 this.options.launchSettings(provider),
                 shouldKeepAgentAutonomy,
             );
-            const { cwd, executable, environment, isRealAgentE2E } = await prepareChatLaunch(
-                this.options,
-                provider,
-                launch,
-                terminal.cwd,
+            const prepared = await prepareChatLaunch(this.options, provider, launch, terminal.cwd);
+            const { cwd, executable, isRealAgentE2E } = prepared;
+            const environment = await this.endpoint.environment(
+                terminal,
+                launchId,
+                prepared.environment,
             );
             // Preparing awaited; the Chat may have been closed, deleted, detached, or archived meanwhile.
             if (!this.states.isAdmitted(terminalId, state)) {
@@ -204,7 +204,13 @@ export class AgentChatService {
                 },
                 readTask: (taskId) => state.projection.tasks.get(taskId),
                 lifecycle: (event) => {
-                    if (isCurrent()) this.lifecycle(terminalId, provider, launchId, event);
+                    if (isCurrent())
+                        forwardChatLifecycle(this.options, {
+                            ...event,
+                            launchId,
+                            provider,
+                            terminalId,
+                        });
                 },
                 onSessionBound: (agentSessionId) => {
                     if (!isCurrent()) return;
@@ -221,6 +227,7 @@ export class AgentChatService {
                 await session.close();
                 return;
             }
+            await this.endpoint.activate(terminalId);
             this.states.setStatus(terminalId, 'ready');
             database.updateTerminalState(terminalId, 'running');
             database.updateAgentProcessState(terminalId, 'running');
@@ -233,37 +240,13 @@ export class AgentChatService {
         } catch (error) {
             if (state.session === session) state.session = undefined;
             await session?.close();
+            if (isCurrent()) this.endpoint.retire(terminalId);
             const failure = chatStartFailure(this.options, terminal, error, startedAt);
             if (isCurrent() && !this.isShuttingDown) {
                 this.states.setStatus(terminalId, 'failed', failure);
                 if (didPersistChatStartFailure(this.options, terminalId, failure))
                     this.states.publish(terminalId);
             }
-        }
-    }
-
-    private lifecycle(
-        terminalId: string,
-        provider: AgentProvider,
-        launchId: string,
-        event: ChatLifecycleEvent,
-    ): void {
-        const signal: AgentLifecycleSignal = { ...event, launchId, provider, terminalId };
-        // eslint-disable-next-line no-void -- lifecycle delivery is ordered by the coordinator, not by this caller.
-        void this.observeLifecycleSignal(signal);
-    }
-
-    private async observeLifecycleSignal(signal: AgentLifecycleSignal): Promise<void> {
-        try {
-            await this.options.observeLifecycleSignal(signal);
-        } catch (error: unknown) {
-            this.options.logger.write('warn', logEventCatalog.agentChat.protocolRejected, {
-                fields: {
-                    terminalId: signal.terminalId,
-                    reason: 'lifecycleFailed',
-                    error: errorMessage(error, 'unknown'),
-                },
-            });
         }
     }
 
@@ -284,20 +267,21 @@ export class AgentChatService {
          * (Restart, close) ends the turn the way an interrupt does; an unrequested one is a provider failure.
          */
         if (exit.activeTurnId)
-            this.lifecycle(
-                terminalId,
-                provider,
-                launchId,
-                exit.requested
+            forwardChatLifecycle(this.options, {
+                ...(exit.requested
                     ? { phase: 'turnFinished', agentTurnId: exit.activeTurnId }
                     : {
                           phase: 'turnFailed',
                           agentTurnId: exit.activeTurnId,
                           agentFailure: 'provider_failed',
-                      },
-            );
+                      }),
+                launchId,
+                provider,
+                terminalId,
+            });
         state.session = undefined;
         state.launchId = undefined;
+        this.endpoint.retire(terminalId);
         // Background work lives inside the provider process and ended with it.
         new ChatTaskList({
             read: () => state.projection.snapshot,
