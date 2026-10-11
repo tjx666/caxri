@@ -165,7 +165,10 @@ export async function executeMobileChatImageScenario(
                 // Teardown must still stop the fixture; the scenario's own failure is the useful error.
             }
         }
-        await fixture.stop();
-        await removeMobileGalleryImage(serial);
+        try {
+            await fixture.stop();
+        } finally {
+            await removeMobileGalleryImage(serial);
+        }
     }
 }
