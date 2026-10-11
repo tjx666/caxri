@@ -21,7 +21,7 @@ export function createSessionCreator(dependencies: {
         authorizedRoots: readonly string[];
         defaultRoot: string;
     }) => Promise<string>;
-    terminals: Pick<TerminalManager, 'start'>;
+    terminals: Pick<TerminalManager, 'launches' | 'start'>;
 }) {
     const {
         coordinator,
@@ -80,30 +80,43 @@ export function createSessionCreator(dependencies: {
             : database.createSession(projectId, defaultAgent, cwd, { selection });
         let launchError: { code: 'TERMINAL_START_FAILED'; message: string } | undefined;
         if (!chatAgent && created.terminal) {
-            let expectedWorkingDirectory:
-                Awaited<ReturnType<typeof terminalDirectoryIdentity>> | undefined;
-            if (selection === 'select') {
-                expectedWorkingDirectory = await terminalDirectoryIdentity(cwd!);
-                coordinator.prepareTerminalStart(created.terminal.id);
-            }
+            // The Session exists from here: a detach or Terminate and Close starting during the lookup below must wait.
+            const prepared = terminals.launches.begin(created.session.id);
             try {
-                expectedWorkingDirectory ??= await terminalDirectoryIdentity(cwd!);
-                if (selection === 'preserve') coordinator.prepareTerminalStart(created.terminal.id);
-                await terminals.start(created.terminal, { expectedWorkingDirectory });
-            } catch {
-                /**
-                 * Keep the durable failed Terminal visible. Mobile reports partial success so a retry cannot silently
-                 * create another Session; Desktop keeps its existing successful create response.
-                 */
-                if (selection === 'preserve') {
-                    if (database.getTerminal(created.terminal.id)?.lastProcessState !== 'failed')
-                        database.updateTerminalState(created.terminal.id, 'failed', 'spawn_failed');
-                    launchError = {
-                        code: 'TERMINAL_START_FAILED',
-                        message:
-                            'Terminal failed to start. The Session was created; open it to review the error.',
-                    };
+                let expectedWorkingDirectory:
+                    Awaited<ReturnType<typeof terminalDirectoryIdentity>> | undefined;
+                if (selection === 'select') {
+                    expectedWorkingDirectory = await terminalDirectoryIdentity(cwd!);
+                    coordinator.prepareTerminalStart(created.terminal.id);
                 }
+                try {
+                    expectedWorkingDirectory ??= await terminalDirectoryIdentity(cwd!);
+                    if (selection === 'preserve')
+                        coordinator.prepareTerminalStart(created.terminal.id);
+                    await terminals.start(created.terminal, { expectedWorkingDirectory });
+                } catch {
+                    /**
+                     * Keep the durable failed Terminal visible. Mobile reports partial success so a retry cannot
+                     * silently create another Session; Desktop keeps its existing successful create response.
+                     */
+                    if (selection === 'preserve') {
+                        if (
+                            database.getTerminal(created.terminal.id)?.lastProcessState !== 'failed'
+                        )
+                            database.updateTerminalState(
+                                created.terminal.id,
+                                'failed',
+                                'spawn_failed',
+                            );
+                        launchError = {
+                            code: 'TERMINAL_START_FAILED',
+                            message:
+                                'Terminal failed to start. The Session was created; open it to review the error.',
+                        };
+                    }
+                }
+            } finally {
+                prepared();
             }
         }
         if (selection === 'select') {

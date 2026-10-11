@@ -107,8 +107,10 @@ export function createSessionParkingHandlers(
 /**
  * Terminate and Close, and an explicit quit before `host.stop`: stops every running Terminal and Chat as `stopped`
  * while Server Core keeps its services, so a Workbench reopened on the same Server Core can launch, restart, restore,
- * and start Chats again. Queued restores are fenced first so none relaunches a process afterward. A quit's terminal
- * shutdown is the `host.stop` that follows, not this.
+ * and start Chats again. Queued restores are fenced first so none relaunches a process afterward. Chats close only once
+ * `terminateAll` has settled every launch in flight: a Chat restart or a switch to Chat runs inside such a launch, and
+ * `closeSession` stops only the Chats that already exist when it runs. A quit's terminal shutdown is the `host.stop`
+ * that follows, not this.
  */
 export function createTerminateAllHandler(
     options: SessionParkingOptions,
@@ -119,11 +121,11 @@ export function createTerminateAllHandler(
         'terminal.terminateAll': async () => {
             terminalRestores.cancelAll();
             commanderRestores.cancelAll();
+            await terminalSuspension.terminateAll();
             const sessionIds = new Set(database.listTerminals().map(({ sessionId }) => sessionId));
-            await Promise.all([
-                terminalSuspension.terminateAll(),
-                ...[...sessionIds].map((sessionId) => agentChat.closeSession(sessionId)),
-            ]);
+            await Promise.all(
+                [...sessionIds].map((sessionId) => agentChat.closeSession(sessionId)),
+            );
             return null;
         },
     };
