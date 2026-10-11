@@ -386,7 +386,8 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
         const request = vi.fn((method: string) => {
             if (method === 'session.queryForPrincipal')
                 return Promise.resolve({ sessions: [{ id: 'session-1', projectId: 'project-1' }] });
-            if (method === 'app.activeContext') return Promise.resolve({ sessionId: 'session-1' });
+            if (method === 'app.activeContext')
+                return Promise.resolve({ sessionId: 'session-1', workbenchProjectId: 'project-1' });
             throw new Error(`Unexpected method: ${method}`);
         });
         const domainService = { request } as unknown as ServerDomainService;
@@ -425,6 +426,11 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
             expect(treeChildren).toHaveBeenCalledWith({
                 viewId: 'view-changes',
                 requestId: expect.any(String) as string,
+                context: {
+                    kind: 'session',
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
+                },
             });
         } finally {
             await controller.close();

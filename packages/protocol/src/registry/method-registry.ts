@@ -92,6 +92,7 @@ import {
     extensionCommandIdSchema,
     extensionErrorSchema,
     extensionIdSchema,
+    extensionViewEventContextSchema,
     MAX_EXTENSION_COMMAND_ARGUMENTS,
     viewCatalogSnapshotSchema,
     viewIdSchema,
@@ -178,6 +179,10 @@ export const methods = {
             viewId: viewIdSchema,
             parentHandle: z.string().min(1).max(512).optional(),
             requestId: identifierSchema,
+            /**
+             * Rejected with CANCELLED once no longer the active scope, like `viewContainers.viewOperation`.
+             */
+            context: extensionViewEventContextSchema,
         }),
         result: treeChildrenResultSchema,
     },
