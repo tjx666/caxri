@@ -52,6 +52,67 @@ function TurnSubagentButton({
 }
 
 /**
+ * The fold's `Worked for 2m 1s` toggle, with a button per subagent the turn started.
+ */
+function TurnFoldHeader({
+    detailId,
+    isExpanded,
+    label,
+    onOpenSubagent,
+    onToggle,
+    status,
+    subagents,
+}: {
+    detailId: string;
+    isExpanded: boolean;
+    label: string;
+    onOpenSubagent: ((taskId: string) => void) | undefined;
+    onToggle: () => void;
+    status: TurnEntry['status'];
+    subagents: readonly AgentChatTurnSubagent[];
+}) {
+    const tone = agentChatTurnTone(status);
+    const ToneIcon = tone === 'danger' ? CircleX : CircleStop;
+    return (
+        <div className="flex min-w-0 items-center gap-1 border-b border-solid border-border pb-1">
+            <button
+                aria-controls={detailId}
+                aria-expanded={isExpanded}
+                className={cn(
+                    'flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-0 pt-0.5 pb-0.5 text-left focus-visible:outline focus-visible:outline-accent',
+                    tone === 'danger'
+                        ? 'text-danger'
+                        : tone === 'warning'
+                          ? 'text-warning'
+                          : 'text-muted hover:text-foreground',
+                )}
+                type="button"
+                onClick={onToggle}
+            >
+                {tone && <ToneIcon aria-hidden="true" className="size-3.5 shrink-0" />}
+                <span>{label}</span>
+                <ChevronRight
+                    aria-hidden="true"
+                    className={cn(
+                        'size-3.5 shrink-0',
+                        agentChatChevronMotion(isExpanded),
+                        isExpanded && 'rotate-90',
+                    )}
+                />
+            </button>
+            {onOpenSubagent &&
+                subagents.map((subagent) => (
+                    <TurnSubagentButton
+                        key={subagent.taskId}
+                        subagent={subagent}
+                        onOpen={onOpenSubagent}
+                    />
+                ))}
+        </div>
+    );
+}
+
+/**
  * A finished turn's work and commentary behind one `Worked for 2m 1s` row with a hairline, so the prompt and the final
  * reply read as one exchange. A failed or stopped turn carries its tone in the glyph and the words, so a turn that did
  * not finish is not read as one that did. Expanded, it renders the folded entries exactly as they looked while the turn
@@ -87,8 +148,6 @@ export function AgentChatTurnFold({
         }
     }
     const detailId = useId();
-    const tone = agentChatTurnTone(entry.status);
-    const ToneIcon = tone === 'danger' ? CircleX : CircleStop;
     const links = use(AgentChatTaskLinksContext);
     const subagents = useMemo(
         () => (links ? agentChatTurnSubagents(turnItems(entry), links.tasksByItem) : []),
@@ -96,44 +155,18 @@ export function AgentChatTurnFold({
     );
     return (
         <div className="text-[12px] leading-5">
-            <div className="flex min-w-0 items-center gap-1 border-b border-solid border-border pb-1">
-                <button
-                    aria-controls={detailId}
-                    aria-expanded={isExpanded}
-                    className={cn(
-                        'flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-0 pt-0.5 pb-0.5 text-left focus-visible:outline focus-visible:outline-accent',
-                        tone === 'danger'
-                            ? 'text-danger'
-                            : tone === 'warning'
-                              ? 'text-warning'
-                              : 'text-muted hover:text-foreground',
-                    )}
-                    type="button"
-                    onClick={() => {
-                        setExpanded((value) => !value);
-                        setOpenedByFind(false);
-                    }}
-                >
-                    {tone && <ToneIcon aria-hidden="true" className="size-3.5 shrink-0" />}
-                    <span>{entry.label}</span>
-                    <ChevronRight
-                        aria-hidden="true"
-                        className={cn(
-                            'size-3.5 shrink-0',
-                            agentChatChevronMotion(isExpanded),
-                            isExpanded && 'rotate-90',
-                        )}
-                    />
-                </button>
-                {links &&
-                    subagents.map((subagent) => (
-                        <TurnSubagentButton
-                            key={subagent.taskId}
-                            subagent={subagent}
-                            onOpen={links.openTask}
-                        />
-                    ))}
-            </div>
+            <TurnFoldHeader
+                detailId={detailId}
+                isExpanded={isExpanded}
+                label={entry.label}
+                status={entry.status}
+                subagents={subagents}
+                onOpenSubagent={links?.openTask}
+                onToggle={() => {
+                    setExpanded((value) => !value);
+                    setOpenedByFind(false);
+                }}
+            />
             <DisclosureMotion
                 animate={!isOpenedByFind}
                 expanded={isExpanded}
