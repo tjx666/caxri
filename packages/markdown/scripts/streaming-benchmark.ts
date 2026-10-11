@@ -1,14 +1,19 @@
 /**
- * Replays a long Agent reply through the Agent Chat streaming pipeline one delta at a time, once with the incremental
- * parser and once with a full re-parse per delta, and reports what each delta costs: the tail repair, the Markdown
- * parse, and the per-block equality check a memoized renderer runs.
+ * Replays long Agent replies (a mixed reply and one that is a single long list) through the Agent Chat streaming
+ * pipeline one delta at a time, once with the incremental parser and once with a full re-parse per delta, and reports
+ * what each delta costs: the tail repair, the Markdown parse, and the per-block equality check a memoized renderer
+ * runs.
  *
  * This is a trend tool, not a gate: wall-clock time moves with machine load. The CI gate is the parse-work and identity
  * accounting asserted in `src/__tests__/streaming-parser.test.ts`, which does not depend on machine speed.
  *
  * Usage: `bun run benchmark:markdown`.
  */
-import { agentReplyFixture, streamingPrefixes } from '../src/__tests__/agent-reply.fixture.js';
+import {
+    agentListReplyFixture,
+    agentReplyFixture,
+    streamingPrefixes,
+} from '../src/__tests__/agent-reply.fixture.js';
 import type { MarkdownBlock, StreamingMarkdownParser } from '../src/index.js';
 import {
     createStreamingMarkdownParser,
@@ -18,7 +23,6 @@ import {
 } from '../src/index.js';
 
 const OPTIONS = { tables: true, fileLinks: true } as const;
-const SECTIONS = 12;
 const ROUNDS = 5;
 
 function percentile(samples: readonly number[], fraction: number): number {
@@ -113,13 +117,19 @@ function measure(mode: Mode, text: string, prefixes: readonly string[]) {
     };
 }
 
-const text = agentReplyFixture(SECTIONS);
-const prefixes = streamingPrefixes(text);
+function scenario(text: string) {
+    const prefixes = streamingPrefixes(text);
+    return {
+        characters: text.length,
+        deltas: prefixes.length,
+        incremental: measure('incremental', text, prefixes),
+        full: measure('full', text, prefixes),
+    };
+}
+
 const result = {
-    characters: text.length,
-    deltas: prefixes.length,
     rounds: ROUNDS,
-    incremental: measure('incremental', text, prefixes),
-    full: measure('full', text, prefixes),
+    mixed: scenario(agentReplyFixture(12)),
+    list: scenario(agentListReplyFixture(200)),
 };
 console.log(`CAXRI_MARKDOWN_BENCHMARK ${JSON.stringify(result, null, 2)}`);

@@ -78,7 +78,8 @@ Markdown performance in a blocking PR check; assistant-ui's count-based contract
   boundaries (reuse starts at a top-level construct whose first line and the line after it are complete
   and unchanged, which is
   stricter than "the last two blocks" and proven equal to a full parse character by character, as
-  t3code tests it); fallback on link reference definitions; a count-based CI gate in the
+  t3code tests it); the same reuse one level down for an open list's items, which none of the
+  products above do and which a long list-shaped reply needs; fallback on link reference definitions; a count-based CI gate in the
   assistant-ui style instead of a wall-clock budget.
 - Already in place: Server Core coalesces deltas into 16 ms patches (the rAF batching others add in
   the client), and fenced code is colorized only once the fence closes.

@@ -4,7 +4,11 @@ import type { MarkdownBlockOptions } from '../markdown-blocks.js';
 import { parseMarkdownBlocks } from '../markdown-blocks.js';
 import { createStreamingMarkdownParser } from '../streaming-parser.js';
 import { repairStreamingMarkdown } from '../streaming-repair.js';
-import { agentReplyFixture, streamingPrefixes } from './agent-reply.fixture.js';
+import {
+    agentListReplyFixture,
+    agentReplyFixture,
+    streamingPrefixes,
+} from './agent-reply.fixture.js';
 
 const CHAT_OPTIONS: MarkdownBlockOptions = { tables: true, fileLinks: true };
 
@@ -33,6 +37,10 @@ const BOUNDARY_CASES: Record<string, string> = {
         '[x][a]\n\nb\n\n> [a]: https://example.com/a\n\n[y][c]\n\n- [c]: https://example.com/c',
     'reference labels with an escaped bracket or a line break':
         '[x][a\\]b]\n\nb\n\n[a\\]b]: https://example.com/u\n\n[y][m n]\n\n[m\nn]: https://example.com/m',
+    'list items reused across a marker change, nesting, and tasks':
+        '- a\n- b\n* c\n* d\n\n1. x\n2. y\n3) z\n\n- [ ] t\n- [x] u\n  - nested\n    - deeper\n- after\n\n  loose\n- end',
+    'list item that turns into a rule or a heading underline':
+        '- a\n- b\n- - -\n- c\n-\n---\n\n7. a\n8. b\n\n- p\n- q\n  ---\n- r',
     'CRLF line endings': 'a\r\n\r\n- b\r\n- c\r\n\r\n| a |\r\n| - |\r\n\r\nd',
 };
 
@@ -93,6 +101,15 @@ describe('createStreamingMarkdownParser', () => {
         expect(parser.stats().parsedCharacters / text.length).toBeLessThan(10);
     });
 
+    it('keeps the parse-work budget for a reply that is one long list', () => {
+        const text = agentListReplyFixture(200);
+        const parser = createStreamingMarkdownParser(CHAT_OPTIONS);
+        for (const prefix of streamingPrefixes(text)) parser.parse(repairStreamingMarkdown(prefix));
+        parser.parse(text);
+        expect(parser.parse(text)).toEqual(parseMarkdownBlocks(text, CHAT_OPTIONS));
+        expect(parser.stats().parsedCharacters / text.length).toBeLessThan(10);
+    });
+
     it('keeps the parse-work budget for a reply with CRLF line endings', () => {
         const text = agentReplyFixture(12).replaceAll('\n', '\r\n');
         const parser = createStreamingMarkdownParser(CHAT_OPTIONS);
@@ -117,6 +134,17 @@ describe('createStreamingMarkdownParser', () => {
             );
             previous = blocks;
         }
+    });
+
+    it('keeps settled items of an open list as the same objects across deltas', () => {
+        const parser = createStreamingMarkdownParser(CHAT_OPTIONS);
+        const text = agentListReplyFixture(30);
+        const [first] = parser.parse(text.slice(0, text.length / 2));
+        const [next] = parser.parse(text);
+        if (first?.type !== 'list' || next?.type !== 'list') throw new Error('expected a list');
+        expect(next).not.toBe(first);
+        const settled = first.items.slice(0, -2);
+        for (const [index, item] of settled.entries()) expect(next.items[index]).toBe(item);
     });
 
     it('answers an unchanged source without parsing again', () => {
