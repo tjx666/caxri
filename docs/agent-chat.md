@@ -230,7 +230,8 @@ pending permission prompts and questions until the user answers:
   `forwardSubagentText`) go to the subagent's own task projection, never the parent timeline; see
   [Background work](#background-work).
 - Usage is the latest model request's input plus cache plus output tokens; the context window
-  comes from the result's per-model usage.
+  comes from the result's per-model usage. See [Context usage and cache](#context-usage-and-cache)
+  for the breakdown, compaction window, and cache lifetime.
 
 ## Grok Build mapping
 
@@ -382,19 +383,19 @@ several callbacks can share one item, so the transport id is never the key.
   latest returns to the end.
 - The composer keeps an unsent draft per Chat across tab switches, clears only the text that was
   actually sent, and treats Escape as Stop while a turn runs. Its action row shows how much of the
-  context window is used, as a filling ring and a percentage with the token counts in its tooltip,
-  and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
+  context window is used, as a filling ring and a percentage with the token counts and what fills
+  the window in its tooltip, and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
   a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another
   text field, and not when arrow-key tab navigation activated it, which keeps focus on the tab.
   A status row at the top of the composer card says whether the Chat is starting, working, or waiting on an
   answer; a working turn shows one verb chosen per turn from its id, its elapsed time, and `Esc to
-stop`. Only the label is the polite live region, so the ticking time is never announced.
+stop`, which is also a pointer shortcut for Stop. Only the label is the polite live region, so the ticking time is never announced.
 - Work renders as one-line rows (`Ran git status`, `Read <file>`, `Edited <file> +2 more`),
   each with the tool kind's glyph from the provider tool table shared with mobile
   (`packages/protocol/src/agent/agent-tool-presentation.ts`). Codex's login-shell wrapper
   (`/bin/zsh -lc "..."`) is unwrapped so a row shows the script that ran. A command the Agent
   described (Claude Code's `Bash` description) is titled by that description, and its command line
-  moves into the expanded view. A command row always shows its duration, a non-zero `Exit N`, and a
+  moves into the expanded view. A row shows its duration once it reaches a second, a non-zero `Exit N`, and a
   `Background` tag for a hand-off; the expanded view ends with its exit code. Codex reports no
   description or background state for a command, so its rows show the command line. Consecutive work collapses
   into one summary row, and once a turn ends its work and commentary fold behind `Worked for X`
@@ -410,7 +411,8 @@ stop`. Only the label is the polite live region, so the ticking time is never an
   ([`components/markdown/`](../apps/desktop/src/renderer/src/components/markdown/markdown-blocks.tsx)):
   leveled headings, nested and task lists, quotes, tables with Copy table (Markdown plus HTML), and
   fenced code with a header (language, word-wrap toggle, Copy code) painted by Monaco's colorizer
-  once the fence closes. A reply offers Copy message on hover after it finishes.
+  once the fence closes. A reply offers Copy message only while the pointer is over it (or focus reaches the button), after
+  it finishes.
 - While a reply streams, `repairStreamingMarkdown` completes the last block's unfinished emphasis,
   inline code, and links so raw syntax never flashes, and blocks are memoized by value so a delta
   re-renders only the block it changed.
@@ -454,14 +456,14 @@ stop`. Only the label is the polite live region, so the ticking time is never an
 
 ## Images and slash commands
 
-- **Images.** A provider with `capabilities.chatImages` (Codex and Claude Code) accepts up to 4
-  PNG, JPEG, GIF, or WebP images of at most 5 MB each per message, pasted, dropped, or picked with
-  Attach images. An image alone is a valid message. `agentChat.send` carries each image's base64
-  data straight to the provider (Codex `image` data-URL input, a Claude `image` content block) and
-  never stores it. The projection keeps only the Renderer-made JPEG thumbnail (at most 48 KB, raster
-  data URLs only), which counts against the text budget. Codex pairs it with the echoed user message
-  through `clientUserMessageId`. A resumed Chat knows how many images a message had, but their
-  previews were the sending Client's, so it shows placeholders.
+- **Images.** A provider with `capabilities.chatImages` (Codex and Claude Code) accepts up to 4 PNG,
+  JPEG, GIF, or WebP images of at most 5 MB each per message, pasted, or dropped anywhere on the Chat;
+  there is no picker button. An image alone is a valid message. `agentChat.send` carries each
+  image's base64 data straight to the provider (Codex `image` data-URL input, a Claude `image`
+  content block) and never stores it. The projection keeps only the Renderer-made JPEG thumbnail (at
+  most 48 KB, raster data URLs only), which counts against the text budget. Codex pairs it with the
+  echoed user message through `clientUserMessageId`. A resumed Chat knows how many images a message
+  had, but their previews were the sending Client's, so it shows placeholders.
 - **Slash commands.** The snapshot's `commands` is the list the composer offers after a leading
   `/`. Codex lists `/compact`, which runs `thread/compact/start`; issued during a turn it waits in the
   queue.
@@ -480,6 +482,34 @@ stop`. Only the label is the polite live region, so the ticking time is never an
   Enter chooses one, and Escape dismisses the list. A command that takes no arguments runs when
   chosen; one that does is completed so its arguments can be typed.
 - Image bytes, thumbnails, and command arguments never reach logs.
+
+## Context usage and cache
+
+The snapshot's `usage` (`packages/protocol/src/agent/agent-chat-usage.ts`) describes the context
+as of the latest model response. Besides the total and the model window it can carry:
+
+- `breakdown`: what fills the window. Claude Code answers `getContextUsage({ detail: 'summary' })`
+  after each turn ends (local estimates, no extra token-count requests); the Chat keeps its `used`
+  and `buffer` rows (system prompt, tools, memory files, messages, the autocompact reserve) and
+  drops free space and deferred tool schemas. Codex reports its last request's cached input, new
+  input, and output (reasoning is already part of output). Grok Build reports none. A newer response
+  drops the rows until the next turn ends, so they never describe an older context.
+- `compactWindow`: the window Claude Code compacts against (`rawMaxTokens`) when it is smaller
+  than the model's, as with `CLAUDE_CODE_AUTO_COMPACT_WINDOW` or the 200K boundary on a 1M model.
+  The meter's percentage and color measure against it: `--warning` from 50%, `--danger` from 70%.
+- `cacheTtlMinutes` and `lastResponseAt`: how long the prompt cache survives an idle Chat, counted
+  from the latest response. Claude Code's lifetime comes from the response's cache-write split (any
+  one-hour write means 60 minutes, otherwise five-minute writes mean 5) and defaults to 60. Codex
+  reports no lifetime, so it is an estimated 30 minutes.
+- `cacheRewriteUsd`: the standard API price of writing the whole context into the cache again,
+  from the price list bundled with the build (`apps/server/src/domains/usage/pricing.ts`, the
+  same LiteLLM data the Usage page uses) at the cache-write rate the lifetime selects. A
+  subscription spends allowance instead, so this is an estimate of weight, not an invoice.
+
+While no turn runs, the composer shows these as one row in the activity bar's place, judged on a
+minute clock: once the Chat has idled past the cache lifetime, a `--warning` notice says the next
+message rewrites the context and what that costs; from 70% of the compaction window, a `--danger`
+notice suggests `/compact`. Both can show at once, cache first.
 
 ## Model and effort
 
@@ -501,9 +531,16 @@ A running turn keeps the model it started with.
   turns and for the next resume.
 - **Claude Code** lists models in the SDK's `initialize` response. `value` (often an alias such as
   `opus`) is the identifier and `resolvedModel` the full model the init message then reports, kept
-  as `resolvedId` so the two match. A switch applies in place: `setModel`, and `effortLevel`
+  as `resolvedId` so the two match. For the `default` alias ("Default (recommended)") the composer
+  shows the model it resolves to instead: the name its description gives ("currently Opus 5.5"),
+  else the named entry with the same resolved model, else plain "Default". A switch applies in place: `setModel`, and `effortLevel`
   through `applyFlagSettings`, which outranks the user's settings files without writing to them.
-  The effort is known only when the CLI publishes it in its init message or after a switch.
+  An SDK-hosted init message carries no effort (only Remote Control bridge frames do), so the Chat
+  registers read-only `UserPromptSubmit`, `PreToolUse`, and `Stop` hook callbacks and reports the
+  main thread's `effort.level` from their input: the level Claude Code actually sends after
+  settings, environment overrides, and model downgrades. Claude Code fills it only for a hook with
+  a tool-use context, so `PreToolUse` and `Stop` always carry it and `UserPromptSubmit` only
+  sometimes. Before the first turn ends, or a switch, the effort can be unknown.
 
 ## Lifecycle signals
 

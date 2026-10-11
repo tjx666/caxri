@@ -11,8 +11,6 @@ import {
  * projection and the transcript keep only a small thumbnail made here.
  */
 
-export const AGENT_CHAT_IMAGE_ACCEPT = agentChatImageMediaTypeSchema.options.join(',');
-
 /**
  * Device pixels a thumbnail must cover at 2x: the sent message preview is 96 CSS pixels tall, and the composer chip
  * crops it to a 64 CSS pixel square, so its short side needs 128. A thumbnail fitted only to its long edge is upscaled

@@ -242,7 +242,7 @@ class CodexChatSession implements AgentChatProviderSession {
                 return;
             }
             case 'thread/tokenUsage/updated': {
-                const usage = mapCodexUsage(parameters);
+                const usage = mapCodexUsage(parameters, this.options.read().model);
                 if (usage) this.options.apply([{ op: 'state', state: { usage } }]);
                 return;
             }

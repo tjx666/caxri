@@ -1,7 +1,7 @@
 import type { ProjectStatusRepository, TreeItemRichTooltip } from 'caxri';
 import { describe, expect, it } from 'vitest';
 
-import { MERGE_PULL_REQUEST_COMMAND } from '../status-merge';
+import { MERGE_PULL_REQUEST_COMMAND, mergeBlocker, mergeReadinessLabel } from '../status-merge';
 import { buildRepoNode } from '../status-tree';
 
 type PullRequest = NonNullable<ProjectStatusRepository['pullRequest']>;
@@ -45,6 +45,7 @@ describe('Status panel merge action', () => {
             arguments: [{ repositoryId: 'repository-1', number: 42, headSha: HEAD }],
         });
         expect(action.icon.id).toBe('git-merge');
+        expect(action).toMatchObject({ label: 'Merge', tone: 'success' });
         expect(action.confirmation).toBeUndefined();
         expect((row.tooltip as TreeItemRichTooltip).rows).toContainEqual({
             label: 'merge',
@@ -79,6 +80,19 @@ describe('Status panel merge action', () => {
     });
 
     it.each([
+        [{ state: 'failure' }, 'Checks did not pass', 'danger'],
+        [{ state: 'pending' }, 'Checks still running', 'warning'],
+        [{ mergeState: 'blocked' }, 'Blocked by branch protection', 'warning'],
+        [{ mergeState: 'behind' }, 'Behind its base branch', 'warning'],
+        [{ mergeState: 'unknown' }, 'Checking mergeability', 'warning'],
+    ] as const)('flags a blocked merge %o and names why', (pullRequest, reason, tone) => {
+        const action = pullRequestRow(pullRequest).actions?.[0];
+        expect(action).toMatchObject({ label: 'Merge anyway', tone });
+        expect(action?.icon.id).toBe('warning');
+        expect(action?.command.title).toBe(`Merge Pull Request: ${reason}`);
+    });
+
+    it.each([
         { lifecycle: 'draft' },
         { lifecycle: 'merged' },
         { lifecycle: 'closed' },
@@ -86,5 +100,42 @@ describe('Status panel merge action', () => {
         { headSha: undefined },
     ] as const)('offers no merge for %o', (pullRequest) => {
         expect(pullRequestRow(pullRequest).actions).toBeUndefined();
+    });
+});
+
+describe('mergeBlocker', () => {
+    const base: PullRequest = {
+        number: 42,
+        title: 'Delivery',
+        url: 'https://github.com/acme/widget/pull/42',
+        lifecycle: 'open',
+        state: 'success',
+        checks: [],
+        hiddenCheckCount: 0,
+        headSha: HEAD,
+        mergeState: 'clean',
+    };
+
+    it.each([
+        [{}, undefined, 'Ready to merge'],
+        [{ mergeState: 'unstable' }, undefined, 'Ready to merge'],
+        [{ mergeState: 'conflicting', state: 'failure' }, 'conflicting', 'Has conflicts'],
+        [{ state: 'cancelled' }, 'checks-failed', 'Checks did not pass'],
+        [{ state: 'queued' }, 'checks-running', 'Checks still running'],
+        [{ mergeState: 'blocked' }, 'branch-protection', 'Blocked by branch protection'],
+        [{ mergeState: 'behind' }, 'behind', 'Behind its base branch'],
+        [{ mergeState: 'unknown' }, 'mergeability-unknown', 'Checking mergeability'],
+    ] as const)('reads %o as %s', (pullRequest, blocker, label) => {
+        expect(mergeBlocker({ ...base, ...pullRequest })).toBe(blocker);
+        expect(mergeReadinessLabel({ ...base, ...pullRequest })).toBe(label);
+    });
+
+    it('names the failing checks in the hover card even when GitHub calls the branch clean', () => {
+        expect(
+            (pullRequestRow({ state: 'failure' }).tooltip as TreeItemRichTooltip).rows,
+        ).toContainEqual({
+            label: 'merge',
+            value: 'Checks did not pass',
+        });
     });
 });

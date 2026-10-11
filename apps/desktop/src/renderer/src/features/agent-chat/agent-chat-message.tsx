@@ -54,10 +54,10 @@ export function AgentChatMessage({
 
 /**
  * An Agent reply, with a Copy action underneath when it is the reply that ends a turn. Commentary between tool calls
- * carries no action row, so a long turn does not reserve empty space under every reply. The action stays visible in a
- * muted tone and rises to the foreground on hover, because a hover-only control is undiscoverable on a reply the reader
- * is scrolling past (the same reasoning as `CodeView`). Copy takes the Markdown source, which pastes back into an
- * issue, a document, or another Agent intact.
+ * carries no action row, so a long turn does not reserve empty space under every reply. The action appears only while
+ * the pointer is over its reply or keyboard focus reaches it, so a scrolled transcript is not lined with copy icons;
+ * its row keeps its height, so revealing it never shifts the transcript. Copy takes the Markdown source, which pastes
+ * back into an issue, a document, or another Agent intact.
  */
 export function AgentChatReply({
     canCopy,
@@ -69,7 +69,7 @@ export function AgentChatReply({
     onOpenFile?: (target: string) => void;
 }) {
     return (
-        <div data-agent-chat-reply="">
+        <div className="group/reply" data-agent-chat-reply="">
             <AgentChatMessage
                 className="text-foreground"
                 isStreaming={item.streaming}
@@ -77,7 +77,7 @@ export function AgentChatReply({
                 onOpenFile={onOpenFile}
             />
             {canCopy && (
-                <div className="mt-0.5 flex h-6">
+                <div className="mt-0.5 flex h-6 opacity-0 group-hover/reply:opacity-100 focus-within:opacity-100">
                     {!item.streaming && (
                         <CopyIconButton
                             className="-ml-1"

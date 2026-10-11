@@ -12,8 +12,12 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
         expect(database.getTerminal(terminal.id)?.agentSessionId).toBeUndefined();
 
         await service.send(terminal.id, { text: 'hi there' });
+        // The context breakdown arrives just after the turn ends, so wait for it to compare a settled snapshot.
         const snapshot = await until(
-            (current) => current.turns.at(-1)?.status === 'completed' && !current.activeTurnId,
+            (current) =>
+                current.turns.at(-1)?.status === 'completed' &&
+                !current.activeTurnId &&
+                current.usage?.breakdown !== undefined,
         );
         expect(snapshot.items.map((item) => item.type)).toEqual([
             'userMessage',
@@ -34,7 +38,19 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
             { step: 'Reply', status: 'inProgress' },
         ]);
         expect(snapshot.model).toBe('fake-claude-model');
-        expect(snapshot.usage).toEqual({ totalTokens: 2040, contextWindow: 200000 });
+        // Free space and deferred tool schemas are not part of what fills the window.
+        expect(snapshot.usage).toEqual({
+            totalTokens: 2040,
+            contextWindow: 200000,
+            compactWindow: 160000,
+            breakdown: [
+                { label: 'System prompt', tokens: 1500 },
+                { label: 'Messages', tokens: 540 },
+            ],
+            cacheTtlMinutes: 60,
+            lastResponseAt: snapshot.usage?.lastResponseAt,
+        });
+        expect(snapshot.usage?.lastResponseAt).toBeGreaterThan(0);
         expect(service.read(terminal.id)).toEqual(snapshot);
         expect(database.getTerminal(terminal.id)?.agentSessionId).toMatch(/^[\da-f-]{36}$/u);
         expect(signals.map((signal) => signal.phase)).toEqual([

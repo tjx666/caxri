@@ -24,7 +24,7 @@
  * compacting` first; `/compact break` fails with a compaction error and `/compact crash` exits mid-compaction. The CLI
  * reports `/compact`, `/review`, and the terminal-bound `/exit` as its commands. A message steered with `priority:
  * 'next'` is quoted with `[next]`. It lists an `opus` alias and a model without effort control; `set_model` and an
- * `effortLevel` flag setting change what the next init message reports.
+ * `effortLevel` flag setting change what the next init message and hook input report.
  *
  * Like the real CLI, `session_state_changed` is reported only under `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1`, subagent
  * text only when `initialize` asked for `forwardSubagentText`, and an interrupt kills background tasks unless
@@ -43,6 +43,13 @@ import readline from 'node:readline';
 import { didRunApprovalScenario } from './fake-claude-approvals.ts';
 import type { FakeClaudeIo } from './fake-claude-io.ts';
 import {
+    FAKE_CLAUDE_CONTEXT_USAGE,
+    FAKE_CLAUDE_MODEL,
+    FAKE_CLAUDE_MODELS,
+    hookCallbackIds,
+    hookCallbackRequest,
+} from './fake-claude-models.ts';
+import {
     runSubagent,
     startBackgroundAgent,
     startBackgroundShell,
@@ -50,8 +57,6 @@ import {
 } from './fake-claude-tasks.ts';
 
 type Json = Record<string, unknown>;
-
-const MODEL = 'fake-claude-model';
 
 if (process.argv.includes('--version')) {
     process.stdout.write('2.1.0 (Claude Code)\n');
@@ -106,32 +111,19 @@ const state: {
     queued: QueuedTurn[];
     model: string;
     effort?: string;
+    /**
+     * Callback ids the SDK registered per hook event in `initialize`.
+     */
+    hooks: Record<string, string[]>;
 } = {
     nextRequestId: 1,
     lastUuid: null,
     interrupted: false,
     turnRunning: false,
     queued: [],
-    model: MODEL,
+    model: FAKE_CLAUDE_MODEL,
+    hooks: {},
 };
-const MODELS = [
-    {
-        value: MODEL,
-        displayName: 'Fake',
-        description: 'Fake model',
-        supportsEffort: true,
-        supportedEffortLevels: ['low', 'medium', 'high'],
-    },
-    {
-        value: 'opus',
-        resolvedModel: 'fake-claude-opus',
-        displayName: 'Fake Opus',
-        description: 'Fake alias',
-        supportsEffort: true,
-        supportedEffortLevels: ['low', 'high', 'max'],
-    },
-    { value: 'fake-claude-haiku', displayName: 'Fake Haiku', description: 'No effort control' },
-];
 const isEmittingSessionState = process.env.CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS === '1';
 const COMMANDS = [
     {
@@ -187,7 +179,7 @@ function assistant(messageId: string, block: Json) {
         id: messageId,
         type: 'message',
         role: 'assistant',
-        model: MODEL,
+        model: FAKE_CLAUDE_MODEL,
         content: [block],
         stop_reason: null,
         usage: { input_tokens: 1200, cache_read_input_tokens: 800, output_tokens: 40 },
@@ -241,6 +233,16 @@ function controlRequest(request: Json): Promise<Json> {
     return new Promise((resolve) => pendingControl.set(requestId, resolve));
 }
 
+async function fireHook(event: string, fields: Json) {
+    const callbackIds = state.hooks[event] ?? [];
+    for (const callbackId of callbackIds) {
+        // eslint-disable-next-line no-await-in-loop -- the CLI awaits each hook before continuing
+        await controlRequest(
+            hookCallbackRequest(callbackId, event, { effort: state.effort, sessionId }, fields),
+        );
+    }
+}
+
 function result(startedAt: number, text: string, isError = false) {
     send(
         frame({
@@ -253,7 +255,7 @@ function result(startedAt: number, text: string, isError = false) {
             stop_reason: 'end_turn',
             total_cost_usd: 0,
             usage: { input_tokens: 1200, output_tokens: 40 },
-            modelUsage: { [MODEL]: { contextWindow: 200_000 } },
+            modelUsage: { [FAKE_CLAUDE_MODEL]: { contextWindow: 200_000 } },
             permission_denials: [],
             queued_turn_count: state.queued.length,
             ...(isError ? { errors: [text] } : { result: text }),
@@ -306,7 +308,6 @@ async function runTurn(text: string, content: unknown, priority?: unknown, isAut
             subtype: 'init',
             cwd: process.cwd(),
             model: state.model,
-            ...(state.effort && { effort: state.effort }),
             tools: [],
             permissionMode: 'default',
             slash_commands: COMMANDS.map((command) => command.name),
@@ -318,6 +319,7 @@ async function runTurn(text: string, content: unknown, priority?: unknown, isAut
         result(startedAt, 'done');
         return;
     }
+    await fireHook('UserPromptSubmit', { prompt: text });
     if (text.trimStart().startsWith('/compact')) {
         system('status', { status: 'compacting' });
         if (text.includes('crash')) exitProcess(1);
@@ -545,9 +547,10 @@ lines.on('line', (line) => {
     if (message.type === 'control_request') {
         const request = message.request as Json;
         if (request.subtype === 'interrupt') state.interrupted = true;
+        else if (request.subtype === 'initialize') state.hooks = hookCallbackIds(request.hooks);
         if (request.subtype === 'set_model' && typeof request.model === 'string')
             state.model =
-                MODELS.find((model) => model.value === request.model)?.resolvedModel ??
+                FAKE_CLAUDE_MODELS.find((model) => model.value === request.model)?.resolvedModel ??
                 request.model;
         const flags = request.subtype === 'apply_flag_settings' ? (request.settings as Json) : {};
         if (typeof flags.effortLevel === 'string') state.effort = flags.effortLevel;
@@ -565,16 +568,18 @@ lines.on('line', (line) => {
                 subtype: 'success',
                 request_id: message.request_id,
                 response:
-                    request.subtype === 'initialize'
-                        ? {
-                              commands: COMMANDS,
-                              agents: [],
-                              models: MODELS,
-                              account: {},
-                              output_style: 'default',
-                              available_output_styles: ['default'],
-                          }
-                        : (answer.response ?? {}),
+                    request.subtype === 'get_context_usage'
+                        ? FAKE_CLAUDE_CONTEXT_USAGE
+                        : request.subtype === 'initialize'
+                          ? {
+                                commands: COMMANDS,
+                                agents: [],
+                                models: FAKE_CLAUDE_MODELS,
+                                account: {},
+                                output_style: 'default',
+                                available_output_styles: ['default'],
+                            }
+                          : (answer.response ?? {}),
             },
         });
         return;

@@ -8,16 +8,19 @@ import { agentChatImageFiles, agentChatImagesUnsupportedMessage } from '../agent
 
 /**
  * Whether a drag carries something the composer takes: files from another application, a Files entry, an Editor tab, or
- * a Project. Only `types` is readable before the drop.
+ * a Project. Only `types` is readable before the drop. An Editor tab dragged with Option is left to the pane, which
+ * places it, as Option does over a Terminal.
  */
 function isComposerDrag(event: DragEvent): boolean {
     const { types } = event.dataTransfer;
     return (
         hasTerminalDraggedPath(event) ||
-        types.includes(EDITOR_PATH_DRAG_TYPE) ||
+        (types.includes(EDITOR_PATH_DRAG_TYPE) && !event.altKey) ||
         types.includes(PROJECT_PATH_DRAG_TYPE)
     );
 }
+
+export type AgentChatDropHandlers = ReturnType<typeof useAgentChatFileInput>['dropHandlers'];
 
 /**
  * Paste and drag-and-drop handlers for the composer. Images go to `add` when the provider accepts them; every other
@@ -45,7 +48,6 @@ export function useAgentChatFileInput({
         if (isImageInputEnabled && files.length > 0) void add(files);
     };
     return {
-        attach,
         isDragOver,
         dropHandlers: {
             onDragLeave: (event: DragEvent) => {

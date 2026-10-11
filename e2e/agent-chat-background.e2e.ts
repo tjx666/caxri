@@ -148,7 +148,7 @@ test('a Claude Chat reopens a finished subagent and stops a background shell', a
         await expect(chat.getByText('The subagent finished.')).toBeVisible();
         // A finished subagent leaves the strip; its timeline row still opens it.
         await chat
-            .getByRole('button', { name: /^Worked for/u })
+            .getByRole('button', { name: /^Worked(?: for |$)/u })
             .first()
             .click();
         await chat.getByRole('button', { name: 'Open subagent' }).first().click();

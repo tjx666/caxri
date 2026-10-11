@@ -46,8 +46,23 @@ async function pasteImage(message: Locator): Promise<void> {
     });
 }
 
+/**
+ * Drops a PNG from another application onto `target` with the drag events Chromium dispatches.
+ */
+async function dropImage(target: Locator): Promise<void> {
+    await target.evaluate((element, base64) => {
+        const bytes = Uint8Array.from(atob(base64), (character) => character.codePointAt(0) ?? 0);
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(new File([bytes], 'pixel.png', { type: 'image/png' }));
+        for (const type of ['dragenter', 'dragover', 'drop'])
+            element.dispatchEvent(
+                new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }),
+            );
+    }, PIXEL_PNG.toString('base64'));
+}
+
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a Codex Chat sends pasted and picked images and runs /compact', async ({}, testInfo) => {
+test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}, testInfo) => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-input-'));
     const userData = join(directory, 'user-data');
     const root = join(directory, 'project');
@@ -70,11 +85,8 @@ test('a Codex Chat sends pasted and picked images and runs /compact', async ({},
         await pasteImage(message);
         const attached = chat.getByRole('list', { name: 'Attached images' });
         await expect(attached.getByRole('button', { name: 'Remove image 1' })).toBeVisible();
-        await chat.locator('input[type="file"]').setInputFiles({
-            name: 'pixel.png',
-            mimeType: 'image/png',
-            buffer: PIXEL_PNG,
-        });
+        // A drop anywhere on the Chat, here the empty transcript far above the input, attaches like one on the composer.
+        await dropImage(chat.getByText('Send a message to start working with Codex.'));
         await expect(attached.getByRole('button', { name: 'Remove image 2' })).toBeVisible();
         await message.fill('what are these');
         await page.screenshot({ path: testInfo.outputPath('codex-chat-attachments.png') });

@@ -191,6 +191,9 @@ describe('agentChatTurnLabel', () => {
             'Stopped after 3s',
         );
         expect(agentChatTurnLabel({ id: 't', status: 'failed' })).toBe('Failed');
+        expect(agentChatTurnLabel({ id: 't', status: 'completed', durationMs: 400 })).toBe(
+            'Worked',
+        );
     });
 });
 
@@ -295,7 +298,7 @@ describe('describeAgentChatWork', () => {
 });
 
 describe('agentChatWorkDuration', () => {
-    it('always times a command and times other tools once it is noticeable', () => {
+    it('times commands and other tools only once a second has passed', () => {
         const command = {
             id: 'c',
             type: 'command',
@@ -303,7 +306,8 @@ describe('agentChatWorkDuration', () => {
             status: 'completed',
             output: '',
         } as const;
-        expect(agentChatWorkDuration({ ...command, durationMs: 300 })).toBe('<1s');
+        expect(agentChatWorkDuration({ ...command, durationMs: 300 })).toBeNull();
+        expect(agentChatWorkDuration({ ...command, durationMs: 1_200 })).toBe('1s');
         expect(agentChatWorkDuration(command)).toBeNull();
         const tool = { id: 't', type: 'toolCall', name: 'webSearch', status: 'completed' } as const;
         expect(agentChatWorkDuration({ ...tool, durationMs: 300 })).toBeNull();

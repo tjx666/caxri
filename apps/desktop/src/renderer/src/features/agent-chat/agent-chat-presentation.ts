@@ -2,6 +2,7 @@ import type {
     AgentChatFailureReason,
     AgentChatItem,
     AgentChatItemStatus,
+    AgentChatModel,
     AgentChatPlan,
     AgentChatRequest,
     AgentChatSnapshot,
@@ -120,30 +121,6 @@ export function agentChatRecoveryNotice(
 }
 
 /**
- * How full the context window is, for the composer's meter. Omitted until the provider reports a window size.
- */
-export interface AgentChatContextUsage {
-    /**
-     * Share of the window in use, from 0 to 1.
-     */
-    used: number;
-    totalTokens: number;
-    contextWindow: number;
-}
-
-export function agentChatContextUsage(
-    snapshot: Pick<AgentChatSnapshot, 'usage'> | undefined,
-): AgentChatContextUsage | undefined {
-    const usage = snapshot?.usage;
-    if (!usage?.contextWindow) return undefined;
-    return {
-        used: Math.min(usage.totalTokens / usage.contextWindow, 1),
-        totalTokens: usage.totalTokens,
-        contextWindow: usage.contextWindow,
-    };
-}
-
-/**
  * Display names for the effort levels the providers use; an unknown level is shown capitalized.
  */
 const EFFORT_LABELS: Record<string, string> = {
@@ -175,7 +152,32 @@ export function agentChatModelLabel(
         snapshot.effort && (listed?.efforts.length ?? 1) > 0
             ? agentChatEffortLabel(snapshot.effort)
             : undefined;
-    return { model: listed?.displayName ?? snapshot.model, ...(effort && { effort }) };
+    const model = listed && concreteModelName(snapshot.models ?? [], listed, snapshot.model);
+    return { model: model ?? snapshot.model, ...(effort && { effort }) };
+}
+
+/**
+ * The name the picker shows for the model in use. Claude Code lists its default as an alias, "Default (recommended)",
+ * whose description names the model it currently resolves to ("Use the default model (currently Opus 5.5)"); that name
+ * says which model actually runs. Failing that, a named entry that resolves to the same model does; the default may add
+ * a variant suffix (`claude-opus-5-5[1m]`) the named entry lacks, so the suffix is ignored when matching. With neither
+ * the alias reads as plain "Default".
+ */
+function concreteModelName(
+    models: readonly AgentChatModel[],
+    listed: AgentChatModel,
+    model: string,
+): string {
+    if (listed.id !== 'default') return listed.displayName;
+    const current = /\(currently ([^)]+)\)/.exec(listed.description ?? '')?.[1]?.trim();
+    if (current) return current;
+    const base = model.replace(/\[[^\]]*\]$/, '');
+    const named = models.find(
+        (candidate) =>
+            candidate.id !== 'default' &&
+            [candidate.id, candidate.resolvedId].some((id) => id === model || id === base),
+    );
+    return named?.displayName ?? listed.displayName.replace(/\s*\(recommended\)$/i, '');
 }
 
 /**

@@ -132,12 +132,26 @@ export interface TreeItemActionConfirmation {
 }
 
 /**
+ * Semantic color of a labeled inline action, mapped to the theme's status tokens.
+ */
+export type TreeItemActionTone = 'neutral' | 'success' | 'warning' | 'danger';
+
+/**
  * A command shown as an icon button at the end of its row while the row is hovered or focused, like VS Code's inline
  * `view/item/context` actions. `command.title` is the button's tooltip and accessible name.
  */
 export interface TreeItemAction {
     command: Command;
     icon: ThemeIcon;
+    /**
+     * Short visible text. A labeled action is the row's primary call to action: it stays visible at rest instead of
+     * revealing on hover, and `tone` colors it so its state reads at a glance.
+     */
+    label?: string;
+    /**
+     * Color of a labeled action. Ignored without `label`; defaults to `neutral`.
+     */
+    tone?: TreeItemActionTone;
     /**
      * Set when this occurrence of the action needs a second look before it runs. The Workbench shows the question and
      * only dispatches the command once the user confirms.
