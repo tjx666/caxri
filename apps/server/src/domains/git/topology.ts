@@ -8,6 +8,11 @@ import { sharedGitRequest } from './request-signal';
 
 const MAX_TOPOLOGIES = 256;
 
+export interface GitWorktreeTopology {
+    repositoryKey: string;
+    worktrees: Array<{ branch: string; rootPath: string; isMain?: boolean }>;
+}
+
 interface RepoWorktree {
     branch: string;
     rootPath: string;

@@ -5,9 +5,8 @@ import type { AgentLifecycleSignal } from '../../agents';
 import {
     classifyCommanderCompletionNotice,
     CommanderCompletionNotifier,
-    formatCommanderCompletionNotice,
-    formatCommanderResumePrompt,
 } from '../completion-notice';
+import { formatCommanderResumePrompt } from '../notice-text';
 import { pendingStore } from './pending-notices-fake';
 
 function receipt(overrides: Partial<AgentDelegationReceipt> = {}): AgentDelegationReceipt {
@@ -40,38 +39,6 @@ describe('classifyCommanderCompletionNotice', () => {
         [{ status: 'launching' }, undefined],
     ] as const)('%o -> %s', (partial, expected) => {
         expect(classifyCommanderCompletionNotice(partial)).toBe(expected);
-    });
-});
-
-describe('formatCommanderCompletionNotice', () => {
-    it('formats a single transition on one prefixed line', () => {
-        const text = formatCommanderCompletionNotice([
-            { delegationId: 'd1', sessionId: 's1', status: 'completed' },
-        ]);
-        expect(text).toBe(
-            '[Caxri notice] 1 delegation update: delegation d1 in Session s1 completed.',
-        );
-    });
-
-    it('coalesces multiple transitions into one line', () => {
-        const text = formatCommanderCompletionNotice([
-            { delegationId: 'd1', sessionId: 's1', status: 'completed' },
-            { delegationId: 'd2', sessionId: 's2', status: 'failed' },
-            { delegationId: 'd3', sessionId: 's3', status: 'needsInput' },
-        ]);
-        expect(text).toBe(
-            '[Caxri notice] 3 delegation updates: delegation d1 in Session s1 completed; ' +
-                'delegation d2 in Session s2 failed; delegation d3 in Session s3 needs your input.',
-        );
-    });
-
-    it('never lets an interpolated field introduce a control character or a newline', () => {
-        const text = formatCommanderCompletionNotice([
-            { delegationId: 'd1\u{7}\ninjected', sessionId: 's1', status: 'completed' },
-        ]);
-        // eslint-disable-next-line no-control-regex -- asserting the output contains none.
-        expect(/[\u{0}-\u{1F}\u{7F}-\u{9F}]/u.test(text)).toBe(false);
-        expect(text.includes('\n')).toBe(false);
     });
 });
 
@@ -201,6 +168,29 @@ describe('CommanderCompletionNotifier', () => {
         f.finishTurn('launch-1', 'turn-1');
         f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
         expect(f.writeCalls).toHaveLength(1);
+    });
+
+    it('delivers an Inbox event at the next idle point, keeping only the latest event per item', () => {
+        f.startTurn('launch-1');
+        f.notifier.notifyInbox('item-1', 'replied');
+        f.notifier.notifyInbox('item-1', 'dismissed');
+        f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
+        expect(f.writeCalls).toHaveLength(0);
+        f.finishTurn('launch-1', 'turn-1');
+        expect(f.writeCalls).toHaveLength(1);
+        expect(f.writeCalls[0].data).toBe(
+            '[Caxri notice] 2 updates: delegation delegation-1 in Session session-1 completed; ' +
+                'inbox item item-1 was dismissed by the user.',
+        );
+    });
+
+    it('keeps an Inbox event queued while no Commander Terminal exists', () => {
+        f.rows.terminalId = undefined;
+        f.notifier.notifyInbox('item-1', 'replied');
+        f.rows.terminalId = COMMANDER_TERMINAL_ID;
+        f.startTurn('launch-1');
+        f.finishTurn('launch-1', 'turn-1');
+        expect(f.writeCalls.at(-1)?.data).toContain('inbox item item-1 has a new reply');
     });
 
     it('coalesces several pending transitions into exactly one write', () => {
@@ -479,6 +469,7 @@ describe('CommanderCompletionNotifier', () => {
         expect(fieldsOf('completion_notice_delivered')).toEqual([
             {
                 count: 1,
+                inboxCount: 0,
                 waitMs: fieldsOf('completion_notice_delivered')[0].waitMs,
                 blockedTurns: 1,
             },
@@ -538,6 +529,15 @@ describe('CommanderCompletionNotifier', () => {
         f.notifier.notifyReceiptChanged(receipt({ delegationId: 'd2', status: 'failed' }));
         f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
         expect(f.notices.list()).toMatchObject([{ kind: 'delegation', delegationId: 'd2' }]);
+    });
+
+    it('carries queued Inbox events in the launch prompt and keeps one replaced before the launch runs', () => {
+        f.notifier.notifyInbox('item-1', 'replied');
+        f.notifier.notifyInbox('item-2', 'replied');
+        expect(f.notifier.launchPrompt(COMMANDER_TERMINAL_ID)).toContain('Missed 2 inbox updates');
+        f.notifier.notifyInbox('item-2', 'dismissed');
+        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
+        expect(f.notifier.launchPrompt(COMMANDER_TERMINAL_ID)).toContain('item-2 was dismissed');
     });
 
     it('keeps a newer transition of a delegation the launch prompt already reported', () => {

@@ -29,9 +29,20 @@ describe('Agent Commander Renderer policy', () => {
         expect(() => policy.admit(request('agentCommander.stop'))).not.toThrow();
         expect(() => policy.admit(request('contextMenu.show', { items: [] }))).not.toThrow();
         for (const method of [
+            'commander.inbox.list',
+            'commander.inbox.show',
+            'commander.inbox.reply',
+            'commander.inbox.dismiss',
+            'commander.inbox.merge',
+        ])
+            expect(() => policy.admit(request(method))).not.toThrow();
+        for (const method of [
             'agentCommander.openFileLink',
             'app.bootstrap',
             'app.records',
+            'commander.inbox.add',
+            'commander.inbox.ack',
+            'commander.inbox.resolve',
             'commander.stop',
             'file.write',
             'project.add',
@@ -165,7 +176,7 @@ describe('Agent Commander Renderer policy', () => {
      * never re-attached and froze at the last byte it had, and its board ignored pull request changes until its next
      * poll.
      */
-    it.each(['host.connectionChanged', 'sessionPullRequests.changed'])(
+    it.each(['commanderInbox.changed', 'host.connectionChanged', 'sessionPullRequests.changed'])(
         'delivers %s to both windows',
         (event) => {
             const policy = new AgentCommanderRendererPolicy(() => {});

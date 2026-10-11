@@ -1,7 +1,14 @@
 import { useCallback, useRef } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Archive, EllipsisVertical, FolderPlus, Settings, Unlink } from 'lucide-react-native';
+import {
+    Archive,
+    EllipsisVertical,
+    FolderPlus,
+    Inbox,
+    Settings,
+    Unlink,
+} from 'lucide-react-native';
 
 import { IconButton } from '../../../components/icon-button';
 import { PopoverMenu } from '../../../components/popover-menu';
@@ -85,6 +92,7 @@ export const SessionHomeHeader = ({
     onChooseProject,
     onForgetComputer,
     onOpenArchived,
+    onOpenInbox,
     onOpenSettings,
     projects,
     status,
@@ -99,6 +107,10 @@ export const SessionHomeHeader = ({
     onChooseProject: (projectId: string | null) => void;
     onForgetComputer: () => void;
     onOpenArchived: () => void;
+    /**
+     * Present only for a control device: the Commander Inbox spans every Project, beyond a narrower device grant.
+     */
+    onOpenInbox?: () => void;
     onOpenSettings: () => void;
     projects: Project[];
     status: MobileConnectionStatus;
@@ -186,6 +198,18 @@ export const SessionHomeHeader = ({
                             onAddProject();
                         }}
                         testID="add-project-action"
+                        theme={theme}
+                    />
+                ) : null}
+                {onOpenInbox ? (
+                    <MenuAction
+                        icon={Inbox}
+                        label="Needs you"
+                        onPress={() => {
+                            closeMenu();
+                            onOpenInbox();
+                        }}
+                        testID="commander-inbox-action"
                         theme={theme}
                     />
                 ) : null}

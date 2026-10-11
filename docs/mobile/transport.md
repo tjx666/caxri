@@ -53,7 +53,9 @@ for commands, subscribe, and unsubscribe.
 | Server → Client | `revoked`                                                                         | Final encrypted revocation notice, followed by close.               |
 
 Resources are `{kind:'dashboard'}`, `{kind:'conversation',sessionId}`, `{kind:'changes',sessionId}`,
-`{kind:'terminal',terminalId}`, and `{kind:'agentChat',terminalId}`. An Agent Chat subscription
+`{kind:'terminal',terminalId}`, `{kind:'agentChat',terminalId}`, and `{kind:'commanderInbox'}`. A
+Commander Inbox subscription receives a content-free `commanderInbox.changed` for every
+`commanderInbox.changed` Server event and requires the `mobile.commanderInbox.list` grant. An Agent Chat subscription
 carries `agentChat.patch` events holding a frame-sized patch, or a content-free `agentChat.changed`
 when a patch cannot fit; see [Agent Chat](../agent-chat.md#mobile). The Server chooses opaque subscription IDs. `sequence` starts at
 zero for each subscription and increases across both `event` and `stream`. Dashboard and

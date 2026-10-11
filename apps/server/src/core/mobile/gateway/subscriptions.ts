@@ -41,7 +41,8 @@ type QueuedBody =
               | 'dashboard.changed'
               | 'conversation.changed'
               | 'changes.changed'
-              | 'agentChat.changed';
+              | 'agentChat.changed'
+              | 'commanderInbox.changed';
       }
     | { kind: 'agentChat.patch'; patch: unknown };
 
@@ -271,6 +272,11 @@ export class MobileGatewaySubscriptions {
                         patch ? { kind: 'agentChat.patch', patch } : { kind: 'agentChat.changed' },
                     );
                 }
+                break;
+            }
+            case 'commanderInbox': {
+                if (subscription.activated && event.event === 'commanderInbox.changed')
+                    this.#queue(subscription, event, { kind: 'commanderInbox.changed' });
                 break;
             }
             case 'terminal': {

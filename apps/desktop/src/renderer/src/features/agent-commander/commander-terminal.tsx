@@ -9,7 +9,7 @@ import { AgentChatTerminalContent } from '../agent-chat/agent-chat-terminal-cont
 import { didPasteDropIntoTerminal, isTerminalPasteDrag } from '../terminal/terminal-drop';
 import { TerminalPane } from '../terminal/terminal-pane';
 import { useAgentCommanderStore } from './commander-client';
-import type { AgentCommanderStatus } from './use-agent-commander';
+import type { AgentCommanderStatus } from './hooks/use-agent-commander';
 
 /**
  * The Commander's own Terminal, rendered by the ordinary Terminal pane, or the ordinary Chat pane once the user

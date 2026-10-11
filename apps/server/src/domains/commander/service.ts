@@ -55,6 +55,11 @@ export interface AgentCommanderServiceOptions {
      * launch. Optional so a unit test can omit it.
      */
     onStopped?(): void;
+    /**
+     * Runs right before `ensure` starts or restores the Commander process, so work it missed while stopped
+     * (unacknowledged Inbox replies) is queued in time for the launch prompt to carry it.
+     */
+    onLaunching?(): void;
     probeTerminal(terminalId: string): void;
     pullRequests(): SessionPullRequests;
     /**
@@ -133,6 +138,7 @@ export class AgentCommanderService {
         }
         if (!rows.terminalId) {
             const { projectId, sessionId, sessionIds } = rows;
+            this.options.onLaunching?.();
             const terminal = await this.options.createAndStartTerminal(
                 sessionId,
                 COMMANDER_PROVIDER,
@@ -149,13 +155,10 @@ export class AgentCommanderService {
             this.logEnsured('created', terminal.id, startedAt);
         } else {
             const state = database.getTerminal(rows.terminalId)?.lastProcessState;
+            const isRunning = state === 'running' || state === 'starting';
+            if (!isRunning) this.options.onLaunching?.();
             this.options.restoreTerminals(rows.sessionId);
-            this.logEnsured(
-                state === 'running' || state === 'starting' ? 'running' : 'restored',
-                rows.terminalId,
-                startedAt,
-                state,
-            );
+            this.logEnsured(isRunning ? 'running' : 'restored', rows.terminalId, startedAt, state);
         }
         const snapshot = this.snapshot();
         if (!snapshot) throw new CaxriError('UNAVAILABLE', 'Agent Commander failed to start');

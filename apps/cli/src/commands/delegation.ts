@@ -1,7 +1,3 @@
-import { Buffer } from 'node:buffer';
-import { constants } from 'node:fs';
-import { open } from 'node:fs/promises';
-
 import {
     agentDelegationCreateRequestSchema,
     CaxriError,
@@ -9,6 +5,7 @@ import {
     MAX_DELEGATION_WAIT_TASKS,
 } from '@caxri/protocol';
 
+import { readBoundedTextFile } from './text-file';
 import type { RemoteCommandDefinition } from './types';
 
 const createFlags = new Set([
@@ -57,35 +54,20 @@ async function createParameters(tokens: readonly string[]) {
             'VALIDATION',
             'Name a new Session with --title; --title applies only with --new-session',
         );
-    const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
-    try {
-        const info = await file.stat();
-        if (!info.isFile() || info.size > 16_384)
-            throw new CaxriError(
-                'VALIDATION',
-                'Delegation task must be a regular file of at most 16 KiB',
-            );
-        const buffer = Buffer.alloc(16_385);
-        const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
-        if (bytesRead > 16_384)
-            throw new CaxriError('VALIDATION', 'Delegation task exceeds 16 KiB');
-        return agentDelegationCreateRequestSchema.parse({
-            projectId,
-            ...(sessionId && { sessionId }),
-            ...(isNewSession && { newSession: true }),
-            ...(values.has('--title') && { title: values.get('--title') }),
-            provider: values.get('--provider'),
-            preset: values.get('--preset'),
-            model: values.get('--model'),
-            effort: values.get('--effort'),
-            callerProvider: values.get('--caller'),
-            prompt: buffer.subarray(0, bytesRead).toString('utf8'),
-            ...(values.has('--follow-up') && { followUpOf: values.get('--follow-up') }),
-            ...(values.has('--resume') && { resumeFrom: values.get('--resume') }),
-        });
-    } finally {
-        await file.close();
-    }
+    return agentDelegationCreateRequestSchema.parse({
+        projectId,
+        ...(sessionId && { sessionId }),
+        ...(isNewSession && { newSession: true }),
+        ...(values.has('--title') && { title: values.get('--title') }),
+        provider: values.get('--provider'),
+        preset: values.get('--preset'),
+        model: values.get('--model'),
+        effort: values.get('--effort'),
+        callerProvider: values.get('--caller'),
+        prompt: await readBoundedTextFile(path, 16_384, 'Delegation task'),
+        ...(values.has('--follow-up') && { followUpOf: values.get('--follow-up') }),
+        ...(values.has('--resume') && { resumeFrom: values.get('--resume') }),
+    });
 }
 
 function identity(tokens: readonly string[]) {

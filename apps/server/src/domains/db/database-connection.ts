@@ -6,6 +6,7 @@ import { AgentDelegationsModel } from './models/agent-delegations';
 import { AgentDispatchReceiptsModel } from './models/agent-dispatch-receipts';
 import { AgentSessionUsageModel } from './models/agent-session-usage';
 import { AppStateModel } from './models/app-state';
+import { CommanderInboxModel } from './models/commander-inbox';
 import { CommanderPendingNoticesModel } from './models/commander-pending-notices';
 import { CommanderTasksModel } from './models/commander-tasks';
 import { MobileAgentSubmitReceiptsModel } from './models/mobile-agent-submit-receipts';
@@ -67,6 +68,7 @@ export class CaxriDatabaseConnection {
     readonly mobileAgentSubmitReceipts: MobileAgentSubmitReceiptsModel;
     readonly agentDelegations: AgentDelegationsModel;
     readonly agentSessionUsage: AgentSessionUsageModel;
+    readonly commanderInbox: CommanderInboxModel;
     readonly protocolState: ProtocolStateModel;
     readonly commanderTasks: CommanderTasksModel;
     readonly commanderPendingNotices: CommanderPendingNoticesModel;
@@ -88,6 +90,7 @@ export class CaxriDatabaseConnection {
         this.agentDispatchReceipts = new AgentDispatchReceiptsModel(this.db);
         this.mobileAgentSubmitReceipts = new MobileAgentSubmitReceiptsModel(this.db);
         this.agentDelegations = new AgentDelegationsModel(this.db);
+        this.commanderInbox = new CommanderInboxModel(this.db, (work) => this.transaction(work));
         this.commanderTasks = new CommanderTasksModel(this.db);
         this.commanderPendingNotices = new CommanderPendingNoticesModel(this.db);
         this.protocolState = new ProtocolStateModel(this.db, (work) => this.transaction(work));

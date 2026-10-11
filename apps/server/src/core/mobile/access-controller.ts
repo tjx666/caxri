@@ -12,6 +12,7 @@ import { createMobileAccessPersistence } from './access-persistence';
 import { listMobileAgentActions, terminalForPrincipal } from './action-requests';
 import { invokeMobileAgentChatRequest, isMobileAgentChatRead } from './agent-chat-requests';
 import { invokeMobileAttentionRequest } from './attention-requests';
+import { invokeMobileCommanderInboxRequest } from './commander-inbox-requests';
 import { readMobileDashboard, showMobileSession } from './dashboard-requests';
 import { MobileDeviceRegistry } from './device-registry';
 import { invokeMobileFileRequest } from './file-requests';
@@ -19,6 +20,7 @@ import { MobileGateway } from './gateway';
 import { adoptCurrentPairedPrincipal } from './gateway/principal-grant';
 import { mobileHostDisplayName } from './host-display-name';
 import { invokeMobilePanelRequest } from './panel-requests';
+import { createMobilePairing, invokeMobileProjectRequest } from './project-requests';
 import { isMobileGatewayMethodAllowedForRole } from './role-methods';
 import {
     applyMobileSessionManagement,
@@ -471,47 +473,45 @@ export const openMobileAccessController = async (options: {
                     return isMobileAgentChatRead(request) ? invoke() : withAuthority(invoke);
                 }
                 case 'mobile.pairing.create': {
-                    return withAuthority(async () => {
+                    return withAuthority(() => {
                         assertOpen();
-                        const visible = await domainService.request('project.queryForPrincipal', {
-                            principal: context.principal,
-                            query: { mode: 'list' },
-                        });
-                        const projectIds = new Set(visible.projects.map((project) => project.id));
-                        if (
-                            request.params.projectIds.some(
-                                (projectId) => !projectIds.has(projectId),
-                            )
-                        )
-                            throw new CaxriError('NOT_FOUND', 'Pairing Project not found');
-                        return activeGateway.createPairing(request.params.projectIds);
+                        return createMobilePairing(
+                            domainService,
+                            context.principal,
+                            request,
+                            (ids) => activeGateway.createPairing(ids),
+                        );
                     });
                 }
-                case 'mobile.project.browse': {
-                    const principal = currentPairedPrincipal(context.principal, request.method);
-                    const result = await domainService.request('mobile.project.browseInternal', {
-                        ...request.params,
-                        principal,
-                    });
-                    currentPairedPrincipal(principal, request.method);
-                    return result;
-                }
+                case 'mobile.project.browse':
                 case 'mobile.project.add': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
-                    const result = await domainService.request('mobile.project.addInternal', {
-                        ...request.params,
+                    return invokeMobileProjectRequest(
+                        request,
                         principal,
-                    });
-                    /**
-                     * Grants the newly added Project to the requesting device. The live connection adopts the longer
-                     * Project list through `adoptCurrentPairedPrincipal` instead of treating it as a changed device.
-                     */
-                    await registry.grantProject(
-                        principal.deviceId,
-                        principal.generation,
-                        result.project.id,
+                        domainService,
+                        registry,
+                        () => currentPairedPrincipal(principal, request.method),
                     );
-                    return result;
+                }
+                /**
+                 * A reply takes the same authority order as an attention answer, so a revoke that lands first wins.
+                 */
+                case 'mobile.commanderInbox.list':
+                case 'mobile.commanderInbox.reply': {
+                    const invoke = () => {
+                        assertOpen();
+                        const principal = currentPairedPrincipal(context.principal, request.method);
+                        return invokeMobileCommanderInboxRequest(
+                            request,
+                            principal,
+                            domainService,
+                            () => currentPairedPrincipal(principal, request.method),
+                        );
+                    };
+                    return request.method === 'mobile.commanderInbox.list'
+                        ? invoke()
+                        : withAuthority(invoke);
                 }
                 case 'mobile.files.write': {
                     /**

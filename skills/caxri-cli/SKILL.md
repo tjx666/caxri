@@ -184,6 +184,25 @@ Pass a returned `projectId` and `sessionId` to `agent delegate create`. Delegati
 Session, including busy user Sessions, is refused; the Commander has no dispatch, control, steer,
 or Settings write authority.
 
+Raise anything that needs the user (a decision, a step only their hands can do, or a pull request you
+verified and judged ready to merge) in the Commander Inbox instead of only saying it in the
+Terminal; the user may be away and reads the Inbox from Desktop or their phone. Use
+`commander inbox add --kind merge --title <text> --body-file <path> --pr <url> --head <sha>` for a
+pull request, writing the Bug, Cause, Fix, Evidence, and Risk report to the file first. A `merge`
+item is keyed by its pull request and pinned to the head you verified; adding it again with a new
+`--head` replaces the report. A decision takes a stable `--key <key>` and repeated
+`--option <text>` choices; reusing the key updates the open item. The user replies, dismisses, or merges; you never
+can. A `[Caxri notice]` line names the item; read it with `commander inbox show`, then acknowledge
+the highest reply `sequence` you handled with `commander inbox ack`, and `commander inbox resolve`
+an item once its matter is settled:
+
+```bash
+caxri commander inbox list --json
+caxri commander inbox show item-1 --json
+caxri commander inbox ack item-1 --sequence 1 --json
+caxri commander inbox resolve item-1 --json
+```
+
 ## Inspect the matching skill offline
 
 Read bundled metadata or this full guide without starting the Host:

@@ -101,6 +101,12 @@ const mobileGatewayMethodsByRole = {
          * path; `view` and `reply` devices keep their read-only rules.
          */
         'mobile.attention.autoAllowRevoke',
+        /**
+         * The Commander Inbox spans every Project, not only this device's grant, so it stays with the role that can
+         * already browse the whole Mac (`mobile.project.browse`).
+         */
+        'mobile.commanderInbox.list',
+        'mobile.commanderInbox.reply',
         ...mobileEveryRoleMethods,
     ],
 } as const satisfies Record<MobileDeviceRole, readonly string[]>;

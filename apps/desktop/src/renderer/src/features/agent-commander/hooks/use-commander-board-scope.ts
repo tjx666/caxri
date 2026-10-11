@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import type { CommanderBoardScope } from './commander-board';
+import type { CommanderBoardScope } from '../commander-board';
 
 const STORAGE_KEY = 'caxri.agent-commander.board-scope';
 

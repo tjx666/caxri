@@ -358,27 +358,91 @@ A follow-up or resume refused at admission (`target_busy`, `target_not_ready`, a
 rejections that fail a task straight out of `requested`) raises no notice: the refusal happens inside
 the `agent delegate create` call the Commander is still waiting on, so the CLI already returned it.
 
+## Commander Inbox
+
+The Commander Inbox is what the Commander explicitly raised for the owner: pull requests it
+verified as ready to merge, and questions only the owner can answer. The Agent Commander window
+shows it as the right-side "Needs you" column (toggled from the header, open-item count on the
+toggle). It is never inferred from Terminal output or Session state: an item exists only because
+the Commander ran `commander inbox add`, so the owner can trust that everything there is waiting on
+them, including after they were away from the computer.
+
+**Kinds.** `merge` names a pull request URL and the head commit (`--head`, the `headRefOid` the
+Commander verified). `decision` is a product or scope choice, optionally with numbered `--option`s.
+`hands` is a step that needs the owner physically, such as a login or a device. Questions sort
+above pull requests, because a question blocks the Commander while a ready pull request only waits.
+
+**Storage.** Items and replies live in `commander_inbox_items` and `commander_inbox_replies`
+(`apps/server/src/domains/db/schema-commander.ts`), owned by `CommanderInboxService`
+(`apps/server/src/domains/commander/inbox.ts`). An open item is unique per `kind` and key: a
+`merge` item is keyed by its pull request URL, so reporting the same pull request again replaces
+the open item and bumps its `revision` instead of adding a second card. A question uses the
+Commander's own `--key`. Closed items are pruned to the newest 50. Session and delegation IDs are
+context only, without a foreign key, so an item outlives an archived Session.
+
+**Merge.** The owner's Merge click sends the item `revision` it rendered. The Server refuses when
+the Commander replaced the report meanwhile, when the item is stale, or when a merge is already in
+flight, then runs `gh pr merge --match-head-commit <verified head>` with the repository's preferred
+method. GitHub therefore refuses if anything landed after the Commander's verification. Pending or
+failing checks do not disable Merge: branch protection decides that on the merge itself.
+
+**GitHub reconcile.** Every 60 seconds, serially and single-flight to protect the shared `gh`
+quota, the Server reads each open `merge` item's pull request. A head other than the verified one
+marks the item stale (`headMoved`) until the Commander reports the new head; a pull request merged
+or closed elsewhere closes the item. The live view (checks, merge state, draft) is memory only. A
+failed read keeps the item open with an unknown live state; it never closes it.
+
+**Replies.** The reply box answers one item: the one picked with `@` (the picker lives in this box,
+not in the Commander Terminal, because Codex's composer already claims `@`), or the only open
+question when there is exactly one. A reply is stored first, then announced through the completion
+notifier as `[Caxri notice] ... inbox item <id> has a new reply.`, behind the same idle and draft
+fences as task notices. The Commander reads it with `commander inbox show` and acknowledges the
+sequence with `commander inbox ack`; the card shows "Delivered to Commander" until then and "Read
+by Commander" after. Because pending notices are memory only, every unacknowledged reply is
+re-announced when the Server starts and whenever the Commander process launches. Dismissing an
+item, and an item merged or closed outside the Inbox, also notify the Commander; its own `resolve`
+does not.
+
+**Authority.** The Commander's Endpoint (`commander` capability) can `add`, `list`, `show`, `ack`,
+and `resolve`. Only the owner's window can `reply`, `dismiss`, and `merge`: those are Desktop-owned
+commands the Agent Commander window admits, and the CLI exposes none of them, so the Commander can
+never merge its own report.
+
+**Mobile.** A paired phone with the `control` role opens the same list as "Needs you" from the
+computer menu on its Sessions screen. It shows the open items, questions first, with Desktop's kind
+labels, the pull request as `repo#number`, the Commander's Markdown, numbered options, and the
+owner's replies with the same read state. Reply on a card opens a composer; the reply is stored
+with source `mobile` and reaches the Commander exactly like a Desktop reply. Merge and Dismiss stay
+on Desktop, and the phone has no Inbox notification. Bodies and older replies are shortened to fit
+one mobile frame, and a `commanderInbox` subscription refreshes the screen live. Authorization and
+wire details are in [mobile authorization](mobile/authorization.md#commander-inbox-from-mobile).
+
 ## Observability
 
 Every step of a Commander workflow leaves a content-free log line in Server Core's
 `<userData>/logs/server-core.jsonl`, readable with `caxri logs query` (see [CLI](cli.md)). Together
 they reconstruct a bug report without Terminal output or transcripts:
 
-| Event                                          | Meaning                                                                                                                           |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `ipc.request`                                  | Every CLI call the Commander makes (`commander.board`, `agent.delegation.*`), with its duration and correlation ID (debug level). |
-| `agent_commander.ensured`                      | `commander.ensure` finished: `outcome` `created`, `restored`, or `running`, the prior Terminal state, and the duration.           |
-| `agent_commander.stopped`                      | `commander.stop` parked the Commander (`stopped`) or found nothing running (`not_running`).                                       |
-| `agent_commander.session_created`/`_discarded` | A Commander Session was created, or removed because its delegation was refused before launch.                                     |
-| `agent_delegation.requested`                   | A task was admitted: `mode` (`new`, `follow_up`, `resume`), whether the Commander sent it, its Session, and its parent task.      |
-| `agent_delegation.transitioned`                | Every receipt `status`/`failure` change, with the previous status, the task's age, and whether it came from restart recovery.     |
-| `agent_delegation.admission_rejected`          | Why a follow-up or resume was refused, as a closed reason.                                                                        |
-| `agent_commander.completion_notice_queued`     | A settled task was queued for the Commander Terminal, with the batch size (debug).                                                |
-| `agent_commander.completion_notice_deferred`   | Which gate holds the batch back (`commander_busy`, `draft_input`, `awaiting_permission`, ...), once per change (debug).           |
-| `agent_commander.completion_notice_delivered`  | The coalesced line was written, with its task count, the oldest entry's wait, and the finished turns that could not take it.      |
-| `agent_commander.resume_prompt_delivered`      | A relaunched Commander received its launch prompt: missed delegation `count`, `interruptedTurn`, and the oldest entry's `waitMs`. |
-| `agent_commander.task_recorded`                | A ledger task was created, with `origin` `commander` (`commander task add`) or `delegation` (an unregistered dispatch).           |
-| `agent_commander.task_transitioned`            | A ledger task changed status: `from`, `to`, and the task's age.                                                                   |
+| Event                                               | Meaning                                                                                                                                               |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ipc.request`                                       | Every CLI call the Commander makes (`commander.board`, `agent.delegation.*`), with its duration and correlation ID (debug level).                     |
+| `agent_commander.ensured`                           | `commander.ensure` finished: `outcome` `created`, `restored`, or `running`, the prior Terminal state, and the duration.                               |
+| `agent_commander.stopped`                           | `commander.stop` parked the Commander (`stopped`) or found nothing running (`not_running`).                                                           |
+| `agent_commander.session_created`/`_discarded`      | A Commander Session was created, or removed because its delegation was refused before launch.                                                         |
+| `agent_delegation.requested`                        | A task was admitted: `mode` (`new`, `follow_up`, `resume`), whether the Commander sent it, its Session, and its parent task.                          |
+| `agent_delegation.transitioned`                     | Every receipt `status`/`failure` change, with the previous status, the task's age, and whether it came from restart recovery.                         |
+| `agent_delegation.admission_rejected`               | Why a follow-up or resume was refused, as a closed reason.                                                                                            |
+| `agent_commander.completion_notice_queued`          | A settled task was queued for the Commander Terminal, with the batch size (debug).                                                                    |
+| `agent_commander.completion_notice_deferred`        | Which gate holds the batch back (`commander_busy`, `draft_input`, `awaiting_permission`, ...), once per change (debug).                               |
+| `agent_commander.completion_notice_delivered`       | The coalesced line was written, with its task count, the oldest entry's wait, and the finished turns that could not take it.                          |
+| `agent_commander.resume_prompt_delivered`           | A relaunched Commander received its launch prompt: missed delegation `count`, Inbox `inboxCount`, `interruptedTurn`, and the oldest entry's `waitMs`. |
+| `agent_commander.task_recorded`                     | A ledger task was created, with `origin` `commander` (`commander task add`) or `delegation` (an unregistered dispatch).                               |
+| `agent_commander.task_transitioned`                 | A ledger task changed status: `from`, `to`, and the task's age.                                                                                       |
+| `agent_commander.inbox_item_reported`               | The Commander added an Inbox item or replaced the open one with the same key: `kind` and `outcome` (`added`, `updated`).                              |
+| `agent_commander.inbox_item_closed`                 | An item closed: the closed `reason`, its `kind`, how long it was open (`openMs`), and its reply count.                                                |
+| `agent_commander.inbox_replied`                     | The owner replied: item `kind`, reply `sequence`, and `source` (`desktop`, `mobile`); never the text.                                                 |
+| `agent_commander.inbox_stale_changed`               | A `merge` item went stale (`headMoved`) or became current again (`null`).                                                                             |
+| `agent_commander.inbox_pull_request_refresh_failed` | Reading one `merge` item's pull request failed, with the shared CLI failure `kind`.                                                                   |
 
 The delegation ID links them: the Commander's `agent delegate create` returns it, every transition
 and notice names it, and the `ipc.request` line of each `agent.delegation.*` call carries it as
@@ -467,7 +531,10 @@ memory before the task is redispatched.
   live with `gh pr view`, because the board's copy is cached and has no head commit: it must be
   `MERGEABLE`, every check must have passed, and its `headRefOid` must be the commit the delegated
   Agent verified. A moved head gets one re-verification follow-up; a head that keeps moving is
-  reported as not ready rather than chased.
+  reported as not ready rather than chased. A ready pull request is reported as a `merge` item in the
+  [Commander Inbox](#commander-inbox), with the full report in the item body; a question for the
+  user becomes a `decision` or `hands` item, and the Commander checks `commander inbox list` at the
+  start of each turn for replies.
 - **Boundaries.** The Commander works only through the Caxri CLI and read-only tools. It never
   edits the user's repositories, reads Caxri's own profile, or operates the user's screen.
 

@@ -38,6 +38,8 @@ const isMessageForResource = (
             return message.kind === 'terminal.snapshot' || message.kind === 'terminal.output';
         case 'agentChat':
             return message.kind === 'agentChat.patch' || message.kind === 'agentChat.changed';
+        case 'commanderInbox':
+            return message.kind === 'commanderInbox.changed';
         default:
             return assertNever(resource, 'Unhandled mobile subscription message');
     }
