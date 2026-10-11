@@ -86,10 +86,11 @@ const mergeConfirmationReasons: Record<Exclude<MergeBlocker, 'conflicting'>, str
 };
 
 /**
- * The always-visible merge button. The label always names the action, so a click never surprises: green `Merge` when
- * nothing stands in the way, and `Merge anyway` behind a warning glyph when something does, colored `--danger` for
- * failed checks and `--warning` for anything still settling. The reason itself is the button's tooltip and the
- * confirmation's message, and the row's own glyph already shows the check state, so the button does not repeat it.
+ * The always-visible merge button. Only a merge nothing blocks earns the green `Merge` text: it is the next step, so it
+ * is worth the room it takes from the title. A blocked merge is not the next step, so it shrinks to the merge glyph,
+ * colored `--danger` for failed checks and `--warning` for anything still settling, and leaves the narrow sidebar's
+ * width to the pull request title. The reason is the button's tooltip and the confirmation's message, and the row's own
+ * glyph already shows the check state, so the button does not repeat it.
  */
 function mergeButtonPresentation(
     blocker: Exclude<MergeBlocker, 'conflicting'> | undefined,
@@ -103,8 +104,7 @@ function mergeButtonPresentation(
         };
     const tone: TreeItemActionTone = blocker === 'checks-failed' ? 'danger' : 'warning';
     return {
-        icon: new ThemeIcon('warning'),
-        label: 'Merge anyway',
+        icon: new ThemeIcon('git-merge'),
         tone,
         title: `${MERGE_PULL_REQUEST_TITLE}: ${mergeBlockerLabels[blocker]}`,
     };

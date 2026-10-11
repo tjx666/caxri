@@ -10,24 +10,57 @@ type PullRequest = NonNullable<ProjectStatusRepository['pullRequest']>;
 type PullRequestCheck = PullRequest['checks'][number];
 
 /**
- * More passed checks than this fold into one collapsed `N checks passed` row. A handful still reads at a glance, but a
- * pull request with a dozen green checks buried the one still running under a wall of identical rows.
+ * More checks of one settled kind than this fold into one collapsed summary row. A handful still reads at a glance, but
+ * a pull request with a dozen green or still-running checks buried the one that failed under a wall of identical rows
+ * and pushed everything below out of a narrow sidebar.
  */
-export const PASSED_CHECKS_COLLAPSE_THRESHOLD = 3;
+export const CHECKS_COLLAPSE_THRESHOLD = 3;
+
+interface CheckFold {
+    /**
+     * Stable row id suffix, so a fold keeps its expansion as checks move between groups.
+     */
+    key: 'in-progress-checks' | 'passed-checks';
+    label: (count: number) => string;
+    state: PullRequestCheck['state'];
+    states: ReadonlySet<PullRequestCheck['state']>;
+}
 
 /**
- * Splits a pull request's checks into the ones listed individually and the passed ones folded behind a summary row.
- * Only success folds: a failed, cancelled, running, or queued check is the reason to open the list, so it always stays
- * in view, in the provider's order.
+ * Kinds of check that fold when there are many, in display order. A failed, cancelled, neutral, or unknown check is the
+ * reason to open the list, so it never folds.
+ */
+const checkFolds: readonly CheckFold[] = [
+    {
+        key: 'in-progress-checks',
+        label: (count) => `${count} checks in progress`,
+        state: 'pending',
+        states: new Set(['pending', 'queued']),
+    },
+    {
+        key: 'passed-checks',
+        label: (count) => `${count} checks passed`,
+        state: 'success',
+        states: new Set(['success']),
+    },
+];
+
+/**
+ * Splits a pull request's checks into the ones listed individually and the groups folded behind a summary row (see
+ * {@link checkFolds}). A group folds only past {@link CHECKS_COLLAPSE_THRESHOLD}; listed checks keep the provider's
+ * order.
  */
 export function partitionPullRequestChecks(checks: readonly PullRequestCheck[]): {
     listed: PullRequestCheck[];
-    folded: PullRequestCheck[];
+    folded: Array<{ fold: CheckFold; checks: PullRequestCheck[] }>;
 } {
-    const passed = checks.filter((check) => check.state === 'success');
-    if (passed.length <= PASSED_CHECKS_COLLAPSE_THRESHOLD)
-        return { listed: [...checks], folded: [] };
-    return { listed: checks.filter((check) => check.state !== 'success'), folded: passed };
+    const folded = checkFolds.flatMap((fold) => {
+        const members = checks.filter((check) => fold.states.has(check.state));
+        return members.length > CHECKS_COLLAPSE_THRESHOLD ? [{ fold, checks: members }] : [];
+    });
+    const isFolded = (check: PullRequestCheck) =>
+        folded.some(({ fold }) => fold.states.has(check.state));
+    return { listed: checks.filter((check) => !isFolded(check)), folded };
 }
 
 function checkRow(id: string, check: PullRequestCheck): StatusNode {
@@ -52,8 +85,8 @@ function checkRow(id: string, check: PullRequestCheck): StatusNode {
 }
 
 /**
- * The pull request row's children: each check that needs a look, the passed ones folded when there are many (see
- * {@link partitionPullRequestChecks}), then the count of checks the user chose to ignore. Row ids keep each check's
+ * The pull request row's children: each check that needs a look, running and passed ones folded when there are many
+ * (see {@link partitionPullRequestChecks}), then the count of checks the user chose to ignore. Row ids keep each check's
  * index in the provider's list, so a check folding or unfolding as others finish does not change its identity.
  */
 export function pullRequestCheckNodes(prefix: string, pullRequest: PullRequest): StatusNode[] {
@@ -61,17 +94,20 @@ export function pullRequestCheckNodes(prefix: string, pullRequest: PullRequest):
     const rowFor = (check: PullRequestCheck) =>
         checkRow(`${prefix}:check:${pullRequest.checks.indexOf(check)}`, check);
     const nodes = listed.map(rowFor);
-    if (folded.length > 0) {
-        const label = `${folded.length} checks passed`;
+    for (const { fold, checks } of folded)
         nodes.push(
-            item(`${prefix}:passed-checks`, label, {
-                icon: stateIcons.success,
-                tooltip: { badge: { label: projectStatusStateLabel('success'), tone: 'success' } },
-                children: folded.map(rowFor),
+            item(`${prefix}:${fold.key}`, fold.label(checks.length), {
+                icon: stateIcons[fold.state],
+                tooltip: {
+                    badge: {
+                        label: projectStatusStateLabel(fold.state),
+                        tone: stateTones[fold.state],
+                    },
+                },
+                children: checks.map(rowFor),
                 collapsibleState: TreeItemCollapsibleState.Collapsed,
             }),
         );
-    }
     if (pullRequest.hiddenCheckCount > 0) {
         nodes.push(
             item(
