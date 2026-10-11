@@ -503,7 +503,11 @@ A running turn keeps the model it started with.
   `opus`) is the identifier and `resolvedModel` the full model the init message then reports, kept
   as `resolvedId` so the two match. A switch applies in place: `setModel`, and `effortLevel`
   through `applyFlagSettings`, which outranks the user's settings files without writing to them.
-  The effort is known only when the CLI publishes it in its init message or after a switch.
+  An SDK-hosted init message carries no effort (only Remote Control bridge frames do), so the Chat
+  registers read-only `UserPromptSubmit`, `PreToolUse`, and `Stop` hook callbacks and reports the
+  main thread's `effort.level` from their input: the level Claude Code actually sends after
+  settings, environment overrides, and model downgrades. Before the first turn, or a switch, the
+  effort is unknown.
 
 ## Lifecycle signals
 

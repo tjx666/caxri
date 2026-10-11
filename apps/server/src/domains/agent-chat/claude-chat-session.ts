@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+    HookCallbackMatcher,
+    HookEvent,
     Query,
     SDKMessage,
     SDKUserMessage,
@@ -35,7 +37,12 @@ import { AgentChatStartError } from './chat-provider';
 import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
 import { ClaudeCommandList, claudeUserPrompt, isClaudeCompactCommand } from './claude-input';
 import { claudeAssistantItems, claudeUsageTokens } from './claude-items';
-import { claudeChatModels, claudeInitEffort, configureClaudeModel } from './claude-models';
+import {
+    claudeChatModels,
+    claudeHookEffort,
+    claudeInitEffort,
+    configureClaudeModel,
+} from './claude-models';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
 import { ClaudeStream } from './claude-stream';
@@ -218,6 +225,23 @@ class ClaudeChatSession implements AgentChatProviderSession {
         );
         if (operations.length > 0) this.options.apply(operations);
         this.tasks.onToolResults(content);
+    }
+
+    /**
+     * Read-only hook callbacks that report the turn's effective effort. UserPromptSubmit reports it as a turn starts;
+     * PreToolUse and Stop keep it current if a model switch or downgrade changes it mid-turn. Each returns an empty
+     * output, so Claude Code proceeds exactly as without them.
+     */
+    private effortHooks(): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
+        const matcher: HookCallbackMatcher = {
+            hooks: [
+                (input) => {
+                    this.options.apply(claudeHookEffort(input));
+                    return Promise.resolve({});
+                },
+            ],
+        };
+        return { UserPromptSubmit: [matcher], PreToolUse: [matcher], Stop: [matcher] };
     }
 
     private onSystem(message: Json): void {
@@ -427,6 +451,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                     disallowedTools: settings.disallowedTools,
                 }),
                 canUseTool: async (...arguments_) => this.requests.canUseTool(...arguments_),
+                hooks: this.effortHooks(),
             },
         });
         this.query = stream;

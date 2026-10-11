@@ -51,6 +51,17 @@ export function claudeInitEffort(message: Record<string, unknown>): AgentChatPat
 }
 
 /**
+ * The effort a hook reports for the turn it fires in. The SDK's init carries `effort` only on Remote Control bridge
+ * frames, so a Chat learns the level Claude Code actually sends (after settings, env overrides, and model downgrades)
+ * from hook input instead. A subagent's hook reports its own effort, not the Chat's, so it is ignored.
+ */
+export function claudeHookEffort(input: unknown): AgentChatPatchOperation[] {
+    if (!isRecord(input) || input.agent_id !== undefined || !isRecord(input.effort)) return [];
+    const effort = stringField(input.effort.level);
+    return effort ? [{ op: 'state', state: { effort: clip(effort, 40) } }] : [];
+}
+
+/**
  * Switches a running Claude Code in place: `setModel` applies from the next response, and the effort goes to the
  * session's flag settings layer, which outranks the user's settings files without writing to them. Each step reports
  * its state as soon as Claude Code accepts it, so a failed effort change still shows the model that did switch.
