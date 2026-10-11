@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
 
+import { allowE2EErrors } from './error-gate.ts';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
@@ -201,6 +202,15 @@ export async function executeMobileChatModelRefusedScenario(
             throw new Error('The sheet did not mark the model in use');
         await capture(environment, 'sheet', artifacts);
 
+        // The refused `set_model` reaches the phone as a failed `agentChat.configure` request.
+        allowE2EErrors([
+            {
+                source: 'server-core',
+                event: 'ipc.request_failed',
+                code: 'INTERNAL',
+                count: 1,
+            },
+        ]);
         await writeFile(join(fixture.testDirectory, 'reject-model-change'), '');
         await tapMobileCheckByBounds(serial, 'agent-chat-model-opus');
         await waitForCheck(serial, 'agent-chat-model-error');
