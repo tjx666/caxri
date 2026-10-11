@@ -125,6 +125,11 @@ export default defineConfig({
     resolve: {
         alias: workspaceAliases,
     },
+    /**
+     * Mirrors the Renderer build's `assetsInclude` (electron.vite.config.ts) so the PDF preview's `?inline` CMaps,
+     * standard fonts, and WebAssembly decoders load in tests exactly as they are bundled.
+     */
+    assetsInclude: ['**/*.bcmap', '**/*.pfb', '**/*.wasm'],
     test: {
         globalSetup: ['./vitest.global-setup.ts'],
         environment: 'node',

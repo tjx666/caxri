@@ -1,12 +1,8 @@
 import { z } from 'zod';
 
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
-import {
-    fileAssetSchema,
-    identifierSchema,
-    pathSchema,
-    terminalRecordSchema,
-} from '../domain/domain.js';
+import { identifierSchema, pathSchema, terminalRecordSchema } from '../domain/domain.js';
+import { fileAssetSchema } from '../domain/preview-asset.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { externalEditorDocumentSchema } from './path-browser-contract.js';
 

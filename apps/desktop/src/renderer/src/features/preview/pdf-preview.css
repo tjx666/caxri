@@ -1,0 +1,160 @@
+/**
+ * The subset of pdf.js's `web/pdf_viewer.css` a read-only viewer needs: page boxes, canvases, the
+ * transparent selectable text layer, and link hit areas. The upstream stylesheet also styles its
+ * own toolbar, sidebar, dialogs, and editors through global class names (`.dialog`, `.sidebar`,
+ * `:root` variables) that would leak into the Workbench, so it is not imported.
+ * Rules mirror pdf.js 6; recheck them against that stylesheet when upgrading `pdfjs-dist`.
+ */
+.caxri-pdf-preview {
+    background: var(--background);
+}
+
+.caxri-pdf-preview .pdfViewer {
+    --scale-factor: 1;
+    padding-block: 12px;
+}
+
+.caxri-pdf-preview .pdfViewer .page {
+    --user-unit: 1;
+    --total-scale-factor: calc(var(--scale-factor) * var(--user-unit));
+    --scale-round-x: 1px;
+    --scale-round-y: 1px;
+
+    direction: ltr;
+    position: relative;
+    overflow: visible;
+    margin: 0 auto 12px;
+    border: none;
+    /* A page still waiting to render: pdf.js paints the paper itself once it draws. */
+    background-color: var(--elevated);
+}
+
+.caxri-pdf-preview .pdfViewer .canvasWrapper {
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+}
+
+.caxri-pdf-preview .pdfViewer .canvasWrapper canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    contain: content;
+}
+
+.caxri-pdf-preview .pdfViewer .canvasWrapper canvas.detailView {
+    image-rendering: pixelated;
+}
+
+.caxri-pdf-preview .textLayer {
+    --min-font-size: 1;
+    --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+    --min-font-size-inv: calc(1 / var(--min-font-size));
+
+    position: absolute;
+    text-align: initial;
+    inset: 0;
+    overflow: clip;
+    opacity: 1;
+    line-height: 1;
+    letter-spacing: normal;
+    word-spacing: normal;
+    text-size-adjust: none;
+    forced-color-adjust: none;
+    transform-origin: 0 0;
+    z-index: 0;
+}
+
+.caxri-pdf-preview .textLayer :is(span, br) {
+    color: transparent;
+    position: absolute;
+    white-space: pre;
+    cursor: text;
+    transform-origin: 0% 0%;
+    user-select: text;
+}
+
+.caxri-pdf-preview .textLayer > :not(.markedContent),
+.caxri-pdf-preview .textLayer .markedContent span:not(.markedContent) {
+    --font-height: 0;
+    --scale-x: 1;
+    --rotate: 0deg;
+
+    z-index: 1;
+    font-size: calc(var(--text-scale-factor) * var(--font-height));
+    transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.caxri-pdf-preview .textLayer .markedContent {
+    display: contents;
+}
+
+.caxri-pdf-preview .textLayer span[role='img'] {
+    user-select: none;
+    cursor: default;
+}
+
+.caxri-pdf-preview .textLayer ::selection {
+    background: color-mix(in srgb, var(--accent), transparent 65%);
+    color: transparent;
+}
+
+.caxri-pdf-preview .textLayer br::selection {
+    background: transparent;
+}
+
+.caxri-pdf-preview .textLayer .endOfContent {
+    display: block;
+    position: absolute;
+    inset: 100% 0 0;
+    z-index: 0;
+    cursor: default;
+    user-select: none;
+}
+
+.caxri-pdf-preview .textLayer.selecting .endOfContent {
+    top: 0;
+}
+
+/** Only links are interactive in this reader; every other annotation is drawn into the canvas. */
+.caxri-pdf-preview .annotationLayer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    transform-origin: 0 0;
+}
+
+.caxri-pdf-preview .annotationLayer section {
+    position: absolute;
+    text-align: initial;
+    pointer-events: auto;
+    box-sizing: border-box;
+    transform-origin: 0 0;
+    user-select: none;
+}
+
+.caxri-pdf-preview .annotationLayer section:not(.linkAnnotation) {
+    display: none;
+}
+
+.caxri-pdf-preview .textLayer.selecting ~ .annotationLayer section {
+    pointer-events: none;
+}
+
+.caxri-pdf-preview .annotationLayer .linkAnnotation > a {
+    position: absolute;
+    font-size: 1em;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.caxri-pdf-preview .annotationLayer .linkAnnotation > a:hover {
+    background: color-mix(in srgb, var(--accent), transparent 80%);
+}

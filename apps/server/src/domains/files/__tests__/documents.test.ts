@@ -18,7 +18,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { MAX_PREVIEW_ASSET_BYTES } from '@caxri/protocol';
+import { MAX_PREVIEW_ASSET_BYTES, MAX_PREVIEW_DOCUMENT_BYTES } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -322,6 +322,22 @@ describe('DocumentService', () => {
             const path = join(root, 'huge.png');
             await writeFile(path, Buffer.alloc(MAX_PREVIEW_ASSET_BYTES + 1));
 
+            await expect(service(path).readAsset('session-1', path)).rejects.toMatchObject({
+                code: 'CAPACITY',
+            });
+        });
+
+        it('reads a PDF past the image ceiling and refuses one past the document ceiling', async () => {
+            const { root, service } = await createAssetFixture();
+            const path = join(root, 'manual.pdf');
+            await writeFile(path, Buffer.alloc(MAX_PREVIEW_ASSET_BYTES + 1));
+
+            await expect(service(path).readAsset('session-1', path)).resolves.toMatchObject({
+                mediaType: 'application/pdf',
+                size: MAX_PREVIEW_ASSET_BYTES + 1,
+            });
+
+            await writeFile(path, Buffer.alloc(MAX_PREVIEW_DOCUMENT_BYTES + 1));
             await expect(service(path).readAsset('session-1', path)).rejects.toMatchObject({
                 code: 'CAPACITY',
             });

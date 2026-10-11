@@ -6,11 +6,8 @@ import { parentDirectoryPath } from '../../../lib/file-path';
 import { queryClient } from '../../../queries/client';
 import { getSelectedSession, getSessionProjectId } from '../../../stores/selectors';
 import { pushToast, tryCommand } from '../../../stores/toasts';
-import {
-    closeOpenEditorsUnderPath,
-    hasUnsavedChangesUnderPath,
-    openFile,
-} from '../../editor/document-commands';
+import { openFile } from '../../editor/document-commands';
+import { closeOpenEditorsUnderPath, hasUnsavedChangesUnderPath } from '../../editor/document-trash';
 import { isControlledViewOperationQuery } from '../view-operation-client';
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';

@@ -20,13 +20,13 @@ import {
     changeDocument,
     closeDocumentTabFamily,
     closeDocumentTabs,
-    closeOpenEditorsUnderPath,
     openEditorTab,
     openFile,
     openFileForSession,
     remapOpenEditors,
     saveActiveEditor,
 } from '../document-commands';
+import { closeOpenEditorsUnderPath } from '../document-trash';
 
 type PaneLayoutTabSpec = { path: string; preview?: boolean } | { terminalId: string };
 

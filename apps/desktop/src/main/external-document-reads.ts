@@ -3,7 +3,7 @@ import { lstat, open, realpath } from 'node:fs/promises';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 
 import type { MethodResult } from '@caxri/protocol';
-import { CaxriError, MAX_PREVIEW_ASSET_BYTES, previewAssetMediaType } from '@caxri/protocol';
+import { CaxriError, previewAssetByteLimit, previewAssetMediaType } from '@caxri/protocol';
 
 import { authorizedExternalDocument, isExternalDocumentWriting } from './external-documents';
 import { readExternalFile, readExternalFileSnapshot } from './external-file-snapshot';
@@ -65,8 +65,8 @@ export async function openLinkedExternalDocument(
 
 /**
  * Reads an image a document's preview shows, with the same limits as a Project preview asset (`files.readAsset`): an
- * image extension from the allowlist, a regular file reached without a symbolic link, one filesystem link, and the
- * preview size ceiling.
+ * extension from the preview allowlist, a regular file reached without a symbolic link, one filesystem link, and the
+ * preview size ceiling for its media type.
  */
 export async function readExternalDocumentAsset(
     documentId: string,
@@ -95,13 +95,11 @@ export async function readExternalDocumentAsset(
                 'PATH_DENIED',
                 'Files with multiple filesystem links cannot be read',
             );
-        if (opened.size > MAX_PREVIEW_ASSET_BYTES)
-            throw new CaxriError(
-                'CAPACITY',
-                `Asset exceeds the ${MAX_PREVIEW_ASSET_BYTES} byte preview limit`,
-            );
+        const limit = previewAssetByteLimit(mediaType);
+        if (opened.size > limit)
+            throw new CaxriError('CAPACITY', `Asset exceeds the ${limit} byte preview limit`);
         const buffer = await file.readFile();
-        if (buffer.byteLength > MAX_PREVIEW_ASSET_BYTES)
+        if (buffer.byteLength > limit)
             throw new CaxriError('CAPACITY', 'Asset grew past the preview limit while it was read');
         return { path, mediaType, base64: buffer.toString('base64'), size: buffer.byteLength };
     } finally {
