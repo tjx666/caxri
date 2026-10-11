@@ -72,6 +72,7 @@ const CORE_ROUTED_METHODS = [
     'mobile.agentChat.interrupt',
     'mobile.agentChat.respond',
     'mobile.agentChat.retry',
+    'mobile.agentChat.configure',
     'mobile.device.revoke.apply',
     'desktop.status',
     'desktop.focus',

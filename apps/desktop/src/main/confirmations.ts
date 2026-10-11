@@ -281,3 +281,26 @@ export function unsavedChangesChoice(response: number): DiscardChoice {
     if (response === 0) return 'save';
     return response === 1 ? 'discard' : 'cancel';
 }
+
+/**
+ * "Edit from here" with file restore: the provider puts back the files the removed turns changed, which overwrites the
+ * current contents, the user's own edits since included. Cancel is the default so Enter never reverts files.
+ */
+export function revertAgentChatFilesPrompt({
+    providerName,
+    removedTurns,
+}: {
+    providerName: string;
+    removedTurns: number;
+}): MessageBoxOptions {
+    const turns = removedTurns === 1 ? 'this turn' : `these ${removedTurns} turns`;
+    return {
+        type: 'warning',
+        title: 'Revert File Changes',
+        message: `Revert the files ${providerName} changed in ${turns}?`,
+        detail: 'Files return to how they were before this message. Changes made to them since, including your own, are lost.',
+        buttons: ['Revert Files', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+    };
+}

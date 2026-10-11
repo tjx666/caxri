@@ -12,7 +12,7 @@ import { createMobileAccessPersistence } from './access-persistence';
 import { listMobileAgentActions, terminalForPrincipal } from './action-requests';
 import { invokeMobileAgentChatRequest, isMobileAgentChatRead } from './agent-chat-requests';
 import { invokeMobileAttentionRequest } from './attention-requests';
-import { buildMobileDashboard } from './dashboard';
+import { readMobileDashboard, showMobileSession } from './dashboard-requests';
 import { MobileDeviceRegistry } from './device-registry';
 import { invokeMobileFileRequest } from './file-requests';
 import { MobileGateway } from './gateway';
@@ -239,72 +239,21 @@ export const openMobileAccessController = async (options: {
                         context.principal.kind === 'paired-device'
                             ? currentPairedPrincipal(context.principal, request.method)
                             : undefined;
-                    const [projects, sessions, terminals] = await Promise.all([
-                        domainService.request('project.queryForPrincipal', {
-                            principal: context.principal,
-                            query: { mode: 'list' },
-                        }),
-                        domainService.request('session.queryForPrincipal', {
-                            principal: context.principal,
-                            query: { mode: 'list' },
-                        }),
-                        domainService.request('terminal.queryForPrincipal', {
-                            principal: context.principal,
-                            query: { mode: 'list' },
-                        }),
-                    ]);
-                    const grantedProjectIds =
-                        context.principal.kind === 'paired-device'
-                            ? new Set(context.principal.projectIds)
-                            : undefined;
-                    const visibleProjects = grantedProjectIds
-                        ? projects.projects.filter((project) => grantedProjectIds.has(project.id))
-                        : projects.projects;
-                    return buildMobileDashboard({
+                    return readMobileDashboard(domainService, context.principal, {
                         hostDisplayName,
                         deviceRole: paired?.role ?? null,
-                        projects: visibleProjects,
-                        sessions: sessions.sessions,
-                        terminals: terminals.terminals,
                         resolveAgentEndpoint,
                     });
                 }
                 case 'mobile.session.show': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
-                    const session = await sessionForPrincipal(
+                    return showMobileSession(
                         domainService,
                         principal,
                         request.params.sessionId,
+                        { hostDisplayName, deviceRole: principal.role, resolveAgentEndpoint },
+                        () => currentPairedPrincipal(principal, request.method),
                     );
-                    const [projects, terminals] = await Promise.all([
-                        domainService.request('project.queryForPrincipal', {
-                            principal,
-                            query: { mode: 'show', selector: session.projectId },
-                        }),
-                        session.primaryAgentTerminalId
-                            ? domainService.request('terminal.queryForPrincipal', {
-                                  principal,
-                                  query: {
-                                      mode: 'show',
-                                      selector: session.primaryAgentTerminalId,
-                                  },
-                              })
-                            : domainService.request('terminal.queryForPrincipal', {
-                                  principal,
-                                  query: { mode: 'list', sessionId: session.id },
-                              }),
-                    ]);
-                    const projected = buildMobileDashboard({
-                        hostDisplayName,
-                        deviceRole: principal.role,
-                        projects: projects.projects,
-                        sessions: [session],
-                        terminals: terminals.terminals,
-                        resolveAgentEndpoint,
-                    }).sessions.at(0);
-                    if (!projected) throw new CaxriError('NOT_FOUND', 'Session not found');
-                    currentPairedPrincipal(principal, request.method);
-                    return { session: projected };
                 }
                 case 'mobile.timeline.read': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
@@ -506,7 +455,8 @@ export const openMobileAccessController = async (options: {
                 case 'mobile.agentChat.send':
                 case 'mobile.agentChat.interrupt':
                 case 'mobile.agentChat.respond':
-                case 'mobile.agentChat.retry': {
+                case 'mobile.agentChat.retry':
+                case 'mobile.agentChat.configure': {
                     const invoke = async () => {
                         assertOpen();
                         const principal = currentPairedPrincipal(context.principal, request.method);

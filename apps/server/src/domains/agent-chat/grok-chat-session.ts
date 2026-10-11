@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type {
     AgentChatMessageInput,
+    AgentChatModelChange,
     AgentChatPatchOperation,
     AgentChatTurn,
 } from '@caxri/protocol';
@@ -10,6 +11,7 @@ import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 import {
     clip,
     closeDanglingItem,
+    endedSessionOperations,
     isRecord,
     MAX_TRACKED_TURNS,
     slashCommandPrompt,
@@ -22,24 +24,31 @@ import type {
     AgentChatSessionHost,
     ChatInputOptions,
     ChatProcessEnd,
+    ChatRewindTarget,
     ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
 import {
-    ACP_PROTOCOL_VERSION,
     grokCommands,
-    grokInitializeParameters,
+    grokContextWindow,
+    grokModels,
     grokModelState,
     grokUsage,
 } from './grok-items';
 import { GrokRequestBroker } from './grok-requests';
+import { rewindGrokSession } from './grok-rewind';
+import {
+    failGrokStart,
+    grokSessionParameters,
+    initializeGrokConnection,
+    newGrokSession,
+    SESSION_OPEN_TIMEOUT_MS,
+} from './grok-session-open';
 import { GrokUpdates, stopReasonStatus } from './grok-updates';
 import type { JsonRpcServerRequest } from './json-rpc-connection';
 import { JsonRpcConnection, JsonRpcRequestError } from './json-rpc-connection';
 import { grokChatSettings } from './launch-settings';
 
-const HANDSHAKE_TIMEOUT_MS = 15_000;
-const SESSION_OPEN_TIMEOUT_MS = 30_000;
 const TURN_REQUEST_TIMEOUT_MS = 30_000;
 /**
  * `session/cancel` is a notification; the running prompt answers `cancelled` once the turn stops. A provider that never
@@ -85,6 +94,11 @@ class GrokChatSession implements AgentChatProviderSession {
 
     private contextWindow: number | undefined;
 
+    /**
+     * The `models` record Grok Build returned when the conversation opened, for the context window of a switched model.
+     */
+    private listedModels: unknown;
+
     private requested = false;
 
     private turnCount = 0;
@@ -116,6 +130,8 @@ class GrokChatSession implements AgentChatProviderSession {
         if (stringField(parameters.sessionId) && parameters.sessionId !== this.sessionId) return;
         const update = isRecord(parameters.update) ? parameters.update : undefined;
         if (!update) return;
+        const meta = isRecord(parameters._meta) ? parameters._meta : undefined;
+        this.updates.setEventTime(meta?.agentTimestampMs);
         if (method === 'session/update') this.updates.onSessionUpdate(update);
         else if (method === '_x.ai/session_notification' || method === '_x.ai/session/update')
             this.updates.onExtensionUpdate(update);
@@ -125,6 +141,17 @@ class GrokChatSession implements AgentChatProviderSession {
     private onServerRequest(request: JsonRpcServerRequest): void {
         const connection = this.connection;
         if (!connection) return;
+        if (request.method === '_x.ai/ask_user_question') {
+            const parameters = request.params;
+            this.requests.askQuestion(
+                connection,
+                request.id,
+                clip(stringField(parameters.toolCallId) ?? `question:${request.id}`, 200),
+                parameters.questions,
+                this.activeTurn?.id,
+            );
+            return;
+        }
         if (request.method !== 'session/request_permission') {
             this.rejectedRequests += 1;
             this.options.onProtocolRejected('unsupportedRequest', request.method);
@@ -294,26 +321,7 @@ class GrokChatSession implements AgentChatProviderSession {
         this.activeTurn = undefined;
         this.updates.dropStreaming();
         const unanswered = this.requests.drain();
-        const operations: AgentChatPatchOperation[] = [];
-        for (const item of snapshot.items) {
-            const closed = closeDanglingItem(item);
-            if (closed) operations.push({ op: 'upsertItem', item: closed });
-        }
-        operations.push({
-            op: 'state',
-            state: {
-                requests: [],
-                activeTurnId: null,
-                ...(activeTurnId && {
-                    turns: snapshot.turns.map((existing) =>
-                        existing.id === activeTurnId
-                            ? { ...existing, status: 'interrupted' as const }
-                            : existing,
-                    ),
-                }),
-            },
-        });
-        this.options.apply(operations);
+        this.options.apply(endedSessionOperations(snapshot));
         this.requests.resolveAttention(unanswered);
         const waiting = turn?.onFinished ?? [];
         for (const settle of waiting) settle();
@@ -329,30 +337,22 @@ class GrokChatSession implements AgentChatProviderSession {
         });
     }
 
-    private async failStart(
-        connection: JsonRpcConnection,
-        error: AgentChatStartError,
-    ): Promise<never> {
-        await connection.close();
-        throw error;
-    }
-
     /**
      * Replays a bound conversation through `session/load`, which streams the history as session updates before it
      * answers, then applies it as one reset.
      */
-    private async load(connection: JsonRpcConnection, sessionParameters: Json): Promise<unknown> {
+    private async load(connection: JsonRpcConnection): Promise<unknown> {
         this.updates.beginReplay();
         let result: unknown;
         try {
             result = await connection.request(
                 'session/load',
-                { ...sessionParameters, sessionId: this.sessionId },
+                { ...grokSessionParameters(this.options.cwd), sessionId: this.sessionId },
                 SESSION_OPEN_TIMEOUT_MS,
             );
         } catch {
             this.updates.endReplay(false);
-            return this.failStart(
+            return failGrokStart(
                 connection,
                 new AgentChatStartError(
                     'resume_failed',
@@ -389,95 +389,25 @@ class GrokChatSession implements AgentChatProviderSession {
             },
         });
         this.connection = connection;
-        let initialized: unknown;
-        try {
-            initialized = await connection.request(
-                'initialize',
-                grokInitializeParameters(this.options.clientVersion),
-                HANDSHAKE_TIMEOUT_MS,
-            );
-        } catch {
-            if (spawnFailure?.reason === 'spawnFailed')
-                return this.failStart(
-                    connection,
-                    spawnFailure.code === 'ENOENT'
-                        ? new AgentChatStartError(
-                              'executable_not_found',
-                              'Grok Build CLI was not found',
-                          )
-                        : new AgentChatStartError(
-                              'spawn_failed',
-                              'Grok Build could not be started',
-                          ),
-                );
-            return this.failStart(
-                connection,
-                new AgentChatStartError(
-                    'handshake_failed',
-                    'Grok Build did not complete its handshake',
-                ),
-            );
-        }
-        if (!isRecord(initialized) || initialized.protocolVersion !== ACP_PROTOCOL_VERSION)
-            return this.failStart(
-                connection,
-                new AgentChatStartError(
-                    'unsupported_version',
-                    'This Grok Build version does not support Chat',
-                ),
-            );
-        const meta = isRecord(initialized._meta) ? initialized._meta : {};
+        const meta = await initializeGrokConnection(
+            connection,
+            this.options.clientVersion,
+            () => spawnFailure,
+        );
         this.options.apply([
             { op: 'state', state: { commands: grokCommands(meta.availableCommands) } },
         ]);
-        /**
-         * `askUserQuestion: false` keeps Grok Build from asking through its `_x.ai/ask_user_question` extension, which
-         * this Chat does not answer yet; it then asks in its reply instead.
-         */
-        const sessionParameters = {
-            cwd: this.options.cwd,
-            mcpServers: [],
-            _meta: { askUserQuestion: false },
-        };
-        let result: unknown;
-        let outcome: 'resumed' | 'started';
-        if (this.isSessionBound) {
-            result = await this.load(connection, sessionParameters);
-            outcome = 'resumed';
-        } else {
-            try {
-                result = await connection.request(
-                    'session/new',
-                    {
-                        ...sessionParameters,
-                        _meta: { ...sessionParameters._meta, sessionId: this.sessionId },
-                    },
-                    SESSION_OPEN_TIMEOUT_MS,
-                );
-            } catch {
-                return this.failStart(
-                    connection,
-                    new AgentChatStartError(
-                        'handshake_failed',
-                        'Grok Build could not start a conversation',
-                    ),
-                );
-            }
-            if (!isRecord(result) || result.sessionId !== this.sessionId)
-                return this.failStart(
-                    connection,
-                    new AgentChatStartError(
-                        'handshake_failed',
-                        'Grok Build did not return this conversation',
-                    ),
-                );
-            outcome = 'started';
-        }
-        const { model, contextWindow } = grokModelState(
-            isRecord(result) ? result.models : undefined,
-        );
+        const outcome = this.isSessionBound ? 'resumed' : 'started';
+        const result = this.isSessionBound
+            ? await this.load(connection)
+            : await newGrokSession(connection, this.sessionId, this.options.cwd);
+        const models = isRecord(result) ? result.models : undefined;
+        const { model, contextWindow } = grokModelState(models);
+        this.listedModels = models;
         this.contextWindow = contextWindow;
-        if (model) this.options.apply([{ op: 'state', state: { model } }]);
+        this.options.apply([
+            { op: 'state', state: { ...(model && { model }), models: grokModels(models) } },
+        ]);
         return outcome;
     }
 
@@ -564,6 +494,11 @@ class GrokChatSession implements AgentChatProviderSession {
         return Promise.resolve(undefined);
     }
 
+    rewind(target: ChatRewindTarget): Promise<undefined> {
+        const snapshot = this.options.read();
+        return rewindGrokSession(this.requireConnection(), this.sessionId, snapshot, target);
+    }
+
     async interrupt(): Promise<void> {
         const connection = this.requireConnection();
         const turn = this.activeTurn;
@@ -577,6 +512,20 @@ class GrokChatSession implements AgentChatProviderSession {
         connection.notify('session/cancel', { sessionId: this.sessionId });
         // Only a turn that is still running is stuck; a later Stop or the turn ending on its own settles this one.
         if (!(await finished) && this.activeTurn === turn) await this.close();
+    }
+
+    async configure({ model }: AgentChatModelChange): Promise<void> {
+        if (!model) return;
+        const result = await this.requireConnection().request(
+            'session/set_model',
+            { sessionId: this.sessionId, modelId: model.id },
+            TURN_REQUEST_TIMEOUT_MS,
+        );
+        const meta = isRecord(result) && isRecord(result._meta) ? result._meta : undefined;
+        if (isRecord(meta?.model) && 'Err' in meta.model)
+            throw new CaxriError('UNAVAILABLE', `Grok Build could not switch to ${model.id}`);
+        this.contextWindow = grokContextWindow(this.listedModels, model.id);
+        this.options.apply([{ op: 'state', state: { model: model.id } }]);
     }
 
     respond(requestId: string, response: AgentChatResponse): void {

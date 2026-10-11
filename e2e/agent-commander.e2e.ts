@@ -405,7 +405,7 @@ test('Agent Commander board moves a task stuck at Agent startup to Needs attenti
         const task = commander.locator(
             `li[data-session-id="${sessionId}"][data-commander-group="attention"] .commander-board-task`,
         );
-        await expect(task).toHaveText('Needs you', { timeout: 45_000 });
+        await expect(task).toHaveAttribute('data-task-label', 'Needs you', { timeout: 45_000 });
         await testInfo.attach('commander-board-needs-you', {
             body: await commander.locator('.commander-board').screenshot(),
             contentType: 'image/png',

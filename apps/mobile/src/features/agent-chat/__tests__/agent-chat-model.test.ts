@@ -8,7 +8,7 @@ import {
     agentChatActivityLabel,
     agentChatApprovalChoices,
     agentChatApprovalFiles,
-    agentChatComposerDisabledReason,
+    agentChatDisabledReason,
     agentChatEmptyMessage,
     agentChatFailureMessage,
     agentChatImageCounts,
@@ -259,7 +259,7 @@ describe('Agent Chat model', () => {
 
     it('explains why the composer is unavailable', () => {
         expect(
-            agentChatComposerDisabledReason({
+            agentChatDisabledReason({
                 deviceRole: 'view',
                 isConnected: true,
                 isHandedOff: false,
@@ -267,7 +267,7 @@ describe('Agent Chat model', () => {
             }),
         ).toMatch(/Reply access/u);
         expect(
-            agentChatComposerDisabledReason({
+            agentChatDisabledReason({
                 deviceRole: 'reply',
                 isConnected: true,
                 isHandedOff: false,
@@ -275,7 +275,7 @@ describe('Agent Chat model', () => {
             }),
         ).toMatch(/Retry/u);
         expect(
-            agentChatComposerDisabledReason({
+            agentChatDisabledReason({
                 deviceRole: 'control',
                 isConnected: true,
                 isHandedOff: false,
@@ -283,6 +283,19 @@ describe('Agent Chat model', () => {
             }),
         ).toBeUndefined();
         expect(agentChatFailureMessage('executable_not_found', 'Codex')).toMatch(/Codex/u);
+    });
+
+    it('names the model, not sending, when the model cannot be changed', () => {
+        const access = { isConnected: false, isHandedOff: false, snapshot: base } as const;
+        expect(agentChatDisabledReason({ ...access, deviceRole: 'reply' })).toBe(
+            'Reconnect to send messages.',
+        );
+        expect(
+            agentChatDisabledReason({ ...access, action: 'configure', deviceRole: 'reply' }),
+        ).toBe('Reconnect to change the model.');
+        expect(
+            agentChatDisabledReason({ ...access, action: 'configure', deviceRole: 'view' }),
+        ).toBe('Reply access is required to change the model.');
     });
 
     it('asks only a device that can retry to retry a stopped provider', () => {
@@ -319,7 +332,7 @@ describe('Agent Chat model', () => {
     it('disables sending to a handed-off Chat, whose snapshot still reads stopped', () => {
         const stopped: AgentChatSnapshot = { ...base, status: 'stopped' };
         expect(
-            agentChatComposerDisabledReason({
+            agentChatDisabledReason({
                 deviceRole: 'control',
                 isConnected: true,
                 isHandedOff: true,
@@ -327,7 +340,7 @@ describe('Agent Chat model', () => {
             }),
         ).toBe('Resume the Agent on your computer to send messages.');
         expect(
-            agentChatComposerDisabledReason({
+            agentChatDisabledReason({
                 deviceRole: 'reply',
                 isConnected: true,
                 isHandedOff: true,
@@ -336,7 +349,7 @@ describe('Agent Chat model', () => {
         ).toBe('Resume the Agent on your computer to send messages.');
         // Role and connection keep precedence, exactly as before.
         expect(
-            agentChatComposerDisabledReason({
+            agentChatDisabledReason({
                 deviceRole: 'view',
                 isConnected: true,
                 isHandedOff: true,
@@ -344,7 +357,7 @@ describe('Agent Chat model', () => {
             }),
         ).toMatch(/Reply access/u);
         expect(
-            agentChatComposerDisabledReason({
+            agentChatDisabledReason({
                 deviceRole: 'control',
                 isConnected: false,
                 isHandedOff: true,
@@ -353,7 +366,7 @@ describe('Agent Chat model', () => {
         ).toBe('Reconnect to send messages.');
         // A stopped Chat that was not handed off still resumes on the next message.
         expect(
-            agentChatComposerDisabledReason({
+            agentChatDisabledReason({
                 deviceRole: 'control',
                 isConnected: true,
                 isHandedOff: false,

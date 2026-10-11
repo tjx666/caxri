@@ -19,6 +19,7 @@ import {
 
 import { clip, isRecord, tail } from './chat-items';
 import { withCacheRewriteEstimate } from './chat-usage';
+import { codexDelivery } from './codex-input';
 
 /**
  * Pure translation from Codex app-server v2 `ThreadItem`s and server requests into the provider-neutral Agent Chat
@@ -174,11 +175,13 @@ export function mapCodexItem(
     switch (raw.type) {
         case 'userMessage': {
             const imageCount = Math.min(codexUserImageCount(raw.content), MAX_AGENT_CHAT_IMAGES);
+            const delivery = codexDelivery(raw);
             return {
                 ...base,
                 type: 'userMessage',
                 text: clip(userMessageText(raw.content), MAX_AGENT_CHAT_TEXT_LENGTH),
                 ...(imageCount > 0 && { images: Array.from({ length: imageCount }, () => ({})) }),
+                ...(delivery && { delivery }),
             };
         }
         case 'agentMessage': {

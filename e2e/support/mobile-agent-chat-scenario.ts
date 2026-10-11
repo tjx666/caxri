@@ -5,38 +5,21 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import {
-    adbShell,
+    agentText,
+    hasCheck,
+    sendFromPhone,
+    waitForCheck,
+    waitForNoCheck,
+} from './mobile-agent-chat-helpers';
+import { executeMobileChatModelScenario } from './mobile-agent-chat-model-scenario';
+import {
     androidBounds,
     mobileSemantics,
-    observeMobileNode,
     setMobileNetworkAvailable,
     tapMobileCheck,
     tapMobileCheckByBounds,
     waitForMobile,
 } from './mobile-android';
-
-const hasCheck = (nodes: Array<{ checkId: string }>, id: string): boolean =>
-    nodes.some(({ checkId }) => checkId === id);
-
-const waitForCheck = (serial: string, id: string, timeoutMs = 30_000) =>
-    waitForMobile(
-        () => mobileSemantics(serial),
-        (nodes) => hasCheck(nodes, id),
-        timeoutMs,
-    );
-
-const waitForNoCheck = (serial: string, id: string, timeoutMs = 30_000) =>
-    waitForMobile(
-        () => mobileSemantics(serial),
-        (nodes) => !hasCheck(nodes, id),
-        timeoutMs,
-    );
-
-const agentText = (snapshot: AgentChatSnapshot): string =>
-    snapshot.items
-        .filter((item) => item.type === 'agentMessage')
-        .map((item) => item.text)
-        .join('\n');
 
 /**
  * The on-screen height of check `id`, or `undefined` while it is not laid out.
@@ -63,21 +46,6 @@ async function toggleApprovalText(
     );
     if (next === undefined) throw new Error(`${id} is no longer laid out`);
     return next;
-}
-
-/**
- * Sends one keyword message from the phone. The fake app-server picks its behavior from the keyword, and a single ASCII
- * word survives `input text` without the fixture IME.
- */
-async function sendFromPhone(serial: string, word: string): Promise<void> {
-    await tapMobileCheckByBounds(serial, 'agent-chat-composer-input');
-    await adbShell(serial, ['input', 'text', word]);
-    const draft = await observeMobileNode(serial, 'agent-chat-composer-input', {
-        kind: 'equals',
-        value: word,
-    });
-    if (!draft.exists || !draft.textMatches) throw new Error('Chat draft did not match');
-    await tapMobileCheck(serial, 'agent-chat-composer-send');
 }
 
 /**
@@ -377,11 +345,16 @@ export async function executeMobileAgentChatCase(
     environment: MobileAgentScenarioEnvironment,
     artifacts: string[],
 ): Promise<void> {
-    if (environment.caseId === 'MOB-CHAT-03') {
-        await executeMobileNewChatSessionScenario(environment, artifacts);
-        return;
+    switch (environment.caseId) {
+        case 'MOB-CHAT-01':
+            return executeMobileAgentChatScenario(environment, artifacts);
+        case 'MOB-CHAT-02':
+            return executeMobileClaudeToolApprovalScenario(environment, artifacts);
+        case 'MOB-CHAT-03':
+            return executeMobileNewChatSessionScenario(environment, artifacts);
+        case 'MOB-CHAT-04':
+            return executeMobileChatModelScenario(environment, artifacts);
+        default:
+            throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
     }
-    await (environment.caseId === 'MOB-CHAT-02'
-        ? executeMobileClaudeToolApprovalScenario(environment, artifacts)
-        : executeMobileAgentChatScenario(environment, artifacts));
 }

@@ -424,8 +424,15 @@ export class CodexTasks {
     }
 
     /**
-     * Rebuilds subagent tasks from a resumed thread's history: their timeline rows stay openable, and they are ended,
-     * because the process that ran them is gone.
+     * Reconciles background terminals with Codex's list; see {@link CodexBackgroundTerminals.reconcile}.
+     */
+    reconcileTerminals(): Promise<void> {
+        return this.terminals.reconcile();
+    }
+
+    /**
+     * Rebuilds subagent and background terminal tasks from a resumed thread's history: their timeline rows stay
+     * openable, and they are ended, because the process that ran them is gone.
      */
     replay(thread: Json): void {
         const turns = Array.isArray(thread.turns) ? thread.turns : [];
@@ -439,6 +446,7 @@ export class CodexTasks {
                 : [],
         );
         for (const raw of agentItems) this.onAgentItem(raw);
+        this.terminals.replay(turns);
         for (const threadId of this.children.keys()) {
             const task = this.list.get(threadId);
             if (task?.status === 'running') this.list.upsert(threadId, { status: 'stopped' });

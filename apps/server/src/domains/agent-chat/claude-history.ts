@@ -14,7 +14,7 @@ import {
 
 import { extractVisibleTranscriptMessage } from '../agents';
 import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
-import { claudeUserImageCount, isClaudeCompactCommand } from './claude-input';
+import { claudeUserImageCount, isClaudeCompactCommand, isQueuedClaudePrompt } from './claude-input';
 import { claudeAssistantItems, ClaudeBlockIds, text } from './claude-items';
 import { settleClaudeToolItem } from './claude-tool-results';
 
@@ -95,6 +95,7 @@ function applyUserRecord(state: HistoryState, record: Json, message: Json): void
         type: 'userMessage',
         text: clip(visible?.text ?? '', MAX_AGENT_CHAT_TEXT_LENGTH),
         ...(imageCount > 0 && { images: Array.from({ length: imageCount }, () => ({})) }),
+        ...(isQueuedClaudePrompt(uuid) && { delivery: 'queued' as const }),
         ...recordTime(record),
     });
 }
@@ -108,8 +109,49 @@ function recordTime(record: Json): { createdAt?: number } {
     return Number.isFinite(time) && time >= 0 ? { createdAt: time } : {};
 }
 
+/**
+ * A message steered into a running turn. Claude Code records the prompt it folds in mid-turn as a `queued_command`
+ * attachment keyed by the sent uuid (`source_uuid`), not as a user record (verified with Claude Code 2.1.296).
+ */
+function applySteeredRecord(state: HistoryState, attachment: Json, record: Json): void {
+    const uuid = stringField(attachment.source_uuid);
+    if (!uuid || !state.turnId) return;
+    // Claude Code queues background task notifications and peer Agent messages the same way; only a human prompt is
+    // the user's steered message.
+    const origin = isRecord(attachment.origin) ? attachment.origin.kind : undefined;
+    if ((attachment.commandMode ?? 'prompt') !== 'prompt' || (origin ?? 'human') !== 'human')
+        return;
+    const { prompt } = attachment;
+    const blocks = Array.isArray(prompt) ? prompt.filter(isRecord) : [];
+    const promptText =
+        typeof prompt === 'string'
+            ? prompt
+            : blocks.flatMap((block) => (block.type === 'text' ? [text(block.text)] : [])).join('');
+    const imageCount = claudeUserImageCount(blocks);
+    if (!promptText && imageCount === 0) return;
+    const id = clip(uuid, 200);
+    state.items.set(id, {
+        id,
+        turnId: state.turnId,
+        type: 'userMessage',
+        text: clip(promptText, MAX_AGENT_CHAT_TEXT_LENGTH),
+        ...(imageCount > 0 && { images: Array.from({ length: imageCount }, () => ({})) }),
+        delivery: 'steered',
+        ...recordTime(record),
+    });
+}
+
 function applyHistoryRecord(state: HistoryState, record: Json): void {
-    if (record.isMeta === true || (record.isSidechain === true && !state.isSidechain)) return;
+    if (record.isSidechain === true && !state.isSidechain) return;
+    if (
+        record.type === 'attachment' &&
+        isRecord(record.attachment) &&
+        record.attachment.type === 'queued_command'
+    ) {
+        applySteeredRecord(state, record.attachment, record);
+        return;
+    }
+    if (record.isMeta === true) return;
     if (record.type === 'system') {
         applySystemRecord(state, record);
         return;
@@ -128,30 +170,139 @@ function applyHistoryRecord(state: HistoryState, record: Json): void {
     } else if (record.type === 'user') applyUserRecord(state, record, message);
 }
 
-function readHistory(transcript: string, isSidechain: boolean): HistoryState {
+/**
+ * Whether a record is a prompt the user typed, which opens a turn: a visible user message or one carrying images, and
+ * not a tool result.
+ */
+function isUserPrompt(record: Json | undefined): boolean {
+    if (record?.type !== 'user' || record.isMeta === true || record.isSidechain === true)
+        return false;
+    const message = isRecord(record.message) ? record.message : undefined;
+    const blocks = Array.isArray(message?.content) ? message.content.filter(isRecord) : [];
+    if (blocks.some((block) => block.type === 'tool_result')) return false;
+    return (
+        extractVisibleTranscriptMessage(record)?.role === 'user' ||
+        claudeUserImageCount(message?.content) > 0
+    );
+}
+
+function parentOf(record: Json): string | undefined {
+    return stringField(record.parentUuid) ?? stringField(record.logicalParentUuid);
+}
+
+/**
+ * Records a rewind left behind. Claude Code's transcript is append-only and each record names its `parentUuid`, so a
+ * conversation resumed at an earlier point (`resumeSessionAt`, its own `/rewind`) continues from there and leaves the
+ * old continuation in the file. The active branch runs from the newest main-thread record (or from `resumeAt`, the
+ * point a restart resumes at before anything new was written) back through its parents. A fork is only treated as a
+ * rewind where the active branch continues with a new user prompt: parallel tool calls also branch (each tool result
+ * hangs off its own `tool_use` record), and those siblings stay.
+ */
+function abandonedRecordIds(records: readonly Json[], resumeAt: string | undefined): Set<string> {
+    const byId = new Map<string, Json>();
+    const children = new Map<string, string[]>();
+    let newest: string | undefined;
+    for (const record of records) {
+        const uuid = stringField(record.uuid);
+        if (!uuid) continue;
+        byId.set(uuid, record);
+        const parent = stringField(record.parentUuid);
+        if (parent) children.set(parent, [...(children.get(parent) ?? []), uuid]);
+        if (
+            record.isSidechain !== true &&
+            ['user', 'assistant', 'system'].includes(String(record.type))
+        )
+            newest = uuid;
+    }
+    const abandoned = new Set<string>();
+    const abandon = (root: string): void => {
+        const stack = [root];
+        for (let uuid = stack.pop(); uuid !== undefined; uuid = stack.pop()) {
+            if (abandoned.has(uuid)) continue;
+            abandoned.add(uuid);
+            stack.push(...(children.get(uuid) ?? []));
+        }
+    };
+    const leaf = resumeAt !== undefined && byId.has(resumeAt) ? resumeAt : newest;
+    if (leaf === undefined) return abandoned;
+    const resumedChildren = leaf === resumeAt ? (children.get(leaf) ?? []) : [];
+    for (const child of resumedChildren) abandon(child);
+    const branch = new Set<string>();
+    for (let uuid: string | undefined = leaf; uuid !== undefined && !branch.has(uuid);) {
+        branch.add(uuid);
+        const record = byId.get(uuid);
+        uuid = record && parentOf(record);
+    }
+    for (const uuid of branch) {
+        const next = children.get(uuid)?.find((child) => branch.has(child));
+        if (next === undefined || !isUserPrompt(byId.get(next))) continue;
+        const siblings = children.get(uuid) ?? [];
+        for (const child of siblings) if (child !== next) abandon(child);
+    }
+    return abandoned;
+}
+
+function readHistory(transcript: string, isSidechain: boolean, resumeAt?: string): HistoryState {
     const state: HistoryState = {
         isSidechain,
         ids: new ClaudeBlockIds(),
         turns: [],
         items: new Map(),
     };
-    for (const line of transcript.split('\n')) {
-        const record = parseRecord(line);
-        if (record) applyHistoryRecord(state, record);
+    const records = transcript
+        .split('\n')
+        .map(parseRecord)
+        .filter((record) => record !== undefined);
+    const abandoned = isSidechain ? new Set<string>() : abandonedRecordIds(records, resumeAt);
+    for (const record of records) {
+        const uuid = stringField(record.uuid);
+        if (uuid === undefined || !abandoned.has(uuid)) applyHistoryRecord(state, record);
     }
     return state;
 }
 
 /**
+ * Where a restart resumes so the conversation ends right before user message `itemId`: the nearest earlier user or
+ * assistant record on its branch, which `resumeSessionAt` accepts. `fresh` when the message opened the conversation,
+ * and `undefined` when the transcript tail no longer holds it.
+ */
+export function claudeRewindPoint(
+    transcript: string,
+    itemId: string,
+): { kind: 'resumeAt'; at: string } | { kind: 'fresh' } | undefined {
+    const byId = new Map<string, Json>();
+    for (const line of transcript.split('\n')) {
+        const record = parseRecord(line);
+        const uuid = record && stringField(record.uuid);
+        if (record && uuid) byId.set(uuid, record);
+    }
+    const message = byId.get(itemId);
+    if (!message) return undefined;
+    const seen = new Set<string>();
+    for (let uuid = parentOf(message); uuid !== undefined && !seen.has(uuid);) {
+        seen.add(uuid);
+        const record = byId.get(uuid);
+        // The tail ends before the conversation does; an earlier record exists but is out of reach.
+        if (!record) return undefined;
+        if (record.isSidechain !== true && (record.type === 'user' || record.type === 'assistant'))
+            return { kind: 'resumeAt', at: uuid };
+        uuid = parentOf(record);
+    }
+    return { kind: 'fresh' };
+}
+
+/**
  * Operations that replace the projection with a resumed Claude Code session, read from the tail of its JSONL
- * transcript. Sidechains (subagents) and injected harness records are skipped; a visible user prompt opens a turn.
- * Every resumed turn is finished: a resume never re-enters a turn the previous process was running.
+ * transcript. Sidechains (subagents), injected harness records, and branches a rewind left behind are skipped; a
+ * visible user prompt opens a turn. Every resumed turn is finished: a resume never re-enters a turn the previous
+ * process was running. `resumeAt` ends the history at that record, for the restart right after a rewind.
  */
 export function claudeHistoryOperations(
     transcript: string,
     isTailTruncated: boolean,
+    resumeAt?: string,
 ): AgentChatPatchOperation[] {
-    const state = readHistory(transcript, false);
+    const state = readHistory(transcript, false, resumeAt);
     const { turns, items, plan } = state;
     const keptTurns = turns.slice(-MAX_RESUMED_TURNS);
     const droppedTurns = new Set(

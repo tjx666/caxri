@@ -27,8 +27,8 @@
  * `effortLevel` flag setting change what the next init message and hook input report.
  *
  * Like the real CLI, `session_state_changed` is reported only under `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1`, subagent
- * text only when `initialize` asked for `forwardSubagentText`, and an interrupt kills background tasks unless
- * `initialize` declared `perTaskStopAffordance`.
+ * text only when `initialize` asked for `forwardSubagentText`, and an interrupt kills background subagents unless
+ * `initialize` declared `perTaskStopAffordance`. A background shell always survives an interrupt, with no task event.
  *
  * Every turn is appended to a JSONL transcript at Claude Code's own location under `CLAUDE_CONFIG_DIR`, so `--resume`
  * and Caxri's transcript-based history read real records.
@@ -41,7 +41,8 @@ import process from 'node:process';
 import readline from 'node:readline';
 
 import { didRunApprovalScenario } from './fake-claude-approvals.ts';
-import type { FakeClaudeIo } from './fake-claude-io.ts';
+import type { FakeClaudeIo, QueuedTurn } from './fake-claude-io.ts';
+import { queuedTurn } from './fake-claude-io.ts';
 import {
     FAKE_CLAUDE_COMMANDS,
     FAKE_CLAUDE_MODEL,
@@ -50,6 +51,8 @@ import {
     hookCallbackIds,
     hookCallbackRequest,
 } from './fake-claude-models.ts';
+import { streamPlannedReply } from './fake-claude-replies.ts';
+import { resumedLeaf, rewindFiles } from './fake-claude-rewind.ts';
 import {
     runSubagent,
     startBackgroundAgent,
@@ -94,16 +97,6 @@ if (resumeId && !fs.existsSync(transcriptPath)) {
     exitProcess(1);
 }
 
-interface QueuedTurn {
-    text: string;
-    content: unknown;
-    priority?: unknown;
-    /**
-     * A turn the CLI starts on its own, such as after a background task finished.
-     */
-    isAuto?: boolean;
-}
-
 const state: {
     nextRequestId: number;
     lastUuid: string | null;
@@ -134,12 +127,14 @@ const state: {
 const isEmittingSessionState = process.env.CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS === '1';
 const pendingControl = new Map<string, (response: Json) => void>();
 
+state.lastUuid = resumeId ? resumedLeaf(transcriptPath, argument('--resume-session-at')) : null;
+
 function send(message: Json) {
     process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
 function record(entry: Json) {
-    const uuid = crypto.randomUUID();
+    const uuid = typeof entry.uuid === 'string' ? entry.uuid : crypto.randomUUID();
     fs.mkdirSync(path.dirname(transcriptPath), { recursive: true });
     fs.appendFileSync(
         transcriptPath,
@@ -308,10 +303,15 @@ const scenarioIo: FakeClaudeIo = {
     },
 };
 
-async function runTurn(text: string, content: unknown, priority?: unknown, isAuto = false) {
+async function runTurn({ text, content, priority, uuid, isAuto = false }: QueuedTurn) {
     const startedAt = Date.now();
     state.interrupted = false;
-    if (!isAuto) record({ type: 'user', message: { role: 'user', content: content ?? text } });
+    if (!isAuto)
+        record({
+            type: 'user',
+            ...(uuid && { uuid }),
+            message: { role: 'user', content: content ?? text },
+        });
     send(
         frame({
             type: 'system',
@@ -421,52 +421,9 @@ async function runTurn(text: string, content: unknown, priority?: unknown, isAut
         result(startedAt, isComplete ? 'done' : 'interrupted', !isComplete);
         return;
     }
-    const thinkingId = `msg_${crypto.randomUUID()}`;
-    send(
-        frame({
-            type: 'stream_event',
-            event: { type: 'message_start', message: { id: thinkingId } },
-        }),
-    );
-    send(
-        frame({
-            type: 'stream_event',
-            event: {
-                type: 'content_block_start',
-                index: 0,
-                content_block: { type: 'thinking', thinking: '' },
-            },
-        }),
-    );
-    send(
-        frame({
-            type: 'stream_event',
-            event: {
-                type: 'content_block_delta',
-                index: 0,
-                delta: { type: 'thinking_delta', thinking: 'Considering the request.' },
-            },
-        }),
-    );
-    assistant(thinkingId, {
-        type: 'thinking',
-        thinking: 'Considering the request.',
-        signature: 'fake',
-    });
-    assistant(thinkingId, {
-        type: 'tool_use',
-        id: `toolu_${crypto.randomUUID()}`,
-        name: 'TodoWrite',
-        input: {
-            todos: [
-                { content: 'Read the message', status: 'completed', activeForm: 'Reading' },
-                { content: 'Reply', status: 'in_progress', activeForm: 'Replying' },
-            ],
-        },
-    });
-    await didStreamFully(
-        `Hello from fake Claude. You said: ${text}${priority === 'next' ? ' [next]' : ''}`,
-        5,
+    await streamPlannedReply(
+        scenarioIo,
+        `You said: ${text}${priority === 'next' ? ' [next]' : ''}`,
     );
     result(startedAt, 'done');
 }
@@ -516,7 +473,7 @@ async function drain() {
     while (state.queued.length > 0) {
         const next = state.queued.shift();
         // eslint-disable-next-line no-await-in-loop -- turns run one at a time, like the real CLI
-        if (next) await runTurn(next.text, next.content, next.priority, next.isAuto);
+        if (next) await runTurn(next);
     }
     state.turnRunning = false;
     sessionState('idle');
@@ -527,20 +484,6 @@ async function drain() {
  */
 function isInterrupted(): boolean {
     return state.interrupted;
-}
-
-function userText(message: unknown): string {
-    if (!message || typeof message !== 'object') return '';
-    const { content } = message as { content?: unknown };
-    if (typeof content === 'string') return content;
-    if (!Array.isArray(content)) return '';
-    return content
-        .map((block) =>
-            block && typeof block === 'object' && 'text' in block
-                ? String((block as { text: unknown }).text)
-                : '',
-        )
-        .join('');
 }
 
 const lines = readline.createInterface({ input: process.stdin });
@@ -565,7 +508,10 @@ lines.on('line', (line) => {
                 request.model;
         const flags = request.subtype === 'apply_flag_settings' ? (request.settings as Json) : {};
         if (typeof flags.effortLevel === 'string') state.effort = flags.effortLevel;
-        const answer = taskControl(scenarioIo, request);
+        const answer =
+            request.subtype === 'rewind_files'
+                ? rewindFiles(request, transcriptPath, configDirectory)
+                : taskControl(scenarioIo, request);
         if (answer.error !== undefined) {
             send({
                 type: 'control_response',
@@ -584,11 +530,7 @@ lines.on('line', (line) => {
         return;
     }
     if (message.type === 'user') {
-        state.queued.push({
-            text: userText(message.message),
-            content: (message.message as { content?: unknown } | undefined)?.content,
-            priority: message.priority,
-        });
+        state.queued.push(queuedTurn(message));
         // eslint-disable-next-line no-void -- the turn loop reports through stdout
         void drain();
     }

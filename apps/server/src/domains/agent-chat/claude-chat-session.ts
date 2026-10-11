@@ -31,6 +31,8 @@ import type {
     AgentChatSessionHost,
     ChatInputOptions,
     ChatProcessEnd,
+    ChatResumePoint,
+    ChatRewindTarget,
     ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
@@ -41,7 +43,12 @@ import {
     refreshClaudeContextDetails,
 } from './claude-context';
 import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
-import { ClaudeCommandList, claudeUserPrompt, isClaudeCompactCommand } from './claude-input';
+import {
+    ClaudeCommandList,
+    claudePromptUuid,
+    claudeUserPrompt,
+    isClaudeCompactCommand,
+} from './claude-input';
 import { claudeAssistantItems, claudeUsageTokens } from './claude-items';
 import {
     claudeChatModels,
@@ -52,6 +59,8 @@ import {
 } from './claude-models';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
+import { rewindClaudeSession } from './claude-rewind';
+import { claudeQueryOptions, claudeStartError } from './claude-session-open';
 import { ClaudeStream } from './claude-stream';
 import { readClaudeSubagentTranscript } from './claude-subagent-transcript';
 import { onClaudeApiRetry, onClaudeCompactBoundary, onClaudeStatus } from './claude-system-notices';
@@ -386,10 +395,6 @@ class ClaudeChatSession implements AgentChatProviderSession {
         this.options.apply([{ op: 'state', state: { commands: this.commands.report(commands) } }]);
     }
 
-    /**
-     * Sends a prompt: it starts a turn, or joins the running one when the service steers it there. A steered prompt
-     * goes out with `priority: 'next'` so Claude Code folds it in at its next model request.
-     */
     private reportAppliedEffort(stream: Query): void {
         // eslint-disable-next-line no-void -- best effort; each turn's hooks still report the effort it ran with
         void readClaudeAppliedEffort(stream)
@@ -397,13 +402,17 @@ class ClaudeChatSession implements AgentChatProviderSession {
             .catch(() => {});
     }
 
+    /**
+     * Sends a prompt: it starts a turn, or joins the running one when the service steers it there. A steered prompt
+     * goes out with `priority: 'next'` so Claude Code folds it in at its next model request.
+     */
     private submit(
         text: string,
         images: readonly AgentChatImageInput[],
         options: ChatInputOptions & { isHidden?: boolean } = {},
     ): void {
         this.requireOpen();
-        const uuid = randomUUID();
+        const uuid = claudePromptUuid(options.delivery);
         const activeTurnId = this.options.read().activeTurnId;
         const turnId = activeTurnId ?? uuid;
         if (!activeTurnId) this.turns.begin(turnId, { isOwnPrompt: true });
@@ -430,53 +439,29 @@ class ClaudeChatSession implements AgentChatProviderSession {
      */
     async start(): Promise<'resumed' | 'started'> {
         const resumeId = this.isSessionBound ? this.sessionId : undefined;
+        const { resumeAt } = this.options;
         const transcript = resumeId ? await this.options.readTranscript() : undefined;
         if (resumeId && !transcript)
             throw new AgentChatStartError(
                 'resume_failed',
                 'Claude could not find this conversation',
             );
-        const { settings } = this;
         /**
          * The SDK bundle is over a megabyte; load it with the first Claude Chat, not with Server Core.
          */
         const { query } = await import('@anthropic-ai/claude-agent-sdk');
         const stream = query({
             prompt: this.prompts,
-            options: {
-                cwd: this.options.cwd,
-                pathToClaudeCodeExecutable: this.options.executable,
-                spawnClaudeCodeProcess: (spawnOptions) => this.spawn(spawnOptions),
-                env: {
-                    ...this.options.environment,
-                    CLAUDE_AGENT_SDK_CLIENT_APP: `caxri/${this.options.clientVersion}`,
-                    // Reports `system/session_state_changed`, the authoritative turn boundary.
-                    CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
-                },
-                ...(resumeId ? { resume: resumeId } : { sessionId: this.sessionId }),
-                includePartialMessages: true,
-                // Subagent text and thinking reach the task tab, not only their tool calls.
-                forwardSubagentText: true,
-                // The Chat stops tasks one at a time, so an interrupt ends only the turn and spares background work.
-                perTaskStopAffordance: true,
-                systemPrompt: { type: 'preset', preset: 'claude_code' },
-                tools: { type: 'preset', preset: 'claude_code' },
-                permissionMode: settings.permissionMode,
-                ...(settings.permissionMode === 'bypassPermissions' && {
-                    allowDangerouslySkipPermissions: true,
-                }),
-                ...(settings.model && { model: settings.model }),
-                ...(settings.settings && { settings: settings.settings }),
-                ...(settings.additionalDirectories.length > 0 && {
-                    additionalDirectories: settings.additionalDirectories,
-                }),
-                ...(settings.allowedTools.length > 0 && { allowedTools: settings.allowedTools }),
-                ...(settings.disallowedTools.length > 0 && {
-                    disallowedTools: settings.disallowedTools,
-                }),
+            options: claudeQueryOptions({
+                host: this.options,
+                settings: this.settings,
+                resumeId,
+                resumeAt,
+                sessionId: this.sessionId,
+                spawn: (spawnOptions) => this.spawn(spawnOptions),
                 canUseTool: async (...arguments_) => this.requests.canUseTool(...arguments_),
                 hooks: this.effortHooks(),
-            },
+            }),
         });
         this.query = stream;
         // eslint-disable-next-line no-void -- the read loop runs for the process lifetime and reports through onEnd.
@@ -493,22 +478,12 @@ class ClaudeChatSession implements AgentChatProviderSession {
         } catch {
             const spawnErrorCode = this.spawnErrorCode;
             await this.close();
-            if (spawnErrorCode !== undefined)
-                throw spawnErrorCode === 'ENOENT'
-                    ? new AgentChatStartError('executable_not_found', 'Claude CLI was not found')
-                    : new AgentChatStartError('spawn_failed', 'Claude could not be started');
-            if (resumeId)
-                throw new AgentChatStartError(
-                    'resume_failed',
-                    'Claude could not resume this conversation',
-                );
-            throw new AgentChatStartError(
-                'handshake_failed',
-                'Claude did not complete its handshake',
-            );
+            throw claudeStartError(spawnErrorCode, resumeId !== undefined);
         }
         if (transcript)
-            this.options.apply(claudeHistoryOperations(transcript.content, transcript.truncated));
+            this.options.apply(
+                claudeHistoryOperations(transcript.content, transcript.truncated, resumeAt),
+            );
         return resumeId ? 'resumed' : 'started';
     }
 
@@ -535,6 +510,11 @@ class ClaudeChatSession implements AgentChatProviderSession {
         await configureClaudeModel(stream, change, (operations) => this.options.apply(operations));
         // A model switch can move the effort too: to the new model's default, or to none.
         this.reportAppliedEffort(stream);
+    }
+
+    async rewind(target: ChatRewindTarget): Promise<ChatResumePoint> {
+        const query = this.requireOpen();
+        return rewindClaudeSession(query, await this.options.readTranscript(), target);
     }
 
     async interrupt(): Promise<void> {

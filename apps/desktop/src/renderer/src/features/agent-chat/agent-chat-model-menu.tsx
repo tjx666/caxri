@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import type { AgentChatSnapshot } from '@caxri/protocol';
-import { findAgentChatModel } from '@caxri/protocol';
+import { agentChatEffortLabel, agentChatModelLabel, findAgentChatModel } from '@caxri/protocol';
 import { ChevronDown } from 'lucide-react';
 
 import {
@@ -15,7 +15,6 @@ import {
     MenuTrigger,
 } from '../../components/ui/menu';
 import { configureAgentChat } from './agent-chat-commands';
-import { agentChatEffortLabel, agentChatModelLabel } from './agent-chat-presentation';
 
 const LABEL_CLASS_NAME = 'flex min-w-0 items-center gap-1 text-[12px] leading-4 text-muted';
 

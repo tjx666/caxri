@@ -21,6 +21,10 @@ export interface FakeTurn {
     status: string;
     error: { message: string } | null;
     startedAt: number;
+    /**
+     * When each item started, in milliseconds, which `thread/items/list` reports.
+     */
+    itemTimes?: Record<string, number>;
     durationMs?: number;
     interrupted?: boolean;
     finished?: boolean;

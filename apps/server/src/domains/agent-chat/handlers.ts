@@ -20,6 +20,7 @@ export function createAgentChatHandlers(
     | 'agentChat.removeQueued'
     | 'agentChat.respond'
     | 'agentChat.resumeQueue'
+    | 'agentChat.rewind'
     | 'agentChat.runCommand'
     | 'agentChat.send'
     | 'agentChat.sendQueuedNow'
@@ -29,6 +30,14 @@ export function createAgentChatHandlers(
         'agentChat.read': ({ terminalId }) => agentChat.read(terminalId),
         'agentChat.send': async ({ terminalId, text, images, delivery }) => {
             await agentChat.send(terminalId, { text, ...(images && { images }) }, delivery);
+            return null;
+        },
+        'agentChat.rewind': async ({ terminalId, itemId, restoreFiles, text, images }) => {
+            await agentChat.rewind(terminalId, {
+                itemId,
+                restoreFiles,
+                message: { text, ...(images && { images }) },
+            });
             return null;
         },
         'agentChat.runCommand': async ({ terminalId, name, arguments: arguments_ }) => {

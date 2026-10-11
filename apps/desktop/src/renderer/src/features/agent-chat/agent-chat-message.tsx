@@ -12,6 +12,8 @@ import { cn } from '../../lib/utilities';
 import { openAgentChatLink } from './agent-chat-links';
 import { AgentChatMessageTime } from './agent-chat-message-time';
 import { agentChatNoticeMessage } from './agent-chat-presentation';
+import { AgentChatTurnArtifactList } from './agent-chat-turn-artifact-list';
+import type { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
 
 const CHAT_PARSE_OPTIONS: MarkdownBlockOptions = { tables: true, fileLinks: true };
 
@@ -56,13 +58,17 @@ export function AgentChatMessage({
  * The row appears only while the pointer is over its reply or keyboard focus reaches it, so a scrolled transcript is
  * not lined with copy icons; it keeps its height, so revealing it never shifts the transcript. Copy takes the Markdown
  * source, which pastes back into an issue, a document, or another Agent intact. The reply text is one of the two
- * selectable surfaces in an otherwise `select-none` transcript (see `announceAgentChatSelectionCopy`).
+ * selectable surfaces in an otherwise `select-none` transcript (see `announceAgentChatSelectionCopy`). A reply that
+ * ends a turn which changed files or filed an issue or pull request carries those cards between its text and the action
+ * row, as the Codex app does.
  */
 export function AgentChatReply({
+    artifacts,
     canCopy,
     item,
     onOpenFile,
 }: {
+    artifacts?: AgentChatTurnArtifacts;
     canCopy: boolean;
     item: Extract<AgentChatItem, { type: 'agentMessage' }>;
     onOpenFile?: (target: string) => void;
@@ -75,6 +81,7 @@ export function AgentChatReply({
                 text={item.text}
                 onOpenFile={onOpenFile}
             />
+            {artifacts && <AgentChatTurnArtifactList artifacts={artifacts} />}
             {canCopy && (
                 <div className="mt-0.5 flex h-6 items-center gap-1 opacity-0 group-hover/reply:opacity-100 focus-within:opacity-100">
                     {!item.streaming && (

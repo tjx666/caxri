@@ -90,8 +90,7 @@ import {
 import { openTerminalLinkPicker } from '../features/terminal/terminal-link-actions';
 import {
     canSwitchTerminalSurface,
-    otherTerminalSurface,
-    switchTerminalSurfaceTo,
+    switchTerminalToOtherSurface,
 } from '../features/terminal/terminal-surface-commands';
 import { checkForUpdates } from '../features/updates/update-commands';
 import {
@@ -280,9 +279,8 @@ const commandContext: CommandContext = {
         },
         canSwitchActiveSurface: () => canSwitchTerminalSurface(activeTerminalRecord()),
         switchActiveSurface: () => {
-            const terminal = activeTerminalRecord();
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, switchTerminalSurfaceTo reports its own errors
-            if (terminal) void switchTerminalSurfaceTo(terminal, otherTerminalSurface(terminal));
+            const terminalId = activeTerminalId();
+            if (terminalId) switchTerminalToOtherSurface(terminalId);
         },
         closeActive: () => {
             const terminalId = activeTerminalId();

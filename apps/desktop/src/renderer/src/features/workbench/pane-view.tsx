@@ -1,15 +1,8 @@
 import type { CSSProperties, DragEvent } from 'react';
 import { useRef, useState } from 'react';
 
-import type {
-    PaneLayout,
-    PaneLayoutNode,
-    PaneNode,
-    PaneSplitNode,
-    TerminalRecord,
-} from '@caxri/protocol';
+import type { PaneLayout, PaneLayoutNode, PaneNode, PaneSplitNode } from '@caxri/protocol';
 import {
-    agentProviderCatalog,
     isChatTerminal,
     listPanes,
     listPaneTabs,
@@ -25,7 +18,7 @@ import { hasTerminalDraggedPath } from '../../lib/file-drag';
 import { cn } from '../../lib/utilities';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useSessionState, useTerminal } from '../../stores/selectors';
-import { AgentChatPane } from '../agent-chat/agent-chat-pane';
+import { AgentChatTerminalContent } from '../agent-chat/agent-chat-terminal-content';
 import { EditorSurface } from '../editor/editor-surface';
 import { workPanelId, workTabId } from '../tabs/work-tab-accessibility';
 import { NewTerminalButton } from '../terminal/new-terminal-button';
@@ -102,28 +95,6 @@ function EmptyPane() {
 }
 
 /**
- * A Terminal opened as Chat, named and capability-gated by its provider's catalog entry.
- */
-function ChatTerminalContent({
-    isShown,
-    terminal,
-}: {
-    isShown: boolean;
-    terminal: TerminalRecord;
-}) {
-    const provider = terminal.provider ? agentProviderCatalog[terminal.provider] : undefined;
-    return (
-        <AgentChatPane
-            ariaLabel={terminal.title}
-            isShown={isShown}
-            providerName={provider?.displayName ?? 'the Agent'}
-            supportsImages={provider?.capabilities.chatImages ?? false}
-            terminalId={terminal.id}
-        />
-    );
-}
-
-/**
  * The active tab's content. A Terminal and a document reach the same slot through the same path; the tab's kind decides
  * only which component renders here, never how the pane behaves.
  */
@@ -144,7 +115,7 @@ function PaneContent({
         if (!terminal) return null;
         if (isChatTerminal(terminal))
             return (
-                <ChatTerminalContent
+                <AgentChatTerminalContent
                     isShown={isActivePane && isVisible}
                     key={terminal.id}
                     terminal={terminal}

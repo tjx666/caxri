@@ -121,13 +121,20 @@ export const useAgentChat = ({
         },
         [request, terminalId],
     );
+    const configure = useCallback(
+        async (change: { model?: string; effort?: string }): Promise<void> => {
+            if (terminalId === null) return;
+            await request('mobile.agentChat.configure', { terminalId, ...change });
+        },
+        [request, terminalId],
+    );
     const restart = useCallback(async (): Promise<void> => {
         if (terminalId === null) return;
         await request('mobile.agentChat.retry', { terminalId });
         setRetry((value) => value + 1);
     }, [request, terminalId]);
 
-    return { ...state, interrupt, refresh, respond, restart, send };
+    return { ...state, configure, interrupt, refresh, respond, restart, send };
 };
 
 export type AgentChatController = ReturnType<typeof useAgentChat>;

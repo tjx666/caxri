@@ -12,6 +12,9 @@ vi.mock('../../terminal/terminal-commands', () => ({
 vi.mock('../../terminal/terminal-link-actions', () => ({
     openTerminalLinkPicker: (terminalId: string) => mocks.ran.push(`links ${terminalId}`),
 }));
+vi.mock('../../terminal/terminal-surface-commands', () => ({
+    switchTerminalToOtherSurface: (terminalId: string) => mocks.ran.push(`surface ${terminalId}`),
+}));
 
 import { commandDefinitions } from '../../../commands/definitions';
 import { useDialogStore } from '../../../stores/dialogs';
@@ -106,6 +109,16 @@ describe('Agent Commander shortcuts', () => {
             'links terminal-1',
             'restart terminal-1',
         ]);
+    });
+
+    it('switches the Commander between Terminal and Chat, even from the focused Chat composer', () => {
+        dispatchCommanderKeydown(
+            createCommanderShortcutState(),
+            keydown('j', { metaKey: true, shiftKey: true }, { closest: () => ({}) }),
+            'terminal-1',
+        );
+
+        expect(mocks.ran).toEqual(['surface terminal-1']);
     });
 
     it('leaves every Workbench command and chord to the focused surface', () => {

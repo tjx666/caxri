@@ -1,5 +1,9 @@
 export interface AndroidSemanticNode {
     bounds: string;
+    /**
+     * A radio or checkbox's state; React Native maps `accessibilityState.checked` to it.
+     */
+    checked: boolean;
     checkId: string;
     className: string;
     clickable: boolean;
@@ -81,6 +85,7 @@ export const semanticNodesFromUiAutomator = (
         if (!checkId || nodes.has(checkId)) continue;
         nodes.set(checkId, {
             bounds: attribute(node, 'bounds') ?? '',
+            checked: attribute(node, 'checked') === 'true',
             checkId,
             className: attribute(node, 'class') ?? 'unknown',
             clickable: attribute(node, 'clickable') === 'true',

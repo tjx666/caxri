@@ -174,13 +174,16 @@ export const SheetAction = ({
 );
 
 /**
- * The explicit way out of a `BottomSheet` menu, for users who do not know the backdrop or Back dismisses it.
+ * The explicit way out of a `BottomSheet` menu, for users who do not know the backdrop or Back dismisses it. A sheet
+ * whose choices apply as they are tapped labels it `Done`, since there is nothing left to cancel.
  */
 export const SheetCancel = ({
+    label = 'Cancel',
     onPress,
     testID,
     theme,
 }: {
+    label?: 'Cancel' | 'Done';
     onPress: () => void;
     testID: string;
     theme: MobileTheme;
@@ -194,7 +197,7 @@ export const SheetCancel = ({
         ]}
         testID={testID}
     >
-        <Text style={[styles.cancelText, { color: theme.text }]}>Cancel</Text>
+        <Text style={[styles.cancelText, { color: theme.text }]}>{label}</Text>
     </Pressable>
 );
 

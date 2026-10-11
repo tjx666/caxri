@@ -150,6 +150,69 @@ describe('Codex Chat background work with a fake app-server', () => {
         });
     });
 
+    it('lists a background terminal from before a restart as ended', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'start the background server' });
+        const running = await until(
+            (snapshot) => !snapshot.activeTurnId && shellTask(snapshot)?.status === 'running',
+        );
+        const taskId = shellTask(running)?.id ?? '';
+        await vi.waitFor(
+            async () => {
+                expect((await service.readTask(terminal.id, taskId)).output).toContain('tick 1\n');
+            },
+            { timeout: 5_000, interval: 20 },
+        );
+
+        // The restart ends the app-server and its terminals; the resumed history still shows the command.
+        await service.restart(terminal.id);
+        const resumed = await until((snapshot) => shellTask(snapshot) !== undefined);
+        expect(shellTask(resumed)).toMatchObject({
+            id: taskId,
+            title: 'bun run dev',
+            status: 'stopped',
+            canStop: false,
+            summary: 'Ended: Caxri restarted and can no longer track it',
+        });
+        // Its tab still opens; Codex keeps no output for a command that never finished.
+        await expect(service.readTask(terminal.id, taskId)).resolves.toMatchObject({ taskId });
+        await expect(service.stopTask(terminal.id, taskId)).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+    });
+
+    it('stops a background terminal Codex no longer lists, even without a notification', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'start the background server' });
+        const running = await until(
+            (snapshot) => !snapshot.activeTurnId && shellTask(snapshot)?.status === 'running',
+        );
+        const taskId = shellTask(running)?.id ?? '';
+
+        // Codex reaps the terminal silently; the next turn's end reconciles the list.
+        await service.send(terminal.id, { text: 'vanish' });
+        const stopped = await until((snapshot) => shellTask(snapshot)?.status === 'stopped');
+        expect(shellTask(stopped)).toMatchObject({ id: taskId, canStop: false });
+        await expect(service.stopTask(terminal.id, taskId)).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+    });
+
+    it('lists a background terminal only Codex reported', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'unannounced' });
+        const adopted = await until(
+            (snapshot) => !snapshot.activeTurnId && shellTask(snapshot)?.status === 'running',
+        );
+        expect(shellTask(adopted)).toMatchObject({
+            title: 'tail -f server.log',
+            isBackground: true,
+            canStop: true,
+        });
+        await service.stopTask(terminal.id, shellTask(adopted)?.id ?? '');
+        await until((snapshot) => shellTask(snapshot)?.status === 'stopped');
+    });
+
     it('says when Codex stopped streaming a background command', async () => {
         const { service, terminal, until } = await fixture();
         await service.send(terminal.id, { text: 'background flood' });

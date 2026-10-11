@@ -1,3 +1,4 @@
+export { commanderChatEndpoint } from './chat-endpoint';
 export {
     CommanderCompletionNotifier,
     createCommanderCompletionNotifier,

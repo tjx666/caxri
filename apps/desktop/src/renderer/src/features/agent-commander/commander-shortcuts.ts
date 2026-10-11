@@ -19,21 +19,23 @@ import {
     restartActiveTerminal,
 } from '../terminal/terminal-commands';
 import { openTerminalLinkPicker } from '../terminal/terminal-link-actions';
+import { switchTerminalToOtherSurface } from '../terminal/terminal-surface-commands';
 import { useAgentCommanderStore } from './commander-client';
 
 /**
- * The commands this window runs from the keyboard: the Terminal actions its context menu offers, plus the Restart its
- * exited pane shows with this shortcut. The native Edit menu already owns Copy and Paste, and every other command
- * belongs to the Workbench window. `allowInEditable` matches each command's Workbench definition
- * (`commands/definitions.ts`): Restart replaces the PTY, so it does not reach through a focused Terminal or input. This
- * window deliberately does not load the Workbench registry, so the values are a copy; the parity test in
- * `__tests__/commander-shortcuts.test.ts` fails when either table changes without the other.
+ * The commands this window runs from the keyboard: the Terminal actions its context menu offers, the Restart its exited
+ * pane shows with this shortcut, and the `Terminal | Chat` switch its title bar offers. The native Edit menu already
+ * owns Copy and Paste, and every other command belongs to the Workbench window. `allowInEditable` matches each
+ * command's Workbench definition (`commands/definitions.ts`): Restart replaces the PTY, so it does not reach through a
+ * focused Terminal or input. This window deliberately does not load the Workbench registry, so the values are a copy;
+ * the parity test in `__tests__/commander-shortcuts.test.ts` fails when either table changes without the other.
  */
 export const COMMANDER_TERMINAL_COMMANDS = {
     'terminal.clear': { allowInEditable: true, run: clearActiveTerminal },
     'terminal.find': { allowInEditable: true, run: findInActiveTerminal },
     'terminal.openDetectedLink': { allowInEditable: true, run: openTerminalLinkPicker },
     'terminal.restart': { allowInEditable: false, run: restartActiveTerminal },
+    'terminal.switchAgentSurface': { allowInEditable: true, run: switchTerminalToOtherSurface },
 } satisfies Partial<
     Record<CommandId, { allowInEditable: boolean; run: (terminalId: string) => void }>
 >;
