@@ -223,7 +223,7 @@ describe('CommanderCompletionNotifier', () => {
         expect(f.writeCalls).toHaveLength(1);
         expect(f.writeCalls[0].data).toBe(
             '[Caxri notice] 2 updates: delegation delegation-1 in Session session-1 completed; ' +
-                'inbox item item-1 was dismissed by the user.\r',
+                'inbox item item-1 was dismissed by the user.',
         );
     });
 
