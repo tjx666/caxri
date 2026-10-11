@@ -71,8 +71,9 @@ The window runs with the Desktop principal. Main therefore authorizes it separat
   directly; Main closes the window before it stops the Commander. `app.bootstrap` and
   `app.records` are refused: the window reads its rows only through `commander.snapshot`.
 - **Terminal requests** (attach, detach, input, resize, restart, long paste, the pane's
-  reference-context read, and `agentCommander.openFileLink`) are admitted only when they name the
-  Commander Terminal, and `session.updateState` (the pane's own layout and focus) only when it names
+  reference-context read, `agentCommander.openFileLink`, `terminal.switchSurface`, every
+  `agentChat.*` request, and the Chat composer's `agentActions.list`/`agentActions.read`) are
+  admitted only when they name the Commander Terminal, and `session.updateState` (the pane's own layout and focus) only when it names
   the Commander Session. Main learns both IDs from the reply to `commander.ensure` or
   `commander.snapshot`.
 - **Everything else** is refused with `FORBIDDEN` and logged. That includes file edits, Project and
@@ -120,6 +121,14 @@ The Workbench accepts drops on its pane surface, which this window does not moun
 Terminal accepts them itself (`commander-terminal.tsx`) through the same drop-to-input rule while it
 runs. A file dropped from Finder, usually a bug screenshot for the Commander to hand on, inserts its
 path, and so does a Files entry, Editor tab, or Project dragged over from the Workbench.
+
+The Commander Terminal can run as a Terminal or as an [Agent Chat](agent-chat.md), like any Codex
+Terminal in the Workbench. The title bar's surface toggle, next to **Stop**, and the Switch Agent
+Surface shortcut (`terminal.switchAgentSurface`, `Cmd+Shift+J` by default) flip it through `terminal.switchSurface`, which keeps the bound
+Codex conversation. In Chat mode the window mounts the same `AgentChatTerminalContent` the Workbench
+pane uses and subscribes to `agentChat.patch` itself. The Chat's file-change Open in Editor stays
+unavailable here, because the window mounts no pane session, and opening a background task as a tab
+needs the Workbench.
 
 Closing or reloading the Commander window detaches its view of the Commander Terminal, but the PTY
 keeps running and the next window re-attaches from a snapshot. Closing the main window detaches
@@ -208,6 +217,14 @@ ordered: a stop waits for the Terminal the first ensure creates, and an ensure t
 stop runs after it and restores what it parked. Sessions the Commander delegated into keep running;
 their receipts wait for the Commander's next turn.
 
+A Chat Commander keeps the same identity. A Chat process has no PTY lifecycle environment, so
+`AgentChatService` asks its optional `endpoint` (`apps/server/src/domains/commander/chat-endpoint.ts`)
+for the launch environment, activates the generation once the provider is ready, and retires it when
+the process exits or never started (`agent-chat/chat-endpoint-lease.ts`). Only the recorded
+Commander Terminal receives an Endpoint with the `commander` role; every other Chat still runs
+without one. `commander.stop` parks a Chat Commander through `agentChat.closeSession(..., 'detached')`
+instead of suspending a PTY, and the Commander restore resumes that detached Chat as well.
+
 `commander.status` is a content-free read for the status bar. The Commander is Codex inside a Shell
 PTY, and Codex can exit while the Shell lives on, so it reads `stopped` unless both processes are
 live, whatever its Session last reported. A live Commander reads `starting`, or mirrors the
@@ -247,10 +264,16 @@ Session and back; the choice is remembered in the window's local storage
 `Commander`. The Server's board, and `caxri commander board`, always cover every Session, so the
 Commander itself still sees the whole Workbench.
 
-Each Commander task shows as one bordered chip with a status icon and label. A takeover reads
-`Taken over by you` with a hand icon and a warning tint, because it means the Commander has let the
-Session go: the user typed into it, and the Commander no longer drives it or sends it follow-ups.
-The chip's tooltip explains the status, names the failure reason, and ends with the delegation ID.
+Each row favors icons over words so the Project name keeps its width. The first line holds the
+activity glyph, the Session title, the Commander task's status icon, and the relative update time.
+The second line holds the Agent's color icon, the Project name, an icon for a non-running process
+(exited, failed, interrupted, starting, or suspended; a detached Terminal shows none), and the pull
+request as `#N` with a checks icon (passed, failed, or pending). Every icon carries a tooltip and
+an accessible name with the full wording: the task tooltip leads with its label (`Needs you`,
+`Taken over`, ...), explains the status, names the failure reason, and ends with the delegation ID;
+the pull request tooltip reads `#N State · Checks: title`. A takeover uses a warning tint because it
+means the Commander has let the Session go: the user typed into it, and the Commander no longer
+drives it or sends it follow-ups.
 
 The board never waits on GitHub. The window refetches the board, debounced, on every `state.changed`,
 and polls it every 10 seconds while visible so cached pull request and CI state keeps moving even
@@ -284,11 +307,18 @@ A transition only reaches the Terminal once every one of these holds, reusing ex
   that just settled, proving Codex actually finished a real turn rather than a permission dialog or
   an unfinished native operation;
 - the Terminal's input epoch (`TerminalManager.inputEpoch`) is unchanged since that turn **started**,
-  so a draft typed mid-turn, or typed into the Commander after it went idle, defers delivery instead
-  of risking an unwanted Enter. The injected write itself never bumps this epoch;
+  or the last input since then was a submitted line (a standalone Enter outside a bracketed paste,
+  such as a mid-turn steer), which leaves no draft behind. A draft typed mid-turn, or typed into the
+  Commander after it went idle, defers delivery instead of risking an unwanted Enter, and the
+  `draft_input` deferral logs `inputsSinceTurnStart`, a keystroke count. The injected write itself
+  never bumps this epoch;
 - the Commander's own Session has no pending permission prompt (`lastActivityState` is not
   `waiting`). Its unread flag is deliberately ignored: every settled Commander turn marks its own
   Session unread, and the Commander window never marks it read.
+
+On a Chat Commander the coalesced line is sent as a Chat message (`AgentChatService.send`), which
+queues behind a running turn the way a typed message does; on a PTY it is written to the exact launch
+followed by Enter. The idle-proof fence above applies to both.
 
 A transition that arrives while any of these fails stays queued and is retried the next time the
 Commander reaches a clean idle point; several transitions queued at once coalesce into one line. A

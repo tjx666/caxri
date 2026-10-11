@@ -9,6 +9,7 @@ import {
 import { caxri } from '../../lib/caxri';
 import type { ContextMenuEntry } from '../../lib/context-menu';
 import { readCommandShortcut } from '../../lib/keybindings';
+import { getBootstrap } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import type { TerminalSurfaceSwitchRegistry } from './terminal-surface-switch-pending';
@@ -35,7 +36,7 @@ export function canSwitchTerminalSurface(
 /**
  * The surface a switch would open: Terminal for a Chat, Chat for a PTY.
  */
-export function otherTerminalSurface(terminal: Pick<TerminalRecord, 'surface'>): TerminalSurface {
+function otherTerminalSurface(terminal: Pick<TerminalRecord, 'surface'>): TerminalSurface {
     return isChatTerminal(terminal) ? 'pty' : 'chat';
 }
 
@@ -70,6 +71,16 @@ export function switchTerminalSurfaceTo(
     return switches.run(terminal.id, surface, () =>
         switchTerminalSurface(terminal.id, surface, agentProviderCatalog[provider].displayName),
     );
+}
+
+/**
+ * `terminal.switchAgentSurface`: reopens a Terminal on its other surface. The Workbench passes its active tab's
+ * Terminal, the Agent Commander window its own Terminal.
+ */
+export function switchTerminalToOtherSurface(terminalId: string): void {
+    const terminal = getBootstrap()?.terminals.find((candidate) => candidate.id === terminalId);
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, switchTerminalSurfaceTo reports its own errors
+    if (terminal) void switchTerminalSurfaceTo(terminal, otherTerminalSurface(terminal));
 }
 
 /**

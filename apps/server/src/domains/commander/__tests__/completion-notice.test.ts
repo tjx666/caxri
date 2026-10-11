@@ -79,7 +79,7 @@ interface Fixture {
     notifier: CommanderCompletionNotifier;
     rows: { terminalId: string | undefined; sessionIds: readonly string[] };
     session: SessionRecord;
-    type(): void;
+    type(data?: string): void;
     startTurn(launchId: string): void;
     finishTurn(launchId: string, turnId: string): void;
     writeCalls: Array<{ data: string; launchId: string; terminalId: string }>;
@@ -127,8 +127,9 @@ function fixture(): Fixture {
         writeCalls: [],
         writeResult: true,
         notifier: undefined as unknown as CommanderCompletionNotifier,
-        type() {
+        type(data = 'a') {
             state.currentEpoch += 1;
+            state.notifier.observeInput(COMMANDER_TERMINAL_ID, data);
         },
         startTurn(launchId) {
             // A real coordinator invalidates the previous idle proof for any signal other than `turnFinished`.
@@ -187,7 +188,7 @@ describe('CommanderCompletionNotifier', () => {
         expect(f.writeCalls).toHaveLength(1);
         expect(f.writeCalls[0].terminalId).toBe(COMMANDER_TERMINAL_ID);
         expect(f.writeCalls[0].data).toContain('delegation delegation-1');
-        expect(f.writeCalls[0].data.endsWith('\r')).toBe(true);
+        expect(f.writeCalls[0].data).toMatch(/^\[Caxri notice\] .*\.$/);
     });
 
     it('delivers immediately when the Commander is already idle before the transition arrives', () => {
@@ -219,6 +220,37 @@ describe('CommanderCompletionNotifier', () => {
         // A second, clean turn on the same launch re-baselines and delivers the still-pending notice.
         f.startTurn('launch-1');
         f.finishTurn('launch-1', 'turn-2');
+        expect(f.writeCalls).toHaveLength(1);
+    });
+
+    it('delivers when the input typed during the turn was submitted, leaving no draft (#1520)', () => {
+        f.startTurn('launch-1');
+        f.type('h');
+        f.type('i');
+        f.type('\r'); // the user steered their message into the running turn
+        f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
+        f.finishTurn('launch-1', 'turn-1');
+        expect(f.writeCalls).toHaveLength(1);
+    });
+
+    it('keeps waiting when a draft follows a submitted line, and on an Enter inside a paste', () => {
+        f.startTurn('launch-1');
+        f.type('\r');
+        f.type('d'); // a new draft after the submitted line
+        f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
+        f.finishTurn('launch-1', 'turn-1');
+        expect(f.writeCalls).toHaveLength(0);
+
+        f.startTurn('launch-1');
+        f.type('\u{1B}[200~first line');
+        f.type('\r'); // part of the pasted text, not a submit
+        f.type('second line\u{1B}[201~');
+        f.finishTurn('launch-1', 'turn-2');
+        expect(f.writeCalls).toHaveLength(0);
+
+        f.startTurn('launch-1');
+        f.type('\r'); // the paste was sent after all
+        f.finishTurn('launch-1', 'turn-3');
         expect(f.writeCalls).toHaveLength(1);
     });
 
@@ -425,6 +457,10 @@ describe('CommanderCompletionNotifier', () => {
             'commander_busy',
             'draft_input',
         ]);
+        // A draft deferral counts the keystrokes holding it, never their text.
+        expect(fieldsOf('completion_notice_deferred')[1]).toMatchObject({
+            inputsSinceTurnStart: 1,
+        });
         expect(fieldsOf('completion_notice_queued')[0]).toMatchObject({
             status: 'completed',
             pendingCount: 1,

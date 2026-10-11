@@ -144,7 +144,11 @@ describe('commanderRowPresentation', () => {
             }),
         );
 
-        expect(presentation).toMatchObject({ agentLabel: 'Claude', statePhrase: 'Exited' });
+        expect(presentation).toMatchObject({
+            agentLabel: 'Claude',
+            processIcon: 'exited',
+            statePhrase: 'Exited',
+        });
     });
 
     it.each(['dead', 'stopped', 'interrupted'] as const)(
@@ -175,6 +179,35 @@ describe('commanderRowPresentation', () => {
         },
     );
 
+    it.each([
+        ['suspended', 'suspended', 'Suspended'],
+        ['interrupted', 'interrupted', 'Interrupted'],
+        ['failed', 'failed', 'Failed to start'],
+    ] as const)(
+        'draws a %s Agent process as an icon named by its phrase',
+        (processState, icon, phrase) => {
+            expect(
+                commanderRowPresentation(
+                    row({
+                        agent: {
+                            kind: 'codex',
+                            processState,
+                            terminalId: 'terminal-1',
+                            title: 'Codex',
+                        },
+                    }),
+                ),
+            ).toMatchObject({ processIcon: icon, statePhrase: phrase });
+        },
+    );
+
+    it('draws no process icon for a running Agent', () => {
+        expect(
+            commanderRowPresentation(row({ activityState: 'running', group: 'working' }))
+                .processIcon,
+        ).toBeUndefined();
+    });
+
     it('marks a detached Terminal with its own glyph', () => {
         const presentation = commanderRowPresentation(
             row({
@@ -188,6 +221,8 @@ describe('commanderRowPresentation', () => {
         );
 
         expect(presentation).toMatchObject({ glyph: 'unplug', statePhrase: 'Detached' });
+        // The glyph already shows the detachment, so the metadata line adds no second icon.
+        expect(presentation.processIcon).toBeUndefined();
     });
 
     it('names a Session without a Terminal and a plain shell', () => {
@@ -229,11 +264,12 @@ describe('commanderPullRequestBadge', () => {
             commanderPullRequestBadge({ pullRequest: pullRequest({ checks: 'failure' }) }),
         ).toEqual({
             ariaLabel: 'Pull request #42 open, checks failing. Open in browser.',
+            checksIcon: 'failed',
             checksLabel: 'Checks failing',
             checksToneClassName: 'text-danger',
             numberLabel: '#42',
             stateLabel: 'Open',
-            title: 'Fix the parser',
+            title: '#42 Open · Checks failing: Fix the parser',
             toneClassName: 'text-success',
             url: 'https://example.com/pull/42',
         });
@@ -246,6 +282,8 @@ describe('commanderPullRequestBadge', () => {
 
         expect(badge).toMatchObject({ stateLabel: 'Merged', toneClassName: 'text-merged' });
         expect(badge?.checksLabel).toBeUndefined();
+        expect(badge?.checksIcon).toBeUndefined();
+        expect(badge?.title).toBe('#42 Merged: Fix the parser');
     });
 });
 
@@ -275,7 +313,7 @@ describe('commanderTaskBadge', () => {
                 failure: 'startup_not_ready',
                 updatedAt: 1,
             })?.title,
-        ).toBe('The task failed. Reason: startup not ready. Task task-1.');
+        ).toBe('Failed. The task failed. Reason: startup not ready. Task task-1.');
     });
 
     it('tints a takeover and explains that the Commander let the Session go', () => {

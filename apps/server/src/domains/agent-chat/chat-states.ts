@@ -40,6 +40,10 @@ export interface ChatState {
      * lifecycle events (an interrupted turn, resolved attention) must still land.
      */
     retiring?: ChatRetirement;
+    /**
+     * Where the next start resumes the conversation, set by a rewind for the restart that follows it.
+     */
+    resumeAt?: string;
 }
 
 /**

@@ -288,8 +288,12 @@ record is the source of truth.
 - An item's optional `createdAt` is when it began. Server Core stamps an item on its first live
   upsert (`stampNewItems` in `apps/server/src/domains/agent-chat/chat-projection.ts`) and the
   reducer keeps it across later upserts that omit it. A history replay is not stamped with the read
-  time: Claude Code history takes each message's transcript record time, and a provider whose
-  history carries no time leaves resumed items undated, so they show no time rather than a wrong one.
+  time: Claude Code history takes each message's transcript record time. Codex dates a resumed user
+  message by its turn's `startedAt` (Unix seconds), then dates the other items from
+  `thread/items/list`'s `startedAtMs`, newest first and bounded. Grok Build stamps every replayed
+  frame with its original `_meta.agentTimestampMs`, and an item takes the time of the frame that
+  created it. An item with no recorded time stays undated, so it shows no time rather than a wrong
+  one.
 
 ## Background work
 
@@ -310,8 +314,9 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   tool call and the `task_started`, `task_progress`, `task_notification`, `task_updated`, and
   `background_tasks_changed` system messages. A background shell uses Claude's `task_id` and links
   its Bash row; its output tail comes from polling the SDK's `getTaskOutput` about once a second.
-  `perTaskStopAffordance` keeps background tasks alive across an interrupt, and `stopTask` maps to
-  the SDK's `stop_task`. History is rebuilt from
+  `perTaskStopAffordance` keeps background subagents alive across an interrupt; a background shell
+  outlives an interrupt either way, with no task event (verified with Claude Code 2.1.296). `stopTask`
+  maps to the SDK's `stop_task`. History is rebuilt from
   `<session>/subagents/agent-<id>.meta.json` (matched by `toolUseId`) and its `.jsonl`.
 - **Codex.** A subagent is a child thread; its task id is the child thread id and its row is the
   `collabAgentToolCall` (or `subAgentActivity`) item. App-server sends no `thread/started` for a
@@ -319,7 +324,10 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   a spawn item names it. Stopping interrupts the child's turn; history comes from `thread/read`. A
   `commandExecution` with a `processId` still running when its turn ends becomes a shell task;
   Caxri initializes with `experimentalApi: true` so `thread/backgroundTerminals/terminate` can stop
-  it. Codex stops streaming a command after 10,000 deltas, which sets `isOutputCapped`.
+  it. Codex stops streaming a command after 10,000 deltas, which sets `isOutputCapped`. A resumed
+  thread lists each command its history still shows running in a finished turn as a stopped shell
+  task ("Ended: Caxri restarted and can no longer track it"), since the app-server that ran it is
+  gone; one `thread/backgroundTerminals/list` still reports is taken back running and stoppable.
 - **Grok Build.** No tasks are projected yet: its background task updates are ignored, `stopTask`
   answers `CONFLICT`, and `readTaskHistory` knows no task.
 - **Pane.** A subagent or background row opens its task in a Workbench tab
@@ -336,7 +344,11 @@ A message sent while a turn runs waits in Server Core's queue by default and goe
 turn once the Chat is idle, one turn at a time and in order; a message also waits behind earlier
 queued ones. `agentChat.send` with `delivery: 'steer'` instead adds it to the running turn (Codex
 `turn/steer`, Claude Code `priority: 'next'`, Grok Build `_x.ai/interject`). A slash command issued during a turn is queued.
-User messages record how they arrived (`delivery: 'queued' | 'steered'`), in memory only.
+User messages record how they arrived (`delivery: 'queued' | 'steered'`). The mark lives in the
+provider's own record, so a resume after a restart still shows it: Codex keeps it as the
+`clientUserMessageId` prefix (`queued:<uuid>`) its user message echoes as `clientId`; Claude Code
+records a steered message as a `queued_command` attachment, and a queued one carries a version-8
+uuid whose third group is `8c01`. Grok Build keeps no mark, so its resumed messages show none.
 
 - The snapshot's `queue` lists each entry's text, image count, and command; image data stays on
   Server Core. At most 20 entries and 256 KiB of text.
@@ -344,6 +356,12 @@ User messages record how they arrived (`delivery: 'queued' | 'steered'`), in mem
   next message by surprise; `agentChat.resumeQueue` continues it. `agentChat.removeQueued` drops an
   entry and `agentChat.sendQueuedNow` sends one ahead of the rest (steering a running turn; a
   command cannot steer). A failed dispatch puts the entry back and pauses the queue.
+- A Codex `turn/start` or `turn/steer` that times out may still have started the turn, so Codex
+  Chat checks before failing: the user message's `clientId` echo, or `thread/turns/list` over the
+  newest turns. A recorded message counts as delivered. One it cannot confirm fails as delivery
+  unknown: the entry stays in the paused queue (Send now and Remove still work), and the timeline
+  gets an `error` notice telling the user to check the conversation before sending it again, so
+  nothing is sent twice automatically.
 - The queue survives a restart of the Chat and goes out once the new process is ready; it is never
   persisted across Server Core restarts.
 - In the composer, Enter queues during a turn and Cmd+Enter steers. Queued entries form one list
@@ -353,6 +371,44 @@ User messages record how they arrived (`delivery: 'queued' | 'steered'`), in mem
 - Compaction (Codex `contextCompaction`, Claude Code `status: 'compacting'`) sets the snapshot's
   `operation` to `compacting` and raises `compactionStarted`; input sent meanwhile is queued. The
   `/compact` user bubble is hidden because the compaction notice already represents it.
+
+## Edit from here
+
+Hovering a user message that started a turn shows "Edit from here" beside Copy. It puts the
+message's text into the composer (any draft is set aside) and opens the edit bar above the input:
+how many turns sending replaces, an "Also revert file changes" checkbox, and Cancel (Escape), which
+brings the set-aside draft back. The edited message keeps an accent outline. Sending calls
+`agentChat.rewind`, which rewinds the provider's own record to just before the message and sends
+the draft in its place as one request; a later resume shows the same shorter conversation. The edit
+survives switching tabs, like a draft.
+
+- Only a settled Chat rewinds: while a turn runs, the action and Send are disabled and say to stop
+  the turn. A steered message did not start its turn, so it offers no edit, and a message with
+  images cannot be edited, as with a queued message. Server Core checks the same rule
+  (`agentChatRewindTarget` in `packages/protocol/src/agent/agent-chat-rewind.ts`) and answers
+  `CONFLICT` when the Chat changed under the request.
+- Reverting files can discard the user's own later edits to those files, so it asks first in a
+  native dialog (`agentChat.confirmRevertFiles`); Cancel sends nothing and keeps the draft.
+- Each provider rewinds with its native mechanism; Caxri takes no snapshots of its own.
+  `capabilities.chatRewindFiles` says whether files can be reverted, and when they cannot, the
+  checkbox stays disabled with the reason on hover.
+
+| Provider    | Conversation                                                                            | Files                                                                      |
+| ----------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Codex       | `thread/revert { beforeTurnId }`, then a resume reads the remaining turns               | Not supported: `thread/revert` leaves files alone                          |
+| Claude Code | Restart with `resumeSessionAt` (`--resume-session-at`) at the record before the message | `rewindFiles(messageUuid)` after a dry run, with `enableFileCheckpointing` |
+| Grok Build  | `_x.ai/rewind/execute { mode: 'conversation_only' }`                                    | The same call with `mode: 'all'`                                           |
+
+Claude Code's transcript is append-only: a conversation resumed at an earlier record continues from
+there and leaves the old continuation in the file. History replay (`claude-history.ts`) follows the
+active branch from the newest record and drops a sibling branch only where the active branch
+continues with a new user prompt, because parallel tool calls branch the file too. Editing the
+first message has no earlier record to resume at, so the Chat starts a new Claude Code session.
+File checkpoints are taken only from prompts sent with checkpointing on, so a Chat started before
+it was enabled, or a message older than the transcript tail Caxri reads, refuses to revert files
+with the reason. Grok Build names a prompt by its index in the whole session, which the Chat may
+not hold in full, so Caxri counts back from the newest of `_x.ai/rewind/points` and checks that the
+point's preview matches the message before rewinding. Mobile does not offer the action.
 
 ## Approvals and questions
 
@@ -365,9 +421,14 @@ marks its row declined.
 
 Grok Build asks through `session/request_permission`, keyed by the tool call id; its permission
 options (`allow_once`, `allow_always`, `reject_once`, `reject_always`) set the offered decisions,
-and Skip or a decision with no matching option answers `cancelled`. Caxri turns off
-`_x.ai/ask_user_question` when it opens the session, so Grok Build never asks a question the Chat
-cannot render.
+and Skip or a decision with no matching option answers `cancelled`. Caxri turns on
+`_x.ai/ask_user_question` (`_meta.askUserQuestion`) when it opens the session, and each question
+request becomes a `question` keyed by its `toolCallId`. Grok Build's questions carry no id or
+header, so question ids are positional (`q0`, `q1`, ...) and the answer goes back keyed by question
+text: one string, or a list for a `multiSelect` question. Skip answers `{"outcome":"cancelled"}`,
+which Grok Build reads as "the user declined to answer" and continues the turn. On
+`session/cancel` Grok Build stops the turn without withdrawing a pending question and ignores a
+later answer, so Caxri answers it `cancelled` and clears the card when the turn ends.
 
 Codex server requests become pending `requests` keyed by the approval callback id when present,
 else the item id. Codex re-sends pending requests with fresh transport ids after a resume, and
@@ -483,6 +544,21 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   in the Editor when it exists at that point: an applied change keeps added files, a pending or
   declined one keeps deleted files.
   Parsing and counting live in `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-diff.ts`.
+- A finished turn ends with what it left behind, between its final reply and Copy (or alone when
+  the turn stopped before replying), so the result survives the `Worked for X` fold. The files its
+  completed changes touched merge into one card: `Edited <file>`, `Created <file>`, or
+  `Edited 3 files` over the turn's `+A -D`. Hovering the counts swaps them for `View changes` and
+  previews every diff; View changes (or a row) discloses them in place. A file the turn created and
+  deleted again is left out. Undo restores the turn's files all or nothing: each file is read and
+  its reverse planned first, and if any no longer holds what the turn left (edited since, missing,
+  recreated, or a diff Server Core truncated) nothing is written and a toast names the file.
+  Created files go to the Trash behind its usual confirmation; edits and deletions are reversed
+  through `files.write`/`files.create`, so Session path authorization applies and a file outside
+  the Project cannot be undone. Pull requests and issues the turn created or edited follow as
+  cards opening the page: a completed `gh pr|issue create|edit` whose output printed the URL, or
+  a GitHub or Linear MCP create/update/save call. Collection lives in `agent-chat-turn-artifacts.ts`
+  and `agent-chat-trackers.ts`, Undo in `agent-chat-undo.ts`. Desktop only; the phone shows the
+  plain timeline.
 
 ## Mobile
 
@@ -500,7 +576,16 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   content-free `agentChat.changed`, and the phone re-reads. The phone folds patches with the
   shared `applyAgentChatPatch`, holds those that arrive during a read, and re-reads on any break in
   the revision chain.
-- Roles: `view` reads; `reply` also sends and retries a failed Chat; `control` also answers
+- The composer shows the model and effort the next turn uses, with the same names as the Desktop
+  model menu (`agentChatModelLabel` in `packages/protocol`). Tapping it opens a sheet with the
+  `Model` and `Reasoning effort` lists; a choice applies on tap through
+  `mobile.agentChat.configure`, which forwards `agentChat.configure` and therefore the same
+  validation against `models`. A new Chat can be configured before its first message. During a
+  turn the sheet says the change applies from the next turn. A Claude Code Chat that has not named
+  its model yet asks for a model before it lists efforts. A provider without a model list, a
+  `view` device, or a stale connection shows the model as plain text; an open sheet stays open with
+  its lists disabled and the composer's reason.
+- Roles: `view` reads; `reply` also sends, switches the model and effort, and retries a failed Chat; `control` also answers
   approvals and questions and stops a turn. Mutations resolve the Terminal through the device's
   granted Projects, refuse a non-Chat Terminal with `CONFLICT`, and go through Core's mutation
   admission like a Desktop request. Retry restarts only a `failed` Chat (`terminal.restart` with
@@ -613,6 +698,10 @@ A running turn keeps the model it started with.
   settings, environment overrides, and model downgrades. Claude Code fills it only for a hook with
   a tool-use context, so `PreToolUse` and `Stop` always carry it and `UserPromptSubmit` only
   sometimes. Before the first turn ends, or a switch, the effort can be unknown.
+- **Grok Build** lists models in the `session/new` or `session/load` result's `models`
+  (`availableModels`, `currentModelId`). A switch applies in place with `session/set_model`, and
+  the usage meter takes the new model's `totalContextTokens`. Its reasoning efforts are not
+  offered yet, so every Grok Build model lists no `efforts`.
 
 ## Lifecycle signals
 
@@ -631,8 +720,10 @@ resume mode, duration),
 requests, rejected requests, and dropped frames), `agent_chat.turn_finished` (status, duration),
 `agent_chat.protocol_rejected` (closed reason, protocol method name), and
 `terminal.surface_switched` (closed outcome, both surfaces, duration), `agent_chat.queue_changed`
-(closed reason and queue depth), and `agent_chat.task_finished` (task kind, final status,
-background flag, duration). None of them carries
+(closed reason and queue depth), `agent_chat.delivery_checked` (request method and closed outcome
+`delivered` or `unknown` after a turn request timed out), `agent_chat.task_finished` (task kind, final status,
+background flag, duration), and `agent_chat.rewound` (closed outcome `rewound`, `refused`, or
+`failed`, provider, whether files were reverted, turns removed, duration). None of them carries
 message text, command output, provider stderr, or protocol bodies.
 
 ## Testing
@@ -644,7 +735,10 @@ table, slow stream, subagent, background shell, failure, crash). The Claude fake
 SDK drives and writes a real transcript, so resume is exercised end to end. Both answer a message
 with images by counting them and implement compaction, so the E2E covers paste, file pick, and the
 slash list for each provider. The Grok fake persists its frames so `session/load` replays them,
-and takes no images. Unit, integration, and fake-mode E2E tests drive them; no test launches the
+and takes no images. All three implement their provider's rewind (Codex `thread/revert`, the
+Claude transcript chain with `--resume-session-at` and `rewind_files`, Grok `_x.ai/rewind/*`) and
+log each call to a JSON-lines file in their state directory, so `service-rewind.integration.test.ts`
+checks the request and the history a later resume reads. Unit, integration, and fake-mode E2E tests drive them; no test launches the
 real CLI or calls a model.
 
 Streaming Markdown has a machine-independent CI gate in
@@ -666,8 +760,8 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 ## Not yet supported
 
 Claude Code's agent picker (its `initialize` response already lists the agents). Grok Build's
-model picker, images (its ACP agent advertises `image: false`), and questions
-(`_x.ai/ask_user_question`, turned off for now). Grok Build stays out of the real-Agent smoke. On mobile, a
-Chat shows no plan, model, or context usage yet, cannot run slash commands, does not show background tasks or the
-follow-up queue, older history beyond the window stays on
+reasoning effort picker and images (its ACP agent advertises `image: false`). Grok Build stays out
+of the real-Agent smoke. On mobile, a
+Chat shows no plan or context usage yet, cannot run slash commands, does not show background tasks or the
+follow-up queue, cannot edit from an earlier message, older history beyond the window stays on
 the computer, and switching surface is Desktop-only.

@@ -361,15 +361,33 @@ export const agentChatEmptyMessage = ({
         : 'No messages yet.';
 };
 
+const DISABLED_REASONS = {
+    send: {
+        access: 'Reply access is required to message this Chat.',
+        offline: 'Reconnect to send messages.',
+        handedOff: 'Resume the Agent on your computer to send messages.',
+        failed: 'Retry the Chat before sending a message.',
+    },
+    configure: {
+        access: 'Reply access is required to change the model.',
+        offline: 'Reconnect to change the model.',
+        handedOff: 'Resume the Agent on your computer to change the model.',
+        failed: 'Retry the Chat before changing the model.',
+    },
+} as const;
+
 /**
- * Why this device cannot type into the Chat right now, or `undefined` when it can.
+ * Why this device cannot send to, or `configure` the model of, the Chat right now, or `undefined` when it can. Both
+ * actions need the same access and connection, so they share one precedence and differ only in what the reason names.
  */
-export const agentChatComposerDisabledReason = ({
+export const agentChatDisabledReason = ({
+    action = 'send',
     deviceRole,
     isConnected,
     isHandedOff,
     snapshot,
 }: {
+    action?: 'send' | 'configure';
     deviceRole: 'view' | 'reply' | 'control' | null;
     isConnected: boolean;
     /**
@@ -378,12 +396,11 @@ export const agentChatComposerDisabledReason = ({
     isHandedOff: boolean;
     snapshot: AgentChatSnapshot | undefined;
 }): string | undefined => {
-    if (deviceRole !== 'reply' && deviceRole !== 'control')
-        return 'Reply access is required to message this Chat.';
-    if (!isConnected) return 'Reconnect to send messages.';
-    if (isHandedOff) return 'Resume the Agent on your computer to send messages.';
-    if (!snapshot) return undefined;
-    if (snapshot.status === 'failed') return 'Retry the Chat before sending a message.';
+    const reasons = DISABLED_REASONS[action];
+    if (deviceRole !== 'reply' && deviceRole !== 'control') return reasons.access;
+    if (!isConnected) return reasons.offline;
+    if (isHandedOff) return reasons.handedOff;
+    if (snapshot?.status === 'failed') return reasons.failed;
     return undefined;
 };
 

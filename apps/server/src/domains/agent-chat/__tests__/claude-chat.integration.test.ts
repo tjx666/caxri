@@ -202,6 +202,28 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
         });
     });
 
+    it('keeps the queued mark on a message after a restart', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'pause first' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await service.send(terminal.id, { text: 'hello queued' });
+        await until(
+            (snapshot) =>
+                snapshot.queue?.length === 0 &&
+                !snapshot.activeTurnId &&
+                snapshot.turns.length === 2,
+        );
+        await service.restart(terminal.id);
+        const resumed = service.read(terminal.id);
+        const deliveries = resumed.items.flatMap((item) =>
+            item.type === 'userMessage' ? [[item.text, item.delivery]] : [],
+        );
+        expect(deliveries).toEqual([
+            ['pause first', undefined],
+            ['hello queued', 'queued'],
+        ]);
+    });
+
     it('fails visibly instead of starting a new session when the transcript is gone', async () => {
         const { database, service, terminal, spawnProcess } = await fixture({ provider: 'claude' });
         database.rebindAgentSession(terminal.id, 'claude', crypto.randomUUID());

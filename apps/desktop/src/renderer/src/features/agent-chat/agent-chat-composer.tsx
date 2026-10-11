@@ -26,13 +26,10 @@ import { agentChatContextUsage } from './agent-chat-context';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { AgentChatContextMeter } from './agent-chat-context-meter';
 import { draftWithInsertion, readAgentChatDraft, writeAgentChatDraft } from './agent-chat-drafts';
+import { AgentChatEditBar } from './agent-chat-edit-bar';
 import { AgentChatModelMenu } from './agent-chat-model-menu';
 import type { AgentChatActivity } from './agent-chat-presentation';
-import {
-    agentChatSendAction,
-    agentChatSubmitDelivery,
-    isAgentChatInterruptKey,
-} from './agent-chat-presentation';
+import { agentChatEscapeAction, agentChatSubmitDelivery } from './agent-chat-presentation';
 import { draftAfterQueueEdit } from './agent-chat-queue';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { completeAgentChatAction } from './agent-chat-slash-commands';
@@ -42,40 +39,14 @@ import {
 } from './agent-chat-stop-button';
 import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
+import type { AgentChatComposerEditOptions } from './hooks/use-agent-chat-composer-edit';
+import { useAgentChatComposerEdit } from './hooks/use-agent-chat-composer-edit';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatFileInput } from './hooks/use-agent-chat-file-input';
 import { useAgentChatPromptHistory } from './hooks/use-agent-chat-prompt-history';
 import { useAgentChatSubmit } from './hooks/use-agent-chat-submit';
 
-/**
- * Message input. Enter sends, Shift+Enter adds a line. While a turn runs (or the context compacts), Enter queues the
- * message for after the turn and Cmd+Enter steers it into the running turn; queued messages wait as cards above the
- * input. Escape or the Stop button that replaces Send while the input is empty interrupts the turn. Images can be
- * pasted, dropped, or picked when the provider accepts them; any other dropped file, Files entry, or Editor tab is
- * inserted as its path. A leading `/` or `$` offers the provider's commands and the discovered skills. It shares the
- * timeline's centered column so the input lines up with the conversation, and keeps the activity row, attachments, the
- * input, and its actions inside one card so they read as a single control. The action row picks the model and effort
- * for the next turn and shows how full the context window is. Clicking Send, Stop, or a chip or queue action hands
- * focus back to the input, since each of those controls disables or unmounts itself and would otherwise drop focus to
- * the document body. The unsent text survives switching Sessions and restarting Caxri, and ArrowUp on an empty input
- * recalls the prompts this Chat already sent.
- */
-export function AgentChatComposer({
-    activeTurnId,
-    activity,
-    canSend,
-    commands,
-    dropHandlersReference,
-    inputReference,
-    isBusy,
-    isQueuePaused,
-    onSent,
-    providerName,
-    queue,
-    snapshot,
-    supportsImages,
-    terminalId,
-}: {
+interface AgentChatComposerProperties {
     /**
      * The running turn, which a message steers and Stop interrupts.
      */
@@ -94,6 +65,7 @@ export function AgentChatComposer({
      * the way down to the input is a long trip.
      */
     dropHandlersReference: RefObject<AgentChatDropHandlers | null>;
+    edit: AgentChatComposerEditOptions;
     inputReference: RefObject<HTMLTextAreaElement | null>;
     /**
      * Whether a message sent now waits in the queue (`isAgentChatBusy`).
@@ -114,13 +86,50 @@ export function AgentChatComposer({
      * The model, effort, and context usage the action row shows, and the sent prompts ArrowUp recalls.
      */
     snapshot:
-        Pick<AgentChatSnapshot, 'effort' | 'items' | 'model' | 'models' | 'usage'> | undefined;
+        | Pick<
+              AgentChatSnapshot,
+              'activeTurnId' | 'effort' | 'items' | 'model' | 'models' | 'turns' | 'usage'
+          >
+        | undefined;
     /**
      * Whether the provider's Chat accepts image input (`capabilities.chatImages`).
      */
     supportsImages: boolean;
     terminalId: string;
-}) {
+}
+
+/**
+ * Message input. Enter sends, Shift+Enter adds a line. While a turn runs (or the context compacts), Enter queues the
+ * message for after the turn and Cmd+Enter steers it into the running turn; queued messages wait as cards above the
+ * input. Escape or the Stop button that replaces Send while the input is empty interrupts the turn. Images can be
+ * pasted, dropped, or picked when the provider accepts them; any other dropped file, Files entry, or Editor tab is
+ * inserted as its path. A leading `/` or `$` offers the provider's commands and the discovered skills. It shares the
+ * timeline's centered column so the input lines up with the conversation, and keeps the activity row, attachments, the
+ * input, and its actions inside one card so they read as a single control. The action row picks the model and effort
+ * for the next turn and shows how full the context window is. Clicking Send, Stop, or a chip or queue action hands
+ * focus back to the input, since each of those controls disables or unmounts itself and would otherwise drop focus to
+ * the document body. The unsent text survives switching Sessions and restarting Caxri, and ArrowUp on an empty input
+ * recalls the prompts this Chat already sent. "Edit from here" on an earlier message (`useAgentChatComposerEdit`) puts
+ * its text in the input and the edit bar above it; sending then rewinds the Chat to before that message and sends the
+ * draft in its place, and Escape or Cancel puts the previous draft back.
+ */
+export function AgentChatComposer({
+    activeTurnId,
+    activity,
+    canSend,
+    commands,
+    dropHandlersReference,
+    edit: editOptions,
+    inputReference,
+    isBusy,
+    isQueuePaused,
+    onSent,
+    providerName,
+    queue,
+    snapshot,
+    supportsImages,
+    terminalId,
+}: AgentChatComposerProperties) {
     const [draft, setDraftState] = useState(() => readAgentChatDraft(terminalId));
     /**
      * The turn a Stop was requested for. Keyed by turn so the pending state ends by itself when that turn does, and a
@@ -180,6 +189,7 @@ export function AgentChatComposer({
         isSending,
         runCommand,
         submit: submitDraft,
+        submitEdit,
     } = useAgentChatSubmit({
         attachments: images.attachments,
         clearSent: images.clearSent,
@@ -188,17 +198,32 @@ export function AgentChatComposer({
         setDraft,
         terminalId,
     });
+    const edit = useAgentChatComposerEdit({
+        canSend,
+        draft,
+        focusInput,
+        inputReference,
+        isTurnRunning,
+        options: editOptions,
+        isBusy,
+        providerName,
+        snapshot,
+        submitEdit,
+        terminalId,
+        setDraft,
+    });
     const history = useAgentChatPromptHistory({
         draft,
         hasAttachments: images.attachments.length > 0,
+        isEditing: edit.isEditing,
         items: snapshot?.items,
         setDraft,
     });
     const contextUsage = agentChatContextUsage(snapshot);
-    const isSendable = canSend && !isSending && !images.isReading && hasContent;
-    const sendAction = agentChatSendAction({ isTurnRunning, isBusy }, providerName);
+    const isSendable = edit.canSend && !isSending && !images.isReading && hasContent;
+    const { sendAction } = edit;
     const submit = async (delivery?: 'steer'): Promise<void> => {
-        if (isSendable) await submitDraft(draft, delivery);
+        if (isSendable) await edit.submit(draft, async () => submitDraft(draft, delivery));
     };
     const restoreQueued = (text: string): void => {
         setDraft((current) => draftAfterQueueEdit(current, text));
@@ -255,7 +280,10 @@ export function AgentChatComposer({
                         focusInput();
                     }}
                 />
-                {!activity && snapshot?.usage && <AgentChatContextAlerts usage={snapshot.usage} />}
+                <AgentChatEditBar edit={edit.bar} />
+                {!activity && !edit.isEditing && snapshot?.usage && (
+                    <AgentChatContextAlerts usage={snapshot.usage} />
+                )}
                 {menu.isOpen && (
                     <AgentChatCommandMenu
                         activeIndex={menu.activeIndex}
@@ -296,9 +324,14 @@ export function AgentChatComposer({
                             isComposing: event.nativeEvent.isComposing,
                             repeat: event.repeat,
                         };
-                        if (isTurnRunning && isAgentChatInterruptKey(key)) {
+                        const escape = agentChatEscapeAction(key, {
+                            isTurnRunning,
+                            isEditing: edit.isEditing,
+                        });
+                        if (escape) {
                             event.preventDefault();
-                            stop();
+                            if (escape === 'stop') stop();
+                            else edit.cancel();
                             return;
                         }
                         const delivery = agentChatSubmitDelivery(

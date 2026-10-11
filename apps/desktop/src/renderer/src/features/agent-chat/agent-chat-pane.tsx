@@ -1,5 +1,6 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { agentChatRewindableMessageIds } from '@caxri/protocol';
 import { CircleAlert, RotateCcw, Unplug } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
@@ -14,6 +15,7 @@ import { TerminalLinkPicker } from '../terminal/terminal-link-picker';
 import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatComposer } from './agent-chat-composer';
+import { agentChatEditAvailability, readAgentChatEdit } from './agent-chat-edit';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { AgentChatMessageRail } from './agent-chat-message-rail';
 import { AgentChatDayBreak } from './agent-chat-message-time';
@@ -37,6 +39,9 @@ import { agentChatDayBreaks } from './agent-chat-time';
 import { buildAgentChatTimeline } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
+import type { AgentChatComposerEditHandle } from './hooks/use-agent-chat-composer-edit';
+import type { AgentChatEditActions } from './hooks/use-agent-chat-edit';
+import { AgentChatEditContext } from './hooks/use-agent-chat-edit';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatMessageRail } from './hooks/use-agent-chat-message-rail';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
@@ -97,6 +102,7 @@ export function AgentChatPane({
     isShown,
     providerName,
     supportsImages,
+    supportsRewindFiles,
     terminalId,
 }: {
     ariaLabel: string;
@@ -112,6 +118,10 @@ export function AgentChatPane({
      * The provider catalog's `capabilities.chatImages`.
      */
     supportsImages: boolean;
+    /**
+     * The provider catalog's `capabilities.chatRewindFiles`: whether "Edit from here" can also revert files.
+     */
+    supportsRewindFiles: boolean;
     terminalId: string;
 }) {
     const query = useCaxriQuery('agentChat.read', { terminalId }, { staleTime: Infinity });
@@ -119,6 +129,8 @@ export function AgentChatPane({
     const projectRoot = usePaneViewSession()?.rootPath;
     const inputReference = useRef<HTMLTextAreaElement | null>(null);
     const composerDrop = useRef<AgentChatDropHandlers | null>(null);
+    const composerEdit = useRef<AgentChatComposerEditHandle | null>(null);
+    const [editingId, setEditingId] = useState(() => readAgentChatEdit(terminalId)?.itemId);
     const {
         scrollReference,
         contentReference,
@@ -181,6 +193,26 @@ export function AgentChatPane({
         [tasks, terminalId],
     );
     /**
+     * "Edit from here" on each message that started a turn. Memoized on what the availability reads, so a streamed
+     * delta does not re-render every user message.
+     */
+    const editActions = useMemo<AgentChatEditActions | undefined>(() => {
+        if (!items || !turns) return;
+        const rewindable = agentChatRewindableMessageIds({ items, turns, activeTurnId });
+        return {
+            availability: (itemId) => {
+                if (!rewindable.has(itemId)) return;
+                const availability = agentChatEditAvailability(
+                    { items, turns, activeTurnId },
+                    itemId,
+                );
+                return availability.canEdit ? null : availability.reason;
+            },
+            editingId,
+            startEdit: (itemId, text) => composerEdit.current?.startEdit(itemId, text),
+        };
+    }, [items, turns, activeTurnId, editingId]);
+    /**
      * Read from the Terminal record like the PTY pane does: a hand-over to another client is recorded there as
      * `detached`, while the projection only reads `stopped`.
      */
@@ -224,21 +256,24 @@ export function AgentChatPane({
                         )}
                         <AgentChatTaskLinksContext value={taskLinks}>
                             <AgentChatTerminalContext value={terminalId}>
-                                {timeline.map((entry) => {
-                                    const key = entry.kind === 'item' ? entry.item.id : entry.id;
-                                    const dayBreak = dayBreaks.get(key);
-                                    return (
-                                        <Fragment key={key}>
-                                            {dayBreak !== undefined && (
-                                                <AgentChatDayBreak timestamp={dayBreak} />
-                                            )}
-                                            <AgentChatTimelineEntryView
-                                                entry={entry}
-                                                onOpenFile={openFile}
-                                            />
-                                        </Fragment>
-                                    );
-                                })}
+                                <AgentChatEditContext value={editActions}>
+                                    {timeline.map((entry) => {
+                                        const key =
+                                            entry.kind === 'item' ? entry.item.id : entry.id;
+                                        const dayBreak = dayBreaks.get(key);
+                                        return (
+                                            <Fragment key={key}>
+                                                {dayBreak !== undefined && (
+                                                    <AgentChatDayBreak timestamp={dayBreak} />
+                                                )}
+                                                <AgentChatTimelineEntryView
+                                                    entry={entry}
+                                                    onOpenFile={openFile}
+                                                />
+                                            </Fragment>
+                                        );
+                                    })}
+                                </AgentChatEditContext>
                             </AgentChatTerminalContext>
                         </AgentChatTaskLinksContext>
                         {emptyMessage && (
@@ -299,6 +334,13 @@ export function AgentChatPane({
                 canSend={canSendAgentChatMessage(snapshot, processState)}
                 commands={snapshot?.commands}
                 dropHandlersReference={composerDrop}
+                edit={{
+                    handleReference: composerEdit,
+                    filesUnsupportedReason: supportsRewindFiles
+                        ? undefined
+                        : `${providerName} cannot restore files; only the conversation rewinds`,
+                    onEditingChange: setEditingId,
+                }}
                 inputReference={inputReference}
                 isBusy={isAgentChatBusy(snapshot)}
                 isQueuePaused={snapshot?.queuePaused ?? false}

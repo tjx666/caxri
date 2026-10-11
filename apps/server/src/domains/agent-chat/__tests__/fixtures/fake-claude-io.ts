@@ -37,3 +37,43 @@ export interface FakeClaudeIo {
      */
     startAutoTurn(): void;
 }
+
+export interface QueuedTurn {
+    text: string;
+    /**
+     * The SDK message uuid, which the real CLI reuses as the transcript record uuid.
+     */
+    uuid?: string;
+    content: unknown;
+    priority?: unknown;
+    /**
+     * A turn the CLI starts on its own, such as after a background task finished.
+     */
+    isAuto?: boolean;
+}
+
+function userText(message: unknown): string {
+    if (!message || typeof message !== 'object') return '';
+    const { content } = message as { content?: unknown };
+    if (typeof content === 'string') return content;
+    if (!Array.isArray(content)) return '';
+    return content
+        .map((block) =>
+            block && typeof block === 'object' && 'text' in block
+                ? String((block as { text: unknown }).text)
+                : '',
+        )
+        .join('');
+}
+
+/**
+ * The turn an SDK `user` message on stdin asks for.
+ */
+export function queuedTurn(message: Json): QueuedTurn {
+    return {
+        text: userText(message.message),
+        content: (message.message as { content?: unknown } | undefined)?.content,
+        priority: message.priority,
+        ...(typeof message.uuid === 'string' && { uuid: message.uuid }),
+    };
+}

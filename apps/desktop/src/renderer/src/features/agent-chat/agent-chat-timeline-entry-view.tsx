@@ -3,6 +3,8 @@ import { memo } from 'react';
 
 import { AgentChatNotice, AgentChatReply } from './agent-chat-message';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
+import { AgentChatTurnArtifactList } from './agent-chat-turn-artifact-list';
+import type { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
 import { AgentChatTurnFold } from './agent-chat-turn-fold';
 import { AgentChatUserMessage } from './agent-chat-user-message';
 import { AgentChatWorkGroup } from './agent-chat-work-group';
@@ -15,10 +17,12 @@ type MessageItem = Extract<AgentChatTimelineEntry, { kind: 'item' }>['item'];
  */
 const AgentChatMessageItem = memo(
     ({
+        artifacts,
         isFinalReply,
         item,
         onOpenFile,
     }: {
+        artifacts?: AgentChatTurnArtifacts;
         isFinalReply?: boolean;
         item: MessageItem;
         onOpenFile?: (target: string) => void;
@@ -39,6 +43,7 @@ const AgentChatMessageItem = memo(
             case 'agentMessage': {
                 return (
                     <AgentChatReply
+                        artifacts={artifacts}
                         canCopy={isFinalReply === true}
                         item={item}
                         onOpenFile={onOpenFile}
@@ -70,6 +75,7 @@ export function AgentChatTimelineEntryView({
         case 'item': {
             return (
                 <AgentChatMessageItem
+                    artifacts={entry.artifacts}
                     isFinalReply={entry.isFinalReply}
                     item={entry.item}
                     onOpenFile={onOpenFile}
@@ -78,6 +84,9 @@ export function AgentChatTimelineEntryView({
         }
         case 'work': {
             return <AgentChatWorkGroup items={entry.items} onOpenFile={onOpenFile} />;
+        }
+        case 'artifacts': {
+            return <AgentChatTurnArtifactList artifacts={entry.artifacts} />;
         }
         case 'turn': {
             return (

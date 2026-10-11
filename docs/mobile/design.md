@@ -208,6 +208,13 @@ added without moving screens. Query keys include the same host identity.
   - Unknown (connection dropped after sending): keep the draft and show `Couldn't confirm delivery.
 Check the Terminal before sending again.` Never resend automatically.
 - When the connection is stale, the composer keeps the draft and names the disabled reason.
+- A Chat's composer carries one row above the input naming the model and reasoning effort of the
+  next turn (`Fake Codex High`), with Desktop's names. Tapping it opens a sheet with `Model` and
+  `Reasoning effort` lists that apply on tap and a `Done` button; the sheet stays open after a
+  model is chosen so its efforts show right away. While a turn runs the sheet says `Applies from
+the next turn.` Without access or a connection the row is plain text, and an open sheet disables
+  its lists and names the reason. A new Chat opens with this row, so the model is chosen before the
+  first message. See [Agent Chat](../agent-chat.md#mobile).
 
 ### Conversation
 

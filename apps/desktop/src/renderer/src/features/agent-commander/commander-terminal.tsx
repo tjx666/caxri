@@ -1,17 +1,21 @@
 import type { DragEvent } from 'react';
 
+import { isChatTerminal } from '@caxri/protocol';
+
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { useTerminal } from '../../stores/selectors';
+import { AgentChatTerminalContent } from '../agent-chat/agent-chat-terminal-content';
 import { didPasteDropIntoTerminal, isTerminalPasteDrag } from '../terminal/terminal-drop';
 import { TerminalPane } from '../terminal/terminal-pane';
 import { useAgentCommanderStore } from './commander-client';
 import type { AgentCommanderStatus } from './use-agent-commander';
 
 /**
- * The Commander's own Terminal, rendered by the ordinary Terminal pane against the Commander-scoped snapshot. It mounts
- * only once `commander.ensure` resolved, because Main admits `terminal.*` for this Terminal only after it saw that
- * reply.
+ * The Commander's own Terminal, rendered by the ordinary Terminal pane, or the ordinary Chat pane once the user
+ * switched it to Chat, against the Commander-scoped snapshot. It mounts only once `commander.ensure` resolved, because
+ * Main admits `terminal.*` and `agentChat.*` for this Terminal only after it saw that reply. A Chat accepts its own
+ * drops in the composer.
  *
  * The Workbench accepts drops on its pane surface, which this window does not mount, so the Commander accepts them
  * here: files from Finder, most often a screenshot for the Commander to hand on, and Workbench Files entries, Editor
@@ -45,6 +49,15 @@ export function CommanderTerminal({
                 <Spinner />
                 <span>Starting Agent Commander…</span>
             </div>
+        );
+    if (isChatTerminal(terminal))
+        return (
+            <AgentChatTerminalContent
+                ariaLabel={`Agent Commander: ${terminal.title}`}
+                isShown
+                key={terminal.id}
+                terminal={terminal}
+            />
         );
     const canAcceptDrop = (event: DragEvent<HTMLElement>): boolean => {
         if (terminal.lastProcessState !== 'running' || !isTerminalPasteDrag(event)) return false;

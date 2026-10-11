@@ -10,7 +10,8 @@ import { ImageSourceSheet } from '../sessions/components/image-source-sheet';
 import { SessionComposerAttachments } from '../sessions/components/session-composer-extras';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
 import { useImageAttachments } from '../sessions/hooks/use-image-attachments';
-import { agentChatComposerDisabledReason } from './agent-chat-model';
+import { agentChatDisabledReason } from './agent-chat-model';
+import { AgentChatModelButton } from './agent-chat-model-sheet';
 import type { AgentChatController } from './use-agent-chat';
 
 /**
@@ -171,12 +172,8 @@ export const AgentChatComposer = ({
         withThumbnail: true,
     });
     const [isChoosingImage, setChoosingImage] = useState(false);
-    const disabledReason = agentChatComposerDisabledReason({
-        deviceRole,
-        isConnected,
-        isHandedOff,
-        snapshot: chat.snapshot,
-    });
+    const access = { deviceRole, isConnected, isHandedOff, snapshot: chat.snapshot };
+    const disabledReason = agentChatDisabledReason(access);
     const isRunning = Boolean(chat.snapshot?.activeTurnId);
     const hasDraft = draft.trim().length > 0 || images.attachments.length > 0;
     const isStopAction = isRunning && deviceRole === 'control' && !hasDraft;
@@ -201,6 +198,11 @@ export const AgentChatComposer = ({
             style={[styles.composerBlock, { borderColor: theme.border }]}
             testID="agent-chat-composer"
         >
+            <AgentChatModelButton
+                chat={chat}
+                disabledReason={agentChatDisabledReason({ ...access, action: 'configure' })}
+                theme={theme}
+            />
             <SessionComposerAttachments images={images} theme={theme} />
             <View style={styles.composerRow}>
                 {canAttach ? (

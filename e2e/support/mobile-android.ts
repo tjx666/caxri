@@ -20,6 +20,7 @@ const adb = join(homedir(), 'Library', 'Android', 'sdk', 'platform-tools', 'adb'
 
 export interface MobileSemanticNode {
     bounds: string;
+    checked: boolean;
     checkId: string;
     clickable: boolean;
     enabled: boolean;

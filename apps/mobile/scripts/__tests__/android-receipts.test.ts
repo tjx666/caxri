@@ -20,6 +20,7 @@ describe('Android content-free receipts', () => {
         expect(semanticNodesFromUiAutomator(source)).toEqual([
             {
                 bounds: '[0,0][100,100]',
+                checked: false,
                 checkId: 'pairing-entry-screen',
                 className: 'android.view.View',
                 clickable: false,
@@ -28,6 +29,7 @@ describe('Android content-free receipts', () => {
             },
             {
                 bounds: '[0,100][100,160]',
+                checked: false,
                 checkId: 'pairing-scan-button',
                 className: 'android.widget.Button',
                 clickable: true,
@@ -37,6 +39,11 @@ describe('Android content-free receipts', () => {
         ]);
         expect(JSON.stringify(semanticNodesFromUiAutomator(source))).not.toContain('private');
         expect(JSON.stringify(semanticNodesFromUiAutomator(source))).not.toContain('secret');
+    });
+
+    it('reports a radio option as checked', () => {
+        const source = `<node resource-id="com.caxri.mobile:id/agent-chat-effort-high" class="android.view.ViewGroup" package="com.caxri.mobile" checkable="true" checked="true" clickable="true" enabled="true" bounds="[0,0][100,100]" />`;
+        expect(semanticNodesFromUiAutomator(source)[0]?.checked).toBe(true);
     });
 
     it('preserves bounded timeline controls with generation separators', () => {

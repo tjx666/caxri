@@ -1033,7 +1033,13 @@ failed or were declined, whose expanded list scrolls past 240px and fades its cl
 line in the expanded view. A finished turn folds everything except the prompt, the final reply, and
 notices behind one `Worked for 2m 1s` row with a bottom hairline; a failed or stopped turn's row
 (`Failed after 40s`, `Stopped after 3s`) takes `--danger` or `--warning` with its glyph. The final
-reply's Copy stays visible in `--muted` and rises to `--foreground` on hover. `Jump to latest`
+reply's Copy stays visible in `--muted` and rises to `--foreground` on hover. Between the final reply
+and Copy, a finished turn shows what it left behind as `--surface` cards with a 36px `--background`
+glyph tile: `Edited 3 files` over the turn's `+N -M` (hovered, the counts become `View changes ↗`
+and preview the diffs), a ghost Undo and a secondary View changes, then one row per file with its
+directory in `--muted` and its name in `--foreground`; then one card per pull request or issue the
+turn created or edited, with the GitHub or Linear mark, the title, a monospace `owner/repo#N` or
+`ENG-12`, the body's first line, and `Created pull request` at the end. `Jump to latest`
 returns focus to the composer (to the scroll view in a read-only task tab). Expanded output renders
 in the shared code view, painted in the language inferred from what produced it (a printed file's
 extension, a Git diff, JSON), any other command output as shell, and capped in height. A new

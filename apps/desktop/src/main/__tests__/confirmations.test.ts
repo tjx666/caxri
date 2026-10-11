@@ -7,6 +7,7 @@ import {
     discardGitChangesPrompt,
     externalLinkChoice,
     externalLinkPrompt,
+    revertAgentChatFilesPrompt,
     revokeMobileDevicePrompt,
     shellCommandElevationPrompt,
     trashPrompt,
@@ -295,6 +296,21 @@ describe('shell command elevation prompt', () => {
         expect(options.buttons?.[options.cancelId ?? -1]).toBe('Cancel');
         expect(shellCommandElevationPrompt('uninstall', '/usr/local/bin/caxri').detail).toContain(
             'Caxri app itself is not affected',
+        );
+    });
+});
+
+describe('revert Agent Chat files prompt', () => {
+    it('names the provider and the turns, and cancels by default', () => {
+        expect(
+            revertAgentChatFilesPrompt({ providerName: 'Claude', removedTurns: 1 }),
+        ).toMatchObject({
+            message: 'Revert the files Claude changed in this turn?',
+            defaultId: 1,
+            cancelId: 1,
+        });
+        expect(revertAgentChatFilesPrompt({ providerName: 'Grok', removedTurns: 3 }).message).toBe(
+            'Revert the files Grok changed in these 3 turns?',
         );
     });
 });

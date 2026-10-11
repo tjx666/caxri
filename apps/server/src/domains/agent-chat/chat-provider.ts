@@ -12,6 +12,7 @@ import type {
     AgentChatTurn,
     AgentLaunchSettings,
 } from '@caxri/protocol';
+import { CaxriError, isCaxriError } from '@caxri/protocol';
 
 import type { AgentLifecycleSignal } from '../agents';
 
@@ -34,7 +35,7 @@ type ChatLifecyclePhase = Extract<
     | 'turnStarted'
 >;
 
-export interface ChatLifecycleEvent {
+interface ChatLifecycleEvent {
     phase: ChatLifecyclePhase;
     agentSessionId?: string;
     agentTurnId?: string;
@@ -81,6 +82,22 @@ export class AgentChatStartError extends Error {
 }
 
 /**
+ * An input whose request timed out and whose arrival the provider could not confirm: it may have started a turn that is
+ * still on its way, so it must not be sent again automatically. `details.deliveryUnknown` marks it across the wire.
+ */
+export function deliveryUnknownError(label: string): CaxriError {
+    return new CaxriError(
+        'TIMEOUT',
+        `${label} did not confirm this message in time. It may still have been sent, so check the conversation before sending it again.`,
+        { deliveryUnknown: true },
+    );
+}
+
+export function isDeliveryUnknown(error: unknown): boolean {
+    return isCaxriError(error) && error.details?.deliveryUnknown === true;
+}
+
+/**
  * Bounded tail of an Agent Session's transcript. `truncated` is true when older records were cut off.
  */
 export interface AgentChatTranscript {
@@ -122,8 +139,17 @@ export interface AgentChatSessionHost {
      * Agent Session to resume. Absent for a Chat that has never started a turn.
      */
     agentSessionId?: string;
+    /**
+     * Where the resumed conversation ends, set only for the restart that follows a rewind whose provider rewinds by
+     * resuming at an earlier point of its record (see {@link ChatResumePoint}).
+     */
+    resumeAt?: string;
     clientVersion: string;
     spawnProcess?: SpawnChatProcess;
+    /**
+     * Bound on a request that starts or steers a turn. Tests shorten it to exercise a provider that answers late.
+     */
+    turnRequestTimeoutMs?: number;
     read(): AgentChatSnapshot;
     apply(operations: AgentChatPatchOperation[]): void;
     /**
@@ -143,6 +169,10 @@ export interface AgentChatSessionHost {
     onSessionBound(agentSessionId: string): void;
     onTurnFinished(status: AgentChatTurn['status'], durationMs: number | undefined): void;
     onProtocolRejected(reason: 'unsupportedRequest' | 'unkeyedRequest', method: string): void;
+    /**
+     * A turn request timed out and the session checked whether the provider recorded the input anyway.
+     */
+    onDeliveryChecked(method: string, outcome: 'delivered' | 'unknown'): void;
     onExit(exit: AgentChatExit): void;
     /**
      * Bounded tail of the bound Agent Session's on-disk transcript, for a provider whose resume does not return history
@@ -169,6 +199,28 @@ export interface ChatTaskHistory {
     taskId: string;
     operations: AgentChatTaskPatchOperation[];
 }
+
+/**
+ * What "Edit from here" rewinds: the user message that started `turnId`, which goes away with that turn and the
+ * `removedTurns - 1` turns after it.
+ */
+export interface ChatRewindTarget {
+    itemId: string;
+    turnId: string;
+    /**
+     * The message's text, which a provider can match against its own record before it changes anything.
+     */
+    text: string;
+    removedTurns: number;
+    restoreFiles: boolean;
+}
+
+/**
+ * How the restart after a rewind reopens the conversation. Absent: resume the bound Agent Session as usual (the
+ * provider already rewound its record). `resumeAt`: resume it ending at that point of the record. `fresh`: the rewind
+ * removed every turn, so the restart begins a new Agent Session.
+ */
+export type ChatResumePoint = { kind: 'resumeAt'; at: string } | { kind: 'fresh' };
 
 /**
  * One live provider process bound to one Chat Terminal.
@@ -204,9 +256,21 @@ export interface AgentChatProviderSession {
      */
     configure?(config: AgentChatModelChange): Promise<void>;
     /**
+     * Rewinds the provider's own record to just before `target`, restoring files first when asked. The service has
+     * already checked that no turn runs and that the provider offers file restore; it restarts the session afterwards,
+     * so the projection is rebuilt from the rewound record rather than patched here. Fails without changing anything
+     * when the provider refuses, as far as the provider allows.
+     */
+    rewind(target: ChatRewindTarget): Promise<ChatResumePoint | undefined>;
+    /**
      * Stops the running turn. Background tasks keep running.
      */
     interrupt(): Promise<void>;
+    /**
+     * Re-reads the provider's own record of running background work and corrects the snapshot's `tasks` where it
+     * drifted. Providers whose task list cannot drift (it is pushed with every change) omit it.
+     */
+    refreshTasks?(): Promise<void>;
     /**
      * Stops one task listed in the snapshot's `tasks`. Fails with `CONFLICT` when the task is no longer running.
      */

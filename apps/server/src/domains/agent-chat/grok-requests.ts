@@ -1,16 +1,29 @@
+import type { AgentChatRequest } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
+import { answeredNotice, questionAnswers } from './chat-items';
 import type { AgentChatResponse, AgentChatSessionHost } from './chat-provider';
 import type { GrokToolCall } from './grok-items';
-import { grokPermissionOutcome, mapGrokPermission } from './grok-items';
+import {
+    grokPermissionOutcome,
+    grokQuestionAnswers,
+    mapGrokPermission,
+    mapGrokQuestion,
+} from './grok-items';
 import type { JsonRpcConnection } from './json-rpc-connection';
 
 const CANCELLED = { outcome: { outcome: 'cancelled' } };
+/**
+ * `_x.ai/ask_user_question` answers its outcome at the top level, unlike `session/request_permission`.
+ */
+const QUESTION_CANCELLED = { outcome: 'cancelled' };
 
-interface PendingPermission {
-    transportId: number | string;
-    options: unknown;
-    turnId?: string;
+type PendingRequest =
+    | { kind: 'permission'; transportId: number | string; options: unknown; turnId?: string }
+    | { kind: 'question'; transportId: number | string; questions: unknown; turnId?: string };
+
+function cancelledResponse(pending: PendingRequest) {
+    return pending.kind === 'question' ? QUESTION_CANCELLED : CANCELLED;
 }
 
 interface GrokRequestOwner {
@@ -23,30 +36,29 @@ interface GrokRequestOwner {
 }
 
 /**
- * Grok Build's `session/request_permission` calls, held as pending Chat requests keyed by the tool call they gate. Each
- * JSON-RPC request stays unanswered until `respond`, Grok Build resolving it, the turn ending, or the process ending.
+ * Grok Build's `session/request_permission` and `_x.ai/ask_user_question` calls, held as pending Chat requests keyed by
+ * the tool call they belong to. Each JSON-RPC request stays unanswered until `respond`, Grok Build resolving it, the
+ * turn ending, or the process ending.
  */
 export class GrokRequestBroker {
-    private readonly pending = new Map<string, PendingPermission>();
+    private readonly pending = new Map<string, PendingRequest>();
 
     constructor(private readonly owner: GrokRequestOwner) {}
 
-    ask(
+    private hold(
         connection: JsonRpcConnection,
-        transportId: number | string,
-        call: GrokToolCall,
-        options: unknown,
-        turnId: string | undefined,
+        pending: PendingRequest,
+        mapped: AgentChatRequest,
     ): void {
         const { host, sessionId } = this.owner;
-        const key = call.id;
+        const key = mapped.id;
+        const { turnId } = pending;
         const previous = this.pending.get(key);
         // A repeated request for the same tool call replaces the earlier one, which must still get an answer.
-        if (previous && previous.transportId !== transportId)
-            connection.respond(previous.transportId, CANCELLED);
+        if (previous && previous.transportId !== pending.transportId)
+            connection.respond(previous.transportId, cancelledResponse(previous));
         const isNew = !previous;
-        this.pending.set(key, { transportId, options, ...(turnId && { turnId }) });
-        const mapped = mapGrokPermission(call, options);
+        this.pending.set(key, pending);
         const { requests } = host.read();
         host.apply([
             {
@@ -67,6 +79,37 @@ export class GrokRequestBroker {
             });
     }
 
+    ask(
+        connection: JsonRpcConnection,
+        transportId: number | string,
+        call: GrokToolCall,
+        options: unknown,
+        turnId: string | undefined,
+    ): void {
+        this.hold(
+            connection,
+            { kind: 'permission', transportId, options, ...(turnId && { turnId }) },
+            mapGrokPermission(call, options),
+        );
+    }
+
+    /**
+     * Holds an `_x.ai/ask_user_question` request as a question card keyed by its `toolCallId`.
+     */
+    askQuestion(
+        connection: JsonRpcConnection,
+        transportId: number | string,
+        key: string,
+        questions: unknown,
+        turnId: string | undefined,
+    ): void {
+        this.hold(
+            connection,
+            { kind: 'question', transportId, questions, ...(turnId && { turnId }) },
+            mapGrokQuestion(key, questions),
+        );
+    }
+
     settle(key: string): void {
         if (!this.pending.delete(key)) return;
         const { host, sessionId } = this.owner;
@@ -82,7 +125,9 @@ export class GrokRequestBroker {
     }
 
     /**
-     * Settles the requests a finished turn left open; Grok Build no longer waits on them.
+     * Settles the requests a finished turn left open; Grok Build no longer waits on them. A question Grok Build left
+     * pending after `session/cancel` would otherwise keep its card up for an answer Grok Build ignores (verified with
+     * Grok Build 1.0.50).
      */
     settleTurn(turnId: string): void {
         for (const [key, pending] of this.pending) if (pending.turnId === turnId) this.settle(key);
@@ -94,8 +139,8 @@ export class GrokRequestBroker {
     cancelTurn(connection: JsonRpcConnection, turnId: string): void {
         for (const [key, pending] of this.pending)
             if (pending.turnId === turnId) {
-                connection.respond(pending.transportId, CANCELLED);
-                this.owner.onDeclined(key);
+                connection.respond(pending.transportId, cancelledResponse(pending));
+                if (pending.kind === 'permission') this.owner.onDeclined(key);
                 this.settle(key);
             }
     }
@@ -103,6 +148,22 @@ export class GrokRequestBroker {
     respond(connection: JsonRpcConnection, requestId: string, response: AgentChatResponse): void {
         const pending = this.pending.get(requestId);
         if (!pending) throw new CaxriError('CONFLICT', 'This request is no longer pending');
+        if (pending.kind === 'question') {
+            const answers = questionAnswers(response);
+            connection.respond(
+                pending.transportId,
+                grokQuestionAnswers(pending.questions, answers),
+            );
+            const { host } = this.owner;
+            const answered = answeredNotice(
+                host.read().requests.find((request) => request.id === requestId),
+                pending.turnId,
+                answers,
+            );
+            if (answered) host.apply([{ op: 'upsertItem', item: answered }]);
+            this.settle(requestId);
+            return;
+        }
         if (response.kind !== 'decision')
             throw new CaxriError('VALIDATION', 'An approval needs a decision');
         connection.respond(

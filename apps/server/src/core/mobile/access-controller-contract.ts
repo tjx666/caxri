@@ -59,6 +59,7 @@ export type MobileControlRequest = Extract<
             | 'mobile.agentChat.interrupt'
             | 'mobile.agentChat.respond'
             | 'mobile.agentChat.retry'
+            | 'mobile.agentChat.configure'
             | 'mobile.pairing.create'
             | 'mobile.project.browse'
             | 'mobile.project.add'

@@ -1,20 +1,15 @@
-import { randomUUID } from 'node:crypto';
-
 import type {
     AgentChatMessageInput,
     AgentChatModelChange,
     AgentChatPatchOperation,
-    AgentChatRequest,
 } from '@caxri/protocol';
 import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
 import {
-    answeredNotice,
     clip,
     endedSessionOperations,
     isRecord,
     MAX_TRACKED_TURNS,
-    questionAnswers,
     stringField,
 } from './chat-items';
 import type {
@@ -24,35 +19,28 @@ import type {
     AgentChatSessionHost,
     ChatInputOptions,
     ChatProcessEnd,
+    ChatRewindTarget,
     ChatTaskHistory,
 } from './chat-provider';
 import type { CodexThreadSettings } from './codex-chat-types';
+import { CodexDeliveryCheck, TURN_REQUEST_TIMEOUT_MS } from './codex-delivery-check';
 import {
     CODEX_COMMANDS,
-    CodexDeliveries,
+    codexClientMessageId,
     CodexThumbnails,
     codexUserInput,
     isSteerTargetGone,
 } from './codex-input';
-import type { CodexRequestKind } from './codex-items';
-import {
-    codexRequestKey,
-    codexRequestKind,
-    mapCodexErrorNotice,
-    mapCodexItem,
-    mapCodexPlan,
-    mapCodexRequest,
-    mapCodexUsage,
-} from './codex-items';
+import { loadCodexItemTimes } from './codex-item-times';
+import { mapCodexErrorNotice, mapCodexItem, mapCodexPlan, mapCodexUsage } from './codex-items';
 import { CodexModelSettings } from './codex-models';
+import { CodexRequestBroker } from './codex-requests';
+import { revertCodexThread } from './codex-rewind';
 import { CodexTasks } from './codex-tasks';
 import { initializeCodexConnection, openCodexThread } from './codex-thread-open';
 import { finishedTurnOperations, historyOperations } from './codex-turns';
-import type { JsonRpcServerRequest } from './json-rpc-connection';
 import { JsonRpcConnection, JsonRpcRequestError } from './json-rpc-connection';
 import { codexChatSettings, REAL_E2E_CODEX_CHAT_SETTINGS } from './launch-settings';
-
-const TURN_REQUEST_TIMEOUT_MS = 30_000;
 
 /**
  * The interrupt response is held until the turn actually aborts. A provider that never answers is stopped instead so
@@ -61,12 +49,6 @@ const TURN_REQUEST_TIMEOUT_MS = 30_000;
 const INTERRUPT_TIMEOUT_MS = 10_000;
 
 type Json = Record<string, unknown>;
-
-interface PendingRequest {
-    transportId: number | string;
-    kind: CodexRequestKind;
-    turnId?: string;
-}
 
 /**
  * One live `codex app-server` process bound to one Chat Terminal. It translates the provider protocol into projection
@@ -81,17 +63,15 @@ class CodexChatSession implements AgentChatProviderSession {
 
     private isThreadBound: boolean;
 
-    private readonly pending = new Map<string, PendingRequest>();
-
     private requested = false;
 
     private turnCount = 0;
 
-    private rejectedRequests = 0;
-
     private readonly thumbnails = new CodexThumbnails();
 
-    private readonly deliveries = new CodexDeliveries();
+    private readonly deliveries: CodexDeliveryCheck;
+
+    private readonly requests: CodexRequestBroker;
 
     private readonly tasks: CodexTasks;
 
@@ -109,6 +89,8 @@ class CodexChatSession implements AgentChatProviderSession {
             threadId: () => this.threadId,
         });
         this.models = new CodexModelSettings(options);
+        this.deliveries = new CodexDeliveryCheck(options, () => this.threadId);
+        this.requests = new CodexRequestBroker(options, () => this.threadId);
     }
 
     private requireConnection(): JsonRpcConnection {
@@ -120,6 +102,9 @@ class CodexChatSession implements AgentChatProviderSession {
     private loadHistory(thread: Json, model: string | undefined): void {
         this.options.apply(historyOperations(thread, model));
         this.tasks.replay(thread);
+        if (this.connection && this.threadId)
+            // eslint-disable-next-line no-void -- best effort: an item Codex has no time for stays undated
+            void loadCodexItemTimes(this.connection, this.threadId, this.options);
     }
 
     private beginTurn(turnId: string): void {
@@ -161,12 +146,7 @@ class CodexChatSession implements AgentChatProviderSession {
         const finished = finishedTurnOperations(
             snapshot,
             turn,
-            (requestId, finishedTurnId) => {
-                const pending = this.pending.get(requestId);
-                if (pending?.turnId !== undefined && pending.turnId !== finishedTurnId) return true;
-                this.pending.delete(requestId);
-                return false;
-            },
+            (requestId, finishedTurnId) => this.requests.outlivesTurn(requestId, finishedTurnId),
             backgrounded,
         );
         if (!finished) return;
@@ -177,6 +157,8 @@ class CodexChatSession implements AgentChatProviderSession {
         if (snapshot.operation === 'compacting')
             operations.push({ op: 'state', state: { operation: null } });
         this.options.apply(operations);
+        // eslint-disable-next-line no-void -- best effort: an unreadable list leaves the tasks as they are
+        void this.tasks.reconcileTerminals();
         this.options.onTurnFinished(status, durationMs);
         this.options.lifecycle(
             status === 'failed'
@@ -253,9 +235,7 @@ class CodexChatSession implements AgentChatProviderSession {
                 return;
             }
             case 'serverRequest/resolved': {
-                const transportId = parameters.requestId;
-                for (const [key, pending] of this.pending)
-                    if (pending.transportId === transportId) this.settleRequest(key);
+                this.requests.onResolved(parameters.requestId);
                 return;
             }
             default: {
@@ -266,7 +246,7 @@ class CodexChatSession implements AgentChatProviderSession {
 
     private onItem(raw: unknown, turnId: string | undefined, isStarted: boolean): void {
         const mapped = mapCodexItem(raw, turnId, isStarted);
-        const item = mapped && this.deliveries.apply(this.thumbnails.apply(mapped, raw), raw);
+        const item = mapped && this.thumbnails.apply(mapped, raw);
         const operations: AgentChatPatchOperation[] = item ? [{ op: 'upsertItem', item }] : [];
         const type = isRecord(raw) ? raw.type : undefined;
         if (type === 'contextCompaction')
@@ -276,6 +256,7 @@ class CodexChatSession implements AgentChatProviderSession {
             });
         if (operations.length > 0) this.options.apply(operations);
         if (!isRecord(raw)) return;
+        if (type === 'userMessage') this.deliveries.rememberEcho(raw.clientId);
         switch (type) {
             case 'contextCompaction': {
                 this.options.lifecycle({
@@ -307,81 +288,11 @@ class CodexChatSession implements AgentChatProviderSession {
         ]);
     }
 
-    private onServerRequest(request: JsonRpcServerRequest): void {
-        const connection = this.connection;
-        if (!connection) return;
-        const kind = codexRequestKind(request.method);
-        if (!kind) {
-            this.rejectedRequests += 1;
-            this.options.onProtocolRejected('unsupportedRequest', request.method);
-            /**
-             * Every server request must be answered or the turn blocks. MCP elicitation has a protocol-level decline;
-             * everything else gets a JSON-RPC error.
-             */
-            if (request.method === 'mcpServer/elicitation/request')
-                connection.respond(request.id, { action: 'decline', content: null, _meta: null });
-            else
-                connection.respondError(
-                    request.id,
-                    -32601,
-                    'Caxri Chat does not support this request',
-                );
-            return;
-        }
-        const key = codexRequestKey(request.params);
-        if (!key) {
-            this.rejectedRequests += 1;
-            this.options.onProtocolRejected('unkeyedRequest', request.method);
-            connection.respondError(request.id, -32602, 'Request is missing its item id');
-            return;
-        }
-        const turnId = stringField(request.params.turnId);
-        const isNew = !this.pending.has(key);
-        this.pending.set(key, {
-            transportId: request.id,
-            kind,
-            ...(turnId && { turnId: clip(turnId, 200) }),
-        });
-        const mapped: AgentChatRequest = mapCodexRequest(kind, key, request.params);
-        const { requests } = this.options.read();
-        this.options.apply([
-            {
-                op: 'state',
-                state: {
-                    requests: [...requests.filter((existing) => existing.id !== key), mapped].slice(
-                        -20,
-                    ),
-                },
-            },
-        ]);
-        if (isNew)
-            this.options.lifecycle({
-                phase: 'attentionRequested',
-                agentSessionId: this.threadId,
-                agentTurnId: turnId,
-                agentToolUseId: key,
-            });
-    }
-
-    private settleRequest(key: string): void {
-        if (!this.pending.delete(key)) return;
-        const { requests } = this.options.read();
-        this.options.apply([
-            { op: 'state', state: { requests: requests.filter((request) => request.id !== key) } },
-        ]);
-        this.options.lifecycle({
-            phase: 'attentionResolved',
-            agentSessionId: this.threadId,
-            agentToolUseId: key,
-        });
-    }
-
     private onEnd(end: ChatProcessEnd): void {
         const snapshot = this.options.read();
         const { activeTurnId } = snapshot;
         const operations = endedSessionOperations(snapshot);
-        const unanswered = this.pending.keys().toArray();
-        this.pending.clear();
+        const unanswered = this.requests.drain();
         this.options.apply(operations);
         this.tasks.end();
         /**
@@ -400,7 +311,7 @@ class CodexChatSession implements AgentChatProviderSession {
             ...(activeTurnId && { activeTurnId }),
             turns: this.turnCount,
             serverRequests: counters?.serverRequests ?? 0,
-            rejectedRequests: this.rejectedRequests,
+            rejectedRequests: this.requests.rejected,
             droppedFrames: counters?.droppedFrames ?? 0,
         });
     }
@@ -416,7 +327,7 @@ class CodexChatSession implements AgentChatProviderSession {
             spawnProcess: this.options.spawnProcess,
             handlers: {
                 onNotification: (method, parameters) => this.onNotification(method, parameters),
-                onServerRequest: (request) => this.onServerRequest(request),
+                onServerRequest: (request) => this.requests.receive(connection, request),
                 onEnd: (end) => {
                     if (end.reason === 'spawnFailed') spawnFailure = end;
                     this.onEnd(end);
@@ -458,6 +369,8 @@ class CodexChatSession implements AgentChatProviderSession {
         // react-doctor-disable-next-line react-doctor/server-sequential-independent-await -- Listing needs the connection `open` creates, and the default effort reads the thread it reported.
         const modelState = await this.models.load(this.requireConnection());
         this.options.apply([{ op: 'state', state: { commands: CODEX_COMMANDS, ...modelState } }]);
+        // eslint-disable-next-line no-void -- best effort: an unreadable list leaves the tasks as they are
+        void this.tasks.reconcileTerminals();
         return outcome;
     }
 
@@ -466,29 +379,34 @@ class CodexChatSession implements AgentChatProviderSession {
         options: ChatInputOptions = {},
     ): Promise<void> {
         const connection = this.requireConnection();
-        const clientUserMessageId = randomUUID();
+        let clientUserMessageId = codexClientMessageId(options.delivery);
         const input = codexUserInput(message);
         this.thumbnails.remember(clientUserMessageId, message);
-        if (options.delivery) this.deliveries.remember(clientUserMessageId, options.delivery);
         const { activeTurnId } = this.options.read();
         if (activeTurnId && options.delivery === 'steered') {
             try {
-                await connection.request(
+                await this.deliveries.request(
+                    connection,
                     'turn/steer',
-                    {
-                        threadId: this.threadId,
-                        input,
-                        expectedTurnId: activeTurnId,
-                        clientUserMessageId,
-                    },
-                    TURN_REQUEST_TIMEOUT_MS,
+                    clientUserMessageId,
+                    (timeoutMs) =>
+                        connection.request(
+                            'turn/steer',
+                            {
+                                threadId: this.threadId,
+                                input,
+                                expectedTurnId: activeTurnId,
+                                clientUserMessageId,
+                            },
+                            timeoutMs,
+                        ),
                 );
                 return;
             } catch (error) {
                 /**
                  * The turn can finish between reading `activeTurnId` and the steer arriving; Codex then rejects the
                  * precondition and the message starts the next turn instead of being lost. It was not steered after
-                 * all, so its echo carries no marker.
+                 * all, so it goes out under a new id that carries no marker.
                  */
                 if (!(error instanceof JsonRpcRequestError)) throw error;
                 if (!isSteerTargetGone(error))
@@ -496,13 +414,20 @@ class CodexChatSession implements AgentChatProviderSession {
                         'CONFLICT',
                         'Codex cannot add this message to the running turn',
                     );
-                this.deliveries.forget(clientUserMessageId);
+                clientUserMessageId = codexClientMessageId();
+                this.thumbnails.remember(clientUserMessageId, message);
             }
         }
-        const result = await this.models.startTurn(
+        const result = await this.deliveries.request(
             connection,
-            { threadId: this.threadId, input, summary: 'detailed', clientUserMessageId },
-            TURN_REQUEST_TIMEOUT_MS,
+            'turn/start',
+            clientUserMessageId,
+            (timeoutMs) =>
+                this.models.startTurn(
+                    connection,
+                    { threadId: this.threadId, input, summary: 'detailed', clientUserMessageId },
+                    timeoutMs,
+                ),
         );
         const turn = isRecord(result) && isRecord(result.turn) ? result.turn : undefined;
         const turnId = stringField(turn?.id);
@@ -533,6 +458,10 @@ class CodexChatSession implements AgentChatProviderSession {
         return Promise.resolve();
     }
 
+    rewind(target: ChatRewindTarget): Promise<undefined> {
+        return revertCodexThread(this.requireConnection(), this.threadId, target);
+    }
+
     async interrupt(): Promise<void> {
         const connection = this.requireConnection();
         const { activeTurnId } = this.options.read();
@@ -552,6 +481,11 @@ class CodexChatSession implements AgentChatProviderSession {
         }
     }
 
+    async refreshTasks(): Promise<void> {
+        this.requireConnection();
+        await this.tasks.reconcileTerminals();
+    }
+
     async stopTask(taskId: string): Promise<void> {
         this.requireConnection();
         await this.tasks.stopTask(taskId);
@@ -563,28 +497,7 @@ class CodexChatSession implements AgentChatProviderSession {
     }
 
     respond(requestId: string, response: AgentChatResponse): void {
-        const connection = this.requireConnection();
-        const pending = this.pending.get(requestId);
-        if (!pending) throw new CaxriError('CONFLICT', 'This request is no longer pending');
-        if (pending.kind === 'question') {
-            const answers = questionAnswers(response);
-            connection.respond(pending.transportId, {
-                answers: Object.fromEntries(
-                    Object.entries(answers).map(([id, values]) => [id, { answers: values }]),
-                ),
-            });
-            const answered = answeredNotice(
-                this.options.read().requests.find((request) => request.id === requestId),
-                pending.turnId,
-                answers,
-            );
-            if (answered) this.options.apply([{ op: 'upsertItem', item: answered }]);
-        } else {
-            if (response.kind !== 'decision')
-                throw new CaxriError('VALIDATION', 'An approval needs a decision');
-            connection.respond(pending.transportId, { decision: response.decision });
-        }
-        this.settleRequest(requestId);
+        this.requests.respond(this.requireConnection(), requestId, response);
     }
 
     async close(): Promise<void> {

@@ -266,7 +266,7 @@ export const AgentChatView = ({
     const { snapshot } = chat;
     /**
      * Reply access is the bar for both retrying a failed provider and sending a message, matching
-     * `agentChatComposerDisabledReason`.
+     * `agentChatDisabledReason`.
      */
     const canRetry = deviceRole === 'reply' || deviceRole === 'control';
     const restart = async (): Promise<void> => {

@@ -33,8 +33,27 @@ function splitLines(text: string): string[] {
     return lines;
 }
 
+/**
+ * The bare `@@` line that opens a replacement body: Server Core's `replacementDiff` for a provider that reports an edit
+ * as old and new text (Claude Code before its patch arrives, a Claude Code create, Grok Build) rather than as a patch
+ * with line numbers.
+ */
+const REPLACEMENT_MARKER = '@@';
+
+function isReplacementBody(lines: readonly string[]): boolean {
+    return lines[0] === REPLACEMENT_MARKER;
+}
+
+/**
+ * An added or deleted file's lines. Codex sends the whole content as is; a replacement body prefixes every line with
+ * `+` or `-` under its `@@` marker, and neither the marker nor the prefix is part of the file.
+ */
 function wholeFileLines(text: string, kind: 'added' | 'removed'): AgentChatDiffLine[] {
-    return splitLines(text).map((line, index) =>
+    const lines = splitLines(text);
+    const content = isReplacementBody(lines)
+        ? lines.filter((line) => line !== REPLACEMENT_MARKER).map((line) => line.slice(1))
+        : lines;
+    return content.map((line, index) =>
         kind === 'added'
             ? { kind, text: line, newLine: index + 1 }
             : { kind, text: line, oldLine: index + 1 },
@@ -117,6 +136,7 @@ function hunkLine(line: string, cursor: HunkCursor): AgentChatDiffLine {
  */
 function prefixedLines(lines: string[]): AgentChatDiffLine[] {
     return lines.map((line) => {
+        if (line === REPLACEMENT_MARKER) return { kind: 'hunk', text: line };
         if (line.startsWith('+++') || line.startsWith('---')) return { kind: 'meta', text: line };
         if (line.startsWith('+')) return { kind: 'added', text: line.slice(1) };
         if (line.startsWith('-')) return { kind: 'removed', text: line.slice(1) };
@@ -224,4 +244,13 @@ export function canOpenAgentChatChange(
     status: AgentChatItemStatus | undefined,
 ): boolean {
     return kind !== (status === 'completed' ? 'delete' : 'add');
+}
+
+/**
+ * Where a hunk starts in the new file, read from its `@@ -a,b +c,d @@` header; `undefined` for a replacement body's
+ * bare `@@` marker, which carries no position.
+ */
+export function agentChatHunkNewStart(header: string): number | undefined {
+    const start = HUNK_HEADER.exec(header)?.[3];
+    return start === undefined ? undefined : Number(start);
 }
