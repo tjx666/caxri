@@ -2,6 +2,7 @@ import type {
     AgentChatMessageInput,
     AgentChatModelChange,
     AgentChatPatchOperation,
+    AgentChatPermission,
 } from '@caxri/protocol';
 import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 
@@ -35,13 +36,13 @@ import {
 import { loadCodexItemTimes } from './codex-item-times';
 import { mapCodexErrorNotice, mapCodexItem, mapCodexPlan, mapCodexUsage } from './codex-items';
 import { CodexModelSettings } from './codex-models';
+import { codexOpeningSettings, CodexPermissions } from './codex-permissions';
 import { CodexRequestBroker } from './codex-requests';
 import { forkCodexThread, revertCodexThread } from './codex-rewind';
 import { CodexTasks } from './codex-tasks';
 import { initializeCodexConnection, openCodexThread } from './codex-thread-open';
 import { finishedTurnOperations, historyOperations } from './codex-turns';
 import { JsonRpcConnection, JsonRpcRequestError } from './json-rpc-connection';
-import { codexChatSettings, REAL_E2E_CODEX_CHAT_SETTINGS } from './launch-settings';
 
 /**
  * The interrupt response is held until the turn actually aborts. A provider that never answers is stopped instead so
@@ -78,10 +79,11 @@ class CodexChatSession implements AgentChatProviderSession {
 
     private readonly models: CodexModelSettings;
 
+    private readonly permissions: CodexPermissions;
+
     constructor(private readonly options: AgentChatSessionHost) {
-        this.settings = options.isRealAgentE2E
-            ? REAL_E2E_CODEX_CHAT_SETTINGS
-            : codexChatSettings(options.launch);
+        const opening = codexOpeningSettings(options);
+        this.settings = opening.settings;
         this.threadId = options.agentSessionId;
         this.isThreadBound = Boolean(options.agentSessionId);
         this.tasks = new CodexTasks(options, {
@@ -89,7 +91,8 @@ class CodexChatSession implements AgentChatProviderSession {
                 this.requireConnection().request(method, parameters, timeoutMs),
             threadId: () => this.threadId,
         });
-        this.models = new CodexModelSettings(options);
+        this.permissions = new CodexPermissions(options, this.settings, opening.planMode);
+        this.models = new CodexModelSettings(options, this.permissions);
         this.deliveries = new CodexDeliveryCheck(options, () => this.threadId);
         this.requests = new CodexRequestBroker(options, () => this.threadId);
     }
@@ -345,12 +348,14 @@ class CodexChatSession implements AgentChatProviderSession {
         if (opened.outcome === 'resumed') {
             this.loadHistory(opened.thread, opened.model);
             this.models.reportOpened(opened.effort);
+            this.permissions.reportOpened(opened.collaborationMode);
             return 'resumed';
         }
         this.threadId = opened.threadId;
         if (opened.model)
             this.options.apply([{ op: 'state', state: { model: clip(opened.model, 200) } }]);
         this.models.reportOpened(opened.effort);
+        this.permissions.reportOpened(opened.collaborationMode);
         return 'started';
     }
 
@@ -456,6 +461,12 @@ class CodexChatSession implements AgentChatProviderSession {
     configure(change: AgentChatModelChange): Promise<void> {
         this.requireConnection();
         this.models.configure(change);
+        return Promise.resolve();
+    }
+
+    setPermission(permission: AgentChatPermission): Promise<void> {
+        this.requireConnection();
+        this.permissions.set(permission);
         return Promise.resolve();
     }
 

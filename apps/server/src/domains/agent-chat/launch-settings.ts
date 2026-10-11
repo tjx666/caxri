@@ -68,6 +68,7 @@ export function codexChatSettings(launch: AgentLaunchSettings): CodexThreadSetti
     }
     return {
         approvalPolicy: isAutonomous ? 'never' : (parsed.approvalPolicy ?? 'on-request'),
+        approvalsReviewer: 'user',
         sandbox: isAutonomous ? 'danger-full-access' : (parsed.sandbox ?? 'workspace-write'),
         ...(parsed.model && { model: parsed.model }),
         rootArgs: parsed.rootArgs,
@@ -80,6 +81,7 @@ export function codexChatSettings(launch: AgentLaunchSettings): CodexThreadSetti
  */
 export const REAL_E2E_CODEX_CHAT_SETTINGS: Readonly<CodexThreadSettings> = Object.freeze({
     approvalPolicy: 'never',
+    approvalsReviewer: 'user',
     sandbox: 'read-only',
     rootArgs: [],
 });

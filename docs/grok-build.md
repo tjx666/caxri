@@ -62,7 +62,10 @@ v1; [Agent Chat](agent-chat.md) owns the provider-neutral contract and the full
 mapping. The Initial arguments are translated rather than appended: `--yolo` or
 `--always-approve`, `--model`, and `--reasoning-effort` become `agent` options,
 `--sandbox` and `--permission-mode` stay root options before `agent`, and TUI-only
-flags are dropped. `--no-leader` keeps a configured `[cli] use_leader` from turning
+flags are dropped. A permission level picked in the Chat replaces `--always-approve`
+and `--permission-mode` and restarts the agent on the same conversation; see
+[Permission level and plan mode](agent-chat.md#permission-level-and-plan-mode).
+`--no-leader` keeps a configured `[cli] use_leader` from turning
 the stdio agent into a bridge to a shared leader process.
 
 `session/new` takes the Terminal's preset UUID in `_meta.sessionId`, so the Chat and

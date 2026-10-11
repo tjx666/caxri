@@ -14,6 +14,7 @@ import type {
     AgentChatMessageInput,
     AgentChatModelChange,
     AgentChatPatchOperation,
+    AgentChatPermission,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
@@ -37,11 +38,9 @@ import type {
     ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
-import { withCacheRewriteEstimate } from './chat-usage';
 import {
-    claudeCacheTtlMinutes,
     ClaudeContextRefresh,
-    DEFAULT_CLAUDE_CACHE_TTL_MINUTES,
+    claudeResponseUsage,
     refreshClaudeContextDetails,
 } from './claude-context';
 import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
@@ -51,7 +50,7 @@ import {
     claudeUserPrompt,
     isClaudeCompactCommand,
 } from './claude-input';
-import { claudeAssistantItems, claudeUsageTokens } from './claude-items';
+import { claudeAssistantItems } from './claude-items';
 import {
     claudeChatModels,
     claudeHookEffort,
@@ -59,6 +58,7 @@ import {
     configureClaudeModel,
     readClaudeAppliedSettings,
 } from './claude-models';
+import { ClaudePermissions } from './claude-permissions';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
 import { forkClaudeSession, restoreClaudeFiles, rewindClaudeSession } from './claude-rewind';
@@ -105,6 +105,8 @@ type Json = Record<string, unknown>;
 class ClaudeChatSession implements AgentChatProviderSession {
     private readonly settings: ClaudeChatSettings;
 
+    private readonly permissions: ClaudePermissions;
+
     private readonly prompts = new PromptQueue();
 
     private readonly requests: ClaudeRequestBroker;
@@ -138,7 +140,9 @@ class ClaudeChatSession implements AgentChatProviderSession {
     });
 
     constructor(private readonly options: AgentChatSessionHost) {
-        this.settings = claudeChatSettings(options.launch);
+        const launched = claudeChatSettings(options.launch);
+        this.permissions = new ClaudePermissions(options, launched.permissionMode);
+        this.settings = { ...launched, permissionMode: this.permissions.startMode };
         this.sessionId = options.agentSessionId ?? randomUUID();
         this.isSessionBound = Boolean(options.agentSessionId);
         this.requests = new ClaudeRequestBroker({
@@ -214,28 +218,9 @@ class ClaudeChatSession implements AgentChatProviderSession {
             item,
         }));
         if (mapped.plan) operations.push({ op: 'state', state: { plan: mapped.plan } });
-        const totalTokens = claudeUsageTokens(message.usage);
         if (operations.length > 0) this.options.apply(operations);
-        if (totalTokens !== undefined) {
-            // The previous breakdown stays until the refresh below replaces it, so an open context meter keeps its rows
-            // instead of collapsing to the total for every response of a running turn.
-            const { breakdown, compactWindow, cacheTtlMinutes } = this.options.read().usage ?? {};
-            const usage = withCacheRewriteEstimate(
-                {
-                    totalTokens,
-                    ...(this.turns.contextWindow && {
-                        contextWindow: this.turns.contextWindow,
-                    }),
-                    ...(breakdown && { breakdown }),
-                    ...(compactWindow && { compactWindow }),
-                    cacheTtlMinutes:
-                        claudeCacheTtlMinutes(message.usage) ??
-                        cacheTtlMinutes ??
-                        DEFAULT_CLAUDE_CACHE_TTL_MINUTES,
-                    lastResponseAt: Date.now(),
-                },
-                stringField(message.model) ?? this.options.read().model,
-            );
+        const usage = claudeResponseUsage(message, this.options.read(), this.turns.contextWindow);
+        if (usage) {
             this.options.apply([{ op: 'state', state: { usage } }]);
             this.contextDetails.request();
         }
@@ -290,6 +275,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 if (model)
                     this.options.apply([{ op: 'state', state: { model: clip(model, 200) } }]);
                 this.options.apply(claudeInitEffort(message));
+                this.permissions.onReported(message.permissionMode, this.query);
                 const commands = this.commands.hideTerminalBound(message.terminal_slash_commands);
                 if (commands) this.options.apply([{ op: 'state', state: { commands } }]);
                 return;
@@ -303,6 +289,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 return;
             }
             case 'status': {
+                this.permissions.onReported(message.permissionMode, this.query);
                 onClaudeStatus(this.options, message);
                 return;
             }
@@ -483,6 +470,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             const models = claudeChatModels(initialized.models);
             if (models.length > 0) this.options.apply([{ op: 'state', state: { models } }]);
             this.reportAppliedSettings(stream);
+            this.permissions.report();
         } catch {
             const spawnErrorCode = this.spawnErrorCode;
             await this.close();
@@ -523,6 +511,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
         );
         // A model switch can move the effort too, to the new model's default or to none, and can withdraw ultracode.
         this.reportAppliedSettings(stream);
+    }
+
+    setPermission(permission: AgentChatPermission): Promise<void> {
+        return this.permissions.set(this.requireOpen(), permission);
     }
 
     async rewind(target: ChatRewindTarget): Promise<ChatResumePoint> {

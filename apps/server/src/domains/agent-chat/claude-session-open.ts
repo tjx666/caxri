@@ -73,9 +73,11 @@ export function claudeQueryOptions({
         systemPrompt: { type: 'preset', preset: 'claude_code' },
         tools: { type: 'preset', preset: 'claude_code' },
         permissionMode: settings.permissionMode,
-        ...(settings.permissionMode === 'bypassPermissions' && {
-            allowDangerouslySkipPermissions: true,
-        }),
+        /**
+         * Required for `bypassPermissions` at launch and for a later switch to it, so the composer's Full access level
+         * works on a Chat that started at another level. It enables nothing on its own.
+         */
+        allowDangerouslySkipPermissions: true,
         ...(settings.model && { model: settings.model }),
         ...(settings.settings && { settings: settings.settings }),
         ...(settings.additionalDirectories.length > 0 && {

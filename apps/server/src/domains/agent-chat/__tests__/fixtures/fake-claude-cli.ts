@@ -115,6 +115,10 @@ const state: {
     effort?: string;
     ultracode: boolean;
     /**
+     * `--permission-mode`, then whatever `set_permission_mode` or an approved plan switched to.
+     */
+    permissionMode: string;
+    /**
      * Whether the current turn's prompt asked for a large context. Real long conversations fill most of the compaction
      * window; this lets a dev instance or E2E show the high-context `/compact` warning without one.
      */
@@ -131,6 +135,7 @@ const state: {
     queued: [],
     model: FAKE_CLAUDE_MODEL,
     ultracode: false,
+    permissionMode: argument('--permission-mode') ?? 'default',
     isLargeContextTurn: false,
     hooks: {},
 };
@@ -305,6 +310,11 @@ const scenarioIo: FakeClaudeIo = {
     markInterrupted: () => {
         state.interrupted = true;
     },
+    exitPlanMode: () => {
+        if (state.permissionMode !== 'plan') return;
+        state.permissionMode = 'default';
+        system('status', { status: null, permissionMode: state.permissionMode });
+    },
     subagentDirectory: path.join(path.dirname(transcriptPath), sessionId, 'subagents'),
     startAutoTurn: () => {
         state.queued.push({ text: '', content: undefined, isAuto: true });
@@ -335,7 +345,7 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
             cwd: process.cwd(),
             model: state.model,
             tools: [],
-            permissionMode: 'default',
+            permissionMode: state.permissionMode,
             slash_commands: FAKE_CLAUDE_COMMANDS.map((command) => command.name),
             terminal_slash_commands: ['exit'],
         }),
@@ -541,6 +551,8 @@ lines.on('line', (line) => {
             state.effort = flags.effortLevel;
         }
         if (typeof flags.ultracode === 'boolean') state.ultracode = flags.ultracode;
+        if (request.subtype === 'set_permission_mode' && typeof request.mode === 'string')
+            state.permissionMode = request.mode;
         const answer =
             request.subtype === 'rewind_files'
                 ? rewindFiles(request, transcriptPath, configDirectory)

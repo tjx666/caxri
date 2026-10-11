@@ -2,6 +2,7 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/domain.js';
+import { agentChatPermissionModeSchema } from './agent-chat-permissions.js';
 import { agentChatRequestSchema } from './agent-chat-requests.js';
 import { agentChatUsageSchema } from './agent-chat-usage.js';
 
@@ -408,6 +409,15 @@ export const agentChatSnapshotSchema = z.strictObject({
      */
     ultracode: z.boolean().optional(),
     /**
+     * The permission level the next turn runs with. Absent when the provider's launch settings describe something no
+     * level matches (shown as "Custom"); `agentChat.configure` switches it.
+     */
+    permissionMode: agentChatPermissionModeSchema.optional(),
+    /**
+     * Whether the next turn plans instead of acting. Present only for a provider with a native plan mode.
+     */
+    planMode: z.boolean().optional(),
+    /**
      * Models `agentChat.configure` can switch to. Absent until the provider has listed them.
      */
     models: z.array(agentChatModelSchema).max(MAX_AGENT_CHAT_MODELS).optional(),
@@ -455,6 +465,8 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 model: agentChatSnapshotSchema.shape.model.unwrap().nullable(),
                 effort: agentChatSnapshotSchema.shape.effort.unwrap().nullable(),
                 ultracode: agentChatSnapshotSchema.shape.ultracode.unwrap().nullable(),
+                permissionMode: agentChatSnapshotSchema.shape.permissionMode.unwrap().nullable(),
+                planMode: agentChatSnapshotSchema.shape.planMode.unwrap().nullable(),
                 models: agentChatSnapshotSchema.shape.models.unwrap(),
                 commands: agentChatSnapshotSchema.shape.commands.unwrap(),
                 usage: agentChatSnapshotSchema.shape.usage.unwrap().nullable(),

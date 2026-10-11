@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+    AgentChatPermission,
     AgentProvider,
     ProcessState,
     TerminalFailureReason,
@@ -8,6 +9,7 @@ import type {
     TerminalRecord,
     TerminalSurface,
 } from '@caxri/protocol';
+import { agentChatPermissionModeSchema } from '@caxri/protocol';
 import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
@@ -37,6 +39,8 @@ interface TerminalRow {
     createdAt: number;
     updatedAt: number;
     surface: string;
+    chatPermissionMode: string | null;
+    chatPlanMode: number | null;
 }
 
 function mapTerminal(row: TerminalRow): TerminalRecord {
@@ -68,6 +72,20 @@ export interface NewTerminalInput {
     cwd: string;
     title: string;
     surface?: TerminalSurface;
+    /**
+     * The permission a new Chat starts with; ignored for a PTY.
+     */
+    chatPermission?: AgentChatPermission;
+}
+
+function chatPermissionColumns(permission: AgentChatPermission | undefined): {
+    chatPermissionMode: string | null;
+    chatPlanMode: number | null;
+} {
+    return {
+        chatPermissionMode: permission?.permissionMode ?? null,
+        chatPlanMode: permission?.planMode ? 1 : null,
+    };
 }
 
 /**
@@ -148,6 +166,7 @@ export class TerminalsModel {
                 sessionId: input.sessionId,
                 kind: input.kind,
                 surface: input.surface ?? 'pty',
+                ...(input.surface === 'chat' && chatPermissionColumns(input.chatPermission)),
                 provider: input.kind === 'shell' ? null : input.kind,
                 cwd: input.cwd,
                 title: input.title,
@@ -160,6 +179,43 @@ export class TerminalsModel {
             })
             .run();
         return this.get(id)!;
+    }
+
+    /**
+     * A Chat's stored permission choice. A level this build does not know reads as none, so the launch settings decide.
+     */
+    getChatPermission(id: string): AgentChatPermission | undefined {
+        const row = this.database
+            .select({ mode: terminals.chatPermissionMode, planMode: terminals.chatPlanMode })
+            .from(terminals)
+            .where(eq(terminals.id, id))
+            .get();
+        if (!row) return undefined;
+        const mode = agentChatPermissionModeSchema.safeParse(row.mode);
+        return { ...(mode.success && { permissionMode: mode.data }), planMode: row.planMode === 1 };
+    }
+
+    setChatPermission(id: string, permission: AgentChatPermission, now = Date.now()): boolean {
+        return (
+            this.database
+                .update(terminals)
+                .set({ ...chatPermissionColumns(permission), updatedAt: now })
+                .where(eq(terminals.id, id))
+                .run().changes === 1
+        );
+    }
+
+    /**
+     * Whether a Chat has stored a permission choice. One that has not still takes the Project default on a switch to
+     * Chat.
+     */
+    hasChatPermission(id: string): boolean {
+        const row = this.database
+            .select({ mode: terminals.chatPermissionMode, planMode: terminals.chatPlanMode })
+            .from(terminals)
+            .where(eq(terminals.id, id))
+            .get();
+        return row !== undefined && (row.mode !== null || row.planMode !== null);
     }
 
     remove(id: string): boolean {

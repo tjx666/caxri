@@ -64,6 +64,7 @@ import {
     fakeCodexStateDirectory,
     readSavedThread,
     recordThreadOpen,
+    recordTurnStart,
     resumeSavedThread,
     saveThread,
     threadPath,
@@ -494,6 +495,10 @@ function handle(message: RpcMessage) {
             const thread = currentThread();
             if (typeof parameters.model === 'string') thread.model = parameters.model;
             if (typeof parameters.effort === 'string') thread.effort = parameters.effort;
+            recordTurnStart(parameters);
+            const collaboration = parameters.collaborationMode as { mode?: unknown } | undefined;
+            if (typeof collaboration?.mode === 'string')
+                thread.collaborationMode = collaboration.mode;
             thread.turns.push(turn);
             state.activeTurn = turn;
             answerTurnRequest(text, {

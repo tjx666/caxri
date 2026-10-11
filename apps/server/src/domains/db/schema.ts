@@ -125,6 +125,11 @@ export const projects = sqliteTable(
          * add of the same root restores its Sessions instead of starting an empty Project.
          */
         hiddenAt: integer('hidden_at'),
+        /**
+         * `ProjectChatDefaults` JSON: the permission level and plan mode new Chats start with, per provider. Validated
+         * on read; an unreadable value counts as none, so new Chats fall back to their launch settings.
+         */
+        chatDefaults: text('chat_defaults', { mode: 'json' }),
     },
     (table) => [
         unique().on(table.rootPath),
@@ -274,6 +279,16 @@ export const terminals = sqliteTable(
          * PTY.
          */
         surface: text('surface').notNull().default('pty'),
+        /**
+         * A Chat's permission level (`AgentChatPermissionMode`), copied from the Project default when the Chat is
+         * created and changed from its composer. Null follows the provider's launch settings. Read through a validating
+         * mapper instead of a `CHECK`, for the same rebuild reason as `surface`.
+         */
+        chatPermissionMode: text('chat_permission_mode'),
+        /**
+         * 1 while a Chat's plan mode is on; null or 0 otherwise.
+         */
+        chatPlanMode: integer('chat_plan_mode'),
     },
     (table) => [
         /**

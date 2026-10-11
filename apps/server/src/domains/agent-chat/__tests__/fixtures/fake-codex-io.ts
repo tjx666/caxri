@@ -40,6 +40,10 @@ export interface FakeThread {
      */
     model?: string;
     effort?: string;
+    /**
+     * The collaboration mode the last `turn/start` named (`plan` or `default`), which a resumed thread reports.
+     */
+    collaborationMode?: string;
 }
 
 /**

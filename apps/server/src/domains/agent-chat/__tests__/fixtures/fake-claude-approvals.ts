@@ -131,6 +131,7 @@ export async function didRunApprovalScenario(
             { plan: FAKE_CLAUDE_PLAN },
             () => ({ content: 'User has approved your plan.' }),
         );
+        if (isAllowed) io.exitPlanMode();
         if (!io.isInterrupted())
             await io.didStreamFully(isAllowed ? 'Plan approved.' : 'Kept planning.', 0);
         io.result(startedAt, 'done');

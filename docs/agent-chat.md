@@ -205,6 +205,9 @@ Grok Build (root options go before `agent`, agent options after it):
 `--no-leader` is always passed: otherwise a configured `[cli] use_leader` turns `agent stdio` into a
 bridge to a shared leader process that Caxri cannot own.
 
+A Chat's own permission level, once chosen, replaces the approval and sandbox parts of these
+settings; see [Permission level and plan mode](#permission-level-and-plan-mode).
+
 The Claude Code Chat uses the `claude_code` system prompt and tool presets and loads the user's,
 Project's, and local settings, so it behaves like the TUI in the same folder.
 
@@ -824,6 +827,57 @@ A running turn keeps the model it started with.
   the usage meter takes the new model's `totalContextTokens`. Its reasoning efforts are not
   offered yet, so every Grok Build model lists no `efforts`.
 
+## Permission level and plan mode
+
+The composer's permission picker sits beside the model picker. It switches the Chat's permission
+level and, where the provider has one, plan mode. Levels are provider-neutral ids
+(`agentChatPermissionCapabilities` in `packages/protocol/src/agent/agent-chat-permissions.ts`), but
+a provider offers only the levels it runs natively; Caxri never emulates a level by answering
+approvals itself. Server Core rejects any other level, or plan mode for a provider without it, with
+`VALIDATION`.
+
+| Level        | Codex                                                             | Claude Code                         | Grok Build                       |
+| ------------ | ----------------------------------------------------------------- | ----------------------------------- | -------------------------------- |
+| Read only    | `on-request`, `read-only` sandbox                                 | Not offered                         | Not offered                      |
+| Ask          | Not offered                                                       | `permissionMode: default`           | Root `--permission-mode default` |
+| Accept edits | Shown as "Default": `on-request`, `workspace-write` sandbox       | `permissionMode: acceptEdits`       | Not offered                      |
+| Auto         | `on-request`, `workspace-write`, `approvalsReviewer: auto_review` | `permissionMode: auto`              | Root `--permission-mode auto`    |
+| Full access  | `never`, `danger-full-access` sandbox                             | `permissionMode: bypassPermissions` | `agent --always-approve`         |
+| Plan mode    | `collaborationMode: plan` on `turn/start`                         | `permissionMode: plan`              | Not offered                      |
+
+The snapshot's `permissionMode` is the level the provider runs with. It is absent ("Custom" in the
+picker) when the launch settings match no level, for example Codex with `--ask-for-approval
+untrusted`; such a Chat keeps those settings until the user picks a level. `planMode` is present
+only for a provider that has plan mode.
+
+A switch is saved on the Chat's Terminal (`terminals.chat_permission_mode`,
+`terminals.chat_plan_mode`), so a restart, resume, or app relaunch starts with it. How it applies
+mid-Chat differs per provider:
+
+- **Codex** has no in-place request, so a level rides on the next `turn/start` as
+  `approvalPolicy`, `approvalsReviewer`, and `sandboxPolicy`, which Codex keeps on the thread; a
+  running turn keeps the level it started with. `thread/start` and `thread/resume` pass the saved
+  level directly. Plan mode is app-server's `collaborationMode`, which names the model and effort it
+  runs with: it is sent on every turn while on, and `default` is sent once to turn it off when the
+  thread last ran in plan mode (as `thread/resume` reports or the last turn sent). Codex's `plan`
+  item shows as an Agent message. A real-Agent E2E ignores the choice and keeps its fixed read-only
+  thread.
+- **Claude Code** switches in place with `Query.setPermissionMode`, so a level applies from the next
+  tool call, including inside a running turn. The Chat always opens with
+  `allowDangerouslySkipPermissions` so Full access can be chosen later. Level and plan mode are kept
+  apart because Claude Code has one mode for both: when an approved `ExitPlanMode` leaves plan mode,
+  Caxri turns plan mode off, switches back to the chosen level, and saves that. A launch
+  `--permission-mode plan` is not carried over; plan mode is only the composer's toggle.
+- **Grok Build** fixes its permission at launch, so a level switch restarts the Agent on the same
+  conversation (`session/load`) with the new options. A running turn would be cut short, so the
+  switch fails with `CONFLICT` until it finishes.
+
+**Project default.** "Use as Project default" saves the Chat's level and plan mode for that
+provider on its Project (`projects.chat_defaults`, `project.setChatDefault`). A new Chat copies it at
+creation, and so does a Terminal switched to Chat for the first time; a Chat that already has a
+choice keeps it, and changing the default never touches existing Chats. Without a default, a new
+Chat follows its provider's launch settings.
+
 ## Lifecycle signals
 
 A Chat begins its own launch generation with the Agent coordinator and synthesizes
@@ -888,7 +942,7 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 ## Not yet supported
 
 Claude Code's agent picker (its `initialize` response already lists the agents). Grok Build's
-reasoning effort picker and images (its ACP agent advertises `image: false`). Grok Build stays out
+plan mode, reasoning effort picker, and images (its ACP agent advertises `image: false`). Grok Build stays out
 of the real-Agent smoke. On mobile, a
 Chat shows no plan or context usage yet, cannot run slash commands, does not show background tasks or the
 follow-up queue, cannot edit or fork from an earlier message, older history beyond the window stays on

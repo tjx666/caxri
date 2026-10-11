@@ -1,13 +1,17 @@
 import type {
     AgentChatDecision,
+    AgentChatDefault,
     AgentChatMessageInput,
     AgentChatModelRequest,
+    AgentChatPermissionRequest,
+    AgentProvider,
     TerminalRecord,
 } from '@caxri/protocol';
 import { formatLongPasteReference } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import { pushToast, tryCommand } from '../../stores/toasts';
+import { refreshWorkbench } from '../../stores/workbench';
 import { didSelectSession } from '../session/session-commands';
 import { createTerminalForSession } from '../terminal/terminal-commands';
 import { writeAgentChatDraft } from './agent-chat-drafts';
@@ -170,6 +174,36 @@ export function configureAgentChat(terminalId: string, change: AgentChatModelReq
     // eslint-disable-next-line no-void -- tryCommand reports a failed switch through the toast
     void tryCommand('Unable to switch the model', () =>
         caxri.request('agentChat.configure', { terminalId, ...change }),
+    );
+}
+
+/**
+ * Switches the Chat's permission level or plan mode. Grok Build restarts on the same conversation to apply a level, and
+ * refuses while a turn runs; the toast reports that.
+ */
+export function configureAgentChatPermission(
+    terminalId: string,
+    change: AgentChatPermissionRequest,
+): void {
+    // eslint-disable-next-line no-void -- tryCommand reports a failed switch through the toast
+    void tryCommand('Unable to change permissions', () =>
+        caxri.request('agentChat.configure', { terminalId, ...change }),
+    );
+}
+
+/**
+ * Saves the level and plan mode new `provider` Chats in the Project start with.
+ */
+export function saveAgentChatProjectDefault(
+    projectId: string,
+    provider: AgentProvider,
+    chatDefault: AgentChatDefault,
+): void {
+    // eslint-disable-next-line no-void -- tryCommand reports a failed save through the toast
+    void tryCommand(
+        'Unable to save the Project default',
+        () => caxri.request('project.setChatDefault', { projectId, provider, chatDefault }),
+        { refresh: refreshWorkbench },
     );
 }
 

@@ -1,7 +1,7 @@
 /* eslint-disable unicorn/max-nested-calls -- Declarative Zod schemas intentionally compose bounded validators inline. */
 import { z } from 'zod';
 
-import { identifierSchema } from '../domain/domain.js';
+import { agentProviderSchema, identifierSchema, projectRecordSchema } from '../domain/domain.js';
 import {
     isLongPasteWithinLimit,
     MAX_LONG_PASTE_BYTES,
@@ -23,6 +23,7 @@ import {
     MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
     MAX_AGENT_CHAT_MESSAGE_LENGTH,
 } from './agent-chat-contract.js';
+import { agentChatDefaultSchema, agentChatPermissionModeSchema } from './agent-chat-permissions.js';
 import { agentChatDecisionSchema } from './agent-chat-requests.js';
 
 export type AgentChatImageInput = z.infer<typeof agentChatImageInputSchema>;
@@ -123,9 +124,11 @@ export const agentChatMethods = {
         result: z.null(),
     },
     /**
-     * Switches the model, reasoning effort, or ultracode for the next turn and the ones after it; a running turn keeps
-     * its own. A model the snapshot's `models` does not list, an effort that model does not accept, or ultracode while
-     * the snapshot does not offer it, fails with `VALIDATION`.
+     * Switches the model, reasoning effort, ultracode, permission level, or plan mode for the next turn and the ones
+     * after it; a running turn keeps its own. A model the snapshot's `models` does not list, an effort that model does
+     * not accept, ultracode while the snapshot does not offer it, or a level or plan mode the provider does not offer
+     * (`agentChatPermissionCapabilities`), fails with `VALIDATION`. A provider that fixes its permission at launch
+     * (Grok Build) restarts on the same conversation to apply one, and fails with `CONFLICT` while a turn runs.
      */
     'agentChat.configure': {
         ...commandPolicy('server', 'control'),
@@ -135,13 +138,20 @@ export const agentChatMethods = {
                 model: agentChatModelSchema.shape.id.optional(),
                 effort: agentChatEffortSchema.optional(),
                 ultracode: z.boolean().optional(),
+                permissionMode: agentChatPermissionModeSchema.optional(),
+                planMode: z.boolean().optional(),
             })
             .refine(
                 (change) =>
                     change.model !== undefined ||
                     change.effort !== undefined ||
-                    change.ultracode !== undefined,
-                { message: 'Choose a model, an effort, or ultracode' },
+                    change.ultracode !== undefined ||
+                    change.permissionMode !== undefined ||
+                    change.planMode !== undefined,
+                {
+                    message:
+                        'Choose a model, an effort, ultracode, a permission level, or plan mode',
+                },
             ),
         result: z.null(),
     },
@@ -301,6 +311,20 @@ export const agentChatMethods = {
             removedTurns: z.number().int().positive(),
         }),
         result: z.object({ confirmed: z.boolean() }),
+    },
+    /**
+     * Saves the permission level and plan mode new `provider` Chats in this Project start with; `null` clears it so new
+     * Chats follow the provider's launch settings again. Existing Chats keep their own choice. It lives with the Chat
+     * methods because only the Chat composer sets it.
+     */
+    'project.setChatDefault': {
+        ...commandPolicy('server', 'write'),
+        params: z.strictObject({
+            projectId: identifierSchema,
+            provider: agentProviderSchema,
+            chatDefault: agentChatDefaultSchema.nullable(),
+        }),
+        result: projectRecordSchema,
     },
 };
 /* eslint-enable unicorn/max-nested-calls */

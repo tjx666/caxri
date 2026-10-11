@@ -1,9 +1,11 @@
 import type { Query } from '@anthropic-ai/claude-agent-sdk';
-import type { AgentChatUsage } from '@caxri/protocol';
+import type { AgentChatSnapshot, AgentChatUsage } from '@caxri/protocol';
 import { MAX_AGENT_CHAT_USAGE_BREAKDOWN } from '@caxri/protocol';
 
 import { clip, isRecord, stringField } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
+import { withCacheRewriteEstimate } from './chat-usage';
+import { claudeUsageTokens } from './claude-items';
 import { withTimeout } from './claude-prompt-queue';
 
 const CONTEXT_USAGE_TIMEOUT_MS = 5_000;
@@ -27,6 +29,35 @@ export function claudeCacheTtlMinutes(usage: unknown): number | undefined {
     if (isPositive(creation.ephemeral_1h_input_tokens)) return 60;
     if (isPositive(creation.ephemeral_5m_input_tokens)) return 5;
     return undefined;
+}
+
+/**
+ * The usage one assistant response reports, or `undefined` when it carries no token count. The previous breakdown stays
+ * until a context refresh replaces it, so an open context meter keeps its rows instead of collapsing to the total for
+ * every response of a running turn.
+ */
+export function claudeResponseUsage(
+    message: Record<string, unknown>,
+    snapshot: Pick<AgentChatSnapshot, 'model' | 'usage'>,
+    contextWindow: number | undefined,
+): AgentChatUsage | undefined {
+    const totalTokens = claudeUsageTokens(message.usage);
+    if (totalTokens === undefined) return undefined;
+    const { breakdown, compactWindow, cacheTtlMinutes } = snapshot.usage ?? {};
+    return withCacheRewriteEstimate(
+        {
+            totalTokens,
+            ...(contextWindow && { contextWindow }),
+            ...(breakdown && { breakdown }),
+            ...(compactWindow && { compactWindow }),
+            cacheTtlMinutes:
+                claudeCacheTtlMinutes(message.usage) ??
+                cacheTtlMinutes ??
+                DEFAULT_CLAUDE_CACHE_TTL_MINUTES,
+            lastResponseAt: Date.now(),
+        },
+        stringField(message.model) ?? snapshot.model,
+    );
 }
 
 /**

@@ -36,6 +36,10 @@ export interface FakeClaudeIo {
      * Starts a turn without a user message, as Claude Code does when a background task finishes.
      */
     startAutoTurn(): void;
+    /**
+     * Leaves plan mode after an approved plan, as Claude Code does, reporting the mode it returned to.
+     */
+    exitPlanMode(): void;
 }
 
 export interface QueuedTurn {

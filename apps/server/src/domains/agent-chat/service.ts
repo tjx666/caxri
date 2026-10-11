@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type {
     AgentChatMessageInput,
     AgentChatModelRequest,
+    AgentChatPermissionRequest,
     AgentChatSnapshot,
     AgentChatTaskSnapshot,
     TerminalRecord,
@@ -21,7 +22,7 @@ import { SingleFlight } from '../single-flight';
 import { agentChatDrivers } from './chat-drivers';
 import { ChatEndpointLease } from './chat-endpoint-lease';
 import type { ChatExitHost } from './chat-exit';
-import { handleChatExit } from './chat-exit';
+import { abandonChatStart, handleChatExit } from './chat-exit';
 import type { CreateForkSession } from './chat-fork';
 import { forkChat } from './chat-fork';
 import { isAgentChatCommandListed } from './chat-items';
@@ -33,6 +34,7 @@ import {
     readChatTranscript,
     requireChatTerminal,
 } from './chat-launch';
+import { switchChatPermission } from './chat-permission-switch';
 import type { AgentChatProviderSession, AgentChatResponse } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
 import type { ChatRewindRequest } from './chat-rewind';
@@ -119,34 +121,6 @@ export class AgentChatService {
         }
     }
 
-    /**
-     * Ends a start whose Chat began a teardown before its provider spawned. Nothing ran, so this is not a failure: the
-     * Terminal records the stop a running provider's requested exit would have.
-     */
-    private abandonStart(
-        terminalId: string,
-        state: ChatState,
-        launchId: string,
-        startedAt: number,
-    ): void {
-        const { coordinator, database, logger } = this.options;
-        if (state.launchId === launchId) state.launchId = undefined;
-        this.endpoint.retire(terminalId);
-        coordinator.endTerminalLaunch(terminalId);
-        logger.write('info', logEventCatalog.agentChat.processStarted, {
-            fields: {
-                terminalId,
-                outcome: 'abandoned',
-                reason: state.retiring ?? 'closed',
-                durationMs: Date.now() - startedAt,
-            },
-        });
-        // Shutdown stamps durable state through the shared shutdown path.
-        if (this.isShuttingDown || !database.getTerminal(terminalId)) return;
-        this.states.recordRequestedStop(terminalId, state);
-        this.states.publish(terminalId);
-    }
-
     private async start(
         terminal: ChatTerminal,
         state: ChatState,
@@ -184,7 +158,12 @@ export class AgentChatService {
             );
             // Preparing awaited; the Chat may have been closed, deleted, detached, or archived meanwhile.
             if (!this.states.isAdmitted(terminalId, state)) {
-                this.abandonStart(terminalId, state, launchId, startedAt);
+                abandonChatStart(this.exitHost(), this.isShuttingDown, {
+                    terminalId,
+                    state,
+                    launchId,
+                    startedAt,
+                });
                 return;
             }
             session = driver.create({
@@ -194,6 +173,7 @@ export class AgentChatService {
                 environment,
                 launch,
                 isRealAgentE2E,
+                permission: database.getChatPermission(terminalId) ?? { planMode: false },
                 agentSessionId: database.getTerminal(terminalId)?.agentSessionId,
                 ...(state.resumeAt !== undefined && { resumeAt: state.resumeAt }),
                 clientVersion: this.options.clientVersion,
@@ -222,6 +202,9 @@ export class AgentChatService {
                     if (!isCurrent()) return;
                     if (database.rebindAgentSession(terminalId, provider, agentSessionId))
                         this.states.publish(terminalId);
+                },
+                onPermissionChanged: (permission) => {
+                    if (isCurrent()) database.setChatPermission(terminalId, permission);
                 },
                 ...chatSessionLogCallbacks(this.options, terminalId),
                 onExit: (exit) =>
@@ -386,6 +369,18 @@ export class AgentChatService {
             if (config.model || config.effort || config.ultracode !== undefined)
                 await session.configure?.(config);
         });
+    }
+
+    /**
+     * Switches the permission level or plan mode; see {@link switchChatPermission}.
+     */
+    async setPermission(terminalId: string, request: AgentChatPermissionRequest): Promise<void> {
+        const restart = (id: string) => this.restart(id, true);
+        await switchChatPermission(
+            { options: this.options, enqueue: this.enqueue.bind(this), restart },
+            terminalId,
+            request,
+        );
     }
 
     /**

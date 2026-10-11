@@ -8,6 +8,7 @@ describe('codexChatSettings', () => {
     it('keeps the autonomy flag meaning: no approvals and no sandbox', () => {
         expect(codexChatSettings(launch(['--dangerously-bypass-approvals-and-sandbox']))).toEqual({
             approvalPolicy: 'never',
+            approvalsReviewer: 'user',
             sandbox: 'danger-full-access',
             rootArgs: [],
         });
@@ -16,6 +17,7 @@ describe('codexChatSettings', () => {
     it('asks for approval inside the workspace sandbox without it', () => {
         expect(codexChatSettings(launch([]))).toEqual({
             approvalPolicy: 'on-request',
+            approvalsReviewer: 'user',
             sandbox: 'workspace-write',
             rootArgs: [],
         });
@@ -39,6 +41,7 @@ describe('codexChatSettings', () => {
             ),
         ).toEqual({
             approvalPolicy: 'untrusted',
+            approvalsReviewer: 'user',
             sandbox: 'read-only',
             model: 'gpt-x',
             rootArgs: ['-c', 'model_reasoning_effort=high', '--profile', 'work'],

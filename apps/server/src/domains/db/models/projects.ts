@@ -1,23 +1,45 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 
-import type { ProjectIcon, ProjectRecord } from '@caxri/protocol';
-import { CaxriError, isTopLevelProject, projectIconSchema } from '@caxri/protocol';
+import type {
+    AgentChatDefault,
+    AgentProvider,
+    ProjectChatDefaults,
+    ProjectIcon,
+    ProjectRecord,
+} from '@caxri/protocol';
+import {
+    CaxriError,
+    isTopLevelProject,
+    projectChatDefaultsSchema,
+    projectIconSchema,
+} from '@caxri/protocol';
 import { asc, eq, sql } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
 import { projects } from '../schema';
 
+/**
+ * The stored Chat defaults, or none when the JSON is missing, empty, or from a shape this build does not read.
+ */
+function chatDefaults(value: unknown): ProjectChatDefaults | undefined {
+    const parsed = projectChatDefaultsSchema.safeParse(value);
+    return parsed.success && Object.keys(parsed.data).length > 0 ? parsed.data : undefined;
+}
+
 function projectRecord(row: typeof projects.$inferSelect): ProjectRecord {
-    const { hiddenAt, iconColor, iconName, ownerProjectId, ...project } = row;
+    const { chatDefaults: storedChatDefaults, hiddenAt, iconColor, iconName, ...rest } = row;
+    const { ownerProjectId, ...project } = rest;
     const icon = iconName
         ? projectIconSchema.parse({ name: iconName, ...(iconColor && { color: iconColor }) })
         : undefined;
+    const defaults = chatDefaults(storedChatDefaults);
     return {
         ...project,
         ...(icon && { icon }),
         ...(ownerProjectId && { ownerProjectId }),
         ...(hiddenAt !== null && { hiddenAt }),
+        ...(defaults && { chatDefaults: defaults }),
     };
 }
 
@@ -147,6 +169,30 @@ export class ProjectsModel {
             this.database
                 .update(projects)
                 .set({ iconName: icon?.name ?? null, iconColor: icon?.color ?? null })
+                .where(eq(projects.id, id))
+                .run().changes === 1
+        );
+    }
+
+    /**
+     * Replaces one provider's Chat default, keeping the other providers'; `null` removes it.
+     */
+    setChatDefault(
+        id: string,
+        provider: AgentProvider,
+        chatDefault: AgentChatDefault | null,
+    ): boolean {
+        const project = this.get(id);
+        if (!project) return false;
+        const next: ProjectChatDefaults = {
+            ...project.chatDefaults,
+            [provider]: chatDefault ?? undefined,
+        };
+        if (!chatDefault) delete next[provider];
+        return (
+            this.database
+                .update(projects)
+                .set({ chatDefaults: Object.keys(next).length > 0 ? next : null })
                 .where(eq(projects.id, id))
                 .run().changes === 1
         );
