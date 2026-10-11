@@ -6,7 +6,7 @@ import type {
     SourceControlExternalLink,
     SourceControlViewModel,
 } from '@caxri/protocol';
-import { ChevronDown, ChevronRight, GitBranch, GitCommitHorizontal } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { DiffStat } from '../../../components/diff-stat';
 import { DisclosureMotion } from '../../../components/disclosure-motion';
@@ -24,6 +24,7 @@ import type {
     SourceControlController,
     SourceControlSubtreeTarget,
 } from './hooks/use-source-control-controller';
+import { SourceControlBranchRow } from './source-control-branch-row';
 import { SourceControlHistory } from './source-control-history';
 import { SourceControlIcon } from './source-control-icon';
 import type { SourceControlRowMenuItem } from './source-control-row-menu';
@@ -257,7 +258,7 @@ function ProviderHeader({
             >
                 {/*
                  * One line: the repository identity plus its own counts. The branch is the section's first child row
-                 * ({@link ProviderBranchRow}) instead, so a long worktree folder name and a long branch never compete
+                 * ({@link SourceControlBranchRow}) instead, so a long worktree folder name and a long branch never compete
                  * for the same width, and the header keeps the single-line rhythm of every other row in the tree.
                  */}
                 <span className="git-repository-identity flex h-5 min-w-0 flex-1 items-center gap-1 overflow-hidden">
@@ -343,46 +344,6 @@ function ProviderHeader({
                 );
             })}
         </div>
-    );
-}
-
-/**
- * The repository's branch (or whatever reference the provider describes) as the section's first child row, with the
- * full row width to itself and an optional trailing status such as `↑2 ↓1`. It carries no action of its own, so it has
- * no hover fill; hovering or focusing it shows the same detail the header tooltip does. An empty description means the
- * provider judged the row redundant with the header, and it is omitted.
- */
-function ProviderBranchRow({ provider }: { provider: ProviderModel }) {
-    if (!provider.description) return null;
-    const Icon = provider.descriptionKind === 'commit' ? GitCommitHorizontal : GitBranch;
-    return (
-        <SourceControlTreeRow
-            rowId={`provider-branch:${provider.id}`}
-            level={2}
-            className="git-repository-branch-row flex h-7 w-full min-w-0 cursor-default items-center gap-1 border-0 bg-transparent px-2 text-left text-[12px] text-muted"
-            tooltip={
-                <StructuredTooltip
-                    title={provider.description}
-                    details={[provider.descriptionTooltip]}
-                />
-            }
-        >
-            {/* Sits in the chevron column of the group captions below, so the branch text lines up with their labels. */}
-            <Icon aria-hidden="true" className="shrink-0" size={13} />
-            <span
-                className="git-repository-meta flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
-                aria-label={provider.descriptionAccessibilityLabel}
-            >
-                <span className="git-repository-branch min-w-0 truncate">
-                    {provider.description}
-                </span>
-                {provider.descriptionBadge && (
-                    <span className="git-repository-branch-badge shrink-0 text-[11px] whitespace-nowrap tabular-nums opacity-80">
-                        {provider.descriptionBadge}
-                    </span>
-                )}
-            </span>
-        </SourceControlTreeRow>
     );
 }
 
@@ -537,7 +498,7 @@ export function SourceControlProviderSection({
             <DisclosureMotion animate expanded={expanded} kind="git-repository">
                 {() => (
                     <div className="git-files overflow-visible">
-                        <ProviderBranchRow provider={provider} />
+                        <SourceControlBranchRow provider={provider} />
                         {foldedGroup ? (
                             <GroupBody
                                 controller={controller}
