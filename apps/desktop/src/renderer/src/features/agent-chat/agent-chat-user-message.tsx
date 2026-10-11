@@ -200,16 +200,25 @@ function UserMessageText({
     return segments.map((segment, position) => {
         if (segment.kind === 'text') return segment.text;
         if (segment.kind === 'file')
+            /*
+             * An anchor rather than a `<button>`: a button is an atomic inline block, so a long path that does not fit the
+             * line moves whole to the next one and leaves the quotes around it on lines of their own, while an anchor
+             * wraps with the surrounding text. Main denies every window navigation, so `href` is semantic only (it makes
+             * the anchor focusable and Enter-activated); the click opens the file instead.
+             */
             return (
-                <button
-                    className="cursor-pointer border-0 bg-transparent p-0 text-left underline decoration-muted decoration-dotted underline-offset-3 transition-colors hover:text-accent hover:decoration-solid focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
+                <a
+                    className="cursor-pointer underline decoration-muted decoration-dotted underline-offset-3 transition-colors hover:text-accent hover:decoration-solid focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
+                    href={segment.file}
                     key={position}
                     title={`Open ${segment.file}`}
-                    type="button"
-                    onClick={() => onOpenFile?.(segment.file)}
+                    onClick={(event) => {
+                        event.preventDefault();
+                        onOpenFile?.(segment.file);
+                    }}
                 >
                     {segment.text}
-                </button>
+                </a>
             );
         const summary = linkSummary(segment.url);
         if (!summary) return segment.text;
