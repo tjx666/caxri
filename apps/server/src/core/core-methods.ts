@@ -21,6 +21,7 @@ export const coreForwardedMethods = [
     'agentChat.restoreFiles',
     'agentChat.rewind',
     'agentChat.runCommand',
+    'agentChat.saveLongPaste',
     'agentChat.send',
     'agentChat.sendQueuedNow',
     'agentChat.stopTask',

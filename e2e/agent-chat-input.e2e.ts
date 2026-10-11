@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -19,7 +19,7 @@ import {
 } from './support/helpers.ts';
 
 /**
- * A 1x1 PNG for the file picker; the paste path draws a larger one in the page so the thumbnail is visible.
+ * A 1x1 PNG for drops and the file picker; the paste path draws a larger one in the page so the thumbnail is visible.
  */
 const PIXEL_PNG = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==',
@@ -123,6 +123,89 @@ test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}
         await message.press('Enter');
         await expect(commands).toHaveCount(0);
         await expect(chat.getByText('Context compacted')).toBeVisible();
+        await expect(message).toHaveValue('');
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * Pastes `text` into the message box the way the system clipboard delivers it.
+ */
+async function pasteText(message: Locator, text: string): Promise<void> {
+    await message.evaluate((element, pasted) => {
+        const clipboardData = new DataTransfer();
+        clipboardData.setData('text/plain', pasted);
+        element.dispatchEvent(
+            new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData }),
+        );
+    }, text);
+}
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Codex Chat attaches picked files and saves a long paste to a file', async ({}, testInfo) => {
+    // The real path, so the picked files sit inside the Project root the Agent runs in, not behind a `/var` symlink.
+    const temporary = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-attach-'));
+    const directory = await realpath(temporary);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(join(root, 'shots'), { recursive: true });
+    // More images than the former limit of four.
+    const shots = Array.from({ length: 6 }, (_, index) =>
+        join(root, 'shots', `shot-${index + 1}.png`),
+    );
+    await Promise.all(shots.map((path) => writeFile(path, PIXEL_PNG)));
+    const notes = join(root, 'notes.txt');
+    await writeFile(notes, 'release notes\n');
+    const agentMode = await fakeCodexChatAgentMode(directory, userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Codex Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        await expect(message).toBeVisible();
+        await expect(chat.getByRole('button', { name: 'Attach files' })).toBeVisible();
+
+        // The picker is the native open panel, so the spec hands its input the chosen files instead of driving it.
+        await chat.locator('input[type="file"]').setInputFiles([...shots, notes]);
+        const attached = chat.getByRole('list', { name: 'Attached images' });
+        await expect(attached.getByRole('listitem')).toHaveCount(shots.length);
+        // A file that is not an image is cited by its path relative to the Agent, as a drop cites it.
+        await expect(message).toHaveValue('notes.txt ');
+
+        const long = Array.from(
+            { length: 800 },
+            (_, index) => `log line ${index}: ${'x'.repeat(40)}`,
+        ).join('\n');
+        await pasteText(message, long);
+        await expect(message).toHaveValue(/\[Long paste saved locally\]/u);
+        const value = await message.inputValue();
+        const savedPath = JSON.parse(/Original file: (".*")/u.exec(value)?.[1] ?? '""') as string;
+        expect(await readFile(savedPath, 'utf8')).toBe(long);
+        expect((await stat(savedPath)).mode & 0o777).toBe(0o600);
+        expect(value).not.toContain('log line 1:');
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-picked-files.png') });
+
+        await message.press('Enter');
+        await expect(chat.getByText(`Received ${shots.length} images.`)).toBeVisible();
+        // The sent reference's path is a link that starts on the same line as the quote before it, not on a line of its
+        // own the way an atomic inline-block link would.
+        const savedLink = chat.getByRole('link', { name: savedPath });
+        await expect(savedLink).toBeVisible();
+        const lineGap = await savedLink.evaluate((element) => {
+            const before = element.previousSibling;
+            if (!before?.textContent) return Infinity;
+            const quote = document.createRange();
+            quote.setStart(before, before.textContent.length - 1);
+            quote.setEnd(before, before.textContent.length);
+            return Math.abs(quote.getBoundingClientRect().top - element.getClientRects()[0].top);
+        });
+        expect(lineGap).toBeLessThan(2);
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-sent-files.png') });
+        await expect(attached).toHaveCount(0);
         await expect(message).toHaveValue('');
     } finally {
         await closeAppQuietly(running.app);

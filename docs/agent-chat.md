@@ -669,9 +669,13 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
 
 ## Images and slash commands
 
-- **Images.** A provider with `capabilities.chatImages` (Codex and Claude Code) accepts up to 4 PNG,
-  JPEG, GIF, or WebP images of at most 5 MB each per message, pasted, or dropped anywhere on the Chat;
-  there is no picker button. An image alone is a valid message. `agentChat.send` carries each
+- **Images.** A provider with `capabilities.chatImages` (Codex and Claude Code) accepts up to 20 PNG,
+  JPEG, GIF, or WebP images per message, at most 5 MB each and 20 MB together, pasted, dropped
+  anywhere on the Chat, or chosen with the composer's Attach files button. 5 MB is the Anthropic
+  API's per-image limit; 20 images stays under its stricter 2000 px dimension rule for requests with
+  more than 20; and 20 MB keeps the worst-case payload where four full-size images already put it,
+  inside the API's 32 MB request limit once base64 adds a third. Server Core enforces the same count
+  and combined size. An image alone is a valid message. `agentChat.send` carries each
   image's base64 data straight to the provider (Codex `image` data-URL input, a Claude `image`
   content block) and never stores it. The projection keeps only the Renderer-made JPEG thumbnail (at
   most 48 KB, raster data URLs only), which counts against the text budget. Codex pairs it with the
@@ -681,6 +685,19 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   position; no provider process is needed), makes the same thumbnail, and caches only the thumbnail.
   Codex history comes from its app-server, whose item ids name no on-disk record, so a resumed Codex
   image stays a placeholder, as does an image the transcript tail no longer reaches.
+- **Other files.** Attach files opens the system file picker (Chromium's file input, which is the
+  native open panel, so no Main dialog method is involved). A picked or dropped file that is not an
+  attachable image, and every file for a provider without image input such as Grok Build, is
+  inserted at the caret as its path, relative to the Agent's directory and quoted the way a
+  Terminal drop is. Every provider reads files from disk with its own tools, so a path is the one
+  representation all three send paths share; no file contents are inlined.
+- **Long paste.** Pasted text longer than 32 KiB (`AGENT_CHAT_LONG_PASTE_THRESHOLD`, T3 Code's
+  pasted-text attachment size), or any paste the 100,000-character message limit would otherwise
+  cut, never enters the input. `agentChat.saveLongPaste` writes it through the same service and
+  owner-only, pruned file store as [Terminal long paste](low-cost-generation.md#terminal-long-paste),
+  and the composer inserts that reference where the paste landed. Send waits while a save is in
+  flight. A paste past the 16 MiB file limit is refused with the Terminal's message, and one whose
+  reference would no longer fit in the message is refused with a prompt to shorten it.
 - **Slash commands.** The snapshot's `commands` is the list the composer offers after a leading
   `/`. Codex lists `/compact`, which runs `thread/compact/start`; issued during a turn it waits in the
   queue.

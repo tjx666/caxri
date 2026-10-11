@@ -1,9 +1,12 @@
 import type { TerminalLongPasteResult } from '@caxri/protocol';
-import { MAX_LONG_PASTE_BYTES, MAX_TERMINAL_INPUT_PAYLOAD_LENGTH } from '@caxri/protocol';
+import {
+    formatLongPasteReference,
+    MAX_LONG_PASTE_BYTES,
+    MAX_TERMINAL_INPUT_PAYLOAD_LENGTH,
+} from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-    formatLongPasteReference,
     longPasteFailureMessage,
     shouldPrepareLongPaste,
     TerminalLongPasteController,
@@ -315,26 +318,5 @@ describe('long Terminal paste', () => {
 
         clipboard.resolve('short');
         await first;
-    });
-
-    it('states the original size in singular units and names the subagent route', () => {
-        expect(
-            formatLongPasteReference({
-                agentLaunchId: 'launch-1',
-                characterCount: 2_048,
-                filePath: '/local/paste.txt',
-                lineCount: 1,
-                status: 'saved',
-            }),
-        ).toBe(
-            [
-                '[Long paste saved locally]',
-                'Original file: "/local/paste.txt"',
-                'Original size: 1 line, 2048 characters',
-                '',
-                'Read the original file for the exact content.',
-                'If a summary is enough, delegate it to a subagent on a small, fast model so the full text stays out of this conversation.',
-            ].join('\n'),
-        );
     });
 });
