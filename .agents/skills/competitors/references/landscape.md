@@ -25,7 +25,7 @@ commit time. Per-product research notes live beside this file as `<product>.md`.
 | Otty        | closed source                              | No public repository; analyze via the packaged app when needed                                                               |
 | Conductor   | closed source                              | Tauri + React macOS multi-agent IDE (Melty Labs, $22M Series A); worktree workspaces, PR/checks UI, checkpoints              |
 | Superset    | <https://github.com/superset-sh/superset>  | Elastic License 2.0 (source-available, reference-only); Electron orchestrator, worktree-per-agent, MCP/CLI/SDK control       |
-| Paseo       | <https://github.com/getpaseo/paseo>        | AGPL-3.0; self-hosted daemon + Electron/Expo mobile/CLI clients for Claude Code, Codex, Copilot, OpenCode, Pi                |
+| Paseo       | <https://github.com/getpaseo/paseo>        | Apache-2.0; self-hosted daemon + Electron/Expo mobile/CLI clients for Claude Code, Codex, Copilot, OpenCode, Pi              |
 | T3 Code     | <https://github.com/pingdotgg/t3code>      | MIT; multi-device (web/desktop/mobile) control surface wrapping Claude Code/Codex/Cursor/Grok/OpenCode; Effect RPC server    |
 | Synara      | <https://github.com/Emanuele-web04/synara> | MIT; Electron + Effect-TS multi-provider command center; worktree-isolated parallel agents, MCP both ways                    |
 | Jean        | <https://github.com/coollabsio/jean>       | Apache-2.0; Tauri v2 + React opinionated agent workbench by the Coolify team; worktrees, GitHub/Linear integrations          |
