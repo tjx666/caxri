@@ -44,6 +44,60 @@ const BOUNDARY_CASES: Record<string, string> = {
     'CRLF line endings': 'a\r\n\r\n- b\r\n- c\r\n\r\n| a |\r\n| - |\r\n\r\nd',
 };
 
+/**
+ * Line fragments whose block meaning depends on their neighbours: list markers, setext underlines, table rows, fences,
+ * HTML, quotes, and reference definitions.
+ */
+const FUZZ_LINES = [
+    'para',
+    '- a',
+    '* b',
+    '+ c',
+    '1. one',
+    '2) two',
+    '10. ten',
+    '- [ ] t',
+    '- [x] d',
+    '  - nested',
+    '    code',
+    '  more',
+    '',
+    '',
+    '-',
+    '---',
+    '===',
+    '| a | b |',
+    '|---|---|',
+    '| - |',
+    '> q',
+    '> - q',
+    '```',
+    '~~~',
+    '<div>',
+    '</div>',
+    '<!--',
+    '-->',
+    '[x][a]',
+    '[a]: https://example.com/a',
+    '# h',
+    '`code',
+    '**bold',
+    '\tx',
+    '1.',
+    '  1. n',
+];
+
+/**
+ * Deterministic pseudo-random source (a linear congruential generator), so a failing sequence reproduces exactly.
+ */
+function seeded(seed: number): () => number {
+    let state = seed;
+    return () => {
+        state = (state * 1_103_515_245 + 12_345) & 0x7f_ff_ff_ff;
+        return state / 0x7f_ff_ff_ff;
+    };
+}
+
 function expectEquivalentWhileStreaming(prefixes: readonly string[], shouldRepair: boolean): void {
     const parser = createStreamingMarkdownParser(CHAT_OPTIONS);
     for (const prefix of prefixes) {
@@ -85,6 +139,33 @@ describe('createStreamingMarkdownParser', () => {
             '',
         ]) {
             expect(parser.parse(source)).toEqual(parseMarkdownBlocks(source, CHAT_OPTIONS));
+        }
+    });
+
+    /**
+     * The reuse rules lean on markdown-it's block-rule invariants (which line closes a list item, what a table can
+     * interrupt), so a markdown-it upgrade or a new block rule can break them without touching this package. Seeded
+     * random documents, streamed in random chunks and then edited, catch that where the fixed cases above cannot.
+     */
+    it('matches a full parse for seeded random documents, chunks, and edits', () => {
+        const random = seeded(1662);
+        const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)]!;
+        for (let document = 0; document < 300; document += 1) {
+            const lines = Array.from({ length: 2 + Math.floor(random() * 16) }, () =>
+                pick(FUZZ_LINES),
+            );
+            const text = lines.join('\n');
+            const sources: string[] = [];
+            for (let offset = 0; offset < text.length;) {
+                offset = Math.min(text.length, offset + 1 + Math.floor(random() * 8));
+                sources.push(text.slice(0, offset));
+            }
+            for (let edit = 0; edit < 4; edit += 1) {
+                const at = Math.floor(random() * lines.length);
+                lines.splice(at, random() < 0.5 ? 1 : 0, pick(FUZZ_LINES));
+                sources.push(lines.join('\n'));
+            }
+            expectEquivalentWhileStreaming(sources, document % 2 === 1);
         }
     });
 
