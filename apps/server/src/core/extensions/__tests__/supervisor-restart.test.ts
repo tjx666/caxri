@@ -150,4 +150,54 @@ describe('ExtensionHostSupervisor restart', () => {
         expect(signals[0]?.aborted).toBe(true);
         await supervisor.shutdown();
     });
+
+    it('records the killing signal of an unexpected exit instead of a fabricated code', async () => {
+        vi.useFakeTimers();
+        const children = forkRestartableChildren();
+        const supervisor = createSupervisor(() => Promise.resolve({}));
+        const write = vi.spyOn(StructuredLogger.prototype, 'write');
+        const started = supervisor.start();
+        children[0].emit('message', { type: 'ready' });
+        await started;
+
+        children[0].emit('exit', null, 'SIGSEGV');
+
+        expect(write).toHaveBeenCalledWith(
+            'error',
+            'extension_host.exit',
+            expect.objectContaining({ fields: { code: null, signal: 'SIGSEGV' } }),
+        );
+        await vi.advanceTimersByTimeAsync(250);
+        expect(children).toHaveLength(2);
+        children[1].emit('message', { type: 'ready' });
+        await supervisor.shutdown();
+    });
+
+    it('treats an exit after Server Core started stopping as teardown and never restarts it', async () => {
+        vi.useFakeTimers();
+        const children = forkRestartableChildren();
+        const supervisor = createSupervisor(() => Promise.resolve({}));
+        const write = vi.spyOn(StructuredLogger.prototype, 'write');
+        const exits: Array<number | null> = [];
+        supervisor.onExit((code) => exits.push(code));
+        const started = supervisor.start();
+        children[0].emit('message', { type: 'ready' });
+        await started;
+
+        supervisor.markCoreStopping();
+        children[0].emit('exit', null, 'SIGTERM');
+        await vi.advanceTimersByTimeAsync(5_000);
+
+        expect(write).toHaveBeenCalledWith(
+            'warn',
+            'extension_host.exit',
+            expect.objectContaining({
+                fields: { code: null, signal: 'SIGTERM', source: 'core-stopping' },
+            }),
+        );
+        expect(write).not.toHaveBeenCalledWith('error', 'extension_host.exit', expect.anything());
+        expect(exits).toEqual([]);
+        expect(children).toHaveLength(1);
+        await supervisor.shutdown();
+    });
 });

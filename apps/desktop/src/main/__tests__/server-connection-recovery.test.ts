@@ -1,4 +1,4 @@
-import { ensureServer } from '@caxri/client/supervise';
+import { connectDesktopToServer, ensureServer } from '@caxri/client/supervise';
 import { CaxriError } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -424,6 +424,30 @@ describe('Desktop Server connection recovery', () => {
         expect(logger.write).not.toHaveBeenCalledWith(
             'info',
             'server_connection.reconnected',
+            expect.anything(),
+        );
+    });
+
+    it('treats a connection loss after an accepted quit as the end of Server rather than a crash to recover', async () => {
+        vi.useFakeTimers();
+        const client = mockServerRound();
+        const { connection, logger, serverSupervisor } = createConnection();
+        await connection.start();
+        mockServerRound({ pid: 77, startedAt: 2000 });
+        const attachments = vi.mocked(connectDesktopToServer).mock.calls.length;
+
+        connection.markQuitting();
+        client.triggerClose();
+        await vi.advanceTimersByTimeAsync(30_000);
+
+        expect(serverSupervisor.reportProcessLoss).not.toHaveBeenCalled();
+        expect(connectDesktopToServer).toHaveBeenCalledTimes(attachments);
+        expect(logger.write).toHaveBeenCalledWith('info', 'server_connection.lost', {
+            fields: { closeCode: null, source: 'desktop-quitting' },
+        });
+        expect(logger.write).not.toHaveBeenCalledWith(
+            'warn',
+            'server_connection.lost',
             expect.anything(),
         );
     });

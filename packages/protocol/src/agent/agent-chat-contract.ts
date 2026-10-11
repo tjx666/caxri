@@ -343,6 +343,11 @@ export const agentChatFailureReasonSchema = z.enum([
     'handshake_failed',
     'process_exited',
     'resume_failed',
+    /**
+     * The bound conversation is open in another client of the same provider (for example the Codex app), which holds
+     * its only writer. Closing it there and retrying resumes it here.
+     */
+    'conversation_in_use',
     'unsupported_version',
 ]);
 
@@ -383,6 +388,11 @@ export const agentChatSnapshotSchema = z.strictObject({
      * The reasoning effort the next turn uses, when the provider reports it.
      */
     effort: agentChatEffortSchema.optional(),
+    /**
+     * Claude Code's ultracode: standing multi-agent Workflow orchestration at any effort level. Present only while the
+     * provider offers it for the current model; `agentChat.configure` turns it on or off.
+     */
+    ultracode: z.boolean().optional(),
     /**
      * Models `agentChat.configure` can switch to. Absent until the provider has listed them.
      */
@@ -430,6 +440,7 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 plan: agentChatSnapshotSchema.shape.plan.unwrap().nullable(),
                 model: agentChatSnapshotSchema.shape.model.unwrap().nullable(),
                 effort: agentChatSnapshotSchema.shape.effort.unwrap().nullable(),
+                ultracode: agentChatSnapshotSchema.shape.ultracode.unwrap().nullable(),
                 models: agentChatSnapshotSchema.shape.models.unwrap(),
                 commands: agentChatSnapshotSchema.shape.commands.unwrap(),
                 usage: agentChatSnapshotSchema.shape.usage.unwrap().nullable(),

@@ -2,7 +2,6 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type { FullStateChangeReason, TerminalRecord } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
 
 import { readActiveContext } from './active-context';
 import { createAgentChatHandlers } from './agent-chat';
@@ -14,10 +13,9 @@ import { createBackgroundTasks, refreshWatchSessionInBackground } from './backgr
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import { createAgentChatService } from './chat-service-creation';
 import { createChatTerminalCreator } from './chat-terminal-creation';
-import type { CommanderCompletionNotifier } from './commander';
 import {
     commanderHostOptions,
-    commanderLaunchArguments,
+    CommanderTerminalHooks,
     createCommanderCompletionNotifier,
 } from './commander';
 import { coreRoutedHandlers } from './core-routed';
@@ -34,8 +32,8 @@ import { ProjectStatusService, VercelDeploymentStore } from './project-status';
 import { createRootServices } from './root-services';
 import { createServiceHandlers } from './service-handlers';
 import {
-    createMobileSessionHandler,
     createSessionAgentRuntimeHandlers,
+    createSessionCreationHandlers,
     createSessionCreator,
     SessionCompaction,
     SessionSelectionQueue,
@@ -90,7 +88,7 @@ export async function createDomainServices(
     const attentionRequests = new AgentAttentionRequests();
     const suspensionState: { service?: TerminalSuspensionService } = {};
     const delegationState: { service?: AgentDelegationService } = {};
-    const commanderNotifierState: { service?: CommanderCompletionNotifier } = {};
+    const commanderHooks = new CommanderTerminalHooks(database, logger);
     const compactionReadiness = new CompactionReadiness();
     const agentRuntime = await createAgentRuntime({
         attentionRequests,
@@ -105,7 +103,7 @@ export async function createDomainServices(
         },
         onLifecycleApplied: (signal) => {
             delegationState.service?.observe(signal);
-            commanderNotifierState.service?.onLifecycleApplied(signal);
+            commanderHooks.notifier?.onLifecycleApplied(signal);
         },
         send,
         userDataPath,
@@ -126,13 +124,8 @@ export async function createDomainServices(
     const terminals = new TerminalManager(database, send, logger, {
         ...dependencies.terminal,
         execution: dependencies.terminalExecution,
-        agentLaunchArguments: (terminal) => {
-            const commander = database.agentCommanderRows();
-            return commanderLaunchArguments(terminal, {
-                terminalId: commander?.terminalId,
-                workspacePath: commander && database.getProject(commander.projectId)?.rootPath,
-            });
-        },
+        agentLaunchArguments: commanderHooks.launchArguments,
+        agentLaunchPrompt: commanderHooks.launchPrompt,
         agentLaunchSettings: dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings,
         agentOutputRecoverySettings:
             dependencies.terminal?.agentOutputRecoverySettings ?? agentOutputRecoverySettings,
@@ -146,7 +139,13 @@ export async function createDomainServices(
             endpoints: dependencies.agentEndpoints,
             workbenchRoots,
         }),
-        onLaunched: (terminal) => suspensionState.service?.parkLaunch(terminal),
+        onLaunched: (terminal) => {
+            commanderHooks.launched(
+                terminal.id,
+                terminals.agentLaunchId(terminal.id) !== undefined,
+            );
+            return suspensionState.service?.parkLaunch(terminal);
+        },
         onLifecycleStarted: (terminal) => {
             suspensionState.service?.observeLaunch(terminal.id);
             return dependencies.agentEndpoints?.activate(terminal.id);
@@ -168,7 +167,7 @@ export async function createDomainServices(
         onInput: (terminalId, data) => {
             compactionReadiness.input(terminalId, data);
             suspensionState.service?.observeInput(terminalId);
-            commanderNotifierState.service?.observeInput(terminalId, data);
+            commanderHooks.notifier?.observeInput(terminalId, data);
             delegationState.service?.interruptTerminal(terminalId, true);
         },
         onAgentStateChanged: (terminalId, state, cause) =>
@@ -191,6 +190,7 @@ export async function createDomainServices(
     );
     const agentChat = createAgentChatService({
         agentRuntime,
+        commanderHooks,
         configuration,
         database,
         dependencies,
@@ -357,10 +357,6 @@ export async function createDomainServices(
         terminalWorkingDirectory,
         terminals,
     });
-    const createMobileSessionForPrincipal = createMobileSessionHandler(
-        database,
-        createSessionForProject,
-    );
     const agentCommands = createAgentCommandRuntime({
         logger,
         delegationSettings: () => configuration.getSettings().value['agents.delegation'],
@@ -374,15 +370,14 @@ export async function createDomainServices(
         terminals,
         userDataPath,
         agentEnvironment,
-        onDelegationReceiptChanged: (receipt, previous) =>
-            commanderNotifierState.service?.notifyReceiptChanged(receipt, previous),
+        onDelegationReceiptChanged: commanderHooks.receiptChanged,
     });
     agentDispatchState.service = agentCommands.dispatchService;
     delegationState.service = agentCommands.delegationService;
     /**
      * Constructed only once the exact-launch write path it fences against exists.
      */
-    commanderNotifierState.service = createCommanderCompletionNotifier({
+    commanderHooks.notifier = createCommanderCompletionNotifier({
         agentChat,
         coordinator,
         database,
@@ -397,7 +392,6 @@ export async function createDomainServices(
         projectStatus.dispose();
         terminalRestores.close();
         commanderRestores.close();
-        commanderNotifierState.service?.close();
         await agentChat.shutdown();
         await terminalSuspension.close();
         await terminalResourceMonitor.close();
@@ -439,7 +433,11 @@ export async function createDomainServices(
             startedAt,
             activePtyCount: countRunning(),
         }),
-        ...createAgentChatHandlers(agentChat, { database, agentEnvironment }),
+        ...createAgentChatHandlers(agentChat, {
+            database,
+            agentEnvironment,
+            createSessionForProject,
+        }),
         ...createWindowStateHandlers(database),
         ...createWorkbenchRootHandlers(workbenchRoots),
         ...createTerminalMoveHandler({
@@ -457,12 +455,7 @@ export async function createDomainServices(
             introspection.records.project(query, principal),
         ...createOrderingHandlers({ database, sendFullStateChange }),
         ...createProjectHidingHandlers({ ...sessionParking, bootstrapState: snapshots.bootstrap }),
-        'session.create': ({ projectId, defaultAgent, surface }) =>
-            createSessionForProject(projectId, defaultAgent, 'select', undefined, surface),
-        'mobile.session.create': () => {
-            throw new CaxriError('FORBIDDEN', 'Mobile Session creation requires a paired device');
-        },
-        'mobile.session.createForPrincipal': createMobileSessionForPrincipal,
+        ...createSessionCreationHandlers(database, createSessionForProject),
         ...createMobileDomainHandlers({
             autoAllow: agentRuntime,
             attentionRequests,
@@ -601,6 +594,7 @@ export async function createDomainServices(
                 coordinator,
                 database,
                 createAndStartTerminal,
+                onStopped: () => commanderHooks.notifier?.onStopped(),
                 restores: commanderRestores,
                 restoreTerminals: restoreCommanderTerminals,
                 scopedWorkbench: snapshots.commander,

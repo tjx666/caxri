@@ -36,6 +36,10 @@ import type {
 } from './models/agent-dispatch-receipts';
 import type { AppStateKey, AppStateValue } from './models/app-state';
 import type { SessionWorkbenchBinding } from './models/sessions';
+import {
+    promoteLivePrimaryAgentSuccessor,
+    removeTerminalWithSuccession,
+} from './primary-agent-succession';
 import type { ProjectDeletionScope } from './project-deletion';
 import { deleteProjectMetadata, projectDeletionScope } from './project-deletion';
 import { reorderProject } from './project-ordering';
@@ -53,7 +57,6 @@ import {
 } from './session-ordering';
 import type { ShutdownReason } from './session-policy';
 import {
-    chooseLivePrimaryAgentSuccessor,
     choosePrimaryAgentForNewTerminal,
     choosePrimaryAgentSuccessor,
     DEFAULT_SESSION_TITLE,
@@ -81,6 +84,8 @@ export class CaxriDatabase {
     readonly mobileAgentSubmitReceipts: CaxriDatabase_['mobileAgentSubmitReceipts'];
     readonly agentDelegations: CaxriDatabase_['agentDelegations'];
     readonly agentSessionUsage: CaxriDatabase_['agentSessionUsage'];
+    readonly commanderTasks: CaxriDatabase_['commanderTasks'];
+    readonly commanderPendingNotices: CaxriDatabase_['commanderPendingNotices'];
 
     constructor(path: string, options?: CaxriDatabaseOptions) {
         this.db = new CaxriDatabase_(path, options);
@@ -89,6 +94,8 @@ export class CaxriDatabase {
         this.mobileAgentSubmitReceipts = this.db.mobileAgentSubmitReceipts;
         this.agentDelegations = this.db.agentDelegations;
         this.agentSessionUsage = this.db.agentSessionUsage;
+        this.commanderTasks = this.db.commanderTasks;
+        this.commanderPendingNotices = this.db.commanderPendingNotices;
     }
 
     private insertTerminal(
@@ -113,21 +120,6 @@ export class CaxriDatabase {
         if (assignment) this.db.sessions.setPrimaryAgent(sessionId, assignment);
         this.db.sessions.addTerminalToAllRootStates(sessionId, terminal.id);
         return terminal;
-    }
-
-    private promoteLivePrimaryAgentSuccessor(exitedTerminalId: string): string | undefined {
-        const terminal = this.db.terminals.get(exitedTerminalId);
-        if (!terminal) return;
-        const session = this.db.sessions.get(terminal.sessionId);
-        if (!session) return;
-        const succession = chooseLivePrimaryAgentSuccessor(
-            this.db.terminals.list(terminal.sessionId),
-            session,
-            exitedTerminalId,
-        );
-        if (!succession) return;
-        this.db.sessions.setPrimaryAgent(session.id, succession);
-        return session.id;
     }
 
     /**
@@ -349,7 +341,7 @@ export class CaxriDatabase {
         return this.db.transaction(() => {
             if (!this.agentIdentity.revokeForegroundAgentProvider(terminalId, provider))
                 return false;
-            this.promoteLivePrimaryAgentSuccessor(terminalId);
+            promoteLivePrimaryAgentSuccessor(this.db, terminalId);
             return true;
         });
     }
@@ -635,7 +627,7 @@ export class CaxriDatabase {
         return this.db.transaction(() => {
             if (!this.db.terminals.get(id)) return;
             this.db.terminals.updateAgentProcessState(id, state);
-            return this.promoteLivePrimaryAgentSuccessor(id);
+            return promoteLivePrimaryAgentSuccessor(this.db, id);
         });
     }
 
@@ -677,22 +669,7 @@ export class CaxriDatabase {
     }
 
     closeTerminal(id: string): void {
-        this.db.transaction(() => {
-            const terminal = this.db.terminals.get(id);
-            if (!terminal) return;
-            /**
-             * Read before removal: `primary_agent_terminal_id` is `ON DELETE SET NULL`, so afterwards the Session no
-             * longer names the Terminal that needs a successor.
-             */
-            const session = this.db.sessions.get(terminal.sessionId);
-            this.db.terminals.remove(id);
-            if (session?.primaryAgentTerminalId === id) {
-                const remaining = this.db.terminals.list(terminal.sessionId);
-                const succession = choosePrimaryAgentSuccessor(remaining, session);
-                this.db.sessions.setPrimaryAgent(terminal.sessionId, succession);
-            }
-            this.db.sessions.removeTerminalFromAllRootStates(terminal.sessionId, id);
-        });
+        this.db.transaction(() => removeTerminalWithSuccession(this.db, id));
     }
 
     getSnapshot(terminalId: string): TerminalSnapshot | undefined {

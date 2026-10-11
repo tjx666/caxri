@@ -60,7 +60,8 @@ async function createFixture(prefix: string) {
         /**
          * Per-summary Git command attribution from the `git.summary` producer boundary. Counting `git.command` records
          * directly would also pick up background metadata work that is not part of discovery. A repeated result is
-         * written at `debug` (#604), so select producer records by outcome rather than by level.
+         * written at `debug` (#604), so select producer records by outcome rather than by level; one that also ran no
+         * command is not written at all and appears only in `refreshAggregates`.
          */
         summaryCommandCounts: () =>
             write.mock.calls
@@ -71,6 +72,10 @@ async function createFixture(prefix: string) {
                 )
                 .filter((fields) => fields.outcome === 'fresh')
                 .map((fields) => fields.commandCount),
+        refreshAggregates: () =>
+            write.mock.calls
+                .filter((call) => call[1] === 'git.refresh_summary')
+                .map((call) => (call[2] as { fields: Record<string, unknown> }).fields),
     };
 }
 
@@ -108,9 +113,14 @@ describe('Git discovery failure', () => {
         await fixture.git.summary(fixture.session.id);
 
         expect(discovered).toMatchObject({ isRepository: false });
+        // Replays run no Git command and repeat the same result, so only the aggregate counts them.
         const [first, ...repeats] = fixture.summaryCommandCounts();
         expect(first).toBeGreaterThan(0);
-        expect(repeats).toEqual([0, 0]);
+        expect(repeats).toEqual([]);
+        await fixture.git.close();
+        expect(fixture.refreshAggregates()).toEqual([
+            expect.objectContaining({ refreshes: 3, commandCount: first }),
+        ]);
         fixture.database.close();
         /**
          * `GitSummary.error` is a public Extension API field, and `ProjectStatusSummaryErrorMessage` exists so

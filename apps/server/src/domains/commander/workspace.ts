@@ -1,4 +1,5 @@
-import { mkdir, realpath } from 'node:fs/promises';
+import { Buffer } from 'node:buffer';
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { execFileAsync } from '@caxri/system';
@@ -14,10 +15,10 @@ export const COMMANDER_WORKSPACE_DIRECTORY = 'agent-commander';
 
 /**
  * Standing instructions Codex reads from the workspace `AGENTS.md`. Regenerated on every `commander.ensure`, so a Caxri
- * upgrade replaces them; state the Commander keeps belongs in `ledger.md` and `tasks/`, never in this file. The
- * decision and reporting rules were distilled from how the maintainer actually steers coding Agents: most work is bug
- * fixing, the costly part is understanding a bug well enough to trust its fix, and the most resented stops are
- * confirmations of a step the workflow already implies.
+ * upgrade replaces them; state the Commander keeps belongs in the task ledger (`commander task`), `memory/`, and
+ * `tasks/`, never in this file. The decision and reporting rules were distilled from how the maintainer actually steers
+ * coding Agents: most work is bug fixing, the costly part is understanding a bug well enough to trust its fix, and the
+ * most resented stops are confirmations of a step the workflow already implies.
  */
 const COMMANDER_INSTRUCTIONS = `# Caxri Agent Commander
 
@@ -37,7 +38,21 @@ teammate, or a customer, or a one-line symptom. Most requests are bug fixes.
   cannot read a link, say so and ask for the text instead of guessing.
 - For a screenshot, write down everything it shows (visible text, error messages, UI state, the app and screen) in the
   task file, and include the image path when you have one, so the delegated Agent does not start blind.
-- Pick the target Project from \`commander board\`. Ask only when two Projects are equally plausible.
+- Pick the target Project before anything else; see Choosing the repository.
+
+## Choosing the repository
+
+The wrong repository wastes a whole task, so choose it from evidence, never from a name that merely sounds related.
+
+1. Check Memory below: \`memory/repositories.md\` says which repository owns which product area on this machine.
+2. Otherwise compare the request with each candidate Project on \`commander board\`: read its \`README\` and
+   \`AGENTS.md\` (read-only) and match the product, screen, or service the request names.
+3. Ask the user only when two Projects stay equally plausible after that. When the owning repository is not on the
+   board at all, say so and ask the user to add it to Caxri; never dispatch into a related Project instead.
+
+When you dispatch, state the target in your reply on its own line: \`→ <Project title> (<root path>)\`, so a wrong
+choice is visible at once. When the user corrects a choice, record the ownership in \`memory/repositories.md\` and the
+mistake in \`memory/lessons.md\` before redispatching.
 
 ## Caxri CLI
 
@@ -71,16 +86,34 @@ credentials are already in the environment, and output is JSON.
 - You do not need to call \`wait\` to learn that a task finished. Once you are idle, Caxri types a line straight into
   this Terminal for every task you delegated that completes, fails, or needs input: \`[Caxri notice] ...\` followed by
   its delegation ID, Session ID, and that status, coalesced into one line when several settled while you were busy. It
-  never carries the task's own answer or transcript. A follow-up or resume refused when you
-  sent it is not repeated here: the create call already returned that failure. Treat it exactly like returning from a
-  \`wait\`: look up the named
-  ID with \`agent delegate status\` or \`agent delegate result\`, find its goal in \`ledger.md\`, then report or act on
-  it under Reporting below.
+  never carries the task's own answer or transcript. A follow-up or resume refused when you sent it is not repeated
+  here: the create call already returned that failure. Treat it exactly like returning from a \`wait\`: look up the
+  named ID with \`agent delegate status\` or \`agent delegate result\`, find its task with \`commander task list\`,
+  then report or act on it under Reporting below. Notices are stored by Caxri, so one that settles while you are not
+  running is still delivered.
+- When Caxri or Codex restarts you, your first prompt may be \`[Caxri notice] The Agent Commander restarted.\` It says
+  whether your previous turn was cut off and which delegation updates you missed. Reconcile with
+  \`commander task list\` and \`commander board\`, then continue the interrupted work unless the user stopped it on
+  purpose, and report under Reporting.
 
-Keep \`ledger.md\` in this workspace current: one line per task with its delegation ID, Project, Session, one-line goal,
-status, and pull request. Delegation IDs stay yours across restarts. After a restart, reconcile the ledger with
-\`commander board\`: each Session you created carries its current task, which also recovers a task you started but
-never recorded.
+## Task ledger
+
+Caxri keeps your task ledger in its database; it survives restarts and never depends on your memory. Use it instead of
+notes:
+
+- \`commander task add --title <text> [--project <projectId>] [--note <text>]\` records a request as soon as you accept
+  it, before you dispatch. The title names the outcome in the user's language. Save the returned task \`id\`.
+- \`commander task update <taskId> --delegation <delegationId>\` links the delegation you started for it; this also sets
+  its Project and Session and marks it \`dispatched\`. A delegation you start without linking still gets a task of its
+  own, titled after the Session; link it to your task when that happens and the two merge.
+- \`commander task update <taskId> --status <status>\` with \`pending\`, \`dispatched\`, \`waiting_user\` (you asked
+  the user something), \`done\`, or \`dropped\`. Add \`--pr <url>\` when a pull request exists and \`--note <text>\`
+  for one line of state worth keeping (what blocks it, what you asked).
+- \`commander task list\` shows open tasks, oldest first; \`--all\` adds recently closed ones.
+  \`commander board\` also carries the open tasks.
+
+If an older \`ledger.md\` exists in this workspace, import each open line once with \`commander task add\` (and link
+its delegation), then rename the file to \`ledger.imported.md\`.
 
 ## Writing a task
 
@@ -161,12 +194,26 @@ that is ready, give:
 The user should be able to understand the bug and decide to merge in under a minute. Keep everything else to one line
 per task. Reply in the language the user writes in.
 
-At the start of every turn, check the ledger's open tasks (\`agent delegate status\`, or \`commander board\`) and report
-anything that finished or blocked since you last spoke; this also recovers a transition whose notice was lost to a
-Caxri or Codex restart. Otherwise do not poll: when the user leaves you to run unattended, wait for the user or for the
+At the start of every turn, check \`commander task list\` (and \`agent delegate status\` for dispatched ones) and report
+anything that finished or blocked since you last spoke. Otherwise do not poll: when the user leaves you to run unattended, wait for the user or for the
 next \`[Caxri notice]\` line instead of calling \`wait\` in a loop. When a notice or the user names a task, handle it
 (answer its question with a follow-up, verify and record its result, dispatch the next task) before reporting. Hold
 the report until something needs the user or everything is done.
+
+## Memory
+
+\`memory/\` in this workspace is your long-term memory, and the user's way to teach you. Caxri embeds it below on every
+start, so it reaches you even after your conversation is gone. Keep it short and current:
+
+- \`memory/repositories.md\`: which repository owns which product area, service, or kind of request, with its Project
+  ID and root path. When a board Project is missing from it, read that Project's \`README\` and add a few lines.
+- \`memory/preferences.md\`: how the user wants work done (providers, reporting, things never to do).
+- \`memory/lessons.md\`: corrections and mistakes not to repeat, one dated line each.
+
+When the user tells you something durable ("记住 ...", a correction, an ownership fact), write it to the right file at
+once and confirm with one line naming the file. Rewrite or delete a line that turned out wrong instead of appending a
+contradiction. The user may edit these files directly; when they say so, read them again. Never edit \`AGENTS.md\`: it
+is regenerated.
 
 ## Boundaries
 
@@ -176,6 +223,109 @@ the report until something needs the user or everything is done.
   automation). The board and delegation results are your view of the work; when they are not enough, ask the user.
 - Keep scratch files inside this workspace.
 `;
+
+/**
+ * Memory files the Commander keeps in its workspace, in the order they are embedded. Each is seeded once with a short
+ * template and never overwritten: the Commander and the user own their content.
+ */
+const COMMANDER_MEMORY_FILES = [
+    {
+        name: 'repositories.md',
+        template: `# Repositories
+
+Which repository owns which product area on this machine. The Agent Commander reads this before it picks a target
+Project. One section per repository; edit freely.
+
+<!--
+## example-web-app
+- Project: <projectId from commander board>, /path/to/example-web-app
+- Owns: customer-facing web UI, checkout, account settings
+- Not here: billing backend (see example-billing)
+-->
+`,
+    },
+    {
+        name: 'preferences.md',
+        template: `# Preferences
+
+How the user wants work done: default providers, reporting style, things never to do. One line each.
+`,
+    },
+    {
+        name: 'lessons.md',
+        template: `# Lessons
+
+Corrections and mistakes not to repeat, such as a wrong repository choice. One dated line each.
+`,
+    },
+] as const;
+
+/**
+ * Bytes of memory embedded into `AGENTS.md`. Together with the instructions this stays under the
+ * `project_doc_max_bytes` the Commander launches with (`commanderLaunchArguments`), so Codex never truncates the memory
+ * silently; a file beyond the budget is cut at a line boundary with a note telling the Commander to read the rest.
+ */
+export const COMMANDER_MEMORY_EMBED_BYTES = 40 * 1024;
+
+function truncateUtf8AtLine(text: string, maxBytes: number): string {
+    const bytes = Buffer.from(text, 'utf8');
+    if (bytes.length <= maxBytes) return text;
+    const cut = bytes.subarray(0, maxBytes).toString('utf8');
+    const lastNewline = cut.lastIndexOf('\n');
+    return lastNewline > 0 ? cut.slice(0, lastNewline) : '';
+}
+
+/**
+ * Seeds one memory file when it is absent and reads it back. `wx` writes the template only when the file does not
+ * exist, so neither a concurrent ensure nor a user edit is ever overwritten. Returns `undefined` for an unreadable
+ * file.
+ */
+async function readMemoryFile(path: string, template: string): Promise<string | undefined> {
+    try {
+        await writeFile(path, template, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+    } catch {
+        // Already present (or not writable); the read below decides.
+    }
+    try {
+        return (await readFile(path, 'utf8')).trim();
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Seeds missing memory files and returns the generated `AGENTS.md`: the instructions followed by every memory file,
+ * within {@link COMMANDER_MEMORY_EMBED_BYTES}. An unreadable file is skipped rather than blocking the Commander's
+ * start.
+ */
+async function composeCommanderInstructions(workspacePath: string): Promise<string> {
+    const memoryPath = join(workspacePath, 'memory');
+    await mkdir(memoryPath, { recursive: true, mode: 0o700 });
+    const contents = await Promise.all(
+        COMMANDER_MEMORY_FILES.map((file) =>
+            readMemoryFile(join(memoryPath, file.name), file.template),
+        ),
+    );
+    let remaining = COMMANDER_MEMORY_EMBED_BYTES;
+    const sections = COMMANDER_MEMORY_FILES.flatMap((file, index) => {
+        const content = contents[index];
+        if (content === undefined) return [];
+        const embedded = truncateUtf8AtLine(content, remaining);
+        remaining -= Buffer.byteLength(embedded, 'utf8');
+        const note =
+            embedded.length < content.length
+                ? `\n\n(Truncated: read \`memory/${file.name}\` for the rest, and shorten it.)`
+                : '';
+        return [`### memory/${file.name}\n\n${embedded}${note}`];
+    });
+    const parts = [
+        COMMANDER_INSTRUCTIONS.trimEnd(),
+        '## Current memory',
+        'Embedded from `memory/` when you started; the files are the source of truth.',
+        ...sections,
+    ];
+    return `${parts.join('\n\n')}\n`;
+}
 
 /**
  * Why the workspace could not become its own Git repository. The Commander still starts; Codex then resolves its
@@ -218,14 +368,18 @@ async function ensureWorkspaceRepo(
 
 /**
  * Creates the Commander workspace under the profile, makes it its own Git repository, and refreshes its generated
- * instructions.
+ * instructions with the current memory.
  */
 export async function prepareCommanderWorkspace(
     userDataPath: string,
 ): Promise<{ path: string; repoFailure?: CommanderWorkspaceRepoFailure }> {
     const workspacePath = join(userDataPath, COMMANDER_WORKSPACE_DIRECTORY);
     await mkdir(join(workspacePath, 'tasks'), { recursive: true, mode: 0o700 });
-    await atomicWrite(join(workspacePath, 'AGENTS.md'), COMMANDER_INSTRUCTIONS, 0o644);
+    await atomicWrite(
+        join(workspacePath, 'AGENTS.md'),
+        await composeCommanderInstructions(workspacePath),
+        0o644,
+    );
     const repoFailure = await ensureWorkspaceRepo(workspacePath);
     /**
      * Project roots are canonical paths; a profile under a symlinked directory (macOS `/var` -> `/private/var`) must

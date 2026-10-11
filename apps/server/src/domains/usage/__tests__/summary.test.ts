@@ -8,11 +8,11 @@ const HOUR_SECONDS = 1_700_000_000 - (1_700_000_000 % 3600);
 const PRICE: ModelPrice = [1e-6, 2e-6, 1e-7, 1.25e-6, 2e-6];
 
 const record: UsageRecord = {
-    version: 1,
+    version: 2,
     models: ['priced', 'unpriced'],
     tokens: [
-        [HOUR_SECONDS, 0, 100, 10, 1000, 50, 20, 0],
-        [HOUR_SECONDS + 3600, 1, 5, 5, 0, 0, 0, 2],
+        [HOUR_SECONDS, 0, 100, 10, 1000, 50, 20, 0, 0],
+        [HOUR_SECONDS + 3600, 1, 5, 5, 0, 0, 0, 2, 0],
     ],
     activity: [
         [HOUR_SECONDS, 1000],
@@ -45,5 +45,33 @@ describe('summarizeUsage', () => {
 
         expect(summary.tokens.total).toBe(10);
         expect(summary.activeMs).toBe(2000);
+    });
+
+    it('prefers the provider-reported cost and prices the rest at their context and processing tier', () => {
+        const tiered: ModelPrice = [
+            1e-6,
+            2e-6,
+            1e-7,
+            1.25e-6,
+            2e-6,
+            { tiers: [[200, 2e-6, 4e-6, 2e-7, 2.5e-6, 4e-6]], serviceTiers: { priority: 2 } },
+        ];
+        const summary = summarizeUsage(
+            {
+                ...record,
+                models: ['tiered', 'unpriced'],
+                tokens: [
+                    [HOUR_SECONDS, 0, 100, 0, 0, 0, 0, 0, 128],
+                    [HOUR_SECONDS, 0, 100, 0, 0, 0, 0, 0, 200],
+                    [HOUR_SECONDS, 0, 100, 0, 0, 0, 0, 0, 0, null, 'priority'],
+                    // 0.5 USD in ticks of 1e-10 USD, from a model the price list does not know.
+                    [HOUR_SECONDS, 1, 100, 0, 0, 0, 0, 0, 0, 5e9],
+                ],
+            },
+            (model) => (model === 'tiered' ? tiered : undefined),
+        );
+
+        expect(summary.costUsd).toBeCloseTo(100e-6 + 200e-6 + 200e-6 + 0.5);
+        expect(summary.unpricedModels).toEqual([]);
     });
 });

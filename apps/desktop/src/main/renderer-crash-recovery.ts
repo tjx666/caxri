@@ -10,11 +10,30 @@ import { decideCrashRecovery } from './crash-policy';
  */
 export function observeRendererCrashes(
     window: BrowserWindow,
-    options: { logger: () => StructuredLogger | undefined; shutdown: () => Promise<void> },
+    options: {
+        /**
+         * True once Main accepted a quit. A Renderer killed by the same teardown (a termination signal reaches every
+         * Chromium child at once) is not a crash: reloading it would start a fresh Workbench against a dying Server.
+         */
+        isQuitting: () => boolean;
+        logger: () => StructuredLogger | undefined;
+        shutdown: () => Promise<void>;
+    },
 ): void {
     let rendererCrashTimestampsMs: number[] = [];
     window.webContents.on('render-process-gone', (_event, details) => {
         if (details.reason === 'clean-exit' || window.isDestroyed()) return;
+        if (options.isQuitting()) {
+            options.logger()?.write('info', logEventCatalog.window.renderProcessGone, {
+                fields: {
+                    code: 'RENDER_PROCESS_GONE',
+                    reason: details.reason,
+                    exitCode: details.exitCode,
+                    source: 'app-quitting',
+                },
+            });
+            return;
+        }
         const { decision, crashTimestampsMs } = decideCrashRecovery(
             rendererCrashTimestampsMs,
             Date.now(),

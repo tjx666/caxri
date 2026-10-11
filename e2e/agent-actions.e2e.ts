@@ -57,7 +57,7 @@ test('Agent skill search reveals the first result after scrolling', async () => 
         await expect(running.page.locator('.xterm-rows')).toContainText('SEARCH_READY');
         await running.page.keyboard.press('Meta+Shift+A');
         const picker = running.page.locator('[data-agent-actions-picker]');
-        const search = picker.getByPlaceholder('Search skills and slash commands…');
+        const search = picker.getByPlaceholder(/^Search skills and slash commands/u);
         const list = picker.locator('[cmdk-list]');
         const first = picker.locator('[data-agent-action="/fix-ci"]');
         await search.fill('fi');
@@ -262,7 +262,7 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         await expect(target).toHaveAccessibleName('Target: Codex; E2E Session Target');
         await expect(picker).toContainText('Codex');
         await expect(picker).toContainText('/status');
-        const search = picker.getByPlaceholder('Search skills and slash commands…');
+        const search = picker.getByPlaceholder(/^Search skills and slash commands/u);
         await expect(search).toHaveAccessibleDescription(
             /Enter runs the selected action\. Command\+Enter inserts it for editing\./,
         );
@@ -300,7 +300,7 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         await running.page.keyboard.press('Meta+Shift+A');
         picker = running.page.locator('[data-agent-actions-picker]');
         await expect(picker).toBeVisible();
-        await picker.getByPlaceholder('Search skills and slash commands…').fill('status');
+        await picker.getByPlaceholder(/^Search skills and slash commands/u).fill('status');
         await expect(picker.locator('[data-agent-action="/status"]')).toBeVisible();
         await running.page.keyboard.press('Meta+Enter');
         await expect(picker).not.toBeVisible();
@@ -312,7 +312,7 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
 
         await running.page.keyboard.press('Meta+Shift+A');
         picker = running.page.locator('[data-agent-actions-picker]');
-        const requiredSearch = picker.getByPlaceholder('Search skills and slash commands…');
+        const requiredSearch = picker.getByPlaceholder(/^Search skills and slash commands/u);
         await requiredSearch.fill('e2e required');
         await expect(picker.locator('[data-agent-action="$e2e-required"]')).toBeVisible();
         const beforeRequiredRun = await capturedInput(capture);
@@ -341,7 +341,7 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
 
         await running.page.keyboard.press('Meta+Shift+A');
         picker = running.page.locator('[data-agent-actions-picker]');
-        await picker.getByPlaceholder('Search skills and slash commands…').fill('diff');
+        await picker.getByPlaceholder(/^Search skills and slash commands/u).fill('diff');
         await picker.locator('[data-agent-action="/diff"]').click();
         await expect(picker).not.toBeVisible();
         await expect(input).toBeFocused();
@@ -368,14 +368,14 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         await expect
             .poll(() => recentInvocations(picker))
             .toEqual(['/diff', '$e2e-required', '/status', '$e2e-action']);
-        await picker.getByPlaceholder('Search skills and slash commands…').fill('diff');
+        await picker.getByPlaceholder(/^Search skills and slash commands/u).fill('diff');
         await expect(picker.locator('[data-agent-action-group="recent"]')).toHaveCount(0);
         await expect(picker.locator('[data-agent-action="/diff"]')).toHaveCount(1);
         await running.page.keyboard.press('Escape');
 
         await running.page.keyboard.press('Meta+Shift+A');
         picker = running.page.locator('[data-agent-actions-picker]');
-        await picker.getByPlaceholder('Search skills and slash commands…').fill('status');
+        await picker.getByPlaceholder(/^Search skills and slash commands/u).fill('status');
         await running.page.keyboard.press('Enter');
         await expect
             .poll(async () => {
@@ -475,7 +475,7 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         await input.focus();
         await running.page.keyboard.press('Meta+Shift+A');
         picker = running.page.locator('[data-agent-actions-picker]');
-        await picker.getByPlaceholder('Search skills and slash commands…').fill('goal');
+        await picker.getByPlaceholder(/^Search skills and slash commands/u).fill('goal');
         await expect(picker.locator('[data-agent-action="/goal"]')).toContainText(
             'Manage a long-running goal',
         );
@@ -522,7 +522,7 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         picker = running.page.locator('[data-agent-actions-picker]');
         await expect(picker).toContainText('Claude');
         await expect(picker.locator('[data-agent-action-group="recent"]')).toHaveCount(0);
-        await picker.getByPlaceholder('Search skills and slash commands…').fill('context');
+        await picker.getByPlaceholder(/^Search skills and slash commands/u).fill('context');
         await picker.locator('[data-agent-action="/context"]').click();
         await expect
             .poll(async () => {

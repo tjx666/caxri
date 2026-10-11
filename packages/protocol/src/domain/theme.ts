@@ -32,6 +32,13 @@ export const themeTokensSchema = z.object({
         danger: hex,
         merged: hex, // landed work; DESIGN.md owns the role, `upgradeThemeColors` backfills older files
         /**
+         * Data-series fill for quantity charts (the Usage heatmap, trend line, and share bars), mirroring VS Code's
+         * `charts.green`. A role of its own rather than a reuse of `success` so a theme can retune status green without
+         * repainting charts, and so a chart does not read as "passed". Built-in themes seed it with their `success`
+         * value, which keeps their charts unchanged.
+         */
+        chart: hex,
+        /**
          * Numeric view-container badge fill, mirroring VS Code's `activityBarBadge.background`. Its text color is
          * derived for contrast rather than persisted, like `accent` and `danger`.
          */

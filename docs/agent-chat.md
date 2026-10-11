@@ -392,6 +392,14 @@ survives switching tabs, like a draft.
 - Each provider rewinds with its native mechanism; Caxri takes no snapshots of its own.
   `capabilities.chatRewindFiles` says whether files can be reverted, and when they cannot, the
   checkbox stays disabled with the reason on hover.
+- "Restore code to here" sits beside "Edit from here" for a provider that reverts files: it calls
+  `agentChat.restoreFiles`, which puts back the files changed from that message onward and keeps
+  the conversation, as Claude Code's `/rewind` "Restore code" does. It asks first in the same
+  native dialog, follows the same running-turn and turn-start rules (a message with images can
+  restore code, since nothing returns to the composer), and logs `agent_chat.files_restored`.
+  Claude Code uses `rewindFiles` alone, without a restart; Grok Build uses
+  `_x.ai/rewind/execute { mode: 'files_only' }`. Codex offers no file restore, so the action is
+  absent there.
 
 | Provider    | Conversation                                                                            | Files                                                                      |
 | ----------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -409,6 +417,36 @@ it was enabled, or a message older than the transcript tail Caxri reads, refuses
 with the reason. Grok Build names a prompt by its index in the whole session, which the Chat may
 not hold in full, so Caxri counts back from the newest of `_x.ai/rewind/points` and checks that the
 point's preview matches the message before rewinding. Mobile does not offer the action.
+
+## Fork from here
+
+Beside "Edit from here", a message that started a turn offers "Fork from here". It copies the
+conversation up to just before that message into a new Agent Session through the provider's own
+fork, opens it as a Chat in a new Session of the same Project and cwd, puts the message's text in
+the new composer, and selects that Session. The source Chat is not touched, and nothing is merged
+back. `agentChat.fork` creates the Session without selecting it; the Renderer writes the composer
+draft first and then selects it, so the new composer mounts with the text.
+
+- The availability rule is the edit's (`agentChatRewindTarget`): a running turn disables the
+  action, and a steered message offers none. A message with images forks too; only its text
+  returns to the composer.
+- Forking the first message of a conversation the Chat holds in full asks no provider and opens an
+  empty Chat: Codex writes no rollout until a thread's first turn, so an empty fork could not be
+  resumed.
+- The new Session's Chat Terminal is bound to the forked Agent Session before it starts, so its
+  start is an ordinary resume. File checkpoints stay with the source: an edit in the fork can
+  revert only files its own turns changed.
+
+| Provider    | Fork                                                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------------------- |
+| Codex       | `thread/fork { beforeTurnId }` (experimental), then `thread/unsubscribe`, since the new Chat resumes it elsewhere   |
+| Claude Code | The Agent SDK's `forkSession({ upToMessageId })` at the record a rewind would resume at, over the Chat's own folder |
+| Grok Build  | `_x.ai/session/fork { targetPromptIndex }`, the index a rewind takes; the new Chat opens it with `session/load`     |
+
+The Agent SDK resolves Claude's settings folder from Server Core's environment, once per process,
+while each Chat runs Claude Code with its own environment, so `forkClaudeSession` hands
+`forkSession` a session store over that Chat's `CLAUDE_CONFIG_DIR` transcripts. Mobile does not
+offer the action.
 
 ## Approvals and questions
 
@@ -640,6 +678,10 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   Chat does not list with `VALIDATION`. In the composer, Arrow keys move through matches, Tab or
   Enter chooses one, and Escape dismisses the list. A command that takes no arguments runs when
   chosen; one that does is completed so its arguments can be typed.
+- **Session references.** Typing `@` at the start of a word lists other Sessions with an Agent
+  conversation, searched by title. Choosing one replaces the typed `@word` with a reference to a
+  condensed copy of that conversation; see
+  [Citing another Session](session-conversation-context.md#citing-another-session-with-).
 - Image bytes, thumbnails, and command arguments never reach logs.
 
 ## Context usage and cache
@@ -648,11 +690,15 @@ The snapshot's `usage` (`packages/protocol/src/agent/agent-chat-usage.ts`) descr
 as of the latest model response. Besides the total and the model window it can carry:
 
 - `breakdown`: what fills the window. Claude Code answers `getContextUsage({ detail: 'summary' })`
-  after each turn ends (local estimates, no extra token-count requests); the Chat keeps its `used`
-  and `buffer` rows (system prompt, tools, memory files, messages, the autocompact reserve) and
-  drops free space and deferred tool schemas. Codex reports its last request's cached input, new
-  input, and output (reasoning is already part of output). Grok Build reports none. A newer response
-  drops the rows until the next turn ends, so they never describe an older context.
+  after every model response, mid-turn included, and once more when the turn ends (local
+  estimates, no extra token-count requests; Claude Code 2.1.296 answers in milliseconds while a
+  tool runs). Requests coalesce so at most one is in flight (`ClaudeContextRefresh`). The Chat
+  keeps its `used` and `buffer` rows (system prompt, tools, memory files, messages, the autocompact
+  reserve) and drops free space and deferred tool schemas; the previous rows stay until the fresh
+  answer replaces them, so an open meter never collapses to the total during a running turn, and an
+  answer that arrives after the total moved again is discarded. Codex reports its last request's
+  cached input, new input, and output (reasoning is already part of output). Grok Build reports
+  none.
 - `compactWindow`: the window Claude Code compacts against (`rawMaxTokens`) when it is smaller
   than the model's, as with `CLAUDE_CODE_AUTO_COMPACT_WINDOW` or the 200K boundary on a 1M model.
   The meter's percentage and color measure against it: `--warning` from 50%, `--danger` from 70%.
@@ -669,6 +715,15 @@ While no turn runs, the composer shows these as one row in the activity bar's pl
 minute clock: once the Chat has idled past the cache lifetime, a `--warning` notice says the next
 message rewrites the context and what that costs; from 70% of the compaction window, a `--danger`
 notice suggests `/compact`. Both can show at once, cache first.
+
+The expired-cache notice also offers **Continue in new Chat**, the cheaper way out of a large cold
+context. It opens a new Chat of the same Agent in the same Session and sends it a handoff prompt
+(`agentChatHandoffPrompt`) naming the previous conversation, session ID, transcript path (from
+`terminal.agentTranscript`), and working directory. The prompt has the new Chat dispatch one
+subagent on a cheap model to condense the transcript before it continues, so the old context is
+never loaded whole. An unsent draft travels with the prompt as the request to handle after
+catching up, and leaves the old composer only once the new Chat accepted the prompt. A Chat with
+no transcript on disk refuses with an error instead of opening an empty Chat.
 
 ## Model and effort
 
@@ -700,6 +755,14 @@ A running turn keeps the model it started with.
   settings, environment overrides, and model downgrades. Claude Code fills it only for a hook with
   a tool-use context, so `PreToolUse` and `Stop` always carry it and `UserPromptSubmit` only
   sometimes. Before the first turn ends, or a switch, the effort can be unknown.
+  Ultracode (standing multi-agent Workflow orchestration) is a separate toggle, as in Claude
+  Code's own `/effort` picker since 2.1.284: the snapshot's `ultracode` is present only while
+  `get_settings` reports `applied.ultracodeAvailable` for the current model, and the model menu
+  shows an Ultracode checkbox below the efforts. `agentChat.configure { ultracode }` sends it
+  through `applyFlagSettings`. Claude Code turns ultracode off when `effortLevel` moves without an
+  `ultracode` key, so an effort change carries the current ultracode along, and every switch reads
+  `get_settings` back so a model without ultracode withdraws the toggle. Typing the `ultracode`
+  keyword in a message still opts that one turn in, since the text reaches Claude Code verbatim.
 - **Grok Build** lists models in the `session/new` or `session/load` result's `models`
   (`availableModels`, `currentModelId`). A switch applies in place with `session/set_model`, and
   the usage meter takes the new model's `totalContextTokens`. Its reasoning efforts are not
@@ -725,7 +788,9 @@ requests, rejected requests, and dropped frames), `agent_chat.turn_finished` (st
 (closed reason and queue depth), `agent_chat.delivery_checked` (request method and closed outcome
 `delivered` or `unknown` after a turn request timed out), `agent_chat.task_finished` (task kind, final status,
 background flag, duration), and `agent_chat.rewound` (closed outcome `rewound`, `refused`, or
-`failed`, provider, whether files were reverted, turns removed, duration). None of them carries
+`failed`, provider, whether files were reverted, turns removed, duration), and `agent_chat.forked`
+(closed outcome `forked`, `refused`, or `failed`, the error code when it did not fork, provider,
+turns kept, duration). None of them carries
 message text, command output, provider stderr, or protocol bodies.
 
 ## Testing
@@ -740,7 +805,9 @@ slash list for each provider. The Grok fake persists its frames so `session/load
 and takes no images. All three implement their provider's rewind (Codex `thread/revert`, the
 Claude transcript chain with `--resume-session-at` and `rewind_files`, Grok `_x.ai/rewind/*`) and
 log each call to a JSON-lines file in their state directory, so `service-rewind.integration.test.ts`
-checks the request and the history a later resume reads. Unit, integration, and fake-mode E2E tests drive them; no test launches the
+checks the request and the history a later resume reads. The Codex and Grok fakes also fork
+(`thread/fork`, `_x.ai/session/fork`), and Claude forks through the SDK over the fake's real
+transcript, so `service-fork.integration.test.ts` resumes each fork and reads its history. Unit, integration, and fake-mode E2E tests drive them; no test launches the
 real CLI or calls a model.
 
 Streaming Markdown has a machine-independent CI gate in
@@ -765,5 +832,5 @@ Claude Code's agent picker (its `initialize` response already lists the agents).
 reasoning effort picker and images (its ACP agent advertises `image: false`). Grok Build stays out
 of the real-Agent smoke. On mobile, a
 Chat shows no plan or context usage yet, cannot run slash commands, does not show background tasks or the
-follow-up queue, cannot edit from an earlier message, older history beyond the window stays on
+follow-up queue, cannot edit or fork from an earlier message, older history beyond the window stays on
 the computer, and switching surface is Desktop-only.

@@ -82,6 +82,42 @@ describe('AgentChatService rewind', () => {
         ]);
     });
 
+    it('restores Claude code to an earlier message and keeps the conversation', async () => {
+        const { service, terminal, secondId, fakeLog } = await threeTurns('claude');
+        await service.restoreFiles(terminal.id, secondId);
+        expect(await fakeLog('claude', 'rewinds.jsonl')).toEqual([
+            { userMessageId: secondId, dryRun: true },
+            { userMessageId: secondId, dryRun: false },
+        ]);
+        expect(userTexts(service.read(terminal.id))).toEqual(['first', 'second', 'third']);
+    });
+
+    it('restores Grok code with the files-only mode and keeps the conversation', async () => {
+        const { service, terminal, secondId, fakeLog } = await threeTurns('grok');
+        await service.restoreFiles(terminal.id, secondId);
+        expect(await fakeLog('grok', 'rewinds.jsonl')).toEqual([
+            expect.objectContaining({ targetPromptIndex: 1, mode: 'files_only' }),
+        ]);
+        // Grok Build's own record keeps every turn too.
+        await service.restart(terminal.id);
+        expect(userTexts(service.read(terminal.id))).toEqual(['first', 'second', 'third']);
+    });
+
+    it('refuses to restore Codex code, or any code while a turn runs', async () => {
+        const codex = await threeTurns('codex');
+        await expect(
+            codex.service.restoreFiles(codex.terminal.id, codex.secondId),
+        ).rejects.toMatchObject({ code: 'VALIDATION' });
+
+        const { service, terminal, until, secondId, fakeLog } = await threeTurns('claude');
+        await service.send(terminal.id, { text: 'slow' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await expect(service.restoreFiles(terminal.id, secondId)).rejects.toMatchObject({
+            code: 'CONFLICT',
+        });
+        expect(await fakeLog('claude', 'rewinds.jsonl')).toEqual([]);
+    });
+
     it('starts a new Claude session when the first message is edited', async () => {
         const { service, terminal, until, coordinator, client } = await threeTurns('claude');
         const first = client().items[0];

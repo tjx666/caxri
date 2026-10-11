@@ -28,6 +28,7 @@ import { discoverExtensions } from './discovery';
 import type { CatalogChangedEvent, TreeChangedEvent, ViewChangedEvent } from './service-events';
 import { projectExtensionHostViewEvent, subscribeExtensionEvent } from './service-events';
 import { ExtensionHostSupervisor } from './supervisor';
+import { requestTreeChildren } from './tree-children';
 import { assertActiveViewContext, extensionForView } from './view-scope';
 import {
     isReadWorkspaceOperation,
@@ -543,29 +544,15 @@ export class ExtensionService extends EventTarget {
         await this.activate(extension, `onView:${parameters.viewId}`);
         assertActiveViewContext(parameters.context, await this.options.activeContext());
         const generation = this.states.get(extension.extensionId)!.generation;
-        let result: TreeChildrenResult;
-        try {
-            result = (await this.supervisor?.request('treeChildren', {
-                extensionId: extension.extensionId,
-                generation,
-                ...parameters,
-            })) as TreeChildrenResult;
-        } catch (error) {
-            if (extensionFailure(error).code !== 'GENERATION_EXPIRED') throw error;
-            /**
-             * A provider refresh can invalidate either an in-flight root request or a branch handle before its
-             * debounced treeChanged event reaches the Renderer. Recover both races with a current root snapshot while
-             * preserving strict Extension Host rejection for every other failure.
-             */
-            const root = (await this.supervisor?.request('treeChildren', {
-                extensionId: extension.extensionId,
-                generation,
-                viewId: parameters.viewId,
-                requestId: parameters.requestId,
-                context: parameters.context,
-            })) as TreeChildrenResult;
-            result = { ...root, ...(parameters.parentHandle && { reset: true }) };
-        }
+        const result = await requestTreeChildren(
+            async (request) =>
+                (await this.supervisor?.request('treeChildren', {
+                    extensionId: extension.extensionId,
+                    generation,
+                    ...request,
+                })) as TreeChildrenResult,
+            parameters,
+        );
         assertActiveViewContext(parameters.context, await this.options.activeContext());
         return result;
     }
@@ -754,6 +741,14 @@ export class ExtensionService extends EventTarget {
 
     onViewChanged(listener: (event: ViewChangedEvent) => void): () => void {
         return subscribeExtensionEvent(this, 'viewChanged', listener);
+    }
+
+    /**
+     * Called synchronously at the start of Server Core's `stop()` so an Extension Host killed by the same OS signal
+     * before {@link shutdown} runs is treated as teardown rather than a crash to restart.
+     */
+    markCoreStopping(): void {
+        this.supervisor?.markCoreStopping();
     }
 
     shutdown(): Promise<void> {

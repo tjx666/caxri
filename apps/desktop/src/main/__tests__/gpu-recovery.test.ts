@@ -5,8 +5,9 @@ import { createGpuRecoveryCoordinator, resolveRenderingMode } from '../gpu-recov
 const powerMonitor = vi.hoisted(() => ({ on: vi.fn() }));
 vi.mock('electron', () => ({ powerMonitor }));
 
-function createHarness() {
+function createHarness(isQuitting = false) {
     const app = { on: vi.fn(), quit: vi.fn(), relaunch: vi.fn() };
+    const write = vi.fn();
     const diagnostics = {
         recordGpuProcessGone: vi.fn(() => ({
             contextLost: true,
@@ -25,12 +26,13 @@ function createHarness() {
         },
         diagnostics: diagnostics as never,
         isE2E: false,
-        logger: () => {},
+        isQuitting: () => isQuitting,
+        logger: () => ({ write }) as never,
         prepareRelaunch: vi.fn(),
         sendEvent,
         updateArgvConfig,
     });
-    return { app, coordinator, diagnostics, sendEvent, updateArgvConfig };
+    return { app, coordinator, diagnostics, sendEvent, updateArgvConfig, write };
 }
 
 describe('GPU recovery coordinator', () => {
@@ -49,6 +51,27 @@ describe('GPU recovery coordinator', () => {
         expect(harness.diagnostics.recordSystemWake.mock.calls).toEqual([
             ['resume'],
             ['unlock-screen'],
+        ]);
+    });
+
+    it('treats child processes taken down by an accepted quit as teardown, not crashes', () => {
+        const harness = createHarness(true);
+        harness.coordinator.install();
+        const onGone = harness.app.on.mock.calls.find(
+            ([event]) => event === 'child-process-gone',
+        )?.[1] as ((event: unknown, details: Record<string, unknown>) => void) | undefined;
+
+        onGone?.({}, { type: 'GPU', reason: 'killed', exitCode: 15 });
+        onGone?.({}, { type: 'Utility', reason: 'killed', exitCode: 15, name: 'Network Service' });
+
+        expect(harness.diagnostics.recordGpuProcessGone).not.toHaveBeenCalled();
+        expect(harness.sendEvent).not.toHaveBeenCalled();
+        const calls = harness.write.mock.calls as Array<
+            [string, string, { fields: { source?: string } }]
+        >;
+        expect(calls.map(([level, , record]) => [level, record.fields.source])).toEqual([
+            ['info', 'app-quitting'],
+            ['info', 'app-quitting'],
         ]);
     });
 

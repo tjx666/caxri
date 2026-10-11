@@ -160,6 +160,7 @@ describe('themeTokensSchema hex color validation', () => {
             warning: '#000000',
             danger: '#000000',
             merged: '#000000',
+            chart: '#00c000',
             badge: '#000000',
             errorBadge: '#000000',
             warningBadge: '#000000',

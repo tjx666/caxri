@@ -22,6 +22,10 @@ import {
     sessionContentSearchParametersSchema,
     sessionContentSearchResultSchema,
 } from './session-content-search.js';
+import {
+    sessionConversationReferenceParametersSchema,
+    sessionConversationReferenceResultSchema,
+} from './session-conversation-reference.js';
 import { terminalSurfaceSchema } from './terminal-surface.js';
 
 const serverWrite = commandPolicy('server', 'write');
@@ -52,6 +56,16 @@ export const sessionMethods = {
         ...commandPolicy('server', 'read'),
         params: sessionContentSearchParametersSchema,
         result: sessionContentSearchResultSchema,
+    },
+    /**
+     * Condenses another Session's Agent conversation into a Caxri-owned Markdown file and returns its path, so a
+     * composer can cite it as `@<path>`. The Server reads the transcript; the conversation never crosses the bridge.
+     */
+    'session.conversationReference': {
+        ...commandPolicy('server', 'control'),
+        idempotency: 'none',
+        params: sessionConversationReferenceParametersSchema,
+        result: sessionConversationReferenceResultSchema,
     },
     'session.reorder': {
         ...serverWrite,

@@ -159,6 +159,7 @@ describe('refreshCommanderBoardPullRequests', () => {
             projects: [],
             pullRequestsRefreshedAt: 1,
             rows: [untouched, target],
+            tasks: [],
         });
         const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
         mocks.request.mockResolvedValueOnce(
@@ -183,6 +184,7 @@ describe('refreshCommanderBoardPullRequests', () => {
             projects: [],
             pullRequestsRefreshedAt: 1,
             rows: [boardRow('target')],
+            tasks: [],
         });
         mocks.request.mockResolvedValueOnce(pullRequests({ pullRequests: { target: opened } }));
 

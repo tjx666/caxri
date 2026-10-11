@@ -3,6 +3,7 @@ import type {
     CommanderBoard,
     CommanderBoardGroupId,
     CommanderBoardRow,
+    CommanderTask,
     ProcessState,
     ProjectRecord,
     SessionPullRequests,
@@ -113,6 +114,10 @@ function taskGroup(task: CommanderBoardRow['task']): CommanderBoardGroupId | und
  * `tasks` are the Commander's own delegation receipts; each Commander Session shows its current one.
  */
 export function commanderBoard(input: {
+    /**
+     * The Commander's open ledger tasks, already bounded and ordered by the ledger.
+     */
+    commanderTasks: readonly CommanderTask[];
     commanderSessionIds: ReadonlySet<string>;
     now: number;
     projects: readonly ProjectRecord[];
@@ -177,5 +182,6 @@ export function commanderBoard(input: {
             rootPath: project.rootPath,
         })),
         rows: rows.slice(0, MAX_COMMANDER_BOARD_ROWS),
+        tasks: [...input.commanderTasks],
     };
 }

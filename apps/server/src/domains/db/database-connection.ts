@@ -6,6 +6,8 @@ import { AgentDelegationsModel } from './models/agent-delegations';
 import { AgentDispatchReceiptsModel } from './models/agent-dispatch-receipts';
 import { AgentSessionUsageModel } from './models/agent-session-usage';
 import { AppStateModel } from './models/app-state';
+import { CommanderPendingNoticesModel } from './models/commander-pending-notices';
+import { CommanderTasksModel } from './models/commander-tasks';
 import { MobileAgentSubmitReceiptsModel } from './models/mobile-agent-submit-receipts';
 import { ProjectsModel } from './models/projects';
 import { ProtocolStateModel } from './models/protocol-state';
@@ -66,6 +68,8 @@ export class CaxriDatabaseConnection {
     readonly agentDelegations: AgentDelegationsModel;
     readonly agentSessionUsage: AgentSessionUsageModel;
     readonly protocolState: ProtocolStateModel;
+    readonly commanderTasks: CommanderTasksModel;
+    readonly commanderPendingNotices: CommanderPendingNoticesModel;
 
     constructor(path: string, options: CaxriDatabaseConnectionOptions = {}) {
         const opened = openDatabase(path);
@@ -84,6 +88,8 @@ export class CaxriDatabaseConnection {
         this.agentDispatchReceipts = new AgentDispatchReceiptsModel(this.db);
         this.mobileAgentSubmitReceipts = new MobileAgentSubmitReceiptsModel(this.db);
         this.agentDelegations = new AgentDelegationsModel(this.db);
+        this.commanderTasks = new CommanderTasksModel(this.db);
+        this.commanderPendingNotices = new CommanderPendingNoticesModel(this.db);
         this.protocolState = new ProtocolStateModel(this.db, (work) => this.transaction(work));
         this.onTransaction = options.onTransaction;
     }

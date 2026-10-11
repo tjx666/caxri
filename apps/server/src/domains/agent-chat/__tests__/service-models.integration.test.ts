@@ -82,4 +82,33 @@ describe('Agent Chat model and effort with a fake Claude Code CLI', () => {
         const snapshot = await until((current) => current.turns.at(-1)?.status === 'completed');
         expect(snapshot.effort).toBe('medium');
     });
+
+    it('turns ultracode on, keeps it through an effort change, and withdraws it on a model without it', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await until((snapshot) => snapshot.ultracode === false);
+
+        await service.configure(terminal.id, { ultracode: true });
+        await until((snapshot) => snapshot.ultracode === true);
+        // The first turn names the model, which an effort change is validated against.
+        await service.send(terminal.id, { text: 'hello' });
+        await until((current) => current.turns.at(-1)?.status === 'completed');
+
+        // Claude Code drops ultracode on an effort change that leaves the key out; the Chat sends it along.
+        await service.configure(terminal.id, { effort: 'high' });
+        await service.send(terminal.id, { text: 'again' });
+        const ran = await until(
+            (current) => current.turns.length === 2 && current.turns.at(-1)?.status === 'completed',
+        );
+        expect(ran).toMatchObject({ effort: 'high', ultracode: true });
+
+        await service.configure(terminal.id, { model: 'fake-claude-haiku' });
+        const withdrawn = await until(
+            (snapshot) =>
+                snapshot.model === 'fake-claude-haiku' && snapshot.ultracode === undefined,
+        );
+        expect(withdrawn.ultracode).toBeUndefined();
+        await expect(service.configure(terminal.id, { ultracode: true })).rejects.toMatchObject({
+            code: 'VALIDATION',
+        });
+    });
 });

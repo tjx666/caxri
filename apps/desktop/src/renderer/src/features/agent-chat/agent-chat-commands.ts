@@ -2,10 +2,15 @@ import type {
     AgentChatDecision,
     AgentChatMessageInput,
     AgentChatModelRequest,
+    TerminalRecord,
 } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
-import { tryCommand } from '../../stores/toasts';
+import { pushToast, tryCommand } from '../../stores/toasts';
+import { didSelectSession } from '../session/session-commands';
+import { createTerminalForSession } from '../terminal/terminal-commands';
+import { writeAgentChatDraft } from './agent-chat-drafts';
+import { agentChatHandoffPrompt } from './agent-chat-handoff';
 
 /**
  * Sends a message. An idle Chat starts a turn; while a turn runs, `delivery` decides whether the message waits in the
@@ -62,6 +67,42 @@ export async function didRewindAgentChat(
         isSent = true;
     });
     return isSent;
+}
+
+/**
+ * "Fork from here": copies the conversation before message `itemId` into a Chat in a new Session, puts the message's
+ * text in that Chat's composer to send as it is or change first, and opens the Session. The draft is written before the
+ * selection so the new composer mounts with it.
+ */
+export async function forkAgentChat(
+    terminalId: string,
+    itemId: string,
+    text: string,
+): Promise<void> {
+    await tryCommand('Conversation could not be forked', async () => {
+        const forked = await caxri.request('agentChat.fork', { terminalId, itemId });
+        if (text) writeAgentChatDraft(forked.terminalId, text);
+        await didSelectSession(forked.sessionId);
+    });
+}
+
+/**
+ * "Restore code to here": puts back the files the turns from message `itemId` onward changed and keeps the
+ * conversation. It overwrites the user's own edits since, so it asks first in the same native dialog an edit that
+ * reverts files uses; Cancel is the default.
+ */
+export async function restoreAgentChatFiles(
+    terminalId: string,
+    request: { itemId: string; providerName: string; restoredTurns: number },
+): Promise<void> {
+    await tryCommand('Code could not be restored', async () => {
+        const { confirmed } = await caxri.request('agentChat.confirmRevertFiles', {
+            providerName: request.providerName,
+            removedTurns: request.restoredTurns,
+        });
+        if (!confirmed) return;
+        await caxri.request('agentChat.restoreFiles', { terminalId, itemId: request.itemId });
+    });
 }
 
 /**
@@ -169,4 +210,41 @@ export function resumeAgentChatQueue(terminalId: string): void {
     void tryCommand('Unable to resume the queue', () =>
         caxri.request('agentChat.resumeQueue', { terminalId }),
     );
+}
+
+/**
+ * Opens a new Chat of the same Agent in the same Session and sends it {@link agentChatHandoffPrompt}: the manual "start
+ * over and point the new conversation at the old transcript" routine for a Chat whose prompt cache expired. Resolves
+ * `true` once the new Chat accepted the prompt, so the composer clears the draft it carried over only then.
+ */
+export async function didContinueAgentChatInNewChat(
+    terminal: TerminalRecord,
+    { pendingRequest, providerName }: { pendingRequest: string; providerName: string },
+): Promise<boolean> {
+    const transcript = await tryCommand('Unable to find the transcript', () =>
+        caxri.request('terminal.agentTranscript', {
+            terminalId: terminal.id,
+            withContent: false,
+        }),
+    );
+    if (transcript === undefined) return false;
+    if (!transcript?.exists) {
+        pushToast('error', 'This Chat has no transcript on disk for a new Chat to read.');
+        return false;
+    }
+    const terminalId = await createTerminalForSession(terminal.sessionId, terminal.kind, {
+        surface: 'chat',
+    });
+    if (!terminalId) return false;
+    return didSendAgentChatMessage(terminalId, {
+        text: agentChatHandoffPrompt({
+            providerName,
+            provider: terminal.provider,
+            title: terminal.title,
+            agentSessionId: terminal.agentSessionId,
+            transcriptPath: transcript.path,
+            cwd: terminal.agentCwd ?? terminal.cwd,
+            pendingRequest,
+        }),
+    });
 }

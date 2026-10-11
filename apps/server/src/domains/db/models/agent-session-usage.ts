@@ -119,6 +119,22 @@ export class AgentSessionUsageModel {
             .run();
     }
 
+    /**
+     * Forgets a row's fingerprint so the next sync rescans its transcript even though the files did not change.
+     */
+    invalidateScan(provider: AgentProvider, agentSessionId: string): void {
+        this.database
+            .update(agentSessionUsage)
+            .set({ sourceFingerprint: null })
+            .where(
+                and(
+                    eq(agentSessionUsage.provider, provider),
+                    eq(agentSessionUsage.agentSessionId, agentSessionId),
+                ),
+            )
+            .run();
+    }
+
     listExternal(): ExternalAgentUsageRow[] {
         return this.database.select().from(externalAgentUsage).all() as ExternalAgentUsageRow[];
     }
@@ -131,6 +147,23 @@ export class AgentSessionUsageModel {
                 target: [externalAgentUsage.provider, externalAgentUsage.transcriptId],
                 set: row,
             })
+            .run();
+    }
+
+    /**
+     * The outside-Caxri counterpart of {@link invalidateScan}. The column is required, so an empty fingerprint, which no
+     * scan produces, marks the row stale.
+     */
+    invalidateExternalScan(provider: AgentProvider, transcriptId: string): void {
+        this.database
+            .update(externalAgentUsage)
+            .set({ sourceFingerprint: '' })
+            .where(
+                and(
+                    eq(externalAgentUsage.provider, provider),
+                    eq(externalAgentUsage.transcriptId, transcriptId),
+                ),
+            )
             .run();
     }
 

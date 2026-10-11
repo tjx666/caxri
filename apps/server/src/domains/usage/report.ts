@@ -94,6 +94,10 @@ export interface UsageReportInput {
     pullRequests: readonly PullRequestOutcomeRow[];
     priceOf: ModelPriceLookup;
     pricing: { source: PricingSource; updatedAt?: number };
+    /**
+     * Ledger rows the background scan has not read yet.
+     */
+    pendingScans?: number;
 }
 
 /**
@@ -565,6 +569,7 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
         coverage: {
             agentSessions: entries.length,
             unavailable: entries.filter(({ record }) => !record).length,
+            pendingScans: input.pendingScans ?? 0,
             pendingPullRequests,
             unpricedModels: [...unpriced]
                 .toSorted((a, b) => a.localeCompare(b))

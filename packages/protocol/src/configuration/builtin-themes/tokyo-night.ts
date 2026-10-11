@@ -21,6 +21,7 @@ export const tokyoNightTheme: ThemeTokens = {
         warning: '#e0af68',
         danger: '#f7768e',
         merged: '#bb9af7',
+        chart: '#73daca',
         badge: '#3d59a1',
         errorBadge: '#f7768e',
         warningBadge: '#e0af68',
