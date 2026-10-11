@@ -184,13 +184,13 @@ describe('CommanderCompletionNotifier', () => {
         );
     });
 
-    it('drops an Inbox event while no Commander Terminal exists', () => {
+    it('keeps an Inbox event queued while no Commander Terminal exists', () => {
         f.rows.terminalId = undefined;
         f.notifier.notifyInbox('item-1', 'replied');
         f.rows.terminalId = COMMANDER_TERMINAL_ID;
         f.startTurn('launch-1');
         f.finishTurn('launch-1', 'turn-1');
-        expect(f.writeCalls).toHaveLength(0);
+        expect(f.writeCalls.at(-1)?.data).toContain('inbox item item-1 has a new reply');
     });
 
     it('coalesces several pending transitions into exactly one write', () => {
@@ -529,6 +529,15 @@ describe('CommanderCompletionNotifier', () => {
         f.notifier.notifyReceiptChanged(receipt({ delegationId: 'd2', status: 'failed' }));
         f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
         expect(f.notices.list()).toMatchObject([{ kind: 'delegation', delegationId: 'd2' }]);
+    });
+
+    it('carries queued Inbox events in the launch prompt and keeps one replaced before the launch runs', () => {
+        f.notifier.notifyInbox('item-1', 'replied');
+        f.notifier.notifyInbox('item-2', 'replied');
+        expect(f.notifier.launchPrompt(COMMANDER_TERMINAL_ID)).toContain('Missed 2 inbox updates');
+        f.notifier.notifyInbox('item-2', 'dismissed');
+        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
+        expect(f.notifier.launchPrompt(COMMANDER_TERMINAL_ID)).toContain('item-2 was dismissed');
     });
 
     it('keeps a newer transition of a delegation the launch prompt already reported', () => {

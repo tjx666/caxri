@@ -129,6 +129,6 @@ describe('Inbox mentions', () => {
         expect(inboxReplyTarget([merge, question], undefined)?.id).toBe('q');
         expect(inboxReplyTarget([merge, question], 'm')?.id).toBe('m');
         expect(inboxReplyTarget([merge, question, item({ id: 'r' })], undefined)).toBeUndefined();
-        expect(inboxReplyTarget([question], 'gone')?.id).toBe('q');
+        expect(inboxReplyTarget([question], 'gone')).toBeUndefined();
     });
 });

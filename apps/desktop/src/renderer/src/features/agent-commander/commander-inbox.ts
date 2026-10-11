@@ -133,15 +133,15 @@ export function removeInboxMention(
 
 /**
  * The item a reply goes to: the chosen one while it is still open, otherwise the only open question, so the common case
- * of one pending question needs no `@` at all.
+ * of one pending question needs no `@` at all. A chosen item that closed yields no target rather than the fallback, so
+ * an answer typed for it is never sent to a different question.
  */
 export function inboxReplyTarget(
     items: readonly CommanderInboxItem[],
     chosenId: string | undefined,
 ): CommanderInboxItem | undefined {
     const open = items.filter((item) => item.status === 'open');
-    const chosen = chosenId && open.find((item) => item.id === chosenId);
-    if (chosen) return chosen;
+    if (chosenId) return open.find((item) => item.id === chosenId);
     const questions = open.filter((item) => isCommanderInboxQuestion(item));
     return questions.length === 1 ? questions[0] : undefined;
 }

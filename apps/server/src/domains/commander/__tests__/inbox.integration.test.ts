@@ -140,6 +140,28 @@ describe('CommanderInboxService', () => {
         expect(reopened.id).not.toBe(first.id);
     });
 
+    it('splits a large reconcile into change events the event contract accepts', async () => {
+        const { createService, events, service } = await fixture();
+        for (let number = 1; number <= 70; number += 1)
+            service.add({
+                kind: 'merge',
+                title: `Ready ${number}`,
+                body: '',
+                options: [],
+                pullRequest: { url: `${PR_URL}${number}`, headSha: VERIFIED_SHA },
+            });
+        // A restarted Server has no live view yet, so its first sweep reports every open merge item as changed.
+        const restarted = createService();
+        // Let each add's own forced refresh settle first.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        events.length = 0;
+        await restarted.refresh();
+        const sizes = events.map((event) =>
+            event.event === 'commanderInbox.changed' ? event.payload.itemIds.length : 0,
+        );
+        expect(sizes).toEqual([64, 6]);
+    });
+
     it('rejects a merge item without a pull request and a decision with one', async () => {
         const { service } = await fixture();
         expect(() => service.add({ kind: 'merge', title: 'x', body: '', options: [] })).toThrow(

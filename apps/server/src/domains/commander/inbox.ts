@@ -25,6 +25,10 @@ import type { CommanderInboxNoticeEvent } from './notice-text';
  * lets the shared pull-request store answer from a record another surface fetched moments ago.
  */
 const COMMANDER_INBOX_REFRESH_MS = 60_000;
+/**
+ * `commanderInbox.changed` payload cap from `packages/protocol/src/registry/events.ts`.
+ */
+const CHANGED_EVENT_MAX_IDS = 64;
 
 export interface CommanderInboxServiceOptions {
     database: CaxriDatabase;
@@ -93,9 +97,16 @@ export class CommanderInboxService {
         return item;
     }
 
+    /**
+     * Sends the change in batches the event contract accepts (at most 64 IDs), since a sweep right after a Server start
+     * reports every open merge item at once.
+     */
     private changed(itemIds: readonly string[]): void {
-        if (itemIds.length === 0) return;
-        this.options.send({ event: 'commanderInbox.changed', payload: { itemIds: [...itemIds] } });
+        for (let start = 0; start < itemIds.length; start += CHANGED_EVENT_MAX_IDS)
+            this.options.send({
+                event: 'commanderInbox.changed',
+                payload: { itemIds: itemIds.slice(start, start + CHANGED_EVENT_MAX_IDS) },
+            });
     }
 
     private closeItem(
@@ -226,7 +237,7 @@ export class CommanderInboxService {
 
     /**
      * Queues a reply notice for every open item whose latest reply the Commander has not acknowledged. Called at Server
-     * start and whenever the Commander process starts, since a notice for a Commander that was not running is dropped.
+     * start and right before the Commander process starts, so its launch prompt carries them.
      */
     announceUnacknowledged(): void {
         for (const { id } of this.model.unacknowledged()) this.options.notify(id, 'replied');

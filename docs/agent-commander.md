@@ -423,26 +423,26 @@ Every step of a Commander workflow leaves a content-free log line in Server Core
 `<userData>/logs/server-core.jsonl`, readable with `caxri logs query` (see [CLI](cli.md)). Together
 they reconstruct a bug report without Terminal output or transcripts:
 
-| Event                                          | Meaning                                                                                                                           |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `ipc.request`                                  | Every CLI call the Commander makes (`commander.board`, `agent.delegation.*`), with its duration and correlation ID (debug level). |
-| `agent_commander.ensured`                      | `commander.ensure` finished: `outcome` `created`, `restored`, or `running`, the prior Terminal state, and the duration.           |
-| `agent_commander.stopped`                      | `commander.stop` parked the Commander (`stopped`) or found nothing running (`not_running`).                                       |
-| `agent_commander.session_created`/`_discarded` | A Commander Session was created, or removed because its delegation was refused before launch.                                     |
-| `agent_delegation.requested`                   | A task was admitted: `mode` (`new`, `follow_up`, `resume`), whether the Commander sent it, its Session, and its parent task.      |
-| `agent_delegation.transitioned`                | Every receipt `status`/`failure` change, with the previous status, the task's age, and whether it came from restart recovery.     |
-| `agent_delegation.admission_rejected`          | Why a follow-up or resume was refused, as a closed reason.                                                                        |
-| `agent_commander.completion_notice_queued`     | A settled task was queued for the Commander Terminal, with the batch size (debug).                                                |
-| `agent_commander.completion_notice_deferred`   | Which gate holds the batch back (`commander_busy`, `draft_input`, `awaiting_permission`, ...), once per change (debug).           |
-| `agent_commander.completion_notice_delivered`  | The coalesced line was written, with its task count, the oldest entry's wait, and the finished turns that could not take it.      |
-| `agent_commander.resume_prompt_delivered`      | A relaunched Commander received its launch prompt: missed delegation `count`, `interruptedTurn`, and the oldest entry's `waitMs`. |
-| `agent_commander.task_recorded`                | A ledger task was created, with `origin` `commander` (`commander task add`) or `delegation` (an unregistered dispatch).           |
-| `agent_commander.task_transitioned`            | A ledger task changed status: `from`, `to`, and the task's age.                                                                   |
-| `agent_commander.inbox_item_reported`               | The Commander added an Inbox item or replaced the open one with the same key: `kind` and `outcome` (`added`, `updated`).          |
-| `agent_commander.inbox_item_closed`                 | An item closed: the closed `reason`, its `kind`, how long it was open (`openMs`), and its reply count.                            |
-| `agent_commander.inbox_replied`                     | The owner replied: item `kind`, reply `sequence`, and `source` (`desktop`, `mobile`); never the text.                             |
-| `agent_commander.inbox_stale_changed`               | A `merge` item went stale (`headMoved`) or became current again (`null`).                                                         |
-| `agent_commander.inbox_pull_request_refresh_failed` | Reading one `merge` item's pull request failed, with the shared CLI failure `kind`.                                               |
+| Event                                               | Meaning                                                                                                                                               |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ipc.request`                                       | Every CLI call the Commander makes (`commander.board`, `agent.delegation.*`), with its duration and correlation ID (debug level).                     |
+| `agent_commander.ensured`                           | `commander.ensure` finished: `outcome` `created`, `restored`, or `running`, the prior Terminal state, and the duration.                               |
+| `agent_commander.stopped`                           | `commander.stop` parked the Commander (`stopped`) or found nothing running (`not_running`).                                                           |
+| `agent_commander.session_created`/`_discarded`      | A Commander Session was created, or removed because its delegation was refused before launch.                                                         |
+| `agent_delegation.requested`                        | A task was admitted: `mode` (`new`, `follow_up`, `resume`), whether the Commander sent it, its Session, and its parent task.                          |
+| `agent_delegation.transitioned`                     | Every receipt `status`/`failure` change, with the previous status, the task's age, and whether it came from restart recovery.                         |
+| `agent_delegation.admission_rejected`               | Why a follow-up or resume was refused, as a closed reason.                                                                                            |
+| `agent_commander.completion_notice_queued`          | A settled task was queued for the Commander Terminal, with the batch size (debug).                                                                    |
+| `agent_commander.completion_notice_deferred`        | Which gate holds the batch back (`commander_busy`, `draft_input`, `awaiting_permission`, ...), once per change (debug).                               |
+| `agent_commander.completion_notice_delivered`       | The coalesced line was written, with its task count, the oldest entry's wait, and the finished turns that could not take it.                          |
+| `agent_commander.resume_prompt_delivered`           | A relaunched Commander received its launch prompt: missed delegation `count`, Inbox `inboxCount`, `interruptedTurn`, and the oldest entry's `waitMs`. |
+| `agent_commander.task_recorded`                     | A ledger task was created, with `origin` `commander` (`commander task add`) or `delegation` (an unregistered dispatch).                               |
+| `agent_commander.task_transitioned`                 | A ledger task changed status: `from`, `to`, and the task's age.                                                                                       |
+| `agent_commander.inbox_item_reported`               | The Commander added an Inbox item or replaced the open one with the same key: `kind` and `outcome` (`added`, `updated`).                              |
+| `agent_commander.inbox_item_closed`                 | An item closed: the closed `reason`, its `kind`, how long it was open (`openMs`), and its reply count.                                                |
+| `agent_commander.inbox_replied`                     | The owner replied: item `kind`, reply `sequence`, and `source` (`desktop`, `mobile`); never the text.                                                 |
+| `agent_commander.inbox_stale_changed`               | A `merge` item went stale (`headMoved`) or became current again (`null`).                                                                             |
+| `agent_commander.inbox_pull_request_refresh_failed` | Reading one `merge` item's pull request failed, with the shared CLI failure `kind`.                                                                   |
 
 The delegation ID links them: the Commander's `agent delegate create` returns it, every transition
 and notice names it, and the `ipc.request` line of each `agent.delegation.*` call carries it as

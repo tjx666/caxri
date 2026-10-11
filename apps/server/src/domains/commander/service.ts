@@ -56,10 +56,10 @@ export interface AgentCommanderServiceOptions {
      */
     onStopped?(): void;
     /**
-     * Runs after `ensure` started or restored the Commander process, so work it missed while stopped (unacknowledged
-     * Inbox replies) is announced again.
+     * Runs right before `ensure` starts or restores the Commander process, so work it missed while stopped
+     * (unacknowledged Inbox replies) is queued in time for the launch prompt to carry it.
      */
-    onLaunched?(): void;
+    onLaunching?(): void;
     probeTerminal(terminalId: string): void;
     pullRequests(): SessionPullRequests;
     /**
@@ -138,6 +138,7 @@ export class AgentCommanderService {
         }
         if (!rows.terminalId) {
             const { projectId, sessionId, sessionIds } = rows;
+            this.options.onLaunching?.();
             const terminal = await this.options.createAndStartTerminal(
                 sessionId,
                 COMMANDER_PROVIDER,
@@ -152,13 +153,12 @@ export class AgentCommanderService {
             );
             this.options.probeTerminal(terminal.id);
             this.logEnsured('created', terminal.id, startedAt);
-            this.options.onLaunched?.();
         } else {
             const state = database.getTerminal(rows.terminalId)?.lastProcessState;
             const isRunning = state === 'running' || state === 'starting';
+            if (!isRunning) this.options.onLaunching?.();
             this.options.restoreTerminals(rows.sessionId);
             this.logEnsured(isRunning ? 'running' : 'restored', rows.terminalId, startedAt, state);
-            if (!isRunning) this.options.onLaunched?.();
         }
         const snapshot = this.snapshot();
         if (!snapshot) throw new CaxriError('UNAVAILABLE', 'Agent Commander failed to start');
