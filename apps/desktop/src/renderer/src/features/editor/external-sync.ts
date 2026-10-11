@@ -175,10 +175,10 @@ async function syncExternalDocuments(
 ): Promise<void> {
     const session = getSelectedSession();
     if (!session) return;
+    const requested = documentIds === 'all' ? undefined : new Set(documentIds);
     const targets = openExternalDocuments().filter(
         ({ documentId, document }) =>
-            (documentIds === 'all' || documentIds.includes(documentId)) &&
-            (!shouldPreserveDirty || !document.dirty),
+            (!requested || requested.has(documentId)) && (!shouldPreserveDirty || !document.dirty),
     );
     if (targets.length === 0) return;
     const reloaded = await Promise.all(
