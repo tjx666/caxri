@@ -8,7 +8,7 @@ import type parcelWatcher from '@parcel/watcher';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
-import { ProjectRootResolver } from '../../project-roots';
+import { ProjectRootResolver } from '../../project/roots';
 import { GitService } from '..';
 
 async function gitAt(cwd: string, ...arguments_: string[]): Promise<string> {

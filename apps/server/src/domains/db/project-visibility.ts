@@ -1,13 +1,13 @@
 import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
 import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 
+import { agentCommanderProjectId } from './commander-rows';
+import type { CaxriDatabaseConnection } from './database-connection';
 import {
     firstActiveSession,
     firstSelectableProject,
     selectFallbackAfterDeletion,
-} from '../session-policy';
-import { agentCommanderProjectId } from './commander-rows';
-import type { CaxriDatabaseConnection } from './database-connection';
+} from './session-policy';
 
 /**
  * Hides a top-level Project together with the worktree Projects registered on its behalf, keeping every row they own.

@@ -22,6 +22,7 @@ import { assertPtyTerminal } from '../pty-guard';
 import { SingleFlight } from '../single-flight';
 import type { TerminalLifecycleCause, TerminalWorkingDirectoryIdentity } from '../terminal';
 import { dispatchFingerprint, launchProjection } from './launch-projection';
+import { isSettled, terminalStatePatch } from './receipt-status';
 import type { AgentDispatchServiceOptions } from './service-options';
 
 interface DispatchWaiter {
@@ -76,33 +77,6 @@ export interface AgentDispatchResumeOptions {
     beforeResume(): void;
 }
 
-function isSettled(receipt: AgentDispatchReceipt): boolean {
-    return ['stopped', 'interrupted', 'failed'].includes(receipt.status);
-}
-
-function terminalStatePatch(
-    state: ProcessState,
-): { status: AgentDispatchReceipt['status']; failure?: AgentDispatchFailure } | undefined {
-    switch (state) {
-        case 'stopped':
-            return { status: 'stopped' };
-        /*
-        `suspended` and `detached` both kill the launched process on purpose, and only a later wake or
-        `session.resume` relaunches it, so a dispatch that was still running is interrupted rather than failed:
-        the dispatcher must not wait for a receipt the Terminal can no longer deliver (#551).
-        */
-        case 'interrupted':
-        case 'suspended':
-        case 'detached':
-            return { status: 'interrupted' };
-        case 'dead':
-        case 'failed':
-            return { status: 'failed', failure: { code: 'UNAVAILABLE', reason: 'process_failed' } };
-        default:
-            return undefined;
-    }
-}
-
 /**
  * Server-owned dispatch lifecycle with durable idempotency before the first PTY side effect.
  */
@@ -151,59 +125,70 @@ export class AgentDispatchService {
             'fresh',
             (options?.assignedAgentSessionId ? 2 : 0) + (options?.initialPrompt ? 2 : 0),
         );
-        const cwd = await this.options.terminalWorkingDirectory({
-            authorizedRoots: [ownerProject.rootPath, session.rootPath],
-            defaultRoot: options?.cwd ?? session.rootPath,
-        });
-        const identity = await this.options.terminalDirectoryIdentity(cwd);
-        options?.beforeCreate?.();
-        const previousLayout = this.options.database.getSessionState(input.sessionId).paneLayout;
-        const { stored, terminal } = this.options.database.createAgentDispatchWithTerminal(
-            {
-                dispatchId,
-                requestFingerprint: fingerprint,
-                operation: 'start',
-                projectId: input.projectId,
-                sessionId: input.sessionId,
-                provider: input.provider,
-                requestedLaunch: projected,
-                effectiveLaunch: projected,
-                now: this.now(),
-            },
-            input.provider,
-            cwd,
-        );
-        this.logTransition(stored.receipt, 'created');
-        this.publish(stored.receipt);
+        // The Terminal record does not exist until the working directory resolves; a detach meanwhile must still wait.
+        const prepared = this.options.terminals.launches.begin(session.id);
+        let launched: Promise<AgentDispatchReceipt>;
         try {
-            options?.prepared(terminal);
-        } catch (error) {
-            // Preparation is synchronous and no process exists yet; restore the exact pre-insert layout.
-            this.options.database.closeTerminal(terminal.id);
-            const state = this.options.database.getSessionState(input.sessionId);
-            this.options.database.updateSessionState({ ...state, paneLayout: previousLayout });
-            return this.fail(dispatchId, error, 'launch_failed');
-        }
-        try {
-            this.options.emit({
-                event: 'state.changed',
-                payload: { kind: 'full', reason: 'terminal.create' },
+            const cwd = await this.options.terminalWorkingDirectory({
+                authorizedRoots: [ownerProject.rootPath, session.rootPath],
+                defaultRoot: options?.cwd ?? session.rootPath,
             });
-            this.options.coordinator.prepareTerminalStart(terminal.id);
-        } catch (error) {
-            return this.fail(dispatchId, error, 'launch_failed');
+            const identity = await this.options.terminalDirectoryIdentity(cwd);
+            options?.beforeCreate?.();
+            const previousLayout = this.options.database.getSessionState(
+                input.sessionId,
+            ).paneLayout;
+            const { stored, terminal } = this.options.database.createAgentDispatchWithTerminal(
+                {
+                    dispatchId,
+                    requestFingerprint: fingerprint,
+                    operation: 'start',
+                    projectId: input.projectId,
+                    sessionId: input.sessionId,
+                    provider: input.provider,
+                    requestedLaunch: projected,
+                    effectiveLaunch: projected,
+                    now: this.now(),
+                },
+                input.provider,
+                cwd,
+            );
+            this.logTransition(stored.receipt, 'created');
+            this.publish(stored.receipt);
+            try {
+                options?.prepared(terminal);
+            } catch (error) {
+                // Preparation is synchronous and no process exists yet; restore the exact pre-insert layout.
+                this.options.database.closeTerminal(terminal.id);
+                const state = this.options.database.getSessionState(input.sessionId);
+                this.options.database.updateSessionState({ ...state, paneLayout: previousLayout });
+                return this.fail(dispatchId, error, 'launch_failed');
+            }
+            try {
+                this.options.emit({
+                    event: 'state.changed',
+                    payload: { kind: 'full', reason: 'terminal.create' },
+                });
+                this.options.coordinator.prepareTerminalStart(terminal.id);
+            } catch (error) {
+                return this.fail(dispatchId, error, 'launch_failed');
+            }
+            // `launch` calls `start` before its first await, so the span may end before the readiness wait.
+            launched = this.launch(
+                dispatchId,
+                terminal,
+                identity,
+                undefined,
+                launch,
+                options?.shouldStart,
+                options?.initialPrompt,
+                options?.delegationId,
+                options?.assignedAgentSessionId,
+            );
+        } finally {
+            prepared();
         }
-        return this.launch(
-            dispatchId,
-            terminal,
-            identity,
-            undefined,
-            launch,
-            options?.shouldStart,
-            options?.initialPrompt,
-            options?.delegationId,
-            options?.assignedAgentSessionId,
-        );
+        return launched;
     }
 
     private async resumeOnce(
@@ -255,27 +240,38 @@ export class AgentDispatchService {
         this.logTransition(stored.receipt, 'created');
         this.publish(stored.receipt);
         this.update(dispatchId, { status: 'starting', terminalId: terminal.id });
-        let identity: TerminalWorkingDirectoryIdentity;
+        // A detach that starts during the lookup below must still wait for the launch it precedes.
+        const prepared = this.options.terminals.launches.begin(terminal.sessionId);
+        let launched: Promise<AgentDispatchReceipt>;
         try {
-            identity = await this.options.terminalDirectoryIdentity(terminal.cwd);
-            this.assertNotArchived(input.sessionId);
-            if (options && this.options.terminals.agentLaunchId(terminal.id) !== expectedLaunchId)
-                throw new CaxriError('CONFLICT', 'Agent generation changed before resume');
-            options?.beforeResume();
-            this.options.coordinator.prepareTerminalResume(terminal.id);
-        } catch (error) {
-            return this.fail(dispatchId, error, 'launch_failed');
+            let identity: TerminalWorkingDirectoryIdentity;
+            try {
+                identity = await this.options.terminalDirectoryIdentity(terminal.cwd);
+                this.assertNotArchived(input.sessionId);
+                if (
+                    options &&
+                    this.options.terminals.agentLaunchId(terminal.id) !== expectedLaunchId
+                )
+                    throw new CaxriError('CONFLICT', 'Agent generation changed before resume');
+                options?.beforeResume();
+                this.options.coordinator.prepareTerminalResume(terminal.id);
+            } catch (error) {
+                return this.fail(dispatchId, error, 'launch_failed');
+            }
+            launched = this.launch(
+                dispatchId,
+                terminal,
+                identity,
+                input.providerSessionId,
+                launch,
+                options?.shouldStart,
+                options?.initialPrompt,
+                options?.delegationId,
+            );
+        } finally {
+            prepared();
         }
-        return this.launch(
-            dispatchId,
-            terminal,
-            identity,
-            input.providerSessionId,
-            launch,
-            options?.shouldStart,
-            options?.initialPrompt,
-            options?.delegationId,
-        );
+        return launched;
     }
 
     private async launch(

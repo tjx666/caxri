@@ -15,8 +15,8 @@ import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
-import type { ResolvedSessionPath } from '../project-roots';
-import { ProjectRootResolver } from '../project-roots';
+import type { ResolvedSessionPath } from '../project';
+import { ProjectRootResolver } from '../project';
 import type { OpenFile } from './documents';
 import { DocumentService } from './documents';
 import {

@@ -34,6 +34,16 @@ describe('hookHealthLabel', () => {
             'Newer installation is incomplete',
         );
         expect(hookHealthLabel(true, { kind: 'stale' })).toContain('restart Agent Terminals');
+        // Issue #1622: restarting cannot fix the user's own configuration, so a conflict names only the cause and fix.
+        expect(
+            hookHealthLabel(true, {
+                kind: 'conflict',
+                message:
+                    'settings.json is a symlink to a missing file. Restore the link target or remove the link.',
+            }),
+        ).toBe(
+            'Blocked by your configuration — settings.json is a symlink to a missing file. Restore the link target or remove the link.',
+        );
         expect(hookHealthLabel(true, { kind: 'error', message: 'EPERM' })).toBe(
             'Setup failed — restart Agent Terminals to try again — EPERM',
         );

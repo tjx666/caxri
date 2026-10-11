@@ -6,8 +6,6 @@ import { inArray } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
-import type { ShutdownReason } from '../session-policy';
-import { shutdownOutcome } from '../session-policy';
 import {
     BASELINE_SCHEMA_VERSION,
     CURRENT_SCHEMA_VERSION,
@@ -16,6 +14,8 @@ import {
 } from './migrations/manifest';
 import * as schema from './schema';
 import { terminals } from './schema';
+import type { ShutdownReason } from './session-policy';
+import { shutdownOutcome } from './session-policy';
 
 export { CURRENT_SCHEMA_VERSION } from './migrations/manifest';
 
@@ -30,27 +30,108 @@ function restrictPath(path: string, mode: number): void {
     }
 }
 
+const STATEMENT_BREAKPOINT = '--> statement-breakpoint';
 const FOREIGN_KEYS_PRAGMA_PATTERN = /\bPRAGMA\s+foreign_keys\b/iu;
+/**
+ * The exact standalone statements drizzle-kit's SQLite generator writes before and after every create-copy-drop-rename
+ * table rebuild.
+ */
+const GENERATED_FOREIGN_KEYS_TOGGLES = new Set([
+    'PRAGMA foreign_keys=OFF;',
+    'PRAGMA foreign_keys=ON;',
+]);
 
 /**
- * Migrations run inside one SQLite transaction ({@link initializeSchema}), so `PRAGMA foreign_keys` is a no-op there. A
- * migration that needs to rebuild a table with foreign keys must use create-copy-drop-rename instead of toggling the
- * pragma.
+ * The one sanctioned authoring path for a migration, table rebuilds included. The persistence architecture reference
+ * repeats this sentence verbatim, and a test keeps the two identical.
  */
-export function assertMigrationSqlOmitsForeignKeysPragma(sql: string): void {
-    if (!FOREIGN_KEYS_PRAGMA_PATTERN.test(sql)) return;
-    throw new Error(
-        'Migration SQL cannot contain PRAGMA foreign_keys; SQLite ignores it inside the migration transaction. Rebuild the table with create-copy-drop-rename instead.',
-    );
+export const MIGRATION_AUTHORING_RULE =
+    'Generate the migration with `bunx --bun drizzle-kit generate` and commit its SQL unchanged, including the standalone `PRAGMA foreign_keys=OFF;` and `PRAGMA foreign_keys=ON;` statements drizzle-kit writes around a table rebuild: the migration runner drops them and owns the foreign-key toggle.';
+
+/**
+ * Returns the SQL the runner executes for one generated migration. drizzle-kit's standalone foreign-key toggles are
+ * dropped because {@link migrateWithForeignKeysOff} already disables enforcement outside the migration transaction,
+ * where SQLite would ignore them anyway. Any other `PRAGMA foreign_keys` is rejected: it cannot take effect inside the
+ * transaction, so it would only make a hand-written migration look safer than it runs (issue #746).
+ */
+export function executableMigrationSql(sql: string): string {
+    const executable = sql
+        .split(STATEMENT_BREAKPOINT)
+        .filter((statement) => !GENERATED_FOREIGN_KEYS_TOGGLES.has(statement.trim()))
+        .join('');
+    if (FOREIGN_KEYS_PRAGMA_PATTERN.test(executable)) {
+        throw new Error(
+            `Migration SQL may contain PRAGMA foreign_keys only as the standalone statements drizzle-kit generates around a table rebuild. ${MIGRATION_AUTHORING_RULE}`,
+        );
+    }
+    return executable;
 }
 
 function runGeneratedSql(database: Database.Database, sql: string): void {
-    assertMigrationSqlOmitsForeignKeysPragma(sql);
-    database.exec(sql.replaceAll('--> statement-breakpoint', ''));
+    database.exec(executableMigrationSql(sql));
 }
 
 function installCurrentSchema(database: Database.Database): void {
     for (const migration of migrationManifest) runGeneratedSql(database, migration.sql);
+}
+
+interface ForeignKeyViolation {
+    /**
+     * Child table holding the dangling reference.
+     */
+    table: string;
+    /**
+     * Parent table the reference names.
+     */
+    parent: string;
+}
+
+/**
+ * Names only the table pairs and counts: the rows themselves are user metadata, which diagnostics never carry.
+ */
+function foreignKeyViolationSummary(violations: readonly ForeignKeyViolation[]): string {
+    const counts = new Map<string, number>();
+    for (const { parent, table } of violations) {
+        const edge = `${table} -> ${parent}`;
+        counts.set(edge, (counts.get(edge) ?? 0) + 1);
+    }
+    return [...counts].map(([edge, count]) => `${edge} (${count})`).join(', ');
+}
+
+/**
+ * Runs `migrate` under SQLite's procedure for schema changes ALTER TABLE cannot express
+ * (https://www.sqlite.org/lang_altertable.html#otheralter): foreign keys are disabled before the migration transaction
+ * opens, because `PRAGMA foreign_keys` is a no-op inside one; `PRAGMA foreign_key_check` must come back empty before
+ * the transaction commits; enforcement is re-enabled afterwards whether or not the migration succeeded.
+ *
+ * With enforcement on, `DROP TABLE` of a parent such as `projects`, `sessions`, or `terminals` performs an implicit
+ * `DELETE` that fires `ON DELETE CASCADE` and wipes every child row, including rows a rebuild already copied into its
+ * replacement table. The trade-off is that no cascade or `SET NULL` action fires during any migration; the check turns
+ * every reference such a migration leaves dangling into a rollback instead of silent corruption.
+ */
+function migrateWithForeignKeysOff(
+    database: Database.Database,
+    targetVersion: number,
+    migrate: () => void,
+): void {
+    database.pragma('foreign_keys = OFF');
+    try {
+        if (database.pragma('foreign_keys', { simple: true }) !== 0)
+            throw new Error(
+                'Cannot disable foreign keys for the schema migration; it must start outside a transaction',
+            );
+        database.transaction(() => {
+            migrate();
+            const violations = database.pragma('foreign_key_check') as ForeignKeyViolation[];
+            if (violations.length > 0) {
+                throw new Error(
+                    `Migration to schema version ${targetVersion} was rolled back: PRAGMA foreign_key_check found ${violations.length} violation(s): ${foreignKeyViolationSummary(violations)}`,
+                );
+            }
+        })();
+    } finally {
+        database.pragma('foreign_keys = ON');
+    }
 }
 
 function initializeSchema(database: Database.Database): void {
@@ -60,9 +141,12 @@ function initializeSchema(database: Database.Database): void {
             `Database uses newer schema version ${version}; Caxri supports ${CURRENT_SCHEMA_VERSION}`,
         );
     }
-    // The entire migration body runs in one transaction. SQLite ignores PRAGMA foreign_keys
-    // inside a transaction, and openDatabase already enables foreign keys before this runs.
-    database.transaction(() => {
+    /**
+     * Nothing to migrate: skipping keeps the whole-database `foreign_key_check` off the ordinary startup path.
+     */
+    if (version === CURRENT_SCHEMA_VERSION) return;
+    // Every pending step commits atomically or not at all, with foreign keys off; see migrateWithForeignKeysOff.
+    migrateWithForeignKeysOff(database, CURRENT_SCHEMA_VERSION, () => {
         if (version > 0 && version < BASELINE_SCHEMA_VERSION) {
             /**
              * Owner-declared clean-install cutoff: pre-baseline development metadata is rebuilt, never upgraded.
@@ -90,15 +174,15 @@ function initializeSchema(database: Database.Database): void {
             for (const migration of migrationsAfterBaseline)
                 if (migration.version > version) runGeneratedSql(database, migration.sql);
         database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION}`);
-    })();
+    });
 }
 
 /**
  * Bulk-marks Terminals that were still alive as of `reason` (see {@link ShutdownReason}) with the resulting Terminal
  * process state decided by `session-policy.ts`'s {@link shutdownOutcome}. This module owns only the query/update
  * mechanics; which states apply is a domain decision. Exported as `markShutdown` for both the recovery path at
- * {@link openDatabase} (always `unclean`) and `./index.ts`'s `CaxriDatabaseConnection.markShutdown` (orderly/terminate,
- * chosen by the caller).
+ * {@link openDatabase} (always `unclean`) and `./index.ts`'s `CaxriDatabaseConnection.markShutdown` (`orderly`, at
+ * Server Core shutdown).
  */
 export function markShutdown(
     database: CaxriDrizzleDatabase,

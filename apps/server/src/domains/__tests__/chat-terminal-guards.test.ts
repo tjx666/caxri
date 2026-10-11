@@ -14,16 +14,17 @@ import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentCoordinator } from '../agents';
 import { CompactionReadiness, defaultAgentEnvironment, LongPasteService } from '../agents';
 import { CaxriDatabase } from '../db';
-import { SessionCompaction } from '../session-compaction';
+import { SessionCompaction } from '../session/compaction';
 import type { TerminalManager } from '../terminal';
 import { TerminalRestoreSupervisor } from '../terminal';
-import { decideTerminalSuspensions } from '../terminal/suspension-policy';
+import { InFlightLaunches } from '../terminal/in-flight-launches';
 import {
     createTerminalAgentExactInputHandler,
     createTerminalBinaryInputHandler,
     createTerminalInputHandler,
-} from '../terminal-input';
-import { createInterruptedTerminalRestorer } from '../terminal-restore';
+} from '../terminal/input';
+import { createInterruptedTerminalRestorer } from '../terminal/restore';
+import { decideTerminalSuspensions } from '../terminal/suspension-policy';
 
 const PRINCIPAL: Principal = { kind: 'human-cli', id: 'human-cli:test' };
 
@@ -56,7 +57,10 @@ async function fixture() {
         writeAgent: vi.fn(() => Promise.resolve(true)),
         writeAgentExact: vi.fn(() => true),
     };
-    const terminals = sideEffects as unknown as TerminalManager;
+    const terminals = {
+        ...sideEffects,
+        launches: new InFlightLaunches(),
+    } as unknown as TerminalManager;
     const coordinator = {
         hasIdleProof: () => true,
         observeInput: sideEffects.observeInput,

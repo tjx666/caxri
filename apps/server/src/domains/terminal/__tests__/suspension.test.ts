@@ -8,6 +8,8 @@ import { UNTOUCHED_SUSPENSION_DELAY_MS } from '../suspension-policy';
 
 const START = 10_000_000;
 
+type ParkedState = 'detached' | 'stopped' | 'suspended';
+
 function terminal(id: string, sessionId: string, overrides: Partial<TerminalRecord> = {}) {
     return {
         id,
@@ -69,7 +71,7 @@ function createHarness(
     const events: ServerEvent[] = [];
     let poller: PollerRegistrationOptions | undefined;
     const pendingSuspends: Array<() => void> = [];
-    const suspend = vi.fn((terminalId: string, state: 'suspended' | 'detached' = 'suspended') => {
+    const suspend = vi.fn((terminalId: string, state: ParkedState = 'suspended') => {
         if (!live.has(terminalId)) return Promise.resolve(undefined);
         const finish = () => {
             live.delete(terminalId);
@@ -90,6 +92,7 @@ function createHarness(
         database: {
             agentCommanderRows: () =>
                 options.commanderSessionId && { sessionId: options.commanderSessionId },
+            getProject: () => ({ hiddenAt: undefined }),
             getSession: (id: string) => sessions.get(id),
             getTerminal: (id: string) => terminals.get(id),
             listSessions: () => sessions.values().toArray(),
@@ -107,6 +110,7 @@ function createHarness(
         settings: () => ({ ...defaultAppSettings, ...options.settings }),
         terminals: {
             processId: (terminalId: string) => (live.has(terminalId) ? 4242 : undefined),
+            settleLaunches: () => Promise.resolve(),
             suspend,
         },
         watchHub: {
@@ -256,6 +260,54 @@ describe('TerminalSuspensionService', () => {
         harness.advance(60 * 60 * 1000);
         expect(await harness.service.sweep()).toEqual([]);
         expect(harness.terminals.get('terminal-a')?.lastProcessState).toBe('detached');
+    });
+
+    it('hands over an Agent launch that lands while its Session is detaching, never a Shell launch', async () => {
+        const harness = createHarness({ controlledSuspend: true, selected: 'session-a' });
+        const detaching = harness.service.detachSession('session-a');
+        await vi.waitFor(() => expect(harness.suspend).toHaveBeenCalledTimes(1));
+        const agent = terminal('agent-late', 'session-a');
+        const shell = terminal('shell-late', 'session-a', { kind: 'shell', provider: undefined });
+        for (const record of [agent, shell]) {
+            harness.terminals.set(record.id, record);
+            harness.live.add(record.id);
+        }
+        const landings = Promise.all(
+            [agent, shell].map((record) => harness.service.parkLaunch(record)),
+        );
+        harness.releaseSuspend();
+        harness.releaseSuspend();
+        await Promise.all([detaching, landings]);
+
+        expect(harness.suspend).toHaveBeenCalledWith('agent-late', 'detached', undefined);
+        expect(harness.suspend.mock.calls.map(([terminalId]) => terminalId)).not.toContain(
+            'shell-late',
+        );
+        // The fence drops with the detach: a later launch runs normally.
+        harness.live.add('agent-late');
+        await harness.service.parkLaunch(agent);
+        expect(harness.suspend).toHaveBeenCalledTimes(2);
+    });
+
+    it('stops every live Terminal for terminateAll, including a launch that lands meanwhile', async () => {
+        const harness = createHarness({ controlledSuspend: true });
+        harness.live.delete('terminal-b');
+        const terminating = harness.service.terminateAll();
+        await vi.waitFor(() => expect(harness.suspend).toHaveBeenCalledTimes(1));
+        harness.live.add('terminal-b');
+        const landing = harness.service.parkLaunch(harness.terminals.get('terminal-b')!);
+        harness.releaseSuspend();
+        harness.releaseSuspend();
+
+        expect(await terminating).toEqual(['terminal-a']);
+        await landing;
+        expect(harness.suspend).toHaveBeenCalledWith('terminal-a', 'stopped', 'userTerminated');
+        expect(harness.suspend).toHaveBeenCalledWith('terminal-b', 'stopped', 'userTerminated');
+        expect(harness.terminals.get('terminal-b')?.lastProcessState).toBe('stopped');
+        // Ending work is not a shutdown: a launch after the terminate keeps running.
+        harness.live.add('terminal-a');
+        await harness.service.parkLaunch(harness.terminals.get('terminal-a')!);
+        expect(harness.suspend).toHaveBeenCalledTimes(2);
     });
 
     it('parks every live Terminal of an archived Session', async () => {

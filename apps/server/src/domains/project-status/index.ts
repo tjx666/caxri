@@ -22,7 +22,7 @@ import {
     runExternalStatusCommand,
 } from '../external-status';
 import type { GitService } from '../git';
-import type { SessionTranscriptContext } from '../session-context';
+import type { SessionTranscriptContext } from '../session';
 import { SingleFlight } from '../single-flight';
 import { loadOverviewAcceptances, loadPullRequestAcceptances } from './acceptance';
 import { ProjectStatusAlertTracker } from './alerts';
@@ -52,7 +52,7 @@ import { deliveryKeys, DeliveryWatch, isInFlight } from './watch';
 
 export { extractLinearReferences } from './external';
 export type { ProjectStatusServiceOptions } from './options';
-export { parseGitHubPullRequest } from './parse';
+export { SessionPullRequestService } from './session-pull-requests';
 export { VercelDeploymentStore } from './vercel-store';
 export { parseGitHubRemote } from '@caxri/utils';
 

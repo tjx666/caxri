@@ -24,7 +24,7 @@ import { AsyncSemaphore } from '@caxri/system';
 import { readBoundedRegularFile } from '../bounded-file-reader';
 import { ExternalStatusHub } from '../external-status';
 import { assertInsideRoot, isOutsideRoot } from '../path-security';
-import type { ProjectRootResolver } from '../project-roots';
+import type { ProjectRootResolver } from '../project';
 import { SingleFlight } from '../single-flight';
 import { GitBlameService } from './blame';
 import { listLocalBranches } from './branches';

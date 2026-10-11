@@ -129,6 +129,14 @@ export class TerminalRestoreSupervisor {
     }
 
     /**
+     * Fences every queued or discovering restore without retiring the supervisor, so a restore queued before Terminate
+     * and Close cannot relaunch a Terminal afterward while the next selection still restores normally.
+     */
+    cancelAll(): void {
+        for (const sessionId of this.generations.keys()) this.invalidate(sessionId);
+    }
+
+    /**
      * Permanently retires a deleted Session while pending operations retain only the fence needed to settle safely.
      */
     forget(sessionId: string): void {

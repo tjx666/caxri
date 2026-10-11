@@ -9,7 +9,8 @@ import type {
 /**
  * Plain-language health caption for a provider's lifecycle-hook adapter. DESIGN.md principle 3 forbids implementation
  * vocabulary like "drifted" or "awaiting first trusted event". Every state the user cannot resolve just by waiting
- * pairs with the concrete next step described in the row description: restart the provider's Agent Terminals.
+ * pairs with a concrete next step: restarting the provider's Agent Terminals, or, for `conflict`, the fix its message
+ * names.
  */
 export function hookHealthLabel(
     isEnabled: boolean,
@@ -39,7 +40,11 @@ export function hookHealthLabel(
             case 'drifted':
                 return 'Changed outside Caxri — restart Agent Terminals to reapply it';
             case 'conflict':
-                return 'Conflicts with another tool — restart Agent Terminals after resolving it';
+                // The cause is in the user's own configuration (a hook policy, foreign inline hooks, a symlink to a
+                // missing file) and `health.message` names it and the fix, so no restart advice here: restarting
+                // cannot resolve it, and once it is resolved the row moves on to "Not in effect until your next Agent
+                // session", which carries that step.
+                return 'Blocked by your configuration';
             case 'error':
                 return 'Setup failed — restart Agent Terminals to try again';
         }

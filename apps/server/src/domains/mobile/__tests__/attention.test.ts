@@ -8,9 +8,9 @@ import type { ConfigService } from '../../config';
 import type { CaxriDatabase } from '../../db';
 import type { FileService } from '../../files';
 import type { GitService } from '../../git';
-import type { MobileTerminalMutationQueue } from '../../mobile-terminal-mutation-queue';
 import type { TerminalManager } from '../../terminal';
 import { createMobileDomainHandlers } from '../handlers';
+import type { MobileTerminalMutationQueue } from '../terminal-mutation-queue';
 
 const controlPrincipal = {
     kind: 'paired-device' as const,
@@ -30,7 +30,7 @@ const database = {
 /**
  * Builds the handlers under test with a real `AgentAttentionRequests` store (so a card can actually be offered and
  * answered, matching `attention-requests.test.ts`) and spies for the three "Always allow in this Session" (issue
- * caxri#1295) callbacks that `agent-runtime.ts` normally supplies.
+ * caxri#1295) callbacks that `agent-runtime/runtime.ts` normally supplies.
  */
 function handlersWith(
     overrides: {

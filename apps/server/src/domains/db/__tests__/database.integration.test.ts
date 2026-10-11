@@ -426,50 +426,47 @@ describe('CaxriDatabaseConnection', () => {
         reopened.close();
     });
 
-    it.each(['orderly', 'terminate'] as const)(
-        'preserves conversation activity across %s shutdown and reopen',
-        async (reason) => {
-            const directory = await temporaryDirectory('caxri-db-session-shutdown-');
-            const databasePath = join(directory, 'state.db');
-            const database = new CaxriDatabase(databasePath);
-            const project = database.projects.create(directory);
-            const records = (['waiting', 'running', 'completed'] as const).map((state) => {
-                const session = database.sessions.insert({
-                    projectId: project.id,
-                    displayTitle: `Conversation ${state}`,
-                });
-                const terminal = database.terminals.insert({
-                    sessionId: session.id,
-                    kind: 'codex',
-                    cwd: directory,
-                    title: 'Codex',
-                });
-                database.terminals.updateState(terminal.id, 'running');
-                database.terminals.updateAgentProcessState(terminal.id, 'running');
-                database.sessions.setPrimaryAgent(session.id, {
-                    primaryAgentTerminalId: terminal.id,
-                    displayTitle: session.displayTitle,
-                    lastActivityState: state,
-                });
-                return { sessionId: session.id, terminalId: terminal.id, state };
+    it('preserves conversation activity across an orderly shutdown and reopen', async () => {
+        const directory = await temporaryDirectory('caxri-db-session-shutdown-');
+        const databasePath = join(directory, 'state.db');
+        const database = new CaxriDatabase(databasePath);
+        const project = database.projects.create(directory);
+        const records = (['waiting', 'running', 'completed'] as const).map((state) => {
+            const session = database.sessions.insert({
+                projectId: project.id,
+                displayTitle: `Conversation ${state}`,
             });
-            database.markShutdown(reason);
-            database.close();
+            const terminal = database.terminals.insert({
+                sessionId: session.id,
+                kind: 'codex',
+                cwd: directory,
+                title: 'Codex',
+            });
+            database.terminals.updateState(terminal.id, 'running');
+            database.terminals.updateAgentProcessState(terminal.id, 'running');
+            database.sessions.setPrimaryAgent(session.id, {
+                primaryAgentTerminalId: terminal.id,
+                displayTitle: session.displayTitle,
+                lastActivityState: state,
+            });
+            return { sessionId: session.id, terminalId: terminal.id, state };
+        });
+        database.markShutdown('orderly');
+        database.close();
 
-            const reopened = new CaxriDatabase(databasePath);
-            try {
-                for (const { sessionId, terminalId, state } of records) {
-                    expect(reopened.sessions.get(sessionId)?.lastActivityState).toBe(state);
-                    expect(reopened.terminals.get(terminalId)).toMatchObject({
-                        lastProcessState: reason === 'terminate' ? 'stopped' : 'interrupted',
-                        lastAgentProcessState: reason === 'terminate' ? 'stopped' : 'interrupted',
-                    });
-                }
-            } finally {
-                reopened.close();
+        const reopened = new CaxriDatabase(databasePath);
+        try {
+            for (const { sessionId, terminalId, state } of records) {
+                expect(reopened.sessions.get(sessionId)?.lastActivityState).toBe(state);
+                expect(reopened.terminals.get(terminalId)).toMatchObject({
+                    lastProcessState: 'interrupted',
+                    lastAgentProcessState: 'interrupted',
+                });
             }
-        },
-    );
+        } finally {
+            reopened.close();
+        }
+    });
 
     it('marks running Terminals as interrupted for an orderly shutdown, keeping the Session resumable', async () => {
         const directory = await temporaryDirectory('caxri-db-shutdown-orderly-');
@@ -488,26 +485,6 @@ describe('CaxriDatabaseConnection', () => {
         database.markShutdown('orderly');
 
         expect(database.terminals.get(terminal.id)?.lastProcessState).toBe('interrupted');
-        database.close();
-    });
-
-    it('marks running Terminals as stopped for an explicit terminate shutdown', async () => {
-        const directory = await temporaryDirectory('caxri-db-shutdown-terminate-');
-        const databasePath = join(directory, 'state.db');
-        const database = new CaxriDatabase(databasePath);
-        const project = database.projects.create(directory);
-        const session = database.sessions.insert({ projectId: project.id, displayTitle: 'Shell' });
-        const terminal = database.terminals.insert({
-            sessionId: session.id,
-            kind: 'shell',
-            cwd: directory,
-            title: 'Shell',
-        });
-        database.terminals.updateState(terminal.id, 'running');
-
-        database.markShutdown('terminate');
-
-        expect(database.terminals.get(terminal.id)?.lastProcessState).toBe('stopped');
         database.close();
     });
 });

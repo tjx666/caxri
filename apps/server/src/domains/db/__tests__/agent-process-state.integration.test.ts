@@ -128,7 +128,6 @@ describe('Agent child-process state persistence', () => {
     it.each([
         ['unclean', 'interrupted'],
         ['orderly', 'interrupted'],
-        ['terminate', 'stopped'],
     ] as const)('marks live Agent child processes for a %s shutdown', async (reason, expected) => {
         const directory = await temporaryDirectory(`caxri-db-agent-shutdown-${reason}-`);
         const database = new CaxriDatabase(join(directory, 'state.db'));

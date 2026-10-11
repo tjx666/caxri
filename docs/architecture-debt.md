@@ -81,7 +81,7 @@ No OPEN entries as of 2026-10-10 @ `daf68990` plus the [issue caxri#1620](https:
 ### AD-persist-hook-config-symlink-replace: [RESOLVED · Confirmed defect · S]
 
 - **Summary:** Installing or repairing Agent hooks replaced a symlinked provider settings file (for example one managed by a dotfiles repository) with a standalone copy, silently detaching it from its source.
-- **Evidence:** `apps/server/src/domains/atomic-file.ts:48` `atomicWriteUserConfig` writes through a final symlink and keeps the target's mode; `apps/server/src/domains/agents/hooks/manager.ts:450` uses it. `apps/server/src/domains/agents/hooks/__tests__/manager-symlink.integration.test.ts` and `apps/server/src/domains/__tests__/atomic-file-user-config.test.ts` cover the link, dangling link, and non-regular target.
+- **Evidence:** `apps/server/src/domains/atomic-file.ts:49` `atomicWriteUserConfig` writes through a final symlink and keeps the target's mode; `apps/server/src/domains/agents/hooks/manager.ts:467` uses it. `apps/server/src/domains/agents/hooks/__tests__/manager-symlink.integration.test.ts` and `apps/server/src/domains/__tests__/atomic-file-user-config.test.ts` cover the link, dangling link, and non-regular target.
 - **First seen:** 2026-10-10 @ daf68990 · **Last verified:** 2026-10-10 @ c0046f78c with the fix batch
 - **Resolved:** 2026-10-10 via [issue caxri#1620](https://github.com/tjx666/caxri/issues/1620).
 - **Remediation target / Acceptance:** Hook installation edits the link target in place; a dangling link fails with CONFLICT instead of creating a file.
@@ -113,7 +113,7 @@ No OPEN entries as of 2026-10-10 @ `daf68990` plus the [issue caxri#1620](https:
 ### AD-lifecycle-project-hide-chats: [RESOLVED · Confirmed defect · S]
 
 - **Summary:** Hiding a Project suspended its PTYs but left its Agent Chats running, still counted by the close prompt and Server Core's idle-exit check.
-- **Evidence:** `apps/server/src/domains/project-hiding-handlers.ts` routes `project.hide` through the shared `parkSessions` under the Project and Session locks; `project-hiding.integration.test.ts` asserts the live count drops to zero.
+- **Evidence:** `apps/server/src/domains/project/hiding-handlers.ts` routes `project.hide` through the shared `parkSessions` under the Project and Session locks; `project-hiding.integration.test.ts` asserts the live count drops to zero.
 - **First seen:** 2026-10-10 @ c0046f78c (fix-batch verification) · **Last verified:** 2026-10-11 with the fix batch
 - **Resolved:** 2026-10-11 via [issue caxri#1620](https://github.com/tjx666/caxri/issues/1620).
 - **Remediation target / Acceptance:** Archive and hide share one parking path, so neither leaves a process the other stops.
@@ -393,7 +393,7 @@ No OPEN entries as of 2026-10-10 @ `daf68990` plus the [issue caxri#1620](https:
 ### AD-ext-agent-display-single-source: [RESOLVED · Architecture debt · S]
 
 - **Summary:** Adding a hosted Agent provider is not one catalog+adapter path: default Terminal titles and hosted icon labels re-declare display strings outside `agentProviderCatalog`.
-- **Evidence:** `apps/server/src/domains/session-policy.ts:24-25` and `apps/desktop/src/renderer/src/icons/agents/agent-icon-registry.ts:26-28` derive managed-provider titles and labels from `packages/protocol/src/agent/agents.ts`. Exhaustive catalog coverage lives at `apps/server/src/domains/__tests__/session-policy.test.ts:57-66` and `apps/desktop/src/renderer/src/icons/agents/agent-icon-registry.test.ts:8-21`.
+- **Evidence:** `apps/server/src/domains/db/session-policy.ts:24-25` and `apps/desktop/src/renderer/src/icons/agents/agent-icon-registry.ts:26-28` derive managed-provider titles and labels from `packages/protocol/src/agent/agents.ts`. Exhaustive catalog coverage lives at `apps/server/src/domains/db/__tests__/session-policy.test.ts:57-66` and `apps/desktop/src/renderer/src/icons/agents/agent-icon-registry.test.ts:8-21`.
 - **First seen:** 2026-08-11 @ eb9becb · **Last verified:** 2026-08-13 @ 8037720
 - **Resolved:** 2026-08-11 @ 58ebede via [issue caxri#79](https://github.com/tjx666/caxri/issues/79).
 - **Remediation target / Acceptance:** Derive default agent Terminal titles (shell remains local) and hosted icon labels from the catalog, or add bi-directional exhaustiveness tests. Acceptance: catalog id + providers registry is enough for default title and displayName consumers; extra icon assets stay the only optional UI step.

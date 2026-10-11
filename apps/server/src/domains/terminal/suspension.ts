@@ -8,10 +8,29 @@ import type { CaxriDatabase } from '../db';
 import { isPtyTerminal } from '../pty-guard';
 import type { WatchHandle, WatchHub } from '../watch-hub';
 import type { TerminalManager } from './manager';
+import type { TerminalLifecycleCause } from './manager-types';
 import type { TerminalActivitySample, TerminalSuspensionReason } from './suspension-policy';
 import { decideTerminalSuspensions } from './suspension-policy';
 
 const TERMINAL_SUSPENSION_SWEEP_INTERVAL_MS = 15_000;
+
+type ParkReason = TerminalSuspensionReason | 'archived' | 'detached' | 'requested' | 'terminated';
+
+/**
+ * The durable state and lifecycle cause each park writes. Only a terminate is final: `stopped` is never restored, while
+ * `suspended` resumes on selection and `detached` on `session.resume`.
+ */
+const PARKED_AS: Record<
+    ParkReason,
+    { state: 'detached' | 'stopped' | 'suspended'; cause?: TerminalLifecycleCause }
+> = {
+    archived: { state: 'suspended', cause: 'sessionArchived' },
+    detached: { state: 'detached' },
+    idle: { state: 'suspended', cause: 'idleSuspended' },
+    requested: { state: 'suspended' },
+    terminated: { state: 'stopped', cause: 'userTerminated' },
+    untouched: { state: 'suspended', cause: 'untouchedSuspended' },
+};
 
 interface TerminalSuspensionServiceOptions {
     database: CaxriDatabase;
@@ -28,7 +47,7 @@ interface TerminalSuspensionServiceOptions {
     send: (event: ServerEvent) => void;
     settings: () => AppSettings;
     sweepIntervalMs?: number;
-    terminals: Pick<TerminalManager, 'processId' | 'suspend'>;
+    terminals: Pick<TerminalManager, 'processId' | 'settleLaunches' | 'suspend'>;
     watchHub: Pick<WatchHub, 'registerPoller'>;
 }
 
@@ -39,6 +58,14 @@ interface TerminalSuspensionServiceOptions {
  */
 export class TerminalSuspensionService {
     private readonly deselectedAt = new Map<string, number>();
+    /**
+     * Sessions whose `session.detach` is running. An Agent launch of theirs that lands meanwhile is handed over too.
+     */
+    private readonly detaching = new Set<string>();
+    /**
+     * `terminateAll` calls still running; every launch that lands meanwhile is stopped too.
+     */
+    private terminating = 0;
     /**
      * `parkLaunch` teardowns in flight. A Session park that reaches the same Terminal joins one instead of sending a
      * second Host stop for a process whose first stop is still pending.
@@ -113,10 +140,7 @@ export class TerminalSuspensionService {
      * user actions on a specific Session and must proceed regardless of what is selected, so only the automatic
      * `idle`/`untouched` reasons are fenced.
      */
-    private async suspendTerminal(
-        terminalId: string,
-        reason: TerminalSuspensionReason | 'archived' | 'detached' | 'requested',
-    ): Promise<boolean> {
+    private async suspendTerminal(terminalId: string, reason: ParkReason): Promise<boolean> {
         const isAutomaticSweep = reason === 'idle' || reason === 'untouched';
         // Closes the gap between one decision's teardown and the next: skip outright if the selection already
         // changed before this Terminal's own teardown even started.
@@ -127,17 +151,8 @@ export class TerminalSuspensionService {
         )
             return false;
         try {
-            const record = await this.options.terminals.suspend(
-                terminalId,
-                reason === 'detached' ? 'detached' : 'suspended',
-                reason === 'archived'
-                    ? 'sessionArchived'
-                    : reason === 'idle'
-                      ? 'idleSuspended'
-                      : reason === 'untouched'
-                        ? 'untouchedSuspended'
-                        : undefined,
-            );
+            const { cause, state } = PARKED_AS[reason];
+            const record = await this.options.terminals.suspend(terminalId, state, cause);
             if (!record) return false;
             this.samples.delete(terminalId);
             this.options.logger.write('info', logEventCatalog.terminal.suspended, {
@@ -164,6 +179,17 @@ export class TerminalSuspensionService {
         });
     }
 
+    /**
+     * Parks one live PTY, joining a `parkLaunch` teardown already running for it. False when nothing was live.
+     */
+    private park(terminal: TerminalRecord, reason: ParkReason): Promise<boolean> {
+        const launchParking = this.launchParkings.get(terminal.id);
+        if (launchParking) return launchParking;
+        if (!isPtyTerminal(terminal) || this.options.terminals.processId(terminal.id) === undefined)
+            return Promise.resolve(false);
+        return this.suspendTerminal(terminal.id, reason);
+    }
+
     private async parkSession(
         sessionId: string,
         reason: 'archived' | 'detached',
@@ -171,17 +197,30 @@ export class TerminalSuspensionService {
     ): Promise<string[]> {
         const parked: string[] = [];
         for (const terminal of this.options.database.listTerminals(sessionId)) {
-            if (!isEligible(terminal) || !isPtyTerminal(terminal)) continue;
-            const launchParking = this.launchParkings.get(terminal.id);
-            if (!launchParking && this.options.terminals.processId(terminal.id) === undefined)
-                continue;
+            if (!isEligible(terminal)) continue;
             // Sequential teardown, same as the sweep: each restart barrier and snapshot capture finishes first.
             // oxlint-disable-next-line react-doctor/async-await-in-loop
-            const suspended = await (launchParking ?? this.suspendTerminal(terminal.id, reason)); // eslint-disable-line no-await-in-loop -- see above
-            if (suspended) parked.push(terminal.id);
+            if (await this.park(terminal, reason)) parked.push(terminal.id); // eslint-disable-line no-await-in-loop -- see above
         }
         this.publish(parked);
         return parked;
+    }
+
+    /**
+     * The park a launch that just landed still owes: a running `terminateAll` stops it, a running detach of its Session
+     * hands over its Agent, and a Session that left the Workbench (archived, or its Project hidden) parks it.
+     */
+    private launchParkReason(record: TerminalRecord): ParkReason | undefined {
+        if (this.terminating > 0) return 'terminated';
+        if (record.provider !== undefined && this.detaching.has(record.sessionId))
+            return 'detached';
+        const { database } = this.options;
+        const session = database.getSession(record.sessionId);
+        if (!session) return undefined;
+        return session.archivedAt !== undefined ||
+            database.getProject(session.projectId)?.hiddenAt !== undefined
+            ? 'archived'
+            : undefined;
     }
 
     /**
@@ -283,20 +322,15 @@ export class TerminalSuspensionService {
     }
 
     /**
-     * Parks a PTY whose launch completed after its Session left the Workbench (archived, or its Project hidden). Those
-     * actions park only Terminals that already have a process, and a Host start still in flight had none, so without
-     * this the PTY keeps running unseen, counted by the close prompt, with nothing left that would ever suspend it.
+     * Parks a PTY whose launch completed after its Session left the Workbench (archived, or its Project hidden), or
+     * while a `session.detach` or `terminateAll` that covers it was running. Those actions park only Terminals that
+     * already have a process, and a Host start still in flight had none, so without this the PTY keeps running unseen,
+     * counted by the close prompt, with nothing left that would ever suspend it.
      */
     async parkLaunch(record: TerminalRecord): Promise<void> {
-        const { database } = this.options;
-        const session = database.getSession(record.sessionId);
-        if (
-            !session ||
-            (session.archivedAt === undefined &&
-                database.getProject(session.projectId)?.hiddenAt === undefined)
-        )
-            return;
-        const parking = this.suspendTerminal(record.id, 'archived');
+        const reason = this.launchParkReason(record);
+        if (!reason) return;
+        const parking = this.suspendTerminal(record.id, reason);
         this.launchParkings.set(record.id, parking);
         try {
             if (await parking) this.publish([record.id]);
@@ -317,13 +351,48 @@ export class TerminalSuspensionService {
      * Parks every live Agent Terminal of a Session as `detached` so another client can resume the same provider
      * conversation (Codex refuses to open one session twice). Shell tabs stay untouched: the user only wants to hand
      * over the Agent, not their shell. Unlike archive/idle suspension, selecting the Session does not relaunch these.
+     *
+     * An Agent launch of the Session that is still in flight (`terminal.create`, `terminal.restart`, a surface switch,
+     * a dispatch) had no process to park yet. `parkLaunch` hands it over when it lands while the detach runs, and the
+     * detach waits for every such launch before it returns, so none lands afterward unseen.
      */
-    detachSession(sessionId: string): Promise<string[]> {
-        return this.parkSession(
-            sessionId,
-            'detached',
-            (terminal) => terminal.provider !== undefined,
-        );
+    async detachSession(sessionId: string): Promise<string[]> {
+        this.detaching.add(sessionId);
+        try {
+            const parked = await this.parkSession(
+                sessionId,
+                'detached',
+                (terminal) => terminal.provider !== undefined,
+            );
+            await this.options.terminals.settleLaunches(sessionId);
+            return parked;
+        } finally {
+            this.detaching.delete(sessionId);
+        }
+    }
+
+    /**
+     * Stops every live PTY as `stopped` for Terminate and Close, and for an explicit quit before `host.stop`. This is
+     * not a shutdown: the Terminal Host and every service keep running, so the next launch, restart, or restore on the
+     * same Server Core works. A launch that lands while this runs is stopped too, and the call returns only after every
+     * launch in flight settled. `stopped` is final: selecting a Session afterward does not relaunch these Terminals.
+     */
+    async terminateAll(): Promise<string[]> {
+        this.terminating += 1;
+        try {
+            const stopped = await Promise.all(
+                this.options.database
+                    .listTerminals()
+                    .map(async (terminal) =>
+                        (await this.park(terminal, 'terminated')) ? [terminal.id] : [],
+                    ),
+            );
+            await this.options.terminals.settleLaunches();
+            this.publish(stopped.flat());
+            return stopped.flat();
+        } finally {
+            this.terminating -= 1;
+        }
     }
 
     async close(): Promise<void> {

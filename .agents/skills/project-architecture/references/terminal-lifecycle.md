@@ -69,10 +69,18 @@ content never enter events, logs, or diagnostics exports.
 
 Closing the last macOS window with live PTYs asks whether to keep running, terminate and close, or
 cancel. `Keep Running` detaches every Renderer view and closes the window while Server Core, Terminal
-Host, and PTYs remain alive; reopening creates a new window and attaches it to the live Server. `Quit
-Caxri` stops an idle Server without prompting. With live PTYs it asks whether to terminate every Terminal
-and Agent process before `host.stop`, keep work attached to the background Server, or cancel; the
-non-destructive keep-running choice is the default. Other connected clients are called out in the stop
+Host, and PTYs remain alive; reopening creates a new window and attaches it to the live Server.
+`Terminate and Close` sends `terminal.terminateAll`, which ends work, not the Server: it fences queued
+restores, stops every live PTY as `stopped` along with any launch that lands while it runs, then, once
+every launch in flight settled, stops every live Chat as `stopped` and returns. A stopped PTY is never
+auto-restored; a Chat starts lazily on its next read, as after any Server Core restart
+(`docs/agent-chat.md`). Server Core, the Terminal Host, and every
+Server service keep running, so a window reopened from the Dock creates, restarts, and restores Terminals
+and starts Chats on the same Server. `Quit Caxri` stops an idle Server without prompting. With live PTYs
+it asks whether to terminate every Terminal and Agent process before `host.stop`, keep work attached to
+the background Server, or cancel; the non-destructive keep-running choice is the default. Terminating
+before quitting is the same `terminal.terminateAll`; the Server's terminal shutdown is the `host.stop`
+that follows, whose orderly shutdown then finds nothing left to mark `interrupted`. Other connected clients are called out in the stop
 warning, and an idle Server remains alive without prompting when another client is connected. System
 shutdown and explicit Desktop relaunch preserve work without prompting. Dead Terminals remain visible
 and can be restarted. In-flight Agent CLI discovery is revalidated against durable metadata before a PTY is
@@ -102,7 +110,14 @@ not consume the limit.
 its Shell tabs) through the same barrier so another client can `codex resume` / `claude --resume` the bound
 conversation, which Codex refuses to open twice. Selecting the Session does not relaunch a detached Terminal; only the
 explicit `session.resume` request (or the Terminal's own Resume action) opts it back into the restore path with the
-provider's resume arguments.
+provider's resume arguments. An Agent launch of the Session still in flight when the detach begins (`terminal.create`,
+`terminal.restart`, a surface switch, a dispatch) had no process to park; `parkLaunch` parks it as `detached` when it
+lands, and the detach returns only after every such launch settled. That includes a request still doing its pre-launch
+work (working-directory identity, Agent Session lookup): each such handler holds an `InFlightLaunches.begin` span for
+its Session from before its first await until `start` or `restart` tracks the launch, so a detach waits for it too, and
+a Chat relaunch that lands meanwhile is closed by the detach's own Chat close. `session.resume` and `session.detach` share the
+Session lock (`MobileTerminalMutationQueue.runSessions`), taken inside the Session selection queue, so a resume sent
+while a detach runs waits for it and then relaunches everything it handed over.
 
 Exited Terminals retain their final output and reserve a compact recovery row beneath the xterm viewport, never over it. A zero exit without a signal is neutral; startup failures and signal or non-zero exits use a danger state. Surface actions, the command palette, and `Command+Shift+R` restart the same durable Terminal record, so recovery cannot create a duplicate tab or PTY identity. Restarting a bound Agent Terminal resumes its correlated provider session by default; only the separate `Start New Agent Session` action clears that binding and starts fresh, while Shell restarts always remain fresh. The Session row menu (for its Primary Agent) and an Agent Terminal tab menu expose the same resume restart as `Reload Agent`. A resume restart keeps the approval mode the replaced Agent Run launched with: `AgentRunAutonomy` (one instance in `TerminalLaunchPlanner` for PTY Agents, one in `AgentChatService` for Chats) remembers, per Terminal and only for the current Server Core generation, whether that run's launch arguments carried the provider's autonomy (YOLO) tokens, and the restart forces them present or absent on the current Settings arguments. Every other argument follows the current Settings; a fresh restart and the Session-selection restore path use the current Settings unchanged.
 

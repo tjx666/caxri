@@ -2,7 +2,7 @@ import { stat } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 
 import { isOutsideRoot } from '../../path-security';
-import type { ResolvedSessionPath } from '../../project-roots';
+import type { ResolvedSessionPath } from '../../project';
 import { importCandidatePaths } from './candidates';
 import type { ImportConfigFiles } from './config-files';
 import { isMissingImportFile } from './config-files';

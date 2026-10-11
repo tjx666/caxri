@@ -56,7 +56,7 @@ export interface SessionWorkbenchBinding {
 
 /**
  * Pure CRUD over `sessions` and its 1:1 `session_state` child row. Primary-Agent succession, default titles, and
- * deletion-fallback selection are decided in `../../session-policy.ts` and applied here through plain setters. Session
+ * deletion-fallback selection are decided in `../session-policy.ts` and applied here through plain setters. Session
  * JSON is versioned and schema-validated at this boundary so a corrupt or future row can be repaired without failing
  * the full domain-service composition root.
  */

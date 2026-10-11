@@ -3,7 +3,7 @@ import type { BootstrapState, ServerEvent } from '@caxri/protocol';
 import type { AgentDelegationService } from './agent-delegation';
 import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
-import type { MobileTerminalMutationQueue } from './mobile-terminal-mutation-queue';
+import type { MobileTerminalMutationQueue } from './mobile';
 
 interface DeletionHandlerOptions {
     database: CaxriDatabase;

@@ -75,7 +75,7 @@ CLI fixture; the service, reducer, and pane do not change.
 A Chat-capable Agent Terminal reopens on the other surface from the `Terminal | Chat` toggle on the
 tab rail (shown for the active tab), its tab's context menu ("Open as Chat" / "Open as Terminal"),
 or `terminal.switchAgentSurface` (`cmd+shift+j`, also in the command palette), all through
-`terminal.switchSurface` (`apps/server/src/domains/terminal-surface-switch.ts`). The Terminal row,
+`terminal.switchSurface` (`apps/server/src/domains/terminal/surface-switch.ts`). The Terminal row,
 tab, title, and Primary Agent election stay; only the process is replaced.
 
 - The current process stops first: the PTY through the same barrier a suspension uses (cause
@@ -156,7 +156,8 @@ off on your computer`, refuses input, and offers no Resume, matching its detache
 - **Running count.** Live Chat children count toward `activePtyCount` and `terminal.runningCount`
   (whole app or one Session), so Server Core idle exit, `server.stop`, the window-close
   confirmation, and Session or Project deletion prompts treat them like live PTYs. Choosing
-  Terminate and Close stops the Chat provider process with the PTYs.
+  Terminate and Close stops the Chat provider process with the PTYs and records it `stopped`;
+  the Chat service keeps running, so the next read on the same Server Core starts it again.
 
 ## Launch settings
 

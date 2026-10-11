@@ -101,7 +101,7 @@ for (const mode of ['missing-cli', 'newer-incomplete', 'malformed-config', 'conf
                 'malformed-config': { kind: 'error', label: 'Setup failed', tone: 'danger' },
                 'conflict': {
                     kind: 'conflict',
-                    label: 'Conflicts with another tool',
+                    label: 'Blocked by your configuration — Codex already defines inline hooks in config.toml',
                     tone: 'danger',
                 },
             }[mode];

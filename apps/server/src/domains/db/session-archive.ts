@@ -1,8 +1,8 @@
 import type { SessionRecord, SessionRestorePlacement } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
-import { firstActiveSession, selectFallbackAfterDeletion } from '../session-policy';
 import type { CaxriDatabaseConnection } from './database-connection';
+import { firstActiveSession, selectFallbackAfterDeletion } from './session-policy';
 
 /**
  * Archives a Session without touching its Terminal records or PTYs. If it was selected, active navigation moves to

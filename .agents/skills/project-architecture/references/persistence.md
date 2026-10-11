@@ -2,6 +2,27 @@
 
 SQLite runs only in the Server Core and uses WAL, foreign keys, transactions, and busy timeout. Table definitions live declaratively in `apps/server/src/domains/db/schema.ts` (Drizzle ORM); `bunx --bun drizzle-kit generate` emits the checked-in SQL under `apps/server/src/domains/db/migrations/`, which the Server Core bundles via the validated `migrations/manifest.ts` `?raw` imports so packaged builds never read migration files from disk. After any schema change, regenerate with drizzle-kit, then add the generated migration to that manifest; never hand-edit the migrations directory. The manifest must match the Drizzle journal exactly. `apps/server/src/domains/db/__tests__/schema-migration-drift.test.ts` replays `drizzle-kit generate` in memory against the newest `migrations/meta` snapshot and fails while `schema.ts` has a change no checked-in migration covers. `0000_baseline` is the owner-declared clean-install cutoff taken before open-sourcing: it writes `user_version` 39, every earlier `user_version` belongs to an unpublished development build and is rebuilt (metadata only; Project folders and user files are never touched), and each later migration advances `user_version` by one while preserving Projects, Sessions, Terminals, snapshots, selection, and layout state. `PRAGMA user_version` is the only stored schema version. Caxri's public data-compatibility commitment begins with v1.0.0, backed by the post-baseline chain; adding a schema version requires both generated SQL and an N-1 upgrade test.
 
+Table rebuilds follow the same path. SQLite cannot change most column constraints in place, so
+drizzle-kit emits a create-copy-drop-rename rebuild of the table. Generate the migration with
+`bunx --bun drizzle-kit generate` and commit its SQL unchanged, including the standalone
+`PRAGMA foreign_keys=OFF;` and `PRAGMA foreign_keys=ON;` statements drizzle-kit writes around a
+table rebuild: the migration runner drops them and owns the foreign-key toggle. The runner in
+`apps/server/src/domains/db/connection.ts` applies every pending migration under SQLite's
+[procedure for other schema changes](https://www.sqlite.org/lang_altertable.html#otheralter): it
+disables foreign keys before opening the migration transaction (`PRAGMA foreign_keys` is a no-op
+inside one), requires an empty `PRAGMA foreign_key_check` before commit, rolls back otherwise, and
+re-enables foreign keys either way. That is what lets a parent table (`projects`, `sessions`,
+`terminals`) be rebuilt: with enforcement on, `DROP TABLE` of a parent performs an implicit
+`DELETE` that fires `ON DELETE CASCADE` and wipes its child rows, even the ones already copied into
+the replacement table. The trade-off is that no cascade or `SET NULL` action fires during a
+migration, so a migration that removes parent rows deletes or detaches their children explicitly
+or the check rolls it back. Any other `PRAGMA foreign_keys` in migration SQL fails the guard, whose
+error repeats the rule above. `apps/server/src/domains/db/__tests__/migration-sql-guard.test.ts`
+keeps the two sentences identical, and
+`apps/server/src/domains/db/__tests__/table-rebuild-migration.integration.test.ts` proves a
+generated parent rebuild keeps its children and a rebuild that leaves a dangling reference rolls
+back.
+
 Integrity lives in the schema, not only in model code: foreign keys cascade owned worktree Projects (`owner_project_id`) and null a deleted primary Agent Terminal (`primary_agent_terminal_id`), `(session_id, order_index)` is unique, and closed protocol enums carry `CHECK` constraints whose value lists are type-checked against the protocol unions in `schema.ts` (the drift test above, not that type check, catches a widened list without its rebuilt constraint). Open-ended columns such as `terminals.kind` and `provider` deliberately stay unconstrained so a new Agent provider never forces a table rebuild. Row IDs stored inside `app_state` JSON and the `agent_delegations` / `agent_dispatch_receipts` / `agent_session_usage` ID projections are outside any foreign key by design; `schema.ts` documents which code keeps each one consistent. Query modules use the Drizzle query builder while the raw better-sqlite3 handle remains for pragmas and transactions. The schema contains:
 
 - `projects`: identity, unique root, display title, explicit Primary Sidebar order, timestamps, and the reversible `hidden_at` mark
@@ -42,7 +63,7 @@ attachment id: a byte the Host flushed just before the snapshot is already on th
 forwarding it during that window would replay what the snapshot is about to write. Server Core
 therefore gates output on the view the Renderer asked for, not on the attachment the Host is still
 using. Detached Terminals retain the parsed screen in memory without broadcasting output to an
-invisible view. Exit, restart, and orderly or terminate shutdown persist that same parsed screen plus
+invisible view. Exit, restart, suspension, termination, and orderly shutdown persist that same parsed screen plus
 its exact source grid as encoding 3 after excluding interaction modes; raw PTY bytes are never durable
 recovery data. Renderer recovery disconnects normal resize observation, restores the serialized
 framebuffer at that source grid, waits for xterm parsing and buffered output to finish, then fits once

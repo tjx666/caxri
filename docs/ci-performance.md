@@ -413,21 +413,37 @@ relativeMargin) + absoluteMarginMs`. `k·MAD` (`k = 5`, `DEFAULT_PERFORMANCE_THR
   `interactions.maxDurationMs`): `thresholdMs` is the bare historical maximum, margin `0`. An intended
   increase (a new count that is genuinely supposed to be higher) requires an explicit baseline
   refresh rather than silently widening on its own next time it is sampled.
-- **Excluded**: `react.baseDurationMaxMs` and `react.surfaces.primary-sidebar.baseDurationMaxMs`
-  (`isExcludedPerformanceMetric`, an exact-name list, not a pattern over every `baseDurationMaxMs`
-  variant) are never compared or trend-checked. This metric estimates the render cost React _would
-  have_ paid without memoization; on exactly these two paths, the 98-receipt corpus contains two
-  outliers (11.2ms and 15.5ms against a 3.4-6.8ms bulk) that no plausible margin absorbs without also
-  hiding a real regression of similar size (1/98 leave-one-out and 2/49 time-split false failures even
-  with the margin applied). The same backtest run against `react.surfaces.workbench.baseDurationMaxMs`
-  and `react.surfaces.secondary-sidebar.baseDurationMaxMs` (whose historical maxima are 3.3ms and
-  2.9ms, with no comparable outlier) found 0 false failures on both checks without any exclusion, so
-  those two stay gated instead of being swept into the same exception. An excluded metric's raw
-  evidence (`historicalMaxMs`, `sampleCount`) is written into the committed baseline's own `excluded`
-  map, not only logged by the derive command, so a later reader of `scripts/performance-baseline.json`
-  can audit the exclusion without re-running the derivation. Add another name only with the same kind
-  of per-metric backtest evidence: this is a documented, narrow exception, not a place to route every
-  noisy metric or every variant of a noisy metric's family.
+- **Excluded** (`isExcludedPerformanceMetric`, an exact-name list, not a pattern): these metrics are
+  never compared or trend-checked.
+  - `react.baseDurationMaxMs` and `react.surfaces.primary-sidebar.baseDurationMaxMs`, not every
+    `baseDurationMaxMs` variant. This metric estimates the render cost React _would have_ paid without
+    memoization; on exactly these two paths, the 98-receipt corpus contains two outliers (11.2ms and
+    15.5ms against a 3.4-6.8ms bulk) that no plausible margin absorbs without also hiding a real
+    regression of similar size (1/98 leave-one-out and 2/49 time-split false failures even with the
+    margin applied). The same backtest run against `react.surfaces.workbench.baseDurationMaxMs` and
+    `react.surfaces.secondary-sidebar.baseDurationMaxMs` (whose historical maxima are 3.3ms and 2.9ms,
+    with no comparable outlier) found 0 false failures on both checks without any exclusion, so those
+    two stay gated instead of being swept into the same exception.
+  - `frames.sampleCount`, for a structural reason: it counts requestAnimationFrame intervals inside the
+    exact window `durationMs` times, so it is `durationMs` rounded down to whole vsyncs, with no
+    information of its own. As a discrete metric it thresholds at the bare historical maximum (13
+    intervals), which rejects windows from about 233.3ms while `durationMs`'s own backtested threshold
+    accepts up to 248.104ms, so it silently re-gated `durationMs` more strictly than its backtest
+    supports. See the [`frames.sampleCount` backtest](#framessamplecount-backtest) below. The frame
+    metrics that carry their own signal (`frames.missedFrameCount` and the interval percentiles) stay
+    gated.
+  - The `session.select` and `app.bootstrap` round-trip durations (`requests.*.maxDurationMs` and
+    `requests.*.totalDurationMs`), because they are cross-process wall-clock times on the shared
+    runner, the same reason frame and Event Timing metrics stay diagnostic. They are bimodal (about
+    6ms or about 33ms, nothing between) and the same head flips between the modes on a rerun. Each
+    request's `count` stays gated, and `e2e/renderer.performance.e2e.ts` keeps its fixed 100ms
+    ceiling per request. See the [request round-trip backtest](#request-round-trip-backtest) below.
+
+  An excluded metric's raw evidence (`historicalMaxMs`, `sampleCount`) is written into the committed
+  baseline's own `excluded` map, not only logged by the derive command, so a later reader of
+  `scripts/performance-baseline.json` can audit the exclusion without re-running the derivation. Add
+  another name only with the same kind of per-metric backtest evidence: this is a documented, narrow
+  exception, not a place to route every noisy metric or every variant of a noisy metric's family.
 
 A metric needs at least `MINIMUM_PERFORMANCE_SAMPLE_COUNT` (8) samples before any threshold is
 derived; fewer make even the historical maximum untrustworthy, so the metric is skipped rather than
@@ -450,6 +466,54 @@ re-verified in `scripts/__tests__/performance-baseline.test.ts`'s
 +57ms is the gate's practical sensitivity floor for `durationMs` today: a sudden regression smaller
 than that on a metric with this much natural spread can pass a single run, which is exactly why the
 trend check below exists for the smaller, sustained case.
+
+#### `frames.sampleCount` backtest
+
+Run against the same 98 receipts and, as forward evidence, the 48 runner receipts the armed gate
+compared afterwards (2026-09-28 to 2026-10-10). The corpus numbers are embedded and re-verified in
+the `frames.sampleCount historical backtest (real runner receipts)` suite of
+`scripts/__tests__/performance-baseline.test.ts`; its `committed baseline replay` suite replays the
+245.4ms, 14-interval run from [issue tjx666/caxri#1637][issue-1637] against the committed baseline.
+
+| Check                                                              | Result                                                                             |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `frames.sampleCount` equals `floor(durationMs / 16.67ms)`          | 97/98 receipts; the remaining one is one interval less                             |
+| Leave-one-out and forward time-split on `frames.sampleCount` alone | 0/98 and 0/49 false failures                                                       |
+| Shortest window the bare-maximum threshold (13 intervals) rejects  | ~233.3ms, inside `durationMs`'s 248.104ms threshold                                |
+| Post-arming receipts replayed against the committed baseline       | 13/48 failed; 3 of them on `frames.sampleCount` alone                              |
+| Post-arming receipts with 14 intervals                             | 6/48, all with `durationMs` between 242.7ms and 247.5ms (within its own threshold) |
+| Same 48 receipts after the exclusion                               | 10/48 failed, none on `frames.sampleCount`; `durationMs` itself failed 0/48        |
+
+The per-metric backtest alone found nothing because the 98-receipt corpus never reached 14 intervals;
+the failure is the frame count's bare maximum sitting inside `durationMs`'s margin, which only later
+runs near that margin exposed. One of the three runs it failed passed on a rerun of the same head.
+
+[issue-1637]: https://github.com/tjx666/caxri/issues/1637
+
+#### Request round-trip backtest
+
+Run against the same 98 receipts and the same 48 post-arming receipts, ordered by job, with the
+repository's own `derivePerformanceMetricBaseline`. `maxDurationMs` and `totalDurationMs` are equal
+in every receipt because the scenario sends each request once
+([issue tjx666/caxri#1638][issue-1638]).
+
+| Check                                                        | `session.select`                    | `app.bootstrap`                 |
+| ------------------------------------------------------------ | ----------------------------------- | ------------------------------- |
+| 98-receipt corpus: leave-one-out and forward time-split      | 0/98 and 0/49                       | 0/98 and 0/49                   |
+| Post-arming receipts replayed against the committed baseline | 9/48 failed (30.3-37ms; one 11.5ms) | 1/48 failed (36.5ms)            |
+| All 146 receipts: forward time-split                         | 9/73                                | 1/73                            |
+| Threshold a re-derivation over all 146 would need            | 40.96ms (6.8x the 6ms median)       | 40.42ms (5.9x the 6.9ms median) |
+| Same 48 receipts after the exclusion                         | 0/48 failed on any metric           | 0/48 failed on any metric       |
+
+The arming corpus held no slow-mode receipt, so the per-metric backtest could not see the mode; the
+first 114 receipts had none and the next 32 had 10. The slow mode is not a Renderer stall: the
+failing receipts' frame intervals stayed under 18.6ms with no missed frame or Long Animation Frame,
+and `app.bootstrap`, which starts when `session.select`'s `state.changed` event arrives, stayed at
+6.2-7.1ms in the same runs, so the extra time precedes Server Core's broadcast. A re-derived ~41ms
+threshold would sit 4ms over the observed 37ms maximum and close to the spec's 100ms ceiling, so it
+would gate nothing that ceiling does not.
+
+[issue-1638]: https://github.com/tjx666/caxri/issues/1638
 
 ### Armed vs. unarmed: why this never silently passes
 
@@ -526,6 +590,17 @@ Commit the resulting `scripts/performance-baseline.json`. Its `armed: true` and 
 are then load-bearing: the next CI run compares against a real runner-noise threshold and can fail
 the job. Re-run the same recipe against a fresh window of runs to refresh the baseline as the
 product's genuine performance profile shifts: never hand-edit the JSON file.
+
+The receipt artifacts expire after seven days, but the `e2e` job log keeps the same receipt as its
+`CAXRI_RENDERER_BENCHMARK {...}` line (`e2e/renderer.performance.e2e.ts` prints the exact payload it
+writes). To re-derive from an expired window, for example after adding an exclusion, fetch each
+run's `e2e` job log with `gh api repos/{owner}/{repo}/actions/jobs/<job-id>/logs`, write its last
+`CAXRI_RENDERER_BENCHMARK` payload to `<dir>/<job-id>/renderer-performance.json`, and run the same
+`--input-dir` derivation. Before committing, confirm the result reproduces every unchanged metric of
+the committed baseline exactly, which proves the reconstructed set is the original one. The
+`frames.sampleCount` exclusion was applied this way: the reconstructed 98 receipts reproduced all 60
+previously gated metrics, so the regenerated file differs only by that metric's move to `excluded`,
+`recordedAt`, and `commit`.
 
 ### Gradual-creep trend check
 

@@ -20,10 +20,10 @@ import type { DomainDependencies } from './domain-services';
 import { ExternalStatusHub } from './external-status';
 import { FileService } from './files';
 import { GitService } from './git';
-import { ProjectRootResolver } from './project-roots';
-import { SessionContextService } from './session-context';
+import { ProjectRootResolver } from './project';
+import { SessionContextService } from './session';
 import { WatchHub } from './watch-hub';
-import { WorkbenchRootService } from './workbench-roots';
+import { WorkbenchRootService } from './workbench';
 
 /**
  * Applies durable inactive-root editor state before the journal record becomes unrecoverable.

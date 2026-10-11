@@ -4,8 +4,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 
-import type { ProjectStatusService } from './project-status';
-import type { SessionPullRequestService } from './session-pull-requests';
+import type { ProjectStatusService, SessionPullRequestService } from './project-status';
 
 /**
  * Minimum gap between two focus refreshes of one Session. Switching back and forth between apps fires `focus` far more

@@ -1,4 +1,4 @@
-import type { SessionPullRequestService } from './session-pull-requests';
+import type { SessionPullRequestService } from './project-status';
 
 /**
  * Re-resolves the Session rows that show pull request `number` right after Caxri merged it for `sessionId`. An open

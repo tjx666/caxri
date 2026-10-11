@@ -14,7 +14,7 @@ interface AutoAllowGrant {
 export type PermissionAutoAllowRevokeReason = 'agentRestart' | 'sessionDeleted' | 'user';
 
 /**
- * The grant operations `agent-runtime.ts` exposes to the Desktop and mobile handlers (issue caxri#1295).
+ * The grant operations `agent-runtime/runtime.ts` exposes to the Desktop and mobile handlers (issue caxri#1295).
  */
 export interface PermissionAutoAllowAccess {
     attentionAutoAllowStatus: (sessionId: string) => PermissionAutoAllowStatus;
@@ -29,11 +29,11 @@ export interface PermissionAutoAllowAccess {
 }
 
 /**
- * Session-scoped, Server in-memory-only grant that lets `onAttention` (see `agent-runtime.ts`) auto-answer every later
- * Claude permission request in the same Session without a mobile card or the native prompt. Never persisted: the grant
- * is deliberately gone after a Server restart, and it is explicitly revoked when the Session's Agent Terminal launch
- * ends (an owner-decided "Agent restarts" boundary) or the Session itself is deleted. Question requests are never
- * covered; callers gate that separately (see `shouldAutoAllowAttention`).
+ * Session-scoped, Server in-memory-only grant that lets `onAttention` (see `agent-runtime/runtime.ts`) auto-answer
+ * every later Claude permission request in the same Session without a mobile card or the native prompt. Never
+ * persisted: the grant is deliberately gone after a Server restart, and it is explicitly revoked when the Session's
+ * Agent Terminal launch ends (an owner-decided "Agent restarts" boundary) or the Session itself is deleted. Question
+ * requests are never covered; callers gate that separately (see `shouldAutoAllowAttention`).
  *
  * @see docs/mobile/conversation.md for the full lifecycle and the owner decision this implements
  *   (issue caxri#1295).
@@ -103,8 +103,8 @@ export interface PermissionAutoAllowController {
 
 /**
  * Wraps `AgentAttentionAutoAllow` so every mutation (`grant`/`revoke`) always emits its structured transition log and
- * the live `agent.permissionAutoAllowChanged` event together (issue caxri#1295). Kept separate from `agent-runtime.ts`
- * so the log/event side effects are unit-testable without composing the full Agent runtime.
+ * the live `agent.permissionAutoAllowChanged` event together (issue caxri#1295). Kept separate from
+ * `agent-runtime/runtime.ts` so the log/event side effects are unit-testable without composing the full Agent runtime.
  */
 export function createPermissionAutoAllowController(options: {
     logger: StructuredLogger;
