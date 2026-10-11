@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 
-import { MAX_AGENT_CHAT_IMAGES } from '@caxri/protocol';
 import { ArrowUp, Paperclip, Square } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
@@ -13,6 +12,12 @@ import { useImageAttachments } from '../sessions/hooks/use-image-attachments';
 import { agentChatDisabledReason } from './agent-chat-model';
 import { AgentChatModelButton } from './agent-chat-model-sheet';
 import type { AgentChatController } from './use-agent-chat';
+
+/**
+ * The phone keeps its own cap below the protocol's `MAX_AGENT_CHAT_IMAGES`: the attachment strip is a single
+ * non-scrolling row sized for four thumbnails, so more would overflow off screen.
+ */
+const MOBILE_CHAT_MAX_IMAGES = 4;
 
 /**
  * Runs the composer's one action (send, or Stop on an empty draft during a turn) and keeps its busy and error state.
@@ -85,7 +90,7 @@ const AttachButton = ({
 }) => (
     <IconButton
         accessibilityHint={
-            canAdd ? undefined : `Up to ${MAX_AGENT_CHAT_IMAGES} images per message.`
+            canAdd ? undefined : `Up to ${MOBILE_CHAT_MAX_IMAGES} images per message.`
         }
         accessibilityLabel="Attach image"
         color={theme.muted}
@@ -168,7 +173,7 @@ export const AgentChatComposer = ({
     theme: MobileTheme;
 }) => {
     const images = useImageAttachments(sessionId, {
-        maxAttachments: MAX_AGENT_CHAT_IMAGES,
+        maxAttachments: MOBILE_CHAT_MAX_IMAGES,
         withThumbnail: true,
     });
     const [isChoosingImage, setChoosingImage] = useState(false);
