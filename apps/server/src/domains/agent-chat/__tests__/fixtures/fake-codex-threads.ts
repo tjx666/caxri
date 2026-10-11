@@ -40,8 +40,19 @@ export function readSavedThread(id: string): FakeThread | undefined {
 export function recordThreadOpen(method: string, parameters: Record<string, unknown>) {
     fs.appendFileSync(
         stateFile('thread-opens.jsonl'),
-        `${JSON.stringify({ method, sandbox: parameters.sandbox, approvalPolicy: parameters.approvalPolicy })}\n`,
+        `${JSON.stringify({ method, sandbox: parameters.sandbox, approvalPolicy: parameters.approvalPolicy, approvalsReviewer: parameters.approvalsReviewer })}\n`,
     );
+}
+
+/**
+ * Appends the permission and collaboration-mode fields of one `turn/start` to `turn-starts.jsonl`.
+ */
+export function recordTurnStart(parameters: Record<string, unknown>) {
+    const fields = ['approvalPolicy', 'approvalsReviewer', 'sandboxPolicy', 'collaborationMode'];
+    const entry = Object.fromEntries(
+        fields.flatMap((field) => (field in parameters ? [[field, parameters[field]]] : [])),
+    );
+    fs.appendFileSync(stateFile('turn-starts.jsonl'), `${JSON.stringify(entry)}\n`);
 }
 
 /**

@@ -1,5 +1,6 @@
 import type {
     CanUseTool,
+    PermissionMode,
     PermissionResult,
     PermissionUpdate,
 } from '@anthropic-ai/claude-agent-sdk';
@@ -36,6 +37,29 @@ interface ClaudeRequestOwner {
      * A `cancel` decision denies the tool and interrupts the turn, which then finishes as interrupted.
      */
     onInterruptRequested(): void;
+    /**
+     * The mode an approved `ExitPlanMode` leaves plan mode for: the Chat's chosen level, or `undefined` to let Claude
+     * Code pick (no chosen level, or plan mode is already off).
+     */
+    planExitMode(): PermissionMode | undefined;
+}
+
+/**
+ * The permission updates an approval carries. Approving `ExitPlanMode` switches straight to the chosen level in the
+ * same step (`planExitMode`), so no tool call runs under the looser mode Claude Code would otherwise pick after the
+ * plan; any mode Claude Code suggested is replaced by it.
+ */
+function approvalUpdates(
+    pending: PendingRequest,
+    decision: 'accept' | 'acceptForSession',
+    planExitMode: PermissionMode | undefined,
+): PermissionUpdate[] {
+    const suggested = decision === 'acceptForSession' ? pending.suggestions : [];
+    if (!planExitMode) return suggested;
+    return [
+        ...suggested.filter((update) => update.type !== 'setMode'),
+        { type: 'setMode', mode: planExitMode, destination: 'session' },
+    ];
 }
 
 /**
@@ -184,17 +208,17 @@ export class ClaudeRequestBroker {
             if (response.kind !== 'decision')
                 throw new CaxriError('VALIDATION', 'An approval needs a decision');
             switch (response.decision) {
-                case 'accept': {
-                    pending.resolve({ behavior: 'allow', updatedInput: pending.input });
-                    break;
-                }
+                case 'accept':
                 case 'acceptForSession': {
+                    const updates = approvalUpdates(
+                        pending,
+                        response.decision,
+                        pending.toolName === 'ExitPlanMode' ? this.owner.planExitMode() : undefined,
+                    );
                     pending.resolve({
                         behavior: 'allow',
                         updatedInput: pending.input,
-                        ...(pending.suggestions.length > 0 && {
-                            updatedPermissions: pending.suggestions,
-                        }),
+                        ...(updates.length > 0 && { updatedPermissions: updates }),
                     });
                     break;
                 }

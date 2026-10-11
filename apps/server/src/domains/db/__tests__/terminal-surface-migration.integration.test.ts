@@ -34,6 +34,9 @@ describe('0001_terminal_surface migration', () => {
             'DROP TABLE agent_session_usage; DROP TABLE pull_request_outcomes; DROP TABLE external_agent_usage; DROP TABLE commander_tasks; DROP TABLE commander_pending_notices; DROP TABLE commander_inbox_replies; DROP TABLE commander_inbox_items',
         );
         raw.exec('ALTER TABLE terminals DROP COLUMN surface');
+        raw.exec(
+            'ALTER TABLE projects DROP COLUMN chat_defaults; ALTER TABLE terminals DROP COLUMN chat_permission_mode; ALTER TABLE terminals DROP COLUMN chat_plan_mode',
+        );
         raw.pragma(`user_version = ${BASELINE_SCHEMA_VERSION}`);
         raw.close();
 

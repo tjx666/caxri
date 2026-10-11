@@ -1,31 +1,24 @@
 import { z } from 'zod';
 
+import { projectChatDefaultsSchema } from '../agent/agent-chat-permissions.js';
 import type { AgentProvider } from '../agent/agents.js';
 import { agentProviderIds } from '../agent/agents.js';
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
-import { MAX_SHORTCUT_CHORDS, splitShortcutChords } from '../configuration/shortcuts.js';
-import type { CommandId } from './commands.js';
 import { gitCommitSchema, gitFileLineStatsShape } from './git.js';
 import { projectIconSchema } from './project-customization.js';
+import {
+    MAX_TERMINAL_LINK_LENGTH,
+    MAX_TERMINAL_OSC_LINK_TARGET_CHARACTERS,
+    MAX_TERMINAL_OSC_LINKS,
+} from './terminal-limits.js';
 
 export * from './git.js';
+export * from './keybindings.js';
+export * from './terminal-limits.js';
 export * from './theme.js';
 
 export const identifierSchema = z.string().min(1).max(200);
 export const pathSchema = z.string().min(1).max(16_384);
-export const MAX_TERMINAL_INPUT_LENGTH = 65_536;
-/**
- * Allows a 1 MiB paste plus xterm's 12-character bracketed-paste envelope. The private Terminal Host frame stays
- * independently smaller and is chunked before delivery.
- */
-export const MAX_TERMINAL_INPUT_PAYLOAD_LENGTH = 1_048_576 + 12;
-export const MAX_TERMINAL_LINK_LENGTH = 16_384;
-export const MAX_TERMINAL_LINK_ROWS = 16;
-export const MAX_TERMINAL_OSC_LINKS = 1_000;
-export const MAX_TERMINAL_OSC_LINK_CELLS = 256 * 1_024;
-export const MAX_TERMINAL_OSC_LINK_TARGET_CHARACTERS = 256 * 1_024;
-const TERMINAL_SEND_SEQUENCE_COMMAND_ID =
-    'workbench.action.terminal.sendSequence' satisfies CommandId;
 
 /**
  * Main returns this instead of a Runtime result when the user dismisses a confirmation dialog.
@@ -120,6 +113,11 @@ export const projectRecordSchema = z.object({
      * from `app.bootstrap` and `project.list`; adding the same root again clears it and restores those Sessions.
      */
     hiddenAt: z.number().optional(),
+    /**
+     * The permission level and plan mode each provider's new Chats start with, saved from a Chat's "Set as Project
+     * default". Absent when none was saved; a new Chat then follows its provider's launch settings.
+     */
+    chatDefaults: projectChatDefaultsSchema.optional(),
 });
 
 /**
@@ -404,57 +402,6 @@ export const auxiliaryWindowStateSchema = z.object({
 });
 export type AuxiliaryWindowState = z.infer<typeof auxiliaryWindowStateSchema>;
 
-export const keybindingWhenSchema = z.enum(['terminalFocus']);
-
-export const keybindingSchema = z
-    .object({
-        key: z.string().min(1).max(100),
-        /**
-         * Catalog IDs are `CommandId` (see `./commands.js`); unknown values stay visible as custom keybindings.
-         */
-        command: z.string().min(1).max(200),
-        /**
-         * Arbitrary JSON arguments are retained verbatim; commands with schema-level requirements validate below.
-         */
-        args: z.record(z.string(), z.unknown()).optional(),
-        when: keybindingWhenSchema.optional(),
-    })
-    .superRefine((binding, context) => {
-        // `cmd+k cmd+s` is one keybinding of two chords. Dispatch tracks a single pending chord, so a longer
-        // sequence would silently never fire; reject it at the file boundary instead.
-        if (splitShortcutChords(binding.key).length > MAX_SHORTCUT_CHORDS)
-            context.addIssue({
-                code: 'custom',
-                message: `A keybinding may chain at most ${MAX_SHORTCUT_CHORDS} chords, for example "cmd+k cmd+s"`,
-                path: ['key'],
-            });
-        if (binding.command !== TERMINAL_SEND_SEQUENCE_COMMAND_ID) return;
-        if (!binding.args || typeof binding.args.text !== 'string') {
-            context.addIssue({
-                code: 'custom',
-                message: 'workbench.action.terminal.sendSequence requires args.text',
-                path: ['args', 'text'],
-            });
-            return;
-        }
-        if (binding.args.text.length > MAX_TERMINAL_INPUT_LENGTH)
-            context.addIssue({
-                code: 'too_big',
-                maximum: MAX_TERMINAL_INPUT_LENGTH,
-                message: `Terminal input must contain at most ${MAX_TERMINAL_INPUT_LENGTH} characters`,
-                origin: 'string',
-                path: ['args', 'text'],
-                type: 'string',
-            });
-    });
-
-export const keybindingConflictSchema = z.object({
-    key: z.string(),
-    commands: z.array(z.string()),
-    // Why the listed commands cannot all work; `findKeybindingConflicts` defines each value.
-    reason: z.enum(['chordPrefix', 'duplicate']),
-});
-
 export const fileEntrySchema = z.object({
     name: z.string(),
     path: z.string(),
@@ -684,8 +631,6 @@ export type WorkbenchRootOption = z.infer<typeof workbenchRootOptionSchema>;
 export type AgentHookHealth = z.infer<typeof agentHookHealthSchema>;
 export type AgentHookHealthMap = z.infer<typeof agentHookHealthMapSchema>;
 export type PersistedWindowState = z.infer<typeof persistedWindowStateSchema>;
-export type Keybinding = z.infer<typeof keybindingSchema>;
-export type KeybindingConflict = z.infer<typeof keybindingConflictSchema>;
 export type FileEntry = z.infer<typeof fileEntrySchema>;
 export type MutableFileEntry = z.infer<typeof mutableFileEntrySchema>;
 export type MovedFileEntry = z.infer<typeof movedFileEntrySchema>;

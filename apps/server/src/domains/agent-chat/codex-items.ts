@@ -184,6 +184,11 @@ export function mapCodexItem(
                 ...(delivery && { delivery }),
             };
         }
+        /**
+         * Plan mode's proposed plan (`collaborationMode: plan`) reads as the reply it is. Its deltas are opted out, so
+         * the text arrives whole with `item/completed`.
+         */
+        case 'plan':
         case 'agentMessage': {
             return {
                 ...base,

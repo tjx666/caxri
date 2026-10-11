@@ -40,6 +40,16 @@ export function threadResponse(thread: FakeThread): Json {
         },
         model: thread.model ?? 'fake-codex-model',
         reasoningEffort: thread.effort ?? null,
+        collaborationMode: thread.collaborationMode
+            ? {
+                  mode: thread.collaborationMode,
+                  settings: {
+                      model: thread.model ?? 'fake-codex-model',
+                      reasoning_effort: thread.effort ?? null,
+                      developer_instructions: null,
+                  },
+              }
+            : null,
     };
 }
 

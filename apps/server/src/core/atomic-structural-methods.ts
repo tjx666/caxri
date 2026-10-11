@@ -10,6 +10,7 @@ import type { CoreForwardedMethod } from './core-methods';
 const atomicStructuralMethods = [
     'project.reorder',
     'project.setIcon',
+    'project.setChatDefault',
     'session.markRead',
     'session.reorder',
     'session.reorderPinned',

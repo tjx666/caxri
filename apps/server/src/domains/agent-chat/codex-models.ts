@@ -8,6 +8,7 @@ import { findAgentChatModel } from '@caxri/protocol';
 
 import { boundedChatModels, clip, isRecord, stringField } from './chat-items';
 import type { AgentChatSessionHost } from './chat-provider';
+import type { CodexPermissions } from './codex-permissions';
 import type { JsonRpcConnection } from './json-rpc-connection';
 
 const MODEL_LIST_TIMEOUT_MS = 10_000;
@@ -50,7 +51,10 @@ function codexChatModels(result: unknown): AgentChatModel[] {
 export class CodexModelSettings {
     private nextTurn: AgentChatModelRequest = {};
 
-    constructor(private readonly host: Pick<AgentChatSessionHost, 'apply' | 'read'>) {}
+    constructor(
+        private readonly host: Pick<AgentChatSessionHost, 'apply' | 'read'>,
+        private readonly permissions: CodexPermissions,
+    ) {}
 
     /**
      * Records the effort `thread/start` or `thread/resume` reported for the thread. A thread that reports none uses its
@@ -95,8 +99,8 @@ export class CodexModelSettings {
     }
 
     /**
-     * Sends `turn/start` with the pending switch. Codex holds the choice once the request succeeds; a choice made while
-     * it was in flight stays pending for the turn after.
+     * Sends `turn/start` with the pending switches, including the permission level and plan mode. Codex holds them once
+     * the request succeeds; a choice made while it was in flight stays pending for the turn after.
      */
     async startTurn(
         connection: JsonRpcConnection,
@@ -104,12 +108,18 @@ export class CodexModelSettings {
         timeoutMs: number,
     ): Promise<unknown> {
         const pending = this.nextTurn;
+        const snapshot = this.host.read();
+        const turn = this.permissions.turnParameters({
+            model: pending.model ?? snapshot.model,
+            effort: pending.effort ?? snapshot.effort,
+        });
         const result = await connection.request(
             'turn/start',
-            { ...parameters, ...pending },
+            { ...parameters, ...pending, ...turn.parameters },
             timeoutMs,
         );
         if (this.nextTurn === pending) this.nextTurn = {};
+        turn.commit();
         return result;
     }
 }

@@ -43,6 +43,13 @@
             "when": 1791736737207,
             "tag": "0005_commander_inbox",
             "breakpoints": true
+        },
+        {
+            "idx": 6,
+            "version": "6",
+            "when": 1791743848557,
+            "tag": "0006_chat_permission_modes",
+            "breakpoints": true
         }
     ]
 }
