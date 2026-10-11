@@ -101,6 +101,10 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
                 headerBottom: header.getBoundingClientRect().bottom,
                 branchTop: branchRow.getBoundingClientRect().top,
                 branchRowLevel: branchRow.getAttribute('aria-level'),
+                branchRowHeight: branchRow.getBoundingClientRect().height,
+                branchFontSize: getComputedStyle(
+                    branchRow.querySelector('.git-repository-branch') ?? branchRow,
+                ).fontSize,
                 branchIconLeft: branchRow.querySelector('svg')?.getBoundingClientRect().left,
                 captionIconLeft: caption?.querySelector('svg')?.getBoundingClientRect().left,
             };
@@ -109,11 +113,14 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
         expect(nestedLayout!.headerHasBranch).toBe(false);
         expect(nestedLayout!.branchTop).toBeGreaterThanOrEqual(nestedLayout!.headerBottom - 1);
         expect(nestedLayout!.branchRowLevel).toBe('2');
-        // The branch glyph sits in the group captions' chevron column.
+        // The branch is a row on the tree's own grid: row height, base text, and its glyph in the file-icon column one
+        // step past the group captions' chevron column, rather than smaller text tucked into the chevron column.
+        expect(nestedLayout!.branchRowHeight).toBe(28);
+        expect(nestedLayout!.branchFontSize).toBe('13px');
         if (nestedLayout!.captionIconLeft !== undefined)
             expect(
-                Math.abs(nestedLayout!.branchIconLeft! - nestedLayout!.captionIconLeft),
-            ).toBeLessThanOrEqual(1);
+                nestedLayout!.branchIconLeft! - nestedLayout!.captionIconLeft,
+            ).toBeGreaterThanOrEqual(13);
 
         await primary.getByRole('treeitem', { name: /Commits/ }).click();
         await expect(primary.locator('.commit-row')).toHaveCount(5);

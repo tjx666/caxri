@@ -13,6 +13,7 @@ import type {
 } from 'caxri';
 import caxri, { CancellationTokenSource, EventEmitter, GitPullRequestErrorMessage } from 'caxri';
 
+import { DetailQueue } from './detail-queue';
 import {
     buildSourceControlHistoryDetails,
     buildSourceControlHistoryPage,
@@ -47,6 +48,17 @@ interface GitProviderScopeState {
     commitSelection?: { repositoryId: string; sha: string };
     contentTimer?: ReturnType<typeof setTimeout>;
     diffExclude: Readonly<Record<string, boolean>>;
+    /**
+     * Whether the user picked this scope's mode: a mode command, opening a commit, or a Renderer request that changes
+     * the mode the provider last returned. The first request's `preferredModeId` only restores the persisted mode and
+     * is not a choice, because the Renderer persists whatever mode the provider reported. Until a choice, a Working
+     * Tree scope moves to Pull Request mode once any repository's branch has a pull request.
+     */
+    isModeChosen: boolean;
+    /**
+     * Whether `provideView` has returned a model yet, which makes a later differing `preferredModeId` a user choice.
+     */
+    hasProvidedView: boolean;
     mode: GitSourceControlMode;
     pullRequests: Map<string, DetailState<GitPullRequestChanges | null>>;
     repositories: Map<string, GitRepositorySummary>;
@@ -70,12 +82,6 @@ interface GitProviderScopeState {
     pullRequestForcedSequences: Map<string, number>;
 }
 
-interface DetailTask {
-    cancellation: CancellationTokenSource;
-    run: () => Promise<void>;
-}
-
-const MAX_CONCURRENT_DETAIL_REQUESTS = 4;
 const CONTENT_CHANGE_BATCH_MS = 50;
 
 type GitWorkspaceApi = Pick<CaxriApi['workspace'], 'getConfiguration' | 'git'>;
@@ -94,6 +100,17 @@ function isMode(value: string | undefined): value is GitSourceControlMode {
 }
 
 /**
+ * Whether any listed repository's branch has a pull request, as far as the settled lookups know. A repository whose
+ * lookup is still loading or failed does not count, so the panel only switches on a pull request that was found.
+ */
+export function hasDetectedPullRequest(
+    repositories: ReadonlyArray<Pick<GitRepositorySummary, 'id'>>,
+    pullRequests: ReadonlyMap<string, { value?: GitPullRequestChanges | null }>,
+): boolean {
+    return repositories.some((repo) => Boolean(pullRequests.get(repo.id)?.value));
+}
+
+/**
  * Owns Git product state and projects Runtime's authorized raw domain results into the controlled Source Control
  * contract. Renderer action invocation uses opaque, revision-bound ids; the generic surface never interprets the
  * provider command binding or its arguments.
@@ -101,9 +118,7 @@ function isMode(value: string | undefined): value is GitSourceControlMode {
 export class GitProvider implements SourceControlProvider {
     // eslint-disable-next-line unicorn/prefer-event-target -- The public API intentionally mirrors VS Code's EventEmitter contract.
     private readonly changed = new EventEmitter<SourceControlChange>();
-    private activeDetailRequests = 0;
-    private readonly detailSlotWaiters: Array<() => void> = [];
-    private readonly detailTasks = new Set<DetailTask>();
+    private readonly detailQueue = new DetailQueue();
     private disposed = false;
     private readonly scopes = new Map<string, GitProviderScopeState>();
 
@@ -120,6 +135,8 @@ export class GitProvider implements SourceControlProvider {
             commitDetails: new Map(),
             commitOpenSequence: 0,
             diffExclude: {},
+            hasProvidedView: false,
+            isModeChosen: false,
             mode: 'working',
             pullRequests: new Map(),
             pullRequestForcedSequences: new Map(),
@@ -191,38 +208,6 @@ export class GitProvider implements SourceControlProvider {
                 }
     }
 
-    private async acquireDetailSlot(): Promise<void> {
-        if (this.activeDetailRequests < MAX_CONCURRENT_DETAIL_REQUESTS) {
-            this.activeDetailRequests += 1;
-            return;
-        }
-        await new Promise<void>((resolve) => this.detailSlotWaiters.push(resolve));
-    }
-
-    private releaseDetailSlot(): void {
-        const next = this.detailSlotWaiters.shift();
-        if (next) next();
-        else this.activeDetailRequests -= 1;
-    }
-
-    private enqueueDetail(task: DetailTask): void {
-        this.detailTasks.add(task);
-        /**
-         * Start the async wrapper in the originating provider call's AsyncLocalStorage context. Deferring `task.run`
-         * from a previous scope's completion callback would bind its authorized workspace requests to that scope.
-         */
-        // eslint-disable-next-line no-void -- the bounded queue owns completion and cancellation
-        void (async () => {
-            await this.acquireDetailSlot();
-            try {
-                if (!task.cancellation.token.isCancellationRequested) await task.run();
-            } finally {
-                this.detailTasks.delete(task);
-                this.releaseDetailSlot();
-            }
-        })();
-    }
-
     private loadCommitDetails(state: GitProviderScopeState, repo: GitRepositorySummary): void {
         const sha =
             state.commitSelection?.repositoryId === repo.id ? state.commitSelection.sha : repo.head;
@@ -242,7 +227,7 @@ export class GitProvider implements SourceControlProvider {
             value: current?.identity === sha ? current.value : undefined,
         };
         state.commitDetails.set(repo.id, detail);
-        this.enqueueDetail({
+        this.detailQueue.enqueue({
             cancellation,
             run: async () => {
                 try {
@@ -282,7 +267,7 @@ export class GitProvider implements SourceControlProvider {
         const isForced = (state.pullRequestForcedSequences.get(repo.id) ?? 0) < state.forceSequence;
         state.pullRequestForcedSequences.set(repo.id, state.forceSequence);
         const refresh = isForced ? state.forceSequence : 0;
-        this.enqueueDetail({
+        this.detailQueue.enqueue({
             cancellation,
             run: async () => {
                 try {
@@ -464,6 +449,7 @@ export class GitProvider implements SourceControlProvider {
             request.preferredModeId !== state.mode &&
             (!state.commitSelection || request.preferredModeId === 'commit')
         ) {
+            if (state.hasProvidedView) state.isModeChosen = true;
             state.mode = request.preferredModeId;
             this.clearDetails(state, true);
         }
@@ -505,6 +491,11 @@ export class GitProvider implements SourceControlProvider {
         const detailErrors = new Map<string, true | string>();
         const repoIds = new Set(summary.repositories.map(({ id }) => id));
         this.pruneDetails(state, repoIds);
+        if (!state.isModeChosen && state.mode === 'working') {
+            for (const repo of summary.repositories) this.loadPullRequest(state, repo);
+            if (hasDetectedPullRequest(summary.repositories, state.pullRequests))
+                state.mode = 'pull-request';
+        }
         for (const repo of summary.repositories) {
             if (state.mode === 'commit') {
                 this.loadCommitDetails(state, repo);
@@ -524,6 +515,7 @@ export class GitProvider implements SourceControlProvider {
          * repository containing the active file. Preserve every approved raw scope for history authorization.
          */
         for (const repo of rawSummary.repositories) state.repositories.set(repo.id, repo);
+        state.hasProvidedView = true;
         return boundSourceControlViewModel(
             buildSourceControlViewModel({
                 activeResource: request.activeResource,
@@ -705,6 +697,7 @@ export class GitProvider implements SourceControlProvider {
             );
         this.clearDetails(state, true);
         state.commitSelection = { repositoryId: repoId, sha };
+        state.isModeChosen = true;
         state.mode = 'commit';
         this.changed.fire({ kind: 'selection', selectedModeId: 'commit' });
     }
@@ -718,6 +711,7 @@ export class GitProvider implements SourceControlProvider {
         const state = scopeId ? this.scopes.get(scopeId) : undefined;
         if (state) {
             state.commitOpenSequence += 1;
+            state.isModeChosen = true;
             if (state.mode !== mode || state.commitSelection) {
                 this.clearDetails(state, true);
                 state.commitSelection = undefined;
@@ -757,11 +751,7 @@ export class GitProvider implements SourceControlProvider {
             state.repositories.clear();
         }
         this.scopes.clear();
-        for (const task of this.detailTasks) {
-            task.cancellation.cancel();
-            task.cancellation.dispose();
-        }
-        this.detailTasks.clear();
+        this.detailQueue.dispose();
         this.changed.dispose();
     }
 }
