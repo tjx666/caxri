@@ -6,6 +6,7 @@ import { ChevronDown } from 'lucide-react';
 
 import {
     Menu,
+    MenuCheckboxItem,
     MenuContent,
     MenuGroup,
     MenuGroupLabel,
@@ -23,12 +24,15 @@ const LABEL_CLASS_NAME = 'flex min-w-0 items-center gap-1 text-[12px] leading-4 
  * keep beside their input. The menu stays open after a choice so switching the model shows its efforts right away. A
  * provider that listed no models shows the model it reported as plain text. As in the Codex app, the model name reads
  * in the foreground color and the effort stays muted beside it.
+ *
+ * Claude Code's ultracode is a toggle beside the effort rather than an effort level, as in its own `/effort` picker
+ * since 2.1.284: it stays on at any effort. The row appears only while the provider offers it for the current model.
  */
 export function AgentChatModelMenu({
     snapshot,
     terminalId,
 }: {
-    snapshot: Pick<AgentChatSnapshot, 'effort' | 'model' | 'models'> | undefined;
+    snapshot: Pick<AgentChatSnapshot, 'effort' | 'model' | 'models' | 'ultracode'> | undefined;
     terminalId: string;
 }) {
     const [isOpen, setOpen] = useState(false);
@@ -38,6 +42,7 @@ export function AgentChatModelMenu({
         <>
             <span className="truncate text-foreground">{label.model}</span>
             {label.effort && <span className="shrink-0">{label.effort}</span>}
+            {snapshot?.ultracode && <span className="shrink-0">Ultracode</span>}
         </>
     );
     const models = snapshot?.models;
@@ -46,7 +51,7 @@ export function AgentChatModelMenu({
     return (
         <Menu open={isOpen} onOpenChange={setOpen}>
             <MenuTrigger
-                aria-label={`Model: ${label.model}${label.effort ? `, ${label.effort} effort` : ''}`}
+                aria-label={`Model: ${label.model}${label.effort ? `, ${label.effort} effort` : ''}${snapshot.ultracode ? ', ultracode on' : ''}`}
                 className={`${LABEL_CLASS_NAME} h-7 shrink cursor-pointer rounded-md border-0 bg-transparent px-1.5 transition-colors duration-(--motion-overlay-enter) ease-(--motion-ease-enter) hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent data-popup-open:bg-elevated data-popup-open:text-foreground`}
             >
                 {text}
@@ -96,6 +101,25 @@ export function AgentChatModelMenu({
                                 ))}
                             </MenuRadioGroup>
                         </MenuGroup>
+                    </>
+                )}
+                {snapshot.ultracode !== undefined && (
+                    <>
+                        <MenuSeparator />
+                        <MenuCheckboxItem
+                            className="h-auto min-h-7 py-1"
+                            checked={snapshot.ultracode}
+                            onCheckedChange={(isOn: boolean) =>
+                                configureAgentChat(terminalId, { ultracode: isOn })
+                            }
+                        >
+                            <span className="flex min-w-0 flex-col">
+                                <span className="truncate">Ultracode</span>
+                                <span className="truncate text-[11px] leading-4 text-muted">
+                                    Multi-agent workflows at any effort
+                                </span>
+                            </span>
+                        </MenuCheckboxItem>
                     </>
                 )}
             </MenuContent>

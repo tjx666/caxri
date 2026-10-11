@@ -86,6 +86,7 @@ export const effectfulCommandRecovery = {
     'agentChat.resumeQueue': 'memory',
     'agentChat.rewind': 'memory',
     'agentChat.fork': 'durable',
+    'agentChat.restoreFiles': 'memory',
     'agent.dispatch.start': 'durable',
     'agent.delegation.create': 'durable',
     'commander.ensure': 'memory',

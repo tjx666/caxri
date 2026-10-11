@@ -62,6 +62,7 @@ export function rewindPoints(frames: readonly RewindFrame[]): Json {
 /**
  * Drops the target prompt and everything after it, then logs the call to `rewinds.jsonl` so tests can check the mode. A
  * real Grok Build appends a rewind marker instead; either way a later `session/load` replays the shorter history.
+ * `files_only` keeps the conversation, as the real `RewindMode::FilesOnly` does.
  */
 export function rewindExecute(
     session: RewindSession,
@@ -74,8 +75,10 @@ export function rewindExecute(
         return { success: false, error: `Cannot rewind to prompt ${targetPromptIndex}` };
     const promptTextAtTarget = promptText(session.frames[frameIndex]);
     if (parameters.force === true) {
-        session.frames = session.frames.slice(0, frameIndex);
-        save();
+        if (parameters.mode !== 'files_only') {
+            session.frames = session.frames.slice(0, frameIndex);
+            save();
+        }
         fs.appendFileSync(
             path.join(stateDirectory, 'rewinds.jsonl'),
             `${JSON.stringify({ sessionId: session.id, targetPromptIndex, mode: parameters.mode })}\n`,

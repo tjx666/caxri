@@ -101,8 +101,9 @@ export const agentChatMethods = {
         result: z.null(),
     },
     /**
-     * Switches the model or reasoning effort for the next turn and the ones after it; a running turn keeps its own. A
-     * model the snapshot's `models` does not list, or an effort that model does not accept, fails with `VALIDATION`.
+     * Switches the model, reasoning effort, or ultracode for the next turn and the ones after it; a running turn keeps
+     * its own. A model the snapshot's `models` does not list, an effort that model does not accept, or ultracode while
+     * the snapshot does not offer it, fails with `VALIDATION`.
      */
     'agentChat.configure': {
         ...commandPolicy('server', 'control'),
@@ -111,10 +112,15 @@ export const agentChatMethods = {
                 ...terminalTarget,
                 model: agentChatModelSchema.shape.id.optional(),
                 effort: agentChatEffortSchema.optional(),
+                ultracode: z.boolean().optional(),
             })
-            .refine((change) => change.model !== undefined || change.effort !== undefined, {
-                message: 'Choose a model or an effort',
-            }),
+            .refine(
+                (change) =>
+                    change.model !== undefined ||
+                    change.effort !== undefined ||
+                    change.ultracode !== undefined,
+                { message: 'Choose a model, an effort, or ultracode' },
+            ),
         result: z.null(),
     },
     /**
@@ -146,6 +152,17 @@ export const agentChatMethods = {
         ...commandPolicy('server', 'control'),
         params: z.strictObject({ ...terminalTarget, itemId: z.string().min(1).max(200) }),
         result: z.strictObject({ sessionId: identifierSchema, terminalId: identifierSchema }),
+    },
+    /**
+     * "Restore code to here": restores the files the turns from user message `itemId` onward changed, from the
+     * provider's file checkpoints, and keeps the conversation. A provider without them (`capabilities.chatRewindFiles`)
+     * fails with `VALIDATION`; a running turn, or a message that did not start its turn, fails with `CONFLICT` before
+     * anything changes.
+     */
+    'agentChat.restoreFiles': {
+        ...commandPolicy('server', 'control'),
+        params: z.strictObject({ ...terminalTarget, itemId: z.string().min(1).max(200) }),
+        result: z.null(),
     },
     /**
      * Stops the running turn. Messages still queued stay queued and the queue pauses until `agentChat.resumeQueue`.
