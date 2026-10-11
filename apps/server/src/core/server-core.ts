@@ -38,8 +38,12 @@ import {
     openDelegationAccess,
 } from './delegation-access';
 import { ServerDesktopRouter } from './desktop-router';
+import {
+    invokeExtensionControlRequest,
+    isExtensionControlRequest,
+} from './extensions/control-requests';
 import { createExtensionService } from './extensions/create-service';
-import { readActiveExtensionContext, routeExtensionDomainEvent } from './extensions/domain-events';
+import { routeExtensionDomainEvent } from './extensions/domain-events';
 import type { ExtensionService } from './extensions/service';
 import { createIdleExitConnectionTracker, createIdleExitMonitor } from './idle-exit';
 import {
@@ -204,6 +208,8 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         idleExitConnections.stop();
         // Lands even if Terminal Host exits (OS SIGTERM to the tree) before `domainService.shutdown()` runs below.
         terminalExecution.markCoreStopping?.();
+        // Same race for the Extension Host, which is shut down last: its signal-driven exit must not restart it.
+        extensionService?.markCoreStopping();
         stopPromise ??= (async () => {
             logger.write('info', logEventCatalog.serverCore.stopping, { fields: { reason } });
             eventLoopMonitor.stop();
@@ -253,6 +259,8 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 (request.method === 'terminal.preview' || request.method === 'session.markRead')
             )
                 await mobileAccess.validatePairedDeviceRequest(request, context, domainService);
+            if (isExtensionControlRequest(request))
+                return invokeExtensionControlRequest(request, extensionService, domainService);
             switch (request.method) {
                 case 'events.recover':
                     return recoveryJournal.recover(request.params);
@@ -260,56 +268,12 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     return projectObservableEventRecovery(
                         await recoveryJournal.recover(request.params),
                     );
-                case 'viewContainers.catalog':
-                    if (!extensionService)
-                        throw new CaxriError('UNAVAILABLE', 'Extension catalog is unavailable');
-                    return extensionService.catalog();
-                case 'viewContainers.treeChildren':
-                    if (!extensionService)
-                        throw new CaxriError('UNAVAILABLE', 'Extension Host is unavailable');
-                    return extensionService.treeChildren(request.params);
-                case 'viewContainers.viewOperation':
-                    if (!extensionService)
-                        throw new CaxriError('UNAVAILABLE', 'Extension Host is unavailable');
-                    return extensionService.viewOperation(request.params);
-                case 'viewContainers.executeCommand':
-                    if (!extensionService)
-                        throw new CaxriError('UNAVAILABLE', 'Extension Host is unavailable');
-                    {
-                        const context = await readActiveExtensionContext(domainService);
-                        if (context.kind !== 'session')
-                            throw new CaxriError(
-                                'FORBIDDEN',
-                                'Extension commands require an active Session',
-                            );
-                        return extensionService.executeCommand(
-                            request.params.commandId,
-                            request.params.arguments,
-                            context,
-                        );
-                    }
-                case 'viewContainers.cancelRequest':
-                    return (
-                        extensionService?.cancel(request.params.requestId) ?? {
-                            cancelled: false,
-                        }
-                    );
                 case 'requests.cancel':
                     return {
                         cancelled: requestCancellations.cancel(
                             principalRequestKey(context, request.params.requestId),
                         ),
                     };
-                case 'extensions.retry':
-                    if (!extensionService)
-                        return {
-                            accepted: false,
-                            error: {
-                                code: 'EXTENSION_HOST_UNAVAILABLE' as const,
-                                message: 'Extension Host is unavailable',
-                            },
-                        };
-                    return extensionService.retry(request.params.extensionId);
                 case 'agent.context':
                     return agentEndpoints.context(context);
                 case 'agent.list':

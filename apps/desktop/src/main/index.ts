@@ -29,6 +29,7 @@ import type { AgentCommanderWindowController } from './agent-commander-window';
 import { resolveDevelopmentDockIconPath } from './app-icon';
 import type { AppQuitIntent } from './app-quit';
 import { createAppQuitHandler, createAppQuitPromptOptions } from './app-quit';
+import { installBeforeQuitTrigger, installSignalQuitTriggers } from './app-quit-triggers';
 import { updateArgvConfig } from './argv-config';
 import {
     persistAllWindowState,
@@ -57,13 +58,15 @@ import { buildAppMenuTemplate } from './menu';
 import { createMenuKeybindingFailureInjection } from './menu-keybinding-failure';
 import { createMenuRefreshController } from './menu-refresh';
 import { createOnDemandWindows } from './on-demand-windows';
+import { wirePowerWake } from './power-wake';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 import { observeRendererCrashes } from './renderer-crash-recovery';
 import { loadRendererEntry } from './renderer-entry';
 import { observeRendererHangs } from './renderer-hang-observer';
 import { RendererReadiness } from './renderer-readiness';
 import { ProjectRootGrants } from './root-grants';
-import { DesktopServerConnection, resolveDesktopLaunch, wirePowerWake } from './server-connection';
+import { DesktopServerConnection } from './server-connection';
+import { resolveDesktopLaunch } from './server-launch-environment';
 import { shouldContinueStartup } from './server-startup';
 import { StartupProfile } from './startup-profile';
 import { createTestRootPathResolver } from './test-root';
@@ -76,7 +79,7 @@ import {
 import { createWindowCloseHandler, windowClosePrompt } from './window-close';
 import { resolveE2EWindowMode } from './window-mode';
 import type { WindowPlacement } from './window-placement';
-import { defaultWindowState, showWhenPlaced } from './window-placement';
+import { defaultWindowState, readWindowState, showWhenPlaced } from './window-placement';
 import { installWorkbenchIpc } from './workbench-ipc';
 import { createWorkbenchRootAuthority } from './workbench-root-authority';
 
@@ -189,6 +192,7 @@ if (ownsProfileInstance) {
         boot: gpuBoot,
         diagnostics: gpuDiagnostics,
         isE2E: process.env.CAXRI_E2E === '1',
+        isQuitting: () => isQuitStarted,
         logger: () => mainLogger,
         prepareRelaunch: () => {
             quitIntent = 'relaunch';
@@ -200,6 +204,7 @@ if (ownsProfileInstance) {
     const requestAppQuit = createAppQuitHandler({
         acceptQuit: () => {
             isQuitStarted = true;
+            (supervisor as DesktopServerConnection | undefined)?.markQuitting(); // Unset before ready.
             eventLoopMonitor?.stop();
             notifications?.dispose();
         },
@@ -227,6 +232,12 @@ if (ownsProfileInstance) {
         readStatus: () => supervisor.request('host.status'),
         stopServer: () => supervisor.stopServer(),
     });
+    const quitTriggers = {
+        app,
+        isQuitStarted: () => isQuitStarted,
+        logger: () => mainLogger,
+        requestAppQuit,
+    };
     function createWindow(placement: Promise<WindowPlacement>): BrowserWindow {
         const zoomFactor = zoomFactorForLevel(windowZoom.level());
         const window = new BrowserWindow({
@@ -333,6 +344,7 @@ if (ownsProfileInstance) {
         });
         observeRendererHangs(window.webContents, logEventCatalog.window, () => mainLogger);
         observeRendererCrashes(window, {
+            isQuitting: () => isQuitStarted,
             logger: () => mainLogger,
             shutdown: () => supervisor.shutdown(),
         });
@@ -396,13 +408,6 @@ if (ownsProfileInstance) {
             rendererUrl: process.env.ELECTRON_RENDERER_URL,
         });
         return window;
-    }
-    function readWindowState(window: BrowserWindow): PersistedWindowState {
-        return {
-            bounds: window.getNormalBounds(),
-            isMaximized: window.isMaximized(),
-            isFullScreen: window.isFullScreen(),
-        };
     }
     async function readWindowPlacement(): Promise<WindowPlacement> {
         const readState = async (): Promise<PersistedWindowState> => {
@@ -672,6 +677,7 @@ if (ownsProfileInstance) {
             }));
             supervisor.onEvent(sendEvent);
             wirePowerWake(powerMonitor, () => (quitIntent = 'system-shutdown'), supervisor);
+            installSignalQuitTriggers(quitTriggers);
             const attaching = shouldContinueStartup({
                 dialog,
                 logger: mainLogger,
@@ -727,12 +733,5 @@ if (ownsProfileInstance) {
     app.on('window-all-closed', () => {
         // macOS keeps the Desktop client alive; the independently supervised Server survives either way.
     });
-    app.on('before-quit', (event) => {
-        event.preventDefault();
-        if (isQuitStarted) return;
-        mainLogger?.write('info', logEventCatalog.app.quitRequested);
-        // Coalesce repeated Cmd+Q events and commit shutdown only after the user accepts.
-        // eslint-disable-next-line unicorn/prefer-await -- see comment above
-        requestAppQuit().catch(() => app.exit(0));
-    });
+    installBeforeQuitTrigger(quitTriggers);
 }

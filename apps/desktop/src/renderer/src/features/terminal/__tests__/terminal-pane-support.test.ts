@@ -35,6 +35,7 @@ import {
     reportTerminalOperationError,
     xtermThemeWithoutOverviewRulerBorder,
 } from '../terminal-pane-support';
+import { terminalSurfaceSwitches } from '../terminal-surface-switch-pending';
 import { cellsFor, createTerminal } from './terminal-links-test-helpers';
 
 const workbenchHost = terminalPaneHost();
@@ -207,6 +208,82 @@ describe('registerTerminalInputHandlers', () => {
         expect(paste).not.toHaveBeenCalled();
         unregister();
         expect(canSendTerminalInput('terminal-input-2')).toBe(true);
+    });
+
+    it('drops xterm query replies while the running Terminal is switching to Chat', async () => {
+        let onData: ((data: string) => void) | undefined;
+        let onBinary: ((data: string) => void) | undefined;
+        const paste = vi.fn();
+        const terminal = {
+            focus: vi.fn(),
+            onBinary: vi.fn((handler: (data: string) => void) => {
+                onBinary = handler;
+                return { dispose: vi.fn() };
+            }),
+            onData: vi.fn((handler: (data: string) => void) => {
+                onData = handler;
+                return { dispose: vi.fn() };
+            }),
+            paste,
+        } as unknown as Terminal;
+        const unregister = registerTerminalInputHandlers(terminal, 'terminal-to-chat', () => true);
+        const switched = Promise.withResolvers<undefined>();
+        const switching = terminalSurfaceSwitches.run(
+            'terminal-to-chat',
+            'chat',
+            () => switched.promise,
+        );
+
+        // A primary device attributes reply and a cursor position report, as xterm emits them for the final PTY output.
+        onData?.('\u{1B}[?1;2c');
+        onData?.('\u{1B}[12;1R');
+        onBinary?.('\u{1B}[M !!');
+
+        expect(canSendTerminalInput('terminal-to-chat')).toBe(false);
+        expect(didPasteIntoTerminal('terminal-to-chat', '/repo/ignored')).toBe(false);
+        expect(paste).not.toHaveBeenCalled();
+        expect(mocks.caxriRequest).not.toHaveBeenCalled();
+        expect(getToasts()).toEqual([]);
+
+        switched.resolve(undefined);
+        await switching;
+        onData?.('typed input');
+        await vi.waitFor(() =>
+            expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.input', {
+                terminalId: 'terminal-to-chat',
+                data: 'typed input',
+            }),
+        );
+        unregister();
+    });
+
+    it('keeps input open while the Terminal is switching away from Chat', async () => {
+        let onData: ((data: string) => void) | undefined;
+        const terminal = {
+            onBinary: () => ({ dispose: vi.fn() }),
+            onData: vi.fn((handler: (data: string) => void) => {
+                onData = handler;
+                return { dispose: vi.fn() };
+            }),
+        } as unknown as Terminal;
+        const unregister = registerTerminalInputHandlers(terminal, 'terminal-to-pty', () => true);
+        const switched = Promise.withResolvers<undefined>();
+        const switching = terminalSurfaceSwitches.run(
+            'terminal-to-pty',
+            'pty',
+            () => switched.promise,
+        );
+
+        onData?.('typed input');
+        await vi.waitFor(() =>
+            expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.input', {
+                terminalId: 'terminal-to-pty',
+                data: 'typed input',
+            }),
+        );
+        switched.resolve(undefined);
+        await switching;
+        unregister();
     });
 
     it('tags a generated paste with the Agent process expected by the Server', async () => {

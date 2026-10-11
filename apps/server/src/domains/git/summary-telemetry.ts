@@ -28,11 +28,23 @@ interface SummaryWindow {
     commandCount: number;
     joined: number;
     /**
+     * Joined reads per entry point; these replace the per-call `git.summary` `joined` records.
+     */
+    readonly joinedRequesters: Map<string, number>;
+    /**
      * Timestamp of the last refresh counted here, so the published duration covers activity, not idle time.
      */
     lastEventAt: number;
     maxDurationMs: number;
     queued: number;
+    /**
+     * Queued forced refreshes that joined an already queued trailing run rather than arming one.
+     */
+    queuedShared: number;
+    /**
+     * Queued forced refreshes per entry point.
+     */
+    readonly queuedRequesters: Map<string, number>;
     readonly reasons: Map<string, number>;
     refreshes: number;
     /**
@@ -51,9 +63,12 @@ function newWindow(startedAt: number): SummaryWindow {
         changed: 0,
         commandCount: 0,
         joined: 0,
+        joinedRequesters: new Map(),
         lastEventAt: startedAt,
         maxDurationMs: 0,
         queued: 0,
+        queuedShared: 0,
+        queuedRequesters: new Map(),
         reasons: new Map(),
         refreshes: 0,
         requesters: new Map(),
@@ -145,6 +160,7 @@ export class GitSummaryTelemetry {
                 repeated: window.refreshes - window.changed,
                 joined: window.joined,
                 queued: window.queued,
+                queuedShared: window.queuedShared,
                 commandCount: window.commandCount,
                 statusFresh: window.statusFresh,
                 statusJoined: window.statusJoined,
@@ -153,36 +169,38 @@ export class GitSummaryTelemetry {
                 maxDurationMs: window.maxDurationMs,
                 ...countFields('reason', window.reasons),
                 ...countFields('requester', window.requesters),
+                ...countFields('joined', window.joinedRequesters),
+                ...countFields('queued', window.queuedRequesters),
             },
         });
     }
 
     /**
-     * Records one plain read that joined the in-flight production instead of running its own; counted per window and
-     * written only at `debug`, since it never spawned a Git command.
+     * Records one plain read that joined the in-flight production instead of running its own. It never spawned a Git
+     * command, so it is only counted in the window aggregate; a per-call record repeated nothing the aggregate lacks.
      */
     recordJoined(sessionId: string, requester: GitSummaryRequester): void {
-        this.window(sessionId).joined += 1;
-        this.logger.write('debug', logEventCatalog.git.summary, {
-            fields: { outcome: 'joined', requester },
-        });
+        const window = this.window(sessionId);
+        window.joined += 1;
+        increment(window.joinedRequesters, requester);
     }
 
     /**
      * Records one forced refresh that waits behind the in-flight producer (`shared` when it joined an already queued
      * trailing run). Counted per window so the aggregate still shows how many user refreshes were folded into one Git
-     * batch; the record itself stays at `debug`.
+     * batch. Like a joined read it is not written per call.
      */
     recordQueued(sessionId: string, requester: GitSummaryRequester, isShared: boolean): void {
-        this.window(sessionId).queued += 1;
-        this.logger.write('debug', logEventCatalog.git.summary, {
-            fields: { outcome: 'queued', requester, shared: isShared },
-        });
+        const window = this.window(sessionId);
+        window.queued += 1;
+        if (isShared) window.queuedShared += 1;
+        increment(window.queuedRequesters, requester);
     }
 
     /**
-     * Records one completed production. Writes the `git.summary` record at `info` when the result differs from the
-     * previous one for this Session (or is the first), otherwise at `debug`; either way it feeds the window aggregate.
+     * Records one completed production in the window aggregate. Writes the `git.summary` record at `info` when the
+     * result differs from the previous one for this Session (or is the first), at `debug` when it is unchanged but ran
+     * Git commands, and not at all when it is unchanged and ran none.
      */
     recordProduced(
         sessionId: string,
@@ -204,6 +222,12 @@ export class GitSummaryTelemetry {
         window.maxDurationMs = Math.max(window.maxDurationMs, durationMs);
         increment(window.reasons, fields.reason);
         increment(window.requesters, fields.requester);
+        /**
+         * An unchanged production that ran no Git command (every status coalesced from cache) is fully described by the
+         * window aggregate. Production wrote ~11,000 of these per 4 hours, a third of `server-core.jsonl`, rotating
+         * real incidents out of the log.
+         */
+        if (!isChanged && fields.commandCount === 0) return;
         this.logger.write(isChanged ? 'info' : 'debug', logEventCatalog.git.summary, {
             durationMs,
             fields: { ...fields, changed: isChanged, outcome: 'fresh' },

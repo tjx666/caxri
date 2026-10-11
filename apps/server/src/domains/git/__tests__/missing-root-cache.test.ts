@@ -6,8 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MissingRepoRootCache } from '../missing-root-cache';
 
-const MISSING_REPO_ROOT_TTL_MS = 5 * 60_000;
-
 const temporaryDirectories: string[] = [];
 
 /**
@@ -22,7 +20,7 @@ async function createMissingRoot(name: string): Promise<string> {
 }
 
 beforeEach(() => {
-    // The TTL is the whole subject here, and real time cannot reach five minutes inside a unit test.
+    // Proves entries survive well past the former five minute TTL without waiting in real time.
     vi.useFakeTimers();
 });
 
@@ -36,24 +34,28 @@ afterEach(async () => {
 });
 
 describe('MissingRepoRootCache', () => {
-    it('serves the remembered failure until the TTL elapses', async () => {
+    it('keeps serving the remembered failure past the former TTL while `.git` is absent', async () => {
         const cache = new MissingRepoRootCache();
-        const root = await createMissingRoot('caxri-cache-ttl-');
+        const root = await createMissingRoot('caxri-cache-no-expiry-');
         await cache.remember(root, 'The Project root is not a Git repository.');
 
+        // A time-based expiry only re-spawned `git` for a root that was still not a repository.
+        vi.advanceTimersByTime(60 * 60_000);
         await expect(cache.lookup(root, false)).resolves.toBe(
             'The Project root is not a Git repository.',
         );
+    });
 
-        vi.advanceTimersByTime(MISSING_REPO_ROOT_TTL_MS - 1);
-        await expect(cache.lookup(root, false)).resolves.toBe(
-            'The Project root is not a Git repository.',
-        );
+    it('clears the entry as soon as `.git` appears', async () => {
+        const cache = new MissingRepoRootCache();
+        const root = await createMissingRoot('caxri-cache-restored-');
+        await cache.remember(root, 'The Project root is not a Git repository.');
 
-        vi.advanceTimersByTime(1);
+        await mkdir(join(root, '.git'));
+
         await expect(cache.lookup(root, false)).resolves.toBeUndefined();
-        // The expired entry is dropped, not merely reported as expired.
-        vi.setSystemTime(0);
+        await rm(join(root, '.git'), { recursive: true });
+        // The restored root was evicted, not merely skipped for one lookup.
         await expect(cache.lookup(root, false)).resolves.toBeUndefined();
     });
 
@@ -76,22 +78,5 @@ describe('MissingRepoRootCache', () => {
         await expect(cache.lookup(root, true)).resolves.toBeUndefined();
         // A forced miss must evict rather than pass through, or the next unforced poll would resume the cached answer.
         await expect(cache.lookup(root, false)).resolves.toBeUndefined();
-    });
-
-    it('prunes expired entries for other roots on the next insert', async () => {
-        const cache = new MissingRepoRootCache();
-        const stale = await createMissingRoot('caxri-cache-stale-');
-        const fresh = await createMissingRoot('caxri-cache-fresh-');
-        await cache.remember(stale, 'The Project root is not a Git repository.');
-
-        vi.advanceTimersByTime(MISSING_REPO_ROOT_TTL_MS);
-        await cache.remember(fresh, 'The Project root is not a Git repository.');
-
-        // Rewinding proves the stale entry was removed rather than merely being past its expiry on read.
-        vi.setSystemTime(0);
-        await expect(cache.lookup(stale, false)).resolves.toBeUndefined();
-        await expect(cache.lookup(fresh, false)).resolves.toBe(
-            'The Project root is not a Git repository.',
-        );
     });
 });

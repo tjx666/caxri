@@ -5,6 +5,10 @@ import type { BrowserWindow, Dialog } from 'electron';
 export type AppQuitDecision = 'cancel' | 'keep-running' | 'stop';
 export type AppQuitOutcome = 'cancelled' | 'kept-running' | 'stop-failed' | 'stopped';
 export type AppQuitIntent = 'relaunch' | 'system-shutdown' | 'user';
+/**
+ * Termination signals Main treats as an already accepted quit; see {@link resolveSignalQuit}.
+ */
+export type AppQuitSignal = 'SIGINT' | 'SIGTERM';
 type AppQuitFailureStage =
     | 'decision'
     | 'detach'
@@ -293,15 +297,58 @@ export async function resolveAppQuit(options: AppQuitOptions): Promise<AppQuitOu
         options.exit();
         return stopFailure ? 'stop-failed' : 'stopped';
     }
+    return detachAndExit(options);
+}
+
+async function detachAndExit(options: AppQuitOptions): Promise<'kept-running'> {
     await attempt(options, 'detach', options.detachAll);
     await attempt(options, 'disconnect', options.closeDesktop);
     options.exit();
     return 'kept-running';
 }
 
-export function createAppQuitHandler(options: AppQuitOptions): () => Promise<AppQuitOutcome> {
+/**
+ * Quits for a termination signal without asking. The sender (a system logout, an updater, a process manager, or `kill`
+ * on the process tree) has already decided, and usually signals Server Core and Chromium's own children at the same
+ * moment, so a pending quit prompt must not keep Main alive as if nothing happened: production logs showed a SIGTERM
+ * that arrived while the prompt was open read every child exit as a crash, restarted Server Core, resumed an Agent, and
+ * reloaded the Renderer until the follow-up SIGKILL. Takes the keep-running path because a signal is not consent to end
+ * the user's Terminal and Agent processes; the same teardown signal stops them when it reached them too.
+ */
+async function resolveSignalQuit(options: AppQuitOptions): Promise<'kept-running'> {
+    options.acceptQuit();
+    await attempt(options, 'persist', options.persistWindowState);
+    return detachAndExit(options);
+}
+
+/**
+ * Coalesces quit requests. A `signal` bypasses a pending prompt instead of joining it (see {@link resolveSignalQuit}),
+ * and acceptance runs once even when a prompt the user is answering and a signal both reach it.
+ */
+export function createAppQuitHandler(
+    handlerOptions: AppQuitOptions,
+): (signal?: AppQuitSignal) => Promise<AppQuitOutcome> {
     let pending: Promise<AppQuitOutcome> | undefined;
-    return () => {
+    let signalled: Promise<AppQuitOutcome> | undefined;
+    let isAccepted = false;
+    const options: AppQuitOptions = {
+        ...handlerOptions,
+        acceptQuit: () => {
+            if (isAccepted) return;
+            isAccepted = true;
+            handlerOptions.acceptQuit();
+        },
+    };
+    return (signal) => {
+        if (signal) {
+            /**
+             * A quit the user already accepted (for example Stop Tasks, still terminating PTYs before `host.stop`)
+             * finishes on its own path. Starting the signal path beside it would exit before Server Core is stopped.
+             */
+            if (isAccepted && pending) return pending;
+            signalled ??= resolveSignalQuit(options);
+            return signalled;
+        }
         const run = async (): Promise<AppQuitOutcome> => {
             try {
                 return await resolveAppQuit(options);

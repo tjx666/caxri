@@ -257,6 +257,30 @@ export class RepoRemoteCache {
 }
 
 /**
+ * Reads `refs/remotes/origin/<branch>`, or `''` when the branch was never pushed. `for-each-ref` answers a missing ref
+ * with exit 0 and no output, where `rev-parse --verify --quiet` exits 1: production counted ~4,500 of those expected
+ * answers as `head.get` failures in two days. Its pattern also matches refs nested below the name (`origin/feature/x`
+ * for `feature`), so only the exact ref name is accepted.
+ */
+async function readTrackingHead(
+    rootPath: string,
+    branch: string,
+    git: OptionalGit,
+): Promise<string> {
+    const referenceName = `refs/remotes/origin/${branch}`;
+    const output = await git(rootPath, [
+        'for-each-ref',
+        '--format=%(refname) %(objectname)',
+        referenceName,
+    ]);
+    for (const line of output.split('\n')) {
+        const [name, objectName] = line.trim().split(' ', 2);
+        if (name === referenceName && objectName) return objectName;
+    }
+    return '';
+}
+
+/**
  * Reads local identity immediately; remote publication is checked later by the background refresh.
  *
  * HEAD and the branch come from the same `git.summary` snapshot the caller already holds, instead of two more `git`
@@ -271,14 +295,7 @@ export async function prepareStatusRepo(
     const isDetached = repo.branch === DETACHED_BRANCH;
     const [{ remote, defaultBranch }, trackingHead] = await Promise.all([
         remotes.read(repo.rootPath, git, isForced),
-        isDetached
-            ? Promise.resolve('')
-            : git(repo.rootPath, [
-                  'rev-parse',
-                  '--verify',
-                  '--quiet',
-                  `refs/remotes/origin/${repo.branch}`,
-              ]),
+        isDetached ? Promise.resolve('') : readTrackingHead(repo.rootPath, repo.branch, git),
     ]);
     const github = parseGitHubRemote(remote);
     const context: BranchPublicationContext = {

@@ -105,6 +105,57 @@ describe('branch publication', () => {
         }
     });
 
+    it('reads only the exact tracking ref and treats an unpushed branch as a successful empty answer', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-publication-tracking-'));
+        const git = async (arguments_: readonly string[]): Promise<string> =>
+            (await execFileAsync('git', [...arguments_], { cwd: root })).stdout.trim();
+        try {
+            await git(['init', '-b', 'feature']);
+            await git(['config', 'user.name', 'Fixture']);
+            await git(['config', 'user.email', 'fixture@caxri.test']);
+            await git(['commit', '--allow-empty', '-m', 'Base']);
+            const commit = await git(['rev-parse', 'HEAD']);
+            // A nested remote branch matches the `for-each-ref` pattern but is not this branch's tracking ref.
+            await git(['update-ref', 'refs/remotes/origin/feature/nested', commit]);
+            const repo: GitSummary['repositories'][number] = {
+                id: 'repo',
+                kind: 'primary',
+                rootPath: root,
+                name: 'project',
+                branch: 'feature',
+                head: commit,
+                ahead: 0,
+                behind: 0,
+                additions: 0,
+                deletions: 0,
+                generation: 0,
+                changedFileCount: 0,
+                truncated: false,
+                files: [],
+            };
+            /**
+             * The tracking ref read must not fail; the unrelated remote lookups have no origin to answer from.
+             */
+            const strictGit = async (_cwd: string, arguments_: readonly string[]) => {
+                if (arguments_[0] === 'for-each-ref') return git(arguments_);
+                try {
+                    return await git(arguments_);
+                } catch {
+                    return '';
+                }
+            };
+
+            const unpushed = await prepareStatusRepo(repo, strictGit);
+            expect(unpushed.context.trackingHead).toBeUndefined();
+
+            await git(['update-ref', 'refs/remotes/origin/main', commit]);
+            const pushed = await prepareStatusRepo({ ...repo, branch: 'main' }, strictGit);
+            expect(pushed.context.trackingHead).toBe(commit);
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
     it('rechecks after push without a HEAD change and fails closed on refresh', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-publication-'));
         const logger = new StructuredLogger(directory);
@@ -120,7 +171,10 @@ describe('branch publication', () => {
                     return Promise.resolve(
                         arguments_.includes('HEAD') ? 'feature/status' : 'origin/main',
                     );
-                if (arguments_.includes('--verify')) return Promise.resolve(trackingHead);
+                if (arguments_[0] === 'for-each-ref')
+                    return Promise.resolve(
+                        trackingHead ? `refs/remotes/origin/feature/status ${trackingHead}\n` : '',
+                    );
                 return Promise.resolve(head);
             }
             if (source === 'gh') {

@@ -1,3 +1,4 @@
+import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 
 import type { ServerDesktopLaunch } from '@caxri/protocol';
@@ -13,6 +14,21 @@ export interface ServerLaunchEnvironmentOptions {
     cliPath: string;
     desktopLaunch: ServerDesktopLaunch;
     e2eAgentPolicy?: E2EAgentPolicy;
+}
+
+/**
+ * Fixed executable and argv a profile Server uses to start its own Desktop app: the packaged app binary, or the
+ * development Electron binary pointed at the repository root.
+ */
+export function resolveDesktopLaunch(options: {
+    currentDirectory: string;
+    executable: string;
+    isPackaged: boolean;
+}): ServerDesktopLaunch {
+    if (options.isPackaged)
+        return { executable: options.executable, args: [], cwd: dirname(options.executable) };
+    const projectRoot = resolve(options.currentDirectory, '../..');
+    return { executable: options.executable, args: [projectRoot], cwd: projectRoot };
 }
 
 /**
