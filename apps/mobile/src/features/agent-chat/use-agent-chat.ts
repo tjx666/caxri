@@ -9,6 +9,14 @@ export type AgentChatResponse = NonNullable<
     ParametersArgument<'mobile.agentChat.respond'>[0]
 >['response'];
 
+/**
+ * An uploaded image and its phone-made thumbnail, named by their upload ids; the Server reads both bytes.
+ */
+export interface AgentChatAttachment {
+    attachmentId: string;
+    thumbnailAttachmentId: string;
+}
+
 export interface AgentChatState {
     error: string | null;
     snapshot: AgentChatSnapshot | undefined;
@@ -88,9 +96,13 @@ export const useAgentChat = ({
     }, []);
 
     const send = useCallback(
-        async (text: string): Promise<void> => {
+        async (text: string, attachments: readonly AgentChatAttachment[] = []): Promise<void> => {
             if (terminalId === null) return;
-            await request('mobile.agentChat.send', { terminalId, text });
+            await request('mobile.agentChat.send', {
+                terminalId,
+                text,
+                ...(attachments.length > 0 && { attachments: [...attachments] }),
+            });
         },
         [request, terminalId],
     );

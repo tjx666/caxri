@@ -19,7 +19,8 @@ const FAKE_CODEX_APP_SERVER = join(
 );
 
 /**
- * The Claude Code stand-in the Server's Agent Chat tests drive through the Claude Agent SDK.
+ * The Claude Code stand-in the Server's Agent Chat tests drive through the Claude Agent SDK. Its transcripts live under
+ * the fake agent home, where the Server reads history and image originals back.
  */
 const FAKE_CLAUDE_CLI = join(
     import.meta.dirname,
@@ -34,7 +35,6 @@ export async function fakeChatAgent(userDataDirectory: string, testDirectory: st
         providers: {
             claude: {
                 executableSource: `#!${process.execPath}
-process.env.CLAUDE_CONFIG_DIR = ${JSON.stringify(join(testDirectory, 'claude-config'))};
 import(${JSON.stringify(pathToFileURL(FAKE_CLAUDE_CLI).href)});
 `,
             },

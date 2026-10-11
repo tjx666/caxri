@@ -47,6 +47,11 @@ const terminalBounds = async (serial: string, state: PinchTerminalState) => {
     return bounds;
 };
 
+const assertDisposableEmulator = (serial: string): void => {
+    if (!/^emulator-\d+$/u.test(serial))
+        throw new Error('Native pinch requires an explicit disposable emulator serial');
+};
+
 /**
  * Uses the acceptance APK's UiAutomation instrumentation to inject one real two-pointer gesture. Both semantic reads
  * independently require Caxri to be foreground.
@@ -56,9 +61,20 @@ export async function pinchTerminal(
     direction: PinchDirection,
     state: PinchTerminalState = 'observing',
 ): Promise<void> {
-    if (!/^emulator-\d+$/u.test(serial))
-        throw new Error('Native pinch requires an explicit disposable emulator serial');
-    const bounds = await terminalBounds(serial, state);
+    assertDisposableEmulator(serial);
+    await pinchWithin(serial, direction, await terminalBounds(serial, state));
+    await terminalBounds(serial, state);
+}
+
+/**
+ * Injects one real two-pointer pinch centered in `bounds` through the acceptance APK's UiAutomation instrumentation.
+ */
+export async function pinchWithin(
+    serial: string,
+    direction: PinchDirection,
+    bounds: { bottom: number; left: number; right: number; top: number },
+): Promise<void> {
+    assertDisposableEmulator(serial);
     const output = await runMobileDeviceCommand(
         adb,
         [
@@ -83,5 +99,4 @@ export async function pinchTerminal(
         !/^INSTRUMENTATION_CODE: -1$/mu.test(output)
     )
         throw new Error('Native pinch instrumentation did not report success');
-    await terminalBounds(serial, state);
 }

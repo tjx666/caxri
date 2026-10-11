@@ -167,6 +167,8 @@ export const SessionDetail = ({
                     isHandedOff={chat.isHandedOff}
                     onDraftChange={onDraftChange}
                     provider={chat.provider}
+                    sessionId={session.id}
+                    supportsImages={chat.supportsImages}
                     theme={theme}
                 />
             ) : (

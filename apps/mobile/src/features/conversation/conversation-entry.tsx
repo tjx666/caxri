@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { use, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
@@ -12,11 +12,13 @@ import { ConversationSystemEvent } from './conversation-system-event';
 import { ConversationToolDetail } from './conversation-tool-detail';
 import { ConversationToolGroup } from './conversation-tool-group';
 import { ConversationToolRow } from './conversation-tool-row';
+import { ConversationUserAttachments } from './conversation-user-attachments';
 
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
 
 export const ConversationEntry = ({ entry, theme }: { entry: Entry; theme: MobileTheme }) => {
     const [selectedTool, setSelectedTool] = useState<ToolCall | null>(null);
+    const renderUserAttachments = use(ConversationUserAttachments);
     if (entry.type === 'turnBoundary')
         return (
             <View
@@ -33,11 +35,14 @@ export const ConversationEntry = ({ entry, theme }: { entry: Entry; theme: Mobil
     if (entry.type === 'userMessage')
         return (
             <View style={[styles.message, styles.userRow]} testID={`conversation-user-${entry.id}`}>
-                <View style={[styles.userBubble, { backgroundColor: theme.surface }]}>
-                    <Text selectable style={[styles.userText, { color: theme.text }]}>
-                        {entry.text}
-                    </Text>
-                </View>
+                {renderUserAttachments?.(entry.id)}
+                {entry.text.length > 0 ? (
+                    <View style={[styles.userBubble, { backgroundColor: theme.surface }]}>
+                        <Text selectable style={[styles.userText, { color: theme.text }]}>
+                            {entry.text}
+                        </Text>
+                    </View>
+                ) : null}
             </View>
         );
     if (entry.type === 'systemEvent')

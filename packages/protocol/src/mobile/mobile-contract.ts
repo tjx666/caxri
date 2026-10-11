@@ -29,6 +29,11 @@ import {
     mobileChangesListResultSchema,
 } from './mobile-changes-contract.js';
 import { mobileFilesInternalMethods, mobileFilesMethods } from './mobile-files-contract.js';
+import {
+    mobileAttachmentIdSchema,
+    mobileImageReadInternalParametersSchema,
+    mobileImageUploadParametersSchema,
+} from './mobile-image-contract.js';
 import { mobileTerminalMethods } from './mobile-terminal-contract.js';
 import {
     mobileTimelineReadParametersSchema,
@@ -43,6 +48,7 @@ export * from './mobile-attention-contract.js';
 export * from './mobile-changes-contract.js';
 export { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
 export * from './mobile-files-contract.js';
+export * from './mobile-image-contract.js';
 export * from './mobile-terminal-contract.js';
 export * from './mobile-timeline-contract.js';
 export * from './mobile-update-contract.js';
@@ -52,7 +58,6 @@ export const mobileDeviceIdSchema = z.string().regex(/^device_[0-9a-f]{32}$/u);
 export const MOBILE_MAX_PROJECT_GRANTS = 128;
 export const MOBILE_SHORT_REPLY_MAX_BYTES = 1_024;
 export const MOBILE_AGENT_SUBMIT_MAX_BYTES = 16 * 1_024;
-export const mobileAttachmentIdSchema = z.string().regex(/^image_[0-9a-f]{32}$/u);
 export const MOBILE_PROJECT_BROWSE_MAX_ENTRIES = 200;
 export const MOBILE_PANELS_MAX_CONTAINERS = 64;
 export const MOBILE_PANELS_MAX_VIEWS = 32;
@@ -183,18 +188,6 @@ export const mobileAgentSubmitParametersSchema = z.strictObject({
                 }),
             'Mobile Agent input must be bounded multiline text without control characters',
         ),
-});
-
-export const mobileImageUploadParametersSchema = z.strictObject({
-    sessionId: identifierSchema,
-    attachmentId: mobileAttachmentIdSchema,
-    chunkIndex: z.number().int().min(0).max(191),
-    chunkCount: z.number().int().min(1).max(192),
-    chunk: z
-        .string()
-        .min(4)
-        .max(24_576)
-        .regex(/^[A-Za-z0-9+/]+={0,2}$/u),
 });
 
 export const mobileAgentSubmitResultSchema = z.strictObject({
@@ -562,6 +555,11 @@ export const mobileInternalMethods = {
         ...commandPolicy('server', 'write'),
         params: mobileImageUploadParametersSchema.extend({ principal: principalSchema }),
         result: mobileMethods['mobile.image.upload'].result,
+    },
+    'mobile.image.readInternal': {
+        ...commandPolicy('server', 'read'),
+        params: mobileImageReadInternalParametersSchema,
+        result: z.array(z.string().min(1)),
     },
     'mobile.session.createForPrincipal': {
         ...commandPolicy('server', 'write'),

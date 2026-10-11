@@ -11,6 +11,7 @@ import {
     waitForCheck,
     waitForNoCheck,
 } from './mobile-agent-chat-helpers';
+import { executeMobileChatImageScenario } from './mobile-agent-chat-image-scenario';
 import { executeMobileChatModelScenario } from './mobile-agent-chat-model-scenario';
 import {
     androidBounds,
@@ -49,6 +50,12 @@ async function toggleApprovalText(
 }
 
 /**
+ * A one-pixel PNG, small enough for the thumbnail limit and decodable on the phone.
+ */
+const PIXEL =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==';
+
+/**
  * `MOB-CHAT-01`: a phone reads and drives a Codex Chat end to end. Each phone action is proven against the Server's own
  * Chat projection, and the screenshots cover the empty, streamed, approval, question, failed, and offline states.
  */
@@ -76,14 +83,14 @@ async function executeMobileAgentChatScenario(
             () => chat.read(),
             (snapshot) => agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
         );
-        // The phone cannot show thumbnails yet, so an image-only message from the desktop reads as its image count.
+        // An image-only message from the desktop: the phone fetches its thumbnail, which the Chat window leaves out.
         await chat.send({
             text: '',
             images: [
                 {
                     mediaType: 'image/png',
-                    data: 'iVBORw0KGgo=',
-                    thumbnail: 'data:image/jpeg;base64,/9j/4AAQ',
+                    data: PIXEL,
+                    thumbnail: `data:image/png;base64,${PIXEL}`,
                 },
             ],
         });
@@ -354,6 +361,8 @@ export async function executeMobileAgentChatCase(
             return executeMobileNewChatSessionScenario(environment, artifacts);
         case 'MOB-CHAT-04':
             return executeMobileChatModelScenario(environment, artifacts);
+        case 'MOB-CHAT-05':
+            return executeMobileChatImageScenario(environment, artifacts);
         default:
             throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
     }

@@ -37,6 +37,7 @@ type MobileDomainMethods = Pick<
     | 'mobile.attention.autoAllowRevokeInternal'
     | 'mobile.image.upload'
     | 'mobile.image.uploadInternal'
+    | 'mobile.image.readInternal'
     | 'mobile.changes.list'
     | 'mobile.changes.listInternal'
     | 'mobile.changes.diff'
@@ -183,6 +184,16 @@ export function createMobileDomainHandlers(options: {
                 chunk,
                 owner: `${principal.deviceId}:${principal.generation}`,
             });
+        },
+        'mobile.image.readInternal': async ({ sessionId, attachmentIds, principal }) => {
+            if (principal.kind !== 'paired-device' || principal.role === 'view')
+                throw new CaxriError('FORBIDDEN', 'Device cannot attach images');
+            authorizedSession(options.database, sessionId, principal);
+            return images.read(
+                `${principal.deviceId}:${principal.generation}`,
+                sessionId,
+                attachmentIds,
+            );
         },
         'mobile.changes.list': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile changes require a paired device');

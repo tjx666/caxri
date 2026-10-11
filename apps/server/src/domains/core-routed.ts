@@ -67,6 +67,7 @@ const CORE_ROUTED_METHODS = [
     'mobile.terminal.input',
     'mobile.terminal.scroll',
     'mobile.agentChat.read',
+    'mobile.agentChat.readImage',
     'mobile.agentChat.send',
     'mobile.agentChat.interrupt',
     'mobile.agentChat.respond',

@@ -128,6 +128,10 @@ when the reader is near the bottom; otherwise it offers **Jump to latest**. Load
 and stale states remain visible. `unsupported` and `missing` automatically select the Terminal
 with an explanation. The reader may also select Terminal directly.
 
+An Agent Chat reuses this list. Its user messages draw their images as a right-aligned strip of
+thumbnails above the bubble, and a tap opens the original full screen with pinch, pan, and
+double-tap zoom. Both are fetched on demand; see [Agent Chat: Mobile](../agent-chat.md#mobile).
+
 Conversation content and tool detail can contain sensitive material from the Agent record. They
 are returned only to a currently authorized paired device over the encrypted gateway; transcript
 bytes are not included in invalidation events, diagnostic logs, or durable recovery events. The

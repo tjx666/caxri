@@ -198,7 +198,9 @@ added without moving screens. Query keys include the same host identity.
 - Drafts are kept per Session in memory and survive segment switches, navigation, and reconnects.
 - The attach button opens an image source sheet. A choice slides the sheet away first and only then
   opens the photo picker or camera, so system UI never covers a sheet still on screen
-  (`MOB-COMPOSE-02`).
+  (`MOB-COMPOSE-02`). A Chat composer offers the same sheet and strip, for up to 4 images, only
+  when the provider takes images in a Chat (Claude Code and Codex, not Grok Build); an image alone is
+  a valid message (`MOB-CHAT-05`).
 - Delivery states:
   - `Sending…`: input disabled, draft kept.
   - Delivered to the Terminal: clear the draft.
