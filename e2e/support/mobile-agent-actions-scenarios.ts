@@ -14,12 +14,12 @@ import {
     captureMobileFramebuffer,
     mobileSemantics,
     observeMobileNode,
-    pushMobileFixture,
     startMobileFramebufferRecording,
     tapMobileCheck,
     tapMobileNativeControl,
     waitForMobile,
 } from './mobile-android';
+import { addMobileGalleryImage, removeMobileGalleryImage } from './mobile-gallery';
 import {
     assertMobileComposerDraft,
     insertMobileInputUnicode,
@@ -262,45 +262,9 @@ export async function executeMobileImageAttachmentScenario(
         caseId: environment.caseId,
         fixtureId: 'agent-features-v1',
     });
-    const imageName = 'caxri-acceptance-image.jpg';
-    const remoteImage = `/sdcard/Pictures/${imageName}`;
     let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
     try {
-        const existingImages = await adbShell(environment.serial, [
-            'content',
-            'query',
-            '--uri',
-            'content://media/external/images/media',
-            '--projection',
-            '_id',
-        ]);
-        if (existingImages.includes('Row:'))
-            throw new Error('Disposable Android gallery contains unrelated images');
-        await pushMobileFixture(
-            environment.serial,
-            join(import.meta.dirname, '../fixtures/mobile-acceptance-image.jpg'),
-            remoteImage,
-        );
-        await adbShell(environment.serial, [
-            'am',
-            'broadcast',
-            '-a',
-            'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
-            '-d',
-            `file://${remoteImage}`,
-        ]);
-        await waitForMobile(
-            () =>
-                adbShell(environment.serial, [
-                    'content',
-                    'query',
-                    '--uri',
-                    'content://media/external/images/media',
-                    '--projection',
-                    '_display_name',
-                ]),
-            (result) => result.includes(imageName),
-        );
+        await addMobileGalleryImage(environment.serial);
         await fixture.pair();
         if (!fixture.allowedSessionId) throw new Error('Image fixture Session is unavailable');
         // Recording starts on the list so the video also shows the screen transition into the Session.
@@ -365,15 +329,7 @@ export async function executeMobileImageAttachmentScenario(
     } finally {
         await recording?.stop();
         await fixture.stop();
-        await adbShell(environment.serial, ['rm', '-f', remoteImage]);
-        await adbShell(environment.serial, [
-            'am',
-            'broadcast',
-            '-a',
-            'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
-            '-d',
-            `file://${remoteImage}`,
-        ]);
+        await removeMobileGalleryImage(environment.serial);
         await completeAgentFixtureLifecycle(reportDirectory, {
             caseId: environment.caseId,
             cleanupCompleted: true,

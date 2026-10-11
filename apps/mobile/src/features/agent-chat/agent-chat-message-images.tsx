@@ -24,6 +24,12 @@ const Thumbnail = ({
     theme: MobileTheme;
 }) => {
     const thumbnail = useAgentChatImage({ terminalId, itemId, index, variant: 'thumbnail' });
+    // A resumed conversation knows the image but not its preview, so the tile shows the original, as Desktop does.
+    const original = useAgentChatImage(
+        { terminalId, itemId, index, variant: 'original' },
+        thumbnail.isMissing,
+    );
+    const uri = thumbnail.uri ?? original.uri;
     return (
         <Pressable
             accessibilityHint="Opens the image at full size."
@@ -32,22 +38,22 @@ const Thumbnail = ({
             onPress={onOpen}
             style={[
                 styles.thumbnail,
-                thumbnail.uri ? null : styles.placeholder,
+                uri ? null : styles.placeholder,
                 { backgroundColor: theme.surface, borderColor: theme.border },
             ]}
             testID={`agent-chat-message-image-${itemId}-${index}`}
         >
-            {thumbnail.uri ? (
+            {uri ? (
                 <Image
                     resizeMode="cover"
-                    source={{ uri: thumbnail.uri }}
+                    source={{ uri }}
                     style={styles.image}
                     testID={`agent-chat-message-thumbnail-${itemId}-${index}`}
                 />
-            ) : thumbnail.isLoading ? (
+            ) : thumbnail.isLoading || original.isLoading ? (
                 <ActivityIndicator color={theme.muted} />
             ) : (
-                // A resumed conversation keeps the image but no thumbnail; the original still opens.
+                // The provider's record no longer has the image; the tile keeps its place.
                 <ImageIcon color={theme.muted} size={24} />
             )}
         </Pressable>
