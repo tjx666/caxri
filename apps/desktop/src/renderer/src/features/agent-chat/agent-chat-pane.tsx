@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { CircleAlert, RotateCcw, Unplug } from 'lucide-react';
 
@@ -15,6 +15,8 @@ import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatComposer } from './agent-chat-composer';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
+import { AgentChatMessageRail } from './agent-chat-message-rail';
+import { AgentChatDayBreak } from './agent-chat-message-time';
 import { AgentChatPlanCard } from './agent-chat-plan-card';
 import type { AgentChatRecoveryNotice } from './agent-chat-presentation';
 import {
@@ -25,14 +27,17 @@ import {
     isAgentChatBusy,
     isAgentChatTurnRunning,
 } from './agent-chat-presentation';
+import { agentChatRailMarks } from './agent-chat-rail-marks';
 import { AgentChatRequestCard } from './agent-chat-request-card';
 import { openAgentChatTaskTab } from './agent-chat-task-opener';
 import { AgentChatTaskStrip } from './agent-chat-task-strip';
 import { agentChatTasksByItem } from './agent-chat-tasks';
+import { agentChatDayBreaks } from './agent-chat-time';
 import { buildAgentChatTimeline } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
+import { useAgentChatMessageRail } from './hooks/use-agent-chat-message-rail';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import type { AgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
 import { AgentChatTaskLinksContext } from './hooks/use-agent-chat-task-link';
@@ -113,8 +118,14 @@ export function AgentChatPane({
     const projectRoot = usePaneViewSession()?.rootPath;
     const inputReference = useRef<HTMLTextAreaElement | null>(null);
     const composerDrop = useRef<AgentChatDropHandlers | null>(null);
-    const { scrollReference, contentReference, isFollowing, onScroll, jumpToLatest } =
-        useAgentChatScroll(snapshot?.revision);
+    const {
+        scrollReference,
+        contentReference,
+        isFollowing,
+        onScroll,
+        jumpToLatest,
+        stopFollowing,
+    } = useAgentChatScroll(snapshot?.revision);
     const focusComposer = useCallback(() => inputReference.current?.focus(), []);
     /**
      * A cited file resolves exactly like a path printed in a Terminal: against the Projects this Chat Terminal may
@@ -148,6 +159,14 @@ export function AgentChatPane({
         () => (items && turns ? buildAgentChatTimeline(items, turns, activeTurnId) : []),
         [items, turns, activeTurnId],
     );
+    const dayBreaks = useMemo(() => agentChatDayBreaks(timeline), [timeline]);
+    const railMarks = useMemo(() => agentChatRailMarks(timeline), [timeline]);
+    const railMarkIds = useMemo(() => railMarks.map((mark) => mark.id), [railMarks]);
+    const rail = useAgentChatMessageRail(scrollReference, contentReference, railMarkIds);
+    const jumpToMessage = (id: string): void => {
+        stopFollowing();
+        rail.jumpTo(id);
+    };
     const tasks = snapshot?.tasks;
     /**
      * Rows that started a subagent or background shell open its tab beside this Chat. Memoized on the task list so a
@@ -203,13 +222,21 @@ export function AgentChatPane({
                         )}
                         <AgentChatTaskLinksContext value={taskLinks}>
                             <AgentChatTerminalContext value={terminalId}>
-                                {timeline.map((entry) => (
-                                    <AgentChatTimelineEntryView
-                                        entry={entry}
-                                        key={entry.kind === 'item' ? entry.item.id : entry.id}
-                                        onOpenFile={openFile}
-                                    />
-                                ))}
+                                {timeline.map((entry) => {
+                                    const key = entry.kind === 'item' ? entry.item.id : entry.id;
+                                    const dayBreak = dayBreaks.get(key);
+                                    return (
+                                        <Fragment key={key}>
+                                            {dayBreak !== undefined && (
+                                                <AgentChatDayBreak timestamp={dayBreak} />
+                                            )}
+                                            <AgentChatTimelineEntryView
+                                                entry={entry}
+                                                onOpenFile={openFile}
+                                            />
+                                        </Fragment>
+                                    );
+                                })}
                             </AgentChatTerminalContext>
                         </AgentChatTaskLinksContext>
                         {emptyMessage && (
@@ -219,6 +246,11 @@ export function AgentChatPane({
                         )}
                     </div>
                 </div>
+                <AgentChatMessageRail
+                    activeIndex={rail.activeIndex}
+                    marks={railMarks}
+                    onJump={jumpToMessage}
+                />
                 <AgentChatJumpToLatest
                     focusTarget={inputReference}
                     isFollowing={isFollowing}

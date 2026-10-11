@@ -1,6 +1,7 @@
 /**
- * What a web link points at, read from its URL alone so a hover card never fetches the page. A GitHub link names its
- * repository and the issue or pull request number, the way the Codex app's link card does.
+ * What a web link points at, read from its URL alone so a hover card has something to show before Main reads the page
+ * (see `links.preview`). A GitHub link names its repository and the issue or pull request number, the way the Codex
+ * app's link card does.
  */
 export interface LinkSummary {
     /**

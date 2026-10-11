@@ -153,6 +153,15 @@ function enforceBudget(snapshot: AgentChatSnapshot): AgentChatSnapshot {
 }
 
 /**
+ * Providers re-upsert an item whole as it progresses and never repeat when it began, so a replacement keeps the time
+ * the first upsert recorded.
+ */
+function withCreatedAt<T extends AgentChatItem>(item: T, previous: AgentChatItem): T {
+    if (item.createdAt !== undefined || previous.createdAt === undefined) return item;
+    return { ...item, createdAt: previous.createdAt };
+}
+
+/**
  * Applies one patch operation. Shared by Server Core, which owns the projection, and every Client that mirrors it, so
  * both sides converge on the same bounded snapshot.
  */
@@ -180,7 +189,7 @@ export function applyAgentChatOperation(
             const index = snapshot.items.findIndex((item) => item.id === operation.item.id);
             const items = [...snapshot.items];
             if (index === -1) items.push(operation.item);
-            else items[index] = operation.item;
+            else items[index] = withCreatedAt(operation.item, snapshot.items[index]);
             return enforceBudget({ ...snapshot, items });
         }
         case 'appendText': {

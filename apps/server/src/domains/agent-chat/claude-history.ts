@@ -95,7 +95,17 @@ function applyUserRecord(state: HistoryState, record: Json, message: Json): void
         type: 'userMessage',
         text: clip(visible?.text ?? '', MAX_AGENT_CHAT_TEXT_LENGTH),
         ...(imageCount > 0 && { images: Array.from({ length: imageCount }, () => ({})) }),
+        ...recordTime(record),
     });
+}
+
+/**
+ * The ISO `timestamp` Claude Code writes on every transcript record, as an item's `createdAt`. A record without a
+ * readable one leaves the item undated rather than dated by the resume.
+ */
+function recordTime(record: Json): { createdAt?: number } {
+    const time = typeof record.timestamp === 'string' ? Date.parse(record.timestamp) : NaN;
+    return Number.isFinite(time) && time >= 0 ? { createdAt: time } : {};
 }
 
 function applyHistoryRecord(state: HistoryState, record: Json): void {
@@ -108,7 +118,12 @@ function applyHistoryRecord(state: HistoryState, record: Json): void {
     if (!message) return;
     if (record.type === 'assistant') {
         const mapped = claudeAssistantItems(message, state.turnId, state.ids);
-        for (const item of mapped.items) state.items.set(item.id, item);
+        const time = recordTime(record);
+        for (const item of mapped.items) {
+            // A streamed reply spans several records; the first one is when it began.
+            const createdAt = state.items.get(item.id)?.createdAt ?? time.createdAt;
+            state.items.set(item.id, createdAt === undefined ? item : { ...item, createdAt });
+        }
         if (mapped.plan) state.plan = mapped.plan;
     } else if (record.type === 'user') applyUserRecord(state, record, message);
 }

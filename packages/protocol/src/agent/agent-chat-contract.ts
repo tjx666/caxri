@@ -2,6 +2,7 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/domain.js';
+import { agentChatRequestSchema } from './agent-chat-requests.js';
 import { agentChatUsageSchema } from './agent-chat-usage.js';
 
 /**
@@ -19,7 +20,6 @@ export const MAX_AGENT_CHAT_FILE_CHANGES = 100;
  */
 export const MAX_AGENT_CHAT_FILE_CHANGE_DIFF_TOTAL = 1024 * 1024;
 export const MAX_AGENT_CHAT_PLAN_STEPS = 50;
-export const MAX_AGENT_CHAT_QUESTIONS = 10;
 export const MAX_AGENT_CHAT_MESSAGE_LENGTH = 100_000;
 export const MAX_AGENT_CHAT_PATCH_OPERATIONS = 200;
 /**
@@ -146,6 +146,12 @@ export const agentChatItemStatusSchema = z.enum([
 const itemBase = {
     id: z.string().min(1).max(200),
     turnId: z.string().min(1).max(200).optional(),
+    /**
+     * When the item entered the conversation, in epoch milliseconds. Server Core stamps a live item the first time it
+     * reaches the projection, and the shared reducer carries the stamp across later upserts of the same id. A replayed
+     * history item carries only the time its provider recorded, so it is absent when the provider kept none.
+     */
+    createdAt: z.number().int().nonnegative().optional(),
 };
 
 export const agentChatItemSchema = z.discriminatedUnion('type', [
@@ -327,78 +333,6 @@ export const agentChatPlanSchema = z.strictObject({
         )
         .max(MAX_AGENT_CHAT_PLAN_STEPS),
 });
-
-export const agentChatDecisionSchema = z.enum(['accept', 'acceptForSession', 'decline', 'cancel']);
-
-/**
- * Fields shared by approvals. `itemId` links the approval to the timeline item it gates (the command or file change),
- * so a card can show what it would change. `decisions`, when the provider lists them, are the only choices it accepts.
- */
-const approvalBase = {
-    id: z.string().min(1).max(200),
-    itemId: z.string().min(1).max(200).optional(),
-    reason: z.string().max(2_000).optional(),
-    decisions: z.array(agentChatDecisionSchema).max(4).optional(),
-};
-
-/**
- * A provider request waiting for the user. `id` is Caxri's stable key for the request (the provider item id), not the
- * transport request id, because a provider may re-send a pending request with a new transport id after a resume.
- */
-export const agentChatRequestSchema = z.discriminatedUnion('kind', [
-    z.strictObject({
-        ...approvalBase,
-        kind: z.literal('command'),
-        command: z.string().max(4_096).optional(),
-        cwd: z.string().max(4_096).optional(),
-        /**
-         * Host a sandboxed command asks to reach, when the approval is for network access rather than the command.
-         */
-        networkHost: z.string().max(500).optional(),
-    }),
-    z.strictObject({
-        ...approvalBase,
-        kind: z.literal('fileChange'),
-    }),
-    /**
-     * Any other tool the provider asks before running (a web fetch, an MCP tool), for providers that gate tools rather
-     * than only commands and file changes.
-     */
-    z.strictObject({
-        ...approvalBase,
-        kind: z.literal('tool'),
-        /**
-         * Provider tool name, such as `WebFetch` or an MCP `server__tool` pair.
-         */
-        name: z.string().max(200),
-        /**
-         * What the tool would act on: a URL, a query, or a bounded preview of its arguments.
-         */
-        summary: z.string().max(4_096).optional(),
-    }),
-    z.strictObject({
-        id: z.string().min(1).max(200),
-        kind: z.literal('question'),
-        questions: z
-            .array(
-                z.strictObject({
-                    id: z.string().min(1).max(200),
-                    header: z.string().max(200),
-                    question: z.string().max(2_000),
-                    options: z
-                        .array(
-                            z.strictObject({
-                                label: z.string().max(200),
-                                description: z.string().max(1_000),
-                            }),
-                        )
-                        .max(20),
-                    allowsOther: z.boolean(),
-                }),
-            )
-            .max(MAX_AGENT_CHAT_QUESTIONS),
-    }),
-]);
 
 /**
  * Why a Chat cannot currently run. Closed so the Renderer maps each to actionable copy; provider text never selects UI.
@@ -582,13 +516,11 @@ export type AgentChatTaskPatch = z.infer<typeof agentChatTaskPatchSchema>;
 export type AgentChatItemStatus = z.infer<typeof agentChatItemStatusSchema>;
 export type AgentChatTurn = z.infer<typeof agentChatTurnSchema>;
 export type AgentChatPlan = z.infer<typeof agentChatPlanSchema>;
-export type AgentChatRequest = z.infer<typeof agentChatRequestSchema>;
 export type AgentChatFailureReason = z.infer<typeof agentChatFailureReasonSchema>;
 export type AgentChatStatus = z.infer<typeof agentChatStatusSchema>;
 export type AgentChatSnapshot = z.infer<typeof agentChatSnapshotSchema>;
 export type AgentChatPatchOperation = z.infer<typeof agentChatPatchOperationSchema>;
 export type AgentChatPatch = z.infer<typeof agentChatPatchSchema>;
-export type AgentChatDecision = z.infer<typeof agentChatDecisionSchema>;
 export type AgentChatCommand = z.infer<typeof agentChatCommandSchema>;
 export type AgentChatModel = z.infer<typeof agentChatModelSchema>;
 export type AgentChatImageMediaType = z.infer<typeof agentChatImageMediaTypeSchema>;

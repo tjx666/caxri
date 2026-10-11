@@ -43,6 +43,25 @@ describe('Agent Chat reducer', () => {
         expect(() => agentChatSnapshotSchema.parse(snapshot)).not.toThrow();
     });
 
+    it('keeps the time an item began across later upserts that omit it', () => {
+        let snapshot = applyAgentChatOperation(empty(), {
+            op: 'upsertItem',
+            item: { id: 'a', type: 'agentMessage', text: '', streaming: true, createdAt: 100 },
+        });
+        snapshot = applyAgentChatOperation(snapshot, {
+            op: 'upsertItem',
+            item: { id: 'a', type: 'agentMessage', text: 'Done', streaming: false },
+        });
+        expect(snapshot.items).toEqual([
+            { id: 'a', type: 'agentMessage', text: 'Done', streaming: false, createdAt: 100 },
+        ]);
+        snapshot = applyAgentChatOperation(snapshot, {
+            op: 'upsertItem',
+            item: { id: 'a', type: 'agentMessage', text: 'Done', streaming: false, createdAt: 200 },
+        });
+        expect(snapshot.items[0]?.createdAt).toBe(200);
+    });
+
     it('ignores a delta for an unknown item', () => {
         const snapshot = empty();
         expect(
