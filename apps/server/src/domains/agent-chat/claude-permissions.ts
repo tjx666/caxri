@@ -54,6 +54,18 @@ export class ClaudePermissions {
         return { ...(this.level && { permissionMode: this.level }), planMode: this.planMode };
     }
 
+    /**
+     * The mode an approved plan returns to: the chosen level, so the approval switches to it in the same step. Without
+     * a chosen level, or outside plan mode, Claude Code picks.
+     */
+    planExitMode(): ClaudePermissionMode | undefined {
+        if (!this.planMode || !this.level) return undefined;
+        return claudePermissionMode(
+            { permissionMode: this.level, planMode: false },
+            this.launchMode,
+        );
+    }
+
     report(): void {
         this.host.apply([
             { op: 'state', state: chatPermissionState('claude', this.level, this.planMode) },
@@ -78,7 +90,9 @@ export class ClaudePermissions {
 
     /**
      * Follows the mode Claude Code reports with each turn's `init` and with `status` changes. Leaving plan mode on its
-     * own (an approved plan) turns plan mode off and returns to the chosen level; the change is saved as the Chat's.
+     * own (an approved plan) turns plan mode off; the approval already switched to the chosen level (see
+     * `planExitMode`), and a mode that still differs is switched back as a fallback. The change is saved as the
+     * Chat's.
      */
     onReported(reported: unknown, query: PermissionModeSwitch | undefined): void {
         if (typeof reported !== 'string') return;

@@ -152,6 +152,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             onInterruptRequested: () => {
                 this.turns.isInterruptRequested = true;
             },
+            planExitMode: () => this.permissions.planExitMode(),
         });
         this.turns = new ClaudeTurns({
             host: options,

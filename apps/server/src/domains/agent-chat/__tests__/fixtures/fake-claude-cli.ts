@@ -148,6 +148,19 @@ function send(message: Json) {
     process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
+/**
+ * Every mode this process switches to, in `permission-modes.jsonl` under `CLAUDE_CONFIG_DIR`, so a test can tell
+ * whether it ever passed through a looser mode.
+ */
+function setPermissionMode(mode: string) {
+    state.permissionMode = mode;
+    fs.mkdirSync(configDirectory, { recursive: true });
+    fs.appendFileSync(
+        path.join(configDirectory, 'permission-modes.jsonl'),
+        `${JSON.stringify({ mode })}\n`,
+    );
+}
+
 function record(entry: Json) {
     const uuid = typeof entry.uuid === 'string' ? entry.uuid : crypto.randomUUID();
     fs.mkdirSync(path.dirname(transcriptPath), { recursive: true });
@@ -310,9 +323,9 @@ const scenarioIo: FakeClaudeIo = {
     markInterrupted: () => {
         state.interrupted = true;
     },
-    exitPlanMode: () => {
+    exitPlanMode: (mode = 'default') => {
         if (state.permissionMode !== 'plan') return;
-        state.permissionMode = 'default';
+        setPermissionMode(mode);
         system('status', { status: null, permissionMode: state.permissionMode });
     },
     subagentDirectory: path.join(path.dirname(transcriptPath), sessionId, 'subagents'),
@@ -552,7 +565,7 @@ lines.on('line', (line) => {
         }
         if (typeof flags.ultracode === 'boolean') state.ultracode = flags.ultracode;
         if (request.subtype === 'set_permission_mode' && typeof request.mode === 'string')
-            state.permissionMode = request.mode;
+            setPermissionMode(request.mode);
         const answer =
             request.subtype === 'rewind_files'
                 ? rewindFiles(request, transcriptPath, configDirectory)

@@ -867,8 +867,9 @@ mid-Chat differs per provider:
 - **Claude Code** switches in place with `Query.setPermissionMode`, so a level applies from the next
   tool call, including inside a running turn. The Chat always opens with
   `allowDangerouslySkipPermissions` so Full access can be chosen later. Level and plan mode are kept
-  apart because Claude Code has one mode for both: when an approved `ExitPlanMode` leaves plan mode,
-  Caxri turns plan mode off, switches back to the chosen level, and saves that. A launch
+  apart because Claude Code has one mode for both: approving `ExitPlanMode` carries a `setMode`
+  update to the chosen level, so plan mode ends straight at that level and no tool call runs in a
+  mode Claude Code picked; Caxri then turns plan mode off and saves that. A launch
   `--permission-mode plan` is not carried over; plan mode is only the composer's toggle.
 - **Grok Build** fixes its permission at launch, so a level switch restarts the Agent on the same
   conversation (`session/load`) with the new options. A running turn would be cut short, so the

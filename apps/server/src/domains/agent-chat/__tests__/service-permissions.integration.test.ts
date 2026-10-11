@@ -103,7 +103,9 @@ describe('Agent Chat permission level and plan mode with a fake Codex app-server
 
 describe('Agent Chat permission level and plan mode with a fake Claude Code CLI', () => {
     it('switches in place and returns to the chosen level after an approved plan', async () => {
-        const { database, service, terminal, until } = await fixture({ provider: 'claude' });
+        const { database, fakeLog, service, terminal, until } = await fixture({
+            provider: 'claude',
+        });
         expect(await until((snapshot) => snapshot.models !== undefined)).toMatchObject({
             permissionMode: 'ask',
             planMode: false,
@@ -132,6 +134,12 @@ describe('Agent Chat permission level and plan mode with a fake Claude Code CLI'
         );
         const after = await until((snapshot) => snapshot.planMode === false);
         expect(after.permissionMode).toBe('acceptEdits');
+        // The approval itself switches to the chosen level, so no tool call runs in a mode Claude Code picked.
+        expect(await fakeLog('claude', 'permission-modes.jsonl')).toEqual([
+            { mode: 'acceptEdits' },
+            { mode: 'plan' },
+            { mode: 'acceptEdits' },
+        ]);
         expect(database.getChatPermission(terminal.id)).toEqual({
             permissionMode: 'acceptEdits',
             planMode: false,
