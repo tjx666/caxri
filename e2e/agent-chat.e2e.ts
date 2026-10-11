@@ -202,10 +202,14 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         // A path written as plain prose, in the user's message and in the reply, opens in the Editor.
         await message.fill('see src/greeting.ts:2 next');
         await message.press('Enter');
+        // The user's message renders it as an inline link so it wraps with the text; the reply renders a button.
+        await expect(
+            chat.getByRole('link', { name: 'src/greeting.ts:2', exact: true }),
+        ).toHaveCount(1);
         const prosePath = chat.getByRole('button', { name: 'src/greeting.ts:2', exact: true });
-        await expect(prosePath).toHaveCount(2);
+        await expect(prosePath).toHaveCount(1);
         await page.screenshot({ path: testInfo.outputPath('agent-chat-prose-path.png') });
-        await prosePath.last().click();
+        await prosePath.click();
         await expect(page.getByRole('tab', { name: 'greeting.ts' })).toHaveAttribute(
             'aria-selected',
             'true',
