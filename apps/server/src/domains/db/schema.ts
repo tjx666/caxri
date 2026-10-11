@@ -544,6 +544,35 @@ export const agentSessionUsage = sqliteTable(
 );
 
 /**
+ * Scan cache for Agent transcripts found on this machine outside the usage ledger: conversations the user ran in a
+ * plain terminal or another app, read only when the Usage page asks for every Agent Session. One row per transcript
+ * file, so a reverted Codex thread's continuation rollout (`<thread>_<rollout>`) keeps its own row; `agent_session_id`
+ * is the provider conversation identity the ledger is keyed by, so a conversation later resumed in a Caxri Session is
+ * counted once, from the ledger. Rows outlive their transcript for the same reason ledger rows do.
+ */
+export const externalAgentUsage = sqliteTable(
+    'external_agent_usage',
+    {
+        provider: text('provider').notNull(),
+        /**
+         * Agent Session ID, or the Codex rollout ID for a reverted thread's continuation file.
+         */
+        transcriptId: text('transcript_id').notNull(),
+        agentSessionId: text('agent_session_id').notNull(),
+        path: text('path').notNull(),
+        /**
+         * Working directory the provider recorded for the conversation; attributes it to a Project. Null when the
+         * transcript names none.
+         */
+        cwd: text('cwd'),
+        sourceFingerprint: text('source_fingerprint').notNull(),
+        scannedAt: integer('scanned_at').notNull(),
+        usageJson: text('usage_json').notNull(),
+    },
+    (table) => [primaryKey({ columns: [table.provider, table.transcriptId] })],
+);
+
+/**
  * Last known GitHub outcome of a pull request an Agent created from a Caxri Session. Merged and closed rows are final
  * and never refetched; open rows are refreshed on a bounded schedule by the usage service. Keyed by the canonical
  * `https://github.com/<owner>/<repo>/pull/<number>` URL harvested from the transcript.

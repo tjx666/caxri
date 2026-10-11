@@ -33,6 +33,7 @@ Integrity lives in the schema, not only in model code: foreign keys cascade owne
 - `session_state`: versioned open editor tabs, active tab, desired Secondary Sidebar ViewContainer ID, recursive Terminal split layout, and the last durable file-mutation editor-remap operation ID so at-least-once recovery stays idempotent across Renderer reloads; invalid JSON, invalid shapes, or unsupported versions repair to a default layout and emit a content-free warning instead of failing bootstrap
 - `app_state`: last selected Project and Session, window state, active theme, and external delegation Session bindings
 - `agent_session_usage`: append-only ledger of every Agent Session a Caxri Terminal hosted (provider, provider session ID, first owning Session and Project, transcript fingerprint, and the content-free usage aggregate); it outlives Session and Project deletion on purpose, so it holds those IDs without foreign keys
+- `external_agent_usage`: scan cache of Agent transcripts found outside that ledger for the Usage page's This Mac scope, one row per transcript file (provider, transcript ID, Agent Session ID, working directory, fingerprint, and the content-free aggregate); see [docs/usage.md](../../../../docs/usage.md)
 - `pull_request_outcomes`: GitHub state, title, merge time, and line counts of pull requests an Agent created, keyed by URL
 
 Session sidebar order is explicit within each Project. A relative `session.reorder` command moves one

@@ -10,14 +10,14 @@ import { canOpenUsageSession } from './usage-metrics';
 
 /**
  * A Most expensive Sessions title. A Session that still exists in the PrimarySidebar is a button that switches to it;
- * an archived or deleted one stays plain text. A clipped title raises the shared Tooltip with the full name; an
- * unclipped one would only repeat what is already on screen.
+ * an archived or deleted one, or an Agent Session run outside Caxri (titled by its folder), stays plain text. A clipped
+ * title raises the shared Tooltip with the full name; an unclipped one would only repeat what is already on screen.
  */
 export function UsageSessionTitle({ row }: { row: UsageSessionRow }) {
     const reference = useRef<HTMLElement>(null);
     const isClipped = useIsOverflowing(reference, row.title);
     const canOpen = canOpenUsageSession(row);
-    const className = cn('min-w-0 truncate', row.isDeleted && 'text-muted');
+    const className = cn('min-w-0 truncate', (row.isDeleted || row.isOutsideCaxri) && 'text-muted');
     return (
         <Tooltip content={row.title} disabled={!isClipped}>
             {canOpen ? (

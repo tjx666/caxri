@@ -6,7 +6,7 @@ import type { AgentProvider } from '@caxri/protocol';
 import type { AgentEnvironment, AgentTranscriptLocation, TranscriptScanCursor } from '../agents';
 import { agentProviders, locateAgentTranscriptForIdentity, scanTranscriptLines } from '../agents';
 import { UsageAccumulator } from './accumulator';
-import type { UsageLineParser } from './parsers';
+import type { UsageLineParser, UsageParserOptions } from './parsers';
 import { usageParserFor } from './parsers';
 import type { UsageRecord } from './record';
 import { USAGE_RECORD_VERSION } from './record';
@@ -118,15 +118,12 @@ export class UsageTranscriptLocator {
             }));
     }
 
-    async locate(target: UsageScanTarget): Promise<UsageTranscriptFiles | undefined> {
-        let main = await locateAgentTranscriptForIdentity(target, this.environment);
-        let mainStamp = main && (await fileStamp(main.path));
-        if (!mainStamp && target.provider === 'claude') {
-            main = await this.findClaudeTranscript(target.agentSessionId);
-            mainStamp = main && (await fileStamp(main.path));
-        }
-        if (!main || !mainStamp) return;
-        const side = target.provider === 'claude' ? await this.claudeSideFiles(main) : [];
+    private async withSideFiles(
+        provider: AgentProvider,
+        main: AgentTranscriptLocation,
+        mainStamp: string,
+    ): Promise<UsageTranscriptFiles> {
+        const side = provider === 'claude' ? await this.claudeSideFiles(main) : [];
         const stamps = await Promise.all(side.map((file) => fileStamp(file.path)));
         return {
             main,
@@ -137,6 +134,29 @@ export class UsageTranscriptLocator {
                 ...stamps.map((stamp) => stamp ?? '-'),
             ].join('|'),
         };
+    }
+
+    async locate(target: UsageScanTarget): Promise<UsageTranscriptFiles | undefined> {
+        let main = await locateAgentTranscriptForIdentity(target, this.environment);
+        let mainStamp = main && (await fileStamp(main.path));
+        if (!mainStamp && target.provider === 'claude') {
+            main = await this.findClaudeTranscript(target.agentSessionId);
+            mainStamp = main && (await fileStamp(main.path));
+        }
+        if (!main || !mainStamp) return;
+        return this.withSideFiles(target.provider, main, mainStamp);
+    }
+
+    /**
+     * Completes an already located main transcript with its side files and fingerprint. Returns `undefined` when the
+     * main file is gone.
+     */
+    async describe(
+        provider: AgentProvider,
+        main: AgentTranscriptLocation,
+    ): Promise<UsageTranscriptFiles | undefined> {
+        const mainStamp = await fileStamp(main.path);
+        return mainStamp ? this.withSideFiles(provider, main, mainStamp) : undefined;
     }
 }
 
@@ -158,7 +178,10 @@ export class IncrementalUsageScan {
     private accumulator = new UsageAccumulator();
     private streams = new Map<string, UsageStream>();
 
-    constructor(private readonly provider: AgentProvider) {}
+    constructor(
+        private readonly provider: AgentProvider,
+        private readonly options: Pick<UsageParserOptions, 'isContinuation'> = {},
+    ) {}
 
     private async readAppended(files: UsageTranscriptFiles): Promise<StreamReadOutcome> {
         for (const [index, location] of [files.main, ...files.side].entries()) {
@@ -168,6 +191,7 @@ export class IncrementalUsageScan {
                     location,
                     cursor: { offset: 0 },
                     parser: usageParserFor(this.provider, this.accumulator, {
+                        ...this.options,
                         isSideStream: index > 0,
                     }),
                 };
@@ -258,8 +282,9 @@ async function readCompleteLines(stream: UsageStream): Promise<StreamReadOutcome
 export async function scanUsage(
     provider: AgentProvider,
     files: UsageTranscriptFiles,
+    options?: Pick<UsageParserOptions, 'isContinuation'>,
 ): Promise<UsageRecord> {
-    const scan = new IncrementalUsageScan(provider);
+    const scan = new IncrementalUsageScan(provider, options);
     await scan.advance(files);
     return scan.toRecord();
 }

@@ -13,7 +13,7 @@ import type {
 } from '@caxri/protocol';
 import { agentProviderIds, CaxriError, shiftLocalDate } from '@caxri/protocol';
 
-import type { AgentSessionUsageRow, PullRequestOutcomeRow } from '../db';
+import type { AgentSessionUsageRow, ExternalAgentUsageRow, PullRequestOutcomeRow } from '../db';
 import type { PricingSource } from './pricing';
 import { parsePullRequestUrl } from './pull-requests';
 import type { UsageRecord } from './record';
@@ -38,16 +38,57 @@ const MAX_PULL_REQUESTS = 50;
 const MAX_UNPRICED_MODELS = 50;
 export const DELETED_SESSION_TITLE = 'Deleted Session';
 const REMOVED_PROJECT_TITLE = 'Removed Project';
+export const OUTSIDE_CAXRI_TITLE = 'Outside Caxri';
+const OUTSIDE_CAXRI_PROJECT_ID = 'outside-caxri';
+const UNKNOWN_FOLDER_TITLE = 'Unknown folder';
 
 export interface UsageLedgerEntry {
     row: AgentSessionUsageRow;
     record?: UsageRecord;
 }
 
+/**
+ * A transcript found outside the ledger. Several files of one reverted Codex thread share an Agent Session.
+ */
+export interface OutsideUsageEntry {
+    row: ExternalAgentUsageRow;
+    record?: UsageRecord;
+}
+
+/**
+ * One transcript's usage with the owner it is attributed to: the Caxri Session that first hosted it, or (outside Caxri)
+ * its Agent Session alone.
+ */
+type UsageContribution =
+    | { kind: 'hosted'; provider: AgentProvider; row: AgentSessionUsageRow; record?: UsageRecord }
+    | {
+          kind: 'outside';
+          provider: AgentProvider;
+          row: ExternalAgentUsageRow;
+          record?: UsageRecord;
+      };
+
+function ownerKey(contribution: UsageContribution): string {
+    return contribution.kind === 'hosted'
+        ? contribution.row.sessionId
+        : `outside:${contribution.provider}:${contribution.row.agentSessionId}`;
+}
+
+function folderName(cwd: string | null): string {
+    return cwd?.split('/').findLast(Boolean) ?? UNKNOWN_FOLDER_TITLE;
+}
+
 export interface UsageReportInput {
     params: UsageReportParameters;
     now: number;
     entries: readonly UsageLedgerEntry[];
+    /**
+     * Transcripts outside the ledger; read only for the `all` scope.
+     */
+    outside?: {
+        entries: readonly OutsideUsageEntry[];
+        pendingScans: number;
+    };
     sessions: readonly SessionRecord[];
     projects: readonly ProjectRecord[];
     pullRequests: readonly PullRequestOutcomeRow[];
@@ -144,9 +185,46 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
     const sessionsById = new Map(input.sessions.map((session) => [session.id, session]));
     const projectsById = new Map(input.projects.map((project) => [project.id, project]));
     const outcomesByUrl = new Map(input.pullRequests.map((outcome) => [outcome.url, outcome]));
-    const entries = input.entries.filter(
-        ({ row }) => params.provider === undefined || row.provider === params.provider,
+    const isSelected = (provider: AgentProvider) =>
+        params.provider === undefined || provider === params.provider;
+    const entries = input.entries.filter(({ row }) => isSelected(row.provider));
+    const hostedAgentSessions = new Set(
+        input.entries.map(({ row }) => `${row.provider}:${row.agentSessionId}`),
     );
+    // A conversation later resumed in a Caxri Session is counted once, from the ledger.
+    const outsideEntries = (input.outside?.entries ?? []).filter(
+        ({ row }) =>
+            isSelected(row.provider) &&
+            !hostedAgentSessions.has(`${row.provider}:${row.agentSessionId}`),
+    );
+    const contributions: UsageContribution[] = [
+        ...entries.map(({ row, record }) => ({
+            kind: 'hosted' as const,
+            provider: row.provider,
+            row,
+            record,
+        })),
+        ...outsideEntries.map(({ row, record }) => ({
+            kind: 'outside' as const,
+            provider: row.provider,
+            row,
+            record,
+        })),
+    ];
+    /**
+     * Deepest root first, so a cwd inside a linked worktree Project matches it before its repository.
+     */
+    const projectsByDepth = input.projects.toSorted(
+        (a, b) => b.rootPath.length - a.rootPath.length,
+    );
+    const projectContaining = (cwd: string | null) =>
+        cwd
+            ? projectsByDepth.find(
+                  ({ rootPath }) =>
+                      cwd === rootPath ||
+                      cwd.startsWith(rootPath.endsWith('/') ? rootPath : `${rootPath}/`),
+              )
+            : undefined;
 
     const totals = {
         costUsd: 0,
@@ -171,22 +249,37 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
     const unpriced = new Set<string>();
     const limits = new Map<AgentProvider, UsageLimit>();
 
-    const topProjectOf = (row: AgentSessionUsageRow) => {
-        const projectId = sessionsById.get(row.sessionId)?.projectId ?? row.projectId;
+    const topProjectOf = (contribution: UsageContribution) => {
+        let projectId: string;
+        if (contribution.kind === 'hosted') {
+            const { row } = contribution;
+            projectId = sessionsById.get(row.sessionId)?.projectId ?? row.projectId;
+        } else {
+            const containing = projectContaining(contribution.row.cwd);
+            if (!containing) return { projectId: OUTSIDE_CAXRI_PROJECT_ID, isOutside: true };
+            projectId = containing.id;
+        }
         const project = projectsById.get(projectId);
         const owner = project?.ownerProjectId
             ? projectsById.get(project.ownerProjectId)
             : undefined;
-        return { projectId: (owner ?? project)?.id ?? projectId, project: owner ?? project };
+        return {
+            projectId: (owner ?? project)?.id ?? projectId,
+            project: owner ?? project,
+            isOutside: false,
+        };
     };
-    const projectFor = (row: AgentSessionUsageRow): ProjectAccumulator => {
-        const { projectId, project } = topProjectOf(row);
+    const projectFor = (contribution: UsageContribution): ProjectAccumulator => {
+        const { projectId, project, isOutside } = topProjectOf(contribution);
         let accumulator = projects.get(projectId);
         if (!accumulator) {
             accumulator = {
                 projectId,
-                title: project?.displayTitle ?? REMOVED_PROJECT_TITLE,
-                isRemoved: project === undefined,
+                title: isOutside
+                    ? OUTSIDE_CAXRI_TITLE
+                    : (project?.displayTitle ?? REMOVED_PROJECT_TITLE),
+                isRemoved: !isOutside && project === undefined,
+                isOutsideCaxri: isOutside,
                 costUsd: 0,
                 tokens: 0,
                 sessions: new Set(),
@@ -197,16 +290,24 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
         }
         return accumulator;
     };
-    const sessionFor = (row: AgentSessionUsageRow): SessionAccumulator => {
-        let accumulator = sessions.get(row.sessionId);
+    const sessionFor = (contribution: UsageContribution): SessionAccumulator => {
+        const key = ownerKey(contribution);
+        let accumulator = sessions.get(key);
         if (!accumulator) {
-            const session = sessionsById.get(row.sessionId);
+            const session =
+                contribution.kind === 'hosted'
+                    ? sessionsById.get(contribution.row.sessionId)
+                    : undefined;
+            const isOutside = contribution.kind === 'outside';
             accumulator = {
-                sessionId: row.sessionId,
-                title: session?.displayTitle ?? DELETED_SESSION_TITLE,
-                projectTitle: projectFor(row).title,
+                sessionId: key,
+                title: isOutside
+                    ? folderName(contribution.row.cwd)
+                    : (session?.displayTitle ?? DELETED_SESSION_TITLE),
+                projectTitle: projectFor(contribution).title,
                 isArchived: session?.archivedAt !== undefined,
-                isDeleted: session === undefined,
+                isDeleted: !isOutside && session === undefined,
+                isOutsideCaxri: isOutside,
                 providers: new Set(),
                 costUsd: 0,
                 tokens: 0,
@@ -214,7 +315,7 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
                 lastActivityAt: 0,
                 pullRequestsMerged: 0,
             };
-            sessions.set(row.sessionId, accumulator);
+            sessions.set(key, accumulator);
         }
         return accumulator;
     };
@@ -253,7 +354,8 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
         const local = clock.at(epochMs);
         return local.date > today ? { ...local, date: today } : local;
     };
-    const foldBucket = (row: AgentSessionUsageRow, bucket: PricedUsageBucket) => {
+    const foldBucket = (contribution: UsageContribution, bucket: PricedUsageBucket) => {
+        const key = ownerKey(contribution);
         const { at, model, tokens, total, costUsd: cost } = bucket;
         if (!bucket.isPriced) unpriced.add(model);
         const local = localAt(at);
@@ -272,14 +374,14 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
         addToBreakdown(totals.tokens, tokens);
         totals.cacheSavingsUsd += bucket.cacheSavingsUsd;
         hourOfDay[local.hour] += total;
-        const provider = providerFor(row.provider);
+        const provider = providerFor(contribution.provider);
         provider.costUsd += cost;
         addToBreakdown(provider.tokens, tokens);
-        provider.sessions.add(row.sessionId);
-        const modelKey = `${row.provider}:${model}`;
+        provider.sessions.add(key);
+        const modelKey = `${contribution.provider}:${model}`;
         const modelRow = models.get(modelKey) ?? {
             model,
-            provider: row.provider,
+            provider: contribution.provider,
             costUsd: 0,
             tokens: emptyTokenBreakdown(),
             isPriced: bucket.isPriced,
@@ -287,44 +389,47 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
         modelRow.costUsd += cost;
         addToBreakdown(modelRow.tokens, tokens);
         models.set(modelKey, modelRow);
-        const project = projectFor(row);
+        const project = projectFor(contribution);
         project.costUsd += cost;
         project.tokens += total;
-        project.sessions.add(row.sessionId);
-        const session = sessionFor(row);
+        project.sessions.add(key);
+        const session = sessionFor(contribution);
         session.costUsd += cost;
         session.tokens += total;
-        session.providers.add(row.provider);
+        session.providers.add(contribution.provider);
         session.lastActivityAt = Math.max(session.lastActivityAt, at);
     };
-    const foldActivity = (row: AgentSessionUsageRow, hour: number, activeMs: number) => {
+    const foldActivity = (contribution: UsageContribution, hour: number, activeMs: number) => {
         const local = localAt(hour * 1000);
         if (local.date >= activityStart) dayFor(local.date).activeMs += activeMs;
         if (!isInRange(local.date)) return;
         totals.activeMs += activeMs;
-        providerFor(row.provider).activeMs += activeMs;
-        projectFor(row).activeMs += activeMs;
-        const session = sessionFor(row);
+        providerFor(contribution.provider).activeMs += activeMs;
+        projectFor(contribution).activeMs += activeMs;
+        const session = sessionFor(contribution);
         session.activeMs += activeMs;
-        session.providers.add(row.provider);
+        session.providers.add(contribution.provider);
         session.lastActivityAt = Math.max(session.lastActivityAt, hour * 1000);
     };
 
-    for (const { row, record } of entries) {
+    for (const contribution of contributions) {
+        const { provider, record } = contribution;
         if (!record) continue;
         if (record.rateLimits) {
-            const previous = limits.get(row.provider);
+            const previous = limits.get(provider);
             if (!previous || record.rateLimits.observedAt > previous.observedAt)
-                limits.set(row.provider, { provider: row.provider, ...record.rateLimits });
+                limits.set(provider, { provider, ...record.rateLimits });
         }
-        for (const bucket of pricedUsageBuckets(record, input.priceOf)) foldBucket(row, bucket);
-        for (const [hour, activeMs] of record.activity) foldActivity(row, hour, activeMs);
+        for (const bucket of pricedUsageBuckets(record, input.priceOf))
+            foldBucket(contribution, bucket);
+        for (const [hour, activeMs] of record.activity) foldActivity(contribution, hour, activeMs);
     }
 
-    const pullRequestOwners = new Map<string, AgentSessionUsageRow>();
-    for (const { row, record } of entries) {
-        const urls = record?.pullRequests ?? [];
-        for (const url of urls) if (!pullRequestOwners.has(url)) pullRequestOwners.set(url, row);
+    const pullRequestOwners = new Map<string, UsageContribution>();
+    for (const contribution of contributions) {
+        const urls = contribution.record?.pullRequests ?? [];
+        for (const url of urls)
+            if (!pullRequestOwners.has(url)) pullRequestOwners.set(url, contribution);
     }
     let pullRequestsCreated = 0;
     let pullRequestsMerged = 0;
@@ -332,7 +437,7 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
     let linesDeleted = 0;
     let pendingPullRequests = 0;
     const merged: UsagePullRequestRow[] = [];
-    for (const [url, row] of pullRequestOwners) {
+    for (const [url, owner] of pullRequestOwners) {
         const outcome = outcomesByUrl.get(url);
         if (!outcome) {
             pendingPullRequests += 1;
@@ -350,8 +455,8 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
         pullRequestsMerged += 1;
         linesAdded += outcome.additions;
         linesDeleted += outcome.deletions;
-        projectFor(row).pullRequestsMerged += 1;
-        sessionFor(row).pullRequestsMerged += 1;
+        projectFor(owner).pullRequestsMerged += 1;
+        sessionFor(owner).pullRequestsMerged += 1;
         const identity = parsePullRequestUrl(url);
         if (identity)
             merged.push({
@@ -361,7 +466,7 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
                 title: outcome.title,
                 state: outcome.state,
                 mergedAt: outcome.mergedAt,
-                sessionId: row.sessionId,
+                ...(owner.kind === 'hosted' && { sessionId: owner.row.sessionId }),
                 additions: outcome.additions,
                 deletions: outcome.deletions,
             });
@@ -384,6 +489,7 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
         timeZone: params.timeZone,
         range: params.range,
         ...(params.provider && { provider: params.provider }),
+        scope: input.outside ? 'all' : 'caxri',
         today,
         ...(rangeStart && { rangeStart }),
         totals: {
@@ -393,7 +499,11 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
             sessionsArchived,
             sessionsWithUsage: sessions
                 .values()
-                .filter((session) => session.tokens > 0)
+                .filter((session) => session.tokens > 0 && !session.isOutsideCaxri)
+                .toArray().length,
+            outsideSessionsWithUsage: sessions
+                .values()
+                .filter((session) => session.tokens > 0 && session.isOutsideCaxri)
                 .toArray().length,
             pullRequestsCreated,
             pullRequestsMerged,
@@ -459,6 +569,14 @@ export function buildUsageReport(input: UsageReportInput): UsageReport {
             unpricedModels: [...unpriced]
                 .toSorted((a, b) => a.localeCompare(b))
                 .slice(0, MAX_UNPRICED_MODELS),
+            ...(input.outside && {
+                outsideCaxri: {
+                    agentSessions: new Set(
+                        outsideEntries.map(({ row }) => `${row.provider}:${row.agentSessionId}`),
+                    ).size,
+                    pendingScans: input.outside.pendingScans,
+                },
+            }),
         },
     };
 }

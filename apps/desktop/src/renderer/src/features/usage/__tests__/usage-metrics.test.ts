@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     activityHighlights,
+    agentTimeDetail,
     buildCumulative,
     buildHeatmap,
     buildUsageInsights,
@@ -12,7 +13,10 @@ import {
     didUsageRefreshFail,
     HEATMAP_WEEKS,
     peakHour,
+    usageCoverageNotes,
     usageEmptyState,
+    usageScanCaption,
+    usageSessionCount,
 } from '../usage-metrics';
 
 function day(date: string, tokens: number, costUsd = 0): UsageDay {
@@ -109,9 +113,24 @@ describe('activityHighlights and peakHour', () => {
 });
 
 describe('usageEmptyState', () => {
-    const report = (agentSessions: number, tokens: number) => ({
-        coverage: { agentSessions },
+    const report = (
+        agentSessions: number,
+        tokens: number,
+        outsideCaxri?: { agentSessions: number; pendingScans: number },
+    ) => ({
+        coverage: { agentSessions, outsideCaxri },
         totals: { tokens: { total: tokens } },
+    });
+
+    it('waits for the first scan outside Caxri before calling the page empty', () => {
+        const scanning = { agentSessions: 0, pendingScans: 40 };
+        expect(usageEmptyState(report(0, 0, scanning), undefined)).toEqual({ kind: 'scanning' });
+        expect(
+            usageEmptyState(report(0, 5, { agentSessions: 1, pendingScans: 40 }), undefined),
+        ).toBeUndefined();
+        expect(
+            usageEmptyState(report(0, 0, { agentSessions: 2, pendingScans: 0 }), undefined),
+        ).toBeUndefined();
     });
 
     it('names the filtered Agent when it used nothing in the range', () => {
@@ -143,9 +162,60 @@ describe('usage page captions', () => {
     });
 
     it('opens only Sessions that still exist in the PrimarySidebar', () => {
-        expect(canOpenUsageSession({ isArchived: false, isDeleted: false })).toBe(true);
-        expect(canOpenUsageSession({ isArchived: true, isDeleted: false })).toBe(false);
-        expect(canOpenUsageSession({ isArchived: false, isDeleted: true })).toBe(false);
+        const row = { isArchived: false, isDeleted: false, isOutsideCaxri: false };
+        expect(canOpenUsageSession(row)).toBe(true);
+        expect(canOpenUsageSession({ ...row, isArchived: true })).toBe(false);
+        expect(canOpenUsageSession({ ...row, isDeleted: true })).toBe(false);
+        expect(canOpenUsageSession({ ...row, isOutsideCaxri: true })).toBe(false);
+    });
+
+    it('counts Agent Sessions outside Caxri beside the Sessions', () => {
+        expect(agentTimeDetail({ sessionsWithUsage: 1, outsideSessionsWithUsage: 0 })).toBe(
+            'Across 1 Session',
+        );
+        expect(agentTimeDetail({ sessionsWithUsage: 81, outsideSessionsWithUsage: 120 })).toBe(
+            'Across 81 Sessions + 120 outside',
+        );
+    });
+
+    it('counts conversations run outside Caxri as conversations, not Sessions', () => {
+        expect(usageSessionCount(1, false)).toBe('1 Session');
+        expect(usageSessionCount(3, false)).toBe('3 Sessions');
+        expect(usageSessionCount(1, true)).toBe('1 conversation');
+        expect(usageSessionCount(2819, true)).toBe('2819 conversations');
+    });
+
+    it('shows scan progress only while transcripts remain', () => {
+        const coverage = (pendingScans: number) => ({
+            coverage: { outsideCaxri: { agentSessions: 0, pendingScans } },
+        });
+        expect(usageScanCaption(coverage(1_234))).toBe('Reading 1,234 more transcripts…');
+        expect(usageScanCaption(coverage(0))).toBeUndefined();
+        expect(usageScanCaption({ coverage: {} })).toBeUndefined();
+    });
+
+    it('says what the coverage counts for each scope', () => {
+        const base = {
+            pricing: { source: 'bundled' as const },
+            coverage: {
+                agentSessions: 2,
+                unavailable: 0,
+                pendingPullRequests: 0,
+                unpricedModels: [],
+            },
+        };
+        expect(usageCoverageNotes({ ...base, scope: 'caxri' })[1]).toBe(
+            'Counts 2 Agent conversations started in Caxri Sessions, including archived and deleted Sessions.',
+        );
+        expect(
+            usageCoverageNotes({
+                ...base,
+                scope: 'all',
+                coverage: { ...base.coverage, outsideCaxri: { agentSessions: 5, pendingScans: 0 } },
+            })[1],
+        ).toBe(
+            'Counts 2 Agent conversations started in Caxri Sessions, including archived and deleted Sessions, plus 5 run outside Caxri on this Mac.',
+        );
     });
 });
 

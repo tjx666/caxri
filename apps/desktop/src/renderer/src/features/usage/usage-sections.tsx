@@ -16,11 +16,14 @@ import { UsageActivityCard } from './usage-activity-card';
 import { UsageDetailCards } from './usage-detail-cards';
 import type { UsageMetric } from './usage-metrics';
 import {
+    agentTimeDetail,
     buildUsageInsights,
     burnRateCaption,
     computeStreaks,
     formatHour,
     peakHour,
+    usageCoverageNotes,
+    usageSessionCount,
 } from './usage-metrics';
 
 function KpiTiles({ report }: { report: UsageReport }) {
@@ -42,7 +45,7 @@ function KpiTiles({ report }: { report: UsageReport }) {
             <StatTile
                 label="Agent time"
                 value={formatDuration(totals.activeMs)}
-                detail={`Across ${totals.sessionsWithUsage} ${totals.sessionsWithUsage === 1 ? 'Session' : 'Sessions'}`}
+                detail={agentTimeDetail(totals)}
             />
             <StatTile
                 label="Sessions"
@@ -90,19 +93,7 @@ function InsightsCard({ report }: { report: UsageReport }) {
 }
 
 function CoverageNote({ report }: { report: UsageReport }) {
-    const { coverage, pricing } = report;
-    const notes = [
-        `Costs are estimated from public API list prices (${pricing.source === 'bundled' ? 'bundled price list' : `LiteLLM prices updated ${pricing.updatedAt ? new Date(pricing.updatedAt).toLocaleDateString() : 'recently'}`}); a subscription plan bills differently.`,
-        `Counts ${coverage.agentSessions} Agent ${coverage.agentSessions === 1 ? 'conversation' : 'conversations'} started in Caxri Sessions, including archived and deleted Sessions.`,
-    ];
-    if (coverage.unavailable > 0)
-        notes.push(
-            `${coverage.unavailable} ${coverage.unavailable === 1 ? 'conversation has' : 'conversations have'} no transcript on this machine, so their usage is missing.`,
-        );
-    if (coverage.pendingPullRequests > 0)
-        notes.push(`Checking ${coverage.pendingPullRequests} pull requests on GitHub.`);
-    if (coverage.unpricedModels.length > 0)
-        notes.push(`No price for ${coverage.unpricedModels.join(', ')}; counted as $0.`);
+    const notes = usageCoverageNotes(report);
     return (
         <div className="grid gap-1 text-[11px] leading-[1.5] text-muted">
             {notes.map((note) => (
@@ -234,7 +225,7 @@ function AgentsCard({ report }: { report: UsageReport }) {
                                     cached
                                 </span>
                                 <span>
-                                    {row.sessions} {row.sessions === 1 ? 'Session' : 'Sessions'} ·{' '}
+                                    {usageSessionCount(row.sessions, report.scope === 'all')} ·{' '}
                                     {formatDuration(row.activeMs)}
                                 </span>
                             </div>
