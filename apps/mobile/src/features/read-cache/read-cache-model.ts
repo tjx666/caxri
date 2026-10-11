@@ -7,6 +7,7 @@ import type {
 import {
     agentChatSnapshotSchema,
     agentTimelineItemSchema,
+    findAgentChatModel,
     mobileDashboardResultSchema,
 } from '@caxri/protocol';
 import { z } from 'zod';
@@ -131,11 +132,13 @@ const trimChatItem = (item: AgentChatItem): AgentChatItem => {
 };
 
 /**
- * A Chat as the phone last saw it, without pending approvals: those can only be answered live.
+ * A Chat as the phone last saw it, without pending approvals: those can only be answered live. Of the provider's model
+ * list it keeps only the model in use, so the composer still names it as Desktop does (`Fake Codex`, not its id).
  */
 export const trimChatSnapshot = (snapshot: AgentChatSnapshot): AgentChatSnapshot => {
     const items = snapshot.items.slice(-READ_CACHE_MAX_ITEMS).map(trimChatItem);
     const turnIds = new Set(items.map((item) => item.turnId));
+    const model = findAgentChatModel(snapshot.models, snapshot.model);
     return {
         terminalId: snapshot.terminalId,
         revision: snapshot.revision,
@@ -146,6 +149,7 @@ export const trimChatSnapshot = (snapshot: AgentChatSnapshot): AgentChatSnapshot
         turns: snapshot.turns.filter((turn) => turnIds.has(turn.id)),
         requests: [],
         ...(snapshot.model !== undefined && { model: snapshot.model }),
+        ...(model && { models: [model] }),
         ...(snapshot.effort !== undefined && { effort: snapshot.effort }),
     };
 };
