@@ -137,6 +137,17 @@ export const agentChatMethods = {
         result: z.null(),
     },
     /**
+     * "Fork from here": copies the conversation up to just before user message `itemId` into a new Agent Session
+     * through the provider's own fork, then opens it as a Chat in a new Session of the same Project and cwd, without
+     * selecting it. The source Chat is left as it was. A running turn, or a message that did not start its turn, fails
+     * with `CONFLICT` before anything is created. Forking the first message opens an empty Chat.
+     */
+    'agentChat.fork': {
+        ...commandPolicy('server', 'control'),
+        params: z.strictObject({ ...terminalTarget, itemId: z.string().min(1).max(200) }),
+        result: z.strictObject({ sessionId: identifierSchema, terminalId: identifierSchema }),
+    },
+    /**
      * Stops the running turn. Messages still queued stay queued and the queue pauses until `agentChat.resumeQueue`.
      * Background tasks keep running.
      */

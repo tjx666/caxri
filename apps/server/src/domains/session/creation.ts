@@ -42,12 +42,16 @@ export function createSessionCreator(dependencies: {
         kind: TerminalKind,
         cwd: string,
         selection: 'select' | 'preserve',
+        agentSessionId: string | undefined,
     ): {
         session: ReturnType<CaxriDatabase['createSession']>['session'];
         terminal: TerminalRecord;
     } => {
         const { session } = database.createSession(projectId, null, undefined, { selection });
         const terminal = database.createTerminal(session.id, kind, cwd, 'chat');
+        // Bound before the start, which then resumes the forked record instead of opening a new conversation.
+        if (agentSessionId && kind !== 'shell')
+            database.rebindAgentSession(terminal.id, kind, agentSessionId);
         startChat(terminal.id);
         return { session, terminal };
     };
@@ -57,6 +61,10 @@ export function createSessionCreator(dependencies: {
         selection: 'select' | 'preserve',
         signal?: AbortSignal,
         surface: TerminalSurface = 'pty',
+        /**
+         * A "Fork from here" Chat: the source Chat's cwd (already authorized for it), and the forked Agent Session.
+         */
+        fork?: { cwd: string; agentSessionId: string | undefined },
     ) => {
         if (signal?.aborted) throw new CaxriError('CANCELLED', 'Session creation was canceled');
         const chatAgent = surface === 'chat' ? defaultAgent : null;
@@ -65,18 +73,20 @@ export function createSessionCreator(dependencies: {
             throw new CaxriError('VALIDATION', 'This Agent does not support Chat');
         const project = database.getProject(projectId);
         if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
-        const cwd = defaultAgent
-            ? await terminalWorkingDirectory({
-                  authorizedRoots: [project.rootPath],
-                  defaultRoot: project.rootPath,
-              })
-            : undefined;
+        const cwd = fork
+            ? fork.cwd
+            : defaultAgent
+              ? await terminalWorkingDirectory({
+                    authorizedRoots: [project.rootPath],
+                    defaultRoot: project.rootPath,
+                })
+              : undefined;
         /**
          * The final cancellation check is adjacent to the synchronous durable creation transaction.
          */
         if (signal?.aborted) throw new CaxriError('CANCELLED', 'Session creation was canceled');
         const created = chatAgent
-            ? createChatSession(projectId, chatAgent, cwd!, selection)
+            ? createChatSession(projectId, chatAgent, cwd!, selection, fork?.agentSessionId)
             : database.createSession(projectId, defaultAgent, cwd, { selection });
         let launchError: { code: 'TERMINAL_START_FAILED'; message: string } | undefined;
         if (!chatAgent && created.terminal) {
@@ -131,6 +141,30 @@ export function createSessionCreator(dependencies: {
             terminal: created.terminal ? database.getTerminal(created.terminal.id)! : null,
             ...(launchError && { launchError }),
         };
+    };
+}
+
+/**
+ * `session.create` for Desktop, and the Mobile pair: the generic method is refused because a device creates Sessions
+ * only through its authenticated principal.
+ */
+export function createSessionCreationHandlers(
+    database: CaxriDatabase,
+    createSessionForProject: ReturnType<typeof createSessionCreator>,
+): Pick<
+    DomainHandlers,
+    'mobile.session.create' | 'mobile.session.createForPrincipal' | 'session.create'
+> {
+    return {
+        'session.create': ({ projectId, defaultAgent, surface }) =>
+            createSessionForProject(projectId, defaultAgent, 'select', undefined, surface),
+        'mobile.session.create': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile Session creation requires a paired device');
+        },
+        'mobile.session.createForPrincipal': createMobileSessionHandler(
+            database,
+            createSessionForProject,
+        ),
     };
 }
 

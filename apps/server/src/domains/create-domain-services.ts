@@ -2,7 +2,6 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type { FullStateChangeReason, TerminalRecord } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
 
 import { readActiveContext } from './active-context';
 import { createAgentChatHandlers } from './agent-chat';
@@ -34,8 +33,8 @@ import { ProjectStatusService, VercelDeploymentStore } from './project-status';
 import { createRootServices } from './root-services';
 import { createServiceHandlers } from './service-handlers';
 import {
-    createMobileSessionHandler,
     createSessionAgentRuntimeHandlers,
+    createSessionCreationHandlers,
     createSessionCreator,
     SessionCompaction,
     SessionSelectionQueue,
@@ -357,10 +356,6 @@ export async function createDomainServices(
         terminalWorkingDirectory,
         terminals,
     });
-    const createMobileSessionForPrincipal = createMobileSessionHandler(
-        database,
-        createSessionForProject,
-    );
     const agentCommands = createAgentCommandRuntime({
         logger,
         delegationSettings: () => configuration.getSettings().value['agents.delegation'],
@@ -439,7 +434,11 @@ export async function createDomainServices(
             startedAt,
             activePtyCount: countRunning(),
         }),
-        ...createAgentChatHandlers(agentChat, { database, agentEnvironment }),
+        ...createAgentChatHandlers(agentChat, {
+            database,
+            agentEnvironment,
+            createSessionForProject,
+        }),
         ...createWindowStateHandlers(database),
         ...createWorkbenchRootHandlers(workbenchRoots),
         ...createTerminalMoveHandler({
@@ -457,12 +456,7 @@ export async function createDomainServices(
             introspection.records.project(query, principal),
         ...createOrderingHandlers({ database, sendFullStateChange }),
         ...createProjectHidingHandlers({ ...sessionParking, bootstrapState: snapshots.bootstrap }),
-        'session.create': ({ projectId, defaultAgent, surface }) =>
-            createSessionForProject(projectId, defaultAgent, 'select', undefined, surface),
-        'mobile.session.create': () => {
-            throw new CaxriError('FORBIDDEN', 'Mobile Session creation requires a paired device');
-        },
-        'mobile.session.createForPrincipal': createMobileSessionForPrincipal,
+        ...createSessionCreationHandlers(database, createSessionForProject),
         ...createMobileDomainHandlers({
             autoAllow: agentRuntime,
             attentionRequests,

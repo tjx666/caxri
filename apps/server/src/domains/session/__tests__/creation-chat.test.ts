@@ -60,6 +60,27 @@ describe('session.create with the chat surface', () => {
     );
 });
 
+describe('session creation for a forked Chat', () => {
+    it('binds the forked Agent Session in the source cwd before the Chat starts', async () => {
+        const { create, database, observeSelectedSession, project, startChat } = await fixture();
+        startChat.mockImplementation((terminalId: string) => {
+            expect(database.getTerminal(terminalId)?.agentSessionId).toBe('forked-thread');
+        });
+
+        const created = await create(project.id, 'codex', 'preserve', undefined, 'chat', {
+            cwd: join(project.rootPath, 'nested'),
+            agentSessionId: 'forked-thread',
+        });
+
+        expect(created.terminal).toMatchObject({
+            cwd: join(project.rootPath, 'nested'),
+            agentSessionId: 'forked-thread',
+        });
+        expect(startChat).toHaveBeenCalledOnce();
+        expect(observeSelectedSession).not.toHaveBeenCalled();
+    });
+});
+
 describe('mobile.session.createForPrincipal with the chat surface', () => {
     const principal = (projectId: string) => ({
         kind: 'paired-device' as const,
