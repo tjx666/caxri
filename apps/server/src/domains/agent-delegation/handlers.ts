@@ -1,5 +1,5 @@
 import type { DomainHandlers } from '../domain-services';
-import { mainOwned } from '../service-handlers';
+import { mainOwned } from '../main-owned';
 import type { AgentDelegationService } from './service';
 
 type DelegationMethod =

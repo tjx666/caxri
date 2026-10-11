@@ -6,6 +6,7 @@ import {
     readdir,
     readFile,
     readlink,
+    rename,
     rm,
     stat,
     symlink,
@@ -16,10 +17,11 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { defaultAgentProviderSettings } from '@caxri/protocol';
-import { StructuredLogger } from '@caxri/system';
+import { execFileAsync, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AgentHookManager } from '../manager';
+import { hookBridgeEnvironment } from './server.fixture';
 
 const temporaryDirectories: string[] = [];
 const loggers: StructuredLogger[] = [];
@@ -66,6 +68,42 @@ async function temporaryFiles(...directories: string[]): Promise<string[]> {
 }
 
 /**
+ * Watcher-driven reconciliation has no completion signal, and native event latency is unbounded on a loaded host, so
+ * these waits poll the observable result instead of sleeping a fixed interval.
+ */
+const WATCHER_WAIT = { interval: 50, timeout: 10_000 } as const;
+
+async function hasCaxriStopHook(path: string): Promise<boolean> {
+    try {
+        const settings = JSON.parse(await readFile(path, 'utf8')) as { hooks?: { Stop?: unknown } };
+        return JSON.stringify(settings.hooks?.Stop ?? null).includes('--source caxri');
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * A Claude settings.json symlinked into a dotfiles checkout. The link and its target use different basenames and
+ * sibling directories so a watcher on the link's own directory can never observe a write to the target.
+ */
+async function linkedClaudeSettings(prefix: string) {
+    const directory = await mkdtemp(join(tmpdir(), prefix));
+    temporaryDirectories.push(directory);
+    const claudeHome = join(directory, 'claude');
+    const dotfiles = join(directory, 'dotfiles');
+    const managedSettings = join(dotfiles, 'claude-settings.json');
+    const configPath = join(claudeHome, 'settings.json');
+    await Promise.all([
+        mkdir(claudeHome, { recursive: true }),
+        mkdir(dotfiles, { recursive: true }),
+    ]);
+    await writeFile(managedSettings, '{ "theme": "dark" }\n', 'utf8');
+    await symlink(managedSettings, configPath);
+    const manager = createManager(directory, { CLAUDE_CONFIG_DIR: claudeHome });
+    return { claudeHome, configPath, directory, dotfiles, managedSettings, manager };
+}
+
+/**
  * Provider configs are often symlinks into a dotfiles repository. Reads follow the final link, so installs and repairs
  * must write through it too: replacing the link with a standalone file silently forks the config from its source.
  */
@@ -106,7 +144,7 @@ describe('AgentHookManager symlinked provider config', () => {
         }
     });
 
-    it('refuses to replace a dangling Claude settings.json symlink', async () => {
+    it('reports a dangling Claude settings.json symlink as a conflict without replacing it', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-claude-dangling-'));
         temporaryDirectories.push(directory);
         const claudeHome = join(directory, 'claude');
@@ -119,8 +157,12 @@ describe('AgentHookManager symlinked provider config', () => {
         try {
             await manager.initialize(claudeOnlySettings());
 
+            /**
+             * Restarting Agent Terminals cannot repair a link only the user can restore, so this is a `conflict` that
+             * names the link rather than a retryable `error`.
+             */
             expect(manager.getHealth().claude).toEqual({
-                kind: 'error',
+                kind: 'conflict',
                 message:
                     'settings.json is a symlink to a missing file. Restore the link target or remove the link.',
             });
@@ -128,6 +170,104 @@ describe('AgentHookManager symlinked provider config', () => {
             expect(await readlink(configPath)).toBe(missingSettings);
             await expect(lstat(missingSettings)).rejects.toMatchObject({ code: 'ENOENT' });
             expect(await temporaryFiles(claudeHome)).toEqual([]);
+        } finally {
+            await manager.close();
+        }
+    });
+
+    it('repairs Caxri hooks that an edit to the symlink target removed', async () => {
+        const { claudeHome, configPath, managedSettings, manager } = await linkedClaudeSettings(
+            'caxri-agent-hooks-claude-target-edit-',
+        );
+
+        try {
+            await manager.initialize(claudeOnlySettings());
+            expect(await hasCaxriStopHook(managedSettings)).toBe(true);
+
+            // A `git pull` in the dotfiles checkout rewrites the target; the link and its directory stay untouched.
+            await writeFile(managedSettings, '{ "theme": "light" }\n', 'utf8');
+
+            await vi.waitUntil(() => hasCaxriStopHook(managedSettings), WATCHER_WAIT);
+            const repaired = JSON.parse(await readFile(managedSettings, 'utf8')) as {
+                theme?: string;
+            };
+            expect(repaired.theme).toBe('light');
+            expect(await readlink(configPath)).toBe(managedSettings);
+            expect(await readdir(claudeHome)).toEqual(['settings.json']);
+        } finally {
+            await manager.close();
+        }
+    });
+
+    it('turns a deleted symlink target into a conflict and recovers once the target returns', async () => {
+        const { configPath, directory, managedSettings, manager } = await linkedClaudeSettings(
+            'caxri-agent-hooks-claude-target-delete-',
+        );
+        const runBridge = async (environment: NodeJS.ProcessEnv): Promise<void> => {
+            await execFileAsync(
+                join(directory, 'shared', 'bin', 'caxri-agent-hook-bridge'),
+                ['--source', 'caxri', '--provider', 'claude', '--phase', 'turnStarted'],
+                { env: hookBridgeEnvironment(environment) },
+            );
+        };
+
+        try {
+            await manager.initialize(claudeOnlySettings());
+            await runBridge(manager.terminalEnvironment('terminal-1', 'claude'));
+            await vi.waitFor(() => expect(manager.getHealth().claude.kind).toBe('active'));
+
+            await rm(managedSettings);
+
+            await vi.waitFor(
+                () =>
+                    expect(manager.getHealth().claude).toEqual({
+                        kind: 'conflict',
+                        message:
+                            'settings.json is a symlink to a missing file. Restore the link target or remove the link.',
+                    }),
+                WATCHER_WAIT,
+            );
+            expect(await readlink(configPath)).toBe(managedSettings);
+            await expect(lstat(managedSettings)).rejects.toMatchObject({ code: 'ENOENT' });
+
+            // Restoring the dotfiles copy brings back the user's settings without Caxri's entries.
+            await writeFile(managedSettings, '{ "theme": "dark" }\n', 'utf8');
+
+            await vi.waitFor(
+                () => expect(manager.getHealth().claude.kind).toBe('installedPending'),
+                WATCHER_WAIT,
+            );
+            expect(await hasCaxriStopHook(managedSettings)).toBe(true);
+            expect((await lstat(configPath)).isSymbolicLink()).toBe(true);
+            await runBridge(manager.terminalEnvironment('terminal-2', 'claude'));
+            await vi.waitFor(() => expect(manager.getHealth().claude.kind).toBe('active'));
+        } finally {
+            await manager.close();
+        }
+    });
+
+    it('follows a repointed settings.json symlink to its new target', async () => {
+        const { configPath, directory, managedSettings, manager } = await linkedClaudeSettings(
+            'caxri-agent-hooks-claude-repoint-',
+        );
+        const otherDotfiles = join(directory, 'other-dotfiles');
+        const otherSettings = join(otherDotfiles, 'claude.json');
+        await mkdir(otherDotfiles, { recursive: true });
+        await writeFile(otherSettings, '{ "theme": "solarized" }\n', 'utf8');
+
+        try {
+            await manager.initialize(claudeOnlySettings());
+            expect(await hasCaxriStopHook(managedSettings)).toBe(true);
+
+            // Repoint atomically, as a dotfiles manager does; the watcher on the link's own directory observes it.
+            await symlink(otherSettings, `${configPath}.next`);
+            await rename(`${configPath}.next`, configPath);
+            await vi.waitUntil(() => hasCaxriStopHook(otherSettings), WATCHER_WAIT);
+
+            // The new target's directory is now watched as well: an edit there is repaired like any other.
+            await writeFile(otherSettings, '{ "theme": "solarized-light" }\n', 'utf8');
+            await vi.waitUntil(() => hasCaxriStopHook(otherSettings), WATCHER_WAIT);
+            expect(await readlink(configPath)).toBe(otherSettings);
         } finally {
             await manager.close();
         }

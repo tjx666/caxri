@@ -9,7 +9,7 @@ import type parcelWatcher from '@parcel/watcher';
 
 import { NATIVE_WATCHER_BACKEND } from '../native-watcher';
 import { isOutsideRoot } from '../path-security';
-import type { ResolvedSessionPath } from '../project-roots';
+import type { ResolvedSessionPath } from '../project';
 import type { WatchHandle } from '../watch-hub';
 import { WatchHub } from '../watch-hub';
 import type { ResolveSessionPath } from './documents';

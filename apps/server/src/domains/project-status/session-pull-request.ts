@@ -8,9 +8,9 @@ import {
     parseExternalJson,
     pullRequestUnavailable as describePullRequestUnavailable,
 } from '../external-status';
-import { pullRequestOrigin } from '../session-pull-request-deployment';
-import type { SessionPullRequestResolution } from '../session-pull-request-parse';
 import { githubPullRequestSchema } from './parse';
+import { pullRequestOrigin } from './session-pull-request-deployment';
+import type { SessionPullRequestResolution } from './session-pull-request-parse';
 
 /**
  * Reads the pull request a Session delivers from `SessionPullRequestService`, the one owner of that answer. The sidebar

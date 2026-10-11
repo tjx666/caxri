@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestDomainServices } from '../../__tests__/support/domain-services';
 import { AgentCoordinator, AgentService } from '../agents';
 import { CaxriDatabase } from '../db';
-import { SessionRenameService } from '../session-rename';
+import { SessionRenameService } from '../session/rename';
 import { createFakePty, createPendingAgentAdapters } from './create-test-domain-services';
 
 const loggers: StructuredLogger[] = [];

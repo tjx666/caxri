@@ -3,7 +3,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { z } from 'zod';
 
 import { isOutsideRoot } from '../../path-security';
-import type { ResolvedSessionPath } from '../../project-roots';
+import type { ResolvedSessionPath } from '../../project';
 import type { ImportConfigFiles } from './config-files';
 import type { PackageImports } from './packages';
 

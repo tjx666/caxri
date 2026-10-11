@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { dirname, join } from 'node:path';
 import process from 'node:process';
 
 import type {
@@ -11,17 +11,23 @@ import type {
     AgentProviderSettings,
     ServerEvent,
 } from '@caxri/protocol';
-import { agentProviderCatalog, agentProviderIds, CaxriError, errorMessage } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    agentProviderIds,
+    CaxriError,
+    errorMessage,
+    isCaxriError,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, mapWithConcurrency, unixSocketPath } from '@caxri/system';
 
 import { atomicWrite, atomicWriteUserConfig } from '../../atomic-file';
 import { readBoundedRegularFileText } from '../../bounded-file-reader';
-import type { WatchHandle } from '../../watch-hub';
 import { WatchHub } from '../../watch-hub';
 import type { AgentEnvironment } from '../contract';
 import { agentProviders } from '../providers';
 import { stageAgentHookBridge } from './bridge';
+import { AgentHookConfigWatchers } from './config-watchers';
 import type {
     AgentHookAdapter,
     AgentHookConfigTarget,
@@ -42,18 +48,12 @@ import { AgentHookServer, pruneStaleAgentHookSockets } from './server';
 import { AgentHookTelemetry } from './telemetry';
 
 const CONFIG_WATCH_SETTLE_MS = 100;
-const CONFIG_FALLBACK_POLL_INTERVAL_MS = 30_000;
 const MAX_CONCURRENT_PROFILE_STATS = 8;
 /**
  * Provider-owned hook configs are small user-authored documents; never hand unbounded input to their syntax adapters or
  * let reconciliation rewrite a file it could not safely inspect.
  */
 export const MAX_AGENT_HOOK_CONFIG_BYTES = 1 * 1024 * 1024;
-
-interface HookConfigWatcher {
-    handle: WatchHandle;
-    targets: Set<string>;
-}
 
 interface AgentHookManagerOptions {
     /**
@@ -129,7 +129,7 @@ export class AgentHookManager {
     private bridgePath?: string;
     private closed = false;
     private configReconcileTimer?: NodeJS.Timeout;
-    private readonly configWatchers = new Map<string, HookConfigWatcher>();
+    private readonly configWatchers: AgentHookConfigWatchers;
     private readonly watchHub: WatchHub;
     private readonly ownsWatchHub: boolean;
     private health = defaultHookHealth();
@@ -180,6 +180,14 @@ export class AgentHookManager {
         ) as Record<AgentProvider, number>;
         this.ownsWatchHub = !options.watchHub;
         this.watchHub = options.watchHub ?? new WatchHub({ logger: options.logger });
+        this.configWatchers = new AgentHookConfigWatchers({
+            watchHub: this.watchHub,
+            onChange: () => this.scheduleConfigReconcile(),
+            pollOnce: async () => {
+                if (this.requestedSettings && this.anyEnabled())
+                    await this.reconcile(this.requestedSettings);
+            },
+        });
         this.profileId = createHash('sha256')
             .update(options.userDataPath)
             .digest('hex')
@@ -229,7 +237,7 @@ export class AgentHookManager {
                     ),
                 );
             });
-            await this.refreshConfigWatchers(settings);
+            await this.configWatchers.refresh(this.configPaths(settings));
             if (this.requestedSettings === requested) {
                 this.settings = settings;
                 this.launchSettings = settings;
@@ -335,7 +343,16 @@ export class AgentHookManager {
         } catch (error) {
             const message = errorMessage(error, 'Lifecycle hook reconciliation failed');
             this.loseAuthority(provider);
-            this.setHealth(provider, { kind: 'error', message });
+            /**
+             * `atomicWriteUserConfig` refuses a config symlink whose target is missing with `CONFLICT`. Only the user
+             * can restore or replace that link and restarting Agent Terminals changes nothing, so it is a `conflict`
+             * naming the link rather than a retryable `error`; the watcher on the link target's directory reconciles
+             * again once the target returns.
+             */
+            this.setHealth(provider, {
+                kind: isCaxriError(error) && error.code === 'CONFLICT' ? 'conflict' : 'error',
+                message,
+            });
             this.options.logger.write('warn', logEventCatalog.agentHooks.reconcileFailed, {
                 fields: { provider, error: message },
             });
@@ -542,82 +559,16 @@ export class AgentHookManager {
         );
     }
 
-    private desiredWatchTargets(
-        settings: Record<AgentProvider, AgentProviderSettings>,
-    ): Map<string, Set<string>> {
-        const targetsByDirectory = new Map<string, Set<string>>();
-        for (const provider of agentProviderIds) {
-            if (!settings[provider].hooks.enabled) continue;
-            const adapter = agentProviders[provider].hooks;
-            if (!adapter?.supports(undefined).supported) continue;
-            for (const target of adapter.configTargets(this.options.environment)) {
-                const directory = dirname(target.path);
-                const targets = targetsByDirectory.get(directory) ?? new Set<string>();
-                targets.add(target.path);
-                targetsByDirectory.set(directory, targets);
-            }
-        }
-        return targetsByDirectory;
-    }
-
     /**
-     * Watches only provider config files; Codex state/transcript churn in the same home is ignored.
+     * Config files of every enabled provider whose adapter runs on this platform: the files the watchers cover.
      */
-    private async refreshConfigWatchers(
-        settings: Record<AgentProvider, AgentProviderSettings>,
-    ): Promise<void> {
-        const desired = this.desiredWatchTargets(settings);
-        const obsoleteHandles: WatchHandle[] = [];
-        for (const [directory, watcher] of this.configWatchers) {
-            const nextTargets = desired.get(directory);
-            if (
-                nextTargets &&
-                // A degraded (polling) registration is replaced so every reconcile retries the native backend.
-                watcher.handle.mode === 'native' &&
-                [...nextTargets].every((target) => watcher.targets.has(target)) &&
-                nextTargets.size === watcher.targets.size
-            ) {
-                continue;
-            }
-            this.configWatchers.delete(directory);
-            obsoleteHandles.push(watcher.handle);
-        }
-        await Promise.all(obsoleteHandles.map((handle) => handle.dispose()));
-        const pendingWatchers: Array<[string, Set<string>]> = [];
-        for (const [directory, targets] of desired)
-            if (!this.configWatchers.has(directory)) pendingWatchers.push([directory, targets]);
-        await Promise.all(
-            pendingWatchers.map(async ([directory, targets]) => {
-                const targetNames = new Set([...targets].map((target) => basename(target)));
-                const handle = await this.watchHub.register({
-                    label: 'agent-hooks-config',
-                    root: directory,
-                    onEvents: (events) => {
-                        if (this.closed) return;
-                        /**
-                         * Native macOS paths may canonicalize `/var` to `/private/var`.
-                         */
-                        if (events.some((event) => targetNames.has(basename(event.path))))
-                            this.scheduleConfigReconcile();
-                    },
-                    onError: (error, erroredHandle) => erroredHandle.startFallback(error),
-                    /**
-                     * All config directories share one degraded reconcile loop: a single `reconcile` pass re-checks
-                     * every provider config, so the hub group runs it once per interval no matter how many directory
-                     * watchers failed.
-                     */
-                    fallback: {
-                        groupKey: 'agent-hooks-reconcile',
-                        intervalMs: CONFIG_FALLBACK_POLL_INTERVAL_MS,
-                        pollOnce: async () => {
-                            if (this.requestedSettings && this.anyEnabled())
-                                await this.reconcile(this.requestedSettings);
-                        },
-                    },
-                });
-                this.configWatchers.set(directory, { handle, targets });
-            }),
-        );
+    private configPaths(settings: Record<AgentProvider, AgentProviderSettings>): string[] {
+        return agentProviderIds.flatMap((provider) => {
+            const adapter = agentProviders[provider].hooks;
+            if (!settings[provider].hooks.enabled || !adapter?.supports(undefined).supported)
+                return [];
+            return adapter.configTargets(this.options.environment).map((target) => target.path);
+        });
     }
 
     private scheduleConfigReconcile(): void {
@@ -788,8 +739,7 @@ export class AgentHookManager {
         if (this.configReconcileTimer) clearTimeout(this.configReconcileTimer);
         this.configReconcileTimer = undefined;
         await this.reconcileQueue;
-        await Promise.all(this.configWatchers.values().map((watcher) => watcher.handle.dispose()));
-        this.configWatchers.clear();
+        await this.configWatchers.close();
         if (this.ownsWatchHub) await this.watchHub.close();
         this.launches.close();
         await this.server?.close();

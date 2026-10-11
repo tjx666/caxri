@@ -5,7 +5,7 @@ import type {
     TerminalSnapshot,
 } from '@caxri/protocol';
 
-import type { ShutdownReason } from '../session-policy';
+import type { ShutdownReason } from '../db';
 
 /**
  * Durable Core-owned state used by Terminal coordination. The execution owner never receives a database handle; the

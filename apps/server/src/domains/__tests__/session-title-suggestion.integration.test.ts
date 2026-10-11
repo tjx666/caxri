@@ -8,8 +8,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as agentFunctions from '../agents';
 import { AgentCoordinator, AgentService } from '../agents';
 import { CaxriDatabase } from '../db';
-import { SessionAutoNamingService } from '../session-auto-naming';
-import { SessionRenameService } from '../session-rename';
+import { SessionAutoNamingService } from '../session/auto-naming';
+import { SessionRenameService } from '../session/rename';
 import { createPendingAgentAdapters } from './create-test-domain-services';
 
 const cleanups: Array<() => Promise<void>> = [];

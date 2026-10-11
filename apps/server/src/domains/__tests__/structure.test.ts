@@ -77,61 +77,20 @@ function findCrossDomainImports(
 
 /**
  * Flat modules that already sat beside a domain directory their name prefix names (for example the `terminal-*.ts`
- * modules next to `domains/terminal/`) when the flat-placement guard landed. They predate the guard and are not an
- * endorsed shape: this list must only shrink. Moving a module into its domain directory forces its removal here (the
- * stale-entry test fails otherwise), and a new flat module in this shape fails CI instead of joining the list.
+ * modules next to `domains/terminal/`) when the flat-placement guard landed. Every one has since moved into its domain
+ * directory, so the list is empty and must stay that way: a new flat module in this shape fails CI and belongs in its
+ * domain directory, never in this list. The stale-entry test still rejects any entry that is not a current offender.
  */
-const preexistingFlatModulesBesideTheirDomain: readonly string[] = Object.freeze([
-    'git-review-comments.ts',
-    'git-review-send.ts',
-    'mobile-terminal-mutation-queue.ts',
-    'terminal-creation.ts',
-    'terminal-handlers.ts',
-    'terminal-input.ts',
-    'terminal-lifecycle-environment.ts',
-    'terminal-move.ts',
-    'terminal-relaunch.ts',
-    'terminal-restart.ts',
-    'terminal-restore.ts',
-    'terminal-surface-switch.ts',
-    'terminal-working-directory.ts',
-]);
+const preexistingFlatModulesBesideTheirDomain: readonly string[] = Object.freeze([]);
 
 /**
  * Flat modules that already belonged to a same-prefix family of three or more flat modules with no domain directory
- * (for example the `session-*.ts` modules) when the flat-placement guard landed. They predate the guard and are not an
- * endorsed shape: this list must only shrink. Folding a family into its own domain directory forces its removal here
- * (the stale-entry test fails otherwise), and a new member of any family, listed or not, fails CI.
+ * (for example the `session-*.ts` modules) when the flat-placement guard landed. Every such family has since moved into
+ * a domain directory, so the list is empty and must stay that way: a new family member fails CI and the family belongs
+ * in `domains/<prefix>/`, never in this list. The stale-entry test still rejects any entry that is not a current
+ * offender.
  */
-const preexistingFlatFamilyModules: readonly string[] = Object.freeze([
-    'agent-command-runtime.ts',
-    'agent-run-autonomy.ts',
-    'agent-runtime.ts',
-    'agent-skills.ts',
-    'agent-throughput.ts',
-    'project-hiding-handlers.ts',
-    'project-root-identity.ts',
-    'project-roots.ts',
-    'session-agent-runtime-handlers.ts',
-    'session-auto-naming.ts',
-    'session-compaction.ts',
-    'session-context-telemetry.ts',
-    'session-context.ts',
-    'session-creation.ts',
-    'session-policy.ts',
-    'session-pull-request-deployment.ts',
-    'session-pull-request-parse.ts',
-    'session-pull-requests.ts',
-    'session-rename.ts',
-    'session-selection.ts',
-    'workbench-provenance.ts',
-    'workbench-request-context.ts',
-    'workbench-root-candidates.ts',
-    'workbench-root-discovery.ts',
-    'workbench-root-handlers.ts',
-    'workbench-roots.ts',
-    'workbench-snapshot.ts',
-]);
+const preexistingFlatFamilyModules: readonly string[] = Object.freeze([]);
 
 /**
  * A flat `domains/*.ts` module that the packages.md scale rule places inside `domains/<domain>/`.

@@ -35,7 +35,7 @@ it('retains draft-input ownership while excluding native protocol replies, mouse
         manager.writeAgentExact(id, '\u{1B}', 'launch');
         expect(manager.inputEpoch(id)).toBe(2);
     } finally {
-        await manager.shutdown('terminate');
+        await manager.shutdown('orderly');
         database.close();
         await logger.flush();
         await rm(directory, { recursive: true, force: true });
@@ -69,7 +69,7 @@ it('retires terminal view state when terminating a session', async () => {
         expect(manager.inputEpoch(freshTerminalId)).toBe(1);
         expect(manager.dimensions(freshTerminalId)).toEqual({ cols: 80, rows: 24 });
     } finally {
-        await manager.shutdown('terminate');
+        await manager.shutdown('orderly');
         database.close();
         await logger.flush();
         await rm(directory, { recursive: true, force: true });
@@ -99,7 +99,7 @@ it('does not resurrect view state when an attach completes after session deletio
 
         expect(manager.dimensions(terminalId)).toBeUndefined();
     } finally {
-        await manager.shutdown('terminate');
+        await manager.shutdown('orderly');
         database.close();
         await logger.flush();
         await rm(directory, { recursive: true, force: true });

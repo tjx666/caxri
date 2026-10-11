@@ -245,4 +245,33 @@ describe('TerminalRestoreSupervisor', () => {
         ).resolves.toEqual([true]);
         expect(retainedGenerationCount(supervisor)).toBe(0);
     });
+
+    it('fences every pending restore without closing, so a later selection restores again', async () => {
+        const supervisor = new TerminalRestoreSupervisor(1);
+        const restoreStarted = Promise.withResolvers<void>();
+        const releaseRestore = Promise.withResolvers<void>();
+        let queuedStarts = 0;
+        const pending = supervisor.restore('session-a', [
+            async (isCurrent) => {
+                restoreStarted.resolve();
+                await releaseRestore.promise;
+                return isCurrent();
+            },
+            () => {
+                queuedStarts += 1;
+                return Promise.resolve(true);
+            },
+        ]);
+        await restoreStarted.promise;
+
+        supervisor.cancelAll();
+        releaseRestore.resolve();
+
+        await expect(pending).resolves.toEqual([false, false]);
+        expect(queuedStarts).toBe(0);
+        await expect(
+            supervisor.restore('session-b', [() => Promise.resolve(true)]),
+        ).resolves.toEqual([true]);
+        expect(retainedGenerationCount(supervisor)).toBe(0);
+    });
 });

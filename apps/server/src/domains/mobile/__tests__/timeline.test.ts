@@ -6,9 +6,9 @@ import type { ConfigService } from '../../config';
 import type { CaxriDatabase } from '../../db';
 import type { FileService } from '../../files';
 import type { GitService } from '../../git';
-import type { MobileTerminalMutationQueue } from '../../mobile-terminal-mutation-queue';
 import type { TerminalManager } from '../../terminal';
 import { createMobileDomainHandlers } from '../handlers';
+import type { MobileTerminalMutationQueue } from '../terminal-mutation-queue';
 
 describe('mobile timeline authorization', () => {
     it('lets a view-role device read changes only through its granted Session', async () => {

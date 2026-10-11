@@ -7,7 +7,7 @@ import { execFileAsync, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
-import { ProjectRootResolver } from '../../project-roots';
+import { ProjectRootResolver } from '../../project/roots';
 import { GitService } from '..';
 
 const loggers: StructuredLogger[] = [];

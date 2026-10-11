@@ -40,7 +40,9 @@ export async function atomicWrite(path: string, source: string, mode = 0o600): P
  *   target's directory, so the link survives and the dotfiles source receives the change. Reads already follow final
  *   symlinks (`readBoundedRegularFile`); replacing the link instead would silently fork the config from its source.
  * - A dangling symlink fails closed with `CONFLICT` rather than becoming a regular file: the link records where the user
- *   keeps the config, and only the user can say whether its target should be restored.
+ *   keeps the config, and only the user can say whether its target should be restored. `CONFLICT` is therefore the one
+ *   code callers surface as user-resolvable rather than retryable (`AgentHookManager` reports it as `conflict`
+ *   health).
  * - An existing file keeps its exact permission bits; forcing `0600` would silently change a file the user owns. A new
  *   file starts at {@link NEW_USER_CONFIG_MODE}.
  * - Like any rename-based replacement, the canonical target gets a new inode, so hard links to it are not updated.

@@ -1,8 +1,5 @@
 import { Text, View } from 'react-native';
 
-import type { LucideProps } from 'lucide-react-native';
-import { FolderTree, ListTree } from 'lucide-react-native';
-
 import type { MobileTheme } from '../../theme/tokens';
 import { FilesPanel } from './files-panel';
 import { PanelStatus, PendingPanelStatus } from './panel-status';
@@ -11,12 +8,6 @@ import { TreePanel } from './tree-panel';
 import type { Panel, useSessionPanels } from './use-panels';
 
 type PanelView = Panel['views'][number];
-
-export const PanelIcon = ({ panel, ...iconProperties }: LucideProps & { panel: Panel }) => {
-    const kind = panel.views[0]?.kind;
-    if (kind === 'files') return <FolderTree {...iconProperties} />;
-    return <ListTree {...iconProperties} />;
-};
 
 const PanelBody = ({
     deviceRole,

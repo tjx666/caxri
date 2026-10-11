@@ -1,6 +1,5 @@
 import type Database from 'better-sqlite3';
 
-import type { ShutdownReason } from '../session-policy';
 import type { CaxriDrizzleDatabase } from './connection';
 import { markShutdown as markTerminalsShutdown, openDatabase } from './connection';
 import { AgentDelegationsModel } from './models/agent-delegations';
@@ -18,6 +17,7 @@ import {
     remapWorkbenchEditorState,
     removeWorkbenchEditorPath,
 } from './models/workbench-editor-state';
+import type { ShutdownReason } from './session-policy';
 
 export interface CaxriDatabaseConnectionOptions {
     onSessionStateRepair?: (repair: SessionStateRepair) => void;
@@ -42,7 +42,7 @@ function transactionOutcome(error: unknown): DatabaseTransactionObservation['out
 
 /**
  * Owns the SQLite connection and composes one pure CRUD module per table family. No domain decision-making lives here;
- * see `../session-policy.ts` for primary-Agent succession, default titles, deletion-fallback selection, and layout
+ * see `./session-policy.ts` for primary-Agent succession, default titles, deletion-fallback selection, and layout
  * edits.
  */
 export class CaxriDatabaseConnection {

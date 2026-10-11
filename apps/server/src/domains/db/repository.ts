@@ -22,19 +22,6 @@ import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 import type Database from 'better-sqlite3';
 
 import type { AgentLifecycleSignal } from '../agents';
-import type { ShutdownReason } from '../session-policy';
-import {
-    chooseLivePrimaryAgentSuccessor,
-    choosePrimaryAgentForNewTerminal,
-    choosePrimaryAgentSuccessor,
-    DEFAULT_SESSION_TITLE,
-    defaultTerminalTitle,
-    firstActiveSession,
-    processExitActivityState,
-    selectFallbackAfterDeletion,
-    sessionActivityReasonForAgentState,
-    shutdownOutcome,
-} from '../session-policy';
 import { insertAgentDispatchWithTerminal } from './agent-dispatch-terminal';
 import { AgentIdentity } from './agent-identity';
 import type { AgentCommanderRows } from './commander-rows';
@@ -64,6 +51,19 @@ import {
     reorderSessionInProject,
     setSessionPinned,
 } from './session-ordering';
+import type { ShutdownReason } from './session-policy';
+import {
+    chooseLivePrimaryAgentSuccessor,
+    choosePrimaryAgentForNewTerminal,
+    choosePrimaryAgentSuccessor,
+    DEFAULT_SESSION_TITLE,
+    defaultTerminalTitle,
+    firstActiveSession,
+    processExitActivityState,
+    selectFallbackAfterDeletion,
+    sessionActivityReasonForAgentState,
+    shutdownOutcome,
+} from './session-policy';
 import { renameSessionWithPrimaryAgentTab } from './session-title';
 import { assertTerminalCapacity } from './terminal-capacity';
 import { terminalIdsBySession } from './terminal-ids-by-session';

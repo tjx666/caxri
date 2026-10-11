@@ -5,10 +5,10 @@ import { CaxriError } from '@caxri/protocol';
 
 import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { CaxriDatabase } from '../db';
-import type { MobileTerminalMutationQueue } from '../mobile-terminal-mutation-queue';
 import { assertPtyTerminal } from '../pty-guard';
 import type { TerminalManager } from '../terminal';
 import type { MobileImageStore } from './image-store';
+import type { MobileTerminalMutationQueue } from './terminal-mutation-queue';
 
 type Parameters = ServerOperationParameters<'mobile.agent.submitInternal'>;
 

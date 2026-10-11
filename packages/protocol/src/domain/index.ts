@@ -47,5 +47,6 @@ export * from './usage-contract.js';
 export * from './usage-format.js';
 export * from './usage-tab.js';
 export * from './view-badges.js';
+export * from './view-container-icons.js';
 export * from './views.js';
 export * from './virtual-tabs.js';

@@ -7,10 +7,9 @@ import { logEventCatalog } from '@caxri/system';
 
 import { readActiveContext } from './active-context';
 import { AgentChatService, createAgentChatHandlers } from './agent-chat';
-import { createAgentCommandRuntime } from './agent-command-runtime';
 import type { AgentDelegationService } from './agent-delegation';
 import type { AgentDispatchService } from './agent-dispatch';
-import { createAgentRuntime } from './agent-runtime';
+import { createAgentCommandRuntime, createAgentRuntime } from './agent-runtime';
 import { AgentAttentionRequests, CompactionReadiness, LongPasteService } from './agents';
 import { createBackgroundTasks, refreshWatchSessionInBackground } from './background-tasks';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
@@ -24,21 +23,34 @@ import {
 import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
-import { createGitReviewHandlers } from './git-review-comments';
+import { createGitReviewHandlers } from './git-review';
 import { createIntrospectionServices } from './introspection';
-import { createMobileDomainHandlers } from './mobile';
-import { MobileTerminalMutationQueue } from './mobile-terminal-mutation-queue';
+import { mainOwned, mainOwnedHandlers } from './main-owned';
+import { createMobileDomainHandlers, MobileTerminalMutationQueue } from './mobile';
 import { createOrderingHandlers } from './ordering-handlers';
-import { createSessionParkingHandlers } from './parking-handlers';
-import { createProjectHidingHandlers } from './project-hiding-handlers';
+import { createSessionParkingHandlers, createTerminateAllHandler } from './parking-handlers';
+import { createProjectHidingHandlers } from './project';
 import { ProjectStatusService, VercelDeploymentStore } from './project-status';
 import { createRootServices } from './root-services';
-import { createServiceHandlers, mainOwned, mainOwnedHandlers } from './service-handlers';
-import { createSessionAgentRuntimeHandlers } from './session-agent-runtime-handlers';
-import { SessionCompaction } from './session-compaction';
-import { createMobileSessionHandler, createSessionCreator } from './session-creation';
-import { SessionSelectionQueue } from './session-selection';
+import { createServiceHandlers } from './service-handlers';
 import {
+    createMobileSessionHandler,
+    createSessionAgentRuntimeHandlers,
+    createSessionCreator,
+    SessionCompaction,
+    SessionSelectionQueue,
+} from './session';
+import {
+    createCommanderTerminalRestorer,
+    createInterruptedTerminalRestorer,
+    createLifecycleEnvironment,
+    createRelaunchHandlers,
+    createTerminalAgentExactInputHandler,
+    createTerminalBinaryInputHandler,
+    createTerminalCreation,
+    createTerminalHandlers,
+    createTerminalInputHandler,
+    createTerminalMoveHandler,
     ShellIntegrationService,
     terminalDirectoryIdentity,
     TerminalManager,
@@ -46,25 +58,13 @@ import {
     TerminalRestoreSupervisor,
     TerminalSuspensionService,
 } from './terminal';
-import { createTerminalCreation } from './terminal-creation';
-import { createTerminalHandlers } from './terminal-handlers';
-import {
-    createTerminalAgentExactInputHandler,
-    createTerminalBinaryInputHandler,
-    createTerminalInputHandler,
-} from './terminal-input';
-import { createLifecycleEnvironment } from './terminal-lifecycle-environment';
-import { createTerminalMoveHandler } from './terminal-move';
-import { createRelaunchHandlers } from './terminal-relaunch';
-import {
-    createCommanderTerminalRestorer,
-    createInterruptedTerminalRestorer,
-} from './terminal-restore';
 import { createWindowStateHandlers } from './window-state-handlers';
-import * as provenance from './workbench-provenance';
-import { validateWorkbenchRequestContext } from './workbench-request-context';
-import { createWorkbenchRootHandlers } from './workbench-root-handlers';
-import { createWorkbenchSnapshots } from './workbench-snapshot';
+import * as provenance from './workbench';
+import {
+    createWorkbenchRootHandlers,
+    createWorkbenchSnapshots,
+    validateWorkbenchRequestContext,
+} from './workbench';
 
 const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
 export async function createDomainServices(
@@ -348,6 +348,7 @@ export async function createDomainServices(
     };
     const sessionParking = {
         agentChat,
+        commanderRestores,
         database,
         evictSessions: evictSessionCaches,
         mobileTerminalMutations,
@@ -520,19 +521,22 @@ export async function createDomainServices(
         'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) =>
             sessionRenames.rename(sessionId, displayTitle, signal, finalizeDurably),
         ...createSessionParkingHandlers(sessionParking),
+        // Under `session.detach`'s Session lock: a resume sent mid-detach relaunches everything it handed over.
         'session.resume': ({ sessionId }) =>
-            sessionSelections.run(async () => {
-                await workbenchRoots.validateSession(sessionId);
-                database.selectSession(sessionId);
-                terminalSuspension.observeSelection();
-                observeSelectedSession(sessionId);
-                // Detached Chats and PTY Agents both relaunch here, on the Agent Sessions they handed over.
-                agentChat.resumeSession(sessionId);
-                restoreInterruptedTerminalsInBackground(sessionId, { includeDetached: true });
-                coordinator.probeSessionPrimaryAgent(sessionId);
-                sendFullStateChange('session.resume');
-                return database.getSession(sessionId)!;
-            }),
+            sessionSelections.run(() =>
+                mobileTerminalMutations.runSessions([sessionId], async () => {
+                    await workbenchRoots.validateSession(sessionId);
+                    database.selectSession(sessionId);
+                    terminalSuspension.observeSelection();
+                    observeSelectedSession(sessionId);
+                    // Detached Chats and PTY Agents both relaunch here, on the Agent Sessions they handed over.
+                    agentChat.resumeSession(sessionId);
+                    restoreInterruptedTerminalsInBackground(sessionId, { includeDetached: true });
+                    coordinator.probeSessionPrimaryAgent(sessionId);
+                    sendFullStateChange('session.resume');
+                    return database.getSession(sessionId)!;
+                }),
+            ),
         ...createSessionAgentRuntimeHandlers(agentRuntime),
         ...createDeletionHandlers({
             database,
@@ -600,14 +604,7 @@ export async function createDomainServices(
         }),
         'terminal.queryForPrincipal': ({ principal, query }) =>
             introspection.records.terminal(query, principal),
-        'terminal.terminateAll': async () => {
-            terminalRestores.close();
-            commanderRestores.close();
-            coordinator.close();
-            await agentChat.shutdown();
-            await terminals.shutdown('terminate');
-            return null;
-        },
+        ...createTerminateAllHandler(sessionParking),
         ...createServiceHandlers({
             acknowledgeFileMutation,
             agentChat,

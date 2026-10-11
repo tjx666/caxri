@@ -5,7 +5,7 @@ import type { FileChange } from '@caxri/protocol';
 import { mapWithConcurrency } from '@caxri/system';
 
 import { isOutsideRoot } from '../path-security';
-import type { ResolvedSessionPath } from '../project-roots';
+import type { ResolvedSessionPath } from '../project';
 import type { WatchHandle, WatchHub } from '../watch-hub';
 import type { ResolveSessionPath } from './documents';
 import type { WatchScope } from './watcher';

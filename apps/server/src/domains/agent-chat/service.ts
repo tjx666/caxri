@@ -18,8 +18,8 @@ import {
 } from '@caxri/protocol';
 import { assertE2EAgentChatInput, logEventCatalog, readE2EAgentPolicy } from '@caxri/system';
 
-import { AgentRunAutonomy } from '../agent-run-autonomy';
 import type { AgentLifecycleSignal } from '../agents';
+import { AgentRunAutonomy } from '../agents';
 import { SingleFlight } from '../single-flight';
 import { agentChatDrivers } from './chat-drivers';
 import { isAgentChatCommandListed } from './chat-items';

@@ -3,7 +3,7 @@ import { relative } from 'node:path';
 import type { GitBlame, GitFileHead, GitSummary, ServerOperationParameters } from '@caxri/protocol';
 
 import { isOutsideRoot } from '../path-security';
-import type { ProjectRootResolver } from '../project-roots';
+import type { ProjectRootResolver } from '../project';
 import { SingleFlight } from '../single-flight';
 import { COMMIT_FORMAT, parseCommitLog } from './commit-log';
 

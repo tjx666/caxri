@@ -15,7 +15,7 @@ import { CaxriError, MAX_PREVIEW_ASSET_BYTES } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { ResolvedSessionPath } from '../project-roots';
+import type { ResolvedSessionPath } from '../project';
 
 export type ResolveSessionPath = (
     sessionId: string,

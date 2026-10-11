@@ -11,7 +11,7 @@ import type {
 import { CaxriError } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
-import { resolveOwnerProjectRoot } from '../project-root-identity';
+import { resolveOwnerProjectRoot } from '../project';
 
 type BrowseParameters = Omit<
     ServerOperationParameters<'mobile.project.browseInternal'>,

@@ -4,15 +4,19 @@ import { CaxriError } from '@caxri/protocol';
 import type { AgentChatService } from './agent-chat';
 import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
-import type { MobileTerminalMutationQueue } from './mobile-terminal-mutation-queue';
+import type { MobileTerminalMutationQueue } from './mobile';
 import type { TerminalRestoreSupervisor, TerminalSuspensionService } from './terminal';
 
 export interface SessionParkingOptions {
     database: CaxriDatabase;
     agentChat: Pick<AgentChatService, 'closeSession'>;
+    commanderRestores: Pick<TerminalRestoreSupervisor, 'cancelAll'>;
     mobileTerminalMutations: Pick<MobileTerminalMutationQueue, 'runProject' | 'runSessions'>;
-    terminalRestores: Pick<TerminalRestoreSupervisor, 'cancel' | 'settled'>;
-    terminalSuspension: Pick<TerminalSuspensionService, 'detachSession' | 'suspendSession'>;
+    terminalRestores: Pick<TerminalRestoreSupervisor, 'cancel' | 'cancelAll' | 'settled'>;
+    terminalSuspension: Pick<
+        TerminalSuspensionService,
+        'detachSession' | 'suspendSession' | 'terminateAll'
+    >;
     evictSessions(sessionIds: readonly string[]): void;
     restoreSelection(): void;
     sendFullStateChange(reason: FullStateChangeReason): void;
@@ -82,7 +86,8 @@ export function createSessionParkingHandlers(
                     throw new CaxriError('NOT_FOUND', 'Session not found');
                 /**
                  * A queued restore could relaunch the Agent right after it was handed over; drop it first. One already
-                 * past PTY spawn is awaited, as in `parkSessions`, so the detach finds its process.
+                 * past PTY spawn is awaited, as in `parkSessions`, so the detach finds its process. Any other Agent
+                 * launch still in flight is handed over by `detachSession` itself.
                  */
                 terminalRestores.cancel(sessionId);
                 await terminalRestores.settled(sessionId);
@@ -96,5 +101,32 @@ export function createSessionParkingHandlers(
             unarchiveSessions([sessionId], placement)[0],
         'session.unarchiveMany': ({ placement, sessionIds }) =>
             unarchiveSessions([...new Set(sessionIds)], placement),
+    };
+}
+
+/**
+ * Terminate and Close, and an explicit quit before `host.stop`: stops every running Terminal and Chat as `stopped`
+ * while Server Core keeps its services, so a Workbench reopened on the same Server Core can launch, restart, restore,
+ * and start Chats again. Queued restores are fenced first so none relaunches a process afterward. Chats close only once
+ * `terminateAll` has settled every launch in flight: a Chat restart or a switch to Chat runs inside such a launch, and
+ * `closeSession` stops only the Chats that already exist when it runs. A quit's terminal shutdown is the `host.stop`
+ * that follows, not this.
+ */
+export function createTerminateAllHandler(
+    options: SessionParkingOptions,
+): Pick<DomainHandlers, 'terminal.terminateAll'> {
+    const { agentChat, commanderRestores, database, terminalRestores, terminalSuspension } =
+        options;
+    return {
+        'terminal.terminateAll': async () => {
+            terminalRestores.cancelAll();
+            commanderRestores.cancelAll();
+            await terminalSuspension.terminateAll();
+            const sessionIds = new Set(database.listTerminals().map(({ sessionId }) => sessionId));
+            await Promise.all(
+                [...sessionIds].map((sessionId) => agentChat.closeSession(sessionId)),
+            );
+            return null;
+        },
     };
 }

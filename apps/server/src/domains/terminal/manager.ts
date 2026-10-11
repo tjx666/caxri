@@ -12,9 +12,9 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { disposeAllThenRethrow } from '@caxri/utils';
 
+import type { ShutdownReason } from '../db';
+import { shutdownOutcome } from '../db';
 import { assertPtyTerminal, isPtyTerminal } from '../pty-guard';
-import type { ShutdownReason } from '../session-policy';
-import { shutdownOutcome } from '../session-policy';
 import { SingleFlight } from '../single-flight';
 import { AgentStartWaiters } from './agent-start-waiters';
 import { logTerminalAttach } from './attach-log';
@@ -23,6 +23,8 @@ import type {
     TerminalExecutionExit,
     TerminalExecutionPort,
 } from './execution-port';
+import { forwardedServerEvent } from './forwarded-events';
+import { InFlightLaunches } from './in-flight-launches';
 import { isTerminalMouseReport, isTerminalProtocolResponse } from './input-origin';
 import { TerminalLaunchPlanner } from './launch-plan';
 import type {
@@ -63,6 +65,7 @@ export class TerminalManager {
     private readonly onInput?: TerminalManagerOptions['onInput'];
     private readonly inputEpochs = new Map<string, number>();
     private readonly terminalColors?: TerminalManagerOptions['terminalColors'];
+    readonly launches = new InFlightLaunches();
 
     constructor(
         private readonly database: TerminalStateStore,
@@ -119,45 +122,14 @@ export class TerminalManager {
     }
 
     private projectExecutionEvent(event: TerminalExecutionEvent): void {
+        const forwarded = forwardedServerEvent(event);
+        if (forwarded) {
+            this.emit(forwarded);
+            return;
+        }
         switch (event.type) {
-            case 'output': {
-                this.emit({
-                    event: 'terminal.output',
-                    payload: {
-                        terminalId: event.terminalId,
-                        data: event.data,
-                        ...(event.droppedBytes !== undefined && {
-                            droppedBytes: event.droppedBytes,
-                        }),
-                    },
-                });
-                return;
-            }
-            case 'outputRecovery': {
-                this.emit({
-                    event: 'terminal.outputRecovery',
-                    payload: {
-                        terminalId: event.terminalId,
-                        provider: event.provider,
-                        status: event.status,
-                    },
-                });
-                return;
-            }
             case 'activity': {
                 this.onOutputActivity?.(event.terminalId, event.processId);
-                return;
-            }
-            case 'sizeOwnership': {
-                this.emit({
-                    event: 'terminal.sizeOwnership',
-                    payload: {
-                        terminalId: event.terminalId,
-                        owner: event.owner,
-                        cols: event.cols,
-                        rows: event.rows,
-                    },
-                });
                 return;
             }
             case 'title': {
@@ -182,6 +154,9 @@ export class TerminalManager {
                 // eslint-disable-next-line no-void -- Agent retirement must not block Host event projection.
                 void this.onAgentExit(event);
                 return;
+            }
+            default: {
+                return; // Forwarded above.
             }
         }
     }
@@ -472,11 +447,54 @@ export class TerminalManager {
         this.onInput?.(terminalId, data);
     }
 
+    private async relaunch(
+        terminalId: string,
+        options?: TerminalStartOptions,
+    ): Promise<TerminalRecord> {
+        const record = this.database.getTerminal(terminalId);
+        if (!record) throw new CaxriError('NOT_FOUND', 'Terminal not found');
+        assertPtyTerminal(record);
+        /**
+         * Fence the managed Agent generation before Host cancellation can report its intentional SIGHUP as an
+         * unexpected process failure. The late exit event is then ignored by its retired launch ID.
+         */
+        this.retireAgentLifecycleSoon(terminalId, 'interrupted', 'terminalRestart');
+        const capture = await this.execution.restartBarrier(terminalId);
+        if (capture) await this.snapshots.finalize(terminalId, Promise.resolve(capture));
+        const launchAgent =
+            options?.launchAgent ??
+            (options?.resumeAgentSessionId !== undefined ||
+                record.lastAgentProcessState !== 'stopped');
+        this.database.updateTerminalState(terminalId, 'starting');
+        if (launchAgent && record.kind !== 'shell')
+            this.database.updateAgentProcessState(terminalId, 'starting');
+        this.onStateChanged?.(terminalId, 'starting');
+        const restarting = this.database.getTerminal(terminalId);
+        if (!restarting) throw new CaxriError('CONFLICT', 'Terminal was closed while restarting');
+        return this.start(restarting, { ...options, launchAgent });
+    }
+
     async start(record: TerminalRecord, options?: TerminalStartOptions): Promise<TerminalRecord> {
         assertPtyTerminal(record);
         if (this.execution.processId(record.id) !== undefined)
             return this.database.getTerminal(record.id)!;
-        return this.starts.run(record.id, () => this.spawn(record, options));
+        return this.launches.track(
+            record.id,
+            this.starts.run(record.id, () => this.spawn(record, options)),
+        );
+    }
+
+    /**
+     * Resolves once no launch is prepared or in flight for the Session's Terminals (every Terminal without a Session),
+     * so a caller parking them can rely on `onLaunched` having run for every launch requested before it waited.
+     */
+    settleLaunches(sessionId?: string): Promise<void> {
+        return this.launches.settled(
+            (terminalId) =>
+                sessionId === undefined ||
+                this.database.getTerminal(terminalId)?.sessionId === sessionId,
+            sessionId,
+        );
     }
 
     inputEpoch(terminalId: string): number {
@@ -624,28 +642,8 @@ export class TerminalManager {
         this.execution.detachAllViews();
     }
 
-    async restart(terminalId: string, options?: TerminalStartOptions): Promise<TerminalRecord> {
-        const record = this.database.getTerminal(terminalId);
-        if (!record) throw new CaxriError('NOT_FOUND', 'Terminal not found');
-        assertPtyTerminal(record);
-        /**
-         * Fence the managed Agent generation before Host cancellation can report its intentional SIGHUP as an
-         * unexpected process failure. The late exit event is then ignored by its retired launch ID.
-         */
-        this.retireAgentLifecycleSoon(terminalId, 'interrupted', 'terminalRestart');
-        const capture = await this.execution.restartBarrier(terminalId);
-        if (capture) await this.snapshots.finalize(terminalId, Promise.resolve(capture));
-        const launchAgent =
-            options?.launchAgent ??
-            (options?.resumeAgentSessionId !== undefined ||
-                record.lastAgentProcessState !== 'stopped');
-        this.database.updateTerminalState(terminalId, 'starting');
-        if (launchAgent && record.kind !== 'shell')
-            this.database.updateAgentProcessState(terminalId, 'starting');
-        this.onStateChanged?.(terminalId, 'starting');
-        const restarting = this.database.getTerminal(terminalId);
-        if (!restarting) throw new CaxriError('CONFLICT', 'Terminal was closed while restarting');
-        return this.start(restarting, { ...options, launchAgent });
+    restart(terminalId: string, options?: TerminalStartOptions): Promise<TerminalRecord> {
+        return this.launches.track(terminalId, this.relaunch(terminalId, options));
     }
 
     /**
