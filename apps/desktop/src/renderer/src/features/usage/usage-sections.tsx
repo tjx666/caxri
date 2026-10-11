@@ -9,6 +9,7 @@ import {
 
 import { ReportCard, StatTile } from '../../components/report-card';
 import { Progress } from '../../components/ui/progress';
+import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { ProviderLabel } from './provider-label';
 import { ShareBar } from './share-bar';
@@ -23,6 +24,7 @@ import {
     formatHour,
     peakHour,
     usageCoverageNotes,
+    usageHourTooltip,
     usageSessionCount,
 } from './usage-metrics';
 
@@ -254,17 +256,24 @@ function HourOfDayCard({ report }: { report: UsageReport }) {
                 className="grid h-20 grid-cols-24 items-end gap-0.5"
                 role="img"
             >
+                {/* The full-height column is the trigger, so a quiet hour is as easy to hover as the peak. */}
                 {report.hourOfDay.map((tokens, hour) => (
-                    <div
-                        key={hour}
-                        className={cn('rounded-sm', tokens > 0 ? 'bg-success/60' : 'bg-elevated')}
-                        style={{
-                            height:
-                                peak > 0 && tokens > 0
-                                    ? `${Math.max(6, (tokens / peak) * 100)}%`
-                                    : '6%',
-                        }}
-                    />
+                    <Tooltip key={hour} content={usageHourTooltip(hour, tokens)}>
+                        <div className="flex h-full items-end">
+                            <div
+                                className={cn(
+                                    'w-full rounded-sm',
+                                    tokens > 0 ? 'bg-success/60' : 'bg-elevated',
+                                )}
+                                style={{
+                                    height:
+                                        peak > 0 && tokens > 0
+                                            ? `${Math.max(6, (tokens / peak) * 100)}%`
+                                            : '6%',
+                                }}
+                            />
+                        </div>
+                    </Tooltip>
                 ))}
             </div>
             <div aria-hidden="true" className="mt-1 grid grid-cols-4 text-[11px] text-muted">
