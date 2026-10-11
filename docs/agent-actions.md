@@ -28,6 +28,10 @@ An Agent Chat reuses the same discovery and search for the skills its composer o
 - Insert and ordinary run paths perform one structured `terminal.input` write; a Codex skill run
   performs the two ordered writes above. Caxri never reads, clears, or replaces the current draft.
 - Selection or `Escape` returns keyboard focus to the captured Terminal.
+- A search starting with `@` lists other Sessions by title instead of actions. Choosing one appends
+  a reference to a condensed copy of that Session's conversation without Return; see
+  [Citing another Session](session-conversation-context.md#citing-another-session-with-). The
+  Terminal's own `@` list belongs to the Agent CLI, so this picker is where a Terminal cites one.
 - `Manage in Settings…` opens the matching provider's Agent Commands & Skills editor. Users can
   hide shipped or discovered items and add an exact `/command` or `$skill` invocation with an
   optional label.

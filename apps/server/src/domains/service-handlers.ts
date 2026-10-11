@@ -37,6 +37,7 @@ import type { PullRequestMergeNoticeOptions } from './pull-request-merge-notice'
 import { createPullRequestMergeNotice } from './pull-request-merge-notice';
 import { refreshAfterMerge } from './pull-request-merge-refresh';
 import type { SessionContextService } from './session';
+import { defaultSessionReferenceDirectory, SessionConversationReferenceService } from './session';
 import { resolveTerminalFileLink } from './terminal';
 import { UsageService } from './usage';
 
@@ -102,6 +103,7 @@ type ServiceHandlerMethods =
     | 'commander.stop'
     | 'session.refreshDeliveryOnFocus'
     | 'session.searchContent'
+    | 'session.conversationReference'
     | 'settings.get'
     | 'settings.inspect'
     | 'settings.patch'
@@ -174,6 +176,12 @@ export function createServiceHandlers(services: {
         vercel,
     } = services;
     const sessionContentSearch = new SessionContentSearch(database, agentEnvironment);
+    const sessionConversationReferences = new SessionConversationReferenceService(
+        defaultSessionReferenceDirectory(),
+        database,
+        logger,
+        agentEnvironment,
+    );
     const agentThroughput = new AgentThroughputService(database, agentEnvironment);
     const sessionPullRequests = new SessionPullRequestService(
         database,
@@ -269,6 +277,8 @@ export function createServiceHandlers(services: {
             files.readAsset(sessionId, path, signal),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'session.searchContent': ({ query }, signal) => sessionContentSearch.search(query, signal),
+        'session.conversationReference': ({ sessionId }, signal) =>
+            sessionConversationReferences.prepare(sessionId, signal),
         'files.search': (parameters, signal) => files.search(parameters, signal),
         'terminal.agentThroughput': ({ terminalId }) => agentThroughput.read(terminalId),
         'terminal.agentTranscript': async ({ terminalId, withContent }) => {

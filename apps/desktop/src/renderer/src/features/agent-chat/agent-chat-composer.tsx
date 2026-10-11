@@ -20,7 +20,6 @@ import { terminalDropInput } from '../terminal/terminal-drop';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatActivityBar } from './agent-chat-activity-bar';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
-import { AgentChatCommandMenu } from './agent-chat-command-menu';
 import { interruptAgentChat } from './agent-chat-commands';
 import { agentChatContextUsage } from './agent-chat-context';
 import { AgentChatContextAlerts } from './agent-chat-context-alerts';
@@ -37,6 +36,7 @@ import {
     AGENT_CHAT_PRIMARY_ACTION_CLASS_NAME,
     AgentChatStopButton,
 } from './agent-chat-stop-button';
+import { AgentChatSuggestionMenu } from './agent-chat-suggestion-menu';
 import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
 import type { AgentChatComposerEditOptions } from './hooks/use-agent-chat-composer-edit';
@@ -44,6 +44,7 @@ import { useAgentChatComposerEdit } from './hooks/use-agent-chat-composer-edit';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatFileInput } from './hooks/use-agent-chat-file-input';
 import { useAgentChatPromptHistory } from './hooks/use-agent-chat-prompt-history';
+import { useAgentChatSessionMenu } from './hooks/use-agent-chat-session-menu';
 import { useAgentChatSubmit } from './hooks/use-agent-chat-submit';
 
 interface AgentChatComposerProperties {
@@ -103,15 +104,16 @@ interface AgentChatComposerProperties {
  * message for after the turn and Cmd+Enter steers it into the running turn; queued messages wait as cards above the
  * input. Escape or the Stop button that replaces Send while the input is empty interrupts the turn. Images can be
  * pasted, dropped, or picked when the provider accepts them; any other dropped file, Files entry, or Editor tab is
- * inserted as its path. A leading `/` or `$` offers the provider's commands and the discovered skills. It shares the
- * timeline's centered column so the input lines up with the conversation, and keeps the activity row, attachments, the
- * input, and its actions inside one card so they read as a single control. The action row picks the model and effort
- * for the next turn and shows how full the context window is. Clicking Send, Stop, or a chip or queue action hands
- * focus back to the input, since each of those controls disables or unmounts itself and would otherwise drop focus to
- * the document body. The unsent text survives switching Sessions and restarting Caxri, and ArrowUp on an empty input
- * recalls the prompts this Chat already sent. "Edit from here" on an earlier message (`useAgentChatComposerEdit`) puts
- * its text in the input and the edit bar above it; sending then rewinds the Chat to before that message and sends the
- * draft in its place, and Escape or Cancel puts the previous draft back.
+ * inserted as its path. A leading `/` or `$` offers the provider's commands and the discovered skills, and a word that
+ * starts with `@` offers other Sessions whose conversation the message can cite. It shares the timeline's centered
+ * column so the input lines up with the conversation, and keeps the activity row, attachments, the input, and its
+ * actions inside one card so they read as a single control. The action row picks the model and effort for the next turn
+ * and shows how full the context window is. Clicking Send, Stop, or a chip or queue action hands focus back to the
+ * input, since each of those controls disables or unmounts itself and would otherwise drop focus to the document body.
+ * The unsent text survives switching Sessions and restarting Caxri, and ArrowUp on an empty input recalls the prompts
+ * this Chat already sent. "Edit from here" on an earlier message (`useAgentChatComposerEdit`) puts its text in the
+ * input and the edit bar above it; sending then rewinds the Chat to before that message and sends the draft in its
+ * place, and Escape or Cancel puts the previous draft back.
  */
 export function AgentChatComposer({
     activeTurnId,
@@ -131,6 +133,10 @@ export function AgentChatComposer({
     terminalId,
 }: AgentChatComposerProperties) {
     const [draft, setDraftState] = useState(() => readAgentChatDraft(terminalId));
+    /**
+     * Where the caret sits, for the `@` Sessions list, which follows the word being typed rather than the whole draft.
+     */
+    const [caret, setCaret] = useState(draft.length);
     /**
      * The turn a Stop was requested for. Keyed by turn so the pending state ends by itself when that turn does, and a
      * later turn starts with a live Stop button.
@@ -153,6 +159,14 @@ export function AgentChatComposer({
             return next;
         });
     const terminal = useTerminal(terminalId);
+    const sessionMenu = useAgentChatSessionMenu({
+        caret,
+        currentSessionId: terminal?.sessionId,
+        draft,
+        inputReference,
+        setDraft,
+    });
+    const isSuggestionOpen = menu.isOpen || sessionMenu.isOpen;
     const workbenchRoot = usePaneViewSession()?.rootPath;
     /**
      * A dropped file is cited by path the way a drop into a Terminal pastes one, relative to where the Agent runs, and
@@ -285,12 +299,24 @@ export function AgentChatComposer({
                     <AgentChatContextAlerts usage={snapshot.usage} />
                 )}
                 {menu.isOpen && (
-                    <AgentChatCommandMenu
+                    <AgentChatSuggestionMenu
                         activeIndex={menu.activeIndex}
-                        commands={menu.matches}
+                        label="Commands and skills"
                         listId={menu.listId}
-                        onChoose={choose}
+                        suggestions={menu.suggestions}
+                        onChoose={(index) => choose(menu.matches[index])}
                         onHover={menu.highlight}
+                    />
+                )}
+                {!menu.isOpen && sessionMenu.isOpen && (
+                    <AgentChatSuggestionMenu
+                        activeIndex={sessionMenu.activeIndex}
+                        heading="Sessions"
+                        label="Sessions"
+                        listId={sessionMenu.listId}
+                        suggestions={sessionMenu.suggestions}
+                        onChoose={sessionMenu.chooseAt}
+                        onHover={sessionMenu.highlight}
                     />
                 )}
                 {images.attachments.length > 0 && (
@@ -303,7 +329,9 @@ export function AgentChatComposer({
                     />
                 )}
                 <Textarea
-                    {...menu.inputAria}
+                    {...(sessionMenu.inputAria && !menu.isOpen
+                        ? sessionMenu.inputAria
+                        : menu.inputAria)}
                     aria-label="Message"
                     className="field-sizing-content max-h-48 min-h-10 resize-none rounded-none border-0 bg-transparent px-3 pt-2.5 pb-1 leading-5 focus-visible:shadow-none"
                     maxLength={MAX_AGENT_CHAT_MESSAGE_LENGTH}
@@ -312,12 +340,15 @@ export function AgentChatComposer({
                     rows={1}
                     value={draft}
                     onChange={(event) => {
-                        const { value } = event.target;
+                        const { selectionStart, value } = event.target;
                         setDraft(() => value);
+                        setCaret(selectionStart);
                     }}
+                    onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
                     onKeyDown={(event) => {
-                        if (history.didHandleKey(event, menu.isOpen)) return;
+                        if (history.didHandleKey(event, isSuggestionOpen)) return;
                         if (menu.didHandleKey(event, { choose, complete })) return;
+                        if (sessionMenu.didHandleKey(event)) return;
                         const key = {
                             key: event.key,
                             shiftKey: event.shiftKey,

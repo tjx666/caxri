@@ -203,6 +203,7 @@ export const effectfulCommandRecovery = {
     'session.rename': 'durable',
     'session.archive': 'durable',
     'session.compactWarm': 'memory',
+    'session.conversationReference': 'memory',
     'session.unarchive': 'durable',
     'session.unarchiveMany': 'durable',
     'session.detach': 'durable',
