@@ -5,7 +5,6 @@ import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scen
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import { agentText, hasCheck, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
 import {
-    adbShell,
     androidBounds,
     captureMobileFramebuffer,
     mobileRegionFingerprint,
@@ -17,6 +16,7 @@ import {
     waitForMobile,
 } from './mobile-android';
 import { addMobileGalleryImage, removeMobileGalleryImage } from './mobile-gallery';
+import { pinchWithin } from './mobile-native-pinch';
 
 const VIEWER_IMAGE = 'agent-chat-image-viewer-image';
 
@@ -35,9 +35,8 @@ async function checkBounds(serial: string, id: string) {
 }
 
 /**
- * Double-taps the viewer's picture in one device shell so both taps land inside the gesture's double-tap window, then
- * waits until the picture has grown into a band above the fitted square fixture and settled there. The picture's own
- * node fills the viewer at any scale, so only its pixels show the zoom.
+ * Pinches the viewer's picture open, then waits until it has grown into a band above the fitted square fixture and
+ * settled there. The picture's own node fills the viewer at any scale, so only its pixels show the zoom.
  */
 async function zoomViewer(serial: string): Promise<void> {
     const viewer = await checkBounds(serial, VIEWER_IMAGE);
@@ -50,9 +49,11 @@ async function zoomViewer(serial: string): Promise<void> {
         bottom: viewer.top + Math.floor(height * 0.22),
     };
     const fitted = await mobileRegionFingerprint(serial, band);
-    const x = Math.floor((viewer.left + viewer.right) / 2);
-    const y = Math.floor((viewer.top + viewer.bottom) / 2);
-    await adbShell(serial, ['sh', '-c', `input tap ${x} ${y}; input tap ${x} ${y}`]);
+    /**
+     * Two `input tap` commands never registered as a double tap in the emulator, so the zoom is proven with the real
+     * two-pointer pinch the Terminal scenarios already inject.
+     */
+    await pinchWithin(serial, 'pinch-out', viewer);
     let previous = fitted;
     await waitForMobile(
         () => mobileRegionFingerprint(serial, band),
