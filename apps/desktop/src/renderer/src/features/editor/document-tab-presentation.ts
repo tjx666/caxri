@@ -9,6 +9,7 @@ import {
     parseAgentStatusTab,
     parseAgentTaskTab,
     parseAgentTranscriptTab,
+    parseAgentTurnReviewTab,
     parseExternalEditorTab,
     parseFilePreviewTab,
     parseGitDiffTab,
@@ -39,6 +40,7 @@ export function documentTabPresentation(
     const transcript = parseAgentTranscriptTab(path);
     const agentTask = parseAgentTaskTab(path);
     const agentStatus = parseAgentStatusTab(path);
+    const turnReview = parseAgentTurnReviewTab(path);
     const external = parseExternalEditorTab(path);
     const preview = parseFilePreviewTab(path);
     const isSettings = isSettingsTabPath(path);
@@ -51,18 +53,20 @@ export function documentTabPresentation(
             ? agentTaskTabLabel(options.task)
             : agentStatus
               ? agentStatusTabLabel(options.agentName)
-              : preview
-                ? filePreviewTabLabel(preview.path)
-                : isSettings
-                  ? SETTINGS_TAB_LABEL
-                  : isUsage
-                    ? USAGE_TAB_LABEL
-                    : (external?.name ?? pathBasename(path));
+              : turnReview
+                ? 'Turn changes'
+                : preview
+                  ? filePreviewTabLabel(preview.path)
+                  : isSettings
+                    ? SETTINGS_TAB_LABEL
+                    : isUsage
+                      ? USAGE_TAB_LABEL
+                      : (external?.name ?? pathBasename(path));
     return {
         fileIconName:
             diff?.kind === 'file'
                 ? pathBasename(diff.path)
-                : diff?.kind === 'changes'
+                : turnReview || diff?.kind === 'changes'
                   ? 'changes.diff'
                   : transcript
                     ? 'transcript.jsonl'
@@ -87,7 +91,7 @@ export function documentTabPresentation(
         // A preview tab shows its source path: the label already says "Preview", so the tooltip's job is locating it.
         labelTooltip: preview
             ? preview.path
-            : diff || transcript || agentTask || agentStatus || isSettings || isUsage
+            : diff || transcript || agentTask || agentStatus || turnReview || isSettings || isUsage
               ? label
               : (options.displayPath ?? external?.name ?? path),
     };

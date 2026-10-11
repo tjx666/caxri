@@ -1,4 +1,4 @@
-import { agentTaskTabPath } from '@caxri/protocol';
+import { agentTaskTabPath, agentTurnReviewTabPath } from '@caxri/protocol';
 
 import { openEditorTab } from '../editor/document-commands';
 import { focusTerminalById } from '../terminal/terminal-commands';
@@ -16,9 +16,19 @@ import { planAgentChatTaskTabPlacement } from './agent-chat-task-placement';
  * later never stops the task.
  */
 export function openAgentChatTaskTab(terminalId: string, taskId: string): void {
+    openBesideAgentChat(terminalId, agentTaskTabPath(terminalId, taskId));
+}
+
+/**
+ * Opens the review of one turn's file changes beside its Chat, where task tabs open.
+ */
+export function openAgentChatTurnReview(terminalId: string, turnId: string): void {
+    openBesideAgentChat(terminalId, agentTurnReviewTabPath(terminalId, turnId));
+}
+
+function openBesideAgentChat(terminalId: string, tabPath: string): void {
     const layout = getPaneLayout();
     if (!layout) return;
-    const tabPath = agentTaskTabPath(terminalId, taskId);
     const placement = planAgentChatTaskTabPlacement(layout, terminalId, tabPath);
     switch (placement.kind) {
         case 'select': {

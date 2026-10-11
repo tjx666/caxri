@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
     agentChatAttachmentLabel,
     agentChatPasteTruncationWarning,
+    appendToAgentChatDraft,
     draftAfterSend,
     draftWithInsertion,
     readAgentChatDraft,
+    subscribeAgentChatDraftAppends,
     writeAgentChatDraft,
 } from '../agent-chat-drafts';
 
@@ -17,6 +19,22 @@ describe('Agent Chat drafts', () => {
         expect(readAgentChatDraft('chat-b')).toBe('other');
         writeAgentChatDraft('chat-a', '');
         expect(readAgentChatDraft('chat-a')).toBe('');
+    });
+
+    it('appends a paragraph to the stored draft, or hands it to the composer on screen', () => {
+        writeAgentChatDraft('chat-c', 'Please fix:  ');
+        appendToAgentChatDraft('chat-c', 'first');
+        expect(readAgentChatDraft('chat-c')).toBe('Please fix:\n\nfirst');
+
+        const received: string[] = [];
+        const unsubscribe = subscribeAgentChatDraftAppends('chat-c', (text) => received.push(text));
+        appendToAgentChatDraft('chat-c', 'second');
+        expect(received).toEqual(['second']);
+        expect(readAgentChatDraft('chat-c')).toBe('Please fix:\n\nfirst');
+
+        unsubscribe();
+        appendToAgentChatDraft('chat-d', 'alone');
+        expect(readAgentChatDraft('chat-d')).toBe('alone');
     });
 
     it('clears only the text that was sent, keeping anything typed while the send was in flight', () => {

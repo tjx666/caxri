@@ -124,6 +124,49 @@ function reviewFileReference(
 }
 
 /**
+ * What one review comment says, wherever it was written: a Git diff (`gitReview.*`) or an Agent Chat turn's changes.
+ */
+export interface ReviewCommentText {
+    /**
+     * The commented file's absolute path; it is cited relative to the Project root when inside it.
+     */
+    path: string;
+    side: GitReviewComment['side'];
+    startLine: number;
+    endLine: number;
+    snippet: string;
+    text: string;
+}
+
+/**
+ * A fence longer than any backtick run in `snippet`, so a snippet that itself contains a code fence cannot close it.
+ */
+function snippetFence(snippet: string): string {
+    const longest = Math.max(0, ...(snippet.match(/`+/gu) ?? []).map((run) => run.length));
+    return '`'.repeat(Math.max(3, longest + 1));
+}
+
+/**
+ * One review comment as the Agent reads it: the cited lines with where they came from, the snippet fenced, then the
+ * comment. Git diff reviews and Agent Chat turn reviews share it so both read the same to the Agent.
+ */
+export function formatReviewComment(
+    comment: ReviewCommentText,
+    projectRoot: string | undefined,
+    source: string,
+    fenceLanguage = '',
+): string {
+    const fence = snippetFence(comment.snippet);
+    return [
+        `${reviewFileReference(comment.path, projectRoot, comment.startLine, comment.endLine).trim()} (${source}, ${comment.side} side)`,
+        `${fence}${fenceLanguage}`,
+        comment.snippet,
+        fence,
+        comment.text,
+    ].join('\n');
+}
+
+/**
  * The one prompt sent to the Agent for a batch of review comments. Shared by the Desktop Renderer, which renders it as
  * the send dialog's preview, and the Server, which sends the identical text it independently reconstructs from its own
  * comment store, so the two never have to agree over IPC about what the prompt looks like.
@@ -137,11 +180,7 @@ export function formatGitReviewComments(
         'Please address each Git diff review comment below. Check the current file contents before editing because line numbers may have changed.',
         '',
         ...comments.flatMap((comment, index) => [
-            `${index + 1}. ${reviewFileReference(resolvePath(comment), projectRoot, comment.startLine, comment.endLine).trim()} (${comment.sourceKey}, ${comment.side} side)`,
-            '```',
-            comment.snippet,
-            '```',
-            comment.text,
+            `${index + 1}. ${formatReviewComment({ ...comment, path: resolvePath(comment) }, projectRoot, comment.sourceKey)}`,
             '',
         ]),
     ]
