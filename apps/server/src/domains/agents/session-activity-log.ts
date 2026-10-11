@@ -37,7 +37,8 @@ export function hasSessionActivityChanged(
     if (
         !after ||
         (after.lastActivityState === before.lastActivityState &&
-            after.attentionEpoch === before.attentionEpoch)
+            after.attentionEpoch === before.attentionEpoch &&
+            after.readAttentionEpoch === before.readAttentionEpoch)
     )
         return hasChanged;
     logger.write('info', logEventCatalog.agent.sessionActivityChanged, {
@@ -47,6 +48,7 @@ export function hasSessionActivityChanged(
             from: before.lastActivityState,
             phase: write.phase ?? null,
             provider: terminal.provider ?? null,
+            readAttentionEpoch: after.readAttentionEpoch,
             sessionId: after.id,
             source: write.source,
             terminalId: write.terminalId,
