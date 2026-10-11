@@ -137,6 +137,7 @@ const AgentChatModelSheet = ({
                 <>
                     <ScrollView style={styles.scroll}>
                         <SectionLabel label="Model" theme={theme} />
+                        {/* react-doctor-disable-next-line react-doctor/rn-no-scrollview-mapped-list -- A provider lists a handful of models, and the efforts follow them in the same scroll. */}
                         {models.map((model) => (
                             <OptionRow
                                 description={model.description}
