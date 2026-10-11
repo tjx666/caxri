@@ -3,7 +3,11 @@ import { Buffer } from 'node:buffer';
 import type { MethodResult } from '@caxri/protocol';
 import { MAX_LINK_FAVICON_DATA_URL_LENGTH } from '@caxri/protocol';
 
+import { readCappedBody } from './read-capped-body';
+
 type Fetch = (url: string, init: { signal: AbortSignal }) => Promise<Response>;
+
+type LinkFavicon = MethodResult<'links.favicon'>;
 
 /**
  * Icons larger than this are a site's full-size artwork, not a 16px glyph; they stay out of the transcript.
@@ -11,8 +15,9 @@ type Fetch = (url: string, init: { signal: AbortSignal }) => Promise<Response>;
 const MAX_FAVICON_BYTES = 32 * 1024;
 const FETCH_TIMEOUT_MS = 5000;
 /**
- * Origins remembered, answered or not, for the life of the app. A transcript re-renders its links on every tab switch,
- * and a site with no icon should cost one request, not one per render.
+ * Origins remembered for the life of the app, whether they answered with an icon or definitively without one. A
+ * transcript re-renders its links on every tab switch, and a site with no icon should cost one request, not one per
+ * render.
  */
 const MAX_CACHED_ORIGINS = 256;
 
@@ -26,39 +31,54 @@ function iconType(contentType: string | null): string | undefined {
     return type === '' || type === 'application/octet-stream' ? 'image/x-icon' : undefined;
 }
 
-async function fetchFavicon(fetch: Fetch, origin: string): Promise<string | undefined> {
+/**
+ * The origin's icon, `{}` when it definitively has none, or `undefined` when the request failed outright and is worth
+ * retrying later.
+ */
+async function fetchFavicon(fetch: Fetch, origin: string): Promise<LinkFavicon | undefined> {
     try {
         const response = await fetch(`${origin}/favicon.ico`, {
             signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         });
         const type = iconType(response.headers.get('content-type'));
-        if (!type || !response.ok) return undefined;
+        if (!type || !response.ok) return {};
         const declared = Number(response.headers.get('content-length'));
-        if (declared > MAX_FAVICON_BYTES) return undefined;
-        const bytes = Buffer.from(await response.arrayBuffer());
-        if (bytes.length === 0 || bytes.length > MAX_FAVICON_BYTES) return undefined;
+        if (declared > MAX_FAVICON_BYTES) return {};
+        const chunks: Uint8Array[] = [];
+        const end = await readCappedBody(response, MAX_FAVICON_BYTES, (chunk) => {
+            chunks.push(chunk);
+        });
+        if (end !== 'end') return {};
+        const bytes = Buffer.concat(chunks);
+        if (bytes.length === 0) return {};
         const dataUrl = `data:${type};base64,${bytes.toString('base64')}`;
-        return dataUrl.length <= MAX_LINK_FAVICON_DATA_URL_LENGTH ? dataUrl : undefined;
+        return dataUrl.length <= MAX_LINK_FAVICON_DATA_URL_LENGTH ? { dataUrl } : {};
     } catch {
-        // Offline, blocked, timed out, or refused: the link shows a globe instead, which is all a missing icon costs.
+        // Offline, blocked, timed out, or refused: the link shows a globe for now and the next render asks again.
         return undefined;
     }
 }
 
 /**
  * Site icons for transcript links, fetched once per origin. `fetch` is Electron's `net.fetch` in the app, so the system
- * proxy and Chromium's HTTP cache apply exactly as they would to an `<img>`.
+ * proxy and Chromium's HTTP cache apply exactly as they would to an `<img>`. A request that failed outright is
+ * forgotten rather than cached, so a link first rendered while offline gets its icon once the network is back.
  */
 export function createLinkFavicons(fetch: Fetch) {
-    const cache = new Map<string, Promise<string | undefined>>();
-    return async (origin: string): Promise<MethodResult<'links.favicon'>> => {
+    const cache = new Map<string, Promise<LinkFavicon>>();
+    async function read(origin: string, attempt: Promise<LinkFavicon | undefined>) {
+        const result = await attempt;
+        if (result) return result;
+        cache.delete(origin);
+        return {};
+    }
+    return (origin: string): Promise<LinkFavicon> => {
         let icon = cache.get(origin);
         if (!icon) {
             if (cache.size >= MAX_CACHED_ORIGINS) cache.delete(cache.keys().next().value!);
-            icon = fetchFavicon(fetch, origin);
+            icon = read(origin, fetchFavicon(fetch, origin));
             cache.set(origin, icon);
         }
-        const dataUrl = await icon;
-        return dataUrl ? { dataUrl } : {};
+        return icon;
     };
 }
