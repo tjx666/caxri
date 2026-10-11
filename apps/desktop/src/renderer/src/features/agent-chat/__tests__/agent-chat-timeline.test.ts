@@ -59,7 +59,9 @@ const shape = (entries: readonly AgentChatTimelineEntry[]): unknown =>
             ? entry.item.id
             : entry.kind === 'work'
               ? entry.items.map((item) => item.id)
-              : { [entry.label]: shape(entry.entries) },
+              : entry.kind === 'artifacts'
+                ? entry.id
+                : { [entry.label]: shape(entry.entries) },
     );
 
 describe('buildAgentChatTimeline', () => {
@@ -98,6 +100,42 @@ describe('buildAgentChatTimeline', () => {
             'e',
             'a2',
         ]);
+    });
+
+    it("hangs a finished turn's changed files on its final reply, or after the turn without one", () => {
+        const change = (id: string, turnId: string): AgentChatItem => ({
+            id,
+            turnId,
+            type: 'fileChange',
+            status: 'completed',
+            changes: [{ path: `/p/${id}.ts`, kind: 'update', diff: '@@ -1 +1 @@\n-a\n+b' }],
+        });
+        const turns: AgentChatTurn[] = [
+            { id: 't1', status: 'completed' },
+            { id: 't2', status: 'interrupted' },
+        ];
+        const items = [
+            user('u1', 't1'),
+            change('f1', 't1'),
+            reply('a1', 't1'),
+            user('u2', 't2'),
+            change('f2', 't2'),
+        ];
+        const entries = buildAgentChatTimeline(items, turns, undefined);
+        expect(shape(entries)).toEqual([
+            'u1',
+            { Worked: [['f1']] },
+            'a1',
+            'u2',
+            { Stopped: [['f2']] },
+            'artifacts:t2',
+        ]);
+        const artifactsOf = (entry: AgentChatTimelineEntry | undefined) =>
+            entry?.kind === 'item' ? entry.artifacts : undefined;
+        const final = artifactsOf(entries.at(2));
+        expect(final?.files.map((file) => file.path)).toEqual(['/p/f1.ts']);
+        // A rebuild over the same items reuses the artifacts, so a memoized reply does not re-render.
+        expect(artifactsOf(buildAgentChatTimeline([...items], turns, undefined).at(2))).toBe(final);
     });
 
     it('leaves a finished turn with nothing to fold, and items without a turn, as they are', () => {
