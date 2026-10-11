@@ -29,6 +29,7 @@ import {
 } from './agent-chat-presentation';
 import { agentChatRailMarks } from './agent-chat-rail-marks';
 import { AgentChatRequestCard } from './agent-chat-request-card';
+import { announceAgentChatSelectionCopy } from './agent-chat-selection-copy';
 import { openAgentChatTaskTab } from './agent-chat-task-opener';
 import { AgentChatTaskStrip } from './agent-chat-task-strip';
 import { agentChatTasksByItem } from './agent-chat-tasks';
@@ -212,8 +213,9 @@ export function AgentChatPane({
             <div className="relative min-h-0 flex-1">
                 <div className="h-full overflow-y-auto" ref={scrollReference} onScroll={onScroll}>
                     <div
-                        className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4"
+                        className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4 select-none"
                         ref={contentReference}
+                        onCopy={announceAgentChatSelectionCopy}
                     >
                         {snapshot?.truncated && (
                             <p className="m-0 text-center text-[11px] text-muted">
