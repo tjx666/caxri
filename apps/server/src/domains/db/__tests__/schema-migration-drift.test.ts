@@ -4,8 +4,8 @@ import { resolve } from 'node:path';
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { describe, expect, it } from 'vitest';
 
+import * as schema from '../full-schema';
 import { migrationManifest } from '../migrations/manifest';
-import * as schema from '../schema';
 import type { SqliteSnapshot } from './drizzle-kit.fixture';
 import { drizzleKit } from './drizzle-kit.fixture';
 

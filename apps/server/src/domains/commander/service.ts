@@ -13,6 +13,7 @@ import type { StructuredLogger } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
 import { commanderBoard } from './board';
+import { CommanderTaskLedger } from './tasks';
 import { prepareCommanderWorkspace } from './workspace';
 
 /**
@@ -49,6 +50,11 @@ export interface AgentCommanderServiceOptions {
      */
     logger?: StructuredLogger;
     now?: () => number;
+    /**
+     * Runs after a stop parked the Commander, so the turn the user deliberately stopped is not resumed on the next
+     * launch. Optional so a unit test can omit it.
+     */
+    onStopped?(): void;
     probeTerminal(terminalId: string): void;
     pullRequests(): SessionPullRequests;
     /**
@@ -85,8 +91,11 @@ const LIVE_ACTIVITY_STATES = new Map<string, CommanderRunState>([
 export class AgentCommanderService {
     private ensuring: Promise<CommanderSnapshot> | undefined;
     private stopping: Promise<void> | undefined;
+    readonly tasks: CommanderTaskLedger;
 
-    constructor(private readonly options: AgentCommanderServiceOptions) {}
+    constructor(private readonly options: AgentCommanderServiceOptions) {
+        this.tasks = new CommanderTaskLedger(options.database, () => this.now(), options.logger);
+    }
 
     private now(): number {
         return this.options.now?.() ?? Date.now();
@@ -188,6 +197,7 @@ export class AgentCommanderService {
         const startedAt = performance.now();
         await this.options.cancelRestore(rows.sessionId);
         await this.options.stopTerminal(rows.terminalId);
+        this.options.onStopped?.();
         this.options.sendTerminalChange(rows.terminalId);
         this.options.logger?.write('info', logEventCatalog.agentCommander.stopped, {
             fields: {
@@ -280,6 +290,7 @@ export class AgentCommanderService {
             terminals: database
                 .listTerminals()
                 .filter((terminal) => sessionIds.has(terminal.sessionId)),
+            commanderTasks: this.tasks.list({ includeClosed: false }),
         });
     }
 

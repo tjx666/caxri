@@ -127,6 +127,7 @@ describe('Commander board grouping', () => {
         'groups a running turn in %s by the process it describes',
         (_, overrides, group, processState) => {
             const board = commanderBoard({
+                commanderTasks: [],
                 commanderSessionIds: new Set(),
                 now: NOW,
                 projects: [project],
@@ -142,6 +143,7 @@ describe('Commander board grouping', () => {
 
     it('orders rows by group, then by recency, and drops archived or foreign Sessions', () => {
         const board = commanderBoard({
+            commanderTasks: [],
             commanderSessionIds: new Set(['session-2']),
             now: NOW,
             projects: [project, { ...project, id: 'worktree', ownerProjectId: 'project-1' }],
@@ -200,6 +202,7 @@ describe('Commander board grouping', () => {
 
     it('shows the head of each task chain, preferring an unsettled task over a newer settled one', () => {
         const board = commanderBoard({
+            commanderTasks: [],
             commanderSessionIds: new Set(['session-1', 'session-2']),
             now: NOW,
             projects: [project],
@@ -249,6 +252,7 @@ describe('Commander board grouping', () => {
 
     it('keeps a waiting task on the board when its follow-up is rejected', () => {
         const board = commanderBoard({
+            commanderTasks: [],
             commanderSessionIds: new Set(['session-1']),
             now: NOW,
             projects: [project],
@@ -288,6 +292,7 @@ describe('Commander board grouping', () => {
         'moves a %s task (%s) to failed over a Session that looks %s',
         (status, failure, lastActivityState) => {
             const board = commanderBoard({
+                commanderTasks: [],
                 commanderSessionIds: new Set(['session-1']),
                 now: NOW,
                 projects: [project],
@@ -303,6 +308,7 @@ describe('Commander board grouping', () => {
 
     it('keeps unread ahead of a failed task', () => {
         const board = commanderBoard({
+            commanderTasks: [],
             commanderSessionIds: new Set(['session-1']),
             now: NOW,
             projects: [project],
@@ -317,6 +323,7 @@ describe('Commander board grouping', () => {
 
     it('puts a Session whose Agent waits at startup under attention', () => {
         const board = commanderBoard({
+            commanderTasks: [],
             commanderSessionIds: new Set(['session-1']),
             now: NOW,
             projects: [project],

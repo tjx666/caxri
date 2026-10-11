@@ -8,6 +8,6 @@ import { defineConfig } from 'drizzle-kit';
  */
 export default defineConfig({
     dialect: 'sqlite',
-    schema: './apps/server/src/domains/db/schema.ts',
+    schema: './apps/server/src/domains/db/full-schema.ts',
     out: './apps/server/src/domains/db/migrations',
 });

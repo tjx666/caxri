@@ -298,10 +298,14 @@ const commanderCompletionNoticeDiagnosticSchema = z.object({
     deliveredBatches: z.number().int().nonnegative(),
     deliveredNotices: z.number().int().nonnegative(),
     /**
-     * Notices discarded unsent, today only by a Server shutdown while the Commander had not yet reached a clean idle
-     * turn.
+     * Relaunches that started the Commander with the notices it missed, and how many delegation notices they carried.
      */
-    droppedNotices: z.number().int().nonnegative(),
+    resumePrompts: z.number().int().nonnegative(),
+    resumePromptNotices: z.number().int().nonnegative(),
+    /**
+     * Delegation notices persisted but not yet delivered when the snapshot was taken.
+     */
+    pendingNotices: z.number().int().nonnegative(),
     averageWaitMs: z.number().nonnegative().optional(),
     maximumWaitMs: z.number().nonnegative().optional(),
     deliveryFailures: z.object({

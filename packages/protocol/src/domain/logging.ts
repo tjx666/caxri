@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { agentCommanderLogEvents } from './logging-agent-commander';
+
 /**
  * Canonical structured-log event registry. Writers use these values so adding or renaming an event is one reviewed,
  * browser-safe protocol change instead of an unchecked string scattered across Desktop processes.
@@ -274,61 +276,7 @@ export const logEventCatalog = {
     process: {
         eventLoopStall: 'process.event_loop_stall',
     },
-    agentCommander: {
-        consoleError: 'agent_commander.console_error',
-        /**
-         * `commander.ensure` finished. `fields.outcome` is `created` (a new Commander Terminal), `restored` (an
-         * interrupted, suspended, or stopped one was resumed), or `running` (nothing to do), with its duration.
-         */
-        ensured: 'agent_commander.ensured',
-        /**
-         * The Commander created a Session to delegate into, or removed one a refused delegation never used.
-         */
-        sessionCreated: 'agent_commander.session_created',
-        sessionDiscarded: 'agent_commander.session_discarded',
-        /**
-         * `commander.stop` parked the Commander Terminal. `fields.outcome` is `stopped` or `not_running`.
-         */
-        stopped: 'agent_commander.stopped',
-        /**
-         * A coalesced batch of delegation completion notices was injected into the Commander Terminal. `fields.count`
-         * is the number of delegations the single line reports, so this also measures how often coalescing fires.
-         */
-        completionNoticeDelivered: 'agent_commander.completion_notice_delivered',
-        /**
-         * Pending notices are held back by a delivery gate. `fields.reason` is a closed
-         * `CommanderCompletionNoticeDeferral`, logged once per gate change for the current batch.
-         */
-        completionNoticeDeferred: 'agent_commander.completion_notice_deferred',
-        /**
-         * A delegation transition was queued for the Commander Terminal, with the batch's size after queueing.
-         */
-        completionNoticeQueued: 'agent_commander.completion_notice_queued',
-        /**
-         * A completion notice batch was consumed (so it will never be retried) but its PTY write was rejected or its
-         * delivery could not be confirmed. Carries a closed `fields.reason`
-         * (`CommanderCompletionNoticeDeliveryFailure`) distinguishing the two; a gate that simply is not satisfied yet
-         * (a draft, a busy Commander) is not a failure; it is `completionNoticeDeferred` at debug level and resolves
-         * itself on the next idle point.
-         */
-        completionNoticeDeliveryFailed: 'agent_commander.completion_notice_delivery_failed',
-        /**
-         * Pending notices were discarded unsent. `fields.reason` is a closed `CommanderCompletionNoticeDropReason`
-         * (`server_shutdown`), with the discarded `count`, the oldest entry's `waitMs`, the `blockedTurns` that could
-         * not take the batch, and the `lastDeferral` gate that held it.
-         */
-        completionNoticeDropped: 'agent_commander.completion_notice_dropped',
-        pageException: 'agent_commander.page_exception',
-        preloadError: 'agent_commander.preload_error',
-        renderProcessCrashLoop: 'agent_commander.render_process_crash_loop',
-        renderProcessGone: 'agent_commander.render_process_gone',
-        requestDenied: 'agent_commander.request_denied',
-        responsive: 'agent_commander.responsive',
-        stopFailed: 'agent_commander.stop_failed',
-        unhandledRejection: 'agent_commander.unhandled_rejection',
-        unresponsive: 'agent_commander.unresponsive',
-        workspaceRepositoryFailed: 'agent_commander.workspace_repository_failed',
-    },
+    agentCommander: agentCommanderLogEvents,
     processExplorer: {
         consoleError: 'process_explorer.console_error',
         pageException: 'process_explorer.page_exception',

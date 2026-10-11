@@ -5,5 +5,9 @@ export type {
     ExternalAgentUsageRow,
     PullRequestOutcomeRow,
 } from './models/agent-session-usage';
+export type {
+    CommanderPendingNotice,
+    CommanderPendingNoticesModel,
+} from './models/commander-pending-notices';
 export { CaxriDatabase } from './repository';
 export { shutdownOutcome, type ShutdownReason } from './session-policy';

@@ -2,11 +2,49 @@ import type { AgentDelegationReceipt, SessionRecord } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentLifecycleSignal } from '../../agents';
+import type { CommanderPendingNotice } from '../../db';
 import {
     classifyCommanderCompletionNotice,
     CommanderCompletionNotifier,
     formatCommanderCompletionNotice,
+    formatCommanderResumePrompt,
 } from '../completion-notice';
+
+/**
+ * In-memory stand-in for `CommanderPendingNoticesModel` with the same keying: one row per delegation and one
+ * interrupted-turn marker. The model's SQL is covered by its own integration test.
+ */
+function pendingStore() {
+    const rows = new Map<string, CommanderPendingNotice>();
+    return {
+        rows,
+        list: () =>
+            rows
+                .values()
+                .toArray()
+                .toSorted((left, right) => left.queuedAt - right.queuedAt),
+        putDelegation(
+            notice: Omit<Extract<CommanderPendingNotice, { kind: 'delegation' }>, 'kind'>,
+        ) {
+            const key = `delegation:${notice.delegationId}`;
+            const existing = rows.get(key);
+            rows.set(key, {
+                kind: 'delegation',
+                ...notice,
+                queuedAt: existing?.queuedAt ?? notice.queuedAt,
+            });
+        },
+        markTurnStarted(now: number) {
+            rows.set('interrupted_turn', { kind: 'interrupted_turn', queuedAt: now });
+        },
+        clearTurn() {
+            rows.delete('interrupted_turn');
+        },
+        removeDelegations(ids: readonly string[]) {
+            for (const id of ids) rows.delete(`delegation:${id}`);
+        },
+    };
+}
 
 function receipt(overrides: Partial<AgentDelegationReceipt> = {}): AgentDelegationReceipt {
     return {
@@ -77,6 +115,7 @@ interface Fixture {
     currentEpoch: number;
     idleProof: { launchId: string; turnId: string } | undefined;
     notifier: CommanderCompletionNotifier;
+    notices: ReturnType<typeof pendingStore>;
     rows: { terminalId: string | undefined; sessionIds: readonly string[] };
     session: SessionRecord;
     type(data?: string): void;
@@ -126,6 +165,7 @@ function fixture(): Fixture {
         session: session(),
         writeCalls: [],
         writeResult: true,
+        notices: pendingStore(),
         notifier: undefined as unknown as CommanderCompletionNotifier,
         type(data = 'a') {
             state.currentEpoch += 1;
@@ -154,6 +194,7 @@ function fixture(): Fixture {
                       }
                     : undefined,
             getSession: () => state.session,
+            commanderPendingNotices: state.notices,
         },
         hasIdleProof: (terminalId, launchId, turnId) => {
             const proof = state.idleProof;
@@ -405,6 +446,7 @@ describe('CommanderCompletionNotifier', () => {
                     sessionId: 'commander-session',
                 }),
                 getSession: () => session(),
+                commanderPendingNotices: pendingStore(),
             },
             hasIdleProof: () => true,
             inputEpoch: () => 0,
@@ -438,6 +480,7 @@ describe('CommanderCompletionNotifier', () => {
                     sessionId: 'commander-session',
                 }),
                 getSession: () => session(),
+                commanderPendingNotices: pendingStore(),
             },
             hasIdleProof: () => true,
             inputEpoch: () => epoch,
@@ -478,14 +521,12 @@ describe('CommanderCompletionNotifier', () => {
         ]);
     });
 
-    /**
-     * Pending notices exist only in Server Core memory. A shutdown that discards them has to say so, with how long the
-     * batch waited and how many Commander turns could not take it, or the loss is invisible after the fact.
-     */
-    it('logs the batch a Server shutdown discards with the turns that could not take it', () => {
-        const logger = { write: vi.fn() };
-        let epoch = 0;
-        const notifier = new CommanderCompletionNotifier({
+    it('keeps an undelivered notice across a restart without queuing the same transition twice', () => {
+        f.startTurn('launch-1');
+        f.notifier.notifyReceiptChanged(receipt({ status: 'completed', revision: 3 }));
+        expect(f.notices.list()).toHaveLength(2); // the delegation and the running turn's marker
+
+        const restarted = new CommanderCompletionNotifier({
             database: {
                 agentCommanderRows: () => ({
                     terminalId: COMMANDER_TERMINAL_ID,
@@ -494,35 +535,67 @@ describe('CommanderCompletionNotifier', () => {
                     sessionId: 'commander-session',
                 }),
                 getSession: () => session(),
+                commanderPendingNotices: f.notices,
             },
             hasIdleProof: () => true,
-            inputEpoch: () => epoch,
-            logger: logger as never,
+            inputEpoch: () => 0,
             write: () => true,
         });
-        notifier.onLifecycleApplied(signal({ phase: 'turnStarted' }));
-        notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
-        for (const turnId of ['turn-1', 'turn-2']) {
-            notifier.onLifecycleApplied(signal({ phase: 'turnStarted' }));
-            epoch += 1;
-            notifier.onLifecycleApplied(signal({ phase: 'turnFinished', agentTurnId: turnId }));
-        }
+        restarted.notifyReceiptChanged(receipt({ status: 'completed', revision: 3 }));
+        expect(f.notices.list().filter((notice) => notice.kind === 'delegation')).toHaveLength(1);
+    });
 
-        notifier.close();
-        notifier.close();
+    it('hands a relaunched Commander what it missed as its launch prompt, settled once the Agent runs', () => {
+        f.startTurn('launch-1');
+        f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
 
-        const dropped = logger.write.mock.calls.filter((call) =>
-            String(call[1]).endsWith('completion_notice_dropped'),
+        const prompt = f.notifier.launchPrompt(COMMANDER_TERMINAL_ID);
+        expect(prompt).toBe(
+            formatCommanderResumePrompt(
+                [{ delegationId: 'delegation-1', sessionId: 'session-1', status: 'completed' }],
+                true,
+            ),
         );
-        expect(dropped).toHaveLength(1);
-        expect(dropped[0][2]).toEqual({
-            fields: {
-                reason: 'server_shutdown',
-                count: 1,
-                waitMs: expect.any(Number) as number,
-                blockedTurns: 2,
-                lastDeferral: 'draft_input',
-            },
-        });
+        expect(prompt).toContain('previous turn did not finish');
+        expect(prompt).toContain('Missed 1 delegation update');
+        // Resolving a launch consumes nothing: a launch that never runs an Agent keeps everything owed.
+        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, false);
+        expect(f.notices.list()).toHaveLength(2);
+
+        f.notifier.launchPrompt(COMMANDER_TERMINAL_ID);
+        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
+        expect(f.notices.list()).toHaveLength(0);
+        expect(f.notifier.launchPrompt(COMMANDER_TERMINAL_ID)).toBeUndefined();
+    });
+
+    it('keeps a notice that arrives after the launch prompt was built', () => {
+        f.notifier.notifyReceiptChanged(receipt({ delegationId: 'd1', status: 'completed' }));
+        f.notifier.launchPrompt(COMMANDER_TERMINAL_ID);
+        f.notifier.notifyReceiptChanged(receipt({ delegationId: 'd2', status: 'failed' }));
+        f.notifier.onLaunched(COMMANDER_TERMINAL_ID, true);
+        expect(f.notices.list()).toMatchObject([{ kind: 'delegation', delegationId: 'd2' }]);
+    });
+
+    it('marks only a main-thread turn as interrupted until it finishes, fails, or the user stops the Commander', () => {
+        f.notifier.onLifecycleApplied(signal({ phase: 'turnStarted', agentId: 'subagent-1' }));
+        expect(f.notices.list()).toHaveLength(0);
+
+        f.startTurn('launch-1');
+        expect(f.notices.list()).toMatchObject([{ kind: 'interrupted_turn' }]);
+        f.finishTurn('launch-1', 'turn-1');
+        expect(f.notices.list()).toHaveLength(0);
+
+        f.startTurn('launch-1');
+        f.notifier.onLifecycleApplied(signal({ phase: 'turnFailed' }));
+        expect(f.notices.list()).toHaveLength(0);
+
+        f.startTurn('launch-1');
+        f.notifier.onStopped();
+        expect(f.notices.list()).toHaveLength(0);
+    });
+
+    it('offers no launch prompt to a Terminal that is not the Commander', () => {
+        f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
+        expect(f.notifier.launchPrompt('other-terminal')).toBeUndefined();
     });
 });

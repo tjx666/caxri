@@ -360,7 +360,7 @@ describe('commanderBoardRowsInScope', () => {
 
 describe('patchCommanderBoardPullRequests', () => {
     function board(rows: CommanderBoardRow[]): CommanderBoard {
-        return { generatedAt: 1, projects: [], pullRequestsRefreshedAt: 1, rows };
+        return { generatedAt: 1, projects: [], pullRequestsRefreshedAt: 1, rows, tasks: [] };
     }
 
     function snapshot(overrides: Partial<SessionPullRequests> = {}): SessionPullRequests {
