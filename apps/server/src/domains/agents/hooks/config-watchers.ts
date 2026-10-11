@@ -29,8 +29,9 @@ interface AgentHookConfigWatchersOptions {
 
 /**
  * Watches provider hook config files so an edit made outside Caxri is reconciled without a settings change or restart.
- * Each file's directory is watched and events are filtered by file name, so Codex state and transcript churn in the
- * same home is ignored.
+ * Each file's directory is watched and only events for the file itself count, so Codex state and transcript churn in
+ * the same home is ignored, and so is a same-named file deeper in the directory (the native watch is recursive, and a
+ * dotfiles checkout holding a link target often has other tools' `settings.json`).
  *
  * Users commonly symlink a provider config (`~/.claude/settings.json`) into a dotfiles checkout. Reads and writes
  * follow that link to its target, but the link's own directory never sees a `git pull` that rewrites or deletes the
@@ -69,14 +70,19 @@ export class AgentHookConfigWatchers {
         await Promise.all(
             pendingWatchers.map(async ([directory, targets]) => {
                 const targetNames = new Set([...targets].map((target) => basename(target)));
+                // Native macOS event paths are canonical (`/var` reads as `/private/var`), so compare parents canonically.
+                const parents = new Set([directory, await canonicalPath(directory)]);
                 const handle = await this.options.watchHub.register({
                     label: 'agent-hooks-config',
                     root: directory,
                     onEvents: (events) => {
-                        /**
-                         * Native macOS paths may canonicalize `/var` to `/private/var`.
-                         */
-                        if (events.some((event) => targetNames.has(basename(event.path))))
+                        if (
+                            events.some(
+                                (event) =>
+                                    parents.has(dirname(event.path)) &&
+                                    targetNames.has(basename(event.path)),
+                            )
+                        )
                             this.options.onChange();
                     },
                     onError: (error, erroredHandle) => erroredHandle.startFallback(error),
@@ -99,6 +105,14 @@ export class AgentHookConfigWatchers {
     async close(): Promise<void> {
         await Promise.all(this.watchers.values().map((watcher) => watcher.handle.dispose()));
         this.watchers.clear();
+    }
+}
+
+async function canonicalPath(path: string): Promise<string> {
+    try {
+        return await realpath(path);
+    } catch {
+        return path;
     }
 }
 
