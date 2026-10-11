@@ -282,8 +282,9 @@ export function startBackgroundShell(io: FakeClaudeIo, startedAt: number, finish
 
 /**
  * The task side of a control request. `initialize` records which Agent SDK options the host declared, `interrupt` kills
- * background tasks unless the host declared `perTaskStopAffordance` (as the real CLI does), and `stop_task` and
- * `get_task_output` answer for a background task or fail like the real CLI for an unknown one.
+ * background subagents unless the host declared `perTaskStopAffordance` and never a background shell (as the real CLI
+ * does), and `stop_task` and `get_task_output` answer for a background task or fail like the real CLI for an unknown
+ * one.
  */
 export function taskControl(io: FakeClaudeIo, request: Json): { response?: Json; error?: string } {
     const taskId = typeof request.task_id === 'string' ? request.task_id : '';
@@ -294,8 +295,10 @@ export function taskControl(io: FakeClaudeIo, request: Json): { response?: Json;
             return {};
         }
         case 'interrupt': {
+            // Real Claude Code 2.1.296 keeps a background shell through an interrupt either way (#1611).
             if (!tasks.hasPerTaskStop)
-                for (const id of tasks.background.keys()) endBackground(io, id, 'stopped');
+                for (const [id, task] of tasks.background)
+                    if (task.kind === 'agent') endBackground(io, id, 'stopped');
             return {};
         }
         case 'stop_task': {

@@ -30,6 +30,7 @@ export async function fixture(
          */
         launchArgs?: string[] | (() => string[]);
         provider?: keyof typeof FAKE_CLIS;
+        turnRequestTimeoutMs?: number;
     } = {},
 ) {
     const provider = options.provider ?? 'codex';
@@ -86,6 +87,9 @@ export async function fixture(
         clientVersion: '0.0.0-test',
         agentEnvironment,
         spawnProcess,
+        ...(options.turnRequestTimeoutMs !== undefined && {
+            turnRequestTimeoutMs: options.turnRequestTimeoutMs,
+        }),
     });
     onTestFinished(async () => {
         await service.shutdown();

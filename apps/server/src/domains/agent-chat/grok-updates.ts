@@ -53,10 +53,17 @@ export function stopReasonStatus(stopReason: unknown): AgentChatTurn['status'] {
  * Folds `operations` into replayed history: upserts replace by id (keeping first-seen order), and deltas append to the
  * item they name.
  */
-function foldReplay(replay: Replay, operations: readonly AgentChatPatchOperation[]): void {
+function foldReplay(
+    replay: Replay,
+    operations: readonly AgentChatPatchOperation[],
+    eventTime: number | undefined,
+): void {
     for (const operation of operations) {
-        if (operation.op === 'upsertItem') replay.items.set(operation.item.id, operation.item);
-        else if (operation.op === 'appendText') {
+        if (operation.op === 'upsertItem') {
+            const { item } = operation;
+            const createdAt = replay.items.get(item.id)?.createdAt ?? item.createdAt ?? eventTime;
+            replay.items.set(item.id, createdAt === undefined ? item : { ...item, createdAt });
+        } else if (operation.op === 'appendText') {
             const item = replay.items.get(operation.itemId);
             if (item?.type === 'agentMessage' || item?.type === 'reasoning')
                 replay.items.set(item.id, {
@@ -82,11 +89,16 @@ export class GrokUpdates {
 
     private itemCount = 0;
 
+    /**
+     * When the frame being handled was originally emitted, from its `_meta.agentTimestampMs`.
+     */
+    private eventTime: number | undefined;
+
     constructor(private readonly host: GrokUpdatesHost) {}
 
     private emit(operations: AgentChatPatchOperation[]): void {
         if (operations.length === 0) return;
-        if (this.replay) foldReplay(this.replay, operations);
+        if (this.replay) foldReplay(this.replay, operations, this.eventTime);
         else this.host.apply(operations);
     }
 
@@ -156,7 +168,18 @@ export class GrokUpdates {
             turnId,
             type: 'userMessage',
             text: clip(text, MAX_AGENT_CHAT_TEXT_LENGTH),
+            ...(this.eventTime !== undefined && { createdAt: this.eventTime }),
         });
+    }
+
+    /**
+     * Records when the next frame was originally emitted. Grok Build stamps every frame with `_meta.agentTimestampMs`,
+     * and a replayed frame keeps its original time, so a replayed item is dated by the frame that first created it
+     * (#1657). Live items are stamped by the projection instead.
+     */
+    setEventTime(time: unknown): void {
+        this.eventTime =
+            typeof time === 'number' && Number.isFinite(time) && time >= 0 ? time : undefined;
     }
 
     nextItemId(turnId: string | undefined, kind: string): string {
