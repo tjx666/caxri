@@ -299,9 +299,10 @@ export function AgentChatComposer({
                     sessionMenu={sessionMenu}
                     onChooseCommand={(index) => choose(menu.matches[index])}
                 />
-                {images.attachments.length > 0 && (
+                {images.hasAttachmentRow && (
                     <AgentChatAttachmentList
                         attachments={images.attachments}
+                        pendingCount={images.readingCount}
                         onRemove={(id) => {
                             images.remove(id);
                             focusInput();

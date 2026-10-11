@@ -54,6 +54,12 @@ Caxri bundles Claude Code, Codex, Grok, and OpenCode SVG assets from `@lobehub/i
 
 Copyright (c) 2023 LobeHub. Licensed under the MIT License. The vendored license text is in `licenses/LOBEHUB_ICONS_LICENSE.txt`; the upstream source is <https://github.com/lobehub/lobe-icons>.
 
+## Primer Octicons
+
+Caxri bundles the `mark-github` icon path from Primer Octicons as its GitHub mark, including the site icon ahead of GitHub links in Agent Chat.
+
+Copyright (c) GitHub Inc. Licensed under the MIT License. The vendored license text is in `licenses/PRIMER_OCTICONS_LICENSE.txt`; the upstream source is <https://github.com/primer/octicons>.
+
 ## ripgrep / vscode-ripgrep
 
 Caxri bundles the platform-specific ripgrep executable distributed by `@vscode/ripgrep-universal` for fast Project file discovery.

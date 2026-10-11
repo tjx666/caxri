@@ -35,6 +35,11 @@ export interface AppQuitOptions {
     confirmPendingReviewComments: (
         summary: GitReviewPendingSummary,
     ) => Promise<'cancel' | 'discard'>;
+    /**
+     * Asked first, before any other prompt: unsaved Editor buffers are the only quit loss the user can still prevent by
+     * saving (issue caxri#1631). See `decideUnsavedEditors` for its fail-open read and fail-closed save.
+     */
+    decideUnsavedEditors: () => Promise<'cancel' | 'continue'>;
     detachAll: () => Promise<unknown>;
     exit: () => void;
     logFailure: (level: 'error' | 'warn', stage: AppQuitFailureStage, message: string) => void;
@@ -255,6 +260,7 @@ async function decidePendingReviewComments(
 async function decideAppQuit(options: AppQuitOptions): Promise<AppQuitDecision> {
     if (options.quitIntent() !== 'user') return 'keep-running';
 
+    if ((await options.decideUnsavedEditors()) === 'cancel') return 'cancel';
     if ((await decidePendingReviewComments(options)) === 'cancel') return 'cancel';
 
     let status: { activePtyCount: number; clientCount: number };

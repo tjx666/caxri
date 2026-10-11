@@ -5,13 +5,8 @@ import { constants } from 'node:fs';
 import { lstat, open, realpath, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, join, relative, sep } from 'node:path';
 
-import type {
-    FileAsset,
-    FileDocument,
-    PreviewAssetMediaType,
-    ServerOperationResult,
-} from '@caxri/protocol';
-import { CaxriError, MAX_PREVIEW_ASSET_BYTES } from '@caxri/protocol';
+import type { FileAsset, FileDocument, ServerOperationResult } from '@caxri/protocol';
+import { CaxriError, MAX_PREVIEW_ASSET_BYTES, previewAssetMediaType } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -59,19 +54,6 @@ async function removeTrustedTemporaryFile(
     }
 }
 
-const PREVIEW_ASSET_MEDIA_TYPES = new Map<string, PreviewAssetMediaType>([
-    ['apng', 'image/apng'],
-    ['avif', 'image/avif'],
-    ['bmp', 'image/bmp'],
-    ['gif', 'image/gif'],
-    ['ico', 'image/x-icon'],
-    ['jpeg', 'image/jpeg'],
-    ['jpg', 'image/jpeg'],
-    ['png', 'image/png'],
-    ['svg', 'image/svg+xml'],
-    ['webp', 'image/webp'],
-]);
-
 /**
  * Use the workspace entry identity so a linked dependency remains view-only without locking its source Project.
  */
@@ -79,12 +61,6 @@ function isDependencyDocument(resolved: ResolvedSessionPath): boolean {
     return relative(resolved.root, resolved.workspacePath ?? resolved.path)
         .split(sep)
         .includes('node_modules');
-}
-
-function previewAssetMediaType(path: string): PreviewAssetMediaType | undefined {
-    const name = basename(path);
-    const dot = name.lastIndexOf('.');
-    return dot <= 0 ? undefined : PREVIEW_ASSET_MEDIA_TYPES.get(name.slice(dot + 1).toLowerCase());
 }
 
 /**

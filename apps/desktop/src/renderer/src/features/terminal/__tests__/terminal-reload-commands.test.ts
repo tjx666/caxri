@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
         Promise.resolve(false),
     ),
     getBootstrap: vi.fn<() => BootstrapState | undefined>(),
+    readAgentChatSnapshot: vi.fn<(terminalId: string) => Promise<{ activeTurnId?: string }>>(),
     tryCommand: vi.fn(async (...[, run]: [string, () => Promise<unknown>]): Promise<unknown> => {
         try {
             return await run();
@@ -19,7 +20,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../terminal-commands', () => ({
     restartTerminalWithRecovery: mocks.restartTerminalWithRecovery,
 }));
-vi.mock('../../../lib/caxri', () => ({ caxri: { window: { showConfirm: mocks.showConfirm } } }));
+vi.mock('../../agent-chat/agent-chat-client', () => ({
+    readAgentChatSnapshot: mocks.readAgentChatSnapshot,
+}));
+vi.mock('../../../lib/caxri', () => ({
+    caxri: {
+        request: () => Promise.resolve({ path: '/t.jsonl', exists: true }),
+        window: { showConfirm: mocks.showConfirm },
+    },
+}));
 vi.mock('../../../stores/selectors', () => ({ getBootstrap: mocks.getBootstrap }));
 vi.mock('../../../stores/toasts', () => ({ tryCommand: mocks.tryCommand }));
 vi.mock('../../../lib/keybindings', () => ({ readCommandShortcut: () => {} }));
@@ -60,6 +69,7 @@ beforeEach(() => {
     mocks.restartTerminalWithRecovery.mockClear();
     mocks.showConfirm.mockClear();
     mocks.getBootstrap.mockReset();
+    mocks.readAgentChatSnapshot.mockReset();
 });
 
 describe('agentReloadMenuEntry', () => {
@@ -147,6 +157,19 @@ describe('isAgentTurnRunning', () => {
         expect(isAgentTurnRunning(terminal, state)).toBe(false);
     });
 
+    it("reads a secondary Chat from its own snapshot, not the Primary Agent's activity", () => {
+        const chat = agentTerminal({ id: 'terminal-2', surface: 'chat' });
+        const idleSession = session({ lastActivityState: 'idle' });
+        expect(isAgentTurnRunning(chat, idleSession, { activeTurnId: 'turn-1' })).toBe(true);
+        expect(isAgentTurnRunning(chat, session(), {})).toBe(false);
+        expect(isAgentTurnRunning(chat, session())).toBe(false);
+    });
+
+    it('keeps a secondary PTY Agent idle even with a snapshot', () => {
+        const pty = agentTerminal({ id: 'terminal-2' });
+        expect(isAgentTurnRunning(pty, session(), { activeTurnId: 'turn-1' })).toBe(false);
+    });
+
     it('trusts Session Activity alone for a Chat, which has no PTY process', () => {
         expect(
             isAgentTurnRunning(
@@ -181,6 +204,38 @@ describe('reloadAgent', () => {
         expect(mocks.restartTerminalWithRecovery).not.toHaveBeenCalled();
     });
 
+    it('asks before stopping a running turn in a second Chat of the same Session', async () => {
+        const chat = agentTerminal({ id: 'terminal-2', surface: 'chat' });
+        mocks.getBootstrap.mockReturnValue({
+            terminals: [agentTerminal(), chat],
+            sessions: [session({ lastActivityState: 'idle' })],
+        } as unknown as BootstrapState);
+        mocks.readAgentChatSnapshot.mockResolvedValue({ activeTurnId: 'turn-1' });
+
+        await reloadAgent(chat);
+
+        expect(mocks.readAgentChatSnapshot).toHaveBeenCalledWith('terminal-2');
+        expect(mocks.showConfirm).toHaveBeenCalledOnce();
+        expect(mocks.restartTerminalWithRecovery).not.toHaveBeenCalled();
+    });
+
+    it('reloads an idle second Chat without asking', async () => {
+        const chat = agentTerminal({ id: 'terminal-2', surface: 'chat' });
+        mocks.getBootstrap.mockReturnValue({
+            terminals: [agentTerminal(), chat],
+            sessions: [session()],
+        } as unknown as BootstrapState);
+        mocks.readAgentChatSnapshot.mockResolvedValue({});
+
+        await reloadAgent(chat);
+
+        expect(mocks.showConfirm).not.toHaveBeenCalled();
+        expect(mocks.restartTerminalWithRecovery).toHaveBeenCalledWith(
+            'terminal-2',
+            'Reload Agent failed',
+        );
+    });
+
     it('reads the latest state, not the snapshot the menu was built from', async () => {
         mocks.getBootstrap.mockReturnValue(
             bootstrapWith(agentTerminal(), session({ lastActivityState: 'completed' })),
@@ -192,14 +247,14 @@ describe('reloadAgent', () => {
 });
 
 describe('terminalTabMenuEntries', () => {
-    function labels(terminal: TerminalRecord): Array<string | undefined> {
-        return serializeContextMenu(terminalTabMenuEntries(terminal, false)).items.map((item) =>
-            item.type === 'separator' ? undefined : item.label,
+    async function labels(terminal: TerminalRecord): Promise<Array<string | undefined>> {
+        return serializeContextMenu(await terminalTabMenuEntries(terminal, false)).items.map(
+            (item) => (item.type === 'separator' ? undefined : item.label),
         );
     }
 
-    it('groups the Agent actions, the move, and the copy with separators', () => {
-        expect(labels(agentTerminal({ kind: 'codex', provider: 'codex' }))).toEqual([
+    it('groups the Agent actions, the move, and the copy with separators', async () => {
+        expect(await labels(agentTerminal({ kind: 'codex', provider: 'codex' }))).toEqual([
             'Open as Chat',
             'Reload Agent',
             undefined,
@@ -209,9 +264,9 @@ describe('terminalTabMenuEntries', () => {
         ]);
     });
 
-    it('leaves a Shell tab only its move, with no stray separators', () => {
+    it('leaves a Shell tab only its move, with no stray separators', async () => {
         expect(
-            labels(
+            await labels(
                 agentTerminal({ kind: 'shell', provider: undefined, agentSessionId: undefined }),
             ),
         ).toEqual(['Move to New Session']);

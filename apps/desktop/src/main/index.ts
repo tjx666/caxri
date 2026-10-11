@@ -70,13 +70,14 @@ import { resolveDesktopLaunch } from './server-launch-environment';
 import { shouldContinueStartup } from './server-startup';
 import { StartupProfile } from './startup-profile';
 import { createTestRootPathResolver } from './test-root';
+import { createWorkbenchUnsavedEditors } from './unsaved-editors';
 import { UpdateService, updateStateLogFields } from './updates';
 import {
     createWindowZoomController,
     mainWindowChromeOptions,
     zoomFactorForLevel,
 } from './window-chrome';
-import { createWindowCloseHandler, windowClosePrompt } from './window-close';
+import { confirmWindowClose, createWindowCloseHandler } from './window-close';
 import { resolveE2EWindowMode } from './window-mode';
 import type { WindowPlacement } from './window-placement';
 import { defaultWindowState, readWindowState, showWhenPlaced } from './window-placement';
@@ -201,6 +202,12 @@ if (ownsProfileInstance) {
         updateArgvConfig: (changes) => updateArgvConfig(desktopProfile.userDataPath, changes),
     });
     gpuRecovery.install();
+    const unsavedEditors = createWorkbenchUnsavedEditors({
+        dialog,
+        getWindow: () => mainWindow,
+        logger: () => mainLogger,
+        sendEvent,
+    });
     const requestAppQuit = createAppQuitHandler({
         acceptQuit: () => {
             isQuitStarted = true;
@@ -210,6 +217,7 @@ if (ownsProfileInstance) {
         },
         closeDesktop: () => supervisor.shutdown(),
         ...createAppQuitPromptOptions(dialog, () => mainWindow),
+        decideUnsavedEditors: () => unsavedEditors.decide('quit'),
         detachAll: () => supervisor.request('terminal.detachAll'),
         exit: () => app.exit(0),
         logFailure: (level, stage, error) =>
@@ -354,21 +362,9 @@ if (ownsProfileInstance) {
                 window.close();
                 isForceWindowClose = false;
             },
-            confirm: async (count) => {
-                mainLogger?.write('info', logEventCatalog.window.closeConfirmation, {
-                    fields: { runningTerminals: count },
-                });
-                const result = await dialog.showMessageBox(window, windowClosePrompt(count));
-                mainLogger?.write('info', logEventCatalog.window.closeDecision, {
-                    fields: { response: result.response },
-                });
-                return result.response === 2
-                    ? 'cancel'
-                    : result.response === 1
-                      ? 'terminate'
-                      : 'close';
-            },
+            confirm: (count) => confirmWindowClose(dialog, window, count, mainLogger),
             countRunning: () => supervisor.request('terminal.runningCount'),
+            decideUnsavedEditors: () => unsavedEditors.decide('close'),
             detachAll: () => supervisor.request('terminal.detachAll'),
             logFailure: (message) =>
                 mainLogger?.write('error', logEventCatalog.window.closeFailed, {
@@ -468,6 +464,7 @@ if (ownsProfileInstance) {
         logger: () => mainLogger,
         getProcessExplorer: () => processExplorer,
         getAgentCommander: () => agentCommander,
+        onUnsavedEditorsReply: (parameters) => unsavedEditors.reply(parameters),
         revealSessionInWorkbench: async (sessionId) => {
             await supervisor.request('session.select', { sessionId });
             await focusMainWindow();
@@ -483,6 +480,7 @@ if (ownsProfileInstance) {
         getSupervisor: () => supervisor,
         getUpdateService: () => updateService,
         getWindow: () => mainWindow,
+        sendEvent,
         workbenchRootAuthority,
     });
 

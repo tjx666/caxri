@@ -10,8 +10,9 @@ The local Desktop's free-path browser is an explicit-input, developer-tool capab
 root grant. It exposes bounded enumeration and one file snapshot per opened file. Opening a file
 registers it in Main's per-lifetime external document registry, and that registry is the whole authority
 of the `externalDocument.*` methods: saving the file in place, revealing it, opening it with the default
-app, and starting a Terminal in its folder through the Main-only `terminal.createInExternalDirectory`.
-That Terminal's cwd is persisted on its Terminal record like any other cwd. The browser cannot authorize
+app, starting a Terminal in its folder through the Main-only `terminal.createInExternalDirectory`,
+re-reading it after Main's folder watch reports an outside change, and loading preview images or
+opening linked files held to the document's folder and the folders below it. That Terminal's cwd is persisted on its Terminal record like any other cwd. The browser cannot authorize
 Files, Search, Git, Project creation, or a Renderer-supplied Terminal cwd; see
 [Files and paths](files-and-paths.md) for the save checks. Add Project
 and Agent folder selection use the native picker and single-use grants above. The Workbench Root

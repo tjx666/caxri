@@ -2,6 +2,7 @@ import type { AgentChatImageInput } from '@caxri/protocol';
 import { debounce } from 'es-toolkit';
 
 import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
+import { AGENT_CHAT_IMAGE_RESIZED_NOTE } from './agent-chat-images';
 
 /**
  * Unsent composer text per Chat Terminal. Switching tabs or Sessions unmounts a Chat's composer, and the draft must
@@ -101,6 +102,11 @@ export interface AgentChatAttachment {
      * (`image.png`); an empty one falls back to the chip's position.
      */
     name?: string;
+    /**
+     * The file was larger than the provider's image limit and was resized under it, so the chip says the sent image is
+     * not the original.
+     */
+    isResized?: boolean;
 }
 
 /**
@@ -211,12 +217,15 @@ export function draftWithInsertion(
 }
 
 /**
- * The chip's alt text: the file name when the attachment has one, otherwise its position.
+ * The chip's alt text: the file name when the attachment has one, otherwise its position, noting a resized image.
  */
 export function agentChatAttachmentLabel(
-    attachment: Pick<AgentChatAttachment, 'name'>,
+    attachment: Pick<AgentChatAttachment, 'isResized' | 'name'>,
     index: number,
 ): string {
-    if (attachment.name) return attachment.name;
-    return `Attachment ${index + 1}`;
+    let label = `Attachment ${index + 1}`;
+    if (attachment.name) label = attachment.name;
+    return attachment.isResized
+        ? `${label} (${AGENT_CHAT_IMAGE_RESIZED_NOTE.toLowerCase()})`
+        : label;
 }

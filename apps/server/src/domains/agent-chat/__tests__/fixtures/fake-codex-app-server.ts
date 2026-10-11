@@ -315,7 +315,7 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
                 '',
                 '> Note: nothing outside the Project was touched.',
                 '',
-                'Background: [the Markdown guide](https://example.com/guide) and https://example.com/faq.',
+                'Background: [the Markdown guide](https://example.com/guide), https://example.com/faq, and [the tracking issue](https://github.com/octo-org/octo-repo/issues/1).',
                 '',
                 '| Option | Cost |',
                 '| :--- | ---: |',

@@ -21,6 +21,10 @@ export async function stubAppQuitDecision(
                 // wording, Cancel default, and quit gating are covered by `apps/desktop/src/main/__tests__/app-quit.test.ts`.
                 if (options.title === 'Quit with pending review comments?')
                     return Promise.resolve({ response: 0, checkboxChecked: false });
+                // Teardown discards Editor buffers a test left unsaved (issue caxri#1631): response 1 is "Don't Save".
+                // `e2e/editor-quit-unsaved.e2e.ts` covers the prompt itself.
+                if (options.title === 'Unsaved Changes')
+                    return Promise.resolve({ response: 1, checkboxChecked: false });
                 if (options.title !== 'Quit Caxri?')
                     throw new Error(
                         `Unexpected dialog during E2E quit: ${options.title ?? 'untitled'}`,

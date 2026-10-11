@@ -1,7 +1,7 @@
 import { useDeferredValue, useMemo, useState } from 'react';
 
 import type { MarkdownBlockOptions } from '@caxri/markdown';
-import { createStreamingMarkdownParser, repairStreamingMarkdown } from '@caxri/markdown';
+import { createStreamingMarkdownParser, createStreamingMarkdownRepair } from '@caxri/markdown';
 import type { AgentChatItem } from '@caxri/protocol';
 import { CircleAlert } from 'lucide-react';
 
@@ -22,7 +22,7 @@ const CHAT_PARSE_OPTIONS: MarkdownBlockOptions = { tables: true, fileLinks: true
  * that can still change and keeps every settled block as the same object, so the memoized renderer skips it on a
  * reference check (see `createStreamingMarkdownParser`). The deferred text lets React drop intermediate deltas under
  * load instead of queueing a render for each, and unfinished syntax at the tail is completed so `**bold` does not flash
- * as raw asterisks.
+ * as raw asterisks; the repair also remembers the reply, so it rescans only the lines a delta touched.
  */
 export function AgentChatMessage({
     className,
@@ -36,8 +36,12 @@ export function AgentChatMessage({
     onOpenFile?: (target: string) => void;
 }) {
     const deferredText = useDeferredValue(text);
-    const source = isStreaming ? repairStreamingMarkdown(deferredText) : deferredText;
+    const [repair] = useState(createStreamingMarkdownRepair);
     const [parser] = useState(() => createStreamingMarkdownParser(CHAT_PARSE_OPTIONS));
+    const source = useMemo(
+        () => (isStreaming ? repair.repair(deferredText) : deferredText),
+        [deferredText, isStreaming, repair],
+    );
     const blocks = useMemo(() => parser.parse(source), [parser, source]);
     return (
         <div className={cn('flex flex-col gap-3 text-[13px] leading-5 wrap-anywhere', className)}>

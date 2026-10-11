@@ -12,6 +12,8 @@ import {
     agentChatImageBytes,
     agentChatImageRejection,
     agentChatImageRejectionMessage,
+    agentChatImageReservedBytes,
+    AgentChatImageTooLargeError,
     readAgentChatImage,
 } from '../agent-chat-images';
 
@@ -58,7 +60,7 @@ export function useAgentChatAttachments(terminalId: string) {
                 accepted.push(file);
                 reserved.current = {
                     count: reserved.current.count + 1,
-                    bytes: reserved.current.bytes + file.size,
+                    bytes: reserved.current.bytes + agentChatImageReservedBytes(file),
                 };
             }
         }
@@ -69,19 +71,37 @@ export function useAgentChatAttachments(terminalId: string) {
         const results = await Promise.allSettled(accepted.map((file) => readAgentChatImage(file)));
         setReadingCount((count) => count - accepted.length);
         const images = results.flatMap((result, index) =>
-            result.status === 'fulfilled'
-                ? [{ image: result.value, name: accepted[index]?.name }]
+            result.status === 'fulfilled' ? [{ ...result.value, name: accepted[index]?.name }] : [],
+        );
+        // Swap each file's estimate for the bytes actually read, so `release` later frees exactly what it holds.
+        const estimated = accepted.reduce(
+            (total, file) => total + agentChatImageReservedBytes(file),
+            0,
+        );
+        reserved.current = {
+            count: reserved.current.count - (accepted.length - images.length),
+            bytes:
+                reserved.current.bytes -
+                estimated +
+                images.reduce((total, { image }) => total + agentChatImageBytes(image), 0),
+        };
+        const tooLarge = results.flatMap((result, index) =>
+            result.status === 'rejected' && result.reason instanceof AgentChatImageTooLargeError
+                ? [accepted[index]?.name ?? '']
                 : [],
         );
-        const unread = accepted.filter((_, index) => results[index]?.status !== 'fulfilled');
-        reserved.current = {
-            count: reserved.current.count - unread.length,
-            bytes: reserved.current.bytes - unread.reduce((total, file) => total + file.size, 0),
-        };
-        if (images.length < accepted.length) pushToast('error', 'An image could not be read');
+        if (tooLarge.length > 0)
+            pushToast('error', agentChatImageRejectionMessage('size', tooLarge));
+        if (images.length + tooLarge.length < accepted.length)
+            pushToast('error', 'An image could not be read');
         update((current) => [
             ...current,
-            ...images.map(({ image, name }) => ({ id: crypto.randomUUID(), image, name })),
+            ...images.map(({ image, isResized, name }) => ({
+                id: crypto.randomUUID(),
+                image,
+                name,
+                ...(isResized && { isResized }),
+            })),
         ]);
     };
     const release = (released: readonly AgentChatAttachment[]): void => {
@@ -99,5 +119,16 @@ export function useAgentChatAttachments(terminalId: string) {
         release(sent);
         update((current) => attachmentsAfterSend(current, sent));
     };
-    return { attachments, isReading: readingCount > 0, add, remove, clearSent };
+    return {
+        attachments,
+        readingCount,
+        isReading: readingCount > 0,
+        /**
+         * Whether the attachment row shows: an attached image, or one still being read and resized.
+         */
+        hasAttachmentRow: attachments.length > 0 || readingCount > 0,
+        add,
+        remove,
+        clearSent,
+    };
 }

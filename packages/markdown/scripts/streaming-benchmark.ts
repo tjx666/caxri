@@ -1,8 +1,8 @@
 /**
  * Replays long Agent replies (a mixed reply and one that is a single long list) through the Agent Chat streaming
- * pipeline one delta at a time, once with the incremental parser and once with a full re-parse per delta, and reports
- * what each delta costs: the tail repair, the Markdown parse, and the per-block equality check a memoized renderer
- * runs.
+ * pipeline one delta at a time, once with the incremental parser and repair and once with a full re-parse and rescan
+ * per delta, and reports what each delta costs: the tail repair, the Markdown parse, and the per-block equality check a
+ * memoized renderer runs.
  *
  * This is a trend tool, not a gate: wall-clock time moves with machine load. The CI gate is the parse-work and identity
  * accounting asserted in `src/__tests__/streaming-parser.test.ts`, which does not depend on machine speed.
@@ -17,6 +17,7 @@ import {
 import type { MarkdownBlock, StreamingMarkdownParser } from '../src/index.js';
 import {
     createStreamingMarkdownParser,
+    createStreamingMarkdownRepair,
     isSameMarkdownTree,
     parseMarkdownBlocks,
     repairStreamingMarkdown,
@@ -70,6 +71,9 @@ type Mode = 'full' | 'incremental';
 
 function replay(mode: Mode, prefixes: readonly string[]) {
     const parser = mode === 'full' ? createFullParser() : createStreamingMarkdownParser(OPTIONS);
+    const incremental = createStreamingMarkdownRepair();
+    const repair = (source: string) =>
+        mode === 'full' ? repairStreamingMarkdown(source) : incremental.repair(source);
     const samples: number[] = [];
     let previous: readonly MarkdownBlock[] = [];
     let compared = 0;
@@ -77,7 +81,7 @@ function replay(mode: Mode, prefixes: readonly string[]) {
     for (const [index, prefix] of prefixes.entries()) {
         const isLast = index === prefixes.length - 1;
         const started = performance.now();
-        const blocks = parser.parse(isLast ? prefix : repairStreamingMarkdown(prefix));
+        const blocks = parser.parse(isLast ? prefix : repair(prefix));
         const comparison = compareBlocks(previous, blocks);
         compared += comparison.compared;
         rerendered += comparison.changed;

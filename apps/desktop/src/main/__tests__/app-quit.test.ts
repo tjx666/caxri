@@ -19,6 +19,7 @@ function options(overrides: Partial<AppQuitOptions> = {}): AppQuitOptions {
         closeDesktop: vi.fn().mockResolvedValue(undefined),
         confirm: vi.fn().mockResolvedValue('keep-running'),
         confirmPendingReviewComments: vi.fn().mockResolvedValue('discard'),
+        decideUnsavedEditors: vi.fn().mockResolvedValue('continue'),
         detachAll: vi.fn().mockResolvedValue(undefined),
         exit: vi.fn(),
         quitIntent: () => 'user',
@@ -33,6 +34,39 @@ function options(overrides: Partial<AppQuitOptions> = {}): AppQuitOptions {
 }
 
 describe('resolveAppQuit', () => {
+    it('cancels before any other prompt when unsaved Editor buffers are kept', async () => {
+        const target = options({
+            decideUnsavedEditors: vi.fn().mockResolvedValue('cancel'),
+            readStatus: vi.fn().mockResolvedValue({ activePtyCount: 2, clientCount: 1 }),
+        });
+
+        await expect(resolveAppQuit(target)).resolves.toBe('cancelled');
+
+        expect(target.readPendingReviewComments).not.toHaveBeenCalled();
+        expect(target.confirm).not.toHaveBeenCalled();
+        expect(target.acceptQuit).not.toHaveBeenCalled();
+        expect(target.exit).not.toHaveBeenCalled();
+    });
+
+    it('continues into the existing quit flow once unsaved buffers are resolved', async () => {
+        const target = options({
+            readStatus: vi.fn().mockResolvedValue({ activePtyCount: 1, clientCount: 1 }),
+        });
+
+        await expect(resolveAppQuit(target)).resolves.toBe('kept-running');
+
+        expect(target.decideUnsavedEditors).toHaveBeenCalledOnce();
+        expect(target.confirm).toHaveBeenCalledOnce();
+    });
+
+    it('does not consult unsaved buffers for a system shutdown', async () => {
+        const target = options({ quitIntent: () => 'system-shutdown' });
+
+        await resolveAppQuit(target);
+
+        expect(target.decideUnsavedEditors).not.toHaveBeenCalled();
+    });
+
     it('stops an idle Server when Desktop is its only client', async () => {
         const calls: string[] = [];
         const target = options({

@@ -3,6 +3,8 @@ import type { MarkdownLink } from '@caxri/markdown';
 import { openExternalUrl } from '../../lib/external-link';
 import { pushToast } from '../../stores/toasts';
 import { openFile } from '../editor/document-commands';
+import { openLinkedExternalDocument } from '../editor/external-editor-documents';
+import type { PreviewAssetSource } from './preview-asset-client';
 import { openFilePreview } from './preview-commands';
 import { canPreviewPath } from './preview-registry';
 
@@ -48,7 +50,20 @@ function scrollToAnchor(container: HTMLElement, target: string): void {
     heading?.scrollIntoView({ block: 'start' });
 }
 
-function runLinkAction(container: HTMLElement, action: PreviewLinkAction): void {
+function runLinkAction(
+    container: HTMLElement,
+    action: PreviewLinkAction,
+    source: PreviewAssetSource,
+): void {
+    /**
+     * A file an external document links to is outside every Project too, so Main opens it as another external document
+     * under the folder grant the linking document already holds.
+     */
+    if ((action.kind === 'open' || action.kind === 'preview') && 'externalDocumentId' in source) {
+        // eslint-disable-next-line no-void -- `openLinkedExternalDocument` reports its own failure through a toast
+        void openLinkedExternalDocument(source, action.path, action.kind === 'preview');
+        return;
+    }
     switch (action.kind) {
         case 'anchor': {
             scrollToAnchor(container, action.target);
@@ -83,6 +98,7 @@ function runLinkAction(container: HTMLElement, action: PreviewLinkAction): void 
 export function createPreviewLinkHandler(
     container: HTMLElement,
     links: () => readonly MarkdownLink[],
+    source: () => PreviewAssetSource,
 ): (event: MouseEvent) => void {
     return (event: MouseEvent) => {
         const target = event.target;
@@ -92,6 +108,10 @@ export function createPreviewLinkHandler(
         event.preventDefault();
         const id = anchor.dataset.caxriLink;
         const link = id ? links().find((candidate) => candidate.id === id) : undefined;
-        runLinkAction(container, previewLinkAction(link, anchor.getAttribute('href') ?? ''));
+        runLinkAction(
+            container,
+            previewLinkAction(link, anchor.getAttribute('href') ?? ''),
+            source(),
+        );
     };
 }

@@ -166,6 +166,7 @@ export const logEventCatalog = {
          * One per launch: every startup milestone in Main-clock milliseconds, closed by the Workbench's first frame.
          */
         startupProfile: 'app.startup_profile',
+        unsavedEditorsDecided: 'app.unsaved_editors_decided',
     },
     configuration: {
         loadFailed: 'configuration.load_failed',

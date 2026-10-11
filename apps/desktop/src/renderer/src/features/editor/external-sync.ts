@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 
 import type { FileDocument } from '@caxri/protocol';
-import { isVirtualEditorTabPath, listPaneTabs } from '@caxri/protocol';
+import { isVirtualEditorTabPath, listPaneTabs, parseExternalEditorTab } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
+import type { EditorDocument } from '@desktop-shared/editor-state';
 import { replaceWithExternalDocument } from '@desktop-shared/editor-state';
 import { uniq } from 'es-toolkit';
 
@@ -13,6 +14,7 @@ import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { useFileOperationStore } from '../view-containers/resource-explorer/file-operation-state';
 import { readDocuments } from './document-commands';
+import { readExternalDocument, watchExternalDocuments } from './external-document-client';
 import { ExternalSyncDeferral } from './external-sync-deferral';
 
 /**
@@ -63,6 +65,8 @@ function applyExternalDocuments(
         const previous = readCachedDocument(cached, document.path);
         return previous?.dirty ? [previous] : [];
     });
+    const name = (document: EditorDocument) =>
+        parseExternalEditorTab(document.path)?.name ?? pathBasename(document.path);
     useSessionViewStore
         .getState()
         .cacheDocuments(sessionId, reloaded.map(replaceWithExternalDocument), workbenchProjectId);
@@ -75,7 +79,7 @@ function applyExternalDocuments(
     pushToast(
         'info',
         discardedDirtyDocuments.length === 1
-            ? `${pathBasename(discardedDirtyDocuments[0].path)} reloaded from disk; external changes take precedence.`
+            ? `${name(discardedDirtyDocuments[0])} reloaded from disk; external changes take precedence.`
             : `${discardedDirtyDocuments.length} open files reloaded from disk; external changes take precedence.`,
         { persist: true },
     );
@@ -149,6 +153,75 @@ function reconcileSelectedSession(sessionId: string, shouldPreserveDirty = false
 }
 
 /**
+ * The selected Session's open external documents (files outside every Project), with the IDs Main issued for them.
+ */
+function openExternalDocuments(): Array<{ documentId: string; document: EditorDocument }> {
+    const session = getSelectedSession();
+    if (!session) return [];
+    const cached = getSessionDocuments(session.id, session.workbenchProjectId) ?? {};
+    return Object.entries(cached).flatMap(([path, document]) => {
+        const external = parseExternalEditorTab(path);
+        return external ? [{ documentId: external.documentId, document }] : [];
+    });
+}
+
+/**
+ * Reads the given external documents again through Main and applies the same disk-wins rule as a Project file. Main
+ * reports a change only when the file differs from what it last read or wrote, so this read rarely finds nothing new.
+ */
+async function syncExternalDocuments(
+    documentIds: readonly string[] | 'all',
+    shouldPreserveDirty = false,
+): Promise<void> {
+    const session = getSelectedSession();
+    if (!session) return;
+    const requested = documentIds === 'all' ? undefined : new Set(documentIds);
+    const targets = openExternalDocuments().filter(
+        ({ documentId, document }) =>
+            (!requested || requested.has(documentId)) && (!shouldPreserveDirty || !document.dirty),
+    );
+    if (targets.length === 0) return;
+    const reloaded = await Promise.all(
+        targets.map(async ({ documentId, document }) => {
+            try {
+                const current = { ...document, ...(await readExternalDocument(documentId)) };
+                return isChangedOnDisk(document, current) ? [current] : [];
+            } catch {
+                // A file that vanished or was swapped for something else keeps its buffer; saving it reports why.
+                return [];
+            }
+        }),
+    );
+    applyExternalDocuments(session.id, session.workbenchProjectId, reloaded.flat());
+}
+
+/**
+ * Keeps Main watching exactly the external documents the selected Session has open. Nothing is sent until one opens: a
+ * watch a reloaded Renderer's predecessor left behind only produces notices for IDs this Renderer has no tab for, which
+ * `syncExternalDocuments` ignores, and the first real set replaces it.
+ */
+function subscribeExternalDocumentWatch(): () => void {
+    let published = '';
+    const publish = (): void => {
+        const documentIds = uniq(
+            openExternalDocuments().map(({ documentId }) => documentId),
+        ).toSorted((left, right) => left.localeCompare(right));
+        const key = documentIds.join('\0');
+        if (key === published) return;
+        published = key;
+        // eslint-disable-next-line no-void -- never rejects
+        void watchExternalDocuments(documentIds);
+    };
+    publish();
+    const unsubscribeDocuments = useSessionViewStore.subscribe(publish);
+    const unsubscribeWorkbench = useWorkbenchStore.subscribe(publish);
+    return () => {
+        unsubscribeDocuments();
+        unsubscribeWorkbench();
+    };
+}
+
+/**
  * Owns the external-change rule for open editors. Unlike its predecessor it takes no arguments: both the watcher stream
  * and the Session switch are read straight from the stores, so there is no state-to-ref mirror and no `setState`
  * dispatcher to thread through App.
@@ -165,6 +238,11 @@ export function subscribeExternalDocumentSync(): () => void {
     const shouldDeferProject = (projectId: string): boolean =>
         deferral.deferIfPending(projectId, useFileOperationStore.getState().operations);
     const unsubscribeEvents = caxri.onEvent((event) => {
+        if (event.event === 'externalDocument.changed') {
+            // eslint-disable-next-line no-void -- failures are handled per document inside
+            void syncExternalDocuments([event.payload.documentId]);
+            return;
+        }
         if (event.event !== 'files.changed') return;
         const session = getSelectedSession();
         if (!session || event.payload.workbenchProjectId !== session.workbenchProjectId) return;
@@ -209,15 +287,19 @@ export function subscribeExternalDocumentSync(): () => void {
          * Switching roots must reveal that root's retained dirty buffers verbatim. Ordinary Session selection still
          * applies the global external-change-wins policy.
          */
-        reconcileSelectedSession(
-            session.id,
+        const shouldPreserveDirty =
             session.id === previousSession.id &&
-                session.workbenchProjectId !== previousSession.workbenchProjectId,
-        );
+            session.workbenchProjectId !== previousSession.workbenchProjectId;
+        reconcileSelectedSession(session.id, shouldPreserveDirty);
+        // Main watches only the selected Session's external documents, so another Session's may be stale.
+        // eslint-disable-next-line no-void -- failures are handled per document inside
+        void syncExternalDocuments('all', shouldPreserveDirty);
     });
+    const unsubscribeWatch = subscribeExternalDocumentWatch();
     return () => {
         unsubscribeEvents();
         unsubscribeOperations();
         unsubscribeSelection();
+        unsubscribeWatch();
     };
 }
