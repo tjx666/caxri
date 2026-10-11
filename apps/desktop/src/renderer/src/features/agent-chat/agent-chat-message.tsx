@@ -59,8 +59,8 @@ export function AgentChatMessage({
  * not lined with copy icons; it keeps its height, so revealing it never shifts the transcript. Copy takes the Markdown
  * source, which pastes back into an issue, a document, or another Agent intact. The reply text is one of the two
  * selectable surfaces in an otherwise `select-none` transcript (see `announceAgentChatSelectionCopy`). A reply that
- * ends a turn which changed files or filed an issue or pull request carries those cards between its text and the
- * action row, as the Codex app does.
+ * ends a turn which changed files or filed an issue or pull request carries those cards between its text and the action
+ * row, as the Codex app does.
  */
 export function AgentChatReply({
     artifacts,
