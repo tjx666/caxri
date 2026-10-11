@@ -444,7 +444,8 @@ cache only; nothing is sent from it (see the offline outbox under [Deferred](#de
   Conversation tool and system-event details, Chat command and tool output, file diffs, image
   previews, and pending approvals or questions are dropped before writing: like diagnostics, the
   cache keeps no Terminal output or source. It never holds the device credential, pairing links,
-  or any key.
+  or any key. A saved Chat keeps the model in use, so the composer names it as Desktop does, and
+  keeps each image's place as an empty tile until the connection returns and the thumbnail loads.
 - Entries are files in the app's private document directory, each tagged with the pairing scope
   (host, device, generation) that read it. An entry from another scope or an older format reads as
   a miss. Forgetting the computer, a revoked device, and a new pairing delete the whole cache, and a
