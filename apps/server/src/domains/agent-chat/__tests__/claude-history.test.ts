@@ -41,6 +41,79 @@ describe('Claude transcript history', () => {
         ]);
     });
 
+    it('restores how messages were delivered and skips queued notifications and peer messages', () => {
+        const queuedUuid = 'a3c1e2f0-1b2c-8c01-9d4e-0123456789ab';
+        const operations = claudeHistoryOperations(
+            jsonl([
+                { type: 'user', uuid: 'u1', message: { role: 'user', content: 'slow please' } },
+                {
+                    type: 'attachment',
+                    uuid: 'att1',
+                    timestamp: '2026-10-11T10:00:00.000Z',
+                    attachment: {
+                        type: 'queued_command',
+                        source_uuid: 'steer-1',
+                        prompt: 'and then',
+                        commandMode: 'prompt',
+                    },
+                },
+                {
+                    type: 'attachment',
+                    attachment: {
+                        type: 'queued_command',
+                        source_uuid: 'notice-1',
+                        prompt: '<task-notification>done</task-notification>',
+                        commandMode: 'task-notification',
+                        origin: { kind: 'task-notification' },
+                    },
+                },
+                {
+                    type: 'attachment',
+                    attachment: {
+                        type: 'queued_command',
+                        source_uuid: 'peer-1',
+                        prompt: 'a message from another Agent',
+                        commandMode: 'prompt',
+                        origin: { kind: 'peer' },
+                    },
+                },
+                {
+                    type: 'queue-operation',
+                    operation: 'remove',
+                    reason: 'absorbed_mid_turn',
+                    commandUuid: 'steer-1',
+                },
+                {
+                    type: 'assistant',
+                    uuid: 'a1',
+                    message: { id: 'm1', content: [{ type: 'text', text: 'Done' }] },
+                },
+                { type: 'user', uuid: queuedUuid, message: { role: 'user', content: 'next one' } },
+            ]),
+            false,
+        );
+        const items = operations.flatMap((operation) =>
+            operation.op === 'upsertItem' ? [operation.item] : [],
+        );
+        expect(
+            items.map((item) => [
+                item.type,
+                item.turnId,
+                item.type === 'userMessage' ? item.delivery : undefined,
+            ]),
+        ).toEqual([
+            ['userMessage', 'u1', undefined],
+            ['userMessage', 'u1', 'steered'],
+            ['agentMessage', 'u1', undefined],
+            ['userMessage', queuedUuid, 'queued'],
+        ]);
+        expect(items[1]).toMatchObject({
+            id: 'steer-1',
+            text: 'and then',
+            createdAt: Date.parse('2026-10-11T10:00:00.000Z'),
+        });
+    });
+
     it('rebuilds finished turns from visible records and skips sidechains and harness records', () => {
         const operations = claudeHistoryOperations(
             jsonl([

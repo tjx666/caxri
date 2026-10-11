@@ -284,8 +284,11 @@ A transition only reaches the Terminal once every one of these holds, reusing ex
   that just settled, proving Codex actually finished a real turn rather than a permission dialog or
   an unfinished native operation;
 - the Terminal's input epoch (`TerminalManager.inputEpoch`) is unchanged since that turn **started**,
-  so a draft typed mid-turn, or typed into the Commander after it went idle, defers delivery instead
-  of risking an unwanted Enter. The injected write itself never bumps this epoch;
+  or the last input since then was a submitted line (a standalone Enter outside a bracketed paste,
+  such as a mid-turn steer), which leaves no draft behind. A draft typed mid-turn, or typed into the
+  Commander after it went idle, defers delivery instead of risking an unwanted Enter, and the
+  `draft_input` deferral logs `inputsSinceTurnStart`, a keystroke count. The injected write itself
+  never bumps this epoch;
 - the Commander's own Session has no pending permission prompt (`lastActivityState` is not
   `waiting`). Its unread flag is deliberately ignored: every settled Commander turn marks its own
   Session unread, and the Commander window never marks it read.
