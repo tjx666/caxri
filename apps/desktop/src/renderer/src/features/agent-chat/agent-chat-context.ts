@@ -61,7 +61,7 @@ export function agentChatContextUsage(
  * The composer's notices about the context of an idle Chat: the prompt cache has expired, so the next message pays to
  * write the whole context again; and the context is high enough that compacting it first is worth suggesting.
  */
-export interface AgentChatContextAlert {
+interface AgentChatContextAlert {
     /**
      * The short line the composer shows; it has to survive a narrow pane.
      */
