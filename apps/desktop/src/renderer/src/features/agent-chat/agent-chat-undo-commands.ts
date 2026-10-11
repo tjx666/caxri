@@ -86,6 +86,27 @@ async function didApplyStep(sessionId: string, step: AgentChatUndoStep): Promise
 }
 
 /**
+ * Applies steps one after another, stopping at the first the user canceled or that failed. Sequential on purpose: each
+ * Trash waits on its own native confirmation, and a cancel stops the rest. Reports how many were applied, so a stop
+ * after the first can say the Undo was partial.
+ */
+async function applySteps(
+    sessionId: string,
+    steps: readonly AgentChatUndoStep[],
+    count = 0,
+): Promise<{ count: number; error?: unknown }> {
+    const step = steps.at(count);
+    if (!step) return { count };
+    try {
+        if (!(await didApplyStep(sessionId, step))) return { count };
+    } catch (error) {
+        return { count, error };
+    }
+    // eslint-disable-next-line unicorn/no-useless-recursion -- React Doctor blocks the sequential `await` a loop would need
+    return applySteps(sessionId, steps, count + 1);
+}
+
+/**
  * Undoes every file change a finished turn made, all or nothing: each file is read and its undo planned first, and if
  * any file no longer holds what the turn left there, nothing is written and a toast names it. Files the turn created go
  * to the Trash (each behind the native confirmation) before any rewrite, so canceling that dialog leaves the rest
@@ -125,23 +146,11 @@ export async function undoAgentChatTurn({
             ...steps.filter((step) => step.action === 'trash'),
             ...steps.filter((step) => step.action !== 'trash'),
         ];
-        const warnPartway = (index: number): void => {
-            if (index > 0)
-                pushToast('warning', 'Undo stopped partway: some files were already restored.');
-        };
-        for (const [index, step] of ordered.entries()) {
-            try {
-                // Sequential on purpose: each Trash waits on its own native confirmation, and a cancel stops the rest.
-                // eslint-disable-next-line no-await-in-loop -- see above
-                if (await didApplyStep(sessionId, step)) continue;
-            } catch (error) {
-                warnPartway(index);
-                throw error;
-            }
-            warnPartway(index);
-            return false;
-        }
-        return true;
+        const applied = await applySteps(sessionId, ordered);
+        if (applied.count > 0 && (applied.count < ordered.length || 'error' in applied))
+            pushToast('warning', 'Undo stopped partway: some files were already restored.');
+        if ('error' in applied) throw applied.error;
+        return applied.count === ordered.length;
     });
     setStatus(key, isUndone === true ? 'undone' : undefined);
 }
