@@ -1,5 +1,7 @@
 import type { GitRepositorySummary, GitSummary } from 'caxri';
 
+import type { GitSourceControlMode } from './source-control-model';
+
 function normalizeRepoPath(path: string): string {
     const normalized = path.replaceAll('\\', '/');
     return normalized === '/' ? normalized : normalized.replace(/\/+$/, '');
@@ -12,9 +14,10 @@ function normalizeRepoPath(path: string): string {
  * in a row: once as a `<name> · submodule` entry inside the parent's change list, and again as the submodule's own
  * repository section directly below it, with its branch and its real file changes. The gitlink row carried no detail
  * the section did not already carry better, so the parent's list drops it. A submodule the snapshot is not showing
- * separately, one outside the approved Project, keeps its ordinary gitlink row.
+ * separately, one outside the approved Project, keeps its ordinary gitlink row. See `hiddenGitlinkPaths` for the modes
+ * this applies to.
  */
-export function submodulePathsWithOwnSection(
+function submodulePathsWithOwnSection(
     repo: GitRepositorySummary,
     repositories: readonly GitRepositorySummary[],
 ): ReadonlySet<string> {
@@ -26,6 +29,20 @@ export function submodulePathsWithOwnSection(
         if (candidateRoot.startsWith(`${root}/`)) result.add(candidateRoot.slice(root.length + 1));
     }
     return result;
+}
+
+/**
+ * The gitlink rows a repository's list drops in the selected mode. Only Working mode hides them: there the submodule's
+ * own section already shows the same uncommitted pointer move with its real file changes. Commit and Pull Request mode
+ * show that submodule section's own commit or pull request, which says nothing about the pointer the parent's commit or
+ * pull request moved, so hiding the gitlink row there made a pointer-only pull request read as having no changes.
+ */
+export function hiddenGitlinkPaths(
+    mode: GitSourceControlMode,
+    repo: GitRepositorySummary,
+    repositories: readonly GitRepositorySummary[],
+): ReadonlySet<string> {
+    return mode === 'working' ? submodulePathsWithOwnSection(repo, repositories) : new Set();
 }
 
 /**
