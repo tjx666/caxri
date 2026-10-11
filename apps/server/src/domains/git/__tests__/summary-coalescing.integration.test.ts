@@ -85,6 +85,22 @@ async function gitSummaryRecords(
         .map((record) => record.fields ?? {});
 }
 
+/**
+ * Joined and queued reads spawn no Git command, so they are counted only in the `git.refresh_summary` aggregate;
+ * closing the service publishes it.
+ */
+async function refreshAggregate(
+    git: { close: () => unknown },
+    logger: StructuredLogger,
+): Promise<Record<string, unknown>> {
+    await git.close();
+    const aggregates = (await loggedRecords(logger)).filter(
+        (record) => record.event === 'git.refresh_summary',
+    );
+    expect(aggregates).toHaveLength(1);
+    return aggregates[0]?.fields ?? {};
+}
+
 async function statusCommandCount(logger: StructuredLogger): Promise<number> {
     return (await loggedRecords(logger)).filter(
         (record) => record.event === 'git.command' && record.fields?.operation === 'status',
@@ -132,10 +148,8 @@ describe('GitService summary coalescing', () => {
             requester: 'extension',
             statusFresh: 1,
         });
-        expect(records.filter((record) => record.outcome === 'joined')).toEqual([
-            { outcome: 'joined', requester: 'overview' },
-        ]);
         expect(await statusCommandCount(logger)).toBe(1);
+        expect(await refreshAggregate(git, logger)).toMatchObject({ joined: 1, joinedOverview: 1 });
     });
 
     it('queues one trailing forced refresh behind an in-flight summary and shares it between forces', async () => {
@@ -152,11 +166,12 @@ describe('GitService summary coalescing', () => {
         const records = await gitSummaryRecords(logger);
         const fresh = records.filter((record) => record.outcome === 'fresh');
         expect(fresh.map((record) => record.reason)).toEqual(['request', 'refresh']);
-        expect(records.filter((record) => record.outcome === 'queued')).toEqual([
-            { outcome: 'queued', requester: 'renderer', shared: false },
-            { outcome: 'queued', requester: 'renderer', shared: true },
-        ]);
         expect(await statusCommandCount(logger)).toBe(2);
+        expect(await refreshAggregate(git, logger)).toMatchObject({
+            queued: 2,
+            queuedShared: 1,
+            queuedRenderer: 2,
+        });
     });
 
     /**
@@ -176,12 +191,14 @@ describe('GitService summary coalescing', () => {
         expect(b).toEqual(a);
         expect(b.repositories[0].files.map((file) => file.path)).toContain('late.txt');
         const records = await gitSummaryRecords(logger);
-        expect(records.filter((record) => record.outcome === 'joined')).toEqual([]);
-        expect(records.filter((record) => record.outcome === 'queued')).toEqual([
-            { outcome: 'queued', requester: 'extension', shared: false },
-            { outcome: 'queued', requester: 'extension', shared: true },
-        ]);
+        expect(records.filter((record) => record.outcome === 'fresh')).toHaveLength(2);
         expect(await statusCommandCount(logger)).toBe(2);
+        expect(await refreshAggregate(git, logger)).toMatchObject({
+            joined: 0,
+            queued: 2,
+            queuedShared: 1,
+            queuedExtension: 2,
+        });
     });
 
     /**
