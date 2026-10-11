@@ -41,8 +41,8 @@ export const agentCommanderLogEvents = {
     completionNoticeDeliveryFailed: 'agent_commander.completion_notice_delivery_failed',
     /**
      * A relaunched Commander started with the notices it missed as its first prompt. `fields.count` is the number of
-     * delegation notices it carried, `fields.interruptedTurn` whether a turn had been cut off, and `fields.waitMs` how
-     * long the oldest of them waited.
+     * delegation notices it carried, `fields.inboxCount` the Inbox events, `fields.interruptedTurn` whether a turn had
+     * been cut off, and `fields.waitMs` how long the oldest of them waited.
      */
     resumePromptDelivered: 'agent_commander.resume_prompt_delivered',
     /**

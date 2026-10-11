@@ -112,6 +112,10 @@ interface LaunchPromptClaim {
      */
     delegations: DeliveredNotice[];
     hasInterruptedTurn: boolean;
+    /**
+     * The Inbox events the prompt reported; an entry replaced by a later event before the launch runs stays owed.
+     */
+    inbox: Array<CommanderInboxNoticeEntry & { queuedAt: number }>;
     oldestQueuedAt: number;
     terminalId: string;
 }
@@ -368,17 +372,19 @@ export class CommanderCompletionNotifier {
         if (this.options.database.agentCommanderRows()?.terminalId !== terminalId) return undefined;
         this.launchClaim = undefined;
         const notices = this.options.database.commanderPendingNotices.list();
-        if (notices.length === 0) return undefined;
+        const inbox = this.pendingInbox.values().toArray();
+        if (notices.length === 0 && inbox.length === 0) return undefined;
         const delegations = notices.filter((notice) => notice.kind === 'delegation');
         const hasInterruptedTurn = notices.some((notice) => notice.kind === 'interrupted_turn');
         this.launchClaim = {
             claimedAt: this.now(),
             delegations,
             hasInterruptedTurn,
-            oldestQueuedAt: notices[0].queuedAt,
+            inbox,
+            oldestQueuedAt: Math.min(...[...notices, ...inbox].map((notice) => notice.queuedAt)),
             terminalId,
         };
-        return formatCommanderResumePrompt(delegations, hasInterruptedTurn);
+        return formatCommanderResumePrompt(delegations, hasInterruptedTurn, inbox);
     }
 
     /**
@@ -392,11 +398,15 @@ export class CommanderCompletionNotifier {
         const store = this.options.database.commanderPendingNotices;
         store.removeDelegations(claim.delegations);
         if (claim.hasInterruptedTurn) store.clearTurn(claim.claimedAt);
+        for (const entry of claim.inbox)
+            if (this.pendingInbox.get(entry.itemId) === entry)
+                this.pendingInbox.delete(entry.itemId);
         this.lastFinishedTurn = undefined;
         this.turnStartBaseline = undefined;
         this.options.logger?.write('info', logEventCatalog.agentCommander.resumePromptDelivered, {
             fields: {
                 count: claim.delegations.length,
+                inboxCount: claim.inbox.length,
                 interruptedTurn: claim.hasInterruptedTurn,
                 waitMs: Math.max(0, this.now() - claim.oldestQueuedAt),
             },
@@ -468,8 +478,9 @@ export class CommanderCompletionNotifier {
      * and a closed event word, and the Commander reads the reply itself with `commander inbox show`.
      */
     notifyInbox(itemId: string, event: CommanderInboxNoticeEvent): void {
-        const rows = this.options.database.agentCommanderRows();
-        if (!rows?.terminalId) return;
+        /**
+         * Queued even while no Commander Terminal exists: the next launch prompt carries it (`launchPrompt`).
+         */
         this.pendingInbox.set(itemId, { itemId, event, queuedAt: this.now() });
         this.options.logger?.write('debug', logEventCatalog.agentCommander.completionNoticeQueued, {
             fields: {
@@ -478,7 +489,8 @@ export class CommanderCompletionNotifier {
                 pendingCount: this.pendingDelegations().length + this.pendingInbox.size,
             },
         });
-        this.tryFlush(rows.terminalId);
+        const terminalId = this.options.database.agentCommanderRows()?.terminalId;
+        if (terminalId) this.tryFlush(terminalId);
     }
 }
 

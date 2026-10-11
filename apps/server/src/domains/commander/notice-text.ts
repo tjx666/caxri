@@ -100,14 +100,20 @@ export function formatCommanderCompletionNotice(
 export function formatCommanderResumePrompt(
     entries: readonly CommanderCompletionNoticeEntry[],
     wasTurnInterrupted: boolean,
+    inboxEntries: readonly CommanderInboxNoticeEntry[] = [],
 ): string {
     const parts = ['[Caxri notice] The Agent Commander restarted.'];
     if (wasTurnInterrupted)
         parts.push(
             'Your previous turn did not finish: Caxri or Codex restarted, or the turn was interrupted. Continue it unless the user stopped it on purpose.',
         );
-    if (entries.length > 0)
-        parts.push(formatCommanderCompletionNotice(entries).replace('[Caxri notice] ', 'Missed '));
+    if (entries.length + inboxEntries.length > 0)
+        parts.push(
+            formatCommanderCompletionNotice(entries, inboxEntries).replace(
+                '[Caxri notice] ',
+                'Missed ',
+            ),
+        );
     parts.push(
         'Reconcile with `commander task list` and `commander board` before you act, then report under Reporting.',
     );

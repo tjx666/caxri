@@ -149,7 +149,7 @@ export function createServiceHandlers(services: {
     awaitAgentSettingsReconcile: () => Promise<void>;
     commander: Omit<
         AgentCommanderServiceOptions,
-        'database' | 'onLaunched' | 'pullRequests' | 'userDataPath'
+        'database' | 'onLaunching' | 'pullRequests' | 'userDataPath'
     >;
     commanderInbox: CommanderInboxService;
     configuration: ConfigService;
@@ -220,7 +220,7 @@ export function createServiceHandlers(services: {
         ...services.commander,
         database,
         logger,
-        onLaunched: () => commanderInbox.announceUnacknowledged(),
+        onLaunching: () => commanderInbox.announceUnacknowledged(),
         pullRequests: () => sessionPullRequests.snapshot(),
         userDataPath,
     });
