@@ -34,6 +34,17 @@ REPOS=(
     microsoft/vscode
     gitkraken/vscode-gitlens:gitlens
     tjx666/vscode-fe-helper
+    # Streaming chat Markdown references; see references/chat-markdown-rendering.md.
+    vercel/streamdown
+    lobehub/lobe-chat
+    lobehub/lobe-ui
+    lobehub/streamdown:lobehub-streamdown
+    CherryHQ/cherry-studio
+    danny-avila/LibreChat
+    assistant-ui/assistant-ui
+    open-webui/open-webui
+    ChatGPTNextWeb/NextChat
+    chatboxai/chatbox
 )
 
 for entry in "${REPOS[@]}"; do

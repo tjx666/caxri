@@ -45,6 +45,12 @@ editor-adjacent surfaces. Both are shallow-cloned into `competitors/` by `script
   project-status sidebar covering Git context, GitHub PR checks, issue-tracker state, deployment
   links, and its polling scheduler.
 
+- **Streaming chat Markdown** ([references/chat-markdown-rendering.md](references/chat-markdown-rendering.md)):
+  how Streamdown, LobeHub, Cherry Studio, LibreChat, assistant-ui, Open WebUI, NextChat, Chatbox,
+  and the Agent workbenches above keep a streaming reply's Markdown cheap to parse and render. Read
+  it before changing Agent Chat Markdown rendering. Their clones are synced alongside the
+  references above.
+
 ## Working rules
 
 - When the user names a reference product, inspect its implementation before asking them to choose
