@@ -13,7 +13,11 @@ export {
     createTerminalBinaryInputHandler,
     createTerminalInputHandler,
 } from './input';
-export { resolveTerminalExecutable, terminalDirectoryIdentity } from './launch';
+export {
+    assertTerminalWorkingDirectory,
+    resolveTerminalExecutable,
+    terminalDirectoryIdentity,
+} from './launch';
 export { createLifecycleEnvironment } from './lifecycle-environment';
 export { TerminalManager } from './manager';
 export type {

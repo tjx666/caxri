@@ -33,9 +33,10 @@ or cancels the delivery, or a concrete blocker requires their input.
    and resolve every finding. The changed-file checker suggests this gate but does not run it;
    a green lint/type/knip result cannot substitute for the CI React Doctor gate.
    Before pushing any TypeScript change, run `bun run knip` against the intended diff and resolve
-   every finding. CI's `checks` job fails on an unused export, and the changed-file checker runs
-   knip only when `--knip` is passed; a push that skipped it spent a full CI run on the one gate
-   that costs seconds locally.
+   every finding. CI runs knip only in the `full` checks scope (the nightly suite, or a ready PR
+   that touches a full-validation path); the `affected`, `focused-*`, and draft scopes skip it, and
+   the changed-file checker runs knip only when `--knip` is passed. An unused export that skips the
+   local run therefore usually merges and surfaces later as a red nightly on `main`.
 3. Once required checks have started for a published PR head, routine `origin/main` advancement
    alone does not invalidate that evidence or require another rebase. When GitHub reports no
    conflict and branch protection does not require an up-to-date branch, let those checks finish

@@ -78,7 +78,9 @@ one frame.
 
 ## Mobile Session creation
 
-`mobile.session.create` accepts a granted Project ID and an Agent choice. The access controller
+`mobile.session.create` accepts a granted Project ID, an Agent choice, and an optional `surface`;
+`chat` starts a Chat-capable Agent as an Agent Chat and is refused with `VALIDATION` for any other
+Agent before a Session is written. The access controller
 injects the current principal into the internal domain operation; a client cannot provide it. The
 domain uses the same Server launch path as Desktop and preserves Desktop's selected Session.
 

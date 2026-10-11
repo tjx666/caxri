@@ -10,13 +10,18 @@ type PullRequest = NonNullable<ProjectStatusRepository['pullRequest']>;
 type PullRequestCheck = PullRequest['checks'][number];
 
 /**
- * More checks of one settled kind than this fold into one collapsed summary row. A handful still reads at a glance, but
- * a pull request with a dozen green or still-running checks buried the one that failed under a wall of identical rows
- * and pushed everything below out of a narrow sidebar.
+ * More checks of one settled kind than this fold into one summary row. A handful still reads at a glance, but a pull
+ * request with a dozen green or still-running checks buried the one that failed under a wall of identical rows and
+ * pushed everything below out of a narrow sidebar.
  */
 export const CHECKS_COLLAPSE_THRESHOLD = 3;
 
 interface CheckFold {
+    /**
+     * Default expansion before the user toggles the row. Unfinished checks are what the user is watching, so their fold
+     * opens by default; passed checks need no look, so theirs stays closed.
+     */
+    collapsibleState: TreeItemCollapsibleState;
     /**
      * Stable row id suffix, so a fold keeps its expansion as checks move between groups.
      */
@@ -32,12 +37,14 @@ interface CheckFold {
  */
 const checkFolds: readonly CheckFold[] = [
     {
+        collapsibleState: TreeItemCollapsibleState.Expanded,
         key: 'in-progress-checks',
         label: (count) => `${count} checks in progress`,
         state: 'pending',
         states: new Set(['pending', 'queued']),
     },
     {
+        collapsibleState: TreeItemCollapsibleState.Collapsed,
         key: 'passed-checks',
         label: (count) => `${count} checks passed`,
         state: 'success',
@@ -105,7 +112,7 @@ export function pullRequestCheckNodes(prefix: string, pullRequest: PullRequest):
                     },
                 },
                 children: checks.map(rowFor),
-                collapsibleState: TreeItemCollapsibleState.Collapsed,
+                collapsibleState: fold.collapsibleState,
             }),
         );
     if (pullRequest.hiddenCheckCount > 0) {

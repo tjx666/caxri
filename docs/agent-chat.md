@@ -103,16 +103,25 @@ command> <id>` (`agentResumeCommandLine`, from the provider catalog's `resumeArg
 
 `AgentChatService` (`apps/server/src/domains/agent-chat/service.ts`) owns one provider child per
 live Chat (`codex app-server --listen stdio://`, `claude` in stream-json mode, or
-`grok agent --no-leader stdio`), spawned by Server Core with the same
-allowlisted environment as other Agent launches and no lifecycle-hook environment (the Chat
-synthesizes its own lifecycle signals, so hooks would double-report).
+`grok agent --no-leader stdio`), spawned by Server Core. Its environment
+(`prepareChatLaunch` in `apps/server/src/domains/agent-chat/chat-launch.ts`) is the same
+secret-minimized base environment as other Agent launches (`agentCommandEnvironment`: the Server's
+allowlisted variables, login-shell `PATH`, and the Agent `HOME`), but it omits both per-launch
+additions a PTY Agent receives from `apps/server/src/domains/terminal/lifecycle-environment.ts`:
+
+- No lifecycle-hook environment: the Chat synthesizes its own lifecycle signals, so hooks would
+  double-report.
+- No Agent Endpoint environment (`CAXRI_MANAGED_AGENT`, `CAXRI_AGENT_ENDPOINT_*`,
+  `CAXRI_USER_DATA_DIR`, `CAXRI_CLI_PATH`): a Chat provider holds no Agent Endpoint credential, so
+  `caxri` commands it runs do not act as a managed Agent identity, and provider hooks cannot use
+  `CAXRI_MANAGED_AGENT` to recognize it as Caxri-owned.
 
 - **Lazy start.** The provider starts on the first `agentChat.read` or `agentChat.send` (the one
   eager start is `session.resume` taking a detached Chat back; see Detach). Server
   Core restart therefore never relaunches idle Chats, and boot-time Terminal restore skips them. A
-  failed or detached Chat does not start on a read. Archive stops a Chat without a durable mark, so
-  a read would start it; neither Desktop nor the phone opens an archived Session's Chat, and the
-  first read after a restore starts it.
+  failed or detached Chat does not start on a read, and neither does a Chat whose Session is
+  archived or whose Project is hidden: the admission fence refuses it, and the first read after
+  the Session returns to the Workbench starts it.
 - **Resume.** A bound Chat resumes its thread with `thread/resume`, verifies the returned id, and
   rebuilds the projection from the returned history. `model` is omitted on resume so the thread
   keeps its own model and effort. A failed resume is a visible `resume_failed` failure, never a
@@ -134,7 +143,8 @@ synthesizes its own lifecycle signals, so hooks would double-report).
 - **Admission.** A teardown retires the Chat's in-memory state before it awaits the provider.
   Queued input is admitted again when it reaches the head of the Chat's send chain, after a start
   it joined, and right before a provider spawns: the state must still be current and the Terminal
-  row must still exist as a Chat that is not detached. Input that waited behind a close, archive,
+  row must still exist as a Chat that is not detached and whose Session is neither archived nor in
+  a hidden Project. Input that waited behind a close, archive,
   detach, restart, or surface switch therefore rejects instead of relaunching the provider, and a
   start whose Chat was torn down before it spawned is abandoned. `ChatStates`
   (`apps/server/src/domains/agent-chat/chat-states.ts`) owns the fence and the marker it reads.
@@ -386,8 +396,18 @@ several callbacks can share one item, so the transport id is never the key.
   history never hides them. The plan stays one collapsed row (the current step and `done/total`)
   until the user expands it, so a long plan never pushes the transcript out of view. The timeline follows new output until the user scrolls up; Jump to
   latest returns to the end.
-- The composer keeps an unsent draft per Chat across tab switches, clears only the text that was
-  actually sent, and treats Escape as Stop while a turn runs. Its action row shows how much of the
+- The composer keeps an unsent draft per Chat across tab and Session switches and across a full
+  restart, clears only the text that was actually sent, and treats Escape as Stop while a turn
+  runs. The draft text is device-local Renderer state in `localStorage` (bounded to the 50 most
+  recently edited Chats), never sent to Server Core; attached images stay in memory only, because
+  a few encoded images would exhaust the storage quota. ArrowUp on an empty composer recalls the
+  prompts this Chat sent, newest first, and ArrowDown walks forward and back to an empty input,
+  like a shell. The history is read from the user messages in the Chat's projection, so it needs
+  no storage of its own and reaches only as far back as the projection keeps (see
+  `truncated`). ArrowUp is left alone while the input holds the user's own text, an image is
+  attached, or the command menu is open for typed text; a recalled `/command` that opens the menu
+  still walks on. A recalled prompt left in the input is an ordinary draft, so it persists like
+  one and editing it ends the walk. Its action row shows how much of the
   context window is used, as a filling ring and a percentage with the token counts and what fills
   the window in its tooltip, and the model and effort picker (see "Model and effort" below). Activating a Chat's tab puts the cursor in the composer, as activating
   a Terminal tab focuses its grid, under the same rules: not behind a modal, not out of another
@@ -432,8 +452,9 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   card naming the host with an Open action. For HTTPS links, the card previews the page's share
   image, title, and description. Main reads them through the `links.preview` desktop method
   (`apps/desktop/src/main/link-previews.ts`): the HTML head only, at most 256 KiB, a 5 s timeout,
-  Open Graph then Twitter Card then `<title>` fallbacks, HTTPS images only, and an LRU of 256
-  URLs. A page that declares nothing keeps the card's link summary.
+  Open Graph then Twitter Card then `<title>` fallbacks, HTTPS images only, and a per-app-lifetime
+  cache of 256 URLs that evicts the oldest inserted entry (a repeat hover does not refresh it; an
+  outright network failure is not cached). A page that declares nothing keeps the card's link summary.
 - While a reply streams, `repairStreamingMarkdown` completes the last block's unfinished emphasis,
   inline code, and links so raw syntax never flashes. `createStreamingMarkdownParser`
   (`packages/markdown/src/streaming-parser.ts`) parses the reply incrementally: a top-level construct

@@ -59,6 +59,25 @@ export async function finish(
     ]);
 }
 
+/**
+ * Opens a Session's composer from the phone, the entry every composer case starts from.
+ */
+export async function openComposerSession(serial: string, sessionId: string): Promise<void> {
+    await tapMobileCheck(serial, `session-row-${sessionId}`);
+    await waitForMobile(
+        () => mobileSemantics(serial),
+        (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail'),
+    );
+    /**
+     * The synthetic Agent has no Conversation; a control device uses the composer from Changes.
+     */
+    await tapMobileCheck(serial, 'session-segment-changes');
+    await waitForMobile(
+        () => mobileSemantics(serial),
+        (nodes) => nodes.some(({ checkId }) => checkId === 'session-composer-input'),
+    );
+}
+
 export async function executeMobileComposerSuggestionsScenario(
     environment: MobileAgentScenarioEnvironment,
     artifacts: string[],

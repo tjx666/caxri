@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { CommandExecutionContext } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { TerminalExecutionPort } from '../../../domains/terminal';
@@ -331,6 +332,62 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
         }
     });
 
+    it('reports a Desktop Session switch during a Conversation Tree read as CONFLICT', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-tree-switch-'));
+        temporaryDirectories.push(directory);
+        const registryPath = join(directory, 'mobile-devices.json');
+        const registry = await MobileDeviceRegistry.open({ directory, path: registryPath });
+        const paired = await registry.pair({
+            displayName: 'Test phone',
+            platform: 'ios',
+            projectIds: ['project-1'],
+        });
+        const principal = registry.authenticate({
+            credential: paired.credential,
+            deviceId: paired.device.deviceId,
+            generation: paired.device.generation,
+        });
+        const treeChildren = vi
+            .fn()
+            .mockRejectedValue(new CaxriError('CANCELLED', 'The view context changed'));
+        const extensionService = {
+            treeChildren,
+        } as unknown as ExtensionService;
+        const controller = await openMobileAccessController({ directory, registryPath });
+        controller.attach(
+            { invoke: vi.fn() },
+            'b'.repeat(32),
+            { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
+            {} as ServerDomainService,
+            terminalExecution,
+            () => extensionService,
+        );
+        const context: CommandExecutionContext = { capabilities: [], principal };
+        const request = vi.fn((method: string) => {
+            if (method === 'session.queryForPrincipal')
+                return Promise.resolve({ sessions: [{ id: 'session-1', projectId: 'project-1' }] });
+            if (method === 'app.activeContext')
+                return Promise.resolve({ sessionId: 'session-1', workbenchProjectId: 'project-1' });
+            throw new Error(`Unexpected method: ${method}`);
+        });
+        const domainService = { request } as unknown as ServerDomainService;
+        try {
+            await expect(
+                controller.invokeControl(
+                    {
+                        method: 'mobile.tree.children',
+                        params: { sessionId: 'session-1', viewId: 'view-changes' },
+                    },
+                    context,
+                    domainService,
+                ),
+            ).rejects.toMatchObject({ code: 'CONFLICT' });
+            expect(treeChildren).toHaveBeenCalledOnce();
+        } finally {
+            await controller.close();
+        }
+    });
+
     it('projects Conversation Tree children for the active Session, dropping tooltip and a resource icon', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-tree-'));
         temporaryDirectories.push(directory);
@@ -386,7 +443,8 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
         const request = vi.fn((method: string) => {
             if (method === 'session.queryForPrincipal')
                 return Promise.resolve({ sessions: [{ id: 'session-1', projectId: 'project-1' }] });
-            if (method === 'app.activeContext') return Promise.resolve({ sessionId: 'session-1' });
+            if (method === 'app.activeContext')
+                return Promise.resolve({ sessionId: 'session-1', workbenchProjectId: 'project-1' });
             throw new Error(`Unexpected method: ${method}`);
         });
         const domainService = { request } as unknown as ServerDomainService;
@@ -425,6 +483,11 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
             expect(treeChildren).toHaveBeenCalledWith({
                 viewId: 'view-changes',
                 requestId: expect.any(String) as string,
+                context: {
+                    kind: 'session',
+                    sessionId: 'session-1',
+                    workbenchProjectId: 'project-1',
+                },
             });
         } finally {
             await controller.close();

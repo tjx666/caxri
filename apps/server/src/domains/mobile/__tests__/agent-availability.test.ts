@@ -38,6 +38,33 @@ describe('mobile Agent availability', () => {
             { kind: 'grok', available: false, reason: 'Agent CLI is unavailable' },
             { kind: 'shell', available: true },
         ]);
+        expect(result.openAgentsInChat).toBe(false);
         expect(JSON.stringify(result)).not.toContain('/fixture/bin');
+    });
+
+    it("reports the Mac's Open Agents in Chat setting as the new Session default", async () => {
+        const handler = createMobileAgentAvailabilityHandler({
+            configuration: {
+                getSettings: () => ({
+                    value: { ...defaultAppSettings, 'session.openAgentsInChat': true },
+                }),
+            } as unknown as ConfigService,
+            database: {
+                listVisibleProjects: () => [{ id: 'project-1' }],
+            } as unknown as CaxriDatabase,
+            discover: () => Promise.resolve(undefined),
+        });
+        const result = await handler({
+            projectId: 'project-1',
+            principal: {
+                kind: 'paired-device',
+                id: 'paired-device:device-1',
+                deviceId: 'device-1',
+                generation: 1,
+                role: 'control',
+                projectIds: ['project-1'],
+            },
+        });
+        expect(result.openAgentsInChat).toBe(true);
     });
 });

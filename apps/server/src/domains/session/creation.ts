@@ -138,7 +138,7 @@ export function createMobileSessionHandler(
     database: CaxriDatabase,
     createSessionForProject: ReturnType<typeof createSessionCreator>,
 ): DomainHandlers['mobile.session.createForPrincipal'] {
-    return async ({ projectId, defaultAgent, principal }, signal) => {
+    return async ({ projectId, defaultAgent, surface, principal }, signal) => {
         if (
             principal.kind !== 'paired-device' ||
             principal.role !== 'control' ||
@@ -147,7 +147,13 @@ export function createMobileSessionHandler(
             throw new CaxriError('FORBIDDEN', 'Project is not authorized for this device');
         if (database.listVisibleProjects().every((project) => project.id !== projectId))
             throw new CaxriError('NOT_FOUND', 'Project not found');
-        const created = await createSessionForProject(projectId, defaultAgent, 'preserve', signal);
+        const created = await createSessionForProject(
+            projectId,
+            defaultAgent,
+            'preserve',
+            signal,
+            surface,
+        );
         return {
             sessionId: created.session.id,
             ...(created.terminal && { terminalId: created.terminal.id }),

@@ -5,6 +5,8 @@ import {
     MAX_LINK_PREVIEW_URL_LENGTH,
 } from '@caxri/protocol';
 
+import { readCappedBody } from './read-capped-body';
+
 type Fetch = (
     url: string,
     init: { signal: AbortSignal; headers: Record<string, string> },
@@ -144,23 +146,11 @@ async function readHead(response: Response): Promise<string> {
     } catch {
         decoder = new TextDecoder();
     }
-    const reader = response.body?.getReader();
-    if (!reader) return '';
     let html = '';
-    let bytes = 0;
-    try {
-        while (bytes < MAX_PAGE_BYTES) {
-            // eslint-disable-next-line no-await-in-loop -- a body stream yields its chunks one read at a time
-            const { done, value } = await reader.read();
-            if (done) break;
-            bytes += value.byteLength;
-            html += decoder.decode(value, { stream: true });
-            if (/<\/head\s*>/iu.test(html)) break;
-        }
-    } finally {
-        // eslint-disable-next-line no-void -- cancelling the rest of the body has nothing to report
-        void reader.cancel().catch(() => {});
-    }
+    await readCappedBody(response, MAX_PAGE_BYTES, (chunk) => {
+        html += decoder.decode(chunk, { stream: true });
+        return /<\/head\s*>/iu.test(html);
+    });
     return html;
 }
 
@@ -186,22 +176,23 @@ async function fetchPreview(fetch: Fetch, url: string): Promise<LinkPreview | un
  */
 export function createLinkPreviews(fetch: Fetch) {
     const cache = new Map<string, Promise<LinkPreview>>();
-    async function read(
-        url: string,
-        attempt: Promise<LinkPreview | undefined>,
-    ): Promise<LinkPreview> {
-        const result = await attempt;
-        if (result) return result;
-        cache.delete(url);
-        return {};
+    /**
+     * Resolves a cache entry and forgets it when the request failed outright. Only that exact entry is forgotten:
+     * eviction may already have replaced it with a newer attempt for the same URL.
+     */
+    async function settle(url: string, entry: PromiseWithResolvers<LinkPreview>): Promise<void> {
+        const result = await fetchPreview(fetch, url);
+        if (!result && cache.get(url) === entry.promise) cache.delete(url);
+        entry.resolve(result ?? {});
     }
     return (url: string): Promise<LinkPreview> => {
-        let preview = cache.get(url);
-        if (!preview) {
-            if (cache.size >= MAX_CACHED_URLS) cache.delete(cache.keys().next().value!);
-            preview = read(url, fetchPreview(fetch, url));
-            cache.set(url, preview);
-        }
-        return preview;
+        const cached = cache.get(url);
+        if (cached) return cached;
+        if (cache.size >= MAX_CACHED_URLS) cache.delete(cache.keys().next().value!);
+        const entry = Promise.withResolvers<LinkPreview>();
+        cache.set(url, entry.promise);
+        // eslint-disable-next-line no-void -- the entry's promise carries the outcome; settling has nothing else to report
+        void settle(url, entry);
+        return entry.promise;
     };
 }

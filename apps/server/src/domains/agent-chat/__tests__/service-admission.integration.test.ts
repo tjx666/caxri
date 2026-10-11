@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { mkdir, rm, symlink } from 'node:fs/promises';
 import process from 'node:process';
 
 import { describe, expect, it, vi } from 'vitest';
@@ -65,6 +66,33 @@ describe('Agent Chat input admission', () => {
         },
     );
 
+    /**
+     * A restart (or a switch to Chat) holds the Session's launch while it stops the old provider; an archive or Project
+     * hide that runs meanwhile closes only the Chat state that exists then, so the replacement start must be refused by
+     * the admission fence itself.
+     */
+    it.each([
+        ['archiving its Session', 'archive'],
+        ['hiding its Project', 'hide'],
+    ] as const)(
+        'never starts a restarted provider after %s lands mid-restart',
+        async (_name, park) => {
+            const { database, service, spawnProcess, terminal, until } = await fixture();
+            await until((snapshot) => snapshot.status === 'ready');
+
+            const restarting = service.restart(terminal.id, true);
+            if (park === 'archive') database.archiveSession(terminal.sessionId);
+            else database.hideProject(database.getSession(terminal.sessionId)!.projectId);
+            await service.closeSession(terminal.sessionId);
+            await restarting;
+
+            expect(spawnProcess).toHaveBeenCalledOnce();
+            expect(service.liveCount()).toBe(0);
+            expect(service.read(terminal.id).status).toBe('stopped');
+            expect(spawnProcess).toHaveBeenCalledOnce();
+        },
+    );
+
     it('refuses new input while a close is stopping the provider', async () => {
         const { service, spawnProcess, terminal } = await startingChat();
         const closing = service.close(terminal.id);
@@ -76,6 +104,37 @@ describe('Agent Chat input admission', () => {
         expect(spawnProcess).toHaveBeenCalledOnce();
         expect(service.liveCount()).toBe(0);
     });
+});
+
+/**
+ * A Chat's cwd was authorized when its Terminal was created, but the provider starts lazily, much later. The PTY launch
+ * path revalidates the directory right before spawn; a Chat start must too, so a Project folder swapped for a link or
+ * removed meanwhile fails the start instead of running the Agent somewhere else.
+ */
+describe('Agent Chat working directory', () => {
+    const swaps: Record<string, (cwd: string) => Promise<void>> = {
+        'replaced by a symlink to another directory': async (cwd) => {
+            const elsewhere = `${cwd}-elsewhere`;
+            await mkdir(elsewhere);
+            await rm(cwd, { recursive: true });
+            await symlink(elsewhere, cwd);
+        },
+        'removed': (cwd) => rm(cwd, { recursive: true }),
+    };
+
+    it.each(Object.keys(swaps))(
+        'fails the start without spawning when the folder was %s',
+        async (swap) => {
+            const { database, service, spawnProcess, terminal, until } = await fixture();
+            await swaps[swap](terminal.cwd);
+
+            const snapshot = await until((current) => current.status === 'failed');
+            expect(snapshot.failure?.reason).toBe('spawn_failed');
+            expect(spawnProcess).not.toHaveBeenCalled();
+            expect(service.liveCount()).toBe(0);
+            expect(database.getTerminal(terminal.id)?.lastProcessState).toBe('failed');
+        },
+    );
 });
 
 describe('Agent Chat detach', () => {
