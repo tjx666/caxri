@@ -1,7 +1,7 @@
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from 'react';
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 
-import type { TerminalKind } from '@caxri/protocol';
+import type { TerminalKind, TerminalSurface } from '@caxri/protocol';
 import { usePathname } from 'expo-router';
 
 import { isDashboardRouteVisible } from '../dashboard-query';
@@ -27,6 +27,7 @@ interface HostSessionsContextValue {
     consumeComposerFocus: (sessionId: string) => void;
     requestComposerFocus: (sessionId: string) => void;
     setNewSessionAgent: (agent: TerminalKind) => void;
+    setNewSessionSurface: (surface: TerminalSurface) => void;
     setNewSessionCreateState: Dispatch<SetStateAction<NewSessionCreateState>>;
     setNewSessionProjectId: (projectId: string) => void;
     setDraft: (sessionId: string, draft: string) => void;
@@ -54,6 +55,9 @@ export const HostSessionsProvider = ({
     const [focusComposerSessionId, setFocusComposerSessionId] = useState<string | null>(null);
     const setNewSessionAgent = useCallback((agent: TerminalKind): void => {
         setNewSessionSelection((current) => ({ ...current, agent }));
+    }, []);
+    const setNewSessionSurface = useCallback((surface: TerminalSurface): void => {
+        setNewSessionSelection((current) => ({ ...current, surface }));
     }, []);
     const setNewSessionProjectId = useCallback((projectId: string): void => {
         setNewSessionSelection((current) => ({ ...current, projectId }));
@@ -89,6 +93,7 @@ export const HostSessionsProvider = ({
             consumeComposerFocus,
             requestComposerFocus,
             setNewSessionAgent,
+            setNewSessionSurface,
             setNewSessionCreateState,
             setNewSessionProjectId,
             setDraft,
@@ -105,6 +110,7 @@ export const HostSessionsProvider = ({
             consumeComposerFocus,
             requestComposerFocus,
             setNewSessionAgent,
+            setNewSessionSurface,
             setNewSessionCreateState,
             setNewSessionProjectId,
             setDraft,

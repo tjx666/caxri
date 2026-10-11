@@ -5,9 +5,7 @@ import { agentEndpointRefSchema as agentEndpointReferenceSchema } from '../agent
 import { hexColorSchema } from '../domain/color.js';
 import {
     canceledResultSchema,
-    fileEntrySchema,
     identifierSchema,
-    pathSchema,
     permissionAutoAllowStatusSchema,
     scopedProjectSchema,
     sessionRecordSchema,
@@ -15,6 +13,7 @@ import {
     terminalRecordSchema,
 } from '../domain/domain.js';
 import { sessionRenameTitleSchema } from '../domain/session.js';
+import { terminalSurfaceSchema } from '../domain/terminal-surface.js';
 import { viewIdSchema } from '../domain/views.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
@@ -29,7 +28,7 @@ import {
     mobileChangesDiffResultSchema,
     mobileChangesListResultSchema,
 } from './mobile-changes-contract.js';
-import { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
+import { mobileFilesInternalMethods, mobileFilesMethods } from './mobile-files-contract.js';
 import { mobileTerminalMethods } from './mobile-terminal-contract.js';
 import {
     mobileTimelineReadParametersSchema,
@@ -43,6 +42,7 @@ export * from './mobile-agent-chat-contract.js';
 export * from './mobile-attention-contract.js';
 export * from './mobile-changes-contract.js';
 export { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
+export * from './mobile-files-contract.js';
 export * from './mobile-terminal-contract.js';
 export * from './mobile-timeline-contract.js';
 export * from './mobile-update-contract.js';
@@ -209,6 +209,10 @@ const mobileAgentAvailabilitySchema = z.strictObject({
 });
 const mobileAgentAvailabilityResultSchema = z.strictObject({
     agents: z.array(mobileAgentAvailabilitySchema).length(4),
+    /**
+     * The Mac's `session.openAgentsInChat` setting, so a new mobile Session defaults to the same surface as Desktop.
+     */
+    openAgentsInChat: z.boolean(),
 });
 
 /**
@@ -308,60 +312,8 @@ export const mobileTreeChildrenResultSchema = z.strictObject({
     reset: z.literal(true).optional(),
 });
 
-export const mobileFilesListParametersSchema = z.strictObject({
-    sessionId: identifierSchema,
-    directory: pathSchema.optional(),
-});
-
-export const mobileFilesListResultSchema = z.strictObject({
-    entries: z.array(fileEntrySchema).max(MOBILE_FILES_MAX_ENTRIES),
-    truncated: z.boolean(),
-});
-
-export const mobileFilesReadParametersSchema = z.strictObject({
-    sessionId: identifierSchema,
-    path: pathSchema,
-});
-
-export const mobileFilesReadResultSchema = z.discriminatedUnion('status', [
-    z.strictObject({
-        status: z.literal('available'),
-        path: pathSchema,
-        content: z
-            .string()
-            .refine(
-                (content) =>
-                    new TextEncoder().encode(content).length <= MOBILE_FILES_READ_MAX_BYTES,
-                'Mobile file read exceeds the byte limit',
-            ),
-        mtimeMs: z.number(),
-        size: z.number(),
-        contentHash: z.string().regex(/^[0-9a-f]{64}$/u),
-        readOnly: z.boolean().optional(),
-    }),
-    z.strictObject({ status: z.literal('binary') }),
-    z.strictObject({ status: z.literal('oversized') }),
-]);
-
-export const mobileFilesWriteParametersSchema = z.strictObject({
-    sessionId: identifierSchema,
-    path: pathSchema,
-    content: z
-        .string()
-        .refine(
-            (content) => new TextEncoder().encode(content).length <= MOBILE_FILES_READ_MAX_BYTES,
-            'Mobile file write exceeds the byte limit',
-        ),
-    expectedContentHash: z.string().regex(/^[0-9a-f]{64}$/u),
-});
-
 export const mobileAgentActionsResultSchema = z.strictObject({
     actions: z.array(agentActionSchema).max(40),
-    truncated: z.boolean(),
-});
-
-export const mobileFilesSearchResultSchema = z.strictObject({
-    paths: z.array(z.string().min(1).max(2_048)).max(40),
     truncated: z.boolean(),
 });
 
@@ -477,6 +429,10 @@ export const mobileMethods = {
         params: z.strictObject({
             projectId: identifierSchema,
             defaultAgent: terminalKindSchema,
+            /**
+             * `chat` starts a Chat-capable Agent as an Agent Chat; omitted means a PTY Terminal.
+             */
+            surface: terminalSurfaceSchema.optional(),
         }),
         result: mobileSessionCreateResultSchema,
     },
@@ -530,26 +486,7 @@ export const mobileMethods = {
         params: mobileTreeChildrenParametersSchema,
         result: mobileTreeChildrenResultSchema,
     },
-    'mobile.files.list': {
-        ...commandPolicy('server', 'read', ['files.read']),
-        params: mobileFilesListParametersSchema,
-        result: mobileFilesListResultSchema,
-    },
-    'mobile.files.read': {
-        ...commandPolicy('server', 'read', ['files.read']),
-        params: mobileFilesReadParametersSchema,
-        result: mobileFilesReadResultSchema,
-    },
-    'mobile.files.search': {
-        ...commandPolicy('server', 'read', ['files.read']),
-        params: z.strictObject({ sessionId: identifierSchema, query: z.string().min(1).max(100) }),
-        result: mobileFilesSearchResultSchema,
-    },
-    'mobile.files.write': {
-        ...commandPolicy('server', 'write', ['files.write']),
-        params: mobileFilesWriteParametersSchema,
-        result: mobileFilesReadResultSchema,
-    },
+    ...mobileFilesMethods,
     ...mobileUpdateMethods,
 } as const satisfies Record<string, MethodSpec>;
 
@@ -631,6 +568,7 @@ export const mobileInternalMethods = {
         params: z.strictObject({
             projectId: identifierSchema,
             defaultAgent: terminalKindSchema,
+            surface: terminalSurfaceSchema.optional(),
             principal: principalSchema,
         }),
         result: mobileSessionCreateResultSchema,
@@ -653,26 +591,7 @@ export const mobileInternalMethods = {
         params: mobileProjectAddParametersSchema.extend({ principal: principalSchema }),
         result: mobileProjectAddResultSchema,
     },
-    'mobile.files.listInternal': {
-        ...commandPolicy('server', 'read'),
-        params: mobileFilesListParametersSchema.extend({ principal: principalSchema }),
-        result: mobileFilesListResultSchema,
-    },
-    'mobile.files.readInternal': {
-        ...commandPolicy('server', 'read'),
-        params: mobileFilesReadParametersSchema.extend({ principal: principalSchema }),
-        result: mobileFilesReadResultSchema,
-    },
-    'mobile.files.searchInternal': {
-        ...commandPolicy('server', 'read'),
-        params: mobileMethods['mobile.files.search'].params.extend({ principal: principalSchema }),
-        result: mobileFilesSearchResultSchema,
-    },
-    'mobile.files.writeInternal': {
-        ...commandPolicy('server', 'write'),
-        params: mobileFilesWriteParametersSchema.extend({ principal: principalSchema }),
-        result: mobileFilesReadResultSchema,
-    },
+    ...mobileFilesInternalMethods,
 } as const satisfies Record<string, MethodSpec>;
 
 export type MobileAccessStatus = z.infer<typeof mobileAccessStatusSchema>;
@@ -685,5 +604,3 @@ export type MobileProjectBrowseResult = z.infer<typeof mobileProjectBrowseResult
 export type MobileProjectAddResult = z.infer<typeof mobileProjectAddResultSchema>;
 export type MobilePanelsListResult = z.infer<typeof mobilePanelsListResultSchema>;
 export type MobileTreeChildrenResult = z.infer<typeof mobileTreeChildrenResultSchema>;
-export type MobileFilesListResult = z.infer<typeof mobileFilesListResultSchema>;
-export type MobileFilesReadResult = z.infer<typeof mobileFilesReadResultSchema>;

@@ -1,5 +1,6 @@
-import type { AgentChatSnapshot } from '@caxri/protocol';
+import type { AgentChatSnapshot, AppSettings } from '@caxri/protocol';
 
+import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
@@ -250,12 +251,101 @@ async function executeMobileClaudeToolApprovalScenario(
 }
 
 /**
+ * `MOB-CHAT-03`: the phone starts a new Session as a Codex Chat. `Open as` follows the Mac's `Open Agents in Chat`
+ * setting, hides for Shell, and the created Session opens the streamed Agent Chat view on a `chat` Terminal.
+ */
+async function executeMobileNewChatSessionScenario(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> {
+    const { serial } = environment;
+    const fixture = await createMobileAcceptanceFixture({ mode: 'agent-chat', serial });
+    try {
+        const { page } = fixture.running;
+        const current = await pageRequest<{ value: AppSettings }>(page, 'settings.get');
+        await pageRequest(page, 'settings.update', {
+            source: JSON.stringify({ ...current.value, 'session.openAgentsInChat': true }, null, 2),
+        });
+        await fixture.pair();
+        const before = await pageRequest<{ sessions: Array<{ id: string }> }>(
+            page,
+            'app.bootstrap',
+        );
+
+        await tapMobileCheck(serial, 'new-session-button');
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                nodes.some(
+                    ({ checkId, enabled }) => checkId === 'new-session-agent-codex' && enabled,
+                ) && hasCheck(nodes, `new-session-project-${fixture.allowedProjectId}`),
+        );
+        await tapMobileCheck(serial, `new-session-project-${fixture.allowedProjectId}`);
+        await tapMobileCheck(serial, 'new-session-agent-shell');
+        await waitForNoCheck(serial, 'new-session-surface-chat');
+        await capture(environment, 'shell-no-surface', artifacts);
+
+        await tapMobileCheck(serial, 'new-session-agent-codex');
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                nodes.some(
+                    ({ checkId, selected }) => checkId === 'new-session-surface-chat' && selected,
+                ) &&
+                nodes.some(
+                    ({ checkId, selected }) =>
+                        checkId === 'new-session-surface-terminal' && !selected,
+                ),
+        );
+        await capture(environment, 'chat-default', artifacts);
+
+        await tapMobileCheck(serial, 'new-session-create');
+        await waitForCheck(serial, 'agent-chat');
+        await waitForCheck(serial, 'agent-chat-status-empty');
+        const after = await pageRequest<{
+            sessions: Array<{ id: string }>;
+            terminals: Array<{ id: string; kind: string; sessionId: string; surface: string }>;
+        }>(page, 'app.bootstrap');
+        const knownSessionIds = new Set(before.sessions.map(({ id }) => id));
+        const created = after.sessions.find(({ id }) => !knownSessionIds.has(id));
+        const terminal = after.terminals.find(({ sessionId }) => sessionId === created?.id);
+        if (terminal?.kind !== 'codex' || terminal.surface !== 'chat')
+            throw new Error('The phone did not create a Codex Chat Terminal');
+        await capture(environment, 'created', artifacts);
+
+        await sendFromPhone(serial, 'hello');
+        await waitForMobile(
+            () =>
+                pageRequest<AgentChatSnapshot>(page, 'agentChat.read', {
+                    terminalId: terminal.id,
+                }),
+            (snapshot) => agentText(snapshot).includes('You said: hello') && !snapshot.activeTurnId,
+        );
+        await waitForNoCheck(serial, 'agent-chat-activity');
+        await capture(environment, 'reply', artifacts);
+
+        await finish(environment, artifacts, {
+            defaultSurface: 'chat',
+            shellSurface: 'hidden',
+            createdSurface: 'chat',
+            status: 'passed',
+        });
+    } finally {
+        await fixture.stop();
+    }
+}
+
+/**
  * Runs the Agent Chat Acceptance case `environment.caseId` names.
  */
 export async function executeMobileAgentChatCase(
     environment: MobileAgentScenarioEnvironment,
     artifacts: string[],
 ): Promise<void> {
+    if (environment.caseId === 'MOB-CHAT-03') {
+        await executeMobileNewChatSessionScenario(environment, artifacts);
+        return;
+    }
     await (environment.caseId === 'MOB-CHAT-02'
         ? executeMobileClaudeToolApprovalScenario(environment, artifacts)
         : executeMobileAgentChatScenario(environment, artifacts));
