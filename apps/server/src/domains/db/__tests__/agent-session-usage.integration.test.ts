@@ -104,7 +104,7 @@ describe('Agent Session usage ledger', () => {
     it('creates the usage tables when upgrading from each earlier schema version', async () => {
         /**
          * Absolute versions: `0002_agent_session_usage` is schema 40 and `0003_external_agent_usage` schema 41. Every
-         * later table is dropped too, because a database at either version predates it.
+         * later table and column is dropped too, because a database at either version predates it.
          */
         const laterTables = [
             'commander_tasks',
@@ -125,6 +125,10 @@ describe('Agent Session usage ledger', () => {
             database.close();
             const raw = new Database(path);
             for (const table of [...drop, ...laterTables]) raw.exec(`DROP TABLE ${table}`);
+            // `0006_chat_permission_modes` added these columns later still.
+            raw.exec(
+                'ALTER TABLE projects DROP COLUMN chat_defaults; ALTER TABLE terminals DROP COLUMN chat_permission_mode; ALTER TABLE terminals DROP COLUMN chat_plan_mode',
+            );
             raw.pragma(`user_version = ${from}`);
             raw.close();
 

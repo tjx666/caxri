@@ -77,6 +77,7 @@ type ServiceHandlerMethods =
     | 'terminal.referenceContext'
     | 'project.create'
     | 'project.setIcon'
+    | 'project.setChatDefault'
     | 'git.summary'
     | 'git.overview'
     | 'git.branches'
@@ -339,6 +340,14 @@ export function createServiceHandlers(services: {
         'project.setIcon': ({ projectId, icon }) => {
             const project = database.setProjectIcon(projectId, icon);
             emit({ event: 'state.changed', payload: { kind: 'full', reason: 'project.setIcon' } });
+            return project;
+        },
+        'project.setChatDefault': ({ projectId, provider, chatDefault }) => {
+            const project = database.setProjectChatDefault(projectId, provider, chatDefault);
+            emit({
+                event: 'state.changed',
+                payload: { kind: 'full', reason: 'project.setChatDefault' },
+            });
             return project;
         },
         'git.summary': ({ sessionId, refresh, requester }, signal) =>

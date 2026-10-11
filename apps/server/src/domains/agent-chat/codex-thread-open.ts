@@ -69,15 +69,26 @@ export async function initializeCodexConnection(
  * The opened thread, with the model and reasoning effort Codex reported for it. A thread that never chose an effort
  * reports none.
  */
-export type CodexThreadOpening = { model?: string; effort?: string } & (
+export type CodexThreadOpening = { model?: string; effort?: string; collaborationMode?: string } & (
     { outcome: 'resumed'; thread: Json } | { outcome: 'started'; threadId: string }
 );
 
-function reportedModel(result: unknown): { model?: string; effort?: string } {
+function reportedModel(result: unknown): {
+    model?: string;
+    effort?: string;
+    collaborationMode?: string;
+} {
     if (!isRecord(result)) return {};
     const model = stringField(result.model);
     const effort = stringField(result.reasoningEffort);
-    return { ...(model && { model }), ...(effort && { effort }) };
+    const collaborationMode = isRecord(result.collaborationMode)
+        ? stringField(result.collaborationMode.mode)
+        : undefined;
+    return {
+        ...(model && { model }),
+        ...(effort && { effort }),
+        ...(collaborationMode && { collaborationMode }),
+    };
 }
 
 /**
@@ -101,7 +112,7 @@ export async function openCodexThread(
     const threadParameters = {
         cwd,
         approvalPolicy: settings.approvalPolicy,
-        approvalsReviewer: 'user',
+        approvalsReviewer: settings.approvalsReviewer,
         sandbox: settings.sandbox,
         config: { 'tools.update_plan.enabled': true },
     };

@@ -17,6 +17,7 @@ import {
     slashCommandPrompt,
     stringField,
 } from './chat-items';
+import { chatPermissionState, grokOpeningSettings } from './chat-permissions';
 import type {
     AgentChatDriver,
     AgentChatProviderSession,
@@ -48,7 +49,6 @@ import {
 import { GrokUpdates, stopReasonStatus } from './grok-updates';
 import type { JsonRpcServerRequest } from './json-rpc-connection';
 import { JsonRpcConnection, JsonRpcRequestError } from './json-rpc-connection';
-import { grokChatSettings } from './launch-settings';
 
 const TURN_REQUEST_TIMEOUT_MS = 30_000;
 /**
@@ -366,7 +366,7 @@ class GrokChatSession implements AgentChatProviderSession {
     }
 
     private async open(): Promise<'resumed' | 'started'> {
-        const settings = grokChatSettings(this.options.launch);
+        const { settings, permissionMode } = grokOpeningSettings(this.options);
         let spawnFailure: ChatProcessEnd | undefined;
         const connection = new JsonRpcConnection({
             label: 'Grok Build',
@@ -407,7 +407,14 @@ class GrokChatSession implements AgentChatProviderSession {
         this.listedModels = models;
         this.contextWindow = contextWindow;
         this.options.apply([
-            { op: 'state', state: { ...(model && { model }), models: grokModels(models) } },
+            {
+                op: 'state',
+                state: {
+                    ...(model && { model }),
+                    models: grokModels(models),
+                    ...chatPermissionState('grok', permissionMode, false),
+                },
+            },
         ]);
         return outcome;
     }

@@ -3,6 +3,8 @@
 // passes own; flagged for a coordinated repo-wide rename instead of a cross-scope edit here.
 // eslint-disable-next-line unicorn/name-replacements
 import type {
+    AgentChatDefault,
+    AgentChatPermission,
     AgentProvider,
     AgentSnapshot,
     ProcessState,
@@ -18,7 +20,12 @@ import type {
     TerminalSnapshot,
     TerminalSurface,
 } from '@caxri/protocol';
-import { CaxriError, isTopLevelProject } from '@caxri/protocol';
+import {
+    CaxriError,
+    initialAgentChatPermission,
+    isTopLevelProject,
+    resolveAgentChatPermissionChange,
+} from '@caxri/protocol';
 import type Database from 'better-sqlite3';
 
 import type { AgentLifecycleSignal } from '../agents';
@@ -58,7 +65,6 @@ import {
 import type { ShutdownReason } from './session-policy';
 import {
     choosePrimaryAgentForNewTerminal,
-    choosePrimaryAgentSuccessor,
     DEFAULT_SESSION_TITLE,
     defaultTerminalTitle,
     firstActiveSession,
@@ -70,6 +76,8 @@ import {
 import { renameSessionWithPrimaryAgentTab } from './session-title';
 import { assertTerminalCapacity } from './terminal-capacity';
 import { terminalIdsBySession } from './terminal-ids-by-session';
+import { moveTerminalToNewSession } from './terminal-move';
+import { switchTerminalSurface } from './terminal-surface';
 
 /**
  * Facade kept close to the pre-split `Database` API so every consumer (composition root, Terminal manager, File
@@ -117,6 +125,10 @@ export class CaxriDatabase {
             cwd: cwd ?? ownerProject.rootPath,
             surface,
             title: defaultTerminalTitle(kind),
+            ...(surface === 'chat' &&
+                kind !== 'shell' && {
+                    chatPermission: initialAgentChatPermission(kind, ownerProject.chatDefaults),
+                }),
         });
         const assignment = choosePrimaryAgentForNewTerminal(session, terminal);
         if (assignment) this.db.sessions.setPrimaryAgent(sessionId, assignment);
@@ -166,6 +178,19 @@ export class CaxriDatabase {
      */
     projectDeletionScope(projectId: string): ProjectDeletionScope {
         return projectDeletionScope(this.db, projectId);
+    }
+
+    setProjectChatDefault(
+        projectId: string,
+        provider: AgentProvider,
+        chatDefault: AgentChatDefault | null,
+    ): ProjectRecord {
+        // A default must be one the provider offers, the same check a Chat's own switch gets.
+        if (chatDefault)
+            resolveAgentChatPermissionChange(provider, { planMode: false }, chatDefault);
+        if (!this.db.projects.setChatDefault(projectId, provider, chatDefault))
+            throw new CaxriError('NOT_FOUND', 'Project not found');
+        return this.db.projects.get(projectId)!;
     }
 
     setProjectIcon(projectId: string, icon: ProjectIcon | null): ProjectRecord {
@@ -449,45 +474,7 @@ export class CaxriDatabase {
         session: SessionRecord;
         terminal: TerminalRecord;
     } {
-        return this.db.transaction(() => {
-            const terminal = this.db.terminals.get(terminalId);
-            if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');
-            const sourceSession = this.db.sessions.get(terminal.sessionId);
-            if (!sourceSession) throw new CaxriError('NOT_FOUND', 'Session not found');
-            const project = this.db.projects.get(sourceSession.projectId);
-            if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
-
-            const newSession = this.db.sessions.insert({
-                projectId: sourceSession.projectId,
-                displayTitle: DEFAULT_SESSION_TITLE,
-            });
-
-            this.db.terminals.reassignSession(terminalId, newSession.id);
-            const movedTerminal = this.db.terminals.get(terminalId)!;
-
-            // Source Session cleanup, mirroring `closeTerminal`.
-            if (sourceSession.primaryAgentTerminalId === terminalId) {
-                const remaining = this.db.terminals.list(sourceSession.id);
-                const succession = choosePrimaryAgentSuccessor(remaining, sourceSession);
-                this.db.sessions.setPrimaryAgent(sourceSession.id, succession);
-            }
-            this.db.sessions.removeTerminalFromAllRootStates(sourceSession.id, terminalId);
-
-            // New Session state, mirroring `createSession`.
-            const assignment = choosePrimaryAgentForNewTerminal(newSession, movedTerminal);
-            if (assignment) this.db.sessions.setPrimaryAgent(newSession.id, assignment);
-            this.db.sessions.insertInitialState(newSession.id, movedTerminal.id);
-
-            this.db.appState.set('lastSelectedSessionId', newSession.id);
-            this.db.appState.set('lastSelectedProjectId', project.id);
-            this.db.projects.touchLastOpened(project.id);
-            this.db.sessions.touchLastOpened(newSession.id);
-
-            return {
-                session: this.db.sessions.get(newSession.id)!,
-                terminal: movedTerminal,
-            };
-        });
+        return this.db.transaction(() => moveTerminalToNewSession(this.db, terminalId));
     }
 
     selectSession(sessionId: string): void {
@@ -622,7 +609,15 @@ export class CaxriDatabase {
     }
 
     updateTerminalSurface(id: string, surface: TerminalSurface): void {
-        this.db.transaction(() => this.db.terminals.updateSurface(id, surface));
+        this.db.transaction(() => switchTerminalSurface(this.db, id, surface));
+    }
+
+    getChatPermission(id: string): AgentChatPermission | undefined {
+        return this.db.terminals.getChatPermission(id);
+    }
+
+    setChatPermission(id: string, permission: AgentChatPermission): void {
+        this.db.transaction(() => this.db.terminals.setChatPermission(id, permission));
     }
 
     updateAgentProcessExitState(id: string, state: 'dead' | 'stopped'): string | undefined {
