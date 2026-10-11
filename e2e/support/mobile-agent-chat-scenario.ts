@@ -282,7 +282,17 @@ async function executeMobileNewChatSessionScenario(
         );
         await tapMobileCheck(serial, `new-session-project-${fixture.allowedProjectId}`);
         await tapMobileCheck(serial, 'new-session-agent-shell');
-        await waitForNoCheck(serial, 'new-session-surface-chat');
+        // The Agent group is laid out with Shell picked, so a missing Open as means hidden, not unrendered.
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                nodes.some(
+                    ({ checkId, selected }) => checkId === 'new-session-agent-shell' && selected,
+                ) &&
+                hasCheck(nodes, 'new-session-agent-codex') &&
+                !hasCheck(nodes, 'new-session-surface-chat') &&
+                !hasCheck(nodes, 'new-session-surface-terminal'),
+        );
         await capture(environment, 'shell-no-surface', artifacts);
 
         await tapMobileCheck(serial, 'new-session-agent-codex');
@@ -298,6 +308,24 @@ async function executeMobileNewChatSessionScenario(
                 ),
         );
         await capture(environment, 'chat-default', artifacts);
+        // An explicit pick overrides the setting's default both ways.
+        await tapMobileCheck(serial, 'new-session-surface-terminal');
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                nodes.some(
+                    ({ checkId, selected }) =>
+                        checkId === 'new-session-surface-terminal' && selected,
+                ),
+        );
+        await tapMobileCheck(serial, 'new-session-surface-chat');
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                nodes.some(
+                    ({ checkId, selected }) => checkId === 'new-session-surface-chat' && selected,
+                ),
+        );
 
         await tapMobileCheck(serial, 'new-session-create');
         await waitForCheck(serial, 'agent-chat');
@@ -312,6 +340,11 @@ async function executeMobileNewChatSessionScenario(
         if (terminal?.kind !== 'codex' || terminal.surface !== 'chat')
             throw new Error('The phone did not create a Codex Chat Terminal');
         await capture(environment, 'created', artifacts);
+        const settingsAfter = await pageRequest<{ value: AppSettings }>(page, 'settings.get');
+        if (!settingsAfter.value['session.openAgentsInChat'])
+            throw new Error(
+                "The phone's pick must not write the Mac's Open Agents in Chat setting",
+            );
 
         await sendFromPhone(serial, 'hello');
         await waitForMobile(
@@ -328,6 +361,8 @@ async function executeMobileNewChatSessionScenario(
             defaultSurface: 'chat',
             shellSurface: 'hidden',
             createdSurface: 'chat',
+            explicitPick: 'overrides-default',
+            macSetting: 'unchanged',
             status: 'passed',
         });
     } finally {
