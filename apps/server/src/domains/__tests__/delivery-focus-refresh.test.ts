@@ -4,13 +4,13 @@ import {
     DELIVERY_FOCUS_REFRESH_MIN_INTERVAL_MS,
     DeliveryFocusRefresh,
 } from '../delivery-focus-refresh';
-import { refreshAfterMerge } from '../pull-request-merge-refresh';
 import {
     createdPullRequestLines,
     harness,
     pullRequestJson,
     session,
-} from './session-pull-requests.fixture';
+} from '../project-status/__tests__/session-pull-requests.fixture';
+import { refreshAfterMerge } from '../pull-request-merge-refresh';
 
 describe('SessionPullRequestService.refreshSession', () => {
     it('re-reads a pull request whose cached state is still fresh', async () => {

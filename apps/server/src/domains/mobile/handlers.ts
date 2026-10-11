@@ -16,12 +16,12 @@ import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
 import type { FileService } from '../files';
 import type { GitService } from '../git';
-import type { MobileTerminalMutationQueue } from '../mobile-terminal-mutation-queue';
 import type { TerminalManager } from '../terminal';
 import { createMobileAgentAvailabilityHandler } from './agent-availability';
 import { createMobileAgentSubmitHandler } from './agent-submit';
 import { MobileImageStore } from './image-store';
 import { createMobileProjectAddHandler, createMobileProjectBrowseHandler } from './project-browse';
+import type { MobileTerminalMutationQueue } from './terminal-mutation-queue';
 
 type MobileDomainMethods = Pick<
     DomainHandlers,

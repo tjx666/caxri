@@ -62,7 +62,7 @@ interface GitReviewSendOptions {
 
 /**
  * Builds the send prompt from the Server's own comment store and writes it to the already-attached Terminal the
- * Renderer selected and identifies here, mirroring `terminal-input.ts`'s managed-Agent guard directly in-process
+ * Renderer selected and identifies here, mirroring `terminal/input.ts`'s managed-Agent guard directly in-process
  * instead of recursing through another public method. The Renderer still owns Terminal selection, activation, and the
  * attachment wait: those depend on `PaneLayout`, a Renderer-only concept the Server has no view of.
  */

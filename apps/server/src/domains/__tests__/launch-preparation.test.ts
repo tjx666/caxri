@@ -10,8 +10,8 @@ import type { AgentCoordinator } from '../agents';
 import type { ConfigService } from '../config';
 import { CaxriDatabase } from '../db';
 import type { TerminalManager, TerminalWorkingDirectoryIdentity } from '../terminal';
+import { createTerminalCreation } from '../terminal/creation';
 import { InFlightLaunches } from '../terminal/in-flight-launches';
-import { createTerminalCreation } from '../terminal-creation';
 import { createTerminalRestartHandler } from '../terminal-restart';
 
 /**

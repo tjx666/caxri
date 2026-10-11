@@ -2,14 +2,14 @@ import type { AgentProvider, AgentSnapshot } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { AgentLifecycleSignal } from '../agents';
+import type { CaxriDatabaseConnection } from './database-connection';
 import {
     choosePrimaryAgentForNewTerminal,
     decideAgentLifecycleUpdate,
     decideAgentMetadataUpdate,
     defaultTerminalTitle,
     sessionActivityReasonForAgentState,
-} from '../session-policy';
-import type { CaxriDatabaseConnection } from './database-connection';
+} from './session-policy';
 
 /**
  * Agent-owned half of the `CaxriDatabase` facade: provider identity, conversation metadata, lifecycle activity, and the

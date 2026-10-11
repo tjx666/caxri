@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExternalStatusRunner } from '../../external-status';
 import { LinearIssueStore } from '../../external-status';
-import type { SessionTranscriptContext } from '../../session-context';
+import type { SessionTranscriptContext } from '../../session/context';
 import { ProjectStatusService } from '..';
 import { loadOverviewLinearIssues } from '../linear';
 

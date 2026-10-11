@@ -10,8 +10,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as agentFunctions from '../agents';
 import { AgentCoordinator, AgentService } from '../agents';
 import { CaxriDatabase } from '../db';
-import { SessionAutoNamingService } from '../session-auto-naming';
-import { SessionRenameService } from '../session-rename';
+import { SessionAutoNamingService } from '../session/auto-naming';
+import { SessionRenameService } from '../session/rename';
 import { createPendingAgentAdapters } from './create-test-domain-services';
 
 const loggers: StructuredLogger[] = [];
@@ -615,7 +615,7 @@ describe('Automatic Session rename synchronization', () => {
 
 /**
  * Suppression records the service keeps before it starts discarding them, mirroring `SESSION_RECORD_CAPACITY` in
- * `session-auto-naming.ts`. Pinned here on purpose: the fault these tests cover is an eviction that forgets a launch
+ * `session/auto-naming.ts`. Pinned here on purpose: the fault these tests cover is an eviction that forgets a launch
  * still in force, and raising the bound would hide it rather than fix it.
  */
 const SUPPRESSION_CAPACITY = 128;

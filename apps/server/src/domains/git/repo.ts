@@ -12,7 +12,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { fileIdentity, mapWithConcurrency } from '@caxri/system';
 
 import { isOutsideRoot } from '../path-security';
-import type { ProjectRootResolver } from '../project-roots';
+import type { ProjectRootResolver } from '../project';
 import { SingleFlight } from '../single-flight';
 import type { GitChangeTracker } from './change-tracker';
 import { describeGitSummaryFailure } from './errors';

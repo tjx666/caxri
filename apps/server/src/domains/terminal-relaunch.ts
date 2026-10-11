@@ -1,6 +1,6 @@
 import type { AgentChatService } from './agent-chat';
 import type { DomainHandlers } from './domain-services';
-import type { MobileTerminalMutationQueue } from './mobile-terminal-mutation-queue';
+import type { MobileTerminalMutationQueue } from './mobile';
 import { createTerminalRestartHandler } from './terminal-restart';
 import type { TerminalSurfaceSwitchOptions } from './terminal-surface-switch';
 import { createTerminalSurfaceSwitchHandler } from './terminal-surface-switch';

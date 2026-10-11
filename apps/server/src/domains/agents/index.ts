@@ -1,4 +1,5 @@
 export { listAgentActions, readAgentAction, recordRecentAgentAction } from './actions';
+export { AgentThroughputService } from './agent-throughput';
 export {
     AgentAttentionAutoAllow,
     createPermissionAutoAllowController,
@@ -32,7 +33,9 @@ export { extractClaudeDelegationAnswer } from './providers/claude/delegation';
 export { claudeTranscriptRoot, resolveClaudeConfigDirectory } from './providers/claude/paths';
 export { agentCommandEnvironment } from './rename';
 export { readAgentReplySummary, summarizeLatestAgentReply } from './reply-summary';
+export { AgentRunAutonomy } from './run-autonomy';
 export { type AgentAdapter, AgentService, createLocalAgentAdapters } from './service';
+export { agentSkillHealthReader } from './skills';
 export {
     ThroughputAccumulator,
     type ThroughputLineScanner,
