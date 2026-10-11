@@ -262,6 +262,11 @@ export const SessionHome = ({
                 onChooseProject={chooseProject}
                 onForgetComputer={confirmForget}
                 onOpenArchived={() => router.navigate(`/h/${encodeURIComponent(hostId)}/archived`)}
+                onOpenInbox={
+                    deviceRole === 'control'
+                        ? () => router.navigate(`/h/${encodeURIComponent(hostId)}/inbox`)
+                        : undefined
+                }
                 onOpenSettings={() => router.navigate(`/h/${encodeURIComponent(hostId)}/settings`)}
                 projects={projects}
                 status={status}

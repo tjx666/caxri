@@ -1,4 +1,5 @@
-import type { CommanderInboxItem, CommanderInboxKind } from '@caxri/protocol';
+import type { CommanderInboxItem } from '@caxri/protocol';
+import { commanderInboxKindLabel, isCommanderInboxQuestion } from '@caxri/protocol';
 
 type CommanderInboxSectionId = 'merge' | 'questions';
 
@@ -13,19 +14,9 @@ const SECTION_TITLES: Record<CommanderInboxSectionId, string> = {
     questions: 'Questions',
 };
 
-const KIND_LABELS: Record<CommanderInboxKind, string> = {
-    decision: 'Decision',
-    hands: 'Needs your hands',
-    merge: 'Pull request',
-};
-
-export function commanderInboxKindLabel(kind: CommanderInboxKind): string {
-    return KIND_LABELS[kind];
-}
-
 /**
- * Open items in two sections: questions first, because a question blocks the Commander while a ready pull request only
- * waits. Within each, the Server's newest-first order is kept.
+ * Open items in two sections, questions first (the order `orderCommanderInboxItems` shares with the phone). Within
+ * each, the Server's newest-first order is kept.
  */
 export function commanderInboxSections(
     items: readonly CommanderInboxItem[],
@@ -33,8 +24,8 @@ export function commanderInboxSections(
     const open = items.filter((item) => item.status === 'open');
     const sections: CommanderInboxSection[] = [];
     for (const id of ['questions', 'merge'] as const) {
-        const inSection = open.filter((item) =>
-            id === 'merge' ? item.kind === 'merge' : item.kind !== 'merge',
+        const inSection = open.filter(
+            (item) => isCommanderInboxQuestion(item) === (id === 'questions'),
         );
         if (inSection.length > 0)
             sections.push({ id, title: SECTION_TITLES[id], items: inSection });
@@ -99,20 +90,6 @@ export function commanderInboxMergeState(item: CommanderInboxItem): CommanderInb
 }
 
 /**
- * Whether the Commander has read the owner's latest reply, so a sent answer never looks lost while the Commander is
- * busy. Undefined until the owner replied.
- */
-export function commanderInboxReplyState(
-    item: CommanderInboxItem,
-): { isRead: boolean; label: string } | undefined {
-    const latest = item.replies.at(-1);
-    if (!latest) return undefined;
-    return item.acknowledgedSequence >= latest.sequence
-        ? { isRead: true, label: 'Read by Commander' }
-        : { isRead: false, label: 'Delivered to Commander' };
-}
-
-/**
  * The `@` mention the caret is inside, if any: an `@` at the start or after whitespace, followed by the query typed so
  * far with no whitespace. `start` is the index of the `@`.
  */
@@ -139,7 +116,7 @@ export function inboxMentionCandidates(
             item.status === 'open' &&
             (needle === '' ||
                 item.title.toLocaleLowerCase().includes(needle) ||
-                KIND_LABELS[item.kind].toLocaleLowerCase().includes(needle)),
+                commanderInboxKindLabel(item.kind).toLocaleLowerCase().includes(needle)),
     );
 }
 
@@ -165,6 +142,6 @@ export function inboxReplyTarget(
     const open = items.filter((item) => item.status === 'open');
     const chosen = chosenId && open.find((item) => item.id === chosenId);
     if (chosen) return chosen;
-    const questions = open.filter((item) => item.kind !== 'merge');
+    const questions = open.filter((item) => isCommanderInboxQuestion(item));
     return questions.length === 1 ? questions[0] : undefined;
 }

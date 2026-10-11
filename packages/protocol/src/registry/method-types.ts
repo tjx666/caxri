@@ -148,6 +148,7 @@ export const effectfulCommandRecovery = {
     'mobile.agentChat.respond': 'memory',
     'mobile.agentChat.retry': 'memory',
     'mobile.agentChat.configure': 'memory',
+    'mobile.commanderInbox.reply': 'durable',
     'mobile.project.add': 'durable',
     'mobile.files.write': 'memory',
     'mobile.update.prepare': 'memory',

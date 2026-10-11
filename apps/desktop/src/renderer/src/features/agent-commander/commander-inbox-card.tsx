@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 
 import { parseMarkdownBlocks } from '@caxri/markdown';
 import type { CommanderInboxItem } from '@caxri/protocol';
+import { commanderInboxKindLabel, commanderInboxReplyState } from '@caxri/protocol';
 import { relativeTime } from '@caxri/utils';
 import { ExternalLink, GitMerge, MessageSquareReply, SquareArrowOutUpRight } from 'lucide-react';
 
@@ -10,11 +11,7 @@ import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { openCommanderPullRequest, revealCommanderSession } from './commander-commands';
-import {
-    commanderInboxKindLabel,
-    commanderInboxMergeState,
-    commanderInboxReplyState,
-} from './commander-inbox';
+import { commanderInboxMergeState } from './commander-inbox';
 import { dismissCommanderInboxItem, mergeCommanderInboxItem } from './commander-inbox-commands';
 import { chooseCommanderInboxReplyTarget } from './commander-inbox-store';
 

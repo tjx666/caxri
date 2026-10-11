@@ -12,11 +12,11 @@ dispatcher also grants only the capabilities for that role.
 
 ## Current method grants
 
-| Role      | Additional methods beyond the preceding role                                                                                                                                                                    |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, and `mobile.agentChat.readImage` |
-| `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, and `mobile.agentChat.retry`                                                           |
-| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, and `mobile.agentChat.interrupt`                               |
+| Role      | Additional methods beyond the preceding role                                                                                                                                                                            |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, `mobile.attention.list`, `mobile.agentChat.read`, and `mobile.agentChat.readImage`         |
+| `reply`   | `session.markRead`, `mobile.agent.submit`, `mobile.image.upload`, `mobile.agentChat.send`, `mobile.agentChat.configure`, and `mobile.agentChat.retry`                                                                   |
+| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, `mobile.attention.answer`, `mobile.agentChat.respond`, `mobile.agentChat.interrupt`, and `mobile.commanderInbox.{list,reply}` |
 
 The method set is explicit. A role grant alone never authorizes a resource: dashboard, Session, and
 Terminal reads use principal-scoped queries; an Agent submission also checks the current Primary
@@ -125,6 +125,20 @@ device's existing credential keeps working and immediately gains access to the n
 next `mobile.dashboard` read.
 
 The implementation lives in [the access controller](../../apps/server/src/core/mobile/access-controller.ts),
+[Project requests](../../apps/server/src/core/mobile/project-requests.ts),
 [device registry](../../apps/server/src/core/mobile/device-registry.ts),
 [Project browse/add handlers](../../apps/server/src/domains/mobile/project-browse.ts), and
 [mobile protocol](../../packages/protocol/src/mobile/mobile-contract.ts).
+
+## Commander Inbox from mobile
+
+`mobile.commanderInbox.list` and `mobile.commanderInbox.reply` are `control`-only. The
+[Commander Inbox](../agent-commander.md#commander-inbox) belongs to the owner rather than to one
+Project, so it would show a narrower `view` or `reply` grant items from Projects it cannot see; the
+`control` role already reaches beyond its grant through `mobile.project.browse`. The list returns
+only open items projected to one gateway frame (questions first, bodies and replies shortened, no
+merge-only fields). A reply runs in the authority queue like an attention answer and is stored with
+source `mobile` through the internal `mobile.commanderInbox.replyInternal`, whose handler rechecks
+the `control` role. Merge and Dismiss have no mobile method. See
+[the Inbox requests](../../apps/server/src/core/mobile/commander-inbox-requests.ts) and
+[the mobile Inbox contract](../../packages/protocol/src/mobile/mobile-commander-inbox-contract.ts).

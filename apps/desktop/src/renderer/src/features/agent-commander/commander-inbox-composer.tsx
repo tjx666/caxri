@@ -1,13 +1,13 @@
 import { useRef } from 'react';
 
 import type { CommanderInboxItem } from '@caxri/protocol';
+import { commanderInboxKindLabel } from '@caxri/protocol';
 import { CornerDownLeft, X } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import { Textarea } from '../../components/ui/textarea';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
-import { commanderInboxKindLabel } from './commander-inbox';
 import { useCommanderInboxComposer } from './hooks/use-commander-inbox-composer';
 
 /**

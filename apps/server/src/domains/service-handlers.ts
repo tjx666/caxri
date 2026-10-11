@@ -113,6 +113,7 @@ type ServiceHandlerMethods =
     | 'commander.inbox.reply'
     | 'commander.inbox.dismiss'
     | 'commander.inbox.merge'
+    | 'mobile.commanderInbox.replyInternal'
     | 'session.refreshDeliveryOnFocus'
     | 'session.searchContent'
     | 'session.conversationReference'
@@ -393,6 +394,16 @@ export function createServiceHandlers(services: {
         'commander.inbox.reply': ({ id, body }) => commanderInbox.reply(id, body, 'desktop'),
         'commander.inbox.dismiss': ({ id }) => commanderInbox.dismiss(id),
         'commander.inbox.merge': ({ id, revision }) => commanderInbox.merge(id, revision),
+        'mobile.commanderInbox.replyInternal': ({ id, body, principal }) => {
+            if (principal.kind !== 'paired-device' || principal.role !== 'control')
+                throw new CaxriError(
+                    'FORBIDDEN',
+                    'Control access is required to reply to the Inbox',
+                );
+            const item = commanderInbox.reply(id, body, 'mobile');
+            // `reply` appends the new reply last, so the last sequence is the one just stored.
+            return { sequence: item.replies.at(-1)?.sequence ?? item.replies.length };
+        },
         'session.refreshDeliveryOnFocus': ({ sessionId }) => {
             // Fire-and-forget: the refresh logs its own outcome and the change events converge the UI.
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
