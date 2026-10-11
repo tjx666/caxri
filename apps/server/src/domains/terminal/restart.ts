@@ -52,6 +52,11 @@ export function createTerminalRestartHandler(
                 if (mode === 'fresh') options.coordinator.prepareTerminalStart(terminalId);
                 terminal = await options.restartChat(terminalId, mode !== 'fresh');
             } else {
+                if (mode !== 'fresh' && !current.agentSessionId && current.provider === 'grok')
+                    throw new CaxriError(
+                        'UNAVAILABLE',
+                        'Original Grok Build Session identity is unavailable; start a new Session explicitly',
+                    );
                 const expectedWorkingDirectory = await options.terminalDirectoryIdentity(
                     current.cwd,
                 );
@@ -59,11 +64,6 @@ export function createTerminalRestartHandler(
                     mode === 'fresh'
                         ? undefined
                         : await resumableAgentSessionId(options, current, 'restart');
-                if (mode !== 'fresh' && !current.agentSessionId && current.provider === 'grok')
-                    throw new CaxriError(
-                        'UNAVAILABLE',
-                        'Original Grok Build Session identity is unavailable; start a new Session explicitly',
-                    );
                 if (resumeAgentSessionId) options.coordinator.prepareTerminalResume(terminalId);
                 else options.coordinator.prepareTerminalStart(terminalId);
                 terminal = await options.terminals.restart(terminalId, {
