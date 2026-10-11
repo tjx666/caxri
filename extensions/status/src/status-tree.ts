@@ -6,6 +6,7 @@ import type {
 } from 'caxri';
 import { ProjectStatusSummaryErrorMessage, TreeItemCollapsibleState } from 'caxri';
 
+import { pullRequestCheckNodes } from './status-checks';
 import type { StatusNode } from './status-item';
 import { item } from './status-item';
 import {
@@ -16,17 +17,15 @@ import {
     checkLabel,
     clipMarkdown,
     deploymentStateLabel,
-    durationLabel,
     ignoredChecksLabel,
     markdownExcerpt,
-    projectStatusStateLabel,
     publicationDescription,
     publicationLabel,
     REFRESH_ACTION_LABEL,
     reviewThreadLocation,
     unresolvedCommentsLabel,
 } from './status-labels';
-import { mergePullRequestAction, mergeStateLabel } from './status-merge';
+import { mergePullRequestAction, mergeReadinessLabel } from './status-merge';
 import {
     acceptanceIcon,
     branchDeploymentRowDescription,
@@ -407,35 +406,7 @@ function buildRepoChildren(
          * time made the badge unreadable.
          */
         const lifecycleLabel = lifecycle?.label ?? 'Not reported';
-        const children = pullRequest.checks.map((check, index) => {
-            const duration = durationLabel(check.durationMs);
-            return item(`${prefix}:check:${index}`, check.name, {
-                description: duration,
-                icon: stateIcons[check.state],
-                url: check.url,
-                tooltip: {
-                    badge: {
-                        label: projectStatusStateLabel(check.state),
-                        tone: stateTones[check.state],
-                    },
-                    rows: [
-                        ...(duration ? [{ label: 'duration', value: duration }] : []),
-                        ...(check.url
-                            ? [{ label: 'logs', value: linkText(check.url), url: check.url }]
-                            : []),
-                    ],
-                },
-            });
-        });
-        if (pullRequest.hiddenCheckCount > 0) {
-            children.push(
-                item(
-                    `${prefix}:hidden-checks`,
-                    `${ignoredChecksLabel(pullRequest.hiddenCheckCount)} hidden`,
-                    { icon: 'eye-off' },
-                ),
-            );
-        }
+        const children = pullRequestCheckNodes(prefix, pullRequest);
         const mergeAction = mergePullRequestAction(repo, pullRequest);
         nodes.push(
             item(`${prefix}:pr`, `#${pullRequest.number} ${pullRequest.title}`, {
@@ -453,7 +424,7 @@ function buildRepoChildren(
                     rows: [
                         { label: 'checks', value: checkLabel(pullRequest.state) },
                         ...(pullRequest.lifecycle === 'open' && pullRequest.mergeState
-                            ? [{ label: 'merge', value: mergeStateLabel(pullRequest.mergeState) }]
+                            ? [{ label: 'merge', value: mergeReadinessLabel(pullRequest) }]
                             : []),
                         ...(pullRequest.hiddenCheckCount > 0
                             ? [
