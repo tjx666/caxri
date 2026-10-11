@@ -7,7 +7,7 @@ import { agentChatSuggestionOptionId } from './agent-chat-suggestions';
  * input, which drives the list through `aria-activedescendant`; the pointer can pick a row too. Rows match the command
  * palette's density and focus fill.
  */
-export function AgentChatSuggestionMenu({
+function SuggestionList({
     activeIndex,
     heading,
     label,
@@ -77,5 +77,51 @@ export function AgentChatSuggestionMenu({
                 </div>
             ))}
         </div>
+    );
+}
+
+interface SuggestionMenuState {
+    activeIndex: number;
+    highlight: (index: number) => void;
+    isOpen: boolean;
+    listId: string;
+    suggestions: readonly AgentChatSuggestion[];
+}
+
+/**
+ * The composer's two lists, of which at most one shows: the slash-command list wins while open, otherwise the `@`
+ * Sessions list.
+ */
+export function AgentChatSuggestionMenu({
+    commandMenu,
+    onChooseCommand,
+    sessionMenu,
+}: {
+    commandMenu: SuggestionMenuState;
+    onChooseCommand: (index: number) => void;
+    sessionMenu: SuggestionMenuState & { chooseAt: (index: number) => void };
+}) {
+    if (commandMenu.isOpen)
+        return (
+            <SuggestionList
+                activeIndex={commandMenu.activeIndex}
+                label="Commands and skills"
+                listId={commandMenu.listId}
+                suggestions={commandMenu.suggestions}
+                onChoose={onChooseCommand}
+                onHover={commandMenu.highlight}
+            />
+        );
+    if (!sessionMenu.isOpen) return null;
+    return (
+        <SuggestionList
+            activeIndex={sessionMenu.activeIndex}
+            heading="Sessions"
+            label="Sessions"
+            listId={sessionMenu.listId}
+            suggestions={sessionMenu.suggestions}
+            onChoose={sessionMenu.chooseAt}
+            onHover={sessionMenu.highlight}
+        />
     );
 }
