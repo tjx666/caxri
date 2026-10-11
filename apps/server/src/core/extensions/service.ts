@@ -9,7 +9,7 @@ import type {
     TreeChildrenResult,
     ViewCatalogSnapshot,
 } from '@caxri/protocol';
-import { CaxriError, isExtensionViewReadOperation, methods } from '@caxri/protocol';
+import { CaxriError, isExtensionViewReadOperation } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -26,13 +26,14 @@ import { buildViewCatalog } from './catalog';
 import type { DiscoveredExtension } from './discovery';
 import { discoverExtensions } from './discovery';
 import type { CatalogChangedEvent, TreeChangedEvent, ViewChangedEvent } from './service-events';
-import {
-    projectExtensionHostViewEvent,
-    subscribeExtensionEvent,
-    toExtensionViewEventContext,
-} from './service-events';
+import { projectExtensionHostViewEvent, subscribeExtensionEvent } from './service-events';
 import { ExtensionHostSupervisor } from './supervisor';
 import { assertActiveViewContext, extensionForView } from './view-scope';
+import {
+    isReadWorkspaceOperation,
+    workspaceCapability,
+    workspaceParameters,
+} from './workspace-requests';
 import {
     validatedExtensionWorkspaceResult,
     validatedServerWorkspaceResult,
@@ -66,49 +67,6 @@ export interface ExtensionServiceOptions {
         context: { sessionId: string; workbenchProjectId: string },
         signal?: AbortSignal,
     ): Promise<unknown>;
-}
-
-const readWorkspaceOperations = new Set<ExtensionWorkspaceOperation>([
-    'git.commits',
-    'git.commitDetails',
-    'git.pullRequestChanges',
-    'git.remoteHost',
-    'git.summary',
-]);
-
-function workspaceCapability(operation: ExtensionWorkspaceOperation): ExtensionCapability {
-    const access = readWorkspaceOperations.has(operation) ? 'read' : 'write';
-    return `git.${access}`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null;
-}
-
-function workspaceParameters(
-    operation: ExtensionWorkspaceOperation,
-    arguments_: unknown,
-    sessionId: string,
-): unknown {
-    if (!isRecord(arguments_))
-        throw Object.assign(new Error('Extension workspace arguments must be an object'), {
-            code: 'PROVIDER_FAILED',
-        });
-    try {
-        /**
-         * `requester` is Server-stamped, never extension-supplied: it attributes `git.summary` log volume to the
-         * Extension Host entry point regardless of what the extension put in its arguments.
-         */
-        return methods[operation].params.parse({
-            ...arguments_,
-            sessionId,
-            ...(operation === 'git.summary' && { requester: 'extension' }),
-        });
-    } catch {
-        throw Object.assign(new Error(`Invalid Extension API arguments for ${operation}`), {
-            code: 'PROVIDER_FAILED',
-        });
-    }
 }
 
 function extensionFailure(error: unknown): ExtensionError {
@@ -376,7 +334,7 @@ export class ExtensionService extends EventTarget {
             ? await this.options.workspaceRequest(operation, parameters, active, signal)
             : await this.options.workspaceRequest(operation, parameters, active);
         const result = validatedServerWorkspaceResult(operation, workspaceResult);
-        if (readWorkspaceOperations.has(operation))
+        if (isReadWorkspaceOperation(operation))
             await this.assertApiContextCurrent(request, capability, active);
         return result;
     }
@@ -571,20 +529,25 @@ export class ExtensionService extends EventTarget {
         return this.catalogSnapshot;
     }
 
+    /**
+     * Scoped like `viewOperation` reads: a Session switch mid-load cancels instead of crossing Session trees.
+     */
     async treeChildren(parameters: {
         viewId: string;
         parentHandle?: string;
         requestId: string;
+        context: ExtensionViewEventContext;
     }): Promise<TreeChildrenResult> {
+        assertActiveViewContext(parameters.context, await this.options.activeContext());
         const extension = this.extensionForView(parameters.viewId);
         await this.activate(extension, `onView:${parameters.viewId}`);
+        assertActiveViewContext(parameters.context, await this.options.activeContext());
         const generation = this.states.get(extension.extensionId)!.generation;
-        const context = toExtensionViewEventContext(await this.options.activeContext());
+        let result: TreeChildrenResult;
         try {
-            return (await this.supervisor?.request('treeChildren', {
+            result = (await this.supervisor?.request('treeChildren', {
                 extensionId: extension.extensionId,
                 generation,
-                context,
                 ...parameters,
             })) as TreeChildrenResult;
         } catch (error) {
@@ -599,10 +562,12 @@ export class ExtensionService extends EventTarget {
                 generation,
                 viewId: parameters.viewId,
                 requestId: parameters.requestId,
-                context,
+                context: parameters.context,
             })) as TreeChildrenResult;
-            return { ...root, ...(parameters.parentHandle && { reset: true }) };
+            result = { ...root, ...(parameters.parentHandle && { reset: true }) };
         }
+        assertActiveViewContext(parameters.context, await this.options.activeContext());
+        return result;
     }
 
     async viewOperation(parameters: {
