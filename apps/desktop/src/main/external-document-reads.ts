@@ -5,17 +5,20 @@ import { basename, dirname, join, resolve, sep } from 'node:path';
 import type { MethodResult } from '@caxri/protocol';
 import { CaxriError, MAX_PREVIEW_ASSET_BYTES, previewAssetMediaType } from '@caxri/protocol';
 
-import { authorizedExternalDocument } from './external-documents';
+import { authorizedExternalDocument, isExternalDocumentWriting } from './external-documents';
 import { readExternalFile, readExternalFileSnapshot } from './external-file-snapshot';
 import { pathFailure } from './path-browser-identity';
 
 /**
  * Reads a registered document again (after another app changed it) under the folder identity it was first read with, so
- * a folder swapped out from under the path is refused rather than followed.
+ * a folder swapped out from under the path is refused rather than followed. A read during Caxri's own save is refused
+ * too: the Renderer keeps its buffer on a failed read, where a half-written file would replace it.
  */
 export async function readExternalDocument(
     documentId: string,
 ): Promise<MethodResult<'externalDocument.read'>> {
+    if (isExternalDocumentWriting(documentId))
+        throw new CaxriError('CONFLICT', 'Document is being saved');
     const authorized = await authorizedExternalDocument(documentId);
     const { content, mtimeMs, size } = await readExternalFile(
         authorized.parent,
