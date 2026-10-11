@@ -398,6 +398,7 @@ describe('Server Core application', () => {
         const refreshError = new Error('Extension context refresh failed before shutdown');
         vi.spyOn(extensionServiceFactory, 'createExtensionService').mockResolvedValue({
             activeContextChanged: vi.fn(),
+            markCoreStopping: vi.fn(),
             shutdown: vi.fn(),
         } as never);
         const app = await startServerCore({

@@ -60,6 +60,12 @@ interface GpuRecoveryCoordinatorOptions {
     boot: GpuBootState;
     diagnostics: ReturnType<typeof createGpuDiagnostics>;
     isE2E: boolean;
+    /**
+     * True once a quit was accepted. A signal-driven quit (SIGTERM to the whole process group) takes the GPU and
+     * utility processes down with it; production logged that as error-level crashes and requested GPU recovery for an
+     * app that was exiting.
+     */
+    isQuitting?(): boolean;
     logger(): StructuredLogger | undefined;
     prepareRelaunch(): void;
     sendEvent(event: ServerEvent): void;
@@ -105,6 +111,18 @@ export function createGpuRecoveryCoordinator(options: GpuRecoveryCoordinatorOpti
             });
             options.app.on('child-process-gone', (_event, details) => {
                 if (details.reason === 'clean-exit') return;
+                if (options.isQuitting?.()) {
+                    options.logger()?.write('info', logEventCatalog.app.childProcessGone, {
+                        fields: {
+                            code: 'CHILD_PROCESS_GONE',
+                            type: details.type,
+                            reason: details.reason,
+                            exitCode: details.exitCode,
+                            source: 'app-quitting',
+                        },
+                    });
+                    return;
+                }
                 if (details.type === 'GPU') {
                     recordProcessGone(details);
                     return;
