@@ -8,15 +8,10 @@ import { CircleAlert } from 'lucide-react';
 import { writeToClipboardWithFeedback } from '../../components/copy-feedback';
 import { CopyIconButton } from '../../components/markdown/copy-icon-button';
 import { MarkdownBlocks } from '../../components/markdown/markdown-blocks';
-import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
-import { pushToast } from '../../stores/toasts';
+import { openAgentChatLink } from './agent-chat-links';
+import { AgentChatMessageTime } from './agent-chat-message-time';
 import { agentChatNoticeMessage } from './agent-chat-presentation';
-
-function openChatLink(url: string): void {
-    // eslint-disable-next-line no-void -- openExternalUrl reports its own failures through the callback
-    void openExternalUrl(url, (message) => pushToast('error', message));
-}
 
 const CHAT_PARSE_OPTIONS: MarkdownBlockOptions = { tables: true, fileLinks: true };
 
@@ -46,18 +41,18 @@ export function AgentChatMessage({
                 isStreaming={isStreaming}
                 variant="transcript"
                 onOpenFile={onOpenFile}
-                onOpenUrl={openChatLink}
+                onOpenUrl={openAgentChatLink}
             />
         </div>
     );
 }
 
 /**
- * An Agent reply, with a Copy action underneath when it is the reply that ends a turn. Commentary between tool calls
- * carries no action row, so a long turn does not reserve empty space under every reply. The action appears only while
- * the pointer is over its reply or keyboard focus reaches it, so a scrolled transcript is not lined with copy icons;
- * its row keeps its height, so revealing it never shifts the transcript. Copy takes the Markdown source, which pastes
- * back into an issue, a document, or another Agent intact.
+ * An Agent reply, with a Copy action and the time it was sent underneath when it is the reply that ends a turn.
+ * Commentary between tool calls carries no action row, so a long turn does not reserve empty space under every reply.
+ * The row appears only while the pointer is over its reply or keyboard focus reaches it, so a scrolled transcript is
+ * not lined with copy icons; it keeps its height, so revealing it never shifts the transcript. Copy takes the Markdown
+ * source, which pastes back into an issue, a document, or another Agent intact.
  */
 export function AgentChatReply({
     canCopy,
@@ -77,15 +72,20 @@ export function AgentChatReply({
                 onOpenFile={onOpenFile}
             />
             {canCopy && (
-                <div className="mt-0.5 flex h-6 opacity-0 group-hover/reply:opacity-100 focus-within:opacity-100">
+                <div className="mt-0.5 flex h-6 items-center gap-1 opacity-0 group-hover/reply:opacity-100 focus-within:opacity-100">
                     {!item.streaming && (
-                        <CopyIconButton
-                            className="-ml-1"
-                            copy={() =>
-                                writeToClipboardWithFeedback(navigator.clipboard, item.text)
-                            }
-                            label="Copy message"
-                        />
+                        <>
+                            <CopyIconButton
+                                className="-ml-1"
+                                copy={() =>
+                                    writeToClipboardWithFeedback(navigator.clipboard, item.text)
+                                }
+                                label="Copy message"
+                            />
+                            {item.createdAt !== undefined && (
+                                <AgentChatMessageTime timestamp={item.createdAt} />
+                            )}
+                        </>
                     )}
                 </div>
             )}
