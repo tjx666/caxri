@@ -1,6 +1,7 @@
 import type { TerminalSnapshot, TerminalWheelInput } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
+import { TerminalRemoteObservers } from '../../domains/terminal';
 import type { RemoteTerminalIdentity, TerminalHostControl } from './execution-contract';
 import { terminalScope } from './execution-scope';
 
@@ -8,6 +9,8 @@ import { terminalScope } from './execution-scope';
  * Core-to-Host mobile control keeps its own authority path; Desktop attachments never grant mobile access.
  */
 export class RemoteMobileTerminalControl {
+    private readonly observers = new TerminalRemoteObservers();
+
     constructor(
         private readonly identities: ReadonlyMap<string, RemoteTerminalIdentity>,
         private readonly supervisor: TerminalHostControl,
@@ -37,10 +40,16 @@ export class RemoteMobileTerminalControl {
         if (this.identities.get(terminalId) !== identity || !identity.processId)
             throw new CaxriError('CONFLICT', 'Terminal generation changed during observation');
         if (!result.snapshot) throw new CaxriError('UNAVAILABLE', 'Terminal is not running');
+        this.observers.add(terminalId, observerId);
         return { ...result, generation: identity.generation };
     }
 
+    isObserved(terminalId: string): boolean {
+        return this.observers.has(terminalId);
+    }
+
     async unobserve(terminalId: string, observerId: string): Promise<void> {
+        this.observers.remove(terminalId, observerId);
         const identity = this.identities.get(terminalId);
         if (!identity?.processId) return;
         await this.supervisor.request(

@@ -167,6 +167,14 @@ export class AgentTranscriptWatcher {
         }
     }
 
+    /**
+     * Whether a phone holds this Terminal's Conversation open. Idle suspension treats that as viewing the Agent, so a
+     * reply sent from the phone never finds the Terminal parked.
+     */
+    isObservedRemotely(terminalId: string): boolean {
+        return this.mobileUsers.has(terminalId);
+    }
+
     unwatchMobile(terminalId: string): void {
         const users = this.mobileUsers.get(terminalId);
         if (users === undefined) return;

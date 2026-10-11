@@ -96,11 +96,13 @@ Background Agent suspension is Server Core's only automatic PTY teardown. A `Ter
 barrier, capturing the final screen, and moving the durable record and Agent state to `suspended`; the record,
 scrollback, and bound Agent session id survive, and the interrupted-restore path relaunches the Terminal with the
 provider's resume arguments when its Session is selected again. Two rules apply, both driven by in-memory activity
-(launch, Core-delivered input, validated lifecycle turns, and Session selection): an untouched Agent that received no
+(launch, Core-delivered input, accepted lifecycle signals, and Session selection): an untouched Agent that received no
 input and started no turn since launch is suspended shortly after its Session is left
 (`terminal.suspendUntouchedAgents`), and an Agent idle at its prompt in a background Session is suspended after the
-configured delay (`terminal.suspendIdleAgents`, off by default). The selected Session is never touched, an Agent
-mid-turn or awaiting the user's approval is never suspended, and Shell tabs are not eligible. Archiving a Session
+configured window (`terminal.idleSuspension.*`, off by default). The selected Session and any Terminal a phone is
+observing are never touched, an Agent mid-turn or awaiting the user's approval or answer is never suspended, and Shell
+tabs are not eligible. The full eligibility rules, settings, and transition logs live in
+[docs/agent-suspension.md](../../../../docs/agent-suspension.md). Archiving a Session
 or hiding its Project suspends all of its live Terminals once restores already past their spawn fence settle; a PTY
 whose Terminal Host start answers after that is parked as soon as it lands (`TerminalSuspensionService.parkLaunch`), so
 no launch outlives its Session leaving the Workbench. Terminal capacity counts only `starting` and `running` records so dormant tabs do
