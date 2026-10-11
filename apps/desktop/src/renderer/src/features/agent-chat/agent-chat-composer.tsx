@@ -43,6 +43,7 @@ import type { AgentChatComposerEditOptions } from './hooks/use-agent-chat-compos
 import { useAgentChatComposerEdit } from './hooks/use-agent-chat-composer-edit';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatFileInput } from './hooks/use-agent-chat-file-input';
+import { useAgentChatHandoff } from './hooks/use-agent-chat-handoff';
 import { useAgentChatPromptHistory } from './hooks/use-agent-chat-prompt-history';
 import { useAgentChatSessionMenu } from './hooks/use-agent-chat-session-menu';
 import { useAgentChatSubmit } from './hooks/use-agent-chat-submit';
@@ -163,6 +164,19 @@ export function AgentChatComposer({
         setDraft,
     });
     const workbenchRoot = usePaneViewSession()?.rootPath;
+    const { continueInNewChat, isContinuing } = useAgentChatHandoff({
+        /*
+         * The new Chat takes the tab before the handoff resolves, so this composer has usually unmounted by then and
+         * `setDraft`'s updater, which persists the draft, would never run. Persist directly instead.
+         */
+        clearDraft: () => {
+            writeAgentChatDraft(terminalId, '');
+            setDraftState('');
+        },
+        draft,
+        providerName,
+        terminal,
+    });
     /**
      * A dropped file is cited by path the way a drop into a Terminal pastes one, relative to where the Agent runs, and
      * lands at the caret.
@@ -291,7 +305,11 @@ export function AgentChatComposer({
                 />
                 <AgentChatEditBar edit={edit.bar} />
                 {!activity && !edit.isEditing && snapshot?.usage && (
-                    <AgentChatContextAlerts usage={snapshot.usage} />
+                    <AgentChatContextAlerts
+                        isContinuing={isContinuing}
+                        usage={snapshot.usage}
+                        onContinueInNewChat={continueInNewChat}
+                    />
                 )}
                 <AgentChatSuggestionMenu
                     commandMenu={menu}
