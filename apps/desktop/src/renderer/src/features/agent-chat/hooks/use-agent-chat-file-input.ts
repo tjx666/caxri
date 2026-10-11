@@ -45,7 +45,6 @@ export function useAgentChatFileInput({
         if (isImageInputEnabled && files.length > 0) void add(files);
     };
     return {
-        attach,
         isDragOver,
         dropHandlers: {
             onDragLeave: (event: DragEvent) => {

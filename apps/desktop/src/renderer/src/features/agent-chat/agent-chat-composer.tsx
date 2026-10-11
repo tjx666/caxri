@@ -19,7 +19,6 @@ import { pushToast } from '../../stores/toasts';
 import { terminalDropInput } from '../terminal/terminal-drop';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatActivityBar } from './agent-chat-activity-bar';
-import { AgentChatAttachButton } from './agent-chat-attach-button';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
 import { AgentChatCommandMenu } from './agent-chat-command-menu';
 import { interruptAgentChat } from './agent-chat-commands';
@@ -311,17 +310,7 @@ export function AgentChatComposer({
                     onPaste={paste}
                 />
                 <div className="flex items-center gap-1 px-2 pb-2">
-                    {/*
-                     * Pasting or dropping is how most images arrive, so the picker sits with the other secondary
-                     * controls beside Send rather than claiming the row's leading corner, as T3 Code does.
-                     */}
                     <div className="flex min-w-0 flex-1 items-center justify-end gap-0.5">
-                        {supportsImages && (
-                            <AgentChatAttachButton
-                                isReading={images.isReading}
-                                onPick={fileInput.attach}
-                            />
-                        )}
                         {contextUsage && <AgentChatContextMeter usage={contextUsage} />}
                         <AgentChatModelMenu snapshot={snapshot} terminalId={terminalId} />
                     </div>

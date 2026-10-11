@@ -454,14 +454,14 @@ stop`. Only the label is the polite live region, so the ticking time is never an
 
 ## Images and slash commands
 
-- **Images.** A provider with `capabilities.chatImages` (Codex and Claude Code) accepts up to 4
-  PNG, JPEG, GIF, or WebP images of at most 5 MB each per message, pasted, dropped, or picked with
-  Attach images. An image alone is a valid message. `agentChat.send` carries each image's base64
-  data straight to the provider (Codex `image` data-URL input, a Claude `image` content block) and
-  never stores it. The projection keeps only the Renderer-made JPEG thumbnail (at most 48 KB, raster
-  data URLs only), which counts against the text budget. Codex pairs it with the echoed user message
-  through `clientUserMessageId`. A resumed Chat knows how many images a message had, but their
-  previews were the sending Client's, so it shows placeholders.
+- **Images.** A provider with `capabilities.chatImages` (Codex and Claude Code) accepts up to 4 PNG,
+  JPEG, GIF, or WebP images of at most 5 MB each per message, pasted or dropped into the composer;
+  there is no picker button. An image alone is a valid message. `agentChat.send` carries each
+  image's base64 data straight to the provider (Codex `image` data-URL input, a Claude `image`
+  content block) and never stores it. The projection keeps only the Renderer-made JPEG thumbnail (at
+  most 48 KB, raster data URLs only), which counts against the text budget. Codex pairs it with the
+  echoed user message through `clientUserMessageId`. A resumed Chat knows how many images a message
+  had, but their previews were the sending Client's, so it shows placeholders.
 - **Slash commands.** The snapshot's `commands` is the list the composer offers after a leading
   `/`. Codex lists `/compact`, which runs `thread/compact/start`; issued during a turn it waits in the
   queue.
