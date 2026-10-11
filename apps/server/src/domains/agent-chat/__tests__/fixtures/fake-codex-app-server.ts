@@ -46,6 +46,7 @@ import { runTurnArtifacts } from './fake-codex-artifacts.ts';
 import { listThreadItems, listThreadTurns } from './fake-codex-history.ts';
 import type { FakeCodexIo, FakeItem, FakeThread, FakeTurn } from './fake-codex-io.ts';
 import { FAKE_MODELS } from './fake-codex-models.ts';
+import { revertThread } from './fake-codex-rewind.ts';
 import {
     didHandleTaskRequest,
     dropTerminalsSilently,
@@ -483,23 +484,13 @@ function handle(message: RpcMessage) {
         }
         case 'thread/revert': {
             const thread = currentThread();
-            const index = thread.turns.findIndex((turn) => turn.id === parameters.beforeTurnId);
-            if (index === -1 || state.activeTurn) {
-                send({ id, error: { code: -32600, message: 'cannot revert to that turn' } });
-                return;
-            }
-            // App-server writes a new rollout under the same thread id, even when no turn is left.
-            thread.turns = thread.turns.slice(0, index);
-            fs.writeFileSync(threadPath(thread.id), JSON.stringify(thread));
-            fs.appendFileSync(
-                path.join(stateDirectory, 'thread-reverts.jsonl'),
-                `${JSON.stringify({ threadId: thread.id, kept: index })}\n`,
-            );
-            send({
-                id,
-                result: { thread: { id: thread.id, turns: [] }, turnsBackwardsCursor: null },
+            const reverted = revertThread(thread, parameters.beforeTurnId, {
+                isTurnActive: state.activeTurn !== undefined,
+                threadFile: threadPath(thread.id),
+                stateDirectory,
             });
-            notify('thread/reverted', {});
+            send({ id, ...reverted });
+            if ('result' in reverted) notify('thread/reverted', {});
             return;
         }
         case 'model/list': {

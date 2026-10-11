@@ -57,8 +57,8 @@ export function claudeQueryOptions({
         ...(resumeId ? { resume: resumeId } : { sessionId }),
         ...(resumeId && resumeAt !== undefined && { resumeSessionAt: resumeAt }),
         /**
-         * Claude Code backs up each file before its first edit in a turn, keyed by the prompt's uuid, so "Edit from here"
-         * can put the files back with `rewindFiles`. The backups persist with the session.
+         * Claude Code backs up each file before its first edit in a turn, keyed by the prompt's uuid, so "Edit from
+         * here" can put the files back with `rewindFiles`. The backups persist with the session.
          */
         enableFileCheckpointing: true,
         includePartialMessages: true,
