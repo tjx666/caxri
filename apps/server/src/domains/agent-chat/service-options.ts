@@ -1,4 +1,9 @@
-import type { AgentLaunchSettings, AgentProvider, ServerEvent } from '@caxri/protocol';
+import type {
+    AgentLaunchSettings,
+    AgentProvider,
+    ServerEvent,
+    TerminalRecord,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentEnvironment, AgentLifecycleSignal } from '../agents';
@@ -35,4 +40,18 @@ export interface AgentChatServiceOptions {
      * Overrides how long a request that starts or steers a turn may take, so tests can exercise a late answer.
      */
     turnRequestTimeoutMs?: number;
+    /**
+     * The Agent Endpoint a Chat process carries, for a Terminal that gets one; only the Agent Commander's Chat does
+     * today, so its `caxri` commands keep the Commander role on either surface. `environment` prepares the generation
+     * before spawn and returns no variables for a Terminal without an Endpoint, `activate` admits it once the provider
+     * is ready, and `retire` ends it when the process exits or never started. Each is a no-op for a Terminal without a
+     * prepared Endpoint.
+     */
+    endpoint?: AgentChatEndpoint;
+}
+
+export interface AgentChatEndpoint {
+    activate(terminalId: string): Promise<void>;
+    environment(terminal: TerminalRecord, launchId: string): Promise<NodeJS.ProcessEnv>;
+    retire(terminalId: string): Promise<void>;
 }

@@ -16,6 +16,7 @@ import {
     sessionActivityPresentation,
     sessionUnreadTone,
 } from '../primary-sidebar/session-activity';
+import type { SessionPullRequestPresentation } from '../primary-sidebar/session-pull-request';
 import {
     sessionPullRequestPresentation,
     sessionPullRequestToneClassName,
@@ -127,17 +128,26 @@ const TONE_TEXT_CLASSNAME: Record<SessionActivityPresentation['tone'], string> =
 };
 
 /**
- * A Terminal that is not running cannot be doing what its last activity says, so its process state wins the phrase.
- * `running` is absent on purpose: a live process is described by its Agent activity instead.
+ * The shape a row draws for an Agent process that is not running, so `Suspended` and `Exited` read as an icon instead
+ * of a word that crowds the Project name out of the metadata line.
  */
-const PROCESS_PHRASES: Partial<Record<ProcessState, string>> = {
-    dead: 'Exited',
-    detached: 'Detached',
-    failed: 'Failed to start',
-    interrupted: 'Interrupted',
-    starting: 'Starting',
-    stopped: 'Exited',
-    suspended: 'Suspended',
+export type CommanderProcessIconId = 'exited' | 'failed' | 'interrupted' | 'starting' | 'suspended';
+
+/**
+ * A Terminal that is not running cannot be doing what its last activity says, so its process state wins the phrase.
+ * `running` is absent on purpose: a live process is described by its Agent activity instead. `detached` has no icon:
+ * the row's glyph already turns into the unplugged shape for it.
+ */
+const PROCESS_PRESENTATION: Partial<
+    Record<ProcessState, { icon?: CommanderProcessIconId; phrase: string }>
+> = {
+    dead: { icon: 'exited', phrase: 'Exited' },
+    detached: { phrase: 'Detached' },
+    failed: { icon: 'failed', phrase: 'Failed to start' },
+    interrupted: { icon: 'interrupted', phrase: 'Interrupted' },
+    starting: { icon: 'starting', phrase: 'Starting' },
+    stopped: { icon: 'exited', phrase: 'Exited' },
+    suspended: { icon: 'suspended', phrase: 'Suspended' },
 };
 
 interface CommanderRowPresentation {
@@ -151,7 +161,11 @@ interface CommanderRowPresentation {
      */
     glyphLabel: string;
     /**
-     * What the Agent is doing, as the row prints it.
+     * The Agent process state when it is not running, drawn as an icon whose label is {@link statePhrase}.
+     */
+    processIcon?: CommanderProcessIconId;
+    /**
+     * What the Agent is doing, as the row's accessible text and hover tooltips read it.
      */
     statePhrase: string;
     toneClassName: string;
@@ -176,8 +190,9 @@ export function commanderRowPresentation(row: CommanderBoardRow): CommanderRowPr
         activityState,
         isAgentAlive ? agent.operation : undefined,
     );
-    const processPhrase = agent ? PROCESS_PHRASES[agent.processState] : undefined;
-    const statePhrase = agent ? (processPhrase ?? activity.label) : 'No Terminal';
+    const process = agent ? PROCESS_PRESENTATION[agent.processState] : undefined;
+    const statePhrase = agent ? (process?.phrase ?? activity.label) : 'No Terminal';
+    const processIcon = process?.icon;
     const agentLabel =
         !agent || agent.kind === 'shell' ? 'Shell' : agentProviderCatalog[agent.kind].displayName;
     if (agent?.processState === 'detached')
@@ -202,13 +217,21 @@ export function commanderRowPresentation(row: CommanderBoardRow): CommanderRowPr
         agentLabel,
         glyph,
         glyphLabel: row.hasUnread ? `Unread. ${activity.label}` : activity.label,
+        ...(processIcon && { processIcon }),
         statePhrase,
         toneClassName: TONE_TEXT_CLASSNAME[tone],
     };
 }
 
+/**
+ * The CI result a pull request chip draws beside its number. Absent for a closed or merged pull request, whose checks
+ * are stale.
+ */
+export type CommanderChecksIconId = 'failed' | 'passed' | 'pending';
+
 interface CommanderPullRequestBadge {
     ariaLabel: string;
+    checksIcon?: CommanderChecksIconId;
     checksLabel?: string;
     checksToneClassName?: string;
     /**
@@ -216,10 +239,22 @@ interface CommanderPullRequestBadge {
      */
     numberLabel: string;
     stateLabel: string;
+    /**
+     * The hover text: lifecycle, CI, and the pull request's title, since the chip itself shows only icons and the
+     * number.
+     */
     title: string;
     toneClassName: string;
     url: string;
 }
+
+const CHECKS_ICONS: Partial<
+    Record<NonNullable<SessionPullRequestPresentation['checksTone']>, CommanderChecksIconId>
+> = {
+    danger: 'failed',
+    success: 'passed',
+    warning: 'pending',
+};
 
 /**
  * The board's pull request chip: number, lifecycle, and CI, reusing the PrimarySidebar's presentation so a PR reads the
@@ -233,15 +268,20 @@ export function commanderPullRequestBadge({
     CommanderPullRequestBadge | undefined {
     if (!pullRequest || pullRequestUnavailable) return undefined;
     const presentation = sessionPullRequestPresentation(pullRequest);
+    const checksIcon = presentation.checksTone && CHECKS_ICONS[presentation.checksTone];
+    const status = [`#${pullRequest.number} ${presentation.label}`, presentation.checksLabel]
+        .filter(Boolean)
+        .join(' · ');
     return {
         ariaLabel: `${presentation.ariaLabel} Open in browser.`,
+        ...(checksIcon && { checksIcon }),
         ...(presentation.checksLabel && { checksLabel: presentation.checksLabel }),
         ...(presentation.checksTone && {
             checksToneClassName: sessionPullRequestToneClassName(presentation.checksTone),
         }),
         numberLabel: `#${pullRequest.number}`,
         stateLabel: presentation.label,
-        title: pullRequest.title,
+        title: `${status}: ${pullRequest.title}`,
         toneClassName: sessionPullRequestToneClassName(presentation.tone),
         url: pullRequest.url,
     };
@@ -366,7 +406,7 @@ export function commanderTaskBadge(
         return {
             icon: 'blocked',
             label: 'Needs you',
-            title: `The Agent is waiting at startup, usually on a first-run prompt such as folder trust or sign-in. Open the Session to answer it; the task continues on its own. Task ${task.delegationId}.`,
+            title: `Needs you. The Agent is waiting at startup, usually on a first-run prompt such as folder trust or sign-in. Open the Session to answer it; the task continues on its own. Task ${task.delegationId}.`,
             toneClassName: TONE_TEXT_CLASSNAME.warning,
         };
     const { description, icon, label, tone } = TASK_PRESENTATION[task.status];
@@ -378,7 +418,7 @@ export function commanderTaskBadge(
     return {
         icon,
         label,
-        title: `${description}${reason} Task ${task.delegationId}.`,
+        title: `${label}. ${description}${reason} Task ${task.delegationId}.`,
         toneClassName: TONE_TEXT_CLASSNAME[tone],
     };
 }

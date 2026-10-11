@@ -5,13 +5,14 @@ import type { FullStateChangeReason, TerminalRecord } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import { readActiveContext } from './active-context';
-import { AgentChatService, createAgentChatHandlers } from './agent-chat';
+import { createAgentChatHandlers } from './agent-chat';
 import type { AgentDelegationService } from './agent-delegation';
 import type { AgentDispatchService } from './agent-dispatch';
 import { createAgentCommandRuntime, createAgentRuntime } from './agent-runtime';
 import { AgentAttentionRequests, CompactionReadiness, LongPasteService } from './agents';
 import { createBackgroundTasks, refreshWatchSessionInBackground } from './background-tasks';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
+import { createAgentChatService } from './chat-service-creation';
 import { createChatTerminalCreator } from './chat-terminal-creation';
 import type { CommanderCompletionNotifier } from './commander';
 import {
@@ -188,17 +189,13 @@ export async function createDomainServices(
     const unsubscribeTerminalSettings = configuration.subscribeSettings(() =>
         terminals.reconcileOutputRecoverySettings(),
     );
-    const agentChat = new AgentChatService({
+    const agentChat = createAgentChatService({
+        agentRuntime,
+        configuration,
         database,
+        dependencies,
         logger,
         send,
-        agentEnvironment,
-        launchSettings: (provider) =>
-            (dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings)(provider),
-        resolveExecutable: dependencies.terminal?.resolveExecutable,
-        coordinator,
-        observeLifecycleSignal: agentRuntime.observeChatLifecycleSignal,
-        clientVersion: process.env.CAXRI_APP_VERSION ?? '0.0.0',
     });
     const terminalRestores = new TerminalRestoreSupervisor();
     const terminalSuspension = new TerminalSuspensionService({
@@ -386,6 +383,7 @@ export async function createDomainServices(
      * Constructed only once the exact-launch write path it fences against exists.
      */
     commanderNotifierState.service = createCommanderCompletionNotifier({
+        agentChat,
         coordinator,
         database,
         logger,
@@ -599,7 +597,9 @@ export async function createDomainServices(
             agentHooks,
             awaitAgentSettingsReconcile: agentRuntime.awaitSettingsReconcile,
             commander: commanderHostOptions({
+                agentChat,
                 coordinator,
+                database,
                 createAndStartTerminal,
                 restores: commanderRestores,
                 restoreTerminals: restoreCommanderTerminals,

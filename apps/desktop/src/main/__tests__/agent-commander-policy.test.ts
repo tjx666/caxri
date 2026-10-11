@@ -87,6 +87,25 @@ describe('Agent Commander Renderer policy', () => {
         },
     );
 
+    it.each([
+        'terminal.switchSurface',
+        'agentChat.read',
+        'agentChat.send',
+        'agentChat.respond',
+        'agentActions.list',
+    ])('admits the Chat surface request %s only for the Commander Terminal', (method) => {
+        const policy = new AgentCommanderRendererPolicy(() => {});
+        ensured(policy);
+
+        expect(() => policy.admit(request(method, { terminalId: 'commander' }))).not.toThrow();
+        expect(() => policy.admit(request(method, { terminalId: 'workbench' }))).toThrow(
+            expect.objectContaining({ code: 'FORBIDDEN' }),
+        );
+        expect(() => policy.admit(request(method))).toThrow(
+            expect.objectContaining({ code: 'FORBIDDEN' }),
+        );
+    });
+
     it('admits Session state writes only for the Commander Session', () => {
         const policy = new AgentCommanderRendererPolicy(() => {});
         const own = request('session.updateState', { sessionId: 'session-1', revision: 0 });
