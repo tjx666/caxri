@@ -346,11 +346,12 @@ not part of this contract.
 `TreeItem.actions` adds up to three inline actions to an ordinary row. Each is a command, a
 validated theme icon, and an optional `confirmation` (title, message, confirm label). The Renderer
 shows them as icon buttons at the end of the row while it is hovered or holds keyboard focus,
-except an action with a `label`: that one is the row's primary call to action, renders as a compact
-text button colored by its `tone` (`neutral`, `success`, `warning`, `danger`), and stays visible at
-rest. Project Status uses it for the pull request merge button: green `Merge` when nothing blocks
-the merge, otherwise `Merge anyway` behind a warning glyph (`danger` for failed checks, `warning`
-for anything still settling), with the blocking reason in the command title. The Renderer
+except an action with a `label` or a `tone`, which stays visible at rest. A `label` makes it the
+row's primary call to action, rendered as a compact text button; a `tone` (`neutral`, `success`,
+`warning`, `danger`) colors it, as a text button or as an icon. Project Status uses them for the
+pull request merge button: green `Merge` text when nothing blocks the merge, otherwise only the merge
+glyph (`danger` for failed checks, `warning` for anything still settling), which leaves the row's
+width to the title, with the blocking reason in the command title. The Renderer
 keeps a running action visible and busy until its command settles, and dispatches through the
 same `viewContainers.executeCommand` path as the row's own command. A `confirmation` is shown as
 literal text in the Workbench confirmation modal; cancelling dispatches nothing and returns focus to

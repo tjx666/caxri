@@ -1,16 +1,21 @@
 import type { DomainHandlers } from '../domain-services';
+import { readChatImage } from './chat-images';
 import type { AgentChatService } from './service';
+import type { AgentChatServiceOptions } from './service-options';
 
 /**
- * Core methods a Client uses to read and drive a Chat Terminal.
+ * Core methods a Client uses to read and drive a Chat Terminal. `records` locates the provider's on-disk record, which
+ * `agentChat.readImage` reads without the service or a provider process.
  */
 export function createAgentChatHandlers(
     agentChat: AgentChatService,
+    records: Pick<AgentChatServiceOptions, 'agentEnvironment' | 'database'>,
 ): Pick<
     DomainHandlers,
     | 'agentChat.configure'
     | 'agentChat.interrupt'
     | 'agentChat.read'
+    | 'agentChat.readImage'
     | 'agentChat.readTask'
     | 'agentChat.removeQueued'
     | 'agentChat.respond'
@@ -45,6 +50,8 @@ export function createAgentChatHandlers(
             agentChat.respond(terminalId, requestId, response);
             return null;
         },
+        'agentChat.readImage': ({ terminalId, itemId, index }) =>
+            readChatImage(records, terminalId, itemId, index),
         'agentChat.readTask': ({ terminalId, taskId }) => agentChat.readTask(terminalId, taskId),
         'agentChat.stopTask': async ({ terminalId, taskId }) => {
             await agentChat.stopTask(terminalId, taskId);

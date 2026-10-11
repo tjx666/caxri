@@ -62,6 +62,21 @@ export function claudeHookEffort(input: unknown): AgentChatPatchOperation[] {
 }
 
 /**
+ * The effort Claude Code will send on its next request: `get_settings`' `applied.effort`, after settings, env
+ * overrides, organization caps, and model downgrades. Hooks only report it once a turn runs, so this is what names the
+ * effort of a Chat that was just started or resumed. Agent SDK 0.3.295 implements `Query.getSettings` without declaring
+ * it, so it is read structurally; a missing method or a model without effort reports nothing.
+ */
+export async function readClaudeAppliedEffort(stream: Query): Promise<AgentChatPatchOperation[]> {
+    const { getSettings } = stream as Query & { getSettings?: () => Promise<unknown> };
+    if (typeof getSettings !== 'function') return [];
+    const settings = await withTimeout(getSettings.call(stream), CONFIGURE_TIMEOUT_MS);
+    if (!isRecord(settings) || !isRecord(settings.applied)) return [];
+    const effort = stringField(settings.applied.effort);
+    return effort ? [{ op: 'state', state: { effort: clip(effort, 40) } }] : [];
+}
+
+/**
  * Switches a running Claude Code in place: `setModel` applies from the next response, and the effort goes to the
  * session's flag settings layer, which outranks the user's settings files without writing to them. Each step reports
  * its state as soon as Claude Code accepts it, so a failed effort change still shows the model that did switch.

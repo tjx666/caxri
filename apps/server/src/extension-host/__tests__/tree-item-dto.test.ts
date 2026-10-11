@@ -48,7 +48,7 @@ describe('serializeTreeItem', () => {
         item.actions = [];
         expect(serializeTreeItem('handle-1', item)).not.toHaveProperty('actions');
 
-        // A tone only colors a label, so an icon-only action drops it.
+        // An icon-only action keeps its tone: the colored glyph stays visible at rest.
         item.actions = [
             {
                 command: { command: 'caxri.example.run', title: 'Run' },
@@ -56,7 +56,7 @@ describe('serializeTreeItem', () => {
                 tone: 'danger',
             },
         ];
-        expect(serializeTreeItem('handle-1', item).actions?.[0]).not.toHaveProperty('tone');
+        expect(serializeTreeItem('handle-1', item).actions?.[0]).toMatchObject({ tone: 'danger' });
 
         const action = {
             command: { command: 'caxri.example.run', title: 'Run' },

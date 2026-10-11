@@ -131,7 +131,7 @@ test('a Codex Chat sends pasted and dropped images and runs /compact', async ({}
 });
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test("a Claude Code Chat sends an image and offers Claude Code's slash commands", async ({}, testInfo) => {
+test("a Claude Code Chat sends an image, restores its preview on resume, and offers Claude Code's slash commands", async ({}, testInfo) => {
     /**
      * Claude Code keys its transcript directory by its real working directory, so the Project root must be resolved.
      */
@@ -175,6 +175,19 @@ test("a Claude Code Chat sends an image and offers Claude Code's slash commands"
         await message.press('Enter');
         await expect(chat.getByText('Context compacted')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-compacted.png') });
+
+        // A resumed conversation rebuilds the message from the transcript, which keeps the image but not its preview;
+        // the preview is read back from the transcript instead of staying a placeholder.
+        await message.fill('crash now');
+        await message.press('Enter');
+        const failure = chat.getByRole('alert').filter({ hasText: 'Claude stopped unexpectedly' });
+        await failure.getByRole('button', { name: 'Retry' }).click();
+        await expect(failure).toHaveCount(0);
+        await expect(chat.getByText('Received 1 image.')).toBeVisible();
+        const restored = chat.locator('img[alt="Attachment 1"]');
+        await expect(restored).toHaveAttribute('src', /^data:image\/jpeg;base64,/u);
+        await expect(restored).toHaveJSProperty('complete', true);
+        await page.screenshot({ path: testInfo.outputPath('claude-chat-restored-image.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

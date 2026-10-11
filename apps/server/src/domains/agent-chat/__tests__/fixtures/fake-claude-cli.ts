@@ -43,9 +43,10 @@ import readline from 'node:readline';
 import { didRunApprovalScenario } from './fake-claude-approvals.ts';
 import type { FakeClaudeIo } from './fake-claude-io.ts';
 import {
-    FAKE_CLAUDE_CONTEXT_USAGE,
+    FAKE_CLAUDE_COMMANDS,
     FAKE_CLAUDE_MODEL,
     FAKE_CLAUDE_MODELS,
+    fakeClaudeSessionAnswer,
     hookCallbackIds,
     hookCallbackRequest,
 } from './fake-claude-models.ts';
@@ -112,6 +113,11 @@ const state: {
     model: string;
     effort?: string;
     /**
+     * Whether the current turn's prompt asked for a large context. Real long conversations fill most of the compaction
+     * window; this lets a dev instance or E2E show the high-context `/compact` warning without one.
+     */
+    isLargeContextTurn: boolean;
+    /**
      * Callback ids the SDK registered per hook event in `initialize`.
      */
     hooks: Record<string, string[]>;
@@ -122,18 +128,10 @@ const state: {
     turnRunning: false,
     queued: [],
     model: FAKE_CLAUDE_MODEL,
+    isLargeContextTurn: false,
     hooks: {},
 };
 const isEmittingSessionState = process.env.CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS === '1';
-const COMMANDS = [
-    {
-        name: 'compact',
-        description: 'Clear conversation history but keep a summary in context',
-        argumentHint: '<optional custom summarization instructions>',
-    },
-    { name: 'review', description: 'Review a pull request', argumentHint: '' },
-    { name: 'exit', description: 'Exit the REPL', argumentHint: '' },
-];
 const pendingControl = new Map<string, (response: Json) => void>();
 
 function send(message: Json) {
@@ -174,6 +172,10 @@ function sessionState(value: 'idle' | 'running') {
     if (isEmittingSessionState) system('session_state_changed', { state: value });
 }
 
+function turnCacheReadTokens(): number {
+    return state.isLargeContextTurn ? 125_000 : 800;
+}
+
 function assistant(messageId: string, block: Json) {
     const message = {
         id: messageId,
@@ -182,7 +184,11 @@ function assistant(messageId: string, block: Json) {
         model: FAKE_CLAUDE_MODEL,
         content: [block],
         stop_reason: null,
-        usage: { input_tokens: 1200, cache_read_input_tokens: 800, output_tokens: 40 },
+        usage: {
+            input_tokens: 1200,
+            cache_read_input_tokens: turnCacheReadTokens(),
+            output_tokens: 40,
+        },
     };
     send(frame({ type: 'assistant', message }));
     record({ type: 'assistant', message });
@@ -254,7 +260,11 @@ function result(startedAt: number, text: string, isError = false) {
             num_turns: 1,
             stop_reason: 'end_turn',
             total_cost_usd: 0,
-            usage: { input_tokens: 1200, output_tokens: 40 },
+            usage: {
+                input_tokens: 1200,
+                cache_read_input_tokens: turnCacheReadTokens(),
+                output_tokens: 40,
+            },
             modelUsage: { [FAKE_CLAUDE_MODEL]: { contextWindow: 200_000 } },
             permission_denials: [],
             queued_turn_count: state.queued.length,
@@ -310,7 +320,7 @@ async function runTurn(text: string, content: unknown, priority?: unknown, isAut
             model: state.model,
             tools: [],
             permissionMode: 'default',
-            slash_commands: COMMANDS.map((command) => command.name),
+            slash_commands: FAKE_CLAUDE_COMMANDS.map((command) => command.name),
             terminal_slash_commands: ['exit'],
         }),
     );
@@ -347,6 +357,7 @@ async function runTurn(text: string, content: unknown, priority?: unknown, isAut
         result(startedAt, 'done');
         return;
     }
+    state.isLargeContextTurn = text.includes('large context');
     if (text.includes('crash')) exitProcess(1);
     if (text.includes('subagent')) {
         await runSubagent(scenarioIo, startedAt);
@@ -567,19 +578,7 @@ lines.on('line', (line) => {
             response: {
                 subtype: 'success',
                 request_id: message.request_id,
-                response:
-                    request.subtype === 'get_context_usage'
-                        ? FAKE_CLAUDE_CONTEXT_USAGE
-                        : request.subtype === 'initialize'
-                          ? {
-                                commands: COMMANDS,
-                                agents: [],
-                                models: FAKE_CLAUDE_MODELS,
-                                account: {},
-                                output_style: 'default',
-                                available_output_styles: ['default'],
-                            }
-                          : (answer.response ?? {}),
+                response: fakeClaudeSessionAnswer(request.subtype, state) ?? answer.response ?? {},
             },
         });
         return;

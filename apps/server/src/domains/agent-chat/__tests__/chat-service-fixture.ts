@@ -51,6 +51,10 @@ export async function fixture(
         probeTerminal: vi.fn<() => void>(),
     };
     const logger = { write: vi.fn() } as unknown as StructuredLogger;
+    const agentEnvironment = {
+        homeDirectory: directory,
+        variables: { CLAUDE_CONFIG_DIR: claudeConfigDirectory },
+    };
     const spawnProcess = vi.fn(
         (_executable: string, arguments_: string[], spawnOptions: SpawnOptionsWithoutStdio) =>
             spawn(process.execPath, [FAKE_CLIS[provider], ...arguments_], spawnOptions),
@@ -80,10 +84,7 @@ export async function fixture(
             return Promise.resolve('accepted');
         },
         clientVersion: '0.0.0-test',
-        agentEnvironment: {
-            homeDirectory: directory,
-            variables: { CLAUDE_CONFIG_DIR: claudeConfigDirectory },
-        },
+        agentEnvironment,
         spawnProcess,
     });
     onTestFinished(async () => {
@@ -128,6 +129,7 @@ export async function fixture(
             .map((line) => JSON.parse(line) as { method: string; args: string[] });
     return {
         database,
+        agentEnvironment,
         service,
         terminal,
         signals,

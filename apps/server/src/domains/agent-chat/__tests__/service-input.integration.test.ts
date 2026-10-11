@@ -1,6 +1,7 @@
 import type { AgentChatImageInput } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import { readChatImage } from '../chat-images';
 import { fixture } from './chat-service-fixture';
 
 const THUMBNAIL = 'data:image/jpeg;base64,/9j/4AAQ';
@@ -11,7 +12,8 @@ function image(data: string): AgentChatImageInput {
 
 describe('Agent Chat images and slash commands with a fake Codex app-server', () => {
     it('sends images as input and shows their thumbnails in the user message', async () => {
-        const { service, spawnProcess, terminal, until } = await fixture();
+        const { database, agentEnvironment, service, spawnProcess, terminal, until } =
+            await fixture();
         await service.send(terminal.id, { text: 'what is this', images: [image('iVBORw0KGgo=')] });
         const snapshot = await until((current) => current.turns.at(-1)?.status === 'completed');
         expect(snapshot.items[0]).toMatchObject({
@@ -23,11 +25,13 @@ describe('Agent Chat images and slash commands with a fake Codex app-server', ()
 
         // A resumed thread knows an image was there, but its preview was the Client's and is gone.
         await service.restart(terminal.id);
-        expect(service.read(terminal.id).items[0]).toMatchObject({
-            type: 'userMessage',
-            images: [{}],
-        });
+        const resumed = service.read(terminal.id).items[0];
+        expect(resumed).toMatchObject({ type: 'userMessage', images: [{}] });
         expect(spawnProcess).toHaveBeenCalledTimes(2);
+        // Codex keeps no on-disk record Caxri can read the original back from, so it stays a placeholder.
+        await expect(
+            readChatImage({ database, agentEnvironment }, terminal.id, resumed.id, 0),
+        ).resolves.toBeNull();
     });
 
     it('lists /compact and runs it as a compaction turn', async () => {
@@ -59,8 +63,10 @@ describe('Agent Chat images and slash commands with a fake Codex app-server', ()
 });
 
 describe('Agent Chat images and slash commands with a fake Claude Code CLI', () => {
-    it('sends images as content blocks and rebuilds them as placeholders on resume', async () => {
-        const { service, terminal, until } = await fixture({ provider: 'claude' });
+    it('sends images as content blocks, rebuilds them as placeholders on resume, and reads each back', async () => {
+        const { database, agentEnvironment, service, terminal, until } = await fixture({
+            provider: 'claude',
+        });
         await service.send(terminal.id, {
             text: '',
             images: [image('iVBORw0KGgo='), image('R0lGODlh')],
@@ -74,10 +80,17 @@ describe('Agent Chat images and slash commands with a fake Claude Code CLI', () 
         expect(snapshot.items.at(-1)).toMatchObject({ text: 'Received 2 images.' });
 
         await service.restart(terminal.id);
-        expect(service.read(terminal.id).items[0]).toMatchObject({
-            type: 'userMessage',
-            images: [{}, {}],
+        const resumed = service.read(terminal.id).items[0];
+        expect(resumed).toMatchObject({ type: 'userMessage', images: [{}, {}] });
+
+        // The placeholder's original comes back from the transcript, by the message's id and the image's position.
+        const records = { database, agentEnvironment };
+        await expect(readChatImage(records, terminal.id, resumed.id, 1)).resolves.toEqual({
+            mediaType: 'image/png',
+            data: 'R0lGODlh',
         });
+        await expect(readChatImage(records, terminal.id, resumed.id, 2)).resolves.toBeNull();
+        await expect(readChatImage(records, terminal.id, 'missing', 0)).resolves.toBeNull();
     });
 
     it("offers Claude Code's commands without its terminal-bound ones, and runs /compact", async () => {

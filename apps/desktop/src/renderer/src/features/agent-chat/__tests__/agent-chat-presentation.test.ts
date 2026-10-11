@@ -224,6 +224,11 @@ describe('agentChatModelLabel', () => {
         expect(agentChatModelLabel(undefined)).toBeUndefined();
         // Claude Code lists its models before its first turn names the one in use.
         expect(agentChatModelLabel({ models })).toEqual({ model: 'Default' });
+        // Claude Code reports the effort it will apply before that first turn.
+        expect(agentChatModelLabel({ effort: 'medium', models })).toEqual({
+            model: 'Default',
+            effort: 'Medium',
+        });
         expect(agentChatModelLabel({ model: 'claude-opus-5-5', effort: 'xhigh', models })).toEqual({
             model: 'Opus',
             effort: 'Extra high',

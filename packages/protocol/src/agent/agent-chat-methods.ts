@@ -131,6 +131,25 @@ export const agentChatMethods = {
         result: agentChatTaskSnapshotSchema,
     },
     /**
+     * Returns the original of an image a user message carried, read from the provider's own record, so a Client can
+     * preview an image the projection holds without a thumbnail (a resumed conversation). `index` is the image's
+     * position in the message's `images`. Resolves `null` when the record no longer has that image or the provider
+     * keeps none.
+     */
+    'agentChat.readImage': {
+        ...commandPolicy('server', 'read'),
+        params: z.strictObject({
+            ...terminalTarget,
+            itemId: z.string().min(1).max(200),
+            index: z
+                .number()
+                .int()
+                .min(0)
+                .max(MAX_AGENT_CHAT_IMAGES - 1),
+        }),
+        result: agentChatImageInputSchema.omit({ thumbnail: true }).nullable(),
+    },
+    /**
      * Stops one running task without ending the turn or the Chat.
      */
     'agentChat.stopTask': {

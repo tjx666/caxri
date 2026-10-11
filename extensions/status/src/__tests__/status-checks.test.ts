@@ -3,8 +3,8 @@ import { TreeItemCollapsibleState } from 'caxri';
 import { describe, expect, it } from 'vitest';
 
 import {
+    CHECKS_COLLAPSE_THRESHOLD,
     partitionPullRequestChecks,
-    PASSED_CHECKS_COLLAPSE_THRESHOLD,
     pullRequestCheckNodes,
 } from '../status-checks';
 
@@ -28,7 +28,7 @@ describe('partitionPullRequestChecks', () => {
     it('lists every check while the passed ones still read at a glance', () => {
         const checks = [
             { name: 'Lint', state: 'pending' } as const,
-            ...Array.from({ length: PASSED_CHECKS_COLLAPSE_THRESHOLD }, (_, index) =>
+            ...Array.from({ length: CHECKS_COLLAPSE_THRESHOLD }, (_, index) =>
                 passed(`Pass ${index}`),
             ),
         ];
@@ -39,13 +39,34 @@ describe('partitionPullRequestChecks', () => {
     it('folds the passed checks once there are many, keeping every other check in view', () => {
         const failing: Check = { name: 'Test', state: 'failure' };
         const running: Check = { name: 'Build', state: 'pending' };
-        const greens = Array.from({ length: PASSED_CHECKS_COLLAPSE_THRESHOLD + 1 }, (_, index) =>
+        const greens = Array.from({ length: CHECKS_COLLAPSE_THRESHOLD + 1 }, (_, index) =>
             passed(`Pass ${index}`),
         );
 
         expect(
             partitionPullRequestChecks([greens[0], failing, ...greens.slice(1), running]),
-        ).toEqual({ listed: [failing, running], folded: greens });
+        ).toEqual({
+            listed: [failing, running],
+            folded: [expect.objectContaining({ checks: greens })],
+        });
+    });
+
+    it('folds many running and queued checks too, but never a failure', () => {
+        const failing: Check = { name: 'Test', state: 'failure' };
+        const waiting: Check[] = [
+            ...Array.from({ length: CHECKS_COLLAPSE_THRESHOLD }, (_, index) => ({
+                name: `Run ${index}`,
+                state: 'pending' as const,
+            })),
+            { name: 'Queued', state: 'queued' },
+        ];
+        const nodes = pullRequestCheckNodes('status:repo', pullRequest([...waiting, failing]));
+
+        expect(nodes.map(({ item }) => item.label)).toEqual(['Test', '4 checks in progress']);
+        expect(nodes[1].item.iconPath?.id).toBe('loading');
+        expect(nodes[1].children?.map(({ item }) => item.label)).toEqual(
+            waiting.map((check) => check.name),
+        );
     });
 });
 

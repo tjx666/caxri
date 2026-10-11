@@ -18,6 +18,20 @@ const labeledActionToneClassNames: Record<NonNullable<TreeItemAction['tone']>, s
     warning: 'border-warning/40 bg-warning/10 text-warning',
 };
 
+const iconActionToneClassNames: Record<NonNullable<TreeItemAction['tone']>, string> = {
+    danger: 'text-danger',
+    neutral: 'text-foreground',
+    success: 'text-success',
+    warning: 'text-warning',
+};
+
+/**
+ * A labeled or toned action carries state, so it stays on screen at rest; plain icon actions wait for hover.
+ */
+function isPersistentAction(action: TreeItemAction): boolean {
+    return action.label !== undefined || action.tone !== undefined;
+}
+
 /**
  * The accessible name keeps the command's title and adds the visible label when the title does not already contain it,
  * so a voice-control user can say what they see ("Checks running") and a screen reader still hears the action.
@@ -37,7 +51,7 @@ function TreeItemActionButton({
 }: {
     action: TreeItemAction;
     /**
-     * Set for an icon-only action sharing a group that stays visible because of a labeled sibling.
+     * Set for a plain icon action sharing a group that stays visible because of a labeled or toned sibling.
      */
     isRevealedOnHover: boolean;
     isTabStop: boolean;
@@ -63,7 +77,7 @@ function TreeItemActionButton({
                               'h-5 min-h-5 gap-1 px-1.5 text-[11px] font-medium enabled:not-aria-disabled:hover:brightness-125',
                               labeledActionToneClassNames[action.tone ?? 'neutral'],
                           )
-                        : 'size-5',
+                        : cn('size-5', action.tone && iconActionToneClassNames[action.tone]),
                     isRevealedOnHover &&
                         'hidden group-focus-within/tree-row:inline-flex group-hover/tree-row:inline-flex aria-busy:inline-flex',
                 )}
@@ -121,9 +135,9 @@ function handleActionGroupKeyDown(
 
 /**
  * Inline actions sit at the end of the row and appear on hover or keyboard focus, the same reveal the Source Control
- * tree uses for its per-file actions, so a quiet panel does not fill up with buttons. A labeled action is the
- * exception: it is the row's primary call to action and its colored label carries state (Merge versus Checks failed),
- * so it stays visible at rest and only its icon-only siblings wait for hover.
+ * tree uses for its per-file actions, so a quiet panel does not fill up with buttons. A labeled or toned action is the
+ * exception: its text or color carries state (a green Merge versus a warning-colored merge glyph), so it stays visible
+ * at rest and only its plain icon siblings wait for hover.
  *
  * Keyboard users reach them with Right from the row (see `extensionTreeHorizontalIntent`). The buttons use a roving
  * tabindex scoped to the group: while focus is inside it, the focused action is the one Tab stop, so Tab and Shift+Tab
@@ -145,7 +159,7 @@ export function ExtensionTreeRowActions({
 }) {
     const [focusedCommandId, setFocusedCommandId] = useState<string>();
     if (!actions?.length) return null;
-    const hasLabeledAction = actions.some((action) => action.label !== undefined);
+    const hasPersistentAction = actions.some(isPersistentAction);
     return (
         <>
             <span className="sr-only" id={descriptionId}>
@@ -154,7 +168,7 @@ export function ExtensionTreeRowActions({
             <span
                 className={cn(
                     'shrink-0 items-center gap-0.5',
-                    hasLabeledAction
+                    hasPersistentAction
                         ? 'flex'
                         : 'hidden group-focus-within/tree-row:flex group-hover/tree-row:flex has-[[aria-busy=true]]:flex',
                 )}
@@ -171,7 +185,7 @@ export function ExtensionTreeRowActions({
                 {actions.map((action) => (
                     <TreeItemActionButton
                         action={action}
-                        isRevealedOnHover={hasLabeledAction && action.label === undefined}
+                        isRevealedOnHover={hasPersistentAction && !isPersistentAction(action)}
                         isTabStop={focusedCommandId === action.command.id}
                         key={action.command.id}
                     />

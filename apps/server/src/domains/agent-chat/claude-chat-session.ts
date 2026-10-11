@@ -48,6 +48,7 @@ import {
     claudeHookEffort,
     claudeInitEffort,
     configureClaudeModel,
+    readClaudeAppliedEffort,
 } from './claude-models';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
@@ -389,6 +390,13 @@ class ClaudeChatSession implements AgentChatProviderSession {
      * Sends a prompt: it starts a turn, or joins the running one when the service steers it there. A steered prompt
      * goes out with `priority: 'next'` so Claude Code folds it in at its next model request.
      */
+    private reportAppliedEffort(stream: Query): void {
+        // eslint-disable-next-line no-void -- best effort; each turn's hooks still report the effort it ran with
+        void readClaudeAppliedEffort(stream)
+            .then((operations) => !this.isEnded && this.options.apply(operations))
+            .catch(() => {});
+    }
+
     private submit(
         text: string,
         images: readonly AgentChatImageInput[],
@@ -481,6 +489,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             this.reportCommands(initialized.commands);
             const models = claudeChatModels(initialized.models);
             if (models.length > 0) this.options.apply([{ op: 'state', state: { models } }]);
+            this.reportAppliedEffort(stream);
         } catch {
             const spawnErrorCode = this.spawnErrorCode;
             await this.close();
@@ -522,9 +531,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
     }
 
     async configure(change: AgentChatModelChange): Promise<void> {
-        await configureClaudeModel(this.requireOpen(), change, (operations) =>
-            this.options.apply(operations),
-        );
+        const stream = this.requireOpen();
+        await configureClaudeModel(stream, change, (operations) => this.options.apply(operations));
+        // A model switch can move the effort too: to the new model's default, or to none.
+        this.reportAppliedEffort(stream);
     }
 
     async interrupt(): Promise<void> {
