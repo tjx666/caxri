@@ -3,7 +3,7 @@ import { Bot, SquareTerminal } from 'lucide-react';
 
 import { cn } from '../../lib/utilities';
 import { agentChatTaskElapsedMs, formatAgentChatTaskElapsed } from './agent-chat-tasks';
-import { useSecondTick } from './hooks/use-second-tick';
+import { useClockTick } from './hooks/use-clock-tick';
 
 /**
  * The kind glyph a subagent or a background shell shows wherever it is listed: the glyphs of the `agent` and `command`
@@ -21,7 +21,7 @@ export function AgentChatTaskGlyph({
 }
 
 function TickingElapsed({ task }: { task: AgentChatTask }) {
-    const label = formatAgentChatTaskElapsed(agentChatTaskElapsedMs(task, useSecondTick()));
+    const label = formatAgentChatTaskElapsed(agentChatTaskElapsedMs(task, useClockTick('second')));
     return label ? <span className="shrink-0 tabular-nums">{label}</span> : null;
 }
 

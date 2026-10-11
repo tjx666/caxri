@@ -1,5 +1,5 @@
 import type { ClipboardEvent, DragEvent, RefObject } from 'react';
-import { useState } from 'react';
+import { useImperativeHandle, useState } from 'react';
 
 import type {
     AgentAction,
@@ -22,6 +22,8 @@ import { AgentChatActivityBar } from './agent-chat-activity-bar';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
 import { AgentChatCommandMenu } from './agent-chat-command-menu';
 import { interruptAgentChat } from './agent-chat-commands';
+import { agentChatContextUsage } from './agent-chat-context';
+import { AgentChatContextAlerts } from './agent-chat-context-alerts';
 import { AgentChatContextMeter } from './agent-chat-context-meter';
 import {
     agentChatPasteTruncationWarning,
@@ -32,7 +34,6 @@ import {
 import { AgentChatModelMenu } from './agent-chat-model-menu';
 import type { AgentChatActivity } from './agent-chat-presentation';
 import {
-    agentChatContextUsage,
     agentChatSendAction,
     agentChatSubmitDelivery,
     isAgentChatInterruptKey,
@@ -46,6 +47,7 @@ import {
 } from './agent-chat-stop-button';
 import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
+import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatFileInput } from './hooks/use-agent-chat-file-input';
 import { useAgentChatSubmit } from './hooks/use-agent-chat-submit';
 
@@ -66,6 +68,7 @@ export function AgentChatComposer({
     activity,
     canSend,
     commands,
+    dropHandlersReference,
     inputReference,
     isBusy,
     isQueuePaused,
@@ -89,6 +92,11 @@ export function AgentChatComposer({
      * The provider's slash commands, from the projection.
      */
     commands: readonly AgentChatCommand[] | undefined;
+    /**
+     * Receives the composer's drop handlers so the whole Chat, not only this card, takes a dropped file: dragging all
+     * the way down to the input is a long trip.
+     */
+    dropHandlersReference: RefObject<AgentChatDropHandlers | null>;
     inputReference: RefObject<HTMLTextAreaElement | null>;
     /**
      * Whether a message sent now waits in the queue (`isAgentChatBusy`).
@@ -169,6 +177,7 @@ export function AgentChatComposer({
         isImageInputEnabled: supportsImages,
         providerName,
     });
+    useImperativeHandle(dropHandlersReference, () => fileInput.dropHandlers);
     const {
         isSending,
         runCommand,
@@ -240,7 +249,6 @@ export function AgentChatComposer({
                     'relative flex flex-col rounded-lg border border-border bg-surface transition-[border-color] duration-(--motion-overlay-enter) ease-(--motion-ease-enter) focus-within:border-muted',
                     fileInput.isDragOver && 'border-accent focus-within:border-accent',
                 )}
-                {...fileInput.dropHandlers}
                 onSubmit={(event) => {
                     event.preventDefault();
                     // The Send button disables itself while the message is in flight, which would drop its focus.
@@ -249,7 +257,14 @@ export function AgentChatComposer({
                     void submit();
                 }}
             >
-                <AgentChatActivityBar activity={activity} />
+                <AgentChatActivityBar
+                    activity={activity}
+                    onStop={() => {
+                        stop();
+                        focusInput();
+                    }}
+                />
+                {!activity && snapshot?.usage && <AgentChatContextAlerts usage={snapshot.usage} />}
                 {menu.isOpen && (
                     <AgentChatCommandMenu
                         activeIndex={menu.activeIndex}

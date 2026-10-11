@@ -337,7 +337,12 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
             turnId: turn.id,
             tokenUsage: {
                 total: { totalTokens: 1200 },
-                last: { totalTokens: 1200 },
+                last: {
+                    totalTokens: 1200,
+                    inputTokens: 1150,
+                    cachedInputTokens: 900,
+                    outputTokens: 50,
+                },
                 modelContextWindow: 200000,
             },
         });

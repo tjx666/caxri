@@ -18,6 +18,7 @@ import {
 } from '@caxri/protocol';
 
 import { clip, isRecord, tail } from './chat-items';
+import { withCacheRewriteEstimate } from './chat-usage';
 
 /**
  * Pure translation from Codex app-server v2 `ThreadItem`s and server requests into the provider-neutral Agent Chat
@@ -444,19 +445,47 @@ export function mapCodexPlan(parameters: Json, turnId: string | undefined): Agen
 }
 
 /**
- * `thread/tokenUsage/updated`: the last request's token count against the model context window.
+ * How long Codex's prompt cache is assumed to survive an idle Chat, in minutes. OpenAI keeps cached prefixes for a
+ * variable time (minutes in memory, longer under extended retention) and reports neither the policy nor an expiry, so
+ * this is an estimate that only drives the composer's cache hint.
+ *
+ * @see https://developers.openai.com/api/docs/guides/prompt-caching
  */
-export function mapCodexUsage(parameters: Json): AgentChatSnapshot['usage'] {
+const CODEX_CACHE_TTL_MINUTES = 30;
+
+/**
+ * `thread/tokenUsage/updated`: the last request's token count against the model context window, with what it was made
+ * of. Output already includes reasoning, so reasoning is not listed as a row of its own.
+ */
+export function mapCodexUsage(
+    parameters: Json,
+    model: string | undefined,
+    now = Date.now(),
+): AgentChatSnapshot['usage'] {
     const usage = isRecord(parameters.tokenUsage) ? parameters.tokenUsage : undefined;
     const last = isRecord(usage?.last) ? usage.last : undefined;
     const totalTokens = optionalNumber(last?.totalTokens);
     if (totalTokens === undefined || totalTokens < 0) return undefined;
     const contextWindow = optionalNumber(usage?.modelContextWindow);
-    return {
-        totalTokens: Math.trunc(totalTokens),
-        ...(contextWindow !== undefined &&
-            contextWindow >= 0 && { contextWindow: Math.trunc(contextWindow) }),
-    };
+    const input = Math.max(optionalNumber(last?.inputTokens) ?? 0, 0);
+    const cached = Math.min(Math.max(optionalNumber(last?.cachedInputTokens) ?? 0, 0), input);
+    const output = Math.max(optionalNumber(last?.outputTokens) ?? 0, 0);
+    const breakdown = [
+        { label: 'Cached input', tokens: Math.trunc(cached) },
+        { label: 'New input', tokens: Math.trunc(input - cached) },
+        { label: 'Output', tokens: Math.trunc(output) },
+    ].filter((row) => row.tokens > 0);
+    return withCacheRewriteEstimate(
+        {
+            totalTokens: Math.trunc(totalTokens),
+            ...(contextWindow !== undefined &&
+                contextWindow >= 0 && { contextWindow: Math.trunc(contextWindow) }),
+            ...(breakdown.length > 0 && { breakdown }),
+            cacheTtlMinutes: CODEX_CACHE_TTL_MINUTES,
+            lastResponseAt: now,
+        },
+        model,
+    );
 }
 
 /**
