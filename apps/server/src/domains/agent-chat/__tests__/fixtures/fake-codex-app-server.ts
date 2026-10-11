@@ -32,11 +32,10 @@
  *
  * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history. Each
  * thread open also appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert
- * the configuration Caxri asked for.
+ * the configuration Caxri asked for (`fake-codex-threads.ts`). A `<threadId>.writer-held` file there makes resuming
+ * that thread fail as Codex does when another client still holds the thread's writer.
  */
 import crypto from 'node:crypto';
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
@@ -59,6 +58,14 @@ import {
     runSubagent,
     startUnannouncedTerminal,
 } from './fake-codex-tasks.ts';
+import {
+    fakeCodexStateDirectory,
+    readSavedThread,
+    recordThreadOpen,
+    resumeSavedThread,
+    saveThread,
+    threadPath,
+} from './fake-codex-threads.ts';
 
 /**
  * Loose JSON-RPC shapes: the fake only reads the fields it answers, and the Server's own schemas validate what it
@@ -79,10 +86,6 @@ if (process.argv.includes('--version')) {
     process.stdout.write('codex-cli 0.162.0\n');
     exitProcess(0);
 }
-
-const stateDirectory =
-    process.env.FAKE_CODEX_STATE_DIR ?? path.join(os.tmpdir(), 'caxri-fake-codex');
-fs.mkdirSync(stateDirectory, { recursive: true });
 
 /**
  * How long a `stall` message's `turn/start` or `turn/steer` answer is held back.
@@ -126,17 +129,8 @@ function notify(method: string, parameters: Record<string, unknown>) {
 function notifyTurn(turn: FakeTurn, method: string, parameters: Record<string, unknown>) {
     send({ method, params: { threadId: turn.threadId ?? state.thread?.id, ...parameters } });
 }
-function threadPath(id: string) {
-    return path.join(stateDirectory, `${id.replaceAll(/[^\w-]/gu, '_')}.json`);
-}
 function save(thread = currentThread()) {
-    if (thread.turns.length > 0) fs.writeFileSync(threadPath(thread.id), JSON.stringify(thread));
-}
-function recordThreadOpen(method: string, parameters: Record<string, unknown>) {
-    fs.appendFileSync(
-        path.join(stateDirectory, 'thread-opens.jsonl'),
-        `${JSON.stringify({ method, sandbox: parameters.sandbox, approvalPolicy: parameters.approvalPolicy })}\n`,
-    );
+    saveThread(thread);
 }
 function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -185,10 +179,7 @@ async function streamMessage(turn: FakeTurn, text: string, chunkDelayMs: number)
 
 function loadThread(id: string): FakeThread | undefined {
     if (state.thread?.id === id) return state.thread;
-    const file = threadPath(id);
-    return fs.existsSync(file)
-        ? (JSON.parse(fs.readFileSync(file, 'utf8')) as FakeThread)
-        : undefined;
+    return readSavedThread(id);
 }
 
 const io: FakeCodexIo = {
@@ -445,16 +436,12 @@ function handle(message: RpcMessage) {
         }
         case 'thread/resume': {
             recordThreadOpen(method, parameters);
-            const threadId = String(parameters.threadId);
-            const file = threadPath(threadId);
-            if (!fs.existsSync(file)) {
-                send({
-                    id,
-                    error: { code: -32600, message: `no rollout found for thread id ${threadId}` },
-                });
+            const resumed = resumeSavedThread(String(parameters.threadId));
+            if ('error' in resumed) {
+                send({ id, error: resumed.error });
                 return;
             }
-            state.thread = JSON.parse(fs.readFileSync(file, 'utf8')) as FakeThread;
+            state.thread = resumed.thread;
             send({ id, result: threadResponse(currentThread()) });
             return;
         }
@@ -463,7 +450,7 @@ function handle(message: RpcMessage) {
             const reverted = revertThread(thread, parameters.beforeTurnId, {
                 isTurnActive: state.activeTurn !== undefined,
                 threadFile: threadPath(thread.id),
-                stateDirectory,
+                stateDirectory: fakeCodexStateDirectory(),
             });
             send({ id, ...reverted });
             if ('result' in reverted) notify('thread/reverted', {});
