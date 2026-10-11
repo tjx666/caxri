@@ -17,7 +17,7 @@ interface VisibleSessionStatus {
  * without relying on color (issue caxri#1632). A failed turn or an unknown cause has nothing to answer, so it keeps the
  * result's dot.
  */
-export type SessionAttentionVariant = 'result' | 'waiting';
+type SessionAttentionVariant = 'result' | 'waiting';
 
 export type SessionStatus =
     | (VisibleSessionStatus & { kind: 'attention'; variant: SessionAttentionVariant })

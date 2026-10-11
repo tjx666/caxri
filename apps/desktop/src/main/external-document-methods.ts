@@ -1,4 +1,4 @@
-import type { MainRequest } from '@caxri/protocol';
+import type { MainRequest, ServerEvent } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import { shell } from 'electron';
 
@@ -8,6 +8,7 @@ import {
     readExternalDocumentAsset,
 } from './external-document-reads';
 import type { ExternalDocumentWatcher } from './external-document-watcher';
+import { createExternalDocumentWatcher } from './external-document-watcher';
 import {
     externalDocumentDirectory,
     externalDocumentPath,
@@ -21,6 +22,20 @@ export function isExternalDocumentRequest(
     request: MainRequest,
 ): request is ExternalDocumentRequest {
     return request.method.startsWith('externalDocument.');
+}
+
+/**
+ * The watcher behind `externalDocument.watch`, reporting changes through `sendEvent`. Without a sender (a unit-test
+ * handler) watch requests are accepted and ignored.
+ */
+export function createExternalDocumentChangeWatcher(
+    sendEvent: ((event: ServerEvent) => void) | undefined,
+): Pick<ExternalDocumentWatcher, 'setWatched'> {
+    if (!sendEvent) return { setWatched: () => {} };
+    return createExternalDocumentWatcher({
+        emit: (documentId) =>
+            sendEvent({ event: 'externalDocument.changed', payload: { documentId } }),
+    });
 }
 
 /**
