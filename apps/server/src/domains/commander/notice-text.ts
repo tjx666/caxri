@@ -14,9 +14,9 @@ export interface CommanderCompletionNoticeEntry {
 }
 
 /**
- * Flattens a value the completion notifier writes into the Commander Terminal to one control-character-free line, reusing the same
- * flatten/sanitize/cap `normalizeTerminalTitle` already applies to untrusted PTY and Agent-reported titles
- * (`packages/protocol/src/domain/terminal-title.ts`). Belt-and-suspenders here: these values already come from
+ * Flattens a value the completion notifier writes into the Commander Terminal to one control-character-free line,
+ * reusing the same flatten/sanitize/cap `normalizeTerminalTitle` already applies to untrusted PTY and Agent-reported
+ * titles (`packages/protocol/src/domain/terminal-title.ts`). Belt-and-suspenders here: these values already come from
  * validated records, but this text becomes literal PTY input, a stronger trust boundary than a JSON field, and an empty
  * identifier must still render as something rather than silently disappearing from the line.
  */
