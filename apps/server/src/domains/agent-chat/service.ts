@@ -5,7 +5,6 @@ import type {
     AgentChatModelRequest,
     AgentChatSnapshot,
     AgentChatTaskSnapshot,
-    AgentProvider,
     TerminalRecord,
 } from '@caxri/protocol';
 import {
@@ -210,7 +209,12 @@ export class AgentChatService {
                     if (!isCurrent()) return;
                     // The first new turn writes past the resume point, so a later start resumes the newest record again.
                     if (event.phase === 'turnStarted') state.resumeAt = undefined;
-                    forwardChatLifecycle(this.options, { ...event, launchId, provider, terminalId });
+                    forwardChatLifecycle(this.options, {
+                        ...event,
+                        launchId,
+                        provider,
+                        terminalId,
+                    });
                 },
                 onSessionBound: (agentSessionId) => {
                     if (!isCurrent()) return;
