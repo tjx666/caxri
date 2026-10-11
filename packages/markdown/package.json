@@ -16,6 +16,7 @@
         }
     },
     "scripts": {
+        "benchmark": "bun run scripts/streaming-benchmark.ts",
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run --root ../.. --project markdown",
         "typecheck": "tsc --noEmit -p tsconfig.json"

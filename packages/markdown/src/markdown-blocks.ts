@@ -425,6 +425,35 @@ function convertBlocks(tokens: readonly Token[], options: MarkdownBlockOptions):
 }
 
 /**
+ * One top-level Markdown construct and the zero-based source line it starts on. `block` is absent when the construct
+ * has no visible content, such as raw HTML.
+ */
+export interface TopLevelMarkdownEntry {
+    block?: MarkdownBlock;
+    line: number;
+}
+
+/**
+ * Parses `source` into its top-level constructs, keeping each one's start line so the streaming parser can reuse the
+ * ones a later delta cannot change.
+ */
+export function parseTopLevelMarkdown(
+    source: string,
+    options: MarkdownBlockOptions,
+): TopLevelMarkdownEntry[] {
+    const tokens = engine.parse(source, {});
+    const entries: TopLevelMarkdownEntry[] = [];
+    let index = 0;
+    while (index < tokens.length) {
+        const line = tokens[index]!.map?.[0] ?? 0;
+        const { block, next } = convertBlockAt(tokens, index, options);
+        entries.push(block ? { block, line } : { line });
+        index = next;
+    }
+    return entries;
+}
+
+/**
  * Parses untrusted Markdown into an HTML-free block tree. Raw HTML is dropped, images collapse to alt text, and only
  * absolute HTTP(S) links keep a destination, so a host can render the result with text nodes and no sanitizer.
  */
