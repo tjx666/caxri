@@ -139,6 +139,8 @@ export class AgentIdentity {
                 decision.attentionKind,
                 sessionActivityReasonForAgentState(decision.lastActivityState),
             );
+            if (decision.supersedesUnreadAttention)
+                this.db.sessions.acknowledgeAttention(session.id, session.attentionEpoch);
             return true;
         });
     }
