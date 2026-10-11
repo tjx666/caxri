@@ -219,27 +219,90 @@ export function peakHour(hourOfDay: readonly number[]): number | undefined {
  *
  * - `agentFilter`: one Agent is selected and it used nothing in the range. Saying "No Agent usage yet" there blamed the
  *   whole page on a filter the user may have forgotten, so the copy names the Agent and offers to clear the filter.
+ * - `scanning`: the first read of transcripts outside Caxri has found nothing yet, so "no usage" would be premature.
  * - `noUsage`: no Agent conversation was ever recorded.
  */
-export type UsageEmptyState = { kind: 'agentFilter'; title: string } | { kind: 'noUsage' };
+export type UsageEmptyState =
+    { kind: 'agentFilter'; title: string } | { kind: 'scanning' } | { kind: 'noUsage' };
 
 export function usageEmptyState(
     report: {
-        coverage: Pick<UsageReport['coverage'], 'agentSessions'>;
+        coverage: Pick<UsageReport['coverage'], 'agentSessions' | 'outsideCaxri'>;
         totals: { tokens: Pick<UsageReport['totals']['tokens'], 'total'> };
     },
     agent: AgentProvider | undefined,
 ): UsageEmptyState | undefined {
-    if (
-        agent !== undefined &&
-        (report.coverage.agentSessions === 0 || report.totals.tokens.total === 0)
-    )
+    if (report.totals.tokens.total === 0 && (report.coverage.outsideCaxri?.pendingScans ?? 0) > 0)
+        return { kind: 'scanning' };
+    const agentSessions =
+        report.coverage.agentSessions + (report.coverage.outsideCaxri?.agentSessions ?? 0);
+    if (agent !== undefined && (agentSessions === 0 || report.totals.tokens.total === 0))
         return {
             kind: 'agentFilter',
             title: `No ${agentProviderCatalog[agent].displayName} usage in this range`,
         };
-    if (report.coverage.agentSessions === 0) return { kind: 'noUsage' };
+    if (agentSessions === 0) return { kind: 'noUsage' };
     return undefined;
+}
+
+/**
+ * The Agent time tile's detail line. Agent Sessions run outside Caxri have no Caxri Session, so they are counted beside
+ * the Sessions rather than as more of them.
+ */
+export function agentTimeDetail(
+    totals: Pick<UsageReport['totals'], 'sessionsWithUsage' | 'outsideSessionsWithUsage'>,
+): string {
+    const sessions = `Across ${totals.sessionsWithUsage} ${totals.sessionsWithUsage === 1 ? 'Session' : 'Sessions'}`;
+    return totals.outsideSessionsWithUsage > 0
+        ? `${sessions} + ${totals.outsideSessionsWithUsage} outside`
+        : sessions;
+}
+
+/**
+ * A row's count of Agent conversations. Rows that include conversations run outside Caxri count conversations, not
+ * Sessions, because those conversations have no Caxri Session.
+ */
+export function usageSessionCount(count: number, isOutsideCaxri: boolean): string {
+    if (isOutsideCaxri) return `${count} ${count === 1 ? 'conversation' : 'conversations'}`;
+    return `${count} ${count === 1 ? 'Session' : 'Sessions'}`;
+}
+
+/**
+ * The page caption's progress note while the first read of transcripts outside Caxri is still running.
+ */
+export function usageScanCaption(report: {
+    coverage: Pick<UsageReport['coverage'], 'outsideCaxri'>;
+}): string | undefined {
+    const pending = report.coverage.outsideCaxri?.pendingScans ?? 0;
+    return pending > 0
+        ? `Reading ${pending.toLocaleString('en-US')} more ${pending === 1 ? 'transcript' : 'transcripts'}…`
+        : undefined;
+}
+
+/**
+ * The footnotes under the report: what it counts, what it is missing, and why.
+ */
+export function usageCoverageNotes(
+    report: Pick<UsageReport, 'coverage' | 'pricing' | 'scope'>,
+): string[] {
+    const { coverage, pricing } = report;
+    const counted = `${coverage.agentSessions} Agent ${coverage.agentSessions === 1 ? 'conversation' : 'conversations'} started in Caxri Sessions, including archived and deleted Sessions`;
+    const outside = coverage.outsideCaxri?.agentSessions ?? 0;
+    const notes = [
+        `Costs are estimated from public API list prices (${pricing.source === 'bundled' ? 'bundled price list' : `LiteLLM prices updated ${pricing.updatedAt ? new Date(pricing.updatedAt).toLocaleDateString() : 'recently'}`}); a subscription plan bills differently.`,
+        report.scope === 'all'
+            ? `Counts ${counted}, plus ${outside} run outside Caxri on this Mac.`
+            : `Counts ${counted}.`,
+    ];
+    if (coverage.unavailable > 0)
+        notes.push(
+            `${coverage.unavailable} ${coverage.unavailable === 1 ? 'conversation has' : 'conversations have'} no transcript on this machine, so their usage is missing.`,
+        );
+    if (coverage.pendingPullRequests > 0)
+        notes.push(`Checking ${coverage.pendingPullRequests} pull requests on GitHub.`);
+    if (coverage.unpricedModels.length > 0)
+        notes.push(`No price for ${coverage.unpricedModels.join(', ')}; counted as $0.`);
+    return notes;
 }
 
 /**
@@ -259,13 +322,13 @@ export function burnRateCaption(last30DaysCostUsd: number): string {
 }
 
 /**
- * Whether a Most expensive Sessions row can switch to its Session. A deleted Session has nothing to open, and an
- * archived one is not in the PrimarySidebar to select.
+ * Whether a Most expensive Sessions row can switch to its Session. A deleted Session has nothing to open, an archived
+ * one is not in the PrimarySidebar to select, and an Agent Session run outside Caxri has no Session at all.
  */
 export function canOpenUsageSession(
-    row: Pick<UsageSessionRow, 'isArchived' | 'isDeleted'>,
+    row: Pick<UsageSessionRow, 'isArchived' | 'isDeleted' | 'isOutsideCaxri'>,
 ): boolean {
-    return !row.isArchived && !row.isDeleted;
+    return !row.isArchived && !row.isDeleted && !row.isOutsideCaxri;
 }
 
 /**

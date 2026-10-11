@@ -103,6 +103,16 @@ describe('codexUsageParser', () => {
         expect(accumulator.toRecord().tokens).toEqual([[HOUR_SECONDS, 0, 105, 11, 0, 0, 0, 0]]);
     });
 
+    it("takes a continuation file's first total as the baseline it repeats", () => {
+        const accumulator = new UsageAccumulator();
+        const parser = codexUsageParser(accumulator, { isContinuation: true });
+        // A reverted thread's new rollout opens with the whole thread's cumulative total.
+        parser.line(codexTotals(20_000, 0, 500));
+        parser.line(codexTotals(20_100, 0, 520));
+
+        expect(accumulator.toRecord().tokens).toEqual([[HOUR_SECONDS, 0, 100, 20, 0, 0, 0, 0]]);
+    });
+
     it('keeps the latest rate-limit observation', () => {
         const accumulator = new UsageAccumulator();
         const parser = codexUsageParser(accumulator);

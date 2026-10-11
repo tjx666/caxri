@@ -79,22 +79,54 @@ describe('Agent Session usage ledger', () => {
         ]);
     });
 
-    it('creates both tables when upgrading from the previous schema version', async () => {
-        const { path, database } = await openDatabase();
-        database.close();
-        const raw = new Database(path);
-        raw.exec('DROP TABLE agent_session_usage; DROP TABLE pull_request_outcomes');
-        raw.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
-        raw.close();
+    it('caches transcripts found outside the ledger, one row per file', async () => {
+        const { database } = await openDatabase();
+        onTestFinished(() => database.close());
+        const row = {
+            provider: 'codex' as const,
+            transcriptId: 'rollout-2',
+            agentSessionId: 'thread-1',
+            path: '/transcripts/rollout-2.jsonl',
+            cwd: null,
+            sourceFingerprint: 'v1|10:1',
+            scannedAt: 5,
+            usageJson: '{}',
+        };
+        database.agentSessionUsage.saveExternalScan(row);
+        database.agentSessionUsage.saveExternalScan({ ...row, cwd: '/work', scannedAt: 6 });
 
-        const upgraded = new CaxriDatabase(path);
-        onTestFinished(() => upgraded.close());
-        expect(upgraded.agentSessionUsage.list()).toEqual([]);
-        expect(upgraded.agentSessionUsage.listPullRequestOutcomes()).toEqual([]);
-        const check = new Database(path, { readonly: true });
-        onTestFinished(() => {
-            check.close();
-        });
-        expect(check.pragma('user_version', { simple: true })).toBe(CURRENT_SCHEMA_VERSION);
+        expect(database.agentSessionUsage.listExternal()).toEqual([
+            { ...row, cwd: '/work', scannedAt: 6 },
+        ]);
+    });
+
+    it('creates the usage tables when upgrading from each earlier schema version', async () => {
+        const upgrades = [
+            {
+                from: CURRENT_SCHEMA_VERSION - 2,
+                drop: ['agent_session_usage', 'pull_request_outcomes'],
+            },
+            { from: CURRENT_SCHEMA_VERSION - 1, drop: [] },
+        ];
+        for (const { from, drop } of upgrades) {
+            // eslint-disable-next-line no-await-in-loop -- each upgrade gets its own database
+            const { path, database } = await openDatabase();
+            database.close();
+            const raw = new Database(path);
+            for (const table of [...drop, 'external_agent_usage']) raw.exec(`DROP TABLE ${table}`);
+            raw.pragma(`user_version = ${from}`);
+            raw.close();
+
+            const upgraded = new CaxriDatabase(path);
+            onTestFinished(() => upgraded.close());
+            expect(upgraded.agentSessionUsage.list()).toEqual([]);
+            expect(upgraded.agentSessionUsage.listPullRequestOutcomes()).toEqual([]);
+            expect(upgraded.agentSessionUsage.listExternal()).toEqual([]);
+            const check = new Database(path, { readonly: true });
+            onTestFinished(() => {
+                check.close();
+            });
+            expect(check.pragma('user_version', { simple: true })).toBe(CURRENT_SCHEMA_VERSION);
+        }
     });
 });

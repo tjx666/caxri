@@ -7,8 +7,10 @@ status: current
 
 **Open Usage** (View menu, Command Palette, `usage.open`) opens a Workbench tab that answers what Agents cost,
 what they produced, and when they worked. It covers the typical questions people answer with `ccusage` or CodexBar,
-scoped to Caxri: only Agent Sessions started in a Caxri Session count, archived and deleted Sessions included, broken
-down by Agent (Claude Code, Codex, Grok Build).
+broken down by Agent (Claude Code, Codex, Grok Build). The scope toggle picks what counts:
+
+- **Caxri** (default): only Agent Sessions started in a Caxri Session, archived and deleted Sessions included.
+- **This Mac**: every Agent transcript on the machine, adding conversations run in a plain terminal or another app.
 
 ## What it shows
 
@@ -20,6 +22,11 @@ down by Agent (Claude Code, Codex, Grok Build).
 - Breakdowns by Agent, model, Project (linked worktrees roll up into their owning Project), and Session, plus the
   merged pull requests.
 - The latest Codex rate-limit windows seen in a transcript.
+
+In the **This Mac** scope, an Agent Session run outside Caxri belongs to the Project whose root contains its working
+directory (rolled up to the owning Project like a linked worktree), or else to an "Outside Caxri" group. It has no
+Caxri Session, so it appears in Most expensive Sessions titled by its folder, without a link, and the Agent time tile
+counts it beside the Sessions ("+ N outside"). Created and archived Session counts stay Caxri-only.
 
 Days and hours are the Client's local time zone; the Server buckets usage by hour and the report converts with the
 zone the Client sends.
@@ -41,7 +48,15 @@ Server Core owns everything below; the page only renders `usage.report`.
    falling back to the snapshot bundled at build time (`scripts/update-model-prices.ts` regenerates it). Costs are API
    list-price estimates, not what a subscription plan charged. Models without a price are listed in the coverage note
    and count zero.
-4. **Pull requests.** URLs an Agent created are resolved through `gh pr view` in a bounded background pass (at most 40
+4. **Outside Caxri** (This Mac scope only). Each report lists the providers' transcript directories
+   (`~/.claude/projects/*/<id>.jsonl`, `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl` plus `archived_sessions`,
+   `$GROK_HOME/sessions/<cwd>/<id>/updates.jsonl`), skips every Agent Session already in the ledger, and keeps one
+   content-free aggregate per file in `external_agent_usage` by the same fingerprint rule. Files are read newest first
+   in the background: a first scan of years of history takes about a minute, so the report waits at most a second,
+   answers with what is cached, and reports how many transcripts remain; the page refreshes every two seconds until
+   none do. The working directory comes from the Grok directory name or the first records of a Claude or Codex
+   transcript.
+5. **Pull requests.** URLs an Agent created are resolved through `gh pr view` in a bounded background pass (at most 40
    per pass, open ones rechecked every 30 minutes, merged and closed ones never). Until resolved they count as pending.
 
 ### Provider rules
@@ -49,7 +64,9 @@ Server Core owns everything below; the page only renders `usage.report`.
 - **Claude Code** repeats a message's growing `usage` on every streamed block. Records are merged per message ID by
   per-field maximum; summing them would multiply-count.
 - **Codex** reports cumulative thread totals; usage is the delta between totals, and a shrinking total only resets the
-  baseline. Cached input is inside `input_tokens`, so it is split out as cache reads.
+  baseline. Cached input is inside `input_tokens`, so it is split out as cache reads. Reverting a thread (Esc Esc)
+  continues it in a new `<thread>_<rollout>` file that opens with the whole thread's total; outside Caxri both files
+  are read, and the continuation's first total only sets its baseline so the history is not counted twice.
 - **Grok Build** reports exact per-prompt usage on `turn_completed`, deduplicated by prompt ID.
 
 Active time sums gaps of at most five minutes between consecutive records of a main transcript; subagent files add
@@ -69,4 +86,6 @@ The pipeline is split so a future per-Session status readout can reuse it withou
 ## Privacy
 
 Aggregates hold token counts, model names, timestamps, and pull request URLs only, never prompts, output, or file
-contents. Logs (`usage.scan`, `usage.pricing`, `usage.pull_requests`) carry counts, durations, and closed reasons.
+contents; outside Caxri the stored working directory is the only path kept besides the transcript's own. Logs
+(`usage.scan`, `usage.external_scan`, `usage.pricing`, `usage.pull_requests`) carry counts, durations, and closed
+reasons.

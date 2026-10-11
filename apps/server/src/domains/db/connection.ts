@@ -154,6 +154,7 @@ function initializeSchema(database: Database.Database): void {
              */
             database.exec(`
                 DROP TABLE IF EXISTS agent_session_usage;
+                DROP TABLE IF EXISTS external_agent_usage;
                 DROP TABLE IF EXISTS pull_request_outcomes;
                 DROP TABLE IF EXISTS protocol_changefeed;
                 DROP TABLE IF EXISTS protocol_command_receipts;

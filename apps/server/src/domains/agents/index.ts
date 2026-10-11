@@ -13,7 +13,12 @@ export { CompactionReadiness } from './compaction-readiness';
 export { SessionContentSearch } from './content-search';
 export type { ContextCacheObservation } from './context-cache';
 export { inspectContextCache } from './context-cache';
-export { type AgentEnvironment, agentProviderStateRoot, defaultAgentEnvironment } from './contract';
+export {
+    type AgentEnvironment,
+    agentProviderStateRoot,
+    defaultAgentEnvironment,
+    isOpaqueAgentSessionId,
+} from './contract';
 export { AgentCoordinator } from './coordinator';
 export { delegationAdapter } from './delegation';
 export type { DelegationCompletion } from './delegation-contract';
@@ -31,6 +36,9 @@ export { reconcilePrimaryTurnFailure } from './primary-turn-failure';
 export { agentProviders } from './providers';
 export { extractClaudeDelegationAnswer } from './providers/claude/delegation';
 export { claudeTranscriptRoot, resolveClaudeConfigDirectory } from './providers/claude/paths';
+export { resolveCodexHome } from './providers/codex/paths';
+export { parseCodexRolloutName } from './providers/codex/rollouts';
+export { grokHome } from './providers/grok/paths';
 export { agentCommandEnvironment } from './rename';
 export { readAgentReplySummary, summarizeLatestAgentReply } from './reply-summary';
 export { AgentRunAutonomy } from './run-autonomy';
@@ -71,6 +79,7 @@ export {
 export type { TranscriptScanCursor } from './transcript-scan';
 export { scanTranscriptLines, scanTranscriptToEnd } from './transcript-scan';
 export type { AgentTranscriptLocation, TranscriptScanFailureReason } from './transcript-security';
+export { openSafeAgentTranscript } from './transcript-security';
 export {
     createTranscriptSessionContextScan,
     isNonIssuePrefix,
