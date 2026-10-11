@@ -11,29 +11,64 @@ import { ExtensionTreeActionIcon } from './extension-tree-item-icon';
 import type { TreeItemAction } from './tree-item-actions';
 import { runTreeItemAction, treeItemActionKeyIntent } from './tree-item-actions';
 
+const labeledActionToneClassNames: Record<NonNullable<TreeItemAction['tone']>, string> = {
+    danger: 'border-danger/40 bg-danger/10 text-danger',
+    neutral: 'border-border text-foreground',
+    success: 'border-success/40 bg-success/10 text-success',
+    warning: 'border-warning/40 bg-warning/10 text-warning',
+};
+
+/**
+ * The accessible name keeps the command's title and adds the visible label when the title does not already contain it,
+ * so a voice-control user can say what they see ("Checks running") and a screen reader still hears the action.
+ */
+function actionAccessibleName(action: TreeItemAction): string {
+    const { label } = action;
+    const { title } = action.command;
+    return !label || title.toLowerCase().includes(label.toLowerCase())
+        ? title
+        : `${title} (${label})`;
+}
+
 function TreeItemActionButton({
     action,
+    isRevealedOnHover,
     isTabStop,
 }: {
     action: TreeItemAction;
+    /**
+     * Set for an icon-only action sharing a group that stays visible because of a labeled sibling.
+     */
+    isRevealedOnHover: boolean;
     isTabStop: boolean;
 }) {
     const [isRunning, setIsRunning] = useState(false);
+    const isLabeled = action.label !== undefined;
     return (
         // Hover only: the tree moves focus onto these buttons itself (Right from the row, and the confirmation modal
         // handing focus back), and a focus-opened tooltip would both pop up unasked and consume the Escape that returns
         // to the row. The title is the button's accessible name, so a screen reader still hears it.
         <Tooltip hoverOnly content={action.command.title}>
             <Button
-                aria-label={action.command.title}
+                aria-label={actionAccessibleName(action)}
                 aria-busy={isRunning || undefined}
                 // `aria-disabled` rather than `disabled`: Chromium evicts focus from a button the moment it becomes
                 // disabled, and the confirmation modal hands focus back to this button when it closes. A natively
                 // disabled button would drop a keyboard user to the document body on Cancel.
                 aria-disabled={isRunning || undefined}
-                className="size-5 focus-visible:shadow-[inset_0_0_0_2px_var(--accent)] focus-visible:outline-none"
+                className={cn(
+                    'focus-visible:shadow-[inset_0_0_0_2px_var(--accent)] focus-visible:outline-none',
+                    isLabeled
+                        ? cn(
+                              'h-5 min-h-5 gap-1 px-1.5 text-[11px] font-medium enabled:not-aria-disabled:hover:brightness-125',
+                              labeledActionToneClassNames[action.tone ?? 'neutral'],
+                          )
+                        : 'size-5',
+                    isRevealedOnHover &&
+                        'hidden group-focus-within/tree-row:inline-flex group-hover/tree-row:inline-flex aria-busy:inline-flex',
+                )}
                 data-tree-item-action={action.command.id}
-                size="icon"
+                size={isLabeled ? 'sm' : 'icon'}
                 tabIndex={isTabStop ? 0 : -1}
                 variant="ghost"
                 onClick={(event) => {
@@ -52,6 +87,7 @@ function TreeItemActionButton({
                 ) : (
                     <ExtensionTreeActionIcon icon={action.icon} />
                 )}
+                {action.label}
             </Button>
         </Tooltip>
     );
@@ -85,7 +121,9 @@ function handleActionGroupKeyDown(
 
 /**
  * Inline actions sit at the end of the row and appear on hover or keyboard focus, the same reveal the Source Control
- * tree uses for its per-file actions, so a quiet panel does not fill up with buttons.
+ * tree uses for its per-file actions, so a quiet panel does not fill up with buttons. A labeled action is the
+ * exception: it is the row's primary call to action and its colored label carries state (Merge versus Checks failed),
+ * so it stays visible at rest and only its icon-only siblings wait for hover.
  *
  * Keyboard users reach them with Right from the row (see `extensionTreeHorizontalIntent`). The buttons use a roving
  * tabindex scoped to the group: while focus is inside it, the focused action is the one Tab stop, so Tab and Shift+Tab
@@ -107,6 +145,7 @@ export function ExtensionTreeRowActions({
 }) {
     const [focusedCommandId, setFocusedCommandId] = useState<string>();
     if (!actions?.length) return null;
+    const hasLabeledAction = actions.some((action) => action.label !== undefined);
     return (
         <>
             <span className="sr-only" id={descriptionId}>
@@ -114,8 +153,10 @@ export function ExtensionTreeRowActions({
             </span>
             <span
                 className={cn(
-                    'hidden shrink-0 items-center gap-0.5',
-                    'group-focus-within/tree-row:flex group-hover/tree-row:flex has-[[aria-busy=true]]:flex',
+                    'shrink-0 items-center gap-0.5',
+                    hasLabeledAction
+                        ? 'flex'
+                        : 'hidden group-focus-within/tree-row:flex group-hover/tree-row:flex has-[[aria-busy=true]]:flex',
                 )}
                 data-tree-item-actions="true"
                 onBlur={(event: FocusEvent<HTMLSpanElement>) => {
@@ -130,6 +171,7 @@ export function ExtensionTreeRowActions({
                 {actions.map((action) => (
                     <TreeItemActionButton
                         action={action}
+                        isRevealedOnHover={hasLabeledAction && action.label === undefined}
                         isTabStop={focusedCommandId === action.command.id}
                         key={action.command.id}
                     />

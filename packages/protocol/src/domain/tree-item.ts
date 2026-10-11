@@ -31,6 +31,11 @@ export const treeItemActionSchema = z.object({
     command: treeItemCommandSchema,
     icon: viewIconSchema,
     /**
+     * Visible text that keeps the action on screen at rest; see `TreeItemAction.label` in the Extension API.
+     */
+    label: z.string().min(1).max(32).optional(),
+    tone: z.enum(['neutral', 'success', 'warning', 'danger']).optional(),
+    /**
      * Rendered through the Workbench confirmation modal as literal text before the command is dispatched.
      */
     confirmation: z

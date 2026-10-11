@@ -29,7 +29,18 @@ describe('AgentChatService with a fake Codex app-server', () => {
             text: 'Thinking about it.\n\nChecking the reply.',
         });
         expect(snapshot.plan?.steps).toHaveLength(2);
-        expect(snapshot.usage).toEqual({ totalTokens: 1200, contextWindow: 200000 });
+        expect(snapshot.usage).toEqual({
+            totalTokens: 1200,
+            contextWindow: 200000,
+            breakdown: [
+                { label: 'Cached input', tokens: 900 },
+                { label: 'New input', tokens: 250 },
+                { label: 'Output', tokens: 50 },
+            ],
+            cacheTtlMinutes: 30,
+            lastResponseAt: snapshot.usage?.lastResponseAt,
+        });
+        expect(snapshot.usage?.lastResponseAt).toBeGreaterThan(0);
         // The server's own snapshot equals the patched Client mirror.
         expect(service.read(terminal.id)).toEqual(snapshot);
         expect(database.getTerminal(terminal.id)?.agentSessionId).toBeTruthy();

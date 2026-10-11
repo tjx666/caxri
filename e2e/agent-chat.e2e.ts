@@ -135,7 +135,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await message.press('Enter');
         await expect(chat.getByText('Explored the project.')).toBeVisible();
         await chat
-            .getByRole('button', { name: /^Worked for /u })
+            .getByRole('button', { name: /^Worked(?: for |$)/u })
             .last()
             .click();
         /**
@@ -173,7 +173,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(chat.locator('pre code span[class*="mtk"]').first()).toBeVisible();
         await expectDisclosuresSettled(chat, 'agent-chat-item');
         await page.screenshot({ path: testInfo.outputPath('agent-chat-work-group.png') });
-        const exploreFold = chat.getByRole('button', { name: /^Worked for /u }).last();
+        const exploreFold = chat.getByRole('button', { name: /^Worked(?: for |$)/u }).last();
         await exploreFold.click();
         await expect(exploreFold).toHaveAttribute('aria-expanded', 'false');
 
@@ -287,7 +287,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(chat.getByText('The files were changed.')).toBeVisible();
 
         // The finished turn folds its work behind its duration, keeping the prompt and the reply in view.
-        const turnFold = chat.getByRole('button', { name: /^Worked for /u }).last();
+        const turnFold = chat.getByRole('button', { name: /^Worked(?: for |$)/u }).last();
         await expect(turnFold).toHaveAttribute('aria-expanded', 'false');
         await page.screenshot({ path: testInfo.outputPath('agent-chat-turn-folded.png') });
         await turnFold.click();
@@ -310,7 +310,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await message.press('Enter');
         await expect(chat.getByText('Generated a large file.')).toBeVisible();
         await chat
-            .getByRole('button', { name: /^Worked for /u })
+            .getByRole('button', { name: /^Worked(?: for |$)/u })
             .last()
             .click();
         await chat.getByRole('button', { name: /^Edited generated\.txt ?, / }).click();
@@ -440,14 +440,43 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
         await expect(message).toHaveAttribute('placeholder', 'Message Claude');
+        // Images arrive by paste or drop; the composer has no picker button.
+        await expect(chat.getByRole('button', { name: 'Attach images' })).toHaveCount(0);
         // Claude Code names its model only in a turn's init, so the picker reads as the default until then.
         await expect(chat.getByRole('button', { name: 'Model: Default' })).toBeVisible();
+
+        // The Terminal | Chat switch stays out of sight until the pointer enters the tab bar.
+        const surfaceToggle = chat.locator('.agent-surface-toggle').locator('..');
+        await message.hover();
+        await expect(surfaceToggle).toHaveCSS('opacity', '0');
+        await chat.locator('.work-tabs').first().hover();
+        await expect(surfaceToggle).toHaveCSS('opacity', '1');
+        await page.screenshot({ path: testInfo.outputPath('claude-chat-tab-hover.png') });
+        await message.hover();
+        await expect(surfaceToggle).toHaveCSS('opacity', '0');
+
         await message.fill('hi there');
         await message.press('Enter');
         await expect(chat.getByText('Hello from fake Claude. You said: hi there')).toBeVisible();
-        await expect(chat.getByRole('button', { name: 'Model: Fake' })).toBeVisible();
+        // The init names the model, and the turn's hook input names the effort Claude Code actually applied.
+        await expect(
+            chat.getByRole('button', { name: 'Model: Fake, Medium effort', exact: true }),
+        ).toBeVisible();
+        // The reply's Copy action appears only while the pointer is over that reply.
+        const copyRow = chat.getByRole('button', { name: 'Copy message' }).last().locator('..');
+        await message.hover();
+        await expect(copyRow).toHaveCSS('opacity', '0');
+        await chat.getByText('Hello from fake Claude. You said: hi there').hover();
+        await expect(copyRow).toHaveCSS('opacity', '1');
         await expect(chat.getByRole('img', { name: /^\d+% of context used, /u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-reply.png') });
+        // The meter measures against the compaction window and its tooltip lists what fills the context.
+        await chat.getByRole('img', { name: /^\d+% of context used, /u }).hover();
+        await expect(page.getByText('Context', { exact: true })).toBeVisible();
+        await expect(page.getByText('Messages', { exact: true })).toBeVisible();
+        await expect(page.getByText('Auto-compacts at 160k of the 200k window')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('claude-chat-context-breakdown.png') });
+        await message.hover();
 
         await message.fill('please approve this');
         await message.press('Enter');
@@ -460,12 +489,13 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await expect(chat.getByText('The command ran.')).toBeVisible();
         // The row reads the Agent's description of the command, and expanded shows the command and how it ended.
         await chat
-            .getByRole('button', { name: /^Worked for /u })
+            .getByRole('button', { name: /^Worked(?: for |$)/u })
             .last()
             .click();
         const commandRow = chat.getByRole('button', { name: /^Ran Print a confirmation/u });
-        // The toggle is stretched over its row, which holds the visible title and facts.
-        await expect(commandRow.locator('xpath=..')).toContainText(/\d+s$/u);
+        // The toggle is stretched over its row, which holds the visible title and facts. The fake command finishes well
+        // under a second, and a sub-second duration is left out as noise.
+        await expect(commandRow.locator('xpath=..')).not.toContainText(/\d+(?:ms|s)$/u);
         await commandRow.click();
         await expect(chat.getByText('Exit code 0')).toBeVisible();
         await expect(chat.locator('pre').filter({ hasText: 'echo approved' })).toBeVisible();
@@ -516,8 +546,6 @@ test('a Grok Build Chat streams a reply, answers an approval, and resumes after 
         const chat = page.locator(VISIBLE_SESSION);
         const message = chat.getByRole('textbox', { name: 'Message' });
         await expect(message).toHaveAttribute('placeholder', 'Message Grok Build');
-        // Grok Build's ACP agent takes no images, so the composer offers none.
-        await expect(chat.getByRole('button', { name: 'Attach images' })).toHaveCount(0);
         await message.fill('hi there');
         await message.press('Enter');
         await expect(chat.getByText('You said: hi there')).toBeVisible();

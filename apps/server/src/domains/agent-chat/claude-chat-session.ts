@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import type {
+    HookCallbackMatcher,
+    HookEvent,
     Query,
     SDKMessage,
     SDKUserMessage,
@@ -32,10 +34,21 @@ import type {
     ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
+import { withCacheRewriteEstimate } from './chat-usage';
+import {
+    claudeCacheTtlMinutes,
+    DEFAULT_CLAUDE_CACHE_TTL_MINUTES,
+    refreshClaudeContextDetails,
+} from './claude-context';
 import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
 import { ClaudeCommandList, claudeUserPrompt, isClaudeCompactCommand } from './claude-input';
 import { claudeAssistantItems, claudeUsageTokens } from './claude-items';
-import { claudeChatModels, claudeInitEffort, configureClaudeModel } from './claude-models';
+import {
+    claudeChatModels,
+    claudeHookEffort,
+    claudeInitEffort,
+    configureClaudeModel,
+} from './claude-models';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
 import { ClaudeStream } from './claude-stream';
@@ -186,20 +199,26 @@ class ClaudeChatSession implements AgentChatProviderSession {
         if (mapped.plan) operations.push({ op: 'state', state: { plan: mapped.plan } });
         const totalTokens = claudeUsageTokens(message.usage);
         if (operations.length > 0) this.options.apply(operations);
-        if (totalTokens !== undefined)
-            this.options.apply([
+        if (totalTokens !== undefined) {
+            // The breakdown described the previous context; the turn's end asks for a fresh one.
+            const { compactWindow, cacheTtlMinutes } = this.options.read().usage ?? {};
+            const usage = withCacheRewriteEstimate(
                 {
-                    op: 'state',
-                    state: {
-                        usage: {
-                            totalTokens,
-                            ...(this.turns.contextWindow && {
-                                contextWindow: this.turns.contextWindow,
-                            }),
-                        },
-                    },
+                    totalTokens,
+                    ...(this.turns.contextWindow && {
+                        contextWindow: this.turns.contextWindow,
+                    }),
+                    ...(compactWindow && { compactWindow }),
+                    cacheTtlMinutes:
+                        claudeCacheTtlMinutes(message.usage) ??
+                        cacheTtlMinutes ??
+                        DEFAULT_CLAUDE_CACHE_TTL_MINUTES,
+                    lastResponseAt: Date.now(),
                 },
-            ]);
+                stringField(message.model) ?? this.options.read().model,
+            );
+            this.options.apply([{ op: 'state', state: { usage } }]);
+        }
         this.stream.settle(mapped.items);
         this.toolClock.start(mapped.items);
     }
@@ -218,6 +237,24 @@ class ClaudeChatSession implements AgentChatProviderSession {
         );
         if (operations.length > 0) this.options.apply(operations);
         this.tasks.onToolResults(content);
+    }
+
+    /**
+     * Read-only hook callbacks that report the turn's effective effort. Claude Code fills `effort` only for a hook that
+     * runs with a tool-use context: PreToolUse and Stop always do, UserPromptSubmit only on some paths, so it is a
+     * best-effort early report and Stop is the guaranteed one. Each returns an empty output, so Claude Code proceeds
+     * exactly as without them.
+     */
+    private effortHooks(): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
+        const matcher: HookCallbackMatcher = {
+            hooks: [
+                (input) => {
+                    this.options.apply(claudeHookEffort(input));
+                    return Promise.resolve({});
+                },
+            ],
+        };
+        return { UserPromptSubmit: [matcher], PreToolUse: [matcher], Stop: [matcher] };
     }
 
     private onSystem(message: Json): void {
@@ -287,6 +324,9 @@ class ClaudeChatSession implements AgentChatProviderSession {
             }
             case 'result': {
                 this.turns.finish(message);
+                if (!this.options.read().activeTurnId && this.query && this.isOpen)
+                    // eslint-disable-next-line no-void -- best effort; the context meter keeps its total without it
+                    void refreshClaudeContextDetails(this.query, this.options, () => this.isEnded);
                 return;
             }
             case 'system': {
@@ -427,6 +467,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                     disallowedTools: settings.disallowedTools,
                 }),
                 canUseTool: async (...arguments_) => this.requests.canUseTool(...arguments_),
+                hooks: this.effortHooks(),
             },
         });
         this.query = stream;

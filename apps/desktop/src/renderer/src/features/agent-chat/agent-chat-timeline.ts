@@ -96,10 +96,12 @@ function groupWork(items: readonly AgentChatItem[], finalReplyId?: string): Flat
 }
 
 /**
- * `Worked for 2m 1s`, or how a turn that did not complete ended.
+ * `Worked for 2m 1s`, or how a turn that did not complete ended. A turn under a second reads as plain `Worked`, as a
+ * work row drops its sub-second duration: `<1s` is noise.
  */
 export function agentChatTurnLabel(turn: AgentChatTurn): string {
-    const duration = formatShortDuration(turn.durationMs);
+    const duration =
+        (turn.durationMs ?? 0) >= 1000 ? formatShortDuration(turn.durationMs) : undefined;
     const verb =
         turn.status === 'interrupted'
             ? 'Stopped after'
@@ -269,12 +271,10 @@ function describeAgentChatWorkAction(item: AgentChatWorkItem): AgentToolPresenta
 }
 
 /**
- * The duration a work row shows. A command always shows how long it took, as a terminal prompt would; another tool only
- * once it is noticeable.
+ * The duration a work row shows: only once it is noticeable. A row of `<1s` labels says nothing a reader can act on.
  */
 export function agentChatWorkDuration(item: AgentChatWorkItem): string | null {
-    if (item.type === 'command') return formatShortDuration(item.durationMs);
-    if (item.type === 'toolCall' && (item.durationMs ?? 0) >= 1000)
+    if ((item.type === 'command' || item.type === 'toolCall') && (item.durationMs ?? 0) >= 1000)
         return formatShortDuration(item.durationMs);
     return null;
 }

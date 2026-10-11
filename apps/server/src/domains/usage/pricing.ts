@@ -83,6 +83,42 @@ export function modelPriceCandidates(model: string): string[] {
     return bases.flatMap((base) => PROVIDER_PREFIXES.map((prefix) => `${prefix}${base}`));
 }
 
+/**
+ * The price list entry for a model name, trying {@link modelPriceCandidates} in order.
+ */
+function findModelPrice(
+    prices: Readonly<Record<string, ModelPrice>>,
+    model: string,
+): ModelPrice | undefined {
+    for (const candidate of modelPriceCandidates(model))
+        if (Object.hasOwn(prices, candidate)) return prices[candidate];
+    return undefined;
+}
+
+/**
+ * USD per token to write a prompt-cache entry that lives `ttlMinutes`: the one-hour rate from an hour on, otherwise the
+ * five-minute rate. A model without a cache-write price (an older OpenAI model) reprocesses the prefix at the input
+ * rate.
+ */
+export function cacheWritePrice(price: ModelPrice, ttlMinutes: number): number {
+    const writeRate = price[3] ?? price[0];
+    return ttlMinutes >= 60 ? (price[4] ?? writeRate) : writeRate;
+}
+
+/**
+ * The standard API price of writing `tokens` of context back into an expired prompt cache, from the price list bundled
+ * with this build. Subscription plans spend allowance rather than billing this, so it is an estimate of weight, not an
+ * invoice. A bracketed Claude Code variant such as `[1m]` is not part of the model name.
+ */
+export function estimateCacheRewriteUsd(
+    tokens: number,
+    model: string,
+    ttlMinutes: number,
+): number | undefined {
+    const price = findModelPrice(bundledModelPrices, model.replace(/\[[^\]]*\]$/u, ''));
+    return price && tokens > 0 ? tokens * cacheWritePrice(price, ttlMinutes) : undefined;
+}
+
 export function costOf(tokens: UsageTokens, price: ModelPrice): number {
     const [input, output, cacheRead, cacheWrite, cacheWrite1h] = price;
     const write5m = Math.max(0, tokens.cacheWrite - tokens.cacheWrite1h);
@@ -218,11 +254,7 @@ export class ModelPricing {
     priceOf(model: string): ModelPrice | undefined {
         const cached = this.resolved.get(model);
         if (cached !== undefined) return cached ?? undefined;
-        let price: ModelPrice | undefined;
-        for (const candidate of modelPriceCandidates(model)) {
-            price = Object.hasOwn(this.prices, candidate) ? this.prices[candidate] : undefined;
-            if (price) break;
-        }
+        const price = findModelPrice(this.prices, model);
         this.resolved.set(model, price ?? null);
         return price;
     }
