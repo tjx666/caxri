@@ -8,13 +8,42 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 
 import { useMobileClient } from '../../connection/mobile-client-provider';
-import { splitMobileImage } from '../image-attachment';
+import {
+    CHAT_THUMBNAIL_QUALITIES,
+    chatThumbnailSize,
+    isWithinChatThumbnailLimit,
+    splitMobileImage,
+} from '../image-attachment';
 import { didUploadImageChunks } from '../image-upload';
 
 /**
- * The largest number of images one message may carry.
+ * The largest number of images one Terminal Agent message may carry; a Chat takes `MAX_AGENT_CHAT_IMAGES`.
  */
 const MAX_ATTACHMENTS = 3;
+
+const newAttachmentId = (): string => `image_${encodeHex(Crypto.getRandomBytes(16))}`;
+
+/**
+ * A small JPEG of the prepared image for a Chat message's preview. The Server carries the thumbnail but cannot make
+ * one, so the phone renders it here, lowering the quality until it fits the projection's thumbnail limit.
+ */
+const renderChatThumbnail = async (uri: string, width: number, height: number): Promise<string> => {
+    for (const compress of CHAT_THUMBNAIL_QUALITIES) {
+        const context = ImageManipulator.ImageManipulator.manipulate(uri);
+        context.resize(chatThumbnailSize(width, height));
+        // eslint-disable-next-line no-await-in-loop -- Each lower quality is tried only when the previous one was too large.
+        const rendered = await context.renderAsync();
+        // eslint-disable-next-line no-await-in-loop -- Same as above.
+        const thumbnail = await rendered.saveAsync({
+            format: ImageManipulator.SaveFormat.JPEG,
+            compress,
+            base64: true,
+        });
+        if (thumbnail.base64 && isWithinChatThumbnailLimit(thumbnail.base64))
+            return thumbnail.base64;
+    }
+    throw new Error('Unable to prepare a preview of this image.');
+};
 
 export type ImageSource = 'library' | 'camera' | 'clipboard';
 
@@ -24,37 +53,71 @@ interface Attachment {
     progress: number;
     state: 'uploading' | 'ready' | 'failed';
     base64: string;
+    /**
+     * A Chat image's preview, uploaded after the image under its own ID.
+     */
+    thumbnail?: { id: string; base64: string };
     error?: string;
 }
 
-export const useImageAttachments = (sessionId: string) => {
+export const useImageAttachments = (
+    sessionId: string,
+    {
+        maxAttachments = MAX_ATTACHMENTS,
+        withThumbnail = false,
+    }: {
+        maxAttachments?: number;
+        /**
+         * Also prepares and uploads a thumbnail per image, as an Agent Chat message carries one.
+         */
+        withThumbnail?: boolean;
+    } = {},
+) => {
     const { request } = useMobileClient();
     const [attachments, setAttachments] = useState<Attachment[]>([]);
     const cancelled = useRef(new Set<string>());
 
     const upload = async (item: Attachment) => {
         try {
-            const chunks = splitMobileImage(item.base64);
-            const completed = await didUploadImageChunks(
-                chunks,
-                async (chunkIndex, chunk, chunkCount) => {
-                    await request('mobile.image.upload', {
-                        sessionId,
-                        attachmentId: item.id,
-                        chunkIndex,
-                        chunkCount,
-                        chunk,
-                    });
-                },
-                () => cancelled.current.has(item.id),
-                (progress) =>
-                    setAttachments((current) =>
-                        current.map((candidate) =>
-                            candidate.id === item.id ? { ...candidate, progress } : candidate,
+            const parts = [
+                { id: item.id, chunks: splitMobileImage(item.base64) },
+                ...(item.thumbnail
+                    ? [{ id: item.thumbnail.id, chunks: splitMobileImage(item.thumbnail.base64) }]
+                    : []),
+            ];
+            const total = parts.reduce((sum, part) => sum + part.chunks.length, 0);
+            let sent = 0;
+            for (const part of parts) {
+                const before = sent;
+                // eslint-disable-next-line no-await-in-loop -- The thumbnail follows its image, so progress stays monotonic.
+                const completed = await didUploadImageChunks(
+                    part.chunks,
+                    async (chunkIndex, chunk, chunkCount) => {
+                        await request('mobile.image.upload', {
+                            sessionId,
+                            attachmentId: part.id,
+                            chunkIndex,
+                            chunkCount,
+                            chunk,
+                        });
+                    },
+                    () => cancelled.current.has(item.id),
+                    (progress) =>
+                        setAttachments((current) =>
+                            current.map((candidate) =>
+                                candidate.id === item.id
+                                    ? {
+                                          ...candidate,
+                                          progress:
+                                              (before + progress * part.chunks.length) / total,
+                                      }
+                                    : candidate,
+                            ),
                         ),
-                    ),
-            );
-            if (!completed) return;
+                );
+                if (!completed) return;
+                sent += part.chunks.length;
+            }
             setAttachments((current) =>
                 current.map((candidate) =>
                     candidate.id === item.id
@@ -78,15 +141,17 @@ export const useImageAttachments = (sessionId: string) => {
     };
 
     const add = async (source: ImageSource) => {
-        if (attachments.length >= MAX_ATTACHMENTS) return;
+        if (attachments.length >= maxAttachments) return;
         try {
             let uri: string;
             let base64: string;
+            let size: { width: number; height: number };
             if (source === 'clipboard') {
                 const image = await Clipboard.getImageAsync({ format: 'jpeg', jpegQuality: 0.75 });
                 if (!image) throw new Error('The clipboard has no image.');
                 uri = image.data;
                 base64 = image.data.replace(/^data:image\/jpeg;base64,/u, '');
+                size = image.size;
             } else {
                 const result =
                     source === 'camera'
@@ -111,14 +176,21 @@ export const useImageAttachments = (sessionId: string) => {
                 if (!image.base64) throw new Error('Unable to prepare this image.');
                 uri = image.uri;
                 base64 = image.base64;
+                size = { width: image.width, height: image.height };
             }
             splitMobileImage(base64);
             const item: Attachment = {
-                id: `image_${encodeHex(Crypto.getRandomBytes(16))}`,
+                id: newAttachmentId(),
                 uri,
                 base64,
                 progress: 0,
                 state: 'uploading',
+                ...(withThumbnail && {
+                    thumbnail: {
+                        id: newAttachmentId(),
+                        base64: await renderChatThumbnail(uri, size.width, size.height),
+                    },
+                }),
             };
             setAttachments((current) => [...current, item]);
             await upload(item);
@@ -133,8 +205,16 @@ export const useImageAttachments = (sessionId: string) => {
     return {
         add,
         attachments,
-        canAdd: attachments.length < MAX_ATTACHMENTS,
+        canAdd: attachments.length < maxAttachments,
         readyIds: attachments.filter((item) => item.state === 'ready').map((item) => item.id),
+        /**
+         * Each ready Chat image with its uploaded thumbnail, as `mobile.agentChat.send` names them.
+         */
+        readyChatImages: attachments.flatMap((item) =>
+            item.state === 'ready' && item.thumbnail
+                ? [{ attachmentId: item.id, thumbnailAttachmentId: item.thumbnail.id }]
+                : [],
+        ),
         hasUnsentAttachment: attachments.some((item) => item.state !== 'ready'),
         remove: (id: string) => {
             cancelled.current.add(id);
@@ -145,7 +225,10 @@ export const useImageAttachments = (sessionId: string) => {
             if (!item) return;
             const replacement = {
                 ...item,
-                id: `image_${encodeHex(Crypto.getRandomBytes(16))}`,
+                id: newAttachmentId(),
+                ...(item.thumbnail && {
+                    thumbnail: { ...item.thumbnail, id: newAttachmentId() },
+                }),
                 state: 'uploading' as const,
                 progress: 0,
             };

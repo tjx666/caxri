@@ -6,11 +6,16 @@ import type {
     AgentChatPatchOperation,
     AgentChatSnapshot,
 } from '../agent/agent-chat-contract.js';
-import { agentChatSnapshotSchema } from '../agent/agent-chat-contract.js';
+import {
+    agentChatImageMediaTypeSchema,
+    agentChatSnapshotSchema,
+    MAX_AGENT_CHAT_IMAGES,
+} from '../agent/agent-chat-contract.js';
 import { agentChatMethods } from '../agent/agent-chat-methods.js';
 import { identifierSchema } from '../domain/domain.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
+import { mobileAttachmentIdSchema } from './mobile-image-contract.js';
 
 /**
  * A mobile reply or event must fit one sealed gateway frame (64 KiB of plaintext), while a Desktop Chat projection may
@@ -33,6 +38,12 @@ export const MOBILE_AGENT_CHAT_CLIP_MARKER = '…';
 
 const MOBILE_AGENT_CHAT_SEND_MAX_BYTES = 16 * 1_024;
 
+/**
+ * Base64 characters one `mobile.agentChat.readImage` reply carries, so an original of several megabytes arrives as a
+ * series of replies that each fit one gateway frame.
+ */
+export const MOBILE_AGENT_CHAT_IMAGE_CHUNK_LENGTH = 45_000;
+
 const keepTail = (text: string, limit = MOBILE_AGENT_CHAT_FIELD_MAX_LENGTH): string =>
     text.length <= limit ? text : `${MOBILE_AGENT_CHAT_CLIP_MARKER}${text.slice(-limit)}`;
 
@@ -45,7 +56,25 @@ const keepHead = (text: string, limit = MOBILE_AGENT_CHAT_FIELD_MAX_LENGTH): str
  */
 export function clipAgentChatItemForMobile(item: AgentChatItem): AgentChatItem {
     switch (item.type) {
-        case 'userMessage':
+        case 'userMessage': {
+            const text =
+                item.text.length <= MOBILE_AGENT_CHAT_FIELD_MAX_LENGTH
+                    ? item.text
+                    : keepTail(item.text);
+            /**
+             * A Desktop thumbnail may take 48 KiB, so a few would fill the whole frame and push the message and all
+             * older history out of the window. The phone keeps each image's place and fetches its thumbnail on demand
+             * through `mobile.agentChat.readImage`.
+             */
+            const hasThumbnail =
+                item.images?.some((image) => image.thumbnail !== undefined) ?? false;
+            if (!hasThumbnail && text === item.text) return item;
+            return {
+                ...item,
+                text,
+                ...(item.images && { images: item.images.map(() => ({})) }),
+            };
+        }
         case 'agentMessage':
         case 'reasoning': {
             return item.text.length <= MOBILE_AGENT_CHAT_FIELD_MAX_LENGTH
@@ -185,13 +214,62 @@ export const mobileAgentChatMethods = {
         params: z.strictObject(terminalTarget),
         result: agentChatSnapshotSchema,
     },
+    /**
+     * Sends a message, steering a running turn. Images do not travel inline, since one may be larger than a frame: the
+     * phone first uploads each image and its thumbnail as JPEGs through `mobile.image.upload` under the Chat's Session,
+     * then names them here.
+     */
     'mobile.agentChat.send': {
         ...commandPolicy('server', 'control', ['terminals.steer']),
-        params: agentChatMethods['agentChat.send'].params.refine(
-            ({ text }) => new TextEncoder().encode(text).length <= MOBILE_AGENT_CHAT_SEND_MAX_BYTES,
-            'Mobile Chat messages must be at most 16 KiB',
-        ),
+        params: z
+            .strictObject({
+                ...terminalTarget,
+                text: agentChatMethods['agentChat.send'].params.shape.text.refine(
+                    (text) =>
+                        new TextEncoder().encode(text).length <= MOBILE_AGENT_CHAT_SEND_MAX_BYTES,
+                    'Mobile Chat messages must be at most 16 KiB',
+                ),
+                attachments: z
+                    .array(
+                        z.strictObject({
+                            attachmentId: mobileAttachmentIdSchema,
+                            thumbnailAttachmentId: mobileAttachmentIdSchema,
+                        }),
+                    )
+                    .max(MAX_AGENT_CHAT_IMAGES)
+                    .optional(),
+            })
+            .refine(
+                (message) => message.text.length > 0 || (message.attachments?.length ?? 0) > 0,
+                { message: 'A message needs text or an image' },
+            ),
         result: z.null(),
+    },
+    /**
+     * One chunk of an image a user message carried: its thumbnail, or the original read from the provider's record like
+     * `agentChat.readImage`. The phone's window drops thumbnails (see `clipAgentChatItemForMobile`), so it reads them
+     * here as each message scrolls into view. Resolves `null` when no such image or thumbnail exists.
+     */
+    'mobile.agentChat.readImage': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: z.strictObject({
+            ...terminalTarget,
+            itemId: agentChatMethods['agentChat.readImage'].params.shape.itemId,
+            index: agentChatMethods['agentChat.readImage'].params.shape.index,
+            variant: z.enum(['thumbnail', 'original']),
+            chunkIndex: z.number().int().nonnegative().max(1_000).default(0),
+        }),
+        result: z
+            .strictObject({
+                mediaType: agentChatImageMediaTypeSchema,
+                data: z
+                    .string()
+                    .max(MOBILE_AGENT_CHAT_IMAGE_CHUNK_LENGTH)
+                    .regex(/^[\d+/A-Za-z]*={0,2}$/u),
+                chunkIndex: z.number().int().nonnegative(),
+                chunkCount: z.number().int().positive(),
+            })
+            .nullable(),
     },
     'mobile.agentChat.interrupt': {
         ...commandPolicy('server', 'control', ['terminals.steer']),

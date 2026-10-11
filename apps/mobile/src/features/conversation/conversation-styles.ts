@@ -9,7 +9,7 @@ export const conversationStyles = StyleSheet.create({
      */
     entry: { paddingBottom: 14 },
     message: { maxWidth: 680, width: '100%', alignSelf: 'center' },
-    userRow: { alignItems: 'flex-end' },
+    userRow: { alignItems: 'flex-end', gap: 6 },
     userBubble: { borderRadius: 16, maxWidth: '85%', paddingHorizontal: 14, paddingVertical: 10 },
     userText: { fontSize: 15, lineHeight: 22 },
     agentText: { fontSize: 15, lineHeight: 23 },
