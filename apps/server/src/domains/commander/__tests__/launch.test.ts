@@ -9,7 +9,12 @@ describe('commanderLaunchArguments', () => {
         const commander = { terminalId: 'terminal-commander', workspacePath };
         expect(
             commanderLaunchArguments({ id: 'terminal-commander', kind: 'codex' }, commander),
-        ).toEqual(['-c', 'projects={ "/profile/agent-commander" = { trust_level = "trusted" } }']);
+        ).toEqual([
+            '-c',
+            'projects={ "/profile/agent-commander" = { trust_level = "trusted" } }',
+            '-c',
+            'project_doc_max_bytes=65536',
+        ]);
         expect(
             commanderLaunchArguments({ id: 'terminal-other', kind: 'codex' }, commander),
         ).toEqual([]);

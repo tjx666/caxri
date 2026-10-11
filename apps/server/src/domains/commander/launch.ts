@@ -19,6 +19,13 @@ export function commanderTrustArguments(workspacePath: string): string[] {
 }
 
 /**
+ * Codex reads at most `project_doc_max_bytes` of `AGENTS.md` (32 KiB by default) and silently drops the rest. The
+ * Commander's generated `AGENTS.md` embeds its memory after the instructions, so the default would cut memory first;
+ * this raises the limit above instructions plus `COMMANDER_MEMORY_EMBED_BYTES` (`workspace.ts`).
+ */
+export const COMMANDER_PROJECT_DOC_MAX_BYTES = 64 * 1024;
+
+/**
  * Launch arguments that apply only to the recorded Commander Terminal, on a fresh launch, a restore, and a restart.
  */
 export function commanderLaunchArguments(
@@ -31,5 +38,9 @@ export function commanderLaunchArguments(
         commander.terminalId !== terminal.id
     )
         return [];
-    return commanderTrustArguments(commander.workspacePath);
+    return [
+        ...commanderTrustArguments(commander.workspacePath),
+        '-c',
+        `project_doc_max_bytes=${COMMANDER_PROJECT_DOC_MAX_BYTES}`,
+    ];
 }

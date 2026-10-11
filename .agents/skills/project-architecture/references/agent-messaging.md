@@ -53,8 +53,10 @@ can never grant a permission, change a setting, invoke a slash command, or write
 peer text, its point is to make the Commander act, so it deliberately does reach an idle Commander's
 PTY input rather than waiting in an Inbox. Delivery is fenced to the exact idle-proof-and-input-epoch
 check `AgentDelegationService` already uses before resuming a follow-up, so a draft the human is
-composing defers it the same way a follow-up defers. See "Completion notices" in
-`docs/agent-commander.md`.
+composing defers it the same way a follow-up defers. Undelivered notices persist in
+`commander_pending_notices`; a relaunched Commander, which has no finished turn to prove idle, receives
+them (and a marker for a turn a restart cut off) as its launch prompt instead. See "Completion
+notices" in `docs/agent-commander.md`.
 
 Managed launch failure, interruption causes, and content-free transition logs are documented in
 [Agent dispatch receipts](../../../../docs/agent-dispatch-receipts.md).

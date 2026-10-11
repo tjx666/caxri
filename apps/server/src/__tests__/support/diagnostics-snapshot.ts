@@ -26,7 +26,9 @@ export function diagnosticsSnapshotFixture(
             completionNotices: {
                 deliveredBatches: 0,
                 deliveredNotices: 0,
-                droppedNotices: 0,
+                resumePrompts: 0,
+                resumePromptNotices: 0,
+                pendingNotices: 0,
                 deliveryFailures: { rejected: 0, unconfirmed: 0 },
             },
         },

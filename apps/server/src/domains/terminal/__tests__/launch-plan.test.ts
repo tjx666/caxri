@@ -120,6 +120,30 @@ describe('TerminalLaunchPlanner managed Agent launch', () => {
         },
     );
 
+    it('uses a Server-owned launch prompt only when the caller supplied none', async () => {
+        const planner = new TerminalLaunchPlanner({
+            agentLaunchPrompt: (terminal) =>
+                terminal.id === record.id ? '[Caxri notice] restarted.' : undefined,
+            logger: new StructuredLogger('/tmp/caxri-launch-plan-test-logs'),
+            resolveExecutable: (kind) =>
+                Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/usr/local/bin/codex'),
+        });
+
+        const restored = await planner.resolve(record, { resumeAgentSessionId: 'conversation-1' });
+        if (!restored.ok) throw restored.error;
+        expect(restored.value.agent?.args.slice(-4)).toEqual([
+            'resume',
+            'conversation-1',
+            '--',
+            '[Caxri notice] restarted.',
+        ]);
+        expect(restored.value.agent?.initialPrompt).toBe('[Caxri notice] restarted.');
+
+        const delegated = await planner.resolve(record, { initialPrompt: 'delegated pointer' });
+        if (!delegated.ok) throw delegated.error;
+        expect(delegated.value.agent?.args.slice(-2)).toEqual(['--', 'delegated pointer']);
+    });
+
     it('adds Server-owned arguments after the provider arguments and before settings and resume', async () => {
         const planner = new TerminalLaunchPlanner({
             agentLaunchArguments: (terminal) =>

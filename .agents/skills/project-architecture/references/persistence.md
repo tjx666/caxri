@@ -35,6 +35,8 @@ Integrity lives in the schema, not only in model code: foreign keys cascade owne
 - `agent_session_usage`: append-only ledger of every Agent Session a Caxri Terminal hosted (provider, provider session ID, first owning Session and Project, transcript fingerprint, and the content-free usage aggregate); it outlives Session and Project deletion on purpose, so it holds those IDs without foreign keys
 - `external_agent_usage`: scan cache of Agent transcripts found outside that ledger for the Usage page's This Mac scope, one row per transcript file (provider, transcript ID, Agent Session ID, working directory, fingerprint, and the content-free aggregate); see [docs/usage.md](../../../../docs/usage.md)
 - `pull_request_outcomes`: GitHub state, title, merge time, and line counts of pull requests an Agent created, keyed by URL
+- `commander_tasks`: the Agent Commander's task ledger (title, closed status, Project and Session that null on deletion, root delegation ID unique per task, note, pull request URL); see [docs/agent-commander.md](../../../../docs/agent-commander.md)
+- `commander_pending_notices`: delegation notices the Commander Terminal has not received yet and the marker for a Commander turn that has not finished, deleted when consumed
 
 Session sidebar order is explicit within each Project. A relative `session.reorder` command moves one
 active Session before or after another active Session in that same Project, inside the structural

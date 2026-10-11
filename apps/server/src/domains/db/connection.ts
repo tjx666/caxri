@@ -6,13 +6,13 @@ import { inArray } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
+import * as schema from './full-schema';
 import {
     BASELINE_SCHEMA_VERSION,
     CURRENT_SCHEMA_VERSION,
     migrationManifest,
     migrationsAfterBaseline,
 } from './migrations/manifest';
-import * as schema from './schema';
 import { terminals } from './schema';
 import type { ShutdownReason } from './session-policy';
 import { shutdownOutcome } from './session-policy';
@@ -153,6 +153,8 @@ function initializeSchema(database: Database.Database): void {
              * Project folders and user files are never touched.
              */
             database.exec(`
+                DROP TABLE IF EXISTS commander_pending_notices;
+                DROP TABLE IF EXISTS commander_tasks;
                 DROP TABLE IF EXISTS agent_session_usage;
                 DROP TABLE IF EXISTS external_agent_usage;
                 DROP TABLE IF EXISTS pull_request_outcomes;
