@@ -22,7 +22,8 @@ const LABEL_CLASS_NAME = 'flex min-w-0 items-center gap-1 text-[12px] leading-4 
 /**
  * The model and reasoning effort the next turn uses, and the menu that switches them, as the Codex app and Claude Code
  * keep beside their input. The menu stays open after a choice so switching the model shows its efforts right away. A
- * provider that listed no models shows the model it reported as plain text.
+ * provider that listed no models shows the model it reported as plain text. As in the Codex app, the model name reads
+ * in the foreground color and the effort stays muted beside it.
  */
 export function AgentChatModelMenu({
     snapshot,
@@ -36,8 +37,8 @@ export function AgentChatModelMenu({
     if (!label) return null;
     const text = (
         <>
-            <span className="truncate">{label.model}</span>
-            {label.effort && <span className="shrink-0 text-muted">{label.effort}</span>}
+            <span className="truncate text-foreground">{label.model}</span>
+            {label.effort && <span className="shrink-0">{label.effort}</span>}
         </>
     );
     const models = snapshot?.models;

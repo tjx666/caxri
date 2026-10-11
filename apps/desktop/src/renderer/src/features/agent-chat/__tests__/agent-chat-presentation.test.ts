@@ -6,7 +6,6 @@ import { getTerminalExitPresentation } from '../../terminal/terminal-exit-presen
 import {
     agentChatActivity,
     agentChatCommandCwd,
-    agentChatContextUsage,
     agentChatDeliveryCaption,
     agentChatEffortLabel,
     agentChatEmptyMessage,
@@ -215,20 +214,6 @@ describe('agentChatCommandCwd', () => {
     });
 });
 
-describe('agentChatContextUsage', () => {
-    it('reports the share of the window in use once the provider reports its size', () => {
-        expect(agentChatContextUsage(undefined)).toBeUndefined();
-        expect(agentChatContextUsage({ usage: { totalTokens: 500 } })).toBeUndefined();
-        expect(
-            agentChatContextUsage({ usage: { totalTokens: 25_000, contextWindow: 100_000 } }),
-        ).toEqual({ used: 0.25, totalTokens: 25_000, contextWindow: 100_000 });
-        expect(
-            agentChatContextUsage({ usage: { totalTokens: 200_000, contextWindow: 100_000 } })
-                ?.used,
-        ).toBe(1);
-    });
-});
-
 describe('agentChatModelLabel', () => {
     const models = [
         { id: 'opus', resolvedId: 'claude-opus-5-5', displayName: 'Opus', efforts: ['high'] },
@@ -248,6 +233,34 @@ describe('agentChatModelLabel', () => {
         expect(agentChatModelLabel({ model: 'plain', effort: 'high', models })).toEqual({
             model: 'Plain',
         });
+    });
+
+    it('names the model Claude Code runs for its default alias instead of the alias', () => {
+        const aliased = [
+            {
+                id: 'default',
+                resolvedId: 'claude-opus-5-5[1m]',
+                displayName: 'Default (recommended)',
+                efforts: ['high'],
+            },
+            ...models,
+        ];
+        expect(agentChatModelLabel({ model: 'claude-opus-5-5[1m]', models: aliased })).toEqual({
+            model: 'Opus',
+        });
+        expect(
+            agentChatModelLabel({
+                model: 'claude-opus-5-5[1m]',
+                models: [
+                    { ...aliased[0], description: 'Use the default model (currently Opus 5.5)' },
+                    ...models,
+                ],
+            }),
+        ).toEqual({ model: 'Opus 5.5' });
+        // Without a named twin the alias still reads short.
+        expect(
+            agentChatModelLabel({ model: 'claude-opus-5-5[1m]', models: aliased.slice(0, 1) }),
+        ).toEqual({ model: 'Default' });
     });
 
     it('labels known efforts and capitalizes unknown ones', () => {

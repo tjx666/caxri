@@ -34,6 +34,12 @@ import type {
     ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
+import { withCacheRewriteEstimate } from './chat-usage';
+import {
+    claudeCacheTtlMinutes,
+    DEFAULT_CLAUDE_CACHE_TTL_MINUTES,
+    refreshClaudeContextDetails,
+} from './claude-context';
 import { claudeHistoryOperations, claudeTaskHistoryOperations } from './claude-history';
 import { ClaudeCommandList, claudeUserPrompt, isClaudeCompactCommand } from './claude-input';
 import { claudeAssistantItems, claudeUsageTokens } from './claude-items';
@@ -193,20 +199,26 @@ class ClaudeChatSession implements AgentChatProviderSession {
         if (mapped.plan) operations.push({ op: 'state', state: { plan: mapped.plan } });
         const totalTokens = claudeUsageTokens(message.usage);
         if (operations.length > 0) this.options.apply(operations);
-        if (totalTokens !== undefined)
-            this.options.apply([
+        if (totalTokens !== undefined) {
+            // The breakdown described the previous context; the turn's end asks for a fresh one.
+            const { compactWindow, cacheTtlMinutes } = this.options.read().usage ?? {};
+            const usage = withCacheRewriteEstimate(
                 {
-                    op: 'state',
-                    state: {
-                        usage: {
-                            totalTokens,
-                            ...(this.turns.contextWindow && {
-                                contextWindow: this.turns.contextWindow,
-                            }),
-                        },
-                    },
+                    totalTokens,
+                    ...(this.turns.contextWindow && {
+                        contextWindow: this.turns.contextWindow,
+                    }),
+                    ...(compactWindow && { compactWindow }),
+                    cacheTtlMinutes:
+                        claudeCacheTtlMinutes(message.usage) ??
+                        cacheTtlMinutes ??
+                        DEFAULT_CLAUDE_CACHE_TTL_MINUTES,
+                    lastResponseAt: Date.now(),
                 },
-            ]);
+                stringField(message.model) ?? this.options.read().model,
+            );
+            this.options.apply([{ op: 'state', state: { usage } }]);
+        }
         this.stream.settle(mapped.items);
         this.toolClock.start(mapped.items);
     }
@@ -228,9 +240,10 @@ class ClaudeChatSession implements AgentChatProviderSession {
     }
 
     /**
-     * Read-only hook callbacks that report the turn's effective effort. UserPromptSubmit reports it as a turn starts;
-     * PreToolUse and Stop keep it current if a model switch or downgrade changes it mid-turn. Each returns an empty
-     * output, so Claude Code proceeds exactly as without them.
+     * Read-only hook callbacks that report the turn's effective effort. Claude Code fills `effort` only for a hook that
+     * runs with a tool-use context: PreToolUse and Stop always do, UserPromptSubmit only on some paths, so it is a
+     * best-effort early report and Stop is the guaranteed one. Each returns an empty output, so Claude Code proceeds
+     * exactly as without them.
      */
     private effortHooks(): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
         const matcher: HookCallbackMatcher = {
@@ -311,6 +324,9 @@ class ClaudeChatSession implements AgentChatProviderSession {
             }
             case 'result': {
                 this.turns.finish(message);
+                if (!this.options.read().activeTurnId && this.query && this.isOpen)
+                    // eslint-disable-next-line no-void -- best effort; the context meter keeps its total without it
+                    void refreshClaudeContextDetails(this.query, this.options, () => this.isEnded);
                 return;
             }
             case 'system': {

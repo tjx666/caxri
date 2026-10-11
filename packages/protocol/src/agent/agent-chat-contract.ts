@@ -2,6 +2,7 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/domain.js';
+import { agentChatUsageSchema } from './agent-chat-usage.js';
 
 /**
  * Bounds for one Agent Chat projection. Server Core keeps only the current conversation window in memory; the
@@ -456,12 +457,7 @@ export const agentChatSnapshotSchema = z.strictObject({
      * Slash commands the provider currently offers. Absent until the provider has started.
      */
     commands: z.array(agentChatCommandSchema).max(MAX_AGENT_CHAT_COMMANDS).optional(),
-    usage: z
-        .strictObject({
-            totalTokens: z.number().int().nonnegative(),
-            contextWindow: z.number().int().nonnegative().optional(),
-        })
-        .optional(),
+    usage: agentChatUsageSchema.optional(),
     /**
      * Provider-wide work in progress that is not a turn, such as compacting the context.
      */

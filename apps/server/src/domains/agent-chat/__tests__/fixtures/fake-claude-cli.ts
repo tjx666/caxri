@@ -43,6 +43,7 @@ import readline from 'node:readline';
 import { didRunApprovalScenario } from './fake-claude-approvals.ts';
 import type { FakeClaudeIo } from './fake-claude-io.ts';
 import {
+    FAKE_CLAUDE_CONTEXT_USAGE,
     FAKE_CLAUDE_MODEL,
     FAKE_CLAUDE_MODELS,
     hookCallbackIds,
@@ -567,16 +568,18 @@ lines.on('line', (line) => {
                 subtype: 'success',
                 request_id: message.request_id,
                 response:
-                    request.subtype === 'initialize'
-                        ? {
-                              commands: COMMANDS,
-                              agents: [],
-                              models: FAKE_CLAUDE_MODELS,
-                              account: {},
-                              output_style: 'default',
-                              available_output_styles: ['default'],
-                          }
-                        : (answer.response ?? {}),
+                    request.subtype === 'get_context_usage'
+                        ? FAKE_CLAUDE_CONTEXT_USAGE
+                        : request.subtype === 'initialize'
+                          ? {
+                                commands: COMMANDS,
+                                agents: [],
+                                models: FAKE_CLAUDE_MODELS,
+                                account: {},
+                                output_style: 'default',
+                                available_output_styles: ['default'],
+                            }
+                          : (answer.response ?? {}),
             },
         });
         return;

@@ -1,0 +1,98 @@
+import type { Query } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentChatUsage } from '@caxri/protocol';
+import { MAX_AGENT_CHAT_USAGE_BREAKDOWN } from '@caxri/protocol';
+
+import { clip, isRecord, stringField } from './chat-items';
+import type { AgentChatSessionHost } from './chat-provider';
+import { withTimeout } from './claude-prompt-queue';
+
+const CONTEXT_USAGE_TIMEOUT_MS = 5_000;
+
+/**
+ * Claude Code writes the prompt cache with a one-hour lifetime for subscribers and a five-minute one otherwise. A
+ * response that wrote no cache says nothing about which applies, so the Chat keeps what it learned before and assumes
+ * the hour until a write shows otherwise.
+ *
+ * @see https://platform.claude.com/docs/en/build-with-claude/prompt-caching#1-hour-cache-duration
+ */
+export const DEFAULT_CLAUDE_CACHE_TTL_MINUTES = 60;
+
+/**
+ * The cache lifetime a response's `usage.cache_creation` split reveals: any one-hour write means the hour, otherwise
+ * any five-minute write means five minutes.
+ */
+export function claudeCacheTtlMinutes(usage: unknown): number | undefined {
+    const creation = isRecord(usage) ? usage.cache_creation : undefined;
+    if (!isRecord(creation)) return undefined;
+    if (isPositive(creation.ephemeral_1h_input_tokens)) return 60;
+    if (isPositive(creation.ephemeral_5m_input_tokens)) return 5;
+    return undefined;
+}
+
+/**
+ * The parts of `getContextUsage` the context meter shows: the rows that occupy the window, and the window Claude Code
+ * compacts against when it is smaller than the model's own. Free space and out-of-window (deferred) tool schemas are
+ * left out; the autocompact reserve stays, since it is part of what fills the window before compaction.
+ */
+export function claudeContextDetails(
+    response: unknown,
+    contextWindow: number | undefined,
+): Pick<AgentChatUsage, 'breakdown' | 'compactWindow'> {
+    if (!isRecord(response)) return {};
+    const categories = Array.isArray(response.categories) ? response.categories : [];
+    const breakdown = categories
+        .flatMap((category) => {
+            if (!isRecord(category)) return [];
+            const label = stringField(category.name);
+            const tokens = category.tokens;
+            const isInWindow = category.kind === 'used' || category.kind === 'buffer';
+            return label && isInWindow && isPositive(tokens)
+                ? [{ label: clip(label, 80), tokens: Math.trunc(tokens) }]
+                : [];
+        })
+        .slice(0, MAX_AGENT_CHAT_USAGE_BREAKDOWN);
+    const window = response.rawMaxTokens;
+    const compactWindow =
+        isPositive(window) && (contextWindow === undefined || window < contextWindow)
+            ? Math.trunc(window)
+            : undefined;
+    return {
+        ...(breakdown.length > 0 && { breakdown }),
+        ...(compactWindow !== undefined && { compactWindow }),
+    };
+}
+
+/**
+ * Asks Claude Code what fills the context once a turn ends. `summary` answers from local estimates without extra
+ * token-count requests. A newer response that changed the total in the meantime wins, so the rows never describe an
+ * older context; a failure leaves the meter with its total alone.
+ */
+export async function refreshClaudeContextDetails(
+    query: Pick<Query, 'getContextUsage'>,
+    host: Pick<AgentChatSessionHost, 'apply' | 'read'>,
+    isEnded: () => boolean,
+): Promise<void> {
+    const before = host.read().usage;
+    if (!before) return;
+    let response: unknown;
+    try {
+        response = await withTimeout(
+            query.getContextUsage({ detail: 'summary' }),
+            CONTEXT_USAGE_TIMEOUT_MS,
+        );
+    } catch {
+        return;
+    }
+    const usage = host.read().usage;
+    if (isEnded() || usage?.totalTokens !== before.totalTokens) return;
+    host.apply([
+        {
+            op: 'state',
+            state: { usage: { ...usage, ...claudeContextDetails(response, usage.contextWindow) } },
+        },
+    ]);
+}
+
+function isPositive(value: unknown): value is number {
+    return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}

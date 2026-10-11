@@ -32,6 +32,7 @@ import { agentChatTasksByItem } from './agent-chat-tasks';
 import { buildAgentChatTimeline } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
+import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import type { AgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
 import { AgentChatTaskLinksContext } from './hooks/use-agent-chat-task-link';
@@ -111,6 +112,7 @@ export function AgentChatPane({
     const snapshot = query.data;
     const projectRoot = usePaneViewSession()?.rootPath;
     const inputReference = useRef<HTMLTextAreaElement | null>(null);
+    const composerDrop = useRef<AgentChatDropHandlers | null>(null);
     const { scrollReference, contentReference, isFollowing, onScroll, jumpToLatest } =
         useAgentChatScroll(snapshot?.revision);
     const focusComposer = useCallback(() => inputReference.current?.focus(), []);
@@ -181,7 +183,13 @@ export function AgentChatPane({
         else void query.refetch();
     };
     return (
-        <section aria-label={ariaLabel} className="flex h-full min-h-0 flex-col bg-background">
+        <section
+            aria-label={ariaLabel}
+            className="flex h-full min-h-0 flex-col bg-background"
+            onDragLeave={(event) => composerDrop.current?.onDragLeave(event)}
+            onDragOver={(event) => composerDrop.current?.onDragOver(event)}
+            onDrop={(event) => composerDrop.current?.onDrop(event)}
+        >
             <div className="relative min-h-0 flex-1">
                 <div className="h-full overflow-y-auto" ref={scrollReference} onScroll={onScroll}>
                     <div
@@ -256,6 +264,7 @@ export function AgentChatPane({
                 activity={agentChatActivity(snapshot, providerName)}
                 canSend={canSendAgentChatMessage(snapshot, processState)}
                 commands={snapshot?.commands}
+                dropHandlersReference={composerDrop}
                 inputReference={inputReference}
                 isBusy={isAgentChatBusy(snapshot)}
                 isQueuePaused={snapshot?.queuePaused ?? false}
