@@ -51,6 +51,11 @@ export const agentCommanderLogEvents = {
      */
     taskRecorded: 'agent_commander.task_recorded',
     /**
+     * Recording a task for a delegation the Commander dispatched failed. The delegation itself proceeds; the ledger
+     * simply misses that row.
+     */
+    taskRecordFailed: 'agent_commander.task_record_failed',
+    /**
      * A Commander task changed status: `fields.from`, `fields.to`, and the task's `ageMs`.
      */
     taskTransitioned: 'agent_commander.task_transitioned',

@@ -191,6 +191,7 @@ export async function createDomainServices(
     );
     const agentChat = createAgentChatService({
         agentRuntime,
+        commanderHooks,
         configuration,
         database,
         dependencies,

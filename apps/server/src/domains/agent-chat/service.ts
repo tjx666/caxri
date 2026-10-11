@@ -170,7 +170,7 @@ export class AgentChatService {
             const launch = this.agentRunAutonomy.launch(
                 terminalId,
                 provider,
-                this.options.launchSettings(provider),
+                this.options.launchSettings(provider, terminal),
                 shouldKeepAgentAutonomy,
             );
             const prepared = await prepareChatLaunch(this.options, provider, launch, terminal.cwd);
@@ -242,6 +242,7 @@ export class AgentChatService {
             logger.write('info', logEventCatalog.agentChat.processStarted, {
                 fields: { terminalId, outcome: 'ready', mode, durationMs: Date.now() - startedAt },
             });
+            this.options.onReady?.(terminalId);
         } catch (error) {
             if (state.session === session) state.session = undefined;
             await session?.close();

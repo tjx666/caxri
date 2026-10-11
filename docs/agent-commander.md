@@ -342,7 +342,11 @@ first would leave it silent after every restart. Instead the launch resolves its
 Commander restarted.`, the missed delegation updates, and whether a turn was cut off. That prompt is
 built without consuming anything; the rows it carried are settled only once the launch reports
 running (`onLaunched`), so this path is at least once rather than at most once: a crash between
-spawn and that report repeats them on the next launch instead of losing them.
+spawn and that report repeats them on the next launch instead of losing them. Settlement removes
+only the exact revisions the prompt reported, so a newer transition that lands before the launch
+runs stays owed. A Chat Commander has no launch argv, so `AgentChatService`'s `onReady` hook sends
+the same prompt as its first Chat message once the provider is ready, and settles it only after the
+Chat accepted it.
 
 The cut-off turn comes from an `interrupted_turn` row the notifier writes when a main-thread
 Commander turn starts and deletes when that turn finishes or fails. A row still present at launch
@@ -425,7 +429,8 @@ Commander's long-term memory and the user's way to teach it. `commander.ensure` 
 short template only when it is missing, never overwrites it, and embeds all three after the
 instructions in the generated `AGENTS.md`, so they reach every new conversation. The embedded copy is
 capped at 40 KiB, cut at a line boundary with a note to read the rest, and the Commander launches
-with `-c project_doc_max_bytes=65536` because Codex's default 32 KiB limit would otherwise drop the
+with `-c project_doc_max_bytes=65536` (on both surfaces: a Chat Commander carries it as a
+`codex app-server` root option) because Codex's default 32 KiB limit would otherwise drop the
 memory silently. The files live in `<userData>/agent-commander/memory/`; the user can edit them
 directly or tell the Commander what to remember.
 
@@ -552,3 +557,6 @@ Inside the Commander Terminal, the Commander calls the version-matched CLI throu
   says they changed them.
 - The launch prompt is at least once: a Server crash between the Commander's spawn and its running
   report repeats the same restart notice on the next launch.
+- The cut-off turn marker clears only on `turnFinished`, `turnFailed`, or `commander.stop`. A turn
+  the user interrupted inside Codex that reports neither is still described as cut off after a
+  restart; the prompt asks the Commander to continue unless the user stopped it on purpose.

@@ -26,7 +26,16 @@ export interface AgentChatServiceOptions {
      * Overrides the provider process environment derived from `agentEnvironment`, so tests can point it at fakes.
      */
     environment?: () => Promise<NodeJS.ProcessEnv>;
-    launchSettings(provider: AgentProvider): AgentLaunchSettings;
+    /**
+     * The provider's launch settings for this Chat's Terminal; the Terminal lets a role such as the Agent Commander add
+     * its own arguments on either surface.
+     */
+    launchSettings(provider: AgentProvider, terminal: TerminalRecord): AgentLaunchSettings;
+    /**
+     * Runs once a Chat's provider is ready, after its state is persisted as running. The Agent Commander uses it to
+     * send what a restart cut off, the Chat equivalent of a PTY launch prompt.
+     */
+    onReady?(terminalId: string): void;
     resolveExecutable?: TerminalManagerOptions['resolveExecutable'];
     coordinator: {
         beginTerminalLaunch(terminalId: string, launchId: string): void;

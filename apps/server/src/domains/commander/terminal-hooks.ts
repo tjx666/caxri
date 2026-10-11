@@ -1,5 +1,7 @@
 import type { AgentDelegationReceipt, TerminalRecord } from '@caxri/protocol';
+import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
 import type { CommanderCompletionNotifier } from './completion-notice';
@@ -22,6 +24,11 @@ export class CommanderTerminalHooks {
         });
     };
 
+    /**
+     * The Chat equivalent of `launchPrompt`: a Chat Commander takes what it missed as its first message once ready.
+     */
+    readonly chatReady = (terminalId: string): void => this.notifier?.onChatReady(terminalId);
+
     readonly launchPrompt = (terminal: TerminalRecord): string | undefined =>
         this.notifier?.launchPrompt(terminal.id);
 
@@ -33,7 +40,20 @@ export class CommanderTerminalHooks {
         receipt: AgentDelegationReceipt,
         previous: AgentDelegationReceipt | undefined,
     ): void => {
-        recordCommanderDelegation(this.database, receipt, previous, Date.now(), this.logger);
+        /**
+         * This runs inside delegation creation, after its row is stored. The ledger is bookkeeping, so a failure here
+         * is logged and must not fail the delegation itself.
+         */
+        try {
+            recordCommanderDelegation(this.database, receipt, previous, Date.now(), this.logger);
+        } catch (error) {
+            this.logger.write('warn', logEventCatalog.agentCommander.taskRecordFailed, {
+                fields: {
+                    delegationId: receipt.delegationId,
+                    error: errorMessage(error, 'unknown'),
+                },
+            });
+        }
         this.notifier?.notifyReceiptChanged(receipt, previous);
     };
 

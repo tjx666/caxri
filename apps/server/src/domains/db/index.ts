@@ -8,6 +8,7 @@ export type {
 export type {
     CommanderPendingNotice,
     CommanderPendingNoticesModel,
+    DeliveredNotice,
 } from './models/commander-pending-notices';
 export { CaxriDatabase } from './repository';
 export { shutdownOutcome, type ShutdownReason } from './session-policy';
