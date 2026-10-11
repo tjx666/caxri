@@ -104,7 +104,7 @@ const basename = (path: string): string => {
  * MCP tools arrive as `mcp__<server>__<tool>` from Claude Code and as `<server>/<tool>` from Codex; the server name
  * reads better than the raw identifier.
  */
-const parseMcpName = (name: string): { server: string; tool: string } | null => {
+export const parseAgentMcpToolName = (name: string): { server: string; tool: string } | null => {
     if (!name.startsWith('mcp__')) {
         const slash = name.indexOf('/');
         if (slash <= 0 || slash === name.length - 1) return null;
@@ -138,7 +138,7 @@ export const describeAgentTool = (
      * "nothing more to show", not a subject that happens to match.
      */
     const rawSubject = tool.summary === tool.name ? undefined : tool.summary;
-    const mcp = parseMcpName(tool.name);
+    const mcp = parseAgentMcpToolName(tool.name);
     if (mcp)
         return {
             kind: 'mcp',

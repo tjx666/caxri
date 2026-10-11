@@ -13,6 +13,9 @@ import {
 } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
+import type { AgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
+import { collectAgentChatTurnArtifacts } from './agent-chat-turn-artifacts';
+
 /**
  * What the Agent did between replies: reasoning, commands, file changes, and other tool calls.
  */
@@ -34,8 +37,20 @@ export type AgentChatTimelineEntry =
            * stays action-free so the transcript does not reserve a row under every reply.
            */
           isFinalReply?: true;
+          /**
+           * What the finished turn this reply ends changed and filed, shown under the reply above its Copy action.
+           */
+          artifacts?: AgentChatTurnArtifacts;
       }
     | { kind: 'work'; id: string; items: readonly AgentChatWorkItem[] }
+    | {
+          /**
+           * A finished turn's artifacts when the turn ended without a reply to carry them, such as a stopped turn.
+           */
+          kind: 'artifacts';
+          id: string;
+          artifacts: AgentChatTurnArtifacts;
+      }
     | {
           kind: 'turn';
           id: string;
@@ -166,6 +181,53 @@ function foldTurn(
 }
 
 /**
+ * The last artifacts computed per turn, reused while the turn's items keep their identities. The projection replaces
+ * only the item a patch touches, so a reply streaming in a later turn does not hand every earlier final reply a new
+ * `artifacts` object and re-render it.
+ */
+const artifactsCache = new WeakMap<
+    AgentChatItem,
+    {
+        turnId: string;
+        items: readonly AgentChatItem[];
+        artifacts: AgentChatTurnArtifacts | undefined;
+    }
+>();
+
+function turnArtifacts(
+    turnId: string,
+    items: readonly AgentChatItem[],
+): AgentChatTurnArtifacts | undefined {
+    const first = items.at(0);
+    if (!first) return undefined;
+    const cached = artifactsCache.get(first);
+    if (
+        cached?.turnId === turnId &&
+        cached.items.length === items.length &&
+        cached.items.every((item, index) => item === items[index])
+    )
+        return cached.artifacts;
+    const artifacts = collectAgentChatTurnArtifacts(turnId, items);
+    artifactsCache.set(first, { turnId, items, artifacts });
+    return artifacts;
+}
+
+/**
+ * Hangs a finished turn's artifacts on its final reply, or appends them after the turn when it has none.
+ */
+function withTurnArtifacts(
+    entries: AgentChatTimelineEntry[],
+    artifacts: AgentChatTurnArtifacts | undefined,
+): AgentChatTimelineEntry[] {
+    if (!artifacts) return entries;
+    const replyIndex = entries.findIndex((entry) => entry.kind === 'item' && entry.isFinalReply);
+    const reply = replyIndex === -1 ? undefined : entries[replyIndex];
+    if (reply?.kind !== 'item')
+        return [...entries, { kind: 'artifacts', id: `artifacts:${artifacts.turnId}`, artifacts }];
+    return entries.with(replyIndex, { ...reply, artifacts });
+}
+
+/**
  * Builds the rendered timeline from the projection. Items arrive in order and each turn's items are contiguous, so a
  * run of items sharing a `turnId` is one turn. A turn still running (or with no recorded end) stays expanded. Every
  * turn not running ends on its last reply, which is the only one marked `isFinalReply`; a running turn's latest reply
@@ -198,7 +260,12 @@ export function buildAgentChatTimeline(
                 ? undefined
                 : segment.findLast((item) => item.type === 'agentMessage' && isVisible(item))?.id;
         entries.push(
-            ...(turn ? foldTurn(segment, turn, finalReplyId) : groupWork(segment, finalReplyId)),
+            ...(turn
+                ? withTurnArtifacts(
+                      foldTurn(segment, turn, finalReplyId),
+                      turnArtifacts(turn.id, segment),
+                  )
+                : groupWork(segment, finalReplyId)),
         );
         start = end;
     }

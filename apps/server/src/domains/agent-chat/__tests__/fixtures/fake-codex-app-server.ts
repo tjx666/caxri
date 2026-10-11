@@ -3,6 +3,7 @@
  * no test ever launches the real CLI or calls a model. Behavior is selected by keywords in the user's message:
  *
  * - `approve`: a command needing approval; accept runs it, decline records it as declined.
+ * - `artifacts`: edits and creates files on disk, opens a pull request, and files a Linear issue.
  * - `patch`: a three-file change (update, add, delete) needing approval; nothing is written to disk.
  * - `bigdiff`: a completed file change whose diff is longer than Server Core keeps.
  * - `ask`: a question; the reply quotes the chosen answer.
@@ -41,6 +42,7 @@ import process from 'node:process';
 import readline from 'node:readline';
 
 import { runApprovalCommand, runApprovalPatch, runQuestion } from './fake-codex-approvals.ts';
+import { runTurnArtifacts } from './fake-codex-artifacts.ts';
 import { listThreadItems, listThreadTurns } from './fake-codex-history.ts';
 import type { FakeCodexIo, FakeItem, FakeThread, FakeTurn } from './fake-codex-io.ts';
 import { FAKE_MODELS } from './fake-codex-models.ts';
@@ -219,6 +221,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await runBackgroundCommand(io, turn, text.includes('flood'));
     } else if (text.includes('approve')) {
         await runApprovalCommand(io, turn);
+    } else if (text.includes('artifacts')) {
+        await runTurnArtifacts(io, turn);
     } else if (text.includes('patch')) {
         await runApprovalPatch(io, turn);
     } else if (text.includes('bigdiff')) {
