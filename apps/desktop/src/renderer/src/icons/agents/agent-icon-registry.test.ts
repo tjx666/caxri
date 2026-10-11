@@ -45,52 +45,23 @@ describe('agentIconRegistry', () => {
 });
 
 describe('resolveAgentIconRenderSource', () => {
-    it.each(['claude', 'codex'] as const)(
-        'keeps %s as a full-color image by default (brand tone)',
-        (identity) => {
-            const icon = agentIconRegistry[identity];
-            expect(resolveAgentIconRenderSource(icon)).toEqual({ kind: 'image', src: icon.src });
-            expect(resolveAgentIconRenderSource(icon, 'brand')).toEqual({
-                kind: 'image',
-                src: icon.src,
-            });
-        },
-    );
-
-    it.each(['claude', 'codex'] as const)(
-        'renders %s through its mono mask under state tone, tinting with currentColor like the other Agents',
-        (identity) => {
-            const icon = agentIconRegistry[identity];
-            expect(icon.monoSrc).toBeTruthy();
-            expect(icon.monoSrc).not.toBe(icon.src);
-            expect(resolveAgentIconRenderSource(icon, 'state')).toEqual({
-                kind: 'mask',
-                src: icon.monoSrc,
-            });
-        },
-    );
+    it.each(['claude', 'codex'] as const)('keeps %s as a full-color image', (identity) => {
+        const icon = agentIconRegistry[identity];
+        expect(resolveAgentIconRenderSource(icon)).toEqual({ kind: 'image', src: icon.src });
+    });
 
     it.each(['grok', 'opencode'] as const)(
-        'keeps an already mask-asset identity (%s) on its mask regardless of tone',
+        'tints the mask-asset %s identity with currentColor',
         (identity) => {
             const icon = agentIconRegistry[identity];
-            expect(resolveAgentIconRenderSource(icon, 'brand')).toEqual({
-                kind: 'mask',
-                src: icon.src,
-            });
-            expect(resolveAgentIconRenderSource(icon, 'state')).toEqual({
-                kind: 'mask',
-                src: icon.src,
-            });
+            expect(resolveAgentIconRenderSource(icon)).toEqual({ kind: 'mask', src: icon.src });
         },
     );
 
     it.each(['shell', 'unknown'] as const)(
         'has no image/mask source for %s: the caller renders its own lucide glyph',
         (identity) => {
-            const icon = agentIconRegistry[identity];
-            expect(resolveAgentIconRenderSource(icon, 'brand')).toBeUndefined();
-            expect(resolveAgentIconRenderSource(icon, 'state')).toBeUndefined();
+            expect(resolveAgentIconRenderSource(agentIconRegistry[identity])).toBeUndefined();
         },
     );
 });
