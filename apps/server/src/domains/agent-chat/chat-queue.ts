@@ -15,6 +15,7 @@ import { logEventCatalog } from '@caxri/system';
 
 import { clip } from './chat-items';
 import type { AgentChatProviderSession, ChatInputDelivery } from './chat-provider';
+import { isDeliveryUnknown } from './chat-provider';
 
 /**
  * A follow-up held by Server Core until the running turn ends. Image data stays here; Clients see
@@ -28,6 +29,7 @@ export type QueuedInput =
  * Closed reasons for the `agent_chat.queue_changed` log.
  */
 type QueueChange =
+    | 'deliveryUnknown'
     | 'dispatched'
     | 'dispatchFailed'
     | 'paused'
@@ -136,10 +138,30 @@ export class ChatFollowUpQueue {
 
     private log(reason: QueueChange): void {
         this.host.logger.write(
-            reason === 'dispatchFailed' ? 'warn' : 'info',
+            reason === 'dispatchFailed' || reason === 'deliveryUnknown' ? 'warn' : 'info',
             logEventCatalog.agentChat.queueChanged,
             { fields: { terminalId: this.host.terminalId, reason, depth: this.entries.length } },
         );
+    }
+
+    /**
+     * Pauses the queue after an entry may have reached the provider without confirmation, and says so in the timeline:
+     * the entry stays for the user to send again or remove, but nothing sends it again on its own.
+     */
+    private holdUnconfirmed(entry: QueuedInput, error: unknown): void {
+        this.isPaused = true;
+        this.host.apply([
+            {
+                op: 'upsertItem',
+                item: {
+                    id: `delivery-unknown:${entry.id}`,
+                    type: 'notice',
+                    kind: 'error',
+                    message: clip(error instanceof Error ? error.message : String(error), 2_000),
+                },
+            },
+        ]);
+        this.log('deliveryUnknown');
     }
 
     private isIdle(): boolean {
@@ -167,13 +189,14 @@ export class ChatFollowUpQueue {
                 try {
                     await deliverQueuedInput(session, entry, 'queued');
                     this.log('dispatched');
-                } catch {
+                } catch (error) {
                     if (this.isRetired) return;
                     // Keep the input and stop the queue, so a failure the user has not seen never drops or repeats it.
                     this.entries.unshift(entry);
                     this.isPaused = true;
+                    if (isDeliveryUnknown(error)) this.holdUnconfirmed(entry, error);
+                    else this.log('dispatchFailed');
                     this.publish();
-                    this.log('dispatchFailed');
                 }
             });
         } catch {
@@ -223,7 +246,8 @@ export class ChatFollowUpQueue {
 
     /**
      * Sends one entry ahead of the rest. A failed send returns it to the same place and rethrows, so a rejected steer
-     * never loses the user's message.
+     * never loses the user's message. A send whose delivery is unknown also pauses the queue, so the entries behind it
+     * do not go out around a message that may still arrive.
      */
     async sendNow(
         session: AgentChatProviderSession,
@@ -238,6 +262,7 @@ export class ChatFollowUpQueue {
         } catch (error) {
             if (!this.isRetired) {
                 this.entries.splice(Math.min(index, this.entries.length), 0, entry);
+                if (isDeliveryUnknown(error)) this.holdUnconfirmed(entry, error);
                 this.publish();
             }
             throw error;

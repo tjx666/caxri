@@ -1,4 +1,5 @@
 import type { UUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentChatCommand, AgentChatImageInput, AgentChatItem } from '@caxri/protocol';
@@ -97,6 +98,33 @@ export class ClaudeCommandList {
         if (this.terminalBound.size === before) return undefined;
         return claudeChatCommands(this.reported, this.terminalBound);
     }
+}
+
+/**
+ * The third group of a prompt uuid Server Core delivered from its follow-up queue: version 8, RFC 9562's custom layout,
+ * then Caxri's `c01`. Claude Code writes the uuid as the transcript record's `uuid` but keeps no `priority` or other
+ * field that could carry the delivery, so the uuid itself marks a queued message across a resume and a Server Core
+ * restart (#1610). Claude Code's own uuids are version 4 and never match. Verified with Claude Code 2.1.296.
+ */
+const QUEUED_PROMPT_UUID_GROUP = '8c01';
+
+/**
+ * The uuid for a prompt; a `queued` one carries {@link QUEUED_PROMPT_UUID_GROUP}. A steered message needs no mark:
+ * Claude Code records one it folds into the running turn as a `queued_command` attachment instead of a user record.
+ */
+export function claudePromptUuid(delivery?: 'queued' | 'steered'): UUID {
+    const uuid = randomUUID();
+    if (delivery !== 'queued') return uuid;
+    const groups = uuid.split('-');
+    groups[2] = QUEUED_PROMPT_UUID_GROUP;
+    return groups.join('-') as UUID;
+}
+
+/**
+ * Whether a transcript user record's uuid marks a message delivered from the follow-up queue.
+ */
+export function isQueuedClaudePrompt(uuid: string): boolean {
+    return uuid.split('-', 3)[2]?.toLowerCase() === QUEUED_PROMPT_UUID_GROUP;
 }
 
 /**

@@ -4,12 +4,7 @@ import { join } from 'node:path';
 
 import type { Locator } from '@playwright/test';
 
-import {
-    fakeClaudeChatAgentMode,
-    fakeCodexChatAgentMode,
-    fakeGrokChatAgentMode,
-    openAgentChat,
-} from './support/agent-chat-fixture.ts';
+import { fakeClaudeChatAgentMode, fakeCodexChatAgentMode } from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     chooseTerminalFromCreateMenu,
@@ -537,60 +532,6 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await message.press('Enter');
         await expect(chat.getByText('Hello from fake Claude. You said: back again')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-resumed.png') });
-    } finally {
-        await closeAppQuietly(running.app);
-        await rm(directory, { recursive: true, force: true });
-    }
-});
-
-// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a Grok Build Chat streams a reply, answers an approval, and resumes after a crash', async ({}, testInfo) => {
-    const created = await mkdtemp(join(tmpdir(), 'caxri-grok-chat-'));
-    const directory = await realpath(created);
-    const userData = join(directory, 'user-data');
-    const root = join(directory, 'project');
-    await mkdir(root, { recursive: true });
-    const agentMode = await fakeGrokChatAgentMode(directory, userData);
-    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
-    try {
-        const { page } = running;
-        await createProjectSession(page, 'shell');
-        await openAgentChat(page, 'Grok Build Chat');
-
-        const chat = page.locator(VISIBLE_SESSION);
-        const message = chat.getByRole('textbox', { name: 'Message' });
-        await expect(message).toHaveAttribute('placeholder', 'Message Grok Build');
-        await message.fill('hi there');
-        await message.press('Enter');
-        await expect(chat.getByText('You said: hi there')).toBeVisible();
-        // Grok Build lists no models, so the composer names the one in use as plain text beside the context ring.
-        await expect(chat.getByText('grok-fake', { exact: true })).toBeVisible();
-        await expect(chat.getByRole('img', { name: /^\d+% of context used, /u })).toBeVisible();
-        await page.screenshot({ path: testInfo.outputPath('grok-chat-reply.png') });
-
-        await message.fill('please approve this');
-        await message.press('Enter');
-        const approval = chat.getByRole('region', { name: 'Run this command?' });
-        await expect(approval).toContainText('npm test');
-        await page.screenshot({ path: testInfo.outputPath('grok-chat-approval.png') });
-        await approval.getByRole('button', { name: 'Accept', exact: true }).click();
-        await expect(approval).toHaveCount(0);
-        await expect(chat.getByText('The command ran.')).toBeVisible();
-
-        // A crash fails the Chat; Retry reloads the same Grok Build session, whose history session/load replays.
-        await message.fill('crash now');
-        await message.press('Enter');
-        const failure = chat
-            .getByRole('alert')
-            .filter({ hasText: 'Grok Build stopped unexpectedly' });
-        await expect(failure).toBeVisible();
-        await failure.getByRole('button', { name: 'Retry' }).click();
-        await expect(failure).toHaveCount(0);
-        await expect(chat.getByText('You said: hi there')).toBeVisible();
-        await message.fill('back again');
-        await message.press('Enter');
-        await expect(chat.getByText('You said: back again')).toBeVisible();
-        await page.screenshot({ path: testInfo.outputPath('grok-chat-resumed.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

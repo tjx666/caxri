@@ -27,6 +27,26 @@ describe('E2E Agent policy', () => {
         expect(selectE2EAgentExecutable(e2e, 'codex', 'codex')).toBeUndefined();
     });
 
+    it('refuses an Agent mode or fake executable without the E2E switch', () => {
+        const message = /require CAXRI_E2E=1/u;
+        expect(() => readE2EAgentPolicy({ CAXRI_E2E_AGENT_MODE: 'fake' })).toThrow(message);
+        expect(() =>
+            readE2EAgentPolicy({ CAXRI_E2E_FAKE_CODEX_EXECUTABLE: '/tmp/fake-codex' }),
+        ).toThrow(message);
+        expect(() => readE2EAgentPolicy({ CAXRI_E2E: '0', CAXRI_E2E_AGENT_MODE: 'real' })).toThrow(
+            message,
+        );
+        expect(readE2EAgentPolicy({})).toBeUndefined();
+        expect(readE2EAgentPolicy({ CAXRI_E2E_AGENT_MODE: '' })).toBeUndefined();
+        expect(
+            readE2EAgentPolicy({
+                CAXRI_E2E: '1',
+                CAXRI_E2E_AGENT_MODE: 'fake',
+                CAXRI_E2E_FAKE_CODEX_EXECUTABLE: '/tmp/fake-codex',
+            }),
+        ).toEqual({ mode: 'fake', executables: { codex: '/tmp/fake-codex' } });
+    });
+
     it('allows only declared fake executables', () => {
         const policy = resolveE2EAgentPolicy({
             isE2E: true,

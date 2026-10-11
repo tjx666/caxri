@@ -3,7 +3,6 @@ import process from 'node:process';
 
 import type { FullStateChangeReason, TerminalRecord } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
-import { logEventCatalog } from '@caxri/system';
 
 import { readActiveContext } from './active-context';
 import { AgentChatService, createAgentChatHandlers } from './agent-chat';
@@ -45,13 +44,13 @@ import {
     createInterruptedTerminalRestorer,
     createLifecycleEnvironment,
     createRelaunchHandlers,
+    createShellIntegration,
     createTerminalAgentExactInputHandler,
     createTerminalBinaryInputHandler,
     createTerminalCreation,
     createTerminalHandlers,
     createTerminalInputHandler,
     createTerminalMoveHandler,
-    ShellIntegrationService,
     terminalDirectoryIdentity,
     TerminalManager,
     TerminalResourceMonitor,
@@ -120,14 +119,7 @@ export async function createDomainServices(
         coordinator,
         sessionRenames,
     } = agentRuntime;
-    let shellIntegration: ShellIntegrationService | undefined;
-    try {
-        shellIntegration = await ShellIntegrationService.create(userDataPath);
-    } catch (error: unknown) {
-        logger.write('warn', logEventCatalog.pty.shellIntegrationUnavailable, {
-            fields: { error: error instanceof Error ? error.message : String(error) },
-        });
-    }
+    const shellIntegration = await createShellIntegration(userDataPath, logger);
     const agentDispatchState: { service?: AgentDispatchService } = {};
     const mobileTerminalMutations = new MobileTerminalMutationQueue();
     const terminals = new TerminalManager(database, send, logger, {
@@ -175,6 +167,7 @@ export async function createDomainServices(
         onInput: (terminalId, data) => {
             compactionReadiness.input(terminalId, data);
             suspensionState.service?.observeInput(terminalId);
+            commanderNotifierState.service?.observeInput(terminalId, data);
             delegationState.service?.interruptTerminal(terminalId, true);
         },
         onAgentStateChanged: (terminalId, state, cause) =>

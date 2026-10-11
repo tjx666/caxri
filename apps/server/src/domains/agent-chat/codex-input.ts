@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { AgentChatCommand, AgentChatItem, AgentChatMessageInput } from '@caxri/protocol';
 
 import { isRecord, stringField } from './chat-items';
@@ -65,38 +67,23 @@ export class CodexThumbnails {
 }
 
 /**
- * Sent messages whose Codex echo has not arrived yet, kept only to mark how they were delivered.
+ * The `clientUserMessageId` for a sent message. A message Server Core delivered as `queued` or `steered` carries its
+ * delivery as a prefix (`queued:<uuid>`), which Codex echoes back as the user message's `clientId` and keeps in the
+ * thread's rollout, so the marker survives a resume and a Server Core restart (#1610). Verified with codex-cli
+ * 0.163.0-alpha.5 for `turn/start`, `turn/steer`, and `thread/resume`.
  */
-const MAX_PENDING_DELIVERIES = 20;
+export function codexClientMessageId(delivery?: 'queued' | 'steered'): string {
+    return delivery ? `${delivery}:${randomUUID()}` : randomUUID();
+}
 
 /**
- * How each sent message reached Codex (`steered` into the running turn or `queued` by Server Core), keyed by the
- * `clientUserMessageId` its user message item echoes back as `clientId`.
+ * The delivery a user message's echoed `clientId` records; see {@link codexClientMessageId}.
  */
-export class CodexDeliveries {
-    private readonly pending = new Map<string, 'queued' | 'steered'>();
-
-    remember(clientUserMessageId: string, delivery: 'queued' | 'steered'): void {
-        this.pending.set(clientUserMessageId, delivery);
-        for (const key of this.pending.keys()) {
-            if (this.pending.size <= MAX_PENDING_DELIVERIES) break;
-            this.pending.delete(key);
-        }
-    }
-
-    /**
-     * Drops the marker of a message that was not delivered the way it was sent, such as a steer that started a turn.
-     */
-    forget(clientUserMessageId: string): void {
-        this.pending.delete(clientUserMessageId);
-    }
-
-    apply(item: AgentChatItem, raw: unknown): AgentChatItem {
-        if (item.type !== 'userMessage' || !isRecord(raw)) return item;
-        const clientId = stringField(raw.clientId);
-        const delivery = clientId ? this.pending.get(clientId) : undefined;
-        return delivery ? { ...item, delivery } : item;
-    }
+export function codexDelivery(raw: Record<string, unknown>): 'queued' | 'steered' | undefined {
+    const clientId = stringField(raw.clientId) ?? '';
+    if (clientId.startsWith('queued:')) return 'queued';
+    if (clientId.startsWith('steered:')) return 'steered';
+    return undefined;
 }
 
 /**
