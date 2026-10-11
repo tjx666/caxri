@@ -432,6 +432,12 @@ relativeMargin) + absoluteMarginMs`. `k·MAD` (`k = 5`, `DEFAULT_PERFORMANCE_THR
     supports. See the [`frames.sampleCount` backtest](#framessamplecount-backtest) below. The frame
     metrics that carry their own signal (`frames.missedFrameCount` and the interval percentiles) stay
     gated.
+  - The `session.select` and `app.bootstrap` round-trip durations (`requests.*.maxDurationMs` and
+    `requests.*.totalDurationMs`), because they are cross-process wall-clock times on the shared
+    runner, the same reason frame and Event Timing metrics stay diagnostic. They are bimodal (about
+    6ms or about 33ms, nothing between) and the same head flips between the modes on a rerun. Each
+    request's `count` stays gated, and `e2e/renderer.performance.e2e.ts` keeps its fixed 100ms
+    ceiling per request. See the [request round-trip backtest](#request-round-trip-backtest) below.
 
   An excluded metric's raw evidence (`historicalMaxMs`, `sampleCount`) is written into the committed
   baseline's own `excluded` map, not only logged by the derive command, so a later reader of
@@ -483,6 +489,31 @@ the failure is the frame count's bare maximum sitting inside `durationMs`'s marg
 runs near that margin exposed. One of the three runs it failed passed on a rerun of the same head.
 
 [issue-1637]: https://github.com/tjx666/caxri/issues/1637
+
+#### Request round-trip backtest
+
+Run against the same 98 receipts and the same 48 post-arming receipts, ordered by job, with the
+repository's own `derivePerformanceMetricBaseline`. `maxDurationMs` and `totalDurationMs` are equal
+in every receipt because the scenario sends each request once
+([issue tjx666/caxri#1638][issue-1638]).
+
+| Check                                                        | `session.select`                    | `app.bootstrap`                 |
+| ------------------------------------------------------------ | ----------------------------------- | ------------------------------- |
+| 98-receipt corpus: leave-one-out and forward time-split      | 0/98 and 0/49                       | 0/98 and 0/49                   |
+| Post-arming receipts replayed against the committed baseline | 9/48 failed (30.3-37ms; one 11.5ms) | 1/48 failed (36.5ms)            |
+| All 146 receipts: forward time-split                         | 9/73                                | 1/73                            |
+| Threshold a re-derivation over all 146 would need            | 40.96ms (6.8x the 6ms median)       | 40.42ms (5.9x the 6.9ms median) |
+| Same 48 receipts after the exclusion                         | 0/48 failed on any metric           | 0/48 failed on any metric       |
+
+The arming corpus held no slow-mode receipt, so the per-metric backtest could not see the mode; the
+first 114 receipts had none and the next 32 had 10. The slow mode is not a Renderer stall: the
+failing receipts' frame intervals stayed under 18.6ms with no missed frame or Long Animation Frame,
+and `app.bootstrap`, which starts when `session.select`'s `state.changed` event arrives, stayed at
+6.2-7.1ms in the same runs, so the extra time precedes Server Core's broadcast. A re-derived ~41ms
+threshold would sit 4ms over the observed 37ms maximum and close to the spec's 100ms ceiling, so it
+would gate nothing that ceiling does not.
+
+[issue-1638]: https://github.com/tjx666/caxri/issues/1638
 
 ### Armed vs. unarmed: why this never silently passes
 

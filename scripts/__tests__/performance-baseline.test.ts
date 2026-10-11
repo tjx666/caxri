@@ -99,6 +99,14 @@ describe('isExcludedPerformanceMetric', () => {
         expect(isExcludedPerformanceMetric('frames.maxIntervalMs')).toBe(false);
         expect(isExcludedPerformanceMetric('frames.intervalP95Ms')).toBe(false);
     });
+
+    it('excludes the request round-trip durations but keeps gating that each request ran once', () => {
+        for (const request of ['sessionSelect', 'appBootstrap']) {
+            expect(isExcludedPerformanceMetric(`requests.${request}.maxDurationMs`)).toBe(true);
+            expect(isExcludedPerformanceMetric(`requests.${request}.totalDurationMs`)).toBe(true);
+            expect(isExcludedPerformanceMetric(`requests.${request}.count`)).toBe(false);
+        }
+    });
 });
 
 describe('derivePerformanceMetricBaseline', () => {
@@ -501,6 +509,27 @@ describe('committed baseline replay', () => {
         expect(result.rows.find((row) => row.metric === 'durationMs')?.status).toBe('regressed');
     });
 
+    it('passes a run whose session.select round trip took the slow 37ms mode', () => {
+        // CI run 37959218557 (issue #1638): the round trip fell into its ~33ms mode on the shared runner while every
+        // other metric stayed in range; a rerun of the same head can land in either mode.
+        const result = comparePerformanceSamplesToBaseline(
+            medianRunWith({
+                'requests.sessionSelect.maxDurationMs': 37,
+                'requests.sessionSelect.totalDurationMs': 37,
+            }),
+            committedBaseline,
+        );
+        expect(result.state).toBe('passed');
+    });
+
+    it('still fails a run that sent session.select twice', () => {
+        const result = comparePerformanceSamplesToBaseline(
+            medianRunWith({ 'requests.sessionSelect.count': 2 }),
+            committedBaseline,
+        );
+        expect(result.state).toBe('failed');
+    });
+
     it('gates no excluded metric and records the evidence for each exclusion', () => {
         // The gate compares only `metrics`, so an exclusion added to the code without re-deriving the committed
         // baseline would keep gating the metric it names.
@@ -510,6 +539,14 @@ describe('committed baseline replay', () => {
         const excluded = committedBaseline.excluded ?? {};
         expect(Object.keys(excluded).every(isExcludedPerformanceMetric)).toBe(true);
         expect(excluded['frames.sampleCount']).toEqual({ historicalMaxMs: 13, sampleCount: 98 });
+        expect(excluded['requests.sessionSelect.maxDurationMs']).toEqual({
+            historicalMaxMs: 9.6,
+            sampleCount: 98,
+        });
+        expect(excluded['requests.appBootstrap.maxDurationMs']).toEqual({
+            historicalMaxMs: 10.3,
+            sampleCount: 98,
+        });
     });
 });
 
