@@ -1,4 +1,4 @@
-import type { Token } from 'markdown-it';
+import type { Env, Token } from 'markdown-it';
 import createMarkdownIt from 'markdown-it';
 
 import { fileLinkTarget, fileReferenceTarget, proseFileReferences } from './file-reference.js';
@@ -422,6 +422,59 @@ function convertBlocks(tokens: readonly Token[], options: MarkdownBlockOptions):
         index = next;
     }
     return blocks;
+}
+
+/**
+ * One top-level Markdown construct and the zero-based source line it starts on. `block` is absent when the construct
+ * has no visible content, such as raw HTML.
+ */
+export interface TopLevelMarkdownEntry {
+    block?: MarkdownBlock;
+    line: number;
+    /**
+     * For a list: its marker (`-`, `*`, `+`, `.`, `)`) and the start line of each item, aligned with `block.items`.
+     */
+    list?: { marker: string; itemLines: number[] };
+}
+
+function listShape(tokens: readonly Token[], start: number, end: number) {
+    const open = tokens[start]!;
+    const itemLines = tokens
+        .slice(start + 1, end)
+        .filter((token) => token.type === 'list_item_open' && token.level === open.level + 1)
+        .map((token) => token.map?.[0] ?? 0);
+    return { marker: open.markup, itemLines };
+}
+
+/**
+ * Parses `source` into its top-level constructs, keeping each one's start line so the streaming parser can reuse the
+ * ones a later delta cannot change. `hasReferences` reports a link reference definition anywhere in the source,
+ * including inside a quote or list, as markdown-it itself resolved it.
+ */
+export function parseTopLevelMarkdown(
+    source: string,
+    options: MarkdownBlockOptions,
+): { entries: TopLevelMarkdownEntry[]; hasReferences: boolean } {
+    const environment: Env = {};
+    const tokens = engine.parse(source, environment);
+    const entries: TopLevelMarkdownEntry[] = [];
+    let index = 0;
+    while (index < tokens.length) {
+        const line = tokens[index]!.map?.[0] ?? 0;
+        const { block, next } = convertBlockAt(tokens, index, options);
+        entries.push(
+            block?.type === 'list'
+                ? { block, line, list: listShape(tokens, index, next - 1) }
+                : block
+                  ? { block, line }
+                  : { line },
+        );
+        index = next;
+    }
+    return {
+        entries,
+        hasReferences: Object.keys(environment.references ?? {}).length > 0,
+    };
 }
 
 /**

@@ -15,6 +15,8 @@ export type { ProseWebLink } from './prose-web-links.js';
 export { proseWebLinks } from './prose-web-links.js';
 export { renderMarkdown } from './render-markdown.js';
 export { slugify } from './slug.js';
+export type { StreamingMarkdownParser, StreamingMarkdownStats } from './streaming-parser.js';
+export { createStreamingMarkdownParser } from './streaming-parser.js';
 export { repairStreamingMarkdown } from './streaming-repair.js';
 export type {
     MarkdownAsset,
