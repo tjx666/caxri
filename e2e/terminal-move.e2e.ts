@@ -67,7 +67,7 @@ test('Move to New Session keeps the live Terminal and disables the only-tab acti
 
         expect(await isMoveActionEnabled(running.app, running.page, firstTerminalId)).toBe(false);
         expect(await contextMenuItemDisabledReason(running.app, 'Move to New Session')).toBe(
-            'This is the only tab open in this session',
+            'This is the only tab open in this Session',
         );
         await dismissContextMenu(running.app);
         const afterDisabledActivation = await pageRequest<BootstrapState>(

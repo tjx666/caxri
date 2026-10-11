@@ -302,7 +302,8 @@ const rows: SettingRowSource[] = [
     specRow('terminal.longPasteThreshold'),
     specRow('terminal.copyOnSelect'),
     specRow('terminal.suspendUntouchedAgents'),
-    specRow('terminal.suspendIdleAgents'),
+    specRow('terminal.idleSuspension.enabled'),
+    specRow('terminal.idleSuspension.afterMinutes'),
     specRow('terminal.osc52ClipboardWrite'),
     specRow('terminal.wordSeparators'),
     {

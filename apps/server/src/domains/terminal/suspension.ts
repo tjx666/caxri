@@ -4,13 +4,15 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { AgentLifecycleSignal } from '../agents';
+import { isStandaloneEscape } from '../agents';
 import type { CaxriDatabase } from '../db';
 import { isPtyTerminal } from '../pty-guard';
 import type { WatchHandle, WatchHub } from '../watch-hub';
+import type { TerminalExecutionPort } from './execution-port';
 import type { TerminalManager } from './manager';
 import type { TerminalLifecycleCause } from './manager-types';
 import type { TerminalActivitySample, TerminalSuspensionReason } from './suspension-policy';
-import { decideTerminalSuspensions } from './suspension-policy';
+import { decideTerminalSuspensions, lastActiveAt } from './suspension-policy';
 
 const TERMINAL_SUSPENSION_SWEEP_INTERVAL_MS = 15_000;
 
@@ -47,6 +49,11 @@ interface TerminalSuspensionServiceOptions {
     send: (event: ServerEvent) => void;
     settings: () => AppSettings;
     sweepIntervalMs?: number;
+    /**
+     * Every record of a phone watching a Terminal: its screen through the execution port, and its Conversation through
+     * the transcript watcher. Any one of them counts the Terminal as viewed.
+     */
+    remoteObservers: ReadonlyArray<Pick<TerminalExecutionPort, 'isObservedRemotely'>>;
     terminals: Pick<TerminalManager, 'processId' | 'settleLaunches' | 'suspend'>;
     watchHub: Pick<WatchHub, 'registerPoller'>;
 }
@@ -72,6 +79,11 @@ export class TerminalSuspensionService {
      */
     private readonly launchParkings = new Map<string, Promise<boolean>>();
     private readonly samples = new Map<string, TerminalActivitySample>();
+    /**
+     * Terminals this process parked in a resumable state, with why and when, so the launch that resumes one can log how
+     * long it stayed parked. In memory only: a park from before a Server Core restart resumes without that record.
+     */
+    private readonly parked = new Map<string, { at: number; reason: ParkReason }>();
     private readonly startedAt: number;
     private lastSelectedSessionId: string | undefined;
     private poller: WatchHandle | undefined;
@@ -109,8 +121,14 @@ export class TerminalSuspensionService {
          * look abandoned; its Terminal is supervised by its own window instead.
          */
         const commanderSessionId = database.agentCommanderRows()?.sessionId;
+        for (const terminalId of this.parked.keys())
+            if (!database.getTerminal(terminalId)) this.parked.delete(terminalId);
         const decisions = decideTerminalSuspensions({
             deselectedAt: (sessionId) => this.deselectedAt.get(sessionId),
+            isObservedRemotely: (terminalId) =>
+                this.options.remoteObservers.some((source) =>
+                    source.isObservedRemotely(terminalId),
+                ),
             now: this.now(),
             sample: (terminalId) => this.samples.get(terminalId),
             selectedSessionId: this.options.selectedSessionId(),
@@ -152,11 +170,21 @@ export class TerminalSuspensionService {
             return false;
         try {
             const { cause, state } = PARKED_AS[reason];
+            const metrics = this.parkMetrics(terminalId, reason);
             const record = await this.options.terminals.suspend(terminalId, state, cause);
             if (!record) return false;
             this.samples.delete(terminalId);
+            // Only an Agent comes back through `observeLaunch`; a parked Shell would linger and mislabel a later launch.
+            if (state === 'stopped' || !record.provider) this.parked.delete(terminalId);
+            else this.parked.set(terminalId, { at: this.now(), reason });
             this.options.logger.write('info', logEventCatalog.terminal.suspended, {
-                fields: { reason, sessionId: record.sessionId, terminalId },
+                fields: {
+                    ...metrics,
+                    provider: record.provider ?? null,
+                    reason,
+                    sessionId: record.sessionId,
+                    terminalId,
+                },
             });
             // Closes the narrower gap: the selection changed while this Terminal's own teardown was in flight, so
             // the kill already happened and the record is genuinely `suspended`: reconcile it back to running.
@@ -169,6 +197,24 @@ export class TerminalSuspensionService {
             });
             return false;
         }
+    }
+
+    /**
+     * Durations an automatic park is judged on, captured before teardown discards the activity sample: how long the
+     * Agent showed no activity and how long its Session had been unselected. Explicit parks carry neither.
+     */
+    private parkMetrics(
+        terminalId: string,
+        reason: ParkReason,
+    ): { backgroundMs?: number; idleMs?: number } {
+        if (reason !== 'idle' && reason !== 'untouched') return {};
+        const now = this.now();
+        const sessionId = this.options.database.getTerminal(terminalId)?.sessionId;
+        const deselectedAt = sessionId === undefined ? undefined : this.deselectedAt.get(sessionId);
+        return {
+            idleMs: now - lastActiveAt(this.samples.get(terminalId), this.startedAt),
+            ...(deselectedAt !== undefined && { backgroundMs: now - deselectedAt }),
+        };
     }
 
     private publish(terminalIds: readonly string[]): void {
@@ -254,31 +300,87 @@ export class TerminalSuspensionService {
         });
     }
 
+    /**
+     * A new Agent launch. When this process parked the Terminal earlier, the launch is its resume (Session selection,
+     * `session.resume`, or a manual restart), and the time it spent parked is logged against the original reason.
+     */
     observeLaunch(terminalId: string): void {
-        this.samples.set(terminalId, { launchedAt: this.now(), turnInFlight: false });
+        const now = this.now();
+        this.samples.set(terminalId, { launchedAt: now, turnInFlight: false });
+        const parked = this.parked.get(terminalId);
+        if (!parked) return;
+        this.parked.delete(terminalId);
+        const record = this.options.database.getTerminal(terminalId);
+        this.options.logger.write('info', logEventCatalog.terminal.resumed, {
+            fields: {
+                provider: record?.provider ?? null,
+                reason: parked.reason,
+                sessionId: record?.sessionId ?? null,
+                suspendedForMs: now - parked.at,
+                terminalId,
+            },
+        });
     }
 
-    observeInput(terminalId: string): void {
-        this.sample(terminalId).lastInputAt = this.now();
+    /**
+     * Core-delivered input. A standalone Escape is the user interrupting the Agent, which ends its turn and any prompt
+     * without a completion hook (Claude sends no `Stop` for an interrupted turn), so it clears both holds the way the
+     * coordinator's own interrupt handling does.
+     */
+    observeInput(terminalId: string, data: string): void {
+        const sample = this.sample(terminalId);
+        sample.lastInputAt = this.now();
+        if (!isStandaloneEscape(data)) return;
+        sample.turnInFlight = false;
+        sample.awaitingUser = false;
     }
 
-    observeLifecycle(signal: Pick<AgentLifecycleSignal, 'phase' | 'terminalId'>): void {
+    /**
+     * Folds one accepted raw lifecycle signal into the launch's activity. Every phase counts as activity. A main-scope
+     * `turnStarted` opens the turn; an attention request holds the Agent awaiting the user until the coordinator
+     * accepts its resolution or the turn starts, ends, or is interrupted. A raw completion does not end the turn: the
+     * coordinator may defer a parent `Stop` until its background subagents finish, so only `observeAppliedLifecycle`
+     * closes it. A subagent-scoped signal (`agentId` set) never starts the main turn.
+     */
+    observeLifecycle(signal: Pick<AgentLifecycleSignal, 'agentId' | 'phase' | 'terminalId'>): void {
         const sample = this.sample(signal.terminalId);
         const now = this.now();
+        sample.lastSignalAt = now;
+        const isMainScope = signal.agentId === undefined;
         switch (signal.phase) {
             case 'turnStarted':
+                if (!isMainScope) return;
                 sample.lastTurnStartedAt = now;
                 sample.turnInFlight = true;
+                sample.awaitingUser = false;
                 return;
-            case 'turnFinished':
-            case 'turnFailed':
             case 'attentionRequested':
-                sample.lastTurnFinishedAt = now;
-                sample.turnInFlight = false;
+                sample.awaitingUser = true;
+                return;
+            case 'attentionResolved':
+            case 'toolBatchFinished':
+                sample.awaitingUser = false;
                 return;
             default:
                 return;
         }
+    }
+
+    /**
+     * A lifecycle transition the coordinator applied: the authority for a turn's end, including a deferred parent
+     * completion and one reconciled from provider metadata after its hook was lost.
+     */
+    observeAppliedLifecycle(
+        signal: Pick<AgentLifecycleSignal, 'agentId' | 'phase' | 'terminalId'>,
+    ): void {
+        if (signal.agentId !== undefined) return;
+        if (signal.phase !== 'turnFinished' && signal.phase !== 'turnFailed') return;
+        const sample = this.sample(signal.terminalId);
+        const now = this.now();
+        sample.lastSignalAt = now;
+        sample.lastTurnFinishedAt = now;
+        sample.turnInFlight = false;
+        sample.awaitingUser = false;
     }
 
     /**

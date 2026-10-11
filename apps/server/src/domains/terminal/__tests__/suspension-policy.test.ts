@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { TerminalActivitySample, TerminalSuspensionPolicyInput } from '../suspension-policy';
 import {
     decideTerminalSuspensions,
-    IDLE_SUSPENSION_DELAYS_MS,
+    idleSuspensionDelayMs,
     UNTOUCHED_SUSPENSION_DELAY_MS,
 } from '../suspension-policy';
 
@@ -47,6 +47,7 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
 
 interface Scenario {
     deselectedAt?: number;
+    isObservedRemotely?: boolean;
     sample?: TerminalActivitySample;
     selectedSessionId?: string;
     session?: SessionRecord | undefined;
@@ -59,12 +60,14 @@ function decide(scenario: Scenario = {}) {
     const sessionRecord = 'session' in scenario ? scenario.session : session();
     return decideTerminalSuspensions({
         deselectedAt: () => scenario.deselectedAt,
+        isObservedRemotely: () => scenario.isObservedRemotely ?? false,
         now: NOW,
         sample: () => scenario.sample,
         selectedSessionId: scenario.selectedSessionId ?? 'session-b',
         session: () => sessionRecord,
         settings: {
-            'terminal.suspendIdleAgents': 'off',
+            'terminal.idleSuspension.afterMinutes': 30,
+            'terminal.idleSuspension.enabled': false,
             'terminal.suspendUntouchedAgents': true,
             ...scenario.settings,
         },
@@ -199,7 +202,11 @@ describe('decideTerminalSuspensions: untouched rule', () => {
 });
 
 describe('decideTerminalSuspensions: idle rule', () => {
-    const halfHour = IDLE_SUSPENSION_DELAYS_MS['30m'];
+    const halfHour = 30 * 60 * 1000;
+    const idleOn = {
+        'terminal.idleSuspension.afterMinutes': 30,
+        'terminal.idleSuspension.enabled': true,
+    } as const;
     const idleSample: TerminalActivitySample = {
         launchedAt: NOW - 3 * halfHour,
         lastInputAt: NOW - 2 * halfHour,
@@ -213,14 +220,81 @@ describe('decideTerminalSuspensions: idle rule', () => {
             decide({
                 deselectedAt: NOW - halfHour,
                 sample: idleSample,
-                settings: { 'terminal.suspendIdleAgents': '30m' },
+                settings: idleOn,
             }),
         ).toEqual([{ reason: 'idle', terminalId: 'terminal-1' }]);
         expect(
             decide({
                 deselectedAt: NOW - halfHour,
                 sample: idleSample,
-                settings: { 'terminal.suspendIdleAgents': '2h' },
+                settings: { ...idleOn, 'terminal.idleSuspension.afterMinutes': 120 },
+            }),
+        ).toEqual([]);
+    });
+
+    it('is off by default and honors any configured window, down to one minute', () => {
+        expect(decide({ deselectedAt: NOW - 4 * halfHour, sample: idleSample })).toEqual([]);
+        expect(
+            idleSuspensionDelayMs({
+                'terminal.idleSuspension.afterMinutes': 30,
+                'terminal.idleSuspension.enabled': false,
+                'terminal.suspendUntouchedAgents': true,
+            }),
+        ).toBeUndefined();
+        const oneMinute = { ...idleOn, 'terminal.idleSuspension.afterMinutes': 1 };
+        const recent: TerminalActivitySample = {
+            launchedAt: NOW - halfHour,
+            lastInputAt: NOW - 60_000,
+            lastTurnStartedAt: NOW - 60_000,
+            lastTurnFinishedAt: NOW - 60_000,
+            turnInFlight: false,
+        };
+        expect(decide({ deselectedAt: NOW - 60_000, sample: recent, settings: oneMinute })).toEqual(
+            [{ reason: 'idle', terminalId: 'terminal-1' }],
+        );
+        expect(
+            decide({
+                deselectedAt: NOW - 60_000,
+                sample: { ...recent, lastTurnFinishedAt: NOW - 59_999 },
+                settings: oneMinute,
+            }),
+        ).toEqual([]);
+    });
+
+    it('never parks an Agent waiting for a permission or an answer, even long after its turn ended', () => {
+        expect(
+            decide({
+                deselectedAt: NOW - 4 * halfHour,
+                sample: { ...idleSample, awaitingUser: true },
+                settings: idleOn,
+            }),
+        ).toEqual([]);
+    });
+
+    it('counts any accepted lifecycle signal, including a subagent one, as activity', () => {
+        expect(
+            decide({
+                deselectedAt: NOW - halfHour,
+                sample: { ...idleSample, lastSignalAt: NOW - halfHour + 1 },
+                settings: idleOn,
+            }),
+        ).toEqual([]);
+    });
+
+    it('never parks a Terminal a phone is observing', () => {
+        expect(
+            decide({
+                deselectedAt: NOW - halfHour,
+                isObservedRemotely: true,
+                sample: idleSample,
+                settings: idleOn,
+            }),
+        ).toEqual([]);
+        expect(
+            decide({
+                deselectedAt: glancedAt,
+                isObservedRemotely: true,
+                sample: untouchedSample,
             }),
         ).toEqual([]);
     });
@@ -230,7 +304,7 @@ describe('decideTerminalSuspensions: idle rule', () => {
             decide({
                 deselectedAt: NOW - halfHour,
                 sample: undefined,
-                settings: { 'terminal.suspendIdleAgents': '30m' },
+                settings: idleOn,
             }),
         ).toEqual([{ reason: 'idle', terminalId: 'terminal-1' }]);
     });
@@ -240,21 +314,21 @@ describe('decideTerminalSuspensions: idle rule', () => {
             decide({
                 deselectedAt: NOW - halfHour,
                 sample: { ...idleSample, lastInputAt: NOW - halfHour + 1 },
-                settings: { 'terminal.suspendIdleAgents': '30m' },
+                settings: idleOn,
             }),
         ).toEqual([]);
         expect(
             decide({
                 deselectedAt: NOW - halfHour,
                 sample: { ...idleSample, lastTurnFinishedAt: NOW - halfHour + 1 },
-                settings: { 'terminal.suspendIdleAgents': '30m' },
+                settings: idleOn,
             }),
         ).toEqual([]);
         expect(
             decide({
                 deselectedAt: NOW - halfHour + 1,
                 sample: idleSample,
-                settings: { 'terminal.suspendIdleAgents': '30m' },
+                settings: idleOn,
             }),
         ).toEqual([]);
     });
@@ -264,7 +338,7 @@ describe('decideTerminalSuspensions: idle rule', () => {
             decide({
                 deselectedAt: NOW - halfHour,
                 sample: { launchedAt: NOW - halfHour, turnInFlight: false },
-                settings: { 'terminal.suspendIdleAgents': '30m' },
+                settings: idleOn,
             }),
         ).toEqual([{ reason: 'untouched', terminalId: 'terminal-1' }]);
     });

@@ -238,9 +238,10 @@ export const appSettingsSchema = z.object({
         .enum(enumValues(spec['terminal.gpuAcceleration'].options))
         .default(spec['terminal.gpuAcceleration'].default),
     'terminal.suspendUntouchedAgents': booleanField(spec['terminal.suspendUntouchedAgents']),
-    'terminal.suspendIdleAgents': z
-        .enum(enumValues(spec['terminal.suspendIdleAgents'].options))
-        .default(spec['terminal.suspendIdleAgents'].default),
+    'terminal.idleSuspension.enabled': booleanField(spec['terminal.idleSuspension.enabled']),
+    'terminal.idleSuspension.afterMinutes': integerField(
+        spec['terminal.idleSuspension.afterMinutes'],
+    ),
     'terminal.osc52ClipboardWrite': booleanField(spec['terminal.osc52ClipboardWrite']),
     'files.exclude': filesExcludeRecordSchema.default(DEFAULT_FILES_EXCLUDE),
     /**

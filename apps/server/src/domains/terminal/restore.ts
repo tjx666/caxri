@@ -25,8 +25,13 @@ interface InterruptedTerminalRestorerOptions {
      * Where delegation task files live, so a restored delegated Agent keeps the directory grant its task launched with.
      */
     userDataPath: string;
-    visibleGridWaitMs: number;
+    /**
+     * How long a visible Terminal waits for its pane's attached grid before its PTY starts anyway.
+     */
+    visibleGridWaitMs?: number;
 }
+
+const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
 
 /**
  * How a Terminal's delegated Agent comes back. While one of its tasks is still active, only the outer Shell restores:
@@ -121,7 +126,7 @@ export function createInterruptedTerminalRestorer(options: InterruptedTerminalRe
         terminalRestores,
         terminals,
         userDataPath,
-        visibleGridWaitMs,
+        visibleGridWaitMs = VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS,
     } = options;
     /**
      * Auto-restores a Session's Terminals that an orderly shutdown left `interrupted` (GitHub issue #18) or that the
