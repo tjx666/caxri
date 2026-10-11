@@ -40,6 +40,11 @@ export function useAgentChatScroll(revision: number | undefined): {
     isFollowing: boolean;
     onScroll: () => void;
     jumpToLatest: () => void;
+    /**
+     * Stops following before a programmatic scroll into history, so a patch landing mid-scroll does not pin the view
+     * back to the end before the scroll's own event reports the new position.
+     */
+    stopFollowing: () => void;
 } {
     const scrollReference = useRef<HTMLDivElement | null>(null);
     const contentReference = useRef<HTMLDivElement | null>(null);
@@ -62,6 +67,10 @@ export function useAgentChatScroll(revision: number | undefined): {
         setFollowing(true);
         pin();
     }, [pin]);
+    const stopFollowing = useCallback(() => {
+        isFollowingReference.current = false;
+        setFollowing(false);
+    }, []);
     useLayoutEffect(pin, [pin, revision]);
     useEffect(() => {
         const content = contentReference.current;
@@ -72,5 +81,12 @@ export function useAgentChatScroll(revision: number | undefined): {
         observer.observe(view);
         return () => observer.disconnect();
     }, [pin]);
-    return { scrollReference, contentReference, isFollowing, onScroll, jumpToLatest };
+    return {
+        scrollReference,
+        contentReference,
+        isFollowing,
+        onScroll,
+        jumpToLatest,
+        stopFollowing,
+    };
 }

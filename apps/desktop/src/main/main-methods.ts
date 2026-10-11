@@ -51,6 +51,7 @@ import {
 } from './external-document-methods';
 import { openExternalUrl } from './external-links';
 import { createLinkFavicons } from './link-favicons';
+import { createLinkPreviews } from './link-previews';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 import { currentRequestWindow } from './request-window';
 import type { DesktopServerConnection } from './server-connection';
@@ -115,6 +116,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 : (url, init) => net.fetch(url, init),
         logger: () => options.logger?.(),
     });
+    const linkPreview = createLinkPreviews((url, init) => net.fetch(url, init));
     const externalOpenFixture =
         options.externalOpenFixture ??
         createAcceptanceExternalOpenFixture({
@@ -229,6 +231,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return linkFavicon(request.params.origin);
             case 'agentProviderStatus.read':
                 return agentProviderStatus(request.params.provider);
+            case 'links.preview':
+                return linkPreview(request.params.url);
             case 'dialog.selectDirectory':
                 return options.workbenchRootAuthority.selectProjectFolder();
             case 'pathBrowser.start':

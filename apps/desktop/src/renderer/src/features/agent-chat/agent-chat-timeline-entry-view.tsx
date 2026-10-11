@@ -27,6 +27,7 @@ const AgentChatMessageItem = memo(
             case 'userMessage': {
                 return (
                     <AgentChatUserMessage
+                        createdAt={item.createdAt}
                         delivery={item.delivery}
                         id={item.id}
                         images={item.images}

@@ -74,6 +74,7 @@ const MAIN_OWNED_METHODS = [
     'external.open',
     'links.favicon',
     'agentProviderStatus.read',
+    'links.preview',
     'argv.get',
     'argv.update',
     'gpu.restartInSafeMode',
