@@ -73,15 +73,39 @@ export async function executeMobileReadCacheScenario(
         isNetworkDisabled = true;
         await coldStart(serial);
         await waitForCheck(serial, 'session-list-saved', 60_000);
+        await waitForCheck(serial, 'connection-stale-banner', 60_000);
         const offlineList = await mobileSemantics(serial);
         if (!hasCheck(offlineList, openedRow) || !hasCheck(offlineList, unopenedRow))
             throw new Error('The saved Session list lost a row');
+        if (hasCheck(offlineList, 'session-list-retry'))
+            throw new Error('The saved Session list also reported a failed read');
+        // Changes the phone cannot see until it reconnects, so the live read is told apart from the saved copy.
+        const added = await pageRequest<{ session: { id: string } }>(page, 'session.create', {
+            projectId: fixture.allowedProjectId,
+            defaultAgent: 'codex',
+            surface: 'chat',
+        });
+        const addedRow = `session-row-${added.session.id}`;
+        await chat.send({ text: 'later' });
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) => agentText(snapshot).includes('You said: later') && !snapshot.activeTurnId,
+        );
         await capture(environment, 'offline-list', artifacts);
 
         await tapMobileCheck(serial, openedRow);
         await waitForCheck(serial, 'agent-chat-saved');
-        if (hasCheck(await mobileSemantics(serial), 'agent-chat-status-empty'))
+        const offlineChat = await mobileSemantics(serial);
+        if (hasCheck(offlineChat, 'agent-chat-status-empty'))
             throw new Error('The saved Chat lost its messages');
+        if (!hasCheck(offlineChat, 'connection-stale-banner'))
+            throw new Error('The saved Chat is not shown as offline');
+        if (
+            offlineChat.some(
+                ({ checkId, enabled }) => checkId === 'agent-chat-composer-send' && enabled,
+            )
+        )
+            throw new Error('A saved Chat must not offer sending');
         await capture(environment, 'offline-chat', artifacts);
         await tapMobileCheck(serial, 'session-detail-back');
 
@@ -95,14 +119,17 @@ export async function executeMobileReadCacheScenario(
         isNetworkDisabled = false;
         await waitForNoCheck(serial, 'session-list-saved', 60_000);
         await waitForNoCheck(serial, 'connection-stale-banner', 60_000);
+        await waitForCheck(serial, addedRow, 60_000);
         await capture(environment, 'reconnected-list', artifacts);
         await tapMobileCheck(serial, openedRow);
         await waitForCheck(serial, 'agent-chat');
         await waitForNoCheck(serial, 'agent-chat-saved');
+        await waitForNoCheck(serial, 'agent-chat-activity');
         await capture(environment, 'reconnected-chat', artifacts);
 
         await finish(environment, artifacts, {
             coldStartOffline: 'saved-list-and-chat-labeled',
+            offlineSend: 'disabled',
             reconnect: 'live-reads-replaced-saved-copies',
             status: 'passed',
             unopenedChatOffline: 'reconnect-message',
