@@ -26,7 +26,7 @@ import type { DomainDependencies, DomainServices } from '../domains/domain-servi
 import type { ProtocolRecoveryState } from '../domains/protocol-recovery';
 import { isAtomicStructuralMethod } from './atomic-structural-methods';
 import type { DomainOperationDispatcher } from './operation-dispatcher';
-import { createOperationDispatcher } from './operation-dispatcher';
+import { createOperationDispatcher, resolveDomainHandler } from './operation-dispatcher';
 import { requestFailureLogLevel } from './request-observability';
 
 interface PendingOperation {
@@ -401,10 +401,7 @@ export class ServerDomainService extends EventTarget {
         const services = this.services;
         if (!services) throw new CaxriError('UNAVAILABLE', 'Server Core is unavailable');
         const parsed = parseServerOperationRequest(request.method, request.params);
-        const handler = services.handlers[parsed.method] as (
-            parameters: unknown,
-            signal?: AbortSignal,
-        ) => unknown;
+        const handler = resolveDomainHandler(services.handlers, parsed.method);
         return this.commitDurableResult(parsed.method, requestId, persistResult, () =>
             handler(parsed.params),
         );

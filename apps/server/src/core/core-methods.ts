@@ -2,8 +2,8 @@ import type { ServerMethod } from '@caxri/protocol';
 
 /**
  * Server-owned methods that Core forwards to domain services. A new registry method remains `CoreHandledMethod` until
- * it is explicitly added here, so forgetting a Core-local handler fails compilation instead of falling through to
- * `mainOwned()`.
+ * it is explicitly added here, so forgetting a Core-local handler fails compilation instead of falling through to a
+ * `coreRouted()` domain stub.
  */
 export const coreForwardedMethods = [
     'agentActions.list',

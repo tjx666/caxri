@@ -172,19 +172,20 @@ export class AgentChatService {
                 this.options.launchSettings(provider),
                 shouldKeepAgentAutonomy,
             );
-            const { executable, environment, isRealAgentE2E } = await prepareChatLaunch(
+            const { cwd, executable, environment, isRealAgentE2E } = await prepareChatLaunch(
                 this.options,
                 provider,
                 launch,
+                terminal.cwd,
             );
-            // Resolving the executable awaited; the Chat may have been closed, deleted, or detached meanwhile.
+            // Preparing awaited; the Chat may have been closed, deleted, detached, or archived meanwhile.
             if (!this.states.isAdmitted(terminalId, state)) {
                 this.abandonStart(terminalId, state, launchId, startedAt);
                 return;
             }
             session = driver.create({
                 terminalId,
-                cwd: terminal.cwd,
+                cwd,
                 executable,
                 environment,
                 launch,

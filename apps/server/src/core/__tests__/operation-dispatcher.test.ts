@@ -3,12 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { ServerOperation } from '@caxri/protocol';
-import { CaxriError, internalMethods, methods } from '@caxri/protocol';
+import { CaxriError, desktopServerOperationIds, internalMethods, methods } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestDomainServices } from '../../__tests__/support/domain-services';
-import type { DomainHandlers } from '../../domains/domain-services';
+import type { DomainHandlers, DomainOperation } from '../../domains/domain-services';
 import { createOperationDispatcher } from '../operation-dispatcher';
 
 const loggers: StructuredLogger[] = [];
@@ -26,15 +26,23 @@ async function temporaryDirectory(prefix: string): Promise<string> {
     return directory;
 }
 
-const serverOperationNames = [...Object.keys(methods), ...Object.keys(internalMethods)].toSorted(
-    (a, b) => a.localeCompare(b),
-) as ServerOperation[];
+const delegatedByMain = new Set<string>(desktopServerOperationIds);
+
+/**
+ * Runtime mirror of `DomainOperation`: Server-owned and internal methods plus the Desktop-owned ones Main delegates.
+ */
+const domainOperationNames = [
+    ...Object.entries(methods)
+        .filter(([method, spec]) => spec.owner === 'server' || delegatedByMain.has(method))
+        .map(([method]) => method),
+    ...Object.keys(internalMethods),
+].toSorted((a, b) => a.localeCompare(b)) as DomainOperation[];
 
 /**
  * Handlers whose only job is to observe dispatch behaviour, independent of real domain services.
  */
 function stubHandlers(overrides: Partial<Record<ServerOperation, unknown>> = {}): DomainHandlers {
-    const table = Object.fromEntries(serverOperationNames.map((method) => [method, () => null]));
+    const table = Object.fromEntries(domainOperationNames.map((method) => [method, () => null]));
     return { ...table, ...overrides } as unknown as DomainHandlers;
 }
 
@@ -67,7 +75,7 @@ afterEach(async () => {
 });
 
 describe('domain handler table', () => {
-    it('implements every Renderer-callable and internal domain operation', async () => {
+    it('implements every domain operation and no Main-answered method', async () => {
         const directory = await temporaryDirectory('caxri-handler-table-');
         const runtime = await createTestDomainServices({
             userDataPath: join(directory, 'user-data'),
@@ -77,10 +85,11 @@ describe('domain handler table', () => {
 
         try {
             expect(Object.keys(runtime.handlers).toSorted((a, b) => a.localeCompare(b))).toEqual(
-                serverOperationNames,
+                domainOperationNames,
             );
-            for (const method of serverOperationNames)
+            for (const method of domainOperationNames)
                 expect(runtime.handlers[method]).toBeTypeOf('function');
+            expect(Object.hasOwn(runtime.handlers, 'external.open')).toBe(false);
         } finally {
             await runtime.close();
         }
@@ -184,6 +193,25 @@ describe('createOperationDispatcher', () => {
             fields: { method: 'nope', code: 'VALIDATION', stack: null },
         });
         expect(records[0].durationMs).toBeTypeOf('number');
+    });
+
+    it('rejects a Main-answered method with a clear CONFLICT instead of crashing', async () => {
+        const directory = await temporaryDirectory('caxri-dispatch-main-owned-');
+        const logger = createLogger(join(directory, 'logs'));
+        const dispatch = createOperationDispatcher(stubHandlers(), logger);
+
+        await expect(
+            dispatch({ id: 'r-main', method: 'updates.getState', params: {} }),
+        ).rejects.toMatchObject({
+            code: 'CONFLICT',
+            message: 'updates.getState must be handled by Electron Main',
+        });
+        const [record] = await logRecords(logger);
+        expect(record).toMatchObject({
+            event: 'ipc.request_failed',
+            correlationId: 'r-main',
+            fields: { method: 'updates.getState', code: 'CONFLICT', stack: null },
+        });
     });
 
     it('preserves handler error codes and logs a stack only for unclassified faults', async () => {

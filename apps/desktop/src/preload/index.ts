@@ -6,6 +6,8 @@ import type {
     ParametersArgument,
     ProtocolEventEnvelope,
     ProtocolWelcome,
+    RENDERER_DIAGNOSTIC_CHANNEL,
+    RENDERER_ERROR_CHANNELS,
     ServerEvent,
     TransientServerEvent,
 } from '@caxri/protocol';
@@ -14,15 +16,17 @@ import { notifyListeners } from '@caxri/utils';
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 /**
- * Kept entry-local because sharing this constant across both preload entries makes Vite extract a CommonJS chunk, which
- * Electron's sandboxed preload loader cannot require.
+ * Kept as an entry-local literal: importing the protocol constant at runtime from both preload entries makes Rolldown
+ * extract a shared CommonJS chunk, which Electron's sandboxed preload loader cannot require. The type-only binding
+ * keeps the literal in lockstep with the protocol owner, so a renamed channel fails typecheck instead of dropping
+ * reports.
  */
-const rendererErrorChannel = 'caxri:renderer-error';
+const rendererErrorChannel: (typeof RENDERER_ERROR_CHANNELS)['workbench'] = 'caxri:renderer-error';
 /**
- * Kept entry-local for the same sandboxed-preload chunking reason as `rendererErrorChannel`; the browser-safe protocol
- * owns the matching payload schema and Main validates every report before logging it.
+ * Kept as a literal for the same sandboxed-preload chunking reason as `rendererErrorChannel`; a runtime import of this
+ * module would also pull its zod payload schemas into the preload. Main validates every report against that schema.
  */
-const rendererDiagnosticChannel = 'caxri:renderer-diagnostic';
+const rendererDiagnosticChannel: typeof RENDERER_DIAGNOSTIC_CHANNEL = 'caxri:renderer-diagnostic';
 /**
  * Electron's sandbox exposes its limited `process` global but cannot load `node:process`; importing that module makes
  * the entire CommonJS preload fail before the bridge is installed.
@@ -122,6 +126,16 @@ async function request<M extends CaxriMethod>(
 }
 
 const eventListeners = new Set<(event: ServerEvent) => void>();
+
+/**
+ * Event-stream failures (a rejected recovery, a cursor from another Server history) leave the Renderer on stale state
+ * until the next gap, so they must be visible. Only the error's name and message are logged: never an event payload.
+ */
+function reportEventStreamError(error: unknown): void {
+    const { name, message } = error instanceof Error ? error : { name: typeof error, message: '' };
+    console.error(`[caxri] Server event stream failed: ${name}: ${message}`);
+}
+
 const eventClient = createRecoveringEventClient({
     /**
      * `notifyListeners` isolates each listener so one throwing subscriber cannot stop delivery to the rest, and cannot
@@ -141,6 +155,7 @@ const eventClient = createRecoveringEventClient({
         if (!reply.ok) throw fromWireError(reply.error);
         return reply.result;
     },
+    onError: reportEventStreamError,
 });
 const eventHandler = (
     _event: Electron.IpcRendererEvent,
@@ -165,7 +180,7 @@ const bridge: CaxriBridge = {
             // `onEvent` must return its unsubscribe function synchronously, so starting the
             // recovery client here is deliberately fire-and-forget rather than awaited.
             // eslint-disable-next-line unicorn/prefer-await -- see comment above
-            eventClient.start().catch(() => {});
+            eventClient.start().catch(reportEventStreamError);
         }
         return () => {
             eventListeners.delete(listener);

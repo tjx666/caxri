@@ -11,7 +11,7 @@ Maintained per `.agents/skills/audit-architecture-debt/references/debt-ledger.md
 | Field                    | Value                                                                                                  |
 | ------------------------ | ------------------------------------------------------------------------------------------------------ |
 | **First audit**          | 2026-08-11 @ `eb9becbee1f9c77d914fa6d113fa6084dba587b5` (`main`)                                       |
-| **Last full audit**      | 2026-10-10 @ `daf68990` (`main`)                                                                       |
+| **Last full audit**      | 2026-10-11 @ `0497d1310` (`main`)                                                                      |
 | **Targeted review base** | 2026-08-24 @ `87b613a` ([issue caxri#165](https://github.com/tjx666/caxri/issues/165))                 |
 | **Full-audit scope**     | Repository-wide revalidation of every prior OPEN entry plus Server, protocol, CLI, and Agent deltas    |
 | **Maintenance**          | Revalidate after ownership/path refactors and at least quarterly; refresh semantic evidence, not paths |
@@ -31,20 +31,179 @@ Coverage or observability gap, Modernization opportunity, Intentional tradeoff.
 
 ## OPEN
 
-No OPEN entries as of 2026-10-10 @ `daf68990` plus the [issue caxri#1620](https://github.com/tjx666/caxri/issues/1620) fix batch.
+Full audit 2026-10-11 @ `0497d1310`; the fixable findings were resolved by the
+[issue caxri#1667](https://github.com/tjx666/caxri/issues/1667) batch below. Each remaining entry is
+tracked by its own issue because it needs a product decision or its own design.
 
-### Incremental audit coverage
+### AD-proc-chat-endpoint-identity: [OPEN · Contract drift · M]
 
-- Server authentication and lease replacement: capability fencing remains sound; the formerly tracked stale-socket lifecycle gap is resolved below.
-- Protocol: the `agent`, `configuration`, `desktop`, `domain`, `registry`, and `transport` boundaries remain complete from the package root.
-- CLI: production dependencies remain limited to `@caxri/agent-skills`, `@caxri/client`,
-  `@caxri/protocol`, and `zod`, with package imports through reviewed public exports.
-- Agent Endpoint and Peer Inbox: endpoint generation and duplicate-window cleanup are resolved below; inbox bytes, messages, waiters, receipts, pair traffic, expiry, and close cleanup remain bounded.
-- A path-only CI parser was not added: ledger evidence includes symbols and shorthand whose semantic validity cannot be established by file existence alone. The maintenance cadence above requires semantic revalidation.
+- **Summary:** An Agent running on the Chat surface has no Agent Endpoint identity, so `caxri agent message send` is refused and `caxri agent delegate create` runs as the operator instead of as that Agent.
+- **Evidence:** `apps/server/src/domains/agent-chat/chat-launch.ts` builds the provider environment from `agentCommandEnvironment` only; PTY Agents also get Endpoint and hook variables from `apps/server/src/domains/terminal/lifecycle-environment.ts`. `docs/agent-chat.md` now states the difference.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **Remediation target / Acceptance:** [issue caxri#1675](https://github.com/tjx666/caxri/issues/1675): either issue a per-start Endpoint generation for Chat or refuse the operator fallback for `automation === 'agent'`, covered by an integration test.
+
+### AD-sec-main-link-fetch-trust: [OPEN · Contract drift · S]
+
+- **Summary:** Rendering or hovering a transcript link makes Main request the origin's favicon or the full URL without excluding loopback or private hosts, and redirects are followed.
+- **Evidence:** `apps/desktop/src/main/link-previews.ts`, `apps/desktop/src/main/link-favicons.ts`; the outbound inventory is now in `.agents/skills/project-architecture/references/security.md`.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **Remediation target / Acceptance:** [issue caxri#1676](https://github.com/tjx666/caxri/issues/1676): host and final-URL policy with unit tests; the provider status page read gets a byte cap.
+
+### AD-sec-delegation-hidden-project: [OPEN · Contract drift · S]
+
+- **Summary:** Delegation bootstrap reuses a hidden Project for its root and creates a Session there that Desktop never shows.
+- **Evidence:** `apps/server/src/domains/db/delegation-context.ts` reuses the row found by root path without unhiding it; the registration-authority list in `security.md` now names the bootstrap.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **Remediation target / Acceptance:** [issue caxri#1677](https://github.com/tjx666/caxri/issues/1677): unhide or refuse, with an integration test.
+
+### AD-ui-native-title-tooltips: [OPEN · Contract drift · M]
+
+- **Summary:** Native `title` attributes bypass the shared Tooltip (keyboard users cannot read them), and "open this file" has five unshared implementations.
+- **Evidence:** `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-context-alerts.tsx` and other Renderer `title` uses; no lint rule guards them.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **Remediation target / Acceptance:** [issue caxri#1678](https://github.com/tjx666/caxri/issues/1678): lint rule plus one file-reference component.
+
+### AD-test-knip-before-merge: [OPEN · Coverage or observability gap · S]
+
+- **Summary:** An ordinary PR that leaves an unused export merges green and fails only the next nightly.
+- **Evidence:** `scripts/ci-execution-plan.ts` assigns `affected`; `scripts/run-ci-focused-checks.ts` runs no knip. Skills and `docs/ci-performance.md` now state this accurately.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **Remediation target / Acceptance:** [issue caxri#1679](https://github.com/tjx666/caxri/issues/1679): knip in the `affected` scope or `guards`.
+
+### AD-domain-implementation-barrels: [OPEN · Architecture debt · M]
+
+- **Summary:** Seven `index.ts` files hold 400 to 760 lines of implementation, contradicting the thin-barrel rule and seeding the pattern.
+- **Evidence:** `git`, `config`, `project-status`, `theme`, `providers/{codex,claude}` barrels and `packages/extension-api/src/index.ts`.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **Remediation target / Acceptance:** [issue caxri#1680](https://github.com/tjx666/caxri/issues/1680): barrels export only, enforced by a structure test.
+
+### AD-simplify-shared-single-flight: [OPEN · Modernization opportunity · M]
+
+- **Summary:** `SingleFlight` lives under Server domains, so Desktop Main and other owners hand-roll dedupe and per-key serialization with diverging eviction semantics.
+- **Evidence:** `apps/desktop/src/main/agent-provider-status.ts`, `apps/server/src/domains/agents/discovery.ts`.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **Remediation target / Acceptance:** [issue caxri#1681](https://github.com/tjx666/caxri/issues/1681): one primitive in `packages/system`.
+
+### AD-ext-virtual-tab-descriptors: [OPEN · Architecture debt · M]
+
+- **Summary:** Adding a virtual editor tab scheme still needs coordinated edits in eight or nine files without an exhaustive check.
+- **Evidence:** `packages/protocol/src/domain/virtual-tabs.ts` and its Renderer consumers; the status-bar symptom is resolved below.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **Remediation target / Acceptance:** [issue caxri#1682](https://github.com/tjx666/caxri/issues/1682): one exhaustive descriptor table.
+
+### AD-domain-line-budget-splits: [OPEN · Architecture debt · M]
+
+- **Summary:** Several Server modules say in their JSDoc that they exist to fit the line budget, and the Server composition root is spread across files.
+- **Evidence:** `apps/server/src/domains/service-handlers.ts`, `apps/server/src/domains/create-domain-services.ts`.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **Remediation target / Acceptance:** [issue caxri#1683](https://github.com/tjx666/caxri/issues/1683): composition root in one directory, no line-budget split rationale.
+
+### AD-perf-usage-locate-every-poll: [OPEN · Architecture debt · M]
+
+- **Summary:** Every Usage poll re-locates every outside-Caxri transcript; [PR caxri#1658](https://github.com/tjx666/caxri/pull/1658) widened the set to every conversation on the machine.
+- **Evidence:** `apps/server/src/domains/usage/service.ts` `syncOutside` creates a fresh locator per sync. The unbounded `describe` fan-out is resolved below.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 @ 0497d1310
+- **Remediation target / Acceptance:** [issue caxri#1585](https://github.com/tjx666/caxri/issues/1585): cache locations across polls.
 
 ---
 
 ## RESOLVED
+
+### AD-lifecycle-chat-start-after-park: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Archiving a Session or hiding its Project while its Chat was restarting or switching surface still spawned the provider in the parked Session.
+- **Evidence:** `apps/server/src/domains/agent-chat/chat-states.ts` `admit` refuses a Chat whose Session is archived or whose Project is hidden, the same predicate that parks a landing PTY launch; `service-admission.integration.test.ts` covers archive and hide landing mid-restart.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 with the fix batch
+- **Resolved:** 2026-10-11 via [issue caxri#1667](https://github.com/tjx666/caxri/issues/1667).
+- **Remediation target / Acceptance:** A restart racing archive or hide spawns the provider at most once (the original) and never in the parked Session.
+
+### AD-sec-chat-cwd-revalidation: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** A Chat provider started in whatever the Project folder had become (a symlink to elsewhere, or a removed folder reported as `executable_not_found`), while PTY launches revalidated it.
+- **Evidence:** `apps/server/src/domains/agent-chat/chat-launch.ts` `prepareChatLaunch` captures the cwd identity and revalidates it with `assertTerminalWorkingDirectory` as the last await before spawn; covered by `service-admission.integration.test.ts`.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 with the fix batch
+- **Resolved:** 2026-10-11 via [issue caxri#1667](https://github.com/tjx666/caxri/issues/1667).
+- **Remediation target / Acceptance:** A swapped or removed folder fails the Chat start with `spawn_failed` and no spawn.
+
+### AD-state-tree-children-view-context: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Extension tree children requested before a Session switch could be computed for, and delivered into, the other Session's tree.
+- **Evidence:** `viewContainers.treeChildren` carries `context` and `apps/server/src/core/extensions/service.ts` asserts it before and after activation and after the provider answers; mobile passes the checked context through `apps/server/src/core/mobile/panel-requests.ts`. Covered by `service-tree-children.test.ts`.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 with the fix batch
+- **Resolved:** 2026-10-11 via [issue caxri#1667](https://github.com/tjx666/caxri/issues/1667).
+- **Remediation target / Acceptance:** A stale-context tree read rejects with `CANCELLED` and never reaches the Extension Host.
+
+### AD-lifecycle-extension-host-restart-waiters: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** Restarting the Extension Host left callers waiting on the old startup for the 15s ready timeout and never aborted the old child's in-flight Extension API requests.
+- **Evidence:** `apps/server/src/core/extensions/supervisor.ts` `retireChild` is shared by `handleExit` and `restart`; `supervisor-restart.test.ts` covers both gaps.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 with the fix batch
+- **Resolved:** 2026-10-11 via [issue caxri#1667](https://github.com/tjx666/caxri/issues/1667).
+- **Remediation target / Acceptance:** Restart settles readiness waiters with `EXTENSION_HOST_UNAVAILABLE` and aborts old API requests immediately.
+
+### AD-perf-favicon-unbounded-read: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** A favicon without `content-length` was buffered whole before the 32 KiB cap applied, and a failed request was cached for the life of the app.
+- **Evidence:** `apps/desktop/src/main/read-capped-body.ts` is the one capped stream reader for favicons and link previews; `link-favicons.ts` forgets outright failures. Covered by `link-favicons.test.ts`.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 with the fix batch
+- **Resolved:** 2026-10-11 via [issue caxri#1667](https://github.com/tjx666/caxri/issues/1667).
+- **Remediation target / Acceptance:** An oversize chunked body is cancelled early; a failed origin is retried on the next render.
+
+### AD-perf-usage-describe-fanout: [RESOLVED · Architecture debt · S]
+
+- **Summary:** The outside-transcript sync started one filesystem walk per transcript at once, thousands on a long history.
+- **Evidence:** `apps/server/src/domains/usage/service.ts` `describeOutsideTranscripts` uses `mapWithConcurrency` with `SCAN_CONCURRENCY`; covered by the usage service test.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 with the fix batch
+- **Resolved:** 2026-10-11 via [issue caxri#1667](https://github.com/tjx666/caxri/issues/1667); cross-poll caching remains `AD-perf-usage-locate-every-poll`.
+- **Remediation target / Acceptance:** Peak concurrent describes never exceed the cap.
+
+### AD-ui-status-bar-virtual-tabs: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** The status bar showed file position and type for Markdown preview and Agent transcript tabs.
+- **Evidence:** `apps/desktop/src/renderer/src/features/status-bar/active-file-status-target.ts` defers to `isVirtualEditorTabPath`; unit test enumerates every virtual scheme; verified over CDP on a preview tab.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 with the fix batch
+- **Resolved:** 2026-10-11 via [issue caxri#1667](https://github.com/tjx666/caxri/issues/1667).
+- **Remediation target / Acceptance:** No virtual tab shows file status.
+
+### AD-ui-mermaid-custom-theme-cache: [RESOLVED · Confirmed defect · S]
+
+- **Summary:** After editing a custom theme's colors, Mermaid diagrams kept the old colors until reload.
+- **Evidence:** `apps/desktop/src/renderer/src/features/preview/markdown-diagrams.ts` keys initialization and the render cache on `mermaidThemeKey(theme)`; covered by `markdown-diagrams.test.ts`.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 with the fix batch
+- **Resolved:** 2026-10-11 via [issue caxri#1667](https://github.com/tjx666/caxri/issues/1667).
+- **Remediation target / Acceptance:** Same theme id with new colors re-initializes and misses the cache.
+
+### AD-ui-snapshot-failure-copy: [RESOLVED · Contract drift · S]
+
+- **Summary:** Any failed Projects-and-Sessions read, including a background refresh, said "Unable to attach to the Runtime", an internal term.
+- **Evidence:** `apps/desktop/src/renderer/src/stores/workbench-snapshot-failure.ts` distinguishes load from refresh in glossary terms; `e2e/support/error-gate.ts` classifies the new copy.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 with the fix batch
+- **Resolved:** 2026-10-11 via [issue caxri#1667](https://github.com/tjx666/caxri/issues/1667).
+- **Remediation target / Acceptance:** Load and refresh failures use distinct copy; cancellations stay silent.
+
+### AD-test-preload-event-errors: [RESOLVED · Coverage or observability gap · S]
+
+- **Summary:** Preload swallowed Server event-stream failures, and its IPC channel literals were not bound to the protocol constants.
+- **Evidence:** `apps/desktop/src/preload/index.ts` logs event-stream failures without payloads; the literals stay (a sandboxed preload cannot load a shared chunk) but are typed against `RENDERER_ERROR_CHANNELS` and `RENDERER_DIAGNOSTIC_CHANNEL`. Covered by `preload/__tests__/index.test.ts`.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 with the fix batch
+- **Resolved:** 2026-10-11 via [issue caxri#1667](https://github.com/tjx666/caxri/issues/1667).
+- **Remediation target / Acceptance:** A failed event stream is logged; renaming a protocol channel fails typecheck.
+
+### AD-ext-main-owned-domain-stubs: [RESOLVED · Architecture debt · S]
+
+- **Summary:** Every new Desktop-owned method forced a stub in `apps/server/src/domains`, and most stubs claimed Electron Main owned methods that Server Core handles itself.
+- **Evidence:** `apps/server/src/domains/domain-services.ts` types `DomainHandlers` over `DomainOperation`, derived from protocol owner metadata and `desktopServerOperationIds`; `resolveDomainHandler` in `apps/server/src/core/operation-dispatcher.ts` rejects an unowned method with `CONFLICT`; `core-routed.ts` keeps only the Core-handled entries. Covered by `operation-dispatcher.test.ts`.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 with the fix batch
+- **Resolved:** 2026-10-11 via [issue caxri#1667](https://github.com/tjx666/caxri/issues/1667).
+- **Remediation target / Acceptance:** Adding a Desktop-owned method typechecks with no edit under `apps/server/src/domains`.
+
+### AD-toolchain-agent-doc-drift: [RESOLVED · Contract drift · S]
+
+- **Summary:** Skills and docs disagreed with the toolchain: an 800-line split threshold against the 600-line ratchet, knip claimed on every PR, a fully self-hosted CI, an "LRU" link cache, and Chat claimed to share the PTY Agent environment.
+- **Evidence:** `source-layout`, `quality-check`, and `pull-request` skills; `docs/quality-toolchain.md`, `docs/ci-performance.md`, `docs/self-hosted-runner.md`, `docs/agent-chat.md`; `security.md` lists Main's outbound requests and the delegation bootstrap.
+- **First seen:** 2026-10-11 @ 0497d1310 · **Last verified:** 2026-10-11 with the fix batch
+- **Resolved:** 2026-10-11 via [issue caxri#1667](https://github.com/tjx666/caxri/issues/1667).
+- **Remediation target / Acceptance:** Each statement matches the cited script or workflow.
 
 ### AD-lifecycle-chat-closed-queue-respawn: [RESOLVED · Confirmed defect · S]
 
@@ -476,7 +635,7 @@ Recorded so repeat audits do not reclassify them as findings.
 | IT-disk-wins-dirty-buffer           | External disk changes replace dirty editor buffers without a conflict dialog                                                                                                                                                             | architecture / `external-sync`                                                                     |
 | IT-unsaved-buffers-not-durable      | Document bodies stay Renderer-local; SQLite holds tab metadata only                                                                                                                                                                      | `session_state` / session-view                                                                     |
 | IT-terminal-snapshot-finalization   | Parsed snapshot encoding 3 persists its source grid; unclean Server Core loss may drop latest visual state                                                                                                                               | `apps/server/src/domains/terminal/snapshot-persistence.ts`, TerminalManager                        |
-| IT-copy-not-journaled               | `files.copy` is best-effort, may leave partial trees, Main wait non-expiring; create/rename/move are journaled                                                                                                                           | `supervisor.ts`, `mutation-journal`, partial-copy tests                                            |
+| IT-copy-not-journaled               | `files.copy` is best-effort, may leave partial trees, Main wait non-expiring; create/rename/move are journaled                                                                                                                           | `packages/protocol/src/transport/request-lifetime.ts`, `mutation-journal`, partial-copy tests      |
 | IT-project-status-fixed-allowlist   | Project Status external CLIs are the closed `ExternalStatusSource` set (gh, git, lh, linear, vc); not a plugin adapter surface                                                                                                           | `apps/server/src/domains/external-status/command.ts`, `apps/server/src/domains/project-status/`    |
 | IT-pe-flag-redaction-only           | Process Explorer redacts common credential **flag** argv shapes only (best-effort); not full `redactSecretText`                                                                                                                          | `process-explorer.ts` `redactProcessName`                                                          |
 | IT-cli-global-wrapper               | Global CLI linking registers a dependency-free wrapper around the verified standalone bundle, because pnpm 12 stable cannot globally register the CLI workspace directly (absorbs the former duplicate `IT-pnpm-12-global-resolver` row) | `apps/cli/scripts/link-global.ts`                                                                  |
@@ -486,7 +645,7 @@ Recorded so repeat audits do not reclassify them as findings.
 | IT-window-level-error-boundary      | Render exceptions recover via a window-level ErrorBoundary plus reload; only the editor pane nests one, so a failed lazy tab stays in its pane while a Terminal or Agent Chat pane throw reloads the window                              | `error-boundary.tsx`, Renderer entries, `editor-error-boundary.tsx`                                |
 | IT-eslint-renderer-import-gate      | Renderer Node/Electron isolation is ESLint `no-restricted-imports` plus sandbox, not a bundle AST walk                                                                                                                                   | `eslint.config.ts`, `BrowserWindow` webPreferences                                                 |
 | IT-go-cooperative-ledger            | Go receipts validate cooperative exact-head state and lineage; they do not execute commands, derive findings, or form an adversarial security boundary                                                                                   | `.agents/skills/go/SKILL.md`                                                                       |
-| IT-single-self-hosted-runner        | One machine owns all CI/Release labels with queued offline behavior and no hosted fallback; this is an availability/cost tradeoff, not a security boundary                                                                               | `docs/self-hosted-runner.md`                                                                       |
+| IT-single-self-hosted-runner        | One machine owns the CI and Release workflows with queued offline behavior; only the required `guards` check runs on a GitHub-hosted runner. This is an availability/cost tradeoff, not a security boundary                              | `docs/self-hosted-runner.md`                                                                       |
 | IT-ci-workflow-source-contract      | Ordinary workflow contracts use source-shape/order smoke assertions; trust clauses have structured YAML binding, and neither layer evaluates arbitrary GitHub expression equivalence                                                     | `ci-workflow-contract.test.ts`, `ci-trust-policy.test.ts`                                          |
 | IT-skill-shared-redaction-helper    | Repository skill scripts reuse the browser-safe shared redaction helper instead of duplicating secret-shape policy in a skill-only package                                                                                               | `note-safety.ts`, `packages/utils/src/redaction.ts`                                                |
 | IT-runner-cleanup-primary-error     | Runner cleanup attempts every stage, reports all failed stages in the summary, and throws the first causal error rather than changing the CLI contract to `AggregateError`                                                               | `self-hosted-runner.ts`, `self-hosted-runner.test.ts`                                              |
@@ -497,10 +656,11 @@ Recorded so repeat audits do not reclassify them as findings.
 
 ---
 
-## Current priority guide (OPEN at 2026-10-10)
+## Current priority guide (OPEN at 2026-10-11)
 
-Every tracked OPEN entry is resolved. New incremental-audit findings are routed through dedicated
-follow-up issues so their lifecycle and acceptance evidence remain independently reviewable.
+**Top priorities:** `AD-proc-chat-endpoint-identity` ([issue caxri#1675](https://github.com/tjx666/caxri/issues/1675)) → `AD-perf-usage-locate-every-poll` → `AD-sec-main-link-fetch-trust` → `AD-ext-virtual-tab-descriptors`.
+
+**Quick wins (S):** `AD-test-knip-before-merge` · `AD-sec-delegation-hidden-project` (after its product decision) · `AD-sec-main-link-fetch-trust`.
 
 ## Historical priority guide (all resolved)
 

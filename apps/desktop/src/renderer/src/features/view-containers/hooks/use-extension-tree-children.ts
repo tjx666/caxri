@@ -5,6 +5,7 @@ import type { TreeItemDto } from '@caxri/protocol';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../../../lib/caxri';
+import { isCancelledRequest } from '../../../stores/toasts';
 import type { ExtensionTreeScope } from '../extension-tree-client';
 import {
     cacheTreeChildren,
@@ -164,7 +165,7 @@ export function useExtensionTreeChildren(
                 return next;
             });
             try {
-                const result = await requestTreeChildren(scope.viewId, parentHandle, requestId);
+                const result = await requestTreeChildren(scope, parentHandle, requestId);
                 if (requests.current.get(parentHandle) !== requestId) return;
                 if (result.reset) resetLoadedChildren();
                 const resultParentHandle = result.reset ? ROOT_HANDLE : parentHandle;
@@ -177,6 +178,11 @@ export function useExtensionTreeChildren(
                 });
             } catch (error) {
                 if (requests.current.get(parentHandle) !== requestId) return;
+                /**
+                 * CANCELLED means this tree's Session is no longer active on the Server: the view is being retired, so
+                 * the read is superseded rather than failed and must not paint an error into the branch.
+                 */
+                if (isCancelledRequest(error)) return;
                 setErrors((current) =>
                     new Map(current).set(
                         parentHandle,
