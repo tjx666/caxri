@@ -15,6 +15,7 @@ import {
     parseAgentStatusTab,
     parseAgentTaskTab,
     parseAgentTranscriptTab,
+    parseAgentTurnReviewTab,
     parseFilePreviewTab,
     parseGitDiffTab,
 } from '@caxri/protocol';
@@ -54,6 +55,14 @@ const AgentTranscriptEditor = lazy(async () => {
 const AgentChatTaskTab = lazy(async () => {
     const module = await import('../agent-chat/agent-chat-task-tab');
     return { default: module.AgentChatTaskTab };
+});
+
+/**
+ * Lazy for the same reason: only a turn review opened from a Chat needs it.
+ */
+const AgentChatTurnReviewTab = lazy(async () => {
+    const module = await import('../agent-chat/agent-chat-turn-review-tab');
+    return { default: module.AgentChatTurnReviewTab };
 });
 
 const AgentStatusPage = lazy(async () => {
@@ -230,6 +239,13 @@ function EditorSurfaceContent({ paneId, path }: { paneId: string; path: string }
         return (
             <Suspense fallback={<div className={emptyWorkClassName}>Loading task…</div>}>
                 <AgentChatTaskTab key={path} tab={agentTaskTab} />
+            </Suspense>
+        );
+    const turnReviewTab = parseAgentTurnReviewTab(path);
+    if (turnReviewTab)
+        return (
+            <Suspense fallback={<div className={emptyWorkClassName}>Loading changes…</div>}>
+                <AgentChatTurnReviewTab key={path} tab={turnReviewTab} />
             </Suspense>
         );
     const agentStatusTab = parseAgentStatusTab(path);

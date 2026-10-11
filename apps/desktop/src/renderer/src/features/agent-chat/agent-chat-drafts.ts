@@ -121,6 +121,43 @@ export function writeAgentChatDraft(terminalId: string, text: string): void {
     persistDrafts();
 }
 
+/**
+ * The mounted composer of each Chat, which takes an appended text into its live draft. A composer reads the stored
+ * draft only when it mounts, so writing the store alone would not reach one already on screen.
+ */
+const appendListeners = new Map<string, (text: string) => void>();
+
+/**
+ * Registers the mounted composer of `terminalId` to receive {@link appendToAgentChatDraft}. Returns the unsubscribe.
+ */
+export function subscribeAgentChatDraftAppends(
+    terminalId: string,
+    listener: (text: string) => void,
+): () => void {
+    appendListeners.set(terminalId, listener);
+    return () => {
+        if (appendListeners.get(terminalId) === listener) appendListeners.delete(terminalId);
+    };
+}
+
+/**
+ * `text` as a new paragraph after the draft, or the whole draft when it is empty.
+ */
+export function draftWithParagraph(draft: string, text: string): string {
+    const kept = draft.trimEnd();
+    return kept ? `${kept}\n\n${text}` : text;
+}
+
+/**
+ * Adds `text` to the end of a Chat's draft without sending it: into the composer on screen when it is mounted,
+ * otherwise into the stored draft it opens with.
+ */
+export function appendToAgentChatDraft(terminalId: string, text: string): void {
+    const listener = appendListeners.get(terminalId);
+    if (listener) listener(text);
+    else writeAgentChatDraft(terminalId, draftWithParagraph(readAgentChatDraft(terminalId), text));
+}
+
 export function readAgentChatAttachments(terminalId: string): AgentChatAttachment[] {
     return attachments.get(terminalId) ?? [];
 }

@@ -2,6 +2,7 @@ import {
     agentStatusTabPath,
     agentTaskTabPath,
     agentTranscriptTabPath,
+    agentTurnReviewTabPath,
     externalEditorTabPath,
     gitChangesDiffTabPath,
     gitFileDiffTabPath,
@@ -72,6 +73,17 @@ describe('documentTabPresentation', () => {
             icon: 'agent-task',
             label: 'Subagent',
         });
+    });
+
+    it('labels an Agent Chat turn review as the turn changes, with the changes glyph', () => {
+        expect(documentTabPresentation(agentTurnReviewTabPath('terminal-1', 'turn-1'), {})).toEqual(
+            {
+                fileIconName: 'changes.diff',
+                icon: 'file',
+                label: 'Turn changes',
+                labelTooltip: 'Turn changes',
+            },
+        );
     });
 
     it('names an Agent status tab after its Agent, with the gauge glyph', () => {

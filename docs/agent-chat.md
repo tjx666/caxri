@@ -597,6 +597,26 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   a GitHub or Linear MCP create/update/save call. Collection lives in `agent-chat-turn-artifacts.ts`
   and `agent-chat-trackers.ts`, Undo in `agent-chat-undo.ts`. Desktop only; the phone shows the
   plain timeline.
+- Review on that card opens the turn as one diff in a `Turn changes` tab beside the Chat, in the
+  side pane task tabs use (`caxri-agent-turn-review://<terminal>/<turn>`). It lists the same files
+  the card does, each with its Git status letter, Project-relative path, `+A -D`, and every edit
+  the turn made to it in order; the projection is read from the shared `agentChat.read` cache, so
+  nothing new crosses IPC. Hovering a line of code shows `+`, which opens a comment on it;
+  Shift-clicking `+` on another line of the same hunk extends the range; a line in another hunk
+  starts the range over there, since the hunks' line numbers need not be contiguous. Cmd+Enter or Add to Chat
+  appends the comment to the Chat's message as a new paragraph without sending it, in the same
+  form a Git diff review sends a Terminal Agent (`formatReviewComment` in
+  `packages/protocol/src/domain/git-review-contract.ts`): `@path#Lx-Ly (Agent turn diff, <side>
+side)`, the selected diff lines with their signs in a `diff` fence, then the comment. A range of
+  removed lines alone cites the old file's line numbers; any other range cites the new file's. A
+  file the turn edited more than once cites `Agent turn diff, edit <n> of <m>`, because each edit
+  numbers its lines against the file as that edit found it.
+  Escape cancels. Added comments stay under their lines for as long as the tab is open and are not
+  stored anywhere else; the composer holds the text. When the Chat's composer is on screen the
+  comment lands in it at once (`appendToAgentChatDraft` in `agent-chat-drafts.ts`), otherwise in
+  the draft it opens with. The review covers finished turns, where the card appears, and only the
+  changes the provider reported; it takes no Git snapshot. Logic lives in
+  `agent-chat-turn-review.ts`.
 
 ## Mobile
 

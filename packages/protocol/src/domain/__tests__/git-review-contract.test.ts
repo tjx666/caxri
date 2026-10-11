@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { GitReviewComment } from '../git-review-contract';
 import {
     formatGitReviewComments,
+    formatReviewComment,
     formatReviewTerminalInput,
     isGitReviewPromptInline,
     reviewSideLabel,
@@ -58,5 +59,31 @@ describe('Git review comment formatting', () => {
     it('treats a prompt at or under the inline limit as inline', () => {
         expect(isGitReviewPromptInline('x'.repeat(4_000))).toBe(true);
         expect(isGitReviewPromptInline('x'.repeat(4_001))).toBe(false);
+    });
+
+    it('fences a snippet in a language, longer than any fence inside it', () => {
+        expect(
+            formatReviewComment(
+                {
+                    path: '/project/README.md',
+                    side: 'modified',
+                    startLine: 4,
+                    endLine: 4,
+                    snippet: '+```ts',
+                    text: 'Close this block',
+                },
+                '/project',
+                'Agent turn',
+                'diff',
+            ),
+        ).toBe(
+            [
+                '@README.md#L4 (Agent turn, modified side)',
+                '````diff',
+                '+```ts',
+                '````',
+                'Close this block',
+            ].join('\n'),
+        );
     });
 });
