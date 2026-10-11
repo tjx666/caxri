@@ -16,20 +16,21 @@ const rescan = (serial: string) =>
         `file://${REMOTE_IMAGE}`,
     ]);
 
+const queryGallery = (serial: string) =>
+    adbShell(serial, ['content', 'query', '--uri', MEDIA_URI, '--projection', '_display_name']);
+
 /**
  * Puts the repository's one acceptance photo in the disposable emulator's gallery, so the system photo picker shows a
- * single tile. Refuses a gallery that already holds images: they could belong to someone and would end up in evidence.
+ * single tile. A copy an interrupted run left behind is removed first; any other image is refused, because it could
+ * belong to someone and would end up in evidence.
  */
 export async function addMobileGalleryImage(serial: string): Promise<void> {
-    const existing = await adbShell(serial, [
-        'content',
-        'query',
-        '--uri',
-        MEDIA_URI,
-        '--projection',
-        '_id',
-    ]);
-    if (existing.includes('Row:'))
+    await removeMobileGalleryImage(serial);
+    await waitForMobile(
+        () => queryGallery(serial),
+        (result) => !result.includes(IMAGE_NAME),
+    );
+    if ((await queryGallery(serial)).includes('Row:'))
         throw new Error('Disposable Android gallery contains unrelated images');
     await pushMobileFixture(
         serial,
@@ -38,15 +39,7 @@ export async function addMobileGalleryImage(serial: string): Promise<void> {
     );
     await rescan(serial);
     await waitForMobile(
-        () =>
-            adbShell(serial, [
-                'content',
-                'query',
-                '--uri',
-                MEDIA_URI,
-                '--projection',
-                '_display_name',
-            ]),
+        () => queryGallery(serial),
         (result) => result.includes(IMAGE_NAME),
     );
 }
