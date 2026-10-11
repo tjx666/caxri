@@ -36,6 +36,9 @@ export function agentChatFailureMessage(
         case 'resume_failed': {
             return 'The previous conversation could not be resumed.';
         }
+        case 'conversation_in_use': {
+            return `This conversation is open in another ${providerName} app or window. Close it there, then retry.`;
+        }
         case 'unsupported_version': {
             return `This ${providerName} version does not support Chat. Update the ${providerName} CLI.`;
         }

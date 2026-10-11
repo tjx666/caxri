@@ -343,6 +343,11 @@ export const agentChatFailureReasonSchema = z.enum([
     'handshake_failed',
     'process_exited',
     'resume_failed',
+    /**
+     * The bound conversation is open in another client of the same provider (for example the Codex app), which holds
+     * its only writer. Closing it there and retrying resumes it here.
+     */
+    'conversation_in_use',
     'unsupported_version',
 ]);
 
