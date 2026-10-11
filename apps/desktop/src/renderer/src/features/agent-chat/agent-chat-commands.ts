@@ -7,7 +7,9 @@ import type {
 
 import { caxri } from '../../lib/caxri';
 import { pushToast, tryCommand } from '../../stores/toasts';
+import { didSelectSession } from '../session/session-commands';
 import { createTerminalForSession } from '../terminal/terminal-commands';
+import { writeAgentChatDraft } from './agent-chat-drafts';
 import { agentChatHandoffPrompt } from './agent-chat-handoff';
 
 /**
@@ -65,6 +67,23 @@ export async function didRewindAgentChat(
         isSent = true;
     });
     return isSent;
+}
+
+/**
+ * "Fork from here": copies the conversation before message `itemId` into a Chat in a new Session, puts the message's
+ * text in that Chat's composer to send as it is or change first, and opens the Session. The draft is written before the
+ * selection so the new composer mounts with it.
+ */
+export async function forkAgentChat(
+    terminalId: string,
+    itemId: string,
+    text: string,
+): Promise<void> {
+    await tryCommand('Conversation could not be forked', async () => {
+        const forked = await caxri.request('agentChat.fork', { terminalId, itemId });
+        if (text) writeAgentChatDraft(forked.terminalId, text);
+        await didSelectSession(forked.sessionId);
+    });
 }
 
 /**

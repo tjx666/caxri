@@ -1,7 +1,9 @@
 /**
  * The fake Grok ACP agent's `_x.ai/rewind/points` and `_x.ai/rewind/execute`, which "Edit from here" uses to drop the
- * prompts after an earlier message.
+ * prompts after an earlier message, and `_x.ai/session/fork`, which "Fork from here" uses to copy the prompts before
+ * one into a new session.
  */
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -80,4 +82,35 @@ export function rewindExecute(
         );
     }
     return { success: true, prompt_text: promptTextAtTarget };
+}
+
+/**
+ * Writes a new session holding the prompts before `targetPromptIndex` of the stored source session, without opening it,
+ * and logs the call to `forks.jsonl`. `sessionPath` maps a session id to its stored file.
+ */
+export function forkSession(
+    parameters: Json,
+    {
+        stateDirectory,
+        sessionPath,
+    }: { stateDirectory: string; sessionPath: (id: string) => string },
+): Json {
+    const sourceSessionId = String(parameters.sourceSessionId);
+    if (!fs.existsSync(sessionPath(sourceSessionId)))
+        return { error: { code: -32603, message: 'Path not found.' } };
+    const targetPromptIndex = Number(parameters.targetPromptIndex);
+    const source = JSON.parse(
+        fs.readFileSync(sessionPath(sourceSessionId), 'utf8'),
+    ) as RewindSession;
+    const frameIndex = promptFrameIndexes(source.frames).at(targetPromptIndex);
+    if (frameIndex === undefined)
+        return { error: { code: -32602, message: `No prompt ${targetPromptIndex}` } };
+    const newSessionId = crypto.randomUUID();
+    const forked = { ...source, id: newSessionId, frames: source.frames.slice(0, frameIndex) };
+    fs.writeFileSync(sessionPath(newSessionId), JSON.stringify(forked));
+    fs.appendFileSync(
+        path.join(stateDirectory, 'forks.jsonl'),
+        `${JSON.stringify({ sourceSessionId, newSessionId, targetPromptIndex })}\n`,
+    );
+    return { result: { newSessionId, sourceSessionId, targetPromptIndex } };
 }

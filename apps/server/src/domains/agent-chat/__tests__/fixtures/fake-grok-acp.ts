@@ -30,7 +30,7 @@ import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
 
-import { rewindExecute, rewindPoints } from './fake-grok-rewind.ts';
+import { forkSession, rewindExecute, rewindPoints } from './fake-grok-rewind.ts';
 
 interface RpcMessage {
     id?: number | string;
@@ -550,6 +550,10 @@ function handle(message: RpcMessage) {
                     save,
                 }),
             );
+            return;
+        }
+        case '_x.ai/session/fork': {
+            send({ id: message.id, ...forkSession(parameters, { stateDirectory, sessionPath }) });
             return;
         }
         case 'session/cancel': {

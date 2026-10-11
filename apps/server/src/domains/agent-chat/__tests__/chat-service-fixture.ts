@@ -54,7 +54,8 @@ export async function fixture(
         probeTerminal: vi.fn<() => void>(),
         prepareTerminalStart: vi.fn<() => void>(),
     };
-    const logger = { write: vi.fn() } as unknown as StructuredLogger;
+    const logWrite = vi.fn<StructuredLogger['write']>();
+    const logger = { write: logWrite } as unknown as StructuredLogger;
     const agentEnvironment = {
         homeDirectory: directory,
         variables: { CLAUDE_CONFIG_DIR: claudeConfigDirectory },
@@ -168,6 +169,7 @@ export async function fixture(
     return {
         database,
         agentEnvironment,
+        logWrite,
         claudeConfigDirectory,
         fakeLog,
         service,

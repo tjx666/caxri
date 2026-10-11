@@ -70,6 +70,12 @@ export const logEventCatalog = {
          * were restored, the turns removed, and the duration through the restart. Never carries message text or paths.
          */
         rewound: 'agent_chat.rewound',
+        /**
+         * One "Fork from here" with a closed `outcome` (`forked`, `refused`, `failed`), the error `code` when it did
+         * not fork, the provider, the turns the fork keeps, and the duration through creating the new Session. Never
+         * carries message text or paths.
+         */
+        forked: 'agent_chat.forked',
     },
     agent: {
         automaticNamingFinished: 'agent.automatic_naming_finished',

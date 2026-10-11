@@ -1,6 +1,8 @@
 /**
- * The fake Codex app-server's `thread/revert`, which "Edit from here" uses to drop the turns after an earlier message.
+ * The fake Codex app-server's `thread/revert`, which "Edit from here" uses to drop the turns after an earlier message,
+ * and `thread/fork`, which "Fork from here" uses to copy the turns before one into a new thread.
  */
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -37,4 +39,28 @@ export function revertThread(
         `${JSON.stringify({ threadId: thread.id, kept: index })}\n`,
     );
     return { result: { thread: { id: thread.id, turns: [] }, turnsBackwardsCursor: null } };
+}
+
+/**
+ * Writes a new thread holding the turns before `beforeTurnId`, and logs the call to `thread-forks.jsonl`. Unlike a
+ * revert, a running turn does not block a fork of earlier turns. `threadPath` maps a thread id to its stored file.
+ */
+export function forkThread(
+    thread: FakeThread,
+    beforeTurnId: unknown,
+    { stateDirectory, threadPath }: { stateDirectory: string; threadPath: (id: string) => string },
+): Json {
+    const index = thread.turns.findIndex((turn) => turn.id === beforeTurnId);
+    if (index === -1) return { error: { code: -32600, message: 'no such turn to fork before' } };
+    const forked: FakeThread = {
+        ...thread,
+        id: crypto.randomUUID(),
+        turns: thread.turns.slice(0, index),
+    };
+    fs.writeFileSync(threadPath(forked.id), JSON.stringify(forked));
+    fs.appendFileSync(
+        path.join(stateDirectory, 'thread-forks.jsonl'),
+        `${JSON.stringify({ threadId: thread.id, forkedId: forked.id, kept: index })}\n`,
+    );
+    return { result: { thread: { id: forked.id, turns: [] } } };
 }

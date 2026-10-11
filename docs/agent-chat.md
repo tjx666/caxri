@@ -410,6 +410,36 @@ with the reason. Grok Build names a prompt by its index in the whole session, wh
 not hold in full, so Caxri counts back from the newest of `_x.ai/rewind/points` and checks that the
 point's preview matches the message before rewinding. Mobile does not offer the action.
 
+## Fork from here
+
+Beside "Edit from here", a message that started a turn offers "Fork from here". It copies the
+conversation up to just before that message into a new Agent Session through the provider's own
+fork, opens it as a Chat in a new Session of the same Project and cwd, puts the message's text in
+the new composer, and selects that Session. The source Chat is not touched, and nothing is merged
+back. `agentChat.fork` creates the Session without selecting it; the Renderer writes the composer
+draft first and then selects it, so the new composer mounts with the text.
+
+- The availability rule is the edit's (`agentChatRewindTarget`): a running turn disables the
+  action, and a steered message offers none. A message with images forks too; only its text
+  returns to the composer.
+- Forking the first message of a conversation the Chat holds in full asks no provider and opens an
+  empty Chat: Codex writes no rollout until a thread's first turn, so an empty fork could not be
+  resumed.
+- The new Session's Chat Terminal is bound to the forked Agent Session before it starts, so its
+  start is an ordinary resume. File checkpoints stay with the source: an edit in the fork can
+  revert only files its own turns changed.
+
+| Provider    | Fork                                                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------------------- |
+| Codex       | `thread/fork { beforeTurnId }` (experimental), then `thread/unsubscribe`, since the new Chat resumes it elsewhere   |
+| Claude Code | The Agent SDK's `forkSession({ upToMessageId })` at the record a rewind would resume at, over the Chat's own folder |
+| Grok Build  | `_x.ai/session/fork { targetPromptIndex }`, the index a rewind takes; the new Chat opens it with `session/load`     |
+
+The Agent SDK resolves Claude's settings folder from Server Core's environment, once per process,
+while each Chat runs Claude Code with its own environment, so `forkClaudeSession` hands
+`forkSession` a session store over that Chat's `CLAUDE_CONFIG_DIR` transcripts. Mobile does not
+offer the action.
+
 ## Approvals and questions
 
 Claude Code asks through the SDK's `canUseTool` callback, keyed by the tool use id. `Bash` is a
@@ -720,7 +750,9 @@ requests, rejected requests, and dropped frames), `agent_chat.turn_finished` (st
 (closed reason and queue depth), `agent_chat.delivery_checked` (request method and closed outcome
 `delivered` or `unknown` after a turn request timed out), `agent_chat.task_finished` (task kind, final status,
 background flag, duration), and `agent_chat.rewound` (closed outcome `rewound`, `refused`, or
-`failed`, provider, whether files were reverted, turns removed, duration). None of them carries
+`failed`, provider, whether files were reverted, turns removed, duration), and `agent_chat.forked`
+(closed outcome `forked`, `refused`, or `failed`, the error code when it did not fork, provider,
+turns kept, duration). None of them carries
 message text, command output, provider stderr, or protocol bodies.
 
 ## Testing
@@ -735,7 +767,9 @@ slash list for each provider. The Grok fake persists its frames so `session/load
 and takes no images. All three implement their provider's rewind (Codex `thread/revert`, the
 Claude transcript chain with `--resume-session-at` and `rewind_files`, Grok `_x.ai/rewind/*`) and
 log each call to a JSON-lines file in their state directory, so `service-rewind.integration.test.ts`
-checks the request and the history a later resume reads. Unit, integration, and fake-mode E2E tests drive them; no test launches the
+checks the request and the history a later resume reads. The Codex and Grok fakes also fork
+(`thread/fork`, `_x.ai/session/fork`), and Claude forks through the SDK over the fake's real
+transcript, so `service-fork.integration.test.ts` resumes each fork and reads its history. Unit, integration, and fake-mode E2E tests drive them; no test launches the
 real CLI or calls a model.
 
 Streaming Markdown has a machine-independent CI gate in
@@ -761,5 +795,5 @@ reasoning effort picker and images (its ACP agent advertises `image: false`). Gr
 of the real-Agent smoke. On mobile, a
 Chat shows no plan or context usage yet, shows an image as its count (`[1 image]`) instead of
 a thumbnail, cannot attach images or run slash commands, does not show background tasks or the
-follow-up queue, cannot edit from an earlier message, older history beyond the window stays on
+follow-up queue, cannot edit or fork from an earlier message, older history beyond the window stays on
 the computer, and switching surface is Desktop-only.
