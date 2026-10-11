@@ -103,6 +103,14 @@ export function authorizedExternalDocument(documentId: string) {
 }
 
 /**
+ * Whether a Caxri save is still writing this document. The save truncates before it writes, so a read in that window
+ * would see a partial file.
+ */
+export function isExternalDocumentWriting(documentId: string): boolean {
+    return (documents.get(documentId)?.writes ?? 0) > 0;
+}
+
+/**
  * The path a registered document was read from, without touching the filesystem; the watcher only needs to know which
  * folder to observe, and every read it triggers is reauthorized.
  */

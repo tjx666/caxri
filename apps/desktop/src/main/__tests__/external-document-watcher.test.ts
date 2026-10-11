@@ -12,6 +12,8 @@ type DiskState = 'busy' | 'changed' | 'unchanged';
 
 function setup(diskState = vi.fn((): Promise<DiskState> => Promise.resolve('changed'))) {
     const listeners = new Map<string, (filename?: string) => void>();
+    const failures = new Map<string, () => void>();
+    const opened: string[] = [];
     const closed: string[] = [];
     const emitted: string[] = [];
     const watcher = createExternalDocumentWatcher({
@@ -19,12 +21,14 @@ function setup(diskState = vi.fn((): Promise<DiskState> => Promise.resolve('chan
         diskState,
         pathOf: (documentId) => PATHS[documentId],
         settleMs: 100,
-        watchDirectory: (directory, onChange) => {
+        watchDirectory: (directory, onChange, onError) => {
+            opened.push(directory);
             listeners.set(directory, onChange);
+            failures.set(directory, onError);
             return { close: () => closed.push(directory) };
         },
     });
-    return { closed, diskState, emitted, listeners, watcher };
+    return { closed, diskState, emitted, failures, listeners, opened, watcher };
 }
 
 beforeEach(() => {
@@ -99,5 +103,15 @@ describe('createExternalDocumentWatcher', () => {
 
         expect(closed).toEqual(['/notes']);
         expect(emitted).toEqual([]);
+    });
+
+    it('watches a folder afresh after its watch failed, as when it was removed and created again', () => {
+        const { failures, opened, watcher } = setup();
+        watcher.setWatched(['guide']);
+
+        failures.get('/notes')!();
+        watcher.setWatched(['guide', 'todo']);
+
+        expect(opened).toEqual(['/notes', '/notes']);
     });
 });
