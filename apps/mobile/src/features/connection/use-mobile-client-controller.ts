@@ -385,8 +385,9 @@ export const useMobileClientController = (): MobileClientContextValue => {
     const forgetDevice = useCallback(async (): Promise<void> => {
         pairingAttempts.invalidate();
         replaceConnection(null);
-        await expoMobileCredentialStore.clear();
+        // Cleared first, so a failing secure store cannot leave the forgotten computer's content behind.
         readCache.clear();
+        await expoMobileCredentialStore.clear();
         setCredential(null);
         setLastSeenAt(null);
         setRetryAttempt(0);
