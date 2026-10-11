@@ -11,6 +11,7 @@ import {
     agentChatTasksByItem,
     agentChatTaskStrip,
     agentChatTaskUsageSummary,
+    agentChatTurnSubagents,
     canStopAgentChatTask,
     findAgentChatTask,
     formatAgentChatTaskElapsed,
@@ -80,6 +81,42 @@ describe('agentChatTaskLinkForItem', () => {
 
     it('leaves ordinary rows unlinked', () => {
         expect(agentChatTaskLinkForItem(toolCall('read-1', 'Read'), byItem)).toBeUndefined();
+    });
+});
+
+describe('agentChatTurnSubagents', () => {
+    it("lists a turn's subagents once each, leaving out shells and ordinary rows", () => {
+        const byItem = agentChatTasksByItem([
+            task({
+                id: 'agent-1',
+                itemId: 'toolu-1',
+                title: 'Survey the project',
+                status: 'completed',
+            }),
+            task({ id: 'shell-1', kind: 'shell', itemId: 'command-1' }),
+        ]);
+        const command: AgentChatItem = {
+            id: 'command-1',
+            type: 'command',
+            command: 'bun run dev',
+            output: '',
+            status: 'completed',
+        };
+        expect(
+            agentChatTurnSubagents(
+                [
+                    toolCall('read-1', 'Read'),
+                    toolCall('toolu-1', 'Task'),
+                    command,
+                    toolCall('toolu-9', 'Agent'),
+                    toolCall('toolu-1', 'Task'),
+                ],
+                byItem,
+            ),
+        ).toEqual([
+            { taskId: 'agent-1', title: 'Survey the project' },
+            { taskId: 'toolu-9', title: undefined },
+        ]);
     });
 });
 
