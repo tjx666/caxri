@@ -108,19 +108,28 @@ function mergeFailure(error: unknown): CaxriError {
 }
 
 /**
+ * A GitHub pull request named by its repository slug rather than a local checkout, plus the head it must still have.
+ * `cwd` only gives `gh` a working directory; `--repo` decides which repository is merged.
+ */
+export interface GitHubPullRequestMergeTarget {
+    cwd: string;
+    headSha: string;
+    number: number;
+    owner: string;
+    repo: string;
+}
+
+/**
  * Merges one repository's GitHub pull request. Reads the repository's allowed merge methods first because `gh pr merge`
  * refuses to pick one non-interactively, then pins the merge to the head the user saw with `--match-head-commit`.
  * Deliberately never passes `--delete-branch`: that would also delete the local branch, which a linked worktree may
  * still have checked out, and the repository's own auto-delete setting already covers the remote branch.
  */
-export async function mergeGitHubPullRequest(
-    repo: GitRepoSummary,
-    parameters: Pick<ServerOperationParameters<'git.mergePullRequest'>, 'headSha' | 'number'>,
-    dependencies: GitPullRequestMergeDependencies,
+export async function mergeGitHubPullRequestAt(
+    target: GitHubPullRequestMergeTarget,
+    dependencies: Omit<GitPullRequestMergeDependencies, 'originRemote'>,
 ): Promise<ServerOperationResult<'git.mergePullRequest'>> {
-    const remote = parseGitHubRemote(await dependencies.originRemote(repo.rootPath));
-    if (!remote) throw new CaxriError('UNAVAILABLE', 'This repository has no GitHub origin remote');
-    const slug = `${remote.owner}/${remote.repo}`;
+    const slug = `${target.owner}/${target.repo}`;
     const startedAt = performance.now();
     let method: MergeMethod | undefined;
     let step: MergeStep = 'repo.view';
@@ -136,7 +145,7 @@ export async function mergeGitHubPullRequest(
                         '--json',
                         'squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed',
                     ],
-                    repo.rootPath,
+                    target.cwd,
                 ),
             ),
         );
@@ -148,14 +157,14 @@ export async function mergeGitHubPullRequest(
             [
                 'pr',
                 'merge',
-                String(parameters.number),
+                String(target.number),
                 '--repo',
                 slug,
                 `--${method}`,
                 '--match-head-commit',
-                parameters.headSha,
+                target.headSha,
             ],
-            repo.rootPath,
+            target.cwd,
         );
     } catch (error) {
         dependencies.logger.write('warn', logEventCatalog.git.githubCommandFailed, {
@@ -171,11 +180,27 @@ export async function mergeGitHubPullRequest(
     } finally {
         // A rejected merge may still have changed GitHub's view (a stale head, a new conflict), so the next read must
         // not serve the record that made the merge look possible.
-        dependencies.forget(remote.owner, remote.repo, parameters.number);
+        dependencies.forget(target.owner, target.repo, target.number);
     }
     dependencies.logger.write('info', logEventCatalog.git.githubCommand, {
         durationMs: performance.now() - startedAt,
         fields: { operation: 'pr.merge', method },
     });
-    return { method, url: `https://github.com/${slug}/pull/${parameters.number}` };
+    return { method, url: `https://github.com/${slug}/pull/${target.number}` };
+}
+
+/**
+ * Merges the pull request of a local repository's GitHub `origin`.
+ */
+export async function mergeGitHubPullRequest(
+    repo: GitRepoSummary,
+    parameters: Pick<ServerOperationParameters<'git.mergePullRequest'>, 'headSha' | 'number'>,
+    dependencies: GitPullRequestMergeDependencies,
+): Promise<ServerOperationResult<'git.mergePullRequest'>> {
+    const remote = parseGitHubRemote(await dependencies.originRemote(repo.rootPath));
+    if (!remote) throw new CaxriError('UNAVAILABLE', 'This repository has no GitHub origin remote');
+    return mergeGitHubPullRequestAt(
+        { ...remote, cwd: repo.rootPath, headSha: parameters.headSha, number: parameters.number },
+        dependencies,
+    );
 }

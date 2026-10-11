@@ -18,3 +18,18 @@ export const projectStatusStateSchema = z.enum([
     'neutral',
     'unknown',
 ]);
+
+/**
+ * Whether GitHub would merge the pull request right now, reduced from its `mergeable` and `mergeStateStatus` fields.
+ * `clean` merges as is; `unstable` has a non-required check that is failing or still running; `blocked` is waiting on a
+ * branch-protection requirement such as a required check or review; `behind` must be updated with its base first;
+ * `conflicting` cannot merge until its conflicts are resolved; `unknown` means GitHub has not finished computing it.
+ */
+export const pullRequestMergeStateSchema = z.enum([
+    'clean',
+    'unstable',
+    'blocked',
+    'behind',
+    'conflicting',
+    'unknown',
+]);

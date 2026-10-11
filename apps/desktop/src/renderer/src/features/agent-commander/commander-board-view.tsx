@@ -8,7 +8,7 @@ import { describeFailure } from '../../stores/toasts';
 import type { CommanderBoardScope } from './commander-board';
 import { commanderBoardRowsInScope, commanderBoardSections } from './commander-board';
 import { CommanderBoardItem } from './commander-board-item';
-import { useCommanderBoardScope } from './use-commander-board-scope';
+import { useCommanderBoardScope } from './hooks/use-commander-board-scope';
 
 /**
  * The board polls on its own clock as well as on `state.changed`: pull request and CI state reach it from the Server's

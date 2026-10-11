@@ -17,6 +17,7 @@ import { settingsTargetSchema } from '../domain/settings-target.js';
 import { terminalFileLinkOpenResultSchema } from '../domain/terminal-file-link.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
+import { commanderInboxMethods } from './agent-commander-inbox-contract.js';
 import {
     agentDelegationFailureSchema,
     agentDelegationStatusSchema,
@@ -347,4 +348,5 @@ export const commanderMethods = {
         }),
         result: terminalFileLinkOpenResultSchema,
     },
+    ...commanderInboxMethods,
 } as const satisfies Record<string, MethodSpec>;

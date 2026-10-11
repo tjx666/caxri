@@ -106,7 +106,12 @@ describe('Agent Session usage ledger', () => {
          * Absolute versions: `0002_agent_session_usage` is schema 40 and `0003_external_agent_usage` schema 41. Every
          * later table is dropped too, because a database at either version predates it.
          */
-        const laterTables = ['commander_tasks', 'commander_pending_notices'];
+        const laterTables = [
+            'commander_tasks',
+            'commander_pending_notices',
+            'commander_inbox_replies',
+            'commander_inbox_items',
+        ];
         const upgrades = [
             {
                 from: BASELINE_SCHEMA_VERSION + 1,

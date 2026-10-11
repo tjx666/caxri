@@ -7,12 +7,13 @@ import { z } from 'zod';
  * renders, the Commander's own lifecycle (including stopping it), a Workbench hand-off that only raises the Workbench
  * (`agentCommander.revealSession`, `agentCommander.openSettings`), or the Terminal pane's native context menu
  * (`contextMenu.show`), which Main pops over this window and which only reports the chosen entry back: the entry's
- * action is a Renderer request admitted here on its own. Anything that edits files, Projects, Settings, or another
- * Session's Terminal is deliberately absent, and so are `app.bootstrap` and `app.records`: the window reads its rows
- * through `commander.snapshot`. `session.pullRequests` is the board's own pull request read: the board patches its rows
- * from it after a `sessionPullRequests.changed` event, and it answers from the same snapshot `commander.board` embeds,
- * so it exposes nothing the board does not already show. It shares the Workbench's Desktop principal, so this list is
- * its only authority boundary.
+ * action is a Renderer request admitted here on its own. The Inbox admits the owner's side only (read, reply, dismiss,
+ * merge): the Commander's own `add`, `resolve`, and `ack` stay out, so the window can never speak for the Commander.
+ * Anything that edits files, Projects, Settings, or another Session's Terminal is deliberately absent, and so are
+ * `app.bootstrap` and `app.records`: the window reads its rows through `commander.snapshot`. `session.pullRequests` is
+ * the board's own pull request read: the board patches its rows from it after a `sessionPullRequests.changed` event,
+ * and it answers from the same snapshot `commander.board` embeds, so it exposes nothing the board does not already
+ * show. It shares the Workbench's Desktop principal, so this list is its only authority boundary.
  */
 const ADMITTED_METHODS = new Set<string>([
     'agentCommander.openSettings',
@@ -20,6 +21,11 @@ const ADMITTED_METHODS = new Set<string>([
     'agentCommander.stop',
     'commander.board',
     'commander.ensure',
+    'commander.inbox.dismiss',
+    'commander.inbox.list',
+    'commander.inbox.merge',
+    'commander.inbox.reply',
+    'commander.inbox.show',
     'commander.snapshot',
     'contextMenu.show',
     'events.recover',
@@ -150,10 +156,11 @@ export class AgentCommanderRendererPolicy {
 
 /**
  * Transient events both windows act on. A reconnect dropped PTY output to every mounted pane, the Commander's included,
- * and the board shows the pull requests this announces. Neither is a command, so delivering it twice runs nothing
- * twice.
+ * the board shows the pull requests this announces, and the Inbox sidebar re-reads on an Inbox change. None is a
+ * command, so delivering it twice runs nothing twice.
  */
 const SHARED_TRANSIENT_EVENTS = new Set<string>([
+    'commanderInbox.changed',
     'host.connectionChanged',
     'sessionPullRequests.changed',
 ]);

@@ -9,12 +9,13 @@ import type { AgentDelegationService } from './agent-delegation';
 import type { AgentDispatchService } from './agent-dispatch';
 import { createAgentCommandRuntime, createAgentRuntime } from './agent-runtime';
 import { AgentAttentionRequests, CompactionReadiness, LongPasteService } from './agents';
-import { createBackgroundTasks, refreshWatchSessionInBackground } from './background-tasks';
+import { createBackgroundTasks } from './background-tasks';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import { createAgentChatService } from './chat-service-creation';
 import { createChatTerminalCreator } from './chat-terminal-creation';
 import {
     commanderHostOptions,
+    CommanderInboxService,
     CommanderTerminalHooks,
     createCommanderCompletionNotifier,
 } from './commander';
@@ -28,7 +29,7 @@ import { createMobileDomainHandlers, MobileTerminalMutationQueue } from './mobil
 import { createOrderingHandlers } from './ordering-handlers';
 import { createSessionParkingHandlers, createTerminateAllHandler } from './parking-handlers';
 import { createProjectHidingHandlers } from './project';
-import { ProjectStatusService, VercelDeploymentStore } from './project-status';
+import { createProjectStatusRuntime } from './project-status-runtime';
 import { createRootServices } from './root-services';
 import { createServiceHandlers } from './service-handlers';
 import {
@@ -216,31 +217,17 @@ export async function createDomainServices(
         terminals,
         watchHub,
     });
-    const vercel = new VercelDeploymentStore(externalStatus.run);
-    const projectStatus = new ProjectStatusService(git, logger, externalStatus.run, {
-        emit: send,
-        github: externalStatus.github,
-        listWatchedSessions: () =>
-            database
-                .listVisibleSessions()
-                .filter((session) => session.archivedAt === undefined)
-                .map((session) => session.id),
-        sessionContext: (sessionId) => sessionContext.readSession(sessionId),
-        settings: () => configuration.getSettings().value,
-        vercel,
-    });
-    projectStatus.startDeliveryWatch();
-    workbenchRoots.setRootChangedHandler((sessionId) => {
-        /**
-         * Root changes end the old projection lifetime before consumers re-read. An inactive root has no file watcher,
-         * so retaining its settled Git snapshot can keep both Source Control and its badge stale when returning.
-         */
-        git.evictSessions([sessionId]);
-        projectStatus.evictSessions([sessionId]);
-        if (selectedSessionId() === sessionId) {
-            projectStatus.setPolledSession(sessionId);
-            refreshWatchSessionInBackground(files, git, logger, sessionId);
-        }
+    const { projectStatus, vercel } = createProjectStatusRuntime({
+        configuration,
+        database,
+        externalStatus,
+        files,
+        git,
+        logger,
+        selectedSessionId,
+        send,
+        sessionContext,
+        workbenchRoots,
     });
     const countRunning = (sessionId?: string): number =>
         terminals.runningCount(sessionId) + agentChat.liveCount(sessionId);
@@ -384,6 +371,17 @@ export async function createDomainServices(
         logger,
         terminals,
     });
+    const commanderInbox = new CommanderInboxService({
+        database,
+        github: externalStatus.github,
+        ignoredChecks: () => configuration.getSettings().value['projectStatus.ignoredChecks'],
+        logger,
+        notify: (itemId, event) => commanderHooks.notifier?.notifyInbox(itemId, event),
+        run: externalStatus.run,
+        send,
+        workingDirectory: userDataPath,
+    });
+    commanderInbox.start();
     const sessionSelections = new SessionSelectionQueue();
     let isClosed = false;
     async function close(): Promise<void> {
@@ -392,6 +390,7 @@ export async function createDomainServices(
         projectStatus.dispose();
         terminalRestores.close();
         commanderRestores.close();
+        commanderInbox.close();
         await agentChat.shutdown();
         await terminalSuspension.close();
         await terminalResourceMonitor.close();
@@ -602,6 +601,7 @@ export async function createDomainServices(
                 sendFullStateChange: () => sendFullStateChange('session.create'),
                 terminals,
             }),
+            commanderInbox,
             configuration,
             database,
             emit: send,

@@ -18,7 +18,7 @@ import {
     recordRecentAgentAction,
     SessionContentSearch,
 } from './agents';
-import type { AgentCommanderServiceOptions } from './commander';
+import type { AgentCommanderServiceOptions, CommanderInboxService } from './commander';
 import { AgentCommanderService } from './commander';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
@@ -105,6 +105,14 @@ type ServiceHandlerMethods =
     | 'commander.task.create'
     | 'commander.task.list'
     | 'commander.task.update'
+    | 'commander.inbox.list'
+    | 'commander.inbox.show'
+    | 'commander.inbox.add'
+    | 'commander.inbox.resolve'
+    | 'commander.inbox.ack'
+    | 'commander.inbox.reply'
+    | 'commander.inbox.dismiss'
+    | 'commander.inbox.merge'
     | 'session.refreshDeliveryOnFocus'
     | 'session.searchContent'
     | 'session.conversationReference'
@@ -138,7 +146,11 @@ export function createServiceHandlers(services: {
     agentEnvironment: AgentEnvironment;
     agentHooks: AgentHookManager;
     awaitAgentSettingsReconcile: () => Promise<void>;
-    commander: Omit<AgentCommanderServiceOptions, 'database' | 'pullRequests' | 'userDataPath'>;
+    commander: Omit<
+        AgentCommanderServiceOptions,
+        'database' | 'onLaunched' | 'pullRequests' | 'userDataPath'
+    >;
+    commanderInbox: CommanderInboxService;
     configuration: ConfigService;
     database: CaxriDatabase;
     emit: DomainDependencies['send'];
@@ -162,6 +174,7 @@ export function createServiceHandlers(services: {
         agentEnvironment,
         agentHooks,
         awaitAgentSettingsReconcile,
+        commanderInbox,
         configuration,
         database,
         emit,
@@ -206,6 +219,7 @@ export function createServiceHandlers(services: {
         ...services.commander,
         database,
         logger,
+        onLaunched: () => commanderInbox.announceUnacknowledged(),
         pullRequests: () => sessionPullRequests.snapshot(),
         userDataPath,
     });
@@ -371,6 +385,14 @@ export function createServiceHandlers(services: {
             tasks: commander.tasks.list({ includeClosed: includeClosed ?? false }),
         }),
         'commander.task.update': (parameters) => commander.tasks.update(parameters),
+        'commander.inbox.list': ({ includeClosed }) => commanderInbox.list(includeClosed),
+        'commander.inbox.show': ({ id }) => commanderInbox.show(id),
+        'commander.inbox.add': (input) => commanderInbox.add(input),
+        'commander.inbox.resolve': ({ id }) => commanderInbox.resolve(id),
+        'commander.inbox.ack': ({ id, sequence }) => commanderInbox.acknowledge(id, sequence),
+        'commander.inbox.reply': ({ id, body }) => commanderInbox.reply(id, body, 'desktop'),
+        'commander.inbox.dismiss': ({ id }) => commanderInbox.dismiss(id),
+        'commander.inbox.merge': ({ id, revision }) => commanderInbox.merge(id, revision),
         'session.refreshDeliveryOnFocus': ({ sessionId }) => {
             // Fire-and-forget: the refresh logs its own outcome and the change events converge the UI.
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above

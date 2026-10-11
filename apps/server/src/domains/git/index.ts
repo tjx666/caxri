@@ -45,6 +45,7 @@ import { parseGitRemoteHost } from './remote-host';
 import { computeRepoId, GitRepoService } from './repo';
 import { sharedGitRequest } from './request-signal';
 import type { GitSummaryRequester } from './summary-trace';
+import type { GitWorktreeTopology } from './topology';
 import { RepoTopologyRegistry } from './topology';
 import { GitWorkingTreeService } from './working-tree';
 
@@ -57,13 +58,11 @@ interface DiffTarget {
     repository: GitRepoSummary;
 }
 
-export interface GitWorktreeTopology {
-    repositoryKey: string;
-    worktrees: Array<{ branch: string; rootPath: string; isMain?: boolean }>;
-}
 export { describeGitFailure, resolveGitLaunch } from './errors';
+export { mergeGitHubPullRequestAt } from './pull-request-merge';
 export { withGitRequestSignal } from './request-signal';
 export type { GitSummaryRequester } from './summary-trace';
+export type { GitWorktreeTopology } from './topology';
 
 interface GitServiceOptions {
     /**
