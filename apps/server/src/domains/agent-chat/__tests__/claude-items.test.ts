@@ -1,3 +1,4 @@
+import { MAX_AGENT_CHAT_DIFF_LENGTH } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { claudeQuestionAnswers, mapClaudeApproval, mapClaudeToolUse } from '../claude-items';
@@ -46,6 +47,27 @@ describe('Claude item mapping', () => {
         expect(
             mapClaudeToolUse({ id: 't5', name: 'AskUserQuestion', input: {} }, 'turn'),
         ).toBeUndefined();
+    });
+
+    it('marks a file change truncated when its guessed or real diff was cut, and clears it for a short patch', () => {
+        const long = 'x'.repeat(MAX_AGENT_CHAT_DIFF_LENGTH + 10);
+        const item = mapClaudeToolUse(
+            { id: 't1', name: 'Write', input: { file_path: '/p/a.ts', content: long } },
+            'turn',
+        );
+        if (!item) throw new Error('expected an item');
+        expect(item).toMatchObject({ changes: [{ truncated: true }] });
+        const patch = (lines: string[]) => [
+            { oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines },
+        ];
+        const settle = (lines: string[]) =>
+            settleClaudeToolItem(
+                item,
+                { tool_use_id: 't1', content: 'ok' },
+                { structured: { structuredPatch: patch(lines) } },
+            );
+        expect(settle(['-a', '+b'])).not.toMatchObject({ changes: [{ truncated: true }] });
+        expect(settle(['-a', `+${long}`])).toMatchObject({ changes: [{ truncated: true }] });
     });
 
     it('marks a written file as added and a declined tool as declined', () => {

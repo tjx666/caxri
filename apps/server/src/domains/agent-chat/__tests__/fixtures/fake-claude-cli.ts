@@ -27,8 +27,8 @@
  * `effortLevel` flag setting change what the next init message and hook input report.
  *
  * Like the real CLI, `session_state_changed` is reported only under `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1`, subagent
- * text only when `initialize` asked for `forwardSubagentText`, and an interrupt kills background tasks unless
- * `initialize` declared `perTaskStopAffordance`.
+ * text only when `initialize` asked for `forwardSubagentText`, and an interrupt kills background subagents unless
+ * `initialize` declared `perTaskStopAffordance`. A background shell always survives an interrupt, with no task event.
  *
  * Every turn is appended to a JSONL transcript at Claude Code's own location under `CLAUDE_CONFIG_DIR`, so `--resume`
  * and Caxri's transcript-based history read real records.
@@ -50,6 +50,7 @@ import {
     hookCallbackIds,
     hookCallbackRequest,
 } from './fake-claude-models.ts';
+import { streamPlannedReply } from './fake-claude-replies.ts';
 import {
     runSubagent,
     startBackgroundAgent,
@@ -99,6 +100,10 @@ interface QueuedTurn {
     content: unknown;
     priority?: unknown;
     /**
+     * The uuid the SDK sent, which Claude Code keeps as the transcript record's `uuid`.
+     */
+    uuid?: string;
+    /**
      * A turn the CLI starts on its own, such as after a background task finished.
      */
     isAuto?: boolean;
@@ -139,7 +144,7 @@ function send(message: Json) {
 }
 
 function record(entry: Json) {
-    const uuid = crypto.randomUUID();
+    const uuid = typeof entry.uuid === 'string' ? entry.uuid : crypto.randomUUID();
     fs.mkdirSync(path.dirname(transcriptPath), { recursive: true });
     fs.appendFileSync(
         transcriptPath,
@@ -308,10 +313,15 @@ const scenarioIo: FakeClaudeIo = {
     },
 };
 
-async function runTurn(text: string, content: unknown, priority?: unknown, isAuto = false) {
+async function runTurn({ text, content, priority, uuid, isAuto = false }: QueuedTurn) {
     const startedAt = Date.now();
     state.interrupted = false;
-    if (!isAuto) record({ type: 'user', message: { role: 'user', content: content ?? text } });
+    if (!isAuto)
+        record({
+            type: 'user',
+            ...(uuid && { uuid }),
+            message: { role: 'user', content: content ?? text },
+        });
     send(
         frame({
             type: 'system',
@@ -421,52 +431,9 @@ async function runTurn(text: string, content: unknown, priority?: unknown, isAut
         result(startedAt, isComplete ? 'done' : 'interrupted', !isComplete);
         return;
     }
-    const thinkingId = `msg_${crypto.randomUUID()}`;
-    send(
-        frame({
-            type: 'stream_event',
-            event: { type: 'message_start', message: { id: thinkingId } },
-        }),
-    );
-    send(
-        frame({
-            type: 'stream_event',
-            event: {
-                type: 'content_block_start',
-                index: 0,
-                content_block: { type: 'thinking', thinking: '' },
-            },
-        }),
-    );
-    send(
-        frame({
-            type: 'stream_event',
-            event: {
-                type: 'content_block_delta',
-                index: 0,
-                delta: { type: 'thinking_delta', thinking: 'Considering the request.' },
-            },
-        }),
-    );
-    assistant(thinkingId, {
-        type: 'thinking',
-        thinking: 'Considering the request.',
-        signature: 'fake',
-    });
-    assistant(thinkingId, {
-        type: 'tool_use',
-        id: `toolu_${crypto.randomUUID()}`,
-        name: 'TodoWrite',
-        input: {
-            todos: [
-                { content: 'Read the message', status: 'completed', activeForm: 'Reading' },
-                { content: 'Reply', status: 'in_progress', activeForm: 'Replying' },
-            ],
-        },
-    });
-    await didStreamFully(
-        `Hello from fake Claude. You said: ${text}${priority === 'next' ? ' [next]' : ''}`,
-        5,
+    await streamPlannedReply(
+        scenarioIo,
+        `You said: ${text}${priority === 'next' ? ' [next]' : ''}`,
     );
     result(startedAt, 'done');
 }
@@ -516,7 +483,7 @@ async function drain() {
     while (state.queued.length > 0) {
         const next = state.queued.shift();
         // eslint-disable-next-line no-await-in-loop -- turns run one at a time, like the real CLI
-        if (next) await runTurn(next.text, next.content, next.priority, next.isAuto);
+        if (next) await runTurn(next);
     }
     state.turnRunning = false;
     sessionState('idle');
@@ -588,6 +555,7 @@ lines.on('line', (line) => {
             text: userText(message.message),
             content: (message.message as { content?: unknown } | undefined)?.content,
             priority: message.priority,
+            ...(typeof message.uuid === 'string' && { uuid: message.uuid }),
         });
         // eslint-disable-next-line no-void -- the turn loop reports through stdout
         void drain();

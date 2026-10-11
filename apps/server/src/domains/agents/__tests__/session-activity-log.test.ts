@@ -48,6 +48,7 @@ describe('hasSessionActivityChanged', () => {
                     from: 'idle',
                     phase: 'turnStarted',
                     provider: 'claude',
+                    readAttentionEpoch: 0,
                     sessionId: created.session.id,
                     source: 'hook',
                     terminalId,
@@ -71,6 +72,18 @@ describe('hasSessionActivityChanged', () => {
                 },
             });
 
+            // A self-started turn supersedes the unread finish; the read acknowledgement is part of the transition.
+            expect(lifecycle('turnStarted')).toBe(true);
+            expect(write).toHaveBeenCalledTimes(3);
+            expect(write.mock.lastCall?.[2]).toMatchObject({
+                fields: {
+                    attentionEpoch: 1,
+                    from: 'completed',
+                    readAttentionEpoch: 1,
+                    to: 'running',
+                },
+            });
+
             // A write that changed unrelated fields only is reported as changed without a transition log.
             expect(
                 hasSessionActivityChanged(database, logger, {
@@ -79,7 +92,7 @@ describe('hasSessionActivityChanged', () => {
                     terminalId,
                 }),
             ).toBe(true);
-            expect(write).toHaveBeenCalledTimes(2);
+            expect(write).toHaveBeenCalledTimes(3);
         } finally {
             database.close();
         }

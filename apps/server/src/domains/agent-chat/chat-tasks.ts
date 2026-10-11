@@ -51,6 +51,8 @@ export class ChatTaskList {
         const task = bounded(merged);
         if (TERMINAL_STATUSES.has(task.status) && task.endedAt === undefined)
             task.endedAt = Date.now();
+        // A task taken back running (a terminal its provider still lists after a resume) has not ended.
+        if (task.status === 'running') delete task.endedAt;
         if (index === -1) tasks.push(task);
         else tasks[index] = task;
         this.publish(trim(tasks));

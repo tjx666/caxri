@@ -3,6 +3,7 @@ import type {
     AgentChatDecision,
     AgentChatItem,
     AgentChatItemStatus,
+    AgentChatModel,
     AgentChatPlan,
     AgentChatRequest,
     AgentChatSnapshot,
@@ -14,9 +15,17 @@ import {
     MAX_AGENT_CHAT_FILE_CHANGES,
     MAX_AGENT_CHAT_OUTPUT_LENGTH,
     MAX_AGENT_CHAT_PLAN_STEPS,
+    MAX_AGENT_CHAT_QUESTIONS,
 } from '@caxri/protocol';
 
-import { clip, isRecord, replacementDiff, stringField, tail } from './chat-items';
+import {
+    boundedChatModels,
+    clip,
+    isRecord,
+    replacementDiff,
+    stringField,
+    tail,
+} from './chat-items';
 
 /**
  * Pure translation from Grok Build's ACP (Agent Client Protocol) session updates into the provider-neutral Agent Chat
@@ -307,9 +316,6 @@ export function grokCommands(available: unknown): AgentChatCommand[] {
     return commands;
 }
 
-/**
- * The current model and its context window from a `session/new` or `session/load` result's `models`.
- */
 export const ACP_PROTOCOL_VERSION = 1;
 
 /**
@@ -323,20 +329,115 @@ export function grokInitializeParameters(clientVersion: string): Json {
     };
 }
 
+/**
+ * The context window Grok Build lists for `model`, from a `models` record's `availableModels`.
+ */
+export function grokContextWindow(models: unknown, model: string): number | undefined {
+    const available: unknown[] =
+        isRecord(models) && Array.isArray(models.availableModels) ? models.availableModels : [];
+    const entry = available.find((candidate) => isRecord(candidate) && candidate.modelId === model);
+    const window =
+        isRecord(entry) && isRecord(entry._meta) ? entry._meta.totalContextTokens : undefined;
+    return typeof window === 'number' && window > 0 ? Math.trunc(window) : undefined;
+}
+
+/**
+ * The current model and its context window from a `session/new` or `session/load` result's `models`.
+ */
 export function grokModelState(models: unknown): { model?: string; contextWindow?: number } {
     if (!isRecord(models)) return {};
     const model = stringField(models.currentModelId);
     if (!model) return {};
-    const available: unknown[] = Array.isArray(models.availableModels)
-        ? models.availableModels
-        : [];
-    const entry = available.find((candidate) => isRecord(candidate) && candidate.modelId === model);
-    const window =
-        isRecord(entry) && isRecord(entry._meta) ? entry._meta.totalContextTokens : undefined;
+    const contextWindow = grokContextWindow(models, model);
+    return { model: clip(model, 200), ...(contextWindow && { contextWindow }) };
+}
+
+/**
+ * The models a `models` record lists, for the Chat's model picker. Grok Build's reasoning efforts are not offered yet,
+ * so each model switches without an effort.
+ */
+export function grokModels(models: unknown): AgentChatModel[] {
+    const available: unknown[] =
+        isRecord(models) && Array.isArray(models.availableModels) ? models.availableModels : [];
+    return boundedChatModels(
+        available.flatMap((entry) => {
+            if (!isRecord(entry)) return [];
+            const id = stringField(entry.modelId);
+            if (!id) return [];
+            const description = stringField(entry.description);
+            return [
+                {
+                    id,
+                    displayName: stringField(entry.name) ?? id,
+                    ...(description && { description }),
+                    efforts: [],
+                },
+            ];
+        }),
+    );
+}
+
+/**
+ * An `_x.ai/ask_user_question` request as a question request keyed by the tool call that asked it. Grok Build keys
+ * answers by question text, so the question ids are positional and {@link grokQuestionAnswers} maps them back.
+ */
+export function mapGrokQuestion(
+    id: string,
+    questions: unknown,
+): Extract<AgentChatRequest, { kind: 'question' }> {
+    const list: unknown[] = Array.isArray(questions) ? questions : [];
     return {
-        model: clip(model, 200),
-        ...(typeof window === 'number' && window > 0 && { contextWindow: Math.trunc(window) }),
+        id,
+        kind: 'question',
+        questions: list.slice(0, MAX_AGENT_CHAT_QUESTIONS).flatMap((question, index) => {
+            const text = isRecord(question) ? stringField(question.question) : undefined;
+            if (!text || !isRecord(question)) return [];
+            const options: unknown[] = Array.isArray(question.options) ? question.options : [];
+            return [
+                {
+                    id: `q${index}`,
+                    header: '',
+                    question: clip(text, 2_000),
+                    options: options.slice(0, 20).flatMap((option) =>
+                        isRecord(option)
+                            ? [
+                                  {
+                                      label: clip(stringField(option.label) ?? '', 200),
+                                      description: clip(
+                                          stringField(option.description) ?? '',
+                                          1_000,
+                                      ),
+                                  },
+                              ]
+                            : [],
+                    ),
+                    // Grok Build accepts any answer text, like its terminal UI's free-form reply.
+                    allowsOther: true,
+                },
+            ];
+        }),
     };
+}
+
+/**
+ * The `_x.ai/ask_user_question` response for the Client's positional answers: answers keyed by question text, a list
+ * for a multi-select question and one string otherwise. No answer at all is a cancelled question, so the turn goes on
+ * without the user's choice.
+ */
+export function grokQuestionAnswers(
+    questions: unknown,
+    answers: Readonly<Record<string, readonly string[]>>,
+): Json {
+    const list: unknown[] = Array.isArray(questions) ? questions : [];
+    const entries = list.slice(0, MAX_AGENT_CHAT_QUESTIONS).flatMap((question, index) => {
+        const text = isRecord(question) ? stringField(question.question) : undefined;
+        const chosen = Object.hasOwn(answers, `q${index}`) ? answers[`q${index}`] : [];
+        if (!text || chosen.length === 0 || !isRecord(question)) return [];
+        return [[text, question.multiSelect === true ? [...chosen] : chosen.join(', ')]];
+    });
+    return entries.length > 0
+        ? { outcome: 'accepted', answers: Object.fromEntries(entries) }
+        : { outcome: 'cancelled' };
 }
 
 /**

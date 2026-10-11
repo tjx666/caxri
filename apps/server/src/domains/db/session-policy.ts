@@ -272,6 +272,14 @@ function metadataActivityState(
 export interface AgentLifecycleDecision {
     attentionKind?: SessionAttentionKind;
     lastActivityState: AgentActivityState;
+    /**
+     * Marks the current unread attention generation read because a new turn superseded it.
+     *
+     * A provider can start a turn the user did not submit: Claude Code resumes on its own when a background shell
+     * finishes. The finished turn's unread notice then outranks `running` in every Session list, so the row kept
+     * showing an unattended Agent while it was visibly working. The next turn end raises a fresh generation.
+     */
+    supersedesUnreadAttention?: true;
 }
 
 const NON_SESSION_ACTIVITY_PHASES = new Set<AgentLifecyclePhase>([
@@ -292,7 +300,7 @@ export function decideAgentLifecycleUpdate(
     terminal: Pick<TerminalRecord, 'id' | 'provider'>,
     session: Pick<
         SessionRecord,
-        'lastActivityState' | 'lastAttentionKind' | 'primaryAgentTerminalId'
+        'hasUnread' | 'lastActivityState' | 'lastAttentionKind' | 'primaryAgentTerminalId'
     >,
     provider: TerminalRecord['provider'],
     phase: AgentLifecyclePhase,
@@ -325,8 +333,18 @@ export function decideAgentLifecycleUpdate(
         lastActivityState,
         requestedAttention,
     );
-    if (!attentionKind && session.lastActivityState === lastActivityState) return undefined;
-    return { lastActivityState, ...(attentionKind && { attentionKind }) };
+    const supersedesUnreadAttention = phase === 'turnStarted' && session.hasUnread;
+    if (
+        !attentionKind &&
+        !supersedesUnreadAttention &&
+        session.lastActivityState === lastActivityState
+    )
+        return undefined;
+    return {
+        lastActivityState,
+        ...(attentionKind && { attentionKind }),
+        ...(supersedesUnreadAttention && { supersedesUnreadAttention }),
+    };
 }
 
 /**

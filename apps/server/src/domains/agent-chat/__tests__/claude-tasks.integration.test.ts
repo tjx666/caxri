@@ -153,6 +153,44 @@ describe('Claude Code background work in Agent Chat', () => {
         await until((snapshot) => snapshot.tasks?.[0]?.status === 'stopped');
     });
 
+    it('keeps a background shell running when a later turn is interrupted', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'claude' });
+        await service.send(terminal.id, { text: 'run in background' });
+        const listed = await until(
+            (snapshot) => !snapshot.activeTurnId && snapshot.tasks?.[0]?.status === 'running',
+        );
+        const taskId = listed.tasks?.[0]?.id ?? '';
+
+        await service.send(terminal.id, { text: 'slow please' });
+        await until((snapshot) =>
+            snapshot.items.some(
+                (item) => item.type === 'agentMessage' && item.text.startsWith('word'),
+            ),
+        );
+        await service.interrupt(terminal.id);
+        const interrupted = await until(
+            (snapshot) => snapshot.turns.at(-1)?.status === 'interrupted',
+        );
+        expect(interrupted.tasks?.[0]).toMatchObject({
+            id: taskId,
+            kind: 'shell',
+            status: 'running',
+            canStop: true,
+        });
+        // Its output keeps streaming after the interrupt.
+        const before = (await service.readTask(terminal.id, taskId)).output ?? '';
+        await vi.waitFor(
+            async () => {
+                const task = await service.readTask(terminal.id, taskId);
+                expect((task.output ?? '').length).toBeGreaterThan(before.length);
+            },
+            { timeout: 5_000, interval: 50 },
+        );
+
+        await service.stopTask(terminal.id, taskId);
+        await until((snapshot) => snapshot.tasks?.[0]?.status === 'stopped');
+    });
+
     it('shows a turn Claude Code starts on its own after a background task finishes', async () => {
         const { service, terminal, until } = await fixture({ provider: 'claude' });
         await service.send(terminal.id, { text: 'quick background job' });

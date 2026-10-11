@@ -159,6 +159,27 @@ describe('AgentChatService with a fake Codex app-server', () => {
         expect(spawnProcess).toHaveBeenCalledTimes(2);
     });
 
+    it('shows the original times of a resumed conversation', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'remember me' });
+        const live = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        const liveReply = live.items.findLast((item) => item.type === 'agentMessage');
+        await service.restart(terminal.id);
+
+        // Codex records turn starts in seconds and item starts in milliseconds.
+        const resumed = await until((snapshot) =>
+            snapshot.items.some(
+                (item) => item.type === 'agentMessage' && item.createdAt !== undefined,
+            ),
+        );
+        const user = resumed.items.find((item) => item.type === 'userMessage');
+        const reply = resumed.items.findLast((item) => item.type === 'agentMessage');
+        expect(user?.createdAt).toBeGreaterThan(Date.now() - 60_000);
+        expect(user?.createdAt).toBeLessThanOrEqual(liveReply?.createdAt ?? 0);
+        expect(reply?.createdAt).toBeGreaterThanOrEqual(user?.createdAt ?? Infinity);
+        expect(reply?.createdAt).toBeLessThanOrEqual(Date.now());
+    });
+
     it('keeps the replaced start in YOLO on a resume restart after Settings turned it off', async () => {
         let launchArguments = ['--dangerously-bypass-approvals-and-sandbox'];
         const { service, terminal, threadOpens, until } = await fixture({

@@ -34,6 +34,6 @@ export {
     type TerminalRestoreOptions,
 } from './restore';
 export { TerminalRestoreSupervisor } from './restore-supervisor';
-export { ShellIntegrationService } from './shell-integration';
+export { createShellIntegration } from './shell-integration';
 export { TerminalSuspensionService } from './suspension';
 export { terminalEnvironment } from './terminal-environment';

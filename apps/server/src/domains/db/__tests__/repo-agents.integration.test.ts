@@ -158,6 +158,44 @@ describe('CaxriDatabase Agent metadata', () => {
         reopened.close();
     });
 
+    it('marks the finished turn read when the Agent starts another turn on its own', async () => {
+        const directory = await temporaryDirectory('caxri-db-turn-supersedes-unread-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        const lifecycle = (phase: 'turnFinished' | 'turnStarted') =>
+            database.updateAgentLifecycle({
+                launchId: 'launch-1',
+                phase,
+                provider: 'claude',
+                terminalId: created.terminal!.id,
+            });
+
+        lifecycle('turnStarted');
+        lifecycle('turnFinished');
+        expect(database.getSession(created.session.id)).toMatchObject({
+            attentionEpoch: 1,
+            hasUnread: true,
+            lastActivityState: 'completed',
+        });
+
+        // A background shell finishing resumes Claude Code without the user opening the Session.
+        expect(lifecycle('turnStarted')).toBe(true);
+        expect(database.getSession(created.session.id)).toMatchObject({
+            attentionEpoch: 1,
+            hasUnread: false,
+            lastActivityState: 'running',
+            readAttentionEpoch: 1,
+        });
+
+        lifecycle('turnFinished');
+        expect(database.getSession(created.session.id)).toMatchObject({
+            attentionEpoch: 2,
+            hasUnread: true,
+            lastActivityState: 'completed',
+        });
+        database.close();
+    });
+
     it('promotes the first Agent Terminal in a Shell Session as its title source', async () => {
         const directory = await temporaryDirectory('caxri-db-primary-agent-');
         const root = join(directory, 'project');

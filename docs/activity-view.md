@@ -72,6 +72,10 @@ have not opened yet", which is a property of the user's queue rather than of the
 belongs above any turn still in progress, including that same Session's turn, since a Session can
 be both unread and running. herdr and Kero rank their rollups the same way; Orca and T3 Code put
 running work first because their lists describe live work rather than a to-do queue.
+A hook-reported new turn is the exception that ends this overlap: it supersedes the previous turn's
+attention and acknowledges it, so an Agent that resumes on its own (Claude Code continuing after a
+background shell finishes) reads as Working instead of staying under **Needs attention** until the
+new turn ends. A `running` reading inferred only by a metadata probe does not acknowledge anything.
 
 ### Retention
 

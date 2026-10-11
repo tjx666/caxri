@@ -95,5 +95,6 @@ _Avoid_: Output, activity
 
 **Unread Attention**:
 Attention whose current generation has not been acknowledged by any Client. Visibly focusing the
-Session is one acknowledgement path, and acknowledgement is shared across all Clients.
+Session is one acknowledgement path, a hook-reported new Agent turn superseding it is another, and
+acknowledgement is shared across all Clients.
 _Avoid_: Activity, per-device notification count

@@ -1,0 +1,191 @@
+import type { AgentChatItem } from '@caxri/protocol';
+import { describe, expect, it } from 'vitest';
+
+import { collectAgentChatTrackers, shellWords, trackerExcerpt } from '../agent-chat-trackers';
+
+const command = (
+    id: string,
+    text: string,
+    output: string,
+    status: 'completed' | 'failed' = 'completed',
+): AgentChatItem => ({ id, type: 'command', command: text, status, output });
+
+const tool = (
+    id: string,
+    name: string,
+    summary: string | undefined,
+    output: string,
+): AgentChatItem => ({
+    id,
+    type: 'toolCall',
+    name,
+    status: 'completed',
+    ...(summary && { summary }),
+    output,
+});
+
+describe('shellWords', () => {
+    it('groups quotes and keeps a heredoc substitution as one word', () => {
+        expect(
+            shellWords(
+                `gh pr create --title "Fix the bar" --body "$(cat <<'EOF'\nLine one\nEOF\n)" && echo done`,
+            ),
+        ).toEqual([
+            'gh',
+            'pr',
+            'create',
+            '--title',
+            'Fix the bar',
+            '--body',
+            "$(cat <<'EOF'\nLine one\nEOF\n)",
+        ]);
+        expect(shellWords(`gh issue edit 2 -t 'it''s'; ls`)).toEqual([
+            'gh',
+            'issue',
+            'edit',
+            '2',
+            '-t',
+            'its',
+        ]);
+    });
+});
+
+describe('trackerExcerpt', () => {
+    it('skips headings and markers to the first line of prose', () => {
+        expect(trackerExcerpt('## Summary\n\n- Adds the **card** view\n- More')).toBe(
+            'Adds the card view',
+        );
+        expect(trackerExcerpt('   \n')).toBeUndefined();
+    });
+});
+
+describe('collectAgentChatTrackers', () => {
+    it('reads a created pull request from gh, with its title and heredoc body', () => {
+        const run = `/bin/zsh -lc "gh pr create --title \\"Add cards\\" --body \\"$(cat <<'EOF'\n## Summary\nShow cards under replies.\nEOF\n)\\""`;
+        expect(
+            collectAgentChatTrackers([
+                command(
+                    'c1',
+                    run,
+                    'Creating pull request\nhttps://github.com/acme/widgets/pull/42\n',
+                ),
+            ]),
+        ).toEqual([
+            {
+                provider: 'github',
+                kind: 'pull',
+                action: 'created',
+                url: 'https://github.com/acme/widgets/pull/42',
+                reference: 'acme/widgets#42',
+                title: 'Add cards',
+                excerpt: 'Show cards under replies.',
+            },
+        ]);
+    });
+
+    it('reads an edited issue and ignores failed or unrelated commands', () => {
+        expect(
+            collectAgentChatTrackers([
+                command(
+                    'c1',
+                    'cd app; gh issue edit 2 --title "Renamed"',
+                    'https://github.com/acme/widgets/issues/2\n',
+                ),
+                command(
+                    'c2',
+                    'gh issue create --title x',
+                    'https://github.com/acme/widgets/issues/3',
+                    'failed',
+                ),
+                command('c3', 'gh pr view 4', 'https://github.com/acme/widgets/pull/4'),
+                command('c4', 'gh pr edit 5', 'no url printed'),
+                command(
+                    'c5',
+                    'git commit -m "explain gh pr edit" && gh pr view 6',
+                    'https://github.com/acme/widgets/pull/6',
+                ),
+            ]),
+        ).toEqual([
+            {
+                provider: 'github',
+                kind: 'issue',
+                action: 'updated',
+                url: 'https://github.com/acme/widgets/issues/2',
+                reference: 'acme/widgets#2',
+                title: 'Renamed',
+            },
+        ]);
+    });
+
+    it('reads GitHub and Linear MCP results, falling back to JSON arguments', () => {
+        const github = tool(
+            'm1',
+            'github/create_issue',
+            JSON.stringify({ owner: 'acme', repo: 'widgets', title: 'From args' }),
+            JSON.stringify({
+                html_url: 'https://github.com/acme/widgets/issues/7',
+                number: 7,
+                body: 'Body text',
+            }),
+        );
+        const linear = tool(
+            'm2',
+            'mcp__linear__save_issue',
+            'Some description',
+            JSON.stringify({
+                issue: {
+                    identifier: 'ENG-12',
+                    title: 'Linear title',
+                    url: 'https://linear.app/acme/issue/ENG-12/linear-title',
+                    description: 'Linear body',
+                    createdAt: '2026-01-01T00:00:00.000Z',
+                    updatedAt: '2026-01-01T00:00:02.000Z',
+                },
+            }),
+        );
+        const updatedLinear = tool(
+            'm3',
+            'linear/save_issue',
+            JSON.stringify({ id: 'ENG-13', title: 'Edited' }),
+            'Saved https://linear.app/acme/issue/ENG-13/edited',
+        );
+        expect(collectAgentChatTrackers([github, linear, updatedLinear])).toEqual([
+            {
+                provider: 'github',
+                kind: 'issue',
+                action: 'created',
+                url: 'https://github.com/acme/widgets/issues/7',
+                reference: 'acme/widgets#7',
+                title: 'From args',
+                excerpt: 'Body text',
+            },
+            {
+                provider: 'linear',
+                kind: 'issue',
+                action: 'created',
+                url: 'https://linear.app/acme/issue/ENG-12/linear-title',
+                reference: 'ENG-12',
+                title: 'Linear title',
+                excerpt: 'Linear body',
+            },
+            {
+                provider: 'linear',
+                kind: 'issue',
+                action: 'updated',
+                url: 'https://linear.app/acme/issue/ENG-13/edited',
+                reference: 'ENG-13',
+                title: 'Edited',
+            },
+        ]);
+    });
+
+    it('merges a create and a later edit of the same pull request into one created card', () => {
+        const url = 'https://github.com/acme/widgets/pull/9';
+        expect(
+            collectAgentChatTrackers([
+                command('c1', 'gh pr create --title First', url),
+                command('c2', 'gh pr edit 9 --title Second', url),
+            ]),
+        ).toMatchObject([{ action: 'created', title: 'Second', url }]);
+    });
+});

@@ -3,6 +3,7 @@
  * no test ever launches the real CLI or calls a model. Behavior is selected by keywords in the user's message:
  *
  * - `approve`: a command needing approval; accept runs it, decline records it as declined.
+ * - `artifacts`: edits and creates files on disk, opens a pull request, and files a Linear issue.
  * - `patch`: a three-file change (update, add, delete) needing approval; nothing is written to disk.
  * - `bigdiff`: a completed file change whose diff is longer than Server Core keeps.
  * - `ask`: a question; the reply quotes the chosen answer.
@@ -16,13 +17,18 @@
  *   With `hold`, the child keeps streaming until `turn/interrupt` stops it and the parent turn ends right away.
  * - `background`: a unified-exec command (with a `processId`) that outlives its turn, streaming output until
  *   `thread/backgroundTerminals/terminate` stops it. With `flood`, it emits Codex's 10,000 output deltas at once.
+ * - `vanish`: every background terminal disappears from `thread/backgroundTerminals/list` without a notification.
+ * - `unannounced`: a background terminal only `thread/backgroundTerminals/list` reports.
  * - Anything else: reasoning, a plan, and a streamed reply quoting the message.
  *
  * A message with images is answered with how many it received, and `thread/compact/start` runs a compaction turn that
  * stays in progress briefly and cannot be steered. `turn/steer` echoes the steered message into the running turn; a
  * steered message containing `late` ends the turn first, so the steer loses that race, and one containing `refuse` is
- * rejected outright. `model/list` offers two models, and a `turn/start` that names a model or effort saves it on the
- * thread, as Codex does, so a resumed thread reports the last choice.
+ * rejected outright. A started or steered message containing `stall` is recorded at once but answered only after
+ * {@link STALL_MS}, as a loaded Codex answers past Caxri's request timeout; one containing `lost` is never answered nor
+ * recorded. `thread/turns/list` returns the newest turns with their items, and `thread/items/list` the newest items
+ * with when each started. `model/list` offers two models, and a `turn/start` that names a model or effort saves it on
+ * the thread, as Codex does, so a resumed thread reports the last choice.
  *
  * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history. Each
  * thread open also appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert
@@ -36,9 +42,17 @@ import process from 'node:process';
 import readline from 'node:readline';
 
 import { runApprovalCommand, runApprovalPatch, runQuestion } from './fake-codex-approvals.ts';
+import { runTurnArtifacts } from './fake-codex-artifacts.ts';
+import { listThreadItems, listThreadTurns } from './fake-codex-history.ts';
 import type { FakeCodexIo, FakeItem, FakeThread, FakeTurn } from './fake-codex-io.ts';
 import { FAKE_MODELS } from './fake-codex-models.ts';
-import { didHandleTaskRequest, runBackgroundCommand, runSubagent } from './fake-codex-tasks.ts';
+import {
+    didHandleTaskRequest,
+    dropTerminalsSilently,
+    runBackgroundCommand,
+    runSubagent,
+    startUnannouncedTerminal,
+} from './fake-codex-tasks.ts';
 
 /**
  * Loose JSON-RPC shapes: the fake only reads the fields it answers, and the Server's own schemas validate what it
@@ -63,6 +77,11 @@ if (process.argv.includes('--version')) {
 const stateDirectory =
     process.env.FAKE_CODEX_STATE_DIR ?? path.join(os.tmpdir(), 'caxri-fake-codex');
 fs.mkdirSync(stateDirectory, { recursive: true });
+
+/**
+ * How long a `stall` message's `turn/start` or `turn/steer` answer is held back.
+ */
+const STALL_MS = 1_000;
 
 const pendingServerRequests = new Map<number, (result: unknown) => void>();
 
@@ -116,6 +135,13 @@ function recordThreadOpen(method: string, parameters: Record<string, unknown>) {
 function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
+/**
+ * Answers a turn request, held back for a `stall` message.
+ */
+function answerTurnRequest(text: string, message: Record<string, unknown>) {
+    if (text.includes('stall')) setTimeout(() => send(message), STALL_MS);
+    else send(message);
+}
 function serverRequest(method: string, parameters: Record<string, unknown>): Promise<unknown> {
     const id = state.nextServerRequestId++;
     send({ id, method, params: { threadId: currentThread().id, ...parameters } });
@@ -124,6 +150,7 @@ function serverRequest(method: string, parameters: Record<string, unknown>): Pro
 
 function startItem(turn: FakeTurn, item: FakeItem) {
     turn.items.push(item);
+    turn.itemTimes = { ...turn.itemTimes, [item.id]: Date.now() };
     notifyTurn(turn, 'item/started', { turnId: turn.id, item, startedAtMs: Date.now() });
 }
 function completeItem(turn: FakeTurn, item: FakeItem) {
@@ -184,10 +211,18 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
         await streamMessage(turn, `Received ${imageCount} image${imageCount === 1 ? '' : 's'}.`, 0);
     } else if (text.includes('subagent')) {
         await runSubagent(io, turn, text.includes('hold'));
+    } else if (text.includes('vanish')) {
+        dropTerminalsSilently();
+        await streamMessage(turn, 'Done.', 0);
+    } else if (text.includes('unannounced')) {
+        startUnannouncedTerminal(turn);
+        await streamMessage(turn, 'Done.', 0);
     } else if (text.includes('background')) {
         await runBackgroundCommand(io, turn, text.includes('flood'));
     } else if (text.includes('approve')) {
         await runApprovalCommand(io, turn);
+    } else if (text.includes('artifacts')) {
+        await runTurnArtifacts(io, turn);
     } else if (text.includes('patch')) {
         await runApprovalPatch(io, turn);
     } else if (text.includes('bigdiff')) {
@@ -359,6 +394,8 @@ function wireTurn(turn: FakeTurn) {
         items: turn.items,
         status: turn.status,
         error: turn.error,
+        // Codex records turn times in Unix seconds.
+        startedAt: Math.floor(turn.startedAt / 1000),
         durationMs: turn.durationMs,
     };
 }
@@ -450,6 +487,8 @@ function handle(message: RpcMessage) {
         }
         case 'turn/start': {
             const input = (parameters.input ?? []) as FakeInput[];
+            const text = input.map((entry) => entry.text ?? '').join('\n');
+            if (text.includes('lost')) return;
             const clientId =
                 typeof parameters.clientUserMessageId === 'string'
                     ? parameters.clientUserMessageId
@@ -466,7 +505,10 @@ function handle(message: RpcMessage) {
             if (typeof parameters.effort === 'string') thread.effort = parameters.effort;
             thread.turns.push(turn);
             state.activeTurn = turn;
-            send({ id, result: { turn: { id: turn.id, items: [], status: 'inProgress' } } });
+            answerTurnRequest(text, {
+                id,
+                result: { turn: { id: turn.id, items: [], status: 'inProgress' } },
+            });
             notify('turn/started', { turn: { id: turn.id, items: [], status: 'inProgress' } });
             // eslint-disable-next-line no-void -- the turn streams its own notifications after this response
             void runTurn(turn, input, clientId);
@@ -475,6 +517,7 @@ function handle(message: RpcMessage) {
         case 'turn/steer': {
             const input = (parameters.input ?? []) as FakeInput[];
             const text = input.map((entry) => entry.text ?? '').join('\n');
+            if (text.includes('lost')) return;
             const active = state.activeTurn;
             if (active && text.includes('late')) {
                 // The turn ends between Caxri reading it as running and the steer arriving.
@@ -494,7 +537,7 @@ function handle(message: RpcMessage) {
                 send({ id, error: { code: -32600, message: 'cannot steer a compact turn' } });
                 return;
             }
-            send({ id, result: { turnId: turn.id } });
+            answerTurnRequest(text, { id, result: { turnId: turn.id } });
             // Codex records steered input as a user message of the running turn, echoing its client id.
             const user = {
                 type: 'userMessage',
@@ -507,6 +550,14 @@ function handle(message: RpcMessage) {
             };
             startItem(turn, user);
             completeItem(turn, user);
+            return;
+        }
+        case 'thread/items/list': {
+            send({ id, result: listThreadItems(currentThread(), parameters) });
+            return;
+        }
+        case 'thread/turns/list': {
+            send({ id, result: listThreadTurns(currentThread(), parameters, wireTurn) });
             return;
         }
         case 'turn/interrupt': {

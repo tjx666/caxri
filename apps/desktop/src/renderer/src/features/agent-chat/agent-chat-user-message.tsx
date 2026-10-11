@@ -53,7 +53,7 @@ export function AgentChatUserMessage({
                 />
             )}
             {text && (
-                <div className="max-w-[85%] rounded-lg bg-elevated px-3 py-2 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground">
+                <div className="max-w-[85%] rounded-lg bg-elevated px-3 py-2 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground select-text">
                     {invocation ? (
                         <>
                             <AgentChatInvocationChip invocation={invocation.invocation} />
