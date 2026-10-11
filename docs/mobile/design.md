@@ -200,7 +200,10 @@ added without moving screens. Query keys include the same host identity.
   opens the photo picker or camera, so system UI never covers a sheet still on screen
   (`MOB-COMPOSE-02`). A Chat composer offers the same sheet and strip, for up to 4 images, only
   when the provider takes images in a Chat (Claude Code and Codex, not Grok Build); an image alone is
-  a valid message (`MOB-CHAT-05`).
+  a valid message (`MOB-CHAT-05`). A sent image opens full screen; when the provider's record has
+  no original (always for Codex) the viewer shows the thumbnail and says `Showing a preview. The
+full-size image is not available.` (`MOB-CHAT-07`), and with neither it says `This image is no
+longer available.` without a Retry (`MOB-CHAT-08`).
 - Delivery states:
   - `Sending…`: input disabled, draft kept.
   - Delivered to the Terminal: clear the draft.
@@ -214,7 +217,9 @@ Check the Terminal before sending again.` Never resend automatically.
   model is chosen so its efforts show right away. While a turn runs the sheet says `Applies from
 the next turn.` Without access or a connection the row is plain text, and an open sheet disables
   its lists and names the reason. A new Chat opens with this row, so the model is chosen before the
-  first message. See [Agent Chat](../agent-chat.md#mobile).
+  first message. A change the provider refuses keeps the current choice checked and shows Desktop's
+  `Unable to switch the model.` with `Try again.` in the sheet (`MOB-CHAT-07`). See
+  [Agent Chat](../agent-chat.md#mobile).
 
 ### Conversation
 
