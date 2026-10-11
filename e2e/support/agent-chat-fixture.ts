@@ -36,14 +36,12 @@ const FAKE_GROK = join(
 );
 
 /**
- * A fake Codex whose `app-server` is the deterministic Server-test fixture; threads persist under `directory`.
+ * The fake Codex provider definition whose `app-server` is the deterministic Server-test fixture; threads persist under
+ * `directory`. Exported so a spec can combine it with other fake providers in one mode.
  */
-export function fakeCodexChatAgentMode(directory: string, userData: string) {
-    return createFakeAgentMode({
-        userDataDir: userData,
-        providers: {
-            codex: {
-                executableSource: String.raw`#!${process.execPath}
+export function fakeCodexChatProvider(directory: string) {
+    return {
+        executableSource: String.raw`#!${process.execPath}
 if (process.argv.includes('--version')) {
   process.stdout.write('codex-cli 0.162.0\n');
   process.exit(0);
@@ -51,8 +49,16 @@ if (process.argv.includes('--version')) {
 process.env.FAKE_CODEX_STATE_DIR = ${JSON.stringify(join(directory, 'codex-threads'))};
 import(${JSON.stringify(pathToFileURL(FAKE_APP_SERVER).href)});
 `,
-            },
-        },
+    };
+}
+
+/**
+ * A fake Codex whose `app-server` is the deterministic Server-test fixture; threads persist under `directory`.
+ */
+export function fakeCodexChatAgentMode(directory: string, userData: string) {
+    return createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: fakeCodexChatProvider(directory) },
     });
 }
 

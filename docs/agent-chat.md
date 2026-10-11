@@ -622,6 +622,10 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   Chat does not list with `VALIDATION`. In the composer, Arrow keys move through matches, Tab or
   Enter chooses one, and Escape dismisses the list. A command that takes no arguments runs when
   chosen; one that does is completed so its arguments can be typed.
+- **Session references.** Typing `@` at the start of a word lists other Sessions with an Agent
+  conversation, searched by title. Choosing one replaces the typed `@word` with a reference to a
+  condensed copy of that conversation; see
+  [Citing another Session](session-conversation-context.md#citing-another-session-with-).
 - Image bytes, thumbnails, and command arguments never reach logs.
 
 ## Context usage and cache

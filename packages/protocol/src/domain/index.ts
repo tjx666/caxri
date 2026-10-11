@@ -29,6 +29,7 @@ export * from './project-status.js';
 export * from './session.js';
 export * from './session-compaction.js';
 export * from './session-content-search.js';
+export * from './session-conversation-reference.js';
 export * from './session-order.js';
 export * from './session-pull-request.js';
 export * from './settings-tab.js';

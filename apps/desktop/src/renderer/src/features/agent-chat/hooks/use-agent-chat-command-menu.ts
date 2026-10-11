@@ -7,12 +7,12 @@ import { isAgentProcessRunning } from '../../../lib/terminal-agent-runtime';
 import { useCaxriQuery } from '../../../queries/client';
 import { useTerminal } from '../../../stores/selectors';
 import {
-    agentChatCommandOptionId,
     agentChatMenuActions,
     agentChatMenuKeyAction,
     agentChatSlashQuery,
     filterAgentChatActions,
 } from '../agent-chat-slash-commands';
+import { agentChatActionSuggestion, agentChatSuggestionOptionId } from '../agent-chat-suggestions';
 
 /**
  * Discovered skills stay fresh enough while the user types a run of invocations, and a new search after a pause
@@ -64,7 +64,7 @@ export function useAgentChatCommandMenu({
     const activeIndex = active.query === query ? Math.min(active.index, matches.length - 1) : 0;
     const activeCommand = isOpen ? matches[activeIndex] : undefined;
     const activeOptionId = activeCommand
-        ? agentChatCommandOptionId(listId, activeCommand.invocation)
+        ? agentChatSuggestionOptionId(listId, activeCommand.invocation)
         : undefined;
     /**
      * The rows never take focus, so the browser does not scroll the active one into view the way it would a focused
@@ -81,6 +81,7 @@ export function useAgentChatCommandMenu({
     return {
         isOpen,
         matches,
+        suggestions: matches.map(agentChatActionSuggestion),
         activeIndex,
         activeCommand,
         listId,
