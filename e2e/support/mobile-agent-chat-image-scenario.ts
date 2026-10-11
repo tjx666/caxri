@@ -7,6 +7,7 @@ import { agentText, hasCheck, waitForCheck, waitForNoCheck } from './mobile-agen
 import {
     adbShell,
     androidBounds,
+    captureMobileFramebuffer,
     mobileRegionFingerprint,
     mobileSemantics,
     setMobileNetworkAvailable,
@@ -125,7 +126,13 @@ export async function executeMobileChatImageScenario(
         if (hasCheck(await mobileSemantics(serial), 'agent-chat-image-viewer-preview-note'))
             throw new Error('The viewer fell back to the preview instead of the original');
         await capture(environment, 'viewer', artifacts);
-        await zoomViewer(serial);
+        try {
+            await zoomViewer(serial);
+        } catch (error) {
+            // Diagnostic frame outside the report, so a missed gesture can be told apart from a missed detection.
+            await captureMobileFramebuffer(serial, '/tmp/mob-chat-05-zoom-timeout.png');
+            throw error;
+        }
         await capture(environment, 'viewer-zoomed', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-image-viewer-close');
         await waitForNoCheck(serial, 'agent-chat-image-viewer');
