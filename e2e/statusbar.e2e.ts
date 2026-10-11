@@ -21,6 +21,8 @@ test('Status Bar switches the primary branch and shows changed line counts', asy
      * Server's GraphQL-budget probe. That probe is the unbilled `rateLimit` self-query, issued at most once every five
      * minutes; answering it with a realistic payload keeps the Server from re-probing on every request. Matched on its
      * `-f` flag so the branch-publication query, also `gh api graphql` but with `--hostname`, is not mistaken for it.
+     * `pr view` reports the base and head commits the repository really has: the Git extension's pull-request probe
+     * reads the same record, and an incomplete one fails that request and the E2E error gate whenever the probe runs.
      */
     await writeFile(
         gh,
@@ -34,7 +36,9 @@ if [ "$1 $2" = "pr list" ]; then
   printf '%s' '[{"number":11,"state":"OPEN","isDraft":false}]'
   exit 0
 fi
-printf '%s' '{"number":11,"state":"OPEN","title":"Linked Status Bar","url":"https://github.com/tjx666/status-project/pull/11"}'
+base=$(/usr/bin/git -C '${root}' rev-parse feature/local-picker)
+head=$(/usr/bin/git -C '${root}' rev-parse feature/status-bar)
+printf '{"number":11,"state":"OPEN","title":"Linked Status Bar","url":"https://github.com/tjx666/status-project/pull/11","baseRefName":"feature/local-picker","headRefName":"feature/status-bar","baseRefOid":"%s","headRefOid":"%s"}' "$base" "$head"
 `,
         'utf8',
     );
