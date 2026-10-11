@@ -103,7 +103,7 @@ export interface AgentTranscriptIdentity {
     provider: AgentProvider;
 }
 
-function boundAgentIdentity(
+export function boundAgentIdentity(
     database: CaxriDatabase,
     terminalId: string,
 ): AgentTranscriptIdentity | undefined {

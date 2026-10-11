@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
     formatDuration,
+    formatLimitReset,
+    formatLimitWindowName,
     formatPercent,
     formatTokens,
     formatUsd,
@@ -33,6 +35,16 @@ describe('usage formatters', () => {
         expect(formatPercent(0.0004)).toBe('<0.1%');
         expect(formatPercent(0.054)).toBe('5.4%');
         expect(formatPercent(0.5)).toBe('50%');
+    });
+
+    it('names rate-limit windows and their reset times', () => {
+        expect(formatLimitWindowName(300)).toBe('5-hour');
+        expect(formatLimitWindowName(10_080)).toBe('Weekly');
+        expect(formatLimitWindowName(2_880)).toBe('2-day');
+        expect(formatLimitWindowName(90)).toBe('90-minute');
+        expect(formatLimitReset(1_000, 2_000)).toBe('resets now');
+        expect(formatLimitReset(200 * 60_000, 0)).toBe('resets in 3h 20m');
+        expect(formatLimitReset(98 * 3_600_000, 0)).toBe('resets in 4d 2h');
     });
 });
 

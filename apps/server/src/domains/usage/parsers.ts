@@ -1,8 +1,11 @@
+import { createHash } from 'node:crypto';
+
 import type { AgentProvider } from '@caxri/protocol';
 
 import type { TranscriptPullRequestScan } from '../agents';
 import { createTranscriptPullRequestScan, scanTranscriptPullRequestLine } from '../agents';
 import type { RateLimitObservation, UsageAccumulator, UsageTokens } from './accumulator';
+import type { ServiceTier } from './record';
 
 /**
  * Consumes one transcript file line by line. Every parser is streaming: usage reaches the accumulator as soon as its
@@ -11,6 +14,11 @@ import type { RateLimitObservation, UsageAccumulator, UsageTokens } from './accu
  */
 export interface UsageLineParser {
     line(text: string): void;
+    /**
+     * Settles a decision a parser deferred until a later line, when the file has no more complete lines yet. Only a
+     * forked Codex rollout defers one (whether its first event is replayed history).
+     */
+    flush?(): void;
     finish(): void;
 }
 
@@ -22,9 +30,43 @@ export interface UsageParserOptions {
     isSideStream?: boolean;
     /**
      * The file continues a conversation recorded in another file (a reverted Codex thread's `<thread>_<rollout>`
-     * rollout), so its first cumulative total repeats usage that file already holds and only sets the baseline.
+     * rollout), so its first cumulative total includes usage that file already holds. It only sets the baseline when
+     * the event lacks the request's own usage.
      */
     isContinuation?: boolean;
+    /**
+     * Claude messages already seen by this Agent Session's other files. A forked subagent's side file repeats the
+     * parent message that spawned it, so main and side files of one scan share one map and merge by message ID.
+     */
+    claudeMessages?: Map<string, ClaudeMessageUsage>;
+    /**
+     * Whether an earlier transcript already counts the billed unit with this digest (see {@link usageKeyDigest}). Asked
+     * only for main files: resume and fork copy history into a new main transcript.
+     */
+    isCountedElsewhere?: (digest: string) => boolean;
+}
+
+/**
+ * One-way digest of a billed unit's provider identity: 66 bits, so a machine's whole history never collides in
+ * practice, and the stored aggregate keeps no message ID.
+ */
+export function usageKeyDigest(provider: AgentProvider, key: string): string {
+    return createHash('sha256').update(`${provider}:${key}`).digest('base64url').slice(0, 11);
+}
+
+/**
+ * Records a main-file unit's digest and answers whether this file should count it.
+ */
+function shouldCountUnit(
+    accumulator: UsageAccumulator,
+    options: UsageParserOptions,
+    provider: AgentProvider,
+    key: string,
+): boolean {
+    if (options.isSideStream) return true;
+    const digest = usageKeyDigest(provider, key);
+    accumulator.addKey(digest);
+    return !options.isCountedElsewhere?.(digest);
 }
 
 /**
@@ -79,23 +121,29 @@ function pullRequestTracker(accumulator: UsageAccumulator): (text: string) => vo
     };
 }
 
-interface ClaudeMessageUsage {
+export interface ClaudeMessageUsage {
     at: number;
     model: string;
     usage: UsageTokens;
+    /**
+     * An earlier transcript counts this message, so neither it nor its growth is added here.
+     */
+    isCountedElsewhere: boolean;
 }
 
 /**
  * Claude Code writes one record per streamed content block, each repeating the message's `usage` as it grows. Records
  * are therefore merged per message ID with a per-field maximum, the same rule `collectClaudeUsage` uses for delegation
  * results; summing them would multiply-count every multi-block reply. A repeat adds only its growth over the maximum
- * seen so far, attributed to the message's first record.
+ * seen so far, attributed to the message's first record. `claude --resume <id> --fork-session` copies every earlier
+ * record, IDs and timestamps unchanged, into the new transcript; {@link UsageParserOptions.isCountedElsewhere} keeps
+ * those counted once.
  */
 export function claudeUsageParser(
     accumulator: UsageAccumulator,
     options: UsageParserOptions = {},
 ): UsageLineParser {
-    const messages = new Map<string, ClaudeMessageUsage>();
+    const messages = options.claudeMessages ?? new Map<string, ClaudeMessageUsage>();
     const trackPullRequests = pullRequestTracker(accumulator);
     let anonymous = 0;
     return {
@@ -124,12 +172,24 @@ export function claudeUsageParser(
                 ),
                 reasoning: 0,
             };
-            const id =
-                string(message.id) ?? string(entry.requestId) ?? `anonymous-${(anonymous += 1)}`;
+            const messageId = string(message.id);
+            const requestId = string(entry.requestId);
+            const id = messageId ?? requestId ?? `anonymous-${(anonymous += 1)}`;
             const previous = messages.get(id);
             if (!previous) {
-                messages.set(id, { at, model, usage: next });
-                accumulator.addUsage(at, model, next);
+                const isCounted =
+                    messageId === undefined ||
+                    shouldCountUnit(
+                        accumulator,
+                        options,
+                        'claude',
+                        `${messageId}:${requestId ?? ''}`,
+                    );
+                messages.set(id, { at, model, usage: next, isCountedElsewhere: !isCounted });
+                if (isCounted)
+                    accumulator.addUsage(at, model, next, {
+                        contextTokens: next.input + next.cacheRead + next.cacheWrite,
+                    });
                 return;
             }
             const growth = { ...next };
@@ -137,7 +197,12 @@ export function claudeUsageParser(
                 growth[key] = Math.max(0, next[key] - previous.usage[key]);
                 previous.usage[key] = Math.max(previous.usage[key], next[key]);
             }
-            accumulator.addUsage(previous.at, previous.model, growth);
+            if (!previous.isCountedElsewhere) {
+                const { input, cacheRead, cacheWrite } = previous.usage;
+                accumulator.addUsage(previous.at, previous.model, growth, {
+                    contextTokens: input + cacheRead + cacheWrite,
+                });
+            }
         },
         finish() {
             accumulator.endStream();
@@ -184,11 +249,63 @@ function codexRateLimits(value: unknown, at: number): RateLimitObservation | und
     return { observedAt: at, planType: string(limits.plan_type), windows };
 }
 
+const CODEX_USAGE_LINE_KINDS = [
+    'token_count',
+    'turn_context',
+    'thread_settings_applied',
+    'session_meta',
+] as const;
+
 /**
- * Codex `token_count` events carry the thread's cumulative `total_token_usage`, repeated whenever rate limits refresh,
- * so usage is the delta between consecutive totals. A total that shrinks only resets the baseline: attributing the
- * whole new total would double count history it may repeat. Codex counts cached input inside `input_tokens` and
- * reasoning inside `output_tokens`.
+ * Longest pause inside the burst of parent usage that Codex replayed at the head of a forked rollout. Codex releases
+ * from June to August 2026 copied the parent's `token_count` events into a subagent's fork, rewritten to one instant:
+ * ccusage measured those bursts at 10 to 40ms, and the fork's own first request at 5.8s or more after them.
+ */
+const CODEX_REPLAY_BURST_GAP_MS = 1000;
+
+/**
+ * Codex records the processing tier on `thread_settings_applied`. `fast` is Codex's name for OpenAI's priority
+ * processing; `default` and `standard` both mean the standard tier.
+ */
+function codexServiceTier(value: string): ServiceTier | undefined {
+    if (value === 'priority' || value === 'fast') return 'priority';
+    if (value === 'flex') return 'flex';
+    return undefined;
+}
+
+interface CodexTokenCount {
+    at: number;
+    totals: CodexTotals;
+    /**
+     * `last_token_usage`: the latest request's own usage.
+     */
+    last?: CodexTotals;
+    model: string;
+    serviceTier?: ServiceTier;
+}
+
+function isSameCodexTotals(left: CodexTotals, right: CodexTotals): boolean {
+    return (
+        left.input === right.input &&
+        left.cached === right.cached &&
+        left.cacheWrite === right.cacheWrite &&
+        left.output === right.output &&
+        left.reasoning === right.reasoning
+    );
+}
+
+/**
+ * Codex `token_count` events carry the latest request's own `last_token_usage` and the thread's running
+ * `total_token_usage`, and repeat both whenever rate limits refresh. An event whose total advanced counts its request's
+ * own usage, ccusage's rule: a forked or reverted thread's running total starts from the history it continues, so a
+ * delta from zero would count that history again. Without a per-request figure, usage is the delta between totals, a
+ * shrinking total only resets the baseline, and a continuation file's first total only sets it. Codex counts cached
+ * input inside `input_tokens` and reasoning inside `output_tokens`. `last_token_usage.input_tokens` is the latest
+ * request's whole context, which selects a long-context price tier.
+ *
+ * A rollout whose `session_meta` names `forked_from_id` may open with a replay of its parent's totals (see
+ * {@link CODEX_REPLAY_BURST_GAP_MS}). Its first event is held until the second arrives: two events within the burst gap
+ * start a replay, whose last total becomes the baseline; otherwise the held event is the fork's own first request.
  */
 export function codexUsageParser(
     accumulator: UsageAccumulator,
@@ -196,41 +313,115 @@ export function codexUsageParser(
 ): UsageLineParser {
     const trackPullRequests = pullRequestTracker(accumulator);
     let model = 'unknown';
+    let serviceTier: ServiceTier | undefined;
     let previous: CodexTotals | undefined;
-    return {
-        line(text) {
-            const at = isoTimestamp(text);
-            if (at !== undefined) accumulator.markActivity(at);
-            trackPullRequests(text);
-            if (at === undefined) return;
-            const isTurnContext = text.includes('"turn_context"');
-            if (!isTurnContext && !text.includes('"token_count"')) return;
-            const entry = record(parseJson(text));
-            const payload = record(entry?.payload);
-            if (!payload) return;
-            if (entry?.type === 'turn_context') {
-                model = string(payload.model) ?? model;
-                return;
-            }
-            if (entry?.type !== 'event_msg' || payload.type !== 'token_count') return;
-            const limits = codexRateLimits(payload.rate_limits, at);
-            if (limits) accumulator.observeRateLimits(limits);
-            const totals = codexTotals(record(payload.info)?.total_token_usage);
-            if (!totals) return;
-            const base = previous;
-            previous = totals;
+    let replay: 'none' | 'undecided' | 'skipping' = 'none';
+    let held: CodexTokenCount | undefined;
+    let lastReplayAt = 0;
+    const count = (event: CodexTokenCount) => {
+        const { totals, last } = event;
+        const base = previous;
+        previous = totals;
+        const hasAdvanced = !base || !isSameCodexTotals(base, totals);
+        let delta: (key: keyof CodexTotals) => number;
+        if (hasAdvanced && last) delta = (key) => last[key];
+        else {
             if (!base && options.isContinuation) return;
             if (base && (totals.input < base.input || totals.output < base.output)) return;
-            const delta = (key: keyof CodexTotals) => totals[key] - (base?.[key] ?? 0);
-            const cached = Math.max(0, delta('cached'));
-            accumulator.addUsage(at, model, {
+            delta = (key) => totals[key] - (base?.[key] ?? 0);
+        }
+        const cached = Math.max(0, delta('cached'));
+        accumulator.addUsage(
+            event.at,
+            event.model,
+            {
                 input: Math.max(0, delta('input') - cached),
                 output: Math.max(0, delta('output')),
                 cacheRead: cached,
                 cacheWrite: Math.max(0, delta('cacheWrite')),
                 cacheWrite1h: 0,
                 reasoning: Math.max(0, delta('reasoning')),
-            });
+            },
+            {
+                contextTokens: last && last.input > 0 ? last.input : Math.max(0, delta('input')),
+                serviceTier: event.serviceTier,
+            },
+        );
+    };
+    const release = () => {
+        if (!held) return;
+        const event = held;
+        held = undefined;
+        count(event);
+    };
+    return {
+        line(text) {
+            const at = isoTimestamp(text);
+            if (at !== undefined) accumulator.markActivity(at);
+            trackPullRequests(text);
+            if (at === undefined) return;
+            if (CODEX_USAGE_LINE_KINDS.every((kind) => !text.includes(`"${kind}"`))) return;
+            const entry = record(parseJson(text));
+            const payload = record(entry?.payload);
+            if (!payload) return;
+            if (entry?.type === 'session_meta') {
+                if (replay === 'none' && !previous && string(payload.forked_from_id))
+                    replay = 'undecided';
+                return;
+            }
+            if (entry?.type === 'turn_context') {
+                model = string(payload.model) ?? model;
+                return;
+            }
+            if (entry?.type !== 'event_msg') return;
+            if (payload.type === 'thread_settings_applied') {
+                const recorded = string(record(payload.thread_settings)?.service_tier);
+                if (recorded !== undefined) serviceTier = codexServiceTier(recorded);
+                return;
+            }
+            if (payload.type !== 'token_count') return;
+            const limits = codexRateLimits(payload.rate_limits, at);
+            if (limits) accumulator.observeRateLimits(limits);
+            const info = record(payload.info);
+            const totals = codexTotals(info?.total_token_usage);
+            if (!totals) return;
+            const event: CodexTokenCount = {
+                at,
+                totals,
+                last: codexTotals(info?.last_token_usage),
+                model,
+                serviceTier,
+            };
+            if (replay === 'undecided') {
+                if (!held) {
+                    held = event;
+                    return;
+                }
+                // A rate-limit refresh repeats the running total; a replay's totals always advance.
+                if (isSameCodexTotals(totals, held.totals)) return;
+                if (at - held.at <= CODEX_REPLAY_BURST_GAP_MS) {
+                    lastReplayAt = held.at;
+                    held = undefined;
+                    replay = 'skipping';
+                } else {
+                    replay = 'none';
+                    release();
+                }
+            }
+            if (replay === 'skipping') {
+                if (at - lastReplayAt <= CODEX_REPLAY_BURST_GAP_MS) {
+                    previous = totals;
+                    lastReplayAt = at;
+                    return;
+                }
+                replay = 'none';
+            }
+            count(event);
+        },
+        flush() {
+            if (replay !== 'undecided') return;
+            replay = 'none';
+            release();
         },
         finish() {
             accumulator.endStream();
@@ -239,10 +430,17 @@ export function codexUsageParser(
 }
 
 /**
- * Grok reports exact per-prompt usage on `turn_completed`, broken down by model. Its `inputTokens` includes cache reads
- * and writes.
+ * Grok reports exact per-prompt usage on `turn_completed`, broken down by model, with its own cost in `costUsdTicks`
+ * (10^10 ticks per USD, as Grok Build's user guide states for `grok usage`), which is preferred over a list-price
+ * estimate and stored as is, since the usage record's native cost uses the same unit. Its `inputTokens` includes cache
+ * reads and writes, summed over the turn's `modelCalls`, so their average is the context size that selects a price tier
+ * when no native cost is present. Resume and fork copy earlier turns into the new session's file, so a prompt ID is
+ * counted once across files.
  */
-export function grokUsageParser(accumulator: UsageAccumulator): UsageLineParser {
+export function grokUsageParser(
+    accumulator: UsageAccumulator,
+    options: UsageParserOptions = {},
+): UsageLineParser {
     const seenPrompts = new Set<string>();
     return {
         line(text) {
@@ -257,6 +455,7 @@ export function grokUsageParser(accumulator: UsageAccumulator): UsageLineParser 
             if (promptId) {
                 if (seenPrompts.has(promptId)) return;
                 seenPrompts.add(promptId);
+                if (!shouldCountUnit(accumulator, options, 'grok', promptId)) return;
             }
             const usage = record(update.usage);
             const byModel = record(usage?.modelUsage);
@@ -268,14 +467,26 @@ export function grokUsageParser(accumulator: UsageAccumulator): UsageLineParser 
                 if (!modelUsage) continue;
                 const cacheRead = number(modelUsage.cachedReadTokens);
                 const cacheWrite = number(modelUsage.cacheCreationTokens);
-                accumulator.addUsage(at, model.slice(0, 200), {
-                    input: Math.max(0, number(modelUsage.inputTokens) - cacheRead - cacheWrite),
-                    output: number(modelUsage.outputTokens),
-                    cacheRead,
-                    cacheWrite,
-                    cacheWrite1h: 0,
-                    reasoning: number(modelUsage.reasoningTokens),
-                });
+                const inputTokens = number(modelUsage.inputTokens);
+                const ticks = modelUsage.costUsdTicks;
+                accumulator.addUsage(
+                    at,
+                    model.slice(0, 200),
+                    {
+                        input: Math.max(0, inputTokens - cacheRead - cacheWrite),
+                        output: number(modelUsage.outputTokens),
+                        cacheRead,
+                        cacheWrite,
+                        cacheWrite1h: 0,
+                        reasoning: number(modelUsage.reasoningTokens),
+                    },
+                    {
+                        contextTokens: inputTokens / Math.max(1, number(modelUsage.modelCalls)),
+                        ...(typeof ticks === 'number' &&
+                            Number.isFinite(ticks) &&
+                            ticks >= 0 && { nativeCostTicks: ticks }),
+                    },
+                );
             }
         },
         finish() {

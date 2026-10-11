@@ -153,6 +153,21 @@ export const usageLimitSchema = z.object({
 });
 export type UsageLimit = z.infer<typeof usageLimitSchema>;
 
+/**
+ * Running totals of the conversation bound to one Agent Terminal, for the status bar. Priced by the same rules as the
+ * Usage page, but over that conversation's own transcript files only (forked or resumed history included, since the
+ * conversation carries it). `limit` is the latest rate-limit snapshot that conversation recorded, Codex only.
+ */
+export const agentUsageReadoutSchema = z.object({
+    provider: agentProvider,
+    tokens: usageTokenBreakdownSchema,
+    costUsd: usd,
+    models: z.array(modelName).max(64),
+    unpricedModels: z.array(modelName).max(64),
+    limit: usageLimitSchema.optional(),
+});
+export type AgentUsageReadout = z.infer<typeof agentUsageReadoutSchema>;
+
 export const usageReportSchema = z.object({
     generatedAt: count,
     timeZone: z.string(),
@@ -220,6 +235,12 @@ export const usageReportSchema = z.object({
          */
         unavailable: count,
         /**
+         * Agent Sessions in Caxri Sessions whose transcript the background scan has not read yet; their usage is
+         * missing or from the previous scan until it does. A first open over hundreds of transcripts, or the first open
+         * after an upgrade that changes what is stored, reads them in the background instead of blocking the report.
+         */
+        pendingScans: count,
+        /**
          * Created pull requests whose GitHub outcome has not been fetched yet.
          */
         pendingPullRequests: count,
@@ -248,5 +269,14 @@ export const usageMethods = {
         ...commandPolicy('server', 'read'),
         params: usageReportParametersSchema,
         result: usageReportSchema,
+    },
+    /**
+     * Null when the Terminal has no bound Agent session, its transcript is not found, or it recorded no usage yet.
+     * Polled by the status bar like `terminal.agentThroughput`; each call parses only bytes appended since the last.
+     */
+    'terminal.agentUsage': {
+        ...commandPolicy('server', 'read'),
+        params: z.object({ terminalId: identifierSchema }),
+        result: agentUsageReadoutSchema.nullable(),
     },
 } as const;

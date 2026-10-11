@@ -111,6 +111,13 @@ describe('built-in themes', () => {
             solarizedLightTheme.colors.accent,
         );
 
+        // Charts painted `success` before the chart role existed, and a custom theme keeps that color.
+        const withoutChart = structuredClone(custom);
+        delete withoutChart.colors.chart;
+        expect(themeTokensSchema.parse(upgradeThemeColors(withoutChart)).colors.chart).toBe(
+            solarizedLightTheme.colors.success,
+        );
+
         // A theme that already carries the role is returned untouched, and junk stays the schema's problem.
         const intact = structuredClone(solarizedLightTheme);
         expect(upgradeThemeColors(intact)).toBe(intact);
