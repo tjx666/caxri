@@ -17,7 +17,7 @@ function normalizeRepoPath(path: string): string {
  * separately, one outside the approved Project, keeps its ordinary gitlink row. See `hiddenGitlinkPaths` for the modes
  * this applies to.
  */
-export function submodulePathsWithOwnSection(
+function submodulePathsWithOwnSection(
     repo: GitRepositorySummary,
     repositories: readonly GitRepositorySummary[],
 ): ReadonlySet<string> {
