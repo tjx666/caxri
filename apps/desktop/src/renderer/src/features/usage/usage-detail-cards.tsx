@@ -2,19 +2,19 @@ import type { UsageReport } from '@caxri/protocol';
 import { formatDuration, formatLineCount, formatTokens, formatUsd } from '@caxri/protocol';
 import { Archive, GitMerge } from 'lucide-react';
 
+import { ReportCard } from '../../components/report-card';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { pushToast } from '../../stores/toasts';
+import { ShareBar } from './share-bar';
+import { UsageSessionTitle } from './usage-session-title';
 import {
     cellClass,
     numericCellClass,
     numericHeadClass,
-    ShareBar,
     tableHeadClass,
-    UsageCard,
-} from './usage-card';
-import { UsageSessionTitle } from './usage-session-title';
+} from './usage-table-classes';
 
 function openPullRequest(url: string): void {
     // eslint-disable-next-line no-void -- openExternalUrl reports failures through the shared toast path.
@@ -25,7 +25,7 @@ const MODEL_COLUMNS = ['Input', 'Output', 'Cache', 'Cost'];
 
 function ModelsCard({ report }: { report: UsageReport }) {
     return (
-        <UsageCard title="Models">
+        <ReportCard title="Models">
             {report.models.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">No model usage in this range.</p>
             ) : (
@@ -72,7 +72,7 @@ function ModelsCard({ report }: { report: UsageReport }) {
                     </tbody>
                 </table>
             )}
-        </UsageCard>
+        </ReportCard>
     );
 }
 
@@ -80,7 +80,7 @@ function ProjectsCard({ report }: { report: UsageReport }) {
     const top = report.projects.slice(0, 10);
     const peak = Math.max(0, ...top.map((row) => row.costUsd));
     return (
-        <UsageCard
+        <ReportCard
             title="Projects"
             caption={
                 report.projects.length > top.length
@@ -118,14 +118,14 @@ function ProjectsCard({ report }: { report: UsageReport }) {
                     ))}
                 </div>
             )}
-        </UsageCard>
+        </ReportCard>
     );
 }
 
 function SessionsCard({ report }: { report: UsageReport }) {
     const rows = report.sessions.slice(0, 15);
     return (
-        <UsageCard title="Most expensive Sessions">
+        <ReportCard title="Most expensive Sessions">
             {rows.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">No Session usage in this range.</p>
             ) : (
@@ -181,14 +181,14 @@ function SessionsCard({ report }: { report: UsageReport }) {
                     </tbody>
                 </table>
             )}
-        </UsageCard>
+        </ReportCard>
     );
 }
 
 function PullRequestsCard({ report }: { report: UsageReport }) {
     const { pullRequestsMerged, linesAdded, linesDeleted, costUsd } = report.totals;
     return (
-        <UsageCard
+        <ReportCard
             title="Merged pull requests"
             caption={
                 pullRequestsMerged > 0
@@ -236,7 +236,7 @@ function PullRequestsCard({ report }: { report: UsageReport }) {
                     {formatLineCount(linesDeleted)} lines
                 </p>
             )}
-        </UsageCard>
+        </ReportCard>
     );
 }
 
