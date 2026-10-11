@@ -5,10 +5,11 @@ import { join } from 'node:path';
 
 import type {
     AppSettings,
+    SavedLongPaste,
     ServerOperationParameters,
     TerminalLongPasteResult,
 } from '@caxri/protocol';
-import { CaxriError, MAX_LONG_PASTE_BYTES } from '@caxri/protocol';
+import { CaxriError, isChatTerminal, MAX_LONG_PASTE_BYTES } from '@caxri/protocol';
 import { AsyncSemaphore } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
@@ -50,8 +51,9 @@ function pruneLongPastes(directory: string, now: number, reserveBytes: number): 
 }
 
 /**
- * Owns the privacy boundary for long Terminal pastes: the original is persisted locally, never enters logs or SQLite,
- * and reaches the Agent as a path it can read explicitly instead of as text pushed through the PTY.
+ * Owns the privacy boundary for long pastes into a Terminal Agent or an Agent Chat message: the original is persisted
+ * locally, never enters logs or SQLite, and reaches the Agent as a path it can read explicitly instead of as text
+ * pushed through the PTY or carried in the message.
  */
 export class LongPasteService {
     private cleanupTimer?: NodeJS.Timeout;
@@ -69,6 +71,41 @@ export class LongPasteService {
         private readonly cleanupIntervalMs: number = LONG_PASTE_CLEANUP_INTERVAL_MS,
     ) {
         this.directory = join(userDataPath, LONG_PASTE_DIRECTORY_NAME);
+    }
+
+    private assertOpen(): void {
+        if (this.isClosed) throw new CaxriError('CONFLICT', 'Long paste service is closed');
+    }
+
+    private assertSavable(content: string, signal: AbortSignal | undefined): void {
+        if (Buffer.byteLength(content, 'utf8') > MAX_LONG_PASTE_BYTES)
+            throw new CaxriError('VALIDATION', 'Pasted text exceeds the local file safety limit');
+        if (signal?.aborted)
+            throw new CaxriError('CANCELLED', 'Long paste preparation was cancelled');
+    }
+
+    private async save(content: string, signal: AbortSignal | undefined): Promise<SavedLongPaste> {
+        const now = this.now();
+        const filePath = join(this.directory, pasteFileName(now, this.identifier()));
+        const contentBytes = Buffer.byteLength(content, 'utf8');
+        await this.mutations.run(async () => {
+            await mkdir(this.directory, { recursive: true, mode: 0o700 });
+            await chmod(this.directory, 0o700);
+            await pruneLongPastes(this.directory, now, contentBytes);
+            await writeFile(filePath, content, {
+                encoding: 'utf8',
+                flag: 'wx',
+                mode: 0o600,
+            });
+            await chmod(filePath, 0o600);
+        });
+        if (signal?.aborted)
+            throw new CaxriError('CANCELLED', 'Long paste preparation was cancelled');
+        return {
+            characterCount: content.length,
+            filePath,
+            lineCount: countAgentPasteLines(content),
+        };
     }
 
     /**
@@ -95,7 +132,7 @@ export class LongPasteService {
         parameters: ServerOperationParameters<'terminal.prepareLongPaste'>,
         signal?: AbortSignal,
     ): Promise<TerminalLongPasteResult> {
-        if (this.isClosed) throw new CaxriError('CONFLICT', 'Long paste service is closed');
+        this.assertOpen();
         const terminal = this.database.getTerminal(parameters.terminalId);
         if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');
         assertPtyTerminal(terminal);
@@ -108,11 +145,7 @@ export class LongPasteService {
         const settings = this.settings();
         if (parameters.content.length <= settings['terminal.longPasteThreshold'])
             throw new CaxriError('CONFLICT', 'Pasted text is below the configured threshold');
-        const contentBytes = Buffer.byteLength(parameters.content, 'utf8');
-        if (contentBytes > MAX_LONG_PASTE_BYTES)
-            throw new CaxriError('VALIDATION', 'Pasted text exceeds the local file safety limit');
-        if (signal?.aborted)
-            throw new CaxriError('CANCELLED', 'Long paste preparation was cancelled');
+        this.assertSavable(parameters.content, signal);
 
         const initialAgentLaunchId = this.agentLaunchId(parameters.terminalId);
         /**
@@ -121,27 +154,27 @@ export class LongPasteService {
          */
         if (initialAgentLaunchId === undefined) return { status: 'passthrough' };
 
-        const now = this.now();
-        const filePath = join(this.directory, pasteFileName(now, this.identifier()));
-        const originalSize = {
-            characterCount: parameters.content.length,
-            lineCount: countAgentPasteLines(parameters.content),
-        };
-        await this.mutations.run(async () => {
-            await mkdir(this.directory, { recursive: true, mode: 0o700 });
-            await chmod(this.directory, 0o700);
-            await pruneLongPastes(this.directory, now, contentBytes);
-            await writeFile(filePath, parameters.content, {
-                encoding: 'utf8',
-                flag: 'wx',
-                mode: 0o600,
-            });
-            await chmod(filePath, 0o600);
-        });
-        if (signal?.aborted)
-            throw new CaxriError('CANCELLED', 'Long paste preparation was cancelled');
+        const saved = await this.save(parameters.content, signal);
         if (this.agentLaunchId(parameters.terminalId) !== initialAgentLaunchId)
             throw new CaxriError('CONFLICT', 'Managed Agent changed while saving the long paste');
-        return { agentLaunchId: initialAgentLaunchId, filePath, ...originalSize, status: 'saved' };
+        return { agentLaunchId: initialAgentLaunchId, ...saved, status: 'saved' };
+    }
+
+    /**
+     * Saves text pasted into an Agent Chat message. A Chat has no PTY whose Agent generation could change underneath
+     * the write, and the message is not sent until the user sends it, so only the Terminal's existence and surface are
+     * checked. The Renderer decides when a paste is long (`AGENT_CHAT_LONG_PASTE_THRESHOLD`).
+     */
+    async saveForChat(
+        parameters: ServerOperationParameters<'agentChat.saveLongPaste'>,
+        signal?: AbortSignal,
+    ): Promise<SavedLongPaste> {
+        this.assertOpen();
+        const terminal = this.database.getTerminal(parameters.terminalId);
+        if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');
+        if (!isChatTerminal(terminal))
+            throw new CaxriError('CONFLICT', 'Saving a Chat long paste requires an Agent Chat');
+        this.assertSavable(parameters.content, signal);
+        return this.save(parameters.content, signal);
     }
 }

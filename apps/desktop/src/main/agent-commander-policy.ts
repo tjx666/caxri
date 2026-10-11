@@ -50,6 +50,7 @@ const TERMINAL_METHODS = new Set<string>([
     'agentChat.respond',
     'agentChat.resumeQueue',
     'agentChat.runCommand',
+    'agentChat.saveLongPaste',
     'agentChat.send',
     'agentChat.sendQueuedNow',
     'agentChat.stopTask',

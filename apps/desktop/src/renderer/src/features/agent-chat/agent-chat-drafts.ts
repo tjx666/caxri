@@ -191,7 +191,8 @@ export function attachmentsAfterSend(
 
 /**
  * Inserts `text` over the selection `[start, end)`, padded with a space wherever it would otherwise run into a
- * neighboring word, and always followed by one so the user can keep typing. Returns the new draft and where the caret
+ * neighboring word, and always followed by one so the user can keep typing. A multi-line `text` (a long paste's
+ * reference) is a block of its own, so it is padded with line breaks instead. Returns the new draft and where the caret
  * goes.
  */
 export function draftWithInsertion(
@@ -202,8 +203,9 @@ export function draftWithInsertion(
 ): { draft: string; caret: number } {
     const before = draft.slice(0, start);
     const after = draft.slice(end);
-    const leading = before && !/\s$/u.test(before) ? ' ' : '';
-    const trailing = /^\s/u.test(after) ? '' : ' ';
+    const separator = text.includes('\n') ? '\n' : ' ';
+    const leading = before && !(separator === ' ' ? /\s$/u : /\n$/u).test(before) ? separator : '';
+    const trailing = (separator === ' ' ? /^\s/u : /^\n/u).test(after) ? '' : separator;
     const inserted = `${leading}${text}${trailing}`;
     return { draft: `${before}${inserted}${after}`, caret: before.length + inserted.length };
 }
@@ -217,22 +219,4 @@ export function agentChatAttachmentLabel(
 ): string {
     if (attachment.name) return attachment.name;
     return `Attachment ${index + 1}`;
-}
-
-/**
- * The warning for a paste that would push the draft past `maxLength`, or `undefined` when it fits. Pasting
- * `pastedLength` characters replaces a selection of `selectedLength` in a draft of `currentLength`; past the limit the
- * textarea's `maxLength` cuts the paste silently, so the composer says so.
- */
-export function agentChatPasteTruncationWarning(
-    {
-        currentLength,
-        pastedLength,
-        selectedLength,
-    }: { currentLength: number; pastedLength: number; selectedLength: number },
-    maxLength: number,
-): string | undefined {
-    if (pastedLength === 0 || currentLength - selectedLength + pastedLength <= maxLength)
-        return undefined;
-    return `Pasted text was cut off at the ${maxLength.toLocaleString('en-US')}-character message limit`;
 }

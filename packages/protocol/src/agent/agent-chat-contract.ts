@@ -28,11 +28,25 @@ export const MAX_AGENT_CHAT_PATCH_OPERATIONS = 200;
  */
 export const MAX_AGENT_CHAT_TOTAL_TEXT_LENGTH = 4 * 1024 * 1024;
 /**
- * Images one message may attach. Each is bounded by the smaller per-image limit the hosted providers accept (5 MB), so
- * Caxri rejects an oversized image up front instead of letting the provider fail the turn.
+ * Images one message may attach. Each is bounded by the smaller per-image limit the hosted providers accept (the
+ * Anthropic API's 5 MB), so Caxri rejects an oversized image up front instead of letting the provider fail the turn.
+ * The count stops at 20 because the Anthropic API lowers its per-image dimension limit from 8000 to 2000 pixels once a
+ * request carries more than 20 images, which would fail an ordinary full-resolution screenshot.
  */
-export const MAX_AGENT_CHAT_IMAGES = 4;
+export const MAX_AGENT_CHAT_IMAGES = 20;
 export const MAX_AGENT_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
+/**
+ * Combined bytes of one message's images. It keeps the worst-case payload where four 5 MB images already put it, so a
+ * message stays inside the Anthropic API's 32 MB request limit once base64 adds a third, and the Desktop, Server Core,
+ * and provider pipes carry no more than they did before the count rose.
+ */
+export const MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES = 20 * 1024 * 1024;
+/**
+ * Pasted text longer than this (in UTF-16 code units, what the input counts) is saved to a file the message cites
+ * instead of landing in the input, following T3 Code's 32 KiB pasted-text attachment. A paste that would push the
+ * message past {@link MAX_AGENT_CHAT_MESSAGE_LENGTH} is saved too, since the input would otherwise cut it.
+ */
+export const AGENT_CHAT_LONG_PASTE_THRESHOLD = 32 * 1024;
 /**
  * A sent image's preview is a small Renderer-made thumbnail, not the image itself, so the projection stays bounded.
  */

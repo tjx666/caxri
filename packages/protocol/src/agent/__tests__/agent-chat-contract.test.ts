@@ -4,6 +4,7 @@ import {
     agentChatItemSchema,
     MAX_AGENT_CHAT_IMAGE_BYTES,
     MAX_AGENT_CHAT_IMAGES,
+    MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
 } from '../agent-chat-contract';
 import { agentChatMethods } from '../agent-chat-methods';
 import { applyAgentChatOperation, emptyAgentChatSnapshot } from '../agent-chat-reducer';
@@ -32,6 +33,26 @@ describe('Agent Chat input contract', () => {
         const tooLarge = { ...image, data: 'A'.repeat((MAX_AGENT_CHAT_IMAGE_BYTES / 3) * 4 + 8) };
         expect(
             sendParameters.safeParse({ terminalId: 't1', text: '', images: [tooLarge] }).success,
+        ).toBe(false);
+        // Each image may be at the per-image limit, but together they stop at the combined limit.
+        const largest = {
+            ...image,
+            data: 'A'.repeat(Math.ceil(MAX_AGENT_CHAT_IMAGE_BYTES / 3) * 4),
+        };
+        const fitting = MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES / MAX_AGENT_CHAT_IMAGE_BYTES;
+        expect(
+            sendParameters.safeParse({
+                terminalId: 't1',
+                text: '',
+                images: Array.from({ length: fitting }, () => largest),
+            }).success,
+        ).toBe(true);
+        expect(
+            sendParameters.safeParse({
+                terminalId: 't1',
+                text: '',
+                images: Array.from({ length: fitting + 1 }, () => largest),
+            }).success,
         ).toBe(false);
         const svg = { ...image, mediaType: 'image/svg+xml' };
         expect(
