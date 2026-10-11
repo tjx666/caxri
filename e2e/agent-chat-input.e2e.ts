@@ -191,6 +191,19 @@ test('a Codex Chat attaches picked files and saves a long paste to a file', asyn
 
         await message.press('Enter');
         await expect(chat.getByText(`Received ${shots.length} images.`)).toBeVisible();
+        // The sent reference's path is a link that starts on the same line as the quote before it, not on a line of its
+        // own the way an atomic inline-block link would.
+        const savedLink = chat.getByRole('link', { name: savedPath });
+        await expect(savedLink).toBeVisible();
+        const lineGap = await savedLink.evaluate((element) => {
+            const before = element.previousSibling;
+            if (!before?.textContent) return Infinity;
+            const quote = document.createRange();
+            quote.setStart(before, before.textContent.length - 1);
+            quote.setEnd(before, before.textContent.length);
+            return Math.abs(quote.getBoundingClientRect().top - element.getClientRects()[0].top);
+        });
+        expect(lineGap).toBeLessThan(2);
         await page.screenshot({ path: testInfo.outputPath('codex-chat-sent-files.png') });
         await expect(attached).toHaveCount(0);
         await expect(message).toHaveValue('');
