@@ -116,6 +116,32 @@ describe('mobile Agent Chat projection', () => {
         expect(agentChatSnapshotSchema.safeParse(windowed).success).toBe(true);
     });
 
+    it('keeps an image message in the window by leaving its thumbnails for the phone to fetch', () => {
+        // Desktop thumbnails reach 48 KiB each, so one image message alone would fill the frame.
+        const thumbnail = `data:image/jpeg;base64,${'A'.repeat(40_000)}`;
+        const withImages: AgentChatItem = {
+            id: 'item-images',
+            turnId: 'turn-1',
+            type: 'userMessage',
+            text: 'Look at these',
+            images: [{ thumbnail }, { thumbnail }, {}],
+        };
+        const windowed = windowAgentChatSnapshotForMobile(
+            snapshot([message('item-0', 'Earlier'), withImages, message('item-2', 'Reply')]),
+        );
+        expect(windowed.items.map((item) => item.id)).toEqual(['item-0', 'item-images', 'item-2']);
+        expect(windowed.truncated).toBe(false);
+        expect(windowed.items[1]).toEqual({ ...withImages, images: [{}, {}, {}] });
+        expect(
+            clipAgentChatPatchForMobile({
+                terminalId: 'terminal-1',
+                baseRevision: 7,
+                revision: 8,
+                operations: [{ op: 'upsertItem', item: withImages }],
+            })?.operations,
+        ).toEqual([{ op: 'upsertItem', item: { ...withImages, images: [{}, {}, {}] } }]);
+    });
+
     it('returns a small Chat unchanged apart from its window', () => {
         const small = snapshot([message('item-1', 'hello')]);
         expect(windowAgentChatSnapshotForMobile(small)).toEqual(small);

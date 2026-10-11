@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { mkdir, readdir, stat, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -144,6 +144,18 @@ export class MobileImageStore {
         upload.expiresAt = Date.now() + IMAGE_LIFETIME_MS;
         upload.timer = this.#scheduleExpiry(attachmentId, IMAGE_LIFETIME_MS);
         return { ready: true };
+    }
+
+    /**
+     * The uploaded JPEGs as base64, for a Chat message whose provider takes image data rather than a file path.
+     */
+    async read(
+        owner: string,
+        sessionId: string,
+        attachmentIds: readonly string[],
+    ): Promise<string[]> {
+        const paths = this.paths(owner, sessionId, attachmentIds);
+        return Promise.all(paths.map(async (path) => (await readFile(path)).toString('base64')));
     }
 
     paths(owner: string, sessionId: string, attachmentIds: readonly string[]): string[] {

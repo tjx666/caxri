@@ -40,6 +40,12 @@ describe('MobileImageStore', () => {
         });
         expect(store.paths('device:1', 'session-one', [input.attachmentId])).toHaveLength(1);
         expect(() => store.paths('device:2', 'session-one', [input.attachmentId])).toThrow();
+        expect(await store.read('device:1', 'session-one', [input.attachmentId])).toEqual([
+            image.toString('base64'),
+        ]);
+        await expect(
+            store.read('device:1', 'session-two', [input.attachmentId]),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND' });
     });
 
     it('rejects invalid content without leaving a temporary file', async () => {

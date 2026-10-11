@@ -10,7 +10,7 @@ import type { ExtensionService } from '../extensions/service';
 import type { MobileAccessController } from './access-controller-contract';
 import { createMobileAccessPersistence } from './access-persistence';
 import { listMobileAgentActions, terminalForPrincipal } from './action-requests';
-import { invokeMobileAgentChatRequest } from './agent-chat-requests';
+import { invokeMobileAgentChatRequest, isMobileAgentChatRead } from './agent-chat-requests';
 import { invokeMobileAttentionRequest } from './attention-requests';
 import { buildMobileDashboard } from './dashboard';
 import { MobileDeviceRegistry } from './device-registry';
@@ -502,6 +502,7 @@ export const openMobileAccessController = async (options: {
                  * always wins; a read needs no serialization.
                  */
                 case 'mobile.agentChat.read':
+                case 'mobile.agentChat.readImage':
                 case 'mobile.agentChat.send':
                 case 'mobile.agentChat.interrupt':
                 case 'mobile.agentChat.respond':
@@ -517,9 +518,7 @@ export const openMobileAccessController = async (options: {
                             () => currentPairedPrincipal(principal, request.method),
                         );
                     };
-                    return request.method === 'mobile.agentChat.read'
-                        ? invoke()
-                        : withAuthority(invoke);
+                    return isMobileAgentChatRead(request) ? invoke() : withAuthority(invoke);
                 }
                 case 'mobile.pairing.create': {
                     return withAuthority(async () => {

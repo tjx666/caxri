@@ -57,7 +57,7 @@ export const SessionComposerAttachments = ({
     theme: MobileTheme;
 }) =>
     images.attachments.length > 0 ? (
-        // A message carries at most three images, which always fit one row without scrolling.
+        // A message carries at most four images (three on a Terminal), which always fit one row without scrolling.
         <View style={styles.strip} testID="session-image-attachments">
             {images.attachments.map((attachment, index) => (
                 <Animated.View

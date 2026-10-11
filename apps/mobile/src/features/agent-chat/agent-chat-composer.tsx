@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 
-import { ArrowUp, Square } from 'lucide-react-native';
+import { MAX_AGENT_CHAT_IMAGES } from '@caxri/protocol';
+import { ArrowUp, Paperclip, Square } from 'lucide-react-native';
 
+import { IconButton } from '../../components/icon-button';
 import type { MobileTheme } from '../../theme/tokens';
+import { ImageSourceSheet } from '../sessions/components/image-source-sheet';
+import { SessionComposerAttachments } from '../sessions/components/session-composer-extras';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
+import { useImageAttachments } from '../sessions/hooks/use-image-attachments';
 import { agentChatComposerDisabledReason } from './agent-chat-model';
 import type { AgentChatController } from './use-agent-chat';
 
@@ -14,12 +19,14 @@ import type { AgentChatController } from './use-agent-chat';
 const useComposerAction = ({
     chat,
     draft,
+    images,
     isStopAction,
     onDraftChange,
     provider,
 }: {
     chat: AgentChatController;
     draft: string;
+    images: ReturnType<typeof useImageAttachments>;
     isStopAction: boolean;
     onDraftChange: (draft: string) => void;
     provider: string;
@@ -32,8 +39,9 @@ const useComposerAction = ({
         try {
             if (isStopAction) await chat.interrupt();
             else {
-                await chat.send(draft.trim());
+                await chat.send(draft.trim(), images.readyChatImages);
                 onDraftChange('');
+                images.clear();
             }
         } catch {
             setError(
@@ -48,54 +56,8 @@ const useComposerAction = ({
     return { error, isBusy, run };
 };
 
-/**
- * Sends a message to a Chat. While a turn runs, a control device gets Stop in place of Send when the draft is empty,
- * matching the Desktop composer; a message typed during a turn steers it.
- */
-export const AgentChatComposer = ({
-    chat,
-    deviceRole,
-    draft,
-    isConnected,
-    isHandedOff,
-    onDraftChange,
-    provider,
-    theme,
-}: {
-    chat: AgentChatController;
-    deviceRole: 'view' | 'reply' | 'control' | null;
-    draft: string;
-    isConnected: boolean;
-    /**
-     * A detached Chat refuses input until its Session resumes, so the composer says so instead of failing a send.
-     */
-    isHandedOff: boolean;
-    onDraftChange: (draft: string) => void;
-    provider: string;
-    theme: MobileTheme;
-}) => {
-    const disabledReason = agentChatComposerDisabledReason({
-        deviceRole,
-        isConnected,
-        isHandedOff,
-        snapshot: chat.snapshot,
-    });
-    const isRunning = Boolean(chat.snapshot?.activeTurnId);
-    const hasDraft = draft.trim().length > 0;
-    const isStopAction = isRunning && deviceRole === 'control' && !hasDraft;
-    const { error, isBusy, run } = useComposerAction({
-        chat,
-        draft,
-        isStopAction,
-        onDraftChange,
-        provider,
-    });
-    const isEditable = !isBusy && disabledReason === undefined;
-    const canSubmit = isEditable && (isStopAction || hasDraft);
-    const submit = async (): Promise<void> => {
-        if (canSubmit) await run();
-    };
-    const action = isStopAction
+const composerAction = (isStopAction: boolean, provider: string, theme: MobileTheme) =>
+    isStopAction
         ? {
               Icon: Square,
               color: theme.danger,
@@ -108,12 +70,147 @@ export const AgentChatComposer = ({
               label: 'Send message',
               testID: 'agent-chat-composer-send',
           };
+
+const AttachButton = ({
+    canAdd,
+    isEditable,
+    onPress,
+    theme,
+}: {
+    canAdd: boolean;
+    isEditable: boolean;
+    onPress: () => void;
+    theme: MobileTheme;
+}) => (
+    <IconButton
+        accessibilityHint={
+            canAdd ? undefined : `Up to ${MAX_AGENT_CHAT_IMAGES} images per message.`
+        }
+        accessibilityLabel="Attach image"
+        color={theme.muted}
+        disabled={!isEditable || !canAdd}
+        icon={Paperclip}
+        onPress={onPress}
+        size={22}
+        testID="agent-chat-attach-image"
+        theme={theme}
+    />
+);
+
+/**
+ * Why the composer is disabled, and the last send or stop failure.
+ */
+const ComposerNotes = ({
+    disabledReason,
+    error,
+    theme,
+}: {
+    disabledReason: string | undefined;
+    error: string | null;
+    theme: MobileTheme;
+}) => (
+    <>
+        {/* `reason` flexes along the meta row; placed directly in the column block it collapses to zero height. */}
+        {disabledReason ? (
+            <View style={styles.composerMeta}>
+                <Text
+                    style={[styles.reason, { color: theme.muted }]}
+                    testID="agent-chat-composer-reason"
+                >
+                    {disabledReason}
+                </Text>
+            </View>
+        ) : null}
+        {error ? (
+            <Text
+                accessibilityRole="alert"
+                style={[styles.sendState, { color: theme.danger }]}
+                testID="agent-chat-composer-error"
+            >
+                {error}
+            </Text>
+        ) : null}
+    </>
+);
+
+/**
+ * Sends a message to a Chat. While a turn runs, a control device gets Stop in place of Send when the draft is empty,
+ * matching the Desktop composer; a message typed during a turn steers it.
+ */
+export const AgentChatComposer = ({
+    chat,
+    deviceRole,
+    draft,
+    isConnected,
+    isHandedOff,
+    onDraftChange,
+    provider,
+    sessionId,
+    supportsImages,
+    theme,
+}: {
+    chat: AgentChatController;
+    deviceRole: 'view' | 'reply' | 'control' | null;
+    draft: string;
+    isConnected: boolean;
+    /**
+     * A detached Chat refuses input until its Session resumes, so the composer says so instead of failing a send.
+     */
+    isHandedOff: boolean;
+    onDraftChange: (draft: string) => void;
+    provider: string;
+    /**
+     * Uploaded images are scoped to the Chat's Session on the Server.
+     */
+    sessionId: string;
+    supportsImages: boolean;
+    theme: MobileTheme;
+}) => {
+    const images = useImageAttachments(sessionId, {
+        maxAttachments: MAX_AGENT_CHAT_IMAGES,
+        withThumbnail: true,
+    });
+    const [isChoosingImage, setChoosingImage] = useState(false);
+    const disabledReason = agentChatComposerDisabledReason({
+        deviceRole,
+        isConnected,
+        isHandedOff,
+        snapshot: chat.snapshot,
+    });
+    const isRunning = Boolean(chat.snapshot?.activeTurnId);
+    const hasDraft = draft.trim().length > 0 || images.attachments.length > 0;
+    const isStopAction = isRunning && deviceRole === 'control' && !hasDraft;
+    const { error, isBusy, run } = useComposerAction({
+        chat,
+        draft,
+        images,
+        isStopAction,
+        onDraftChange,
+        provider,
+    });
+    const isEditable = !isBusy && disabledReason === undefined;
+    // A message waits for its images to finish uploading, as the Terminal composer does.
+    const canSubmit = isEditable && (isStopAction || (hasDraft && !images.hasUnsentAttachment));
+    const canAttach = supportsImages && (deviceRole === 'reply' || deviceRole === 'control');
+    const submit = async (): Promise<void> => {
+        if (canSubmit) await run();
+    };
+    const action = composerAction(isStopAction, provider, theme);
     return (
         <View
             style={[styles.composerBlock, { borderColor: theme.border }]}
             testID="agent-chat-composer"
         >
+            <SessionComposerAttachments images={images} theme={theme} />
             <View style={styles.composerRow}>
+                {canAttach ? (
+                    <AttachButton
+                        canAdd={images.canAdd}
+                        isEditable={isEditable}
+                        onPress={() => setChoosingImage(true)}
+                        theme={theme}
+                    />
+                ) : null}
                 <TextInput
                     accessibilityHint="Return inserts a new line. Use Send message to submit."
                     accessibilityLabel={`Message ${provider}`}
@@ -161,25 +258,16 @@ export const AgentChatComposer = ({
                     )}
                 </Pressable>
             </View>
-            {/* `reason` flexes along the meta row; placed directly in the column block it collapses to zero height. */}
-            {disabledReason ? (
-                <View style={styles.composerMeta}>
-                    <Text
-                        style={[styles.reason, { color: theme.muted }]}
-                        testID="agent-chat-composer-reason"
-                    >
-                        {disabledReason}
-                    </Text>
-                </View>
-            ) : null}
-            {error ? (
-                <Text
-                    accessibilityRole="alert"
-                    style={[styles.sendState, { color: theme.danger }]}
-                    testID="agent-chat-composer-error"
-                >
-                    {error}
-                </Text>
+            <ComposerNotes disabledReason={disabledReason} error={error} theme={theme} />
+            {isChoosingImage ? (
+                <ImageSourceSheet
+                    onClose={() => setChoosingImage(false)}
+                    onPick={(source) => {
+                        // eslint-disable-next-line no-void -- The hook reports attach failures itself.
+                        void images.add(source);
+                    }}
+                    theme={theme}
+                />
             ) : null}
         </View>
     );

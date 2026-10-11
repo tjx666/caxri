@@ -1,4 +1,5 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -6,13 +7,16 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from '
 import type { AgentChatRequest } from '@caxri/protocol';
 
 import type { MobileTheme } from '../../theme/tokens';
+import { ConversationUserAttachments } from '../conversation/conversation-user-attachments';
 import { ConversationView } from '../conversation/conversation-view';
 import type { ConversationTimelineState } from '../conversation/use-conversation-timeline';
+import { AgentChatMessageImages } from './agent-chat-message-images';
 import {
     AGENT_CHAT_HANDED_OFF_NOTICE,
     agentChatActivityLabel,
     agentChatEmptyMessage,
     agentChatFailureMessage,
+    agentChatImageCounts,
     agentChatTimelineItems,
 } from './agent-chat-model';
 import { AgentChatRequestCard } from './agent-chat-request-card';
@@ -98,14 +102,37 @@ const AgentChatBody = ({
         }),
         [snapshot],
     );
+    /**
+     * Keyed on the messages that carry images, not the snapshot, so a streamed reply does not redraw every entry.
+     */
+    const imageCounts = agentChatImageCounts(snapshot);
+    const terminalId = snapshot?.terminalId;
+    const renderImages = useMemo(() => {
+        const counts = new Map<string, number>(
+            imageCounts ? (JSON.parse(imageCounts) as Array<[string, number]>) : [],
+        );
+        return (itemId: string): ReactNode => {
+            const count = counts.get(itemId);
+            return count && terminalId ? (
+                <AgentChatMessageImages
+                    count={count}
+                    itemId={itemId}
+                    terminalId={terminalId}
+                    theme={theme}
+                />
+            ) : null;
+        };
+    }, [imageCounts, terminalId, theme]);
     if (timeline.items.length > 0)
         return (
-            <ConversationView
-                enterFrom={enterFrom}
-                onRetry={chat.refresh}
-                theme={theme}
-                timeline={timeline}
-            />
+            <ConversationUserAttachments value={renderImages}>
+                <ConversationView
+                    enterFrom={enterFrom}
+                    onRetry={chat.refresh}
+                    theme={theme}
+                    timeline={timeline}
+                />
+            </ConversationUserAttachments>
         );
     if (chat.status === 'error')
         return (

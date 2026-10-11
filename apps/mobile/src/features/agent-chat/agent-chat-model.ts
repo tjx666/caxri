@@ -6,7 +6,7 @@ import type {
     AgentChatSnapshot,
     AgentTimelineItem,
 } from '@caxri/protocol';
-import { describeAgentTool } from '@caxri/protocol';
+import { agentProviderCatalog, describeAgentTool } from '@caxri/protocol';
 
 import { mobileAgentDisplayName } from '../sessions/agent-display-name';
 import type { MobileTerminal } from '../sessions/session-model';
@@ -31,6 +31,18 @@ export const agentChatProviderName = (
 ): string => {
     const provider = terminal?.provider ?? terminal?.kind;
     return provider && provider !== 'shell' ? mobileAgentDisplayName(provider) : 'the Agent';
+};
+
+/**
+ * Whether the Chat's provider takes images in a message, read from the shared catalog like Desktop's composer.
+ */
+export const canAttachAgentChatImages = (
+    terminal: Pick<MobileTerminal, 'kind' | 'provider'> | undefined,
+): boolean => {
+    const provider = terminal?.provider ?? terminal?.kind;
+    return provider !== undefined && provider !== 'shell'
+        ? agentProviderCatalog[provider].capabilities.chatImages
+        : false;
 };
 
 /**
@@ -112,22 +124,13 @@ const noticeSummary = (item: Extract<AgentChatItem, { type: 'notice' }>): string
     }
 };
 
-/**
- * The phone does not render image thumbnails yet, so a message's images are counted in its text. Without this an
- * image-only message would vanish from the timeline.
- */
-const userMessageText = (item: Extract<AgentChatItem, { type: 'userMessage' }>): string => {
-    const count = item.images?.length ?? 0;
-    if (count === 0) return item.text;
-    const note = count === 1 ? '1 image' : `${count} images`;
-    return item.text.length > 0 ? `${item.text}\n\n[${note}]` : `[${note}]`;
-};
-
 const toTimelineItem = (item: AgentChatItem): AgentTimelineItem | undefined => {
     switch (item.type) {
         case 'userMessage': {
-            const text = userMessageText(item);
-            return text.length > 0 ? { id: item.id, type: item.type, text } : undefined;
+            // An image-only message keeps its place with empty text; the Chat view draws its images above the bubble.
+            return item.text.length > 0 || (item.images?.length ?? 0) > 0
+                ? { id: item.id, type: item.type, text: item.text }
+                : undefined;
         }
         case 'agentMessage': {
             return item.text.length > 0
@@ -382,4 +385,17 @@ export const agentChatComposerDisabledReason = ({
     if (!snapshot) return undefined;
     if (snapshot.status === 'failed') return 'Retry the Chat before sending a message.';
     return undefined;
+};
+
+/**
+ * The messages that carry images and how many each has, as a stable string so a view can memoize on it while replies
+ * stream. Empty when no message has images.
+ */
+export const agentChatImageCounts = (
+    snapshot: Pick<AgentChatSnapshot, 'items'> | undefined,
+): string => {
+    const counts = (snapshot?.items ?? []).flatMap((item) =>
+        item.type === 'userMessage' && item.images?.length ? [[item.id, item.images.length]] : [],
+    );
+    return counts.length > 0 ? JSON.stringify(counts) : '';
 };

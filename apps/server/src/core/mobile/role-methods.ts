@@ -22,6 +22,7 @@ const mobileGatewayMethodsByRole = {
     view: [
         'mobile.dashboard',
         'mobile.agentChat.read',
+        'mobile.agentChat.readImage',
         'mobile.session.show',
         'mobile.timeline.read',
         'mobile.changes.list',
@@ -35,6 +36,7 @@ const mobileGatewayMethodsByRole = {
     reply: [
         'mobile.dashboard',
         'mobile.agentChat.read',
+        'mobile.agentChat.readImage',
         /**
          * Sending is a reply device's whole job; Retry only resumes a failed Chat so that reply can be delivered.
          */
@@ -56,6 +58,7 @@ const mobileGatewayMethodsByRole = {
     control: [
         'mobile.dashboard',
         'mobile.agentChat.read',
+        'mobile.agentChat.readImage',
         'mobile.agentChat.send',
         'mobile.agentChat.retry',
         /**
