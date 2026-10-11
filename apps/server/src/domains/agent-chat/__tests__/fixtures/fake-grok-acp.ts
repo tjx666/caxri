@@ -30,6 +30,8 @@ import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
 
+import { rewindExecute, rewindPoints } from './fake-grok-rewind.ts';
+
 interface RpcMessage {
     id?: number | string;
     method?: string;
@@ -533,6 +535,21 @@ function handle(message: RpcMessage) {
             }
             state.model = modelId;
             respond(message.id, { _meta: { model: { Ok: null } } });
+            return;
+        }
+        case '_x.ai/rewind/points': {
+            respond(message.id, rewindPoints(currentSession().frames));
+            return;
+        }
+        case '_x.ai/rewind/execute': {
+            respond(
+                message.id,
+                rewindExecute(currentSession(), parameters, {
+                    isPromptRunning: state.prompt !== undefined,
+                    stateDirectory,
+                    save,
+                }),
+            );
             return;
         }
         case 'session/cancel': {

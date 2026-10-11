@@ -19,6 +19,7 @@ import type {
     AgentChatSessionHost,
     ChatInputOptions,
     ChatProcessEnd,
+    ChatRewindTarget,
     ChatTaskHistory,
 } from './chat-provider';
 import type { CodexThreadSettings } from './codex-chat-types';
@@ -34,6 +35,7 @@ import { loadCodexItemTimes } from './codex-item-times';
 import { mapCodexErrorNotice, mapCodexItem, mapCodexPlan, mapCodexUsage } from './codex-items';
 import { CodexModelSettings } from './codex-models';
 import { CodexRequestBroker } from './codex-requests';
+import { revertCodexThread } from './codex-rewind';
 import { CodexTasks } from './codex-tasks';
 import { initializeCodexConnection, openCodexThread } from './codex-thread-open';
 import { finishedTurnOperations, historyOperations } from './codex-turns';
@@ -454,6 +456,10 @@ class CodexChatSession implements AgentChatProviderSession {
         this.requireConnection();
         this.models.configure(change);
         return Promise.resolve();
+    }
+
+    rewind(target: ChatRewindTarget): Promise<undefined> {
+        return revertCodexThread(this.requireConnection(), this.threadId, target);
     }
 
     async interrupt(): Promise<void> {

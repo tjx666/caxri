@@ -5,7 +5,6 @@ import type {
     AgentChatModelRequest,
     AgentChatSnapshot,
     AgentChatTaskSnapshot,
-    AgentProvider,
     TerminalRecord,
 } from '@caxri/protocol';
 import {
@@ -21,22 +20,24 @@ import { AgentRunAutonomy } from '../agents';
 import { SingleFlight } from '../single-flight';
 import { agentChatDrivers } from './chat-drivers';
 import { ChatEndpointLease } from './chat-endpoint-lease';
+import type { ChatExitHost } from './chat-exit';
+import { handleChatExit } from './chat-exit';
 import { isAgentChatCommandListed } from './chat-items';
 import {
     chatStartFailure,
     didPersistChatStartFailure,
     forwardChatLifecycle,
-    logChatProcessExited,
     prepareChatLaunch,
     readChatTranscript,
     requireChatTerminal,
 } from './chat-launch';
-import type { AgentChatExit, AgentChatProviderSession, AgentChatResponse } from './chat-provider';
+import type { AgentChatProviderSession, AgentChatResponse } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
+import type { ChatRewindRequest } from './chat-rewind';
+import { rewindChat } from './chat-rewind';
 import { chatSessionLogCallbacks } from './chat-session-logs';
 import type { ChatState, ChatStateDelivery, ChatTerminal } from './chat-states';
 import { ChatStates } from './chat-states';
-import { ChatTaskList } from './chat-tasks';
 import type { AgentChatServiceOptions } from './service-options';
 
 /**
@@ -192,6 +193,7 @@ export class AgentChatService {
                 launch,
                 isRealAgentE2E,
                 agentSessionId: database.getTerminal(terminalId)?.agentSessionId,
+                ...(state.resumeAt !== undefined && { resumeAt: state.resumeAt }),
                 clientVersion: this.options.clientVersion,
                 spawnProcess: this.options.spawnProcess,
                 turnRequestTimeoutMs: this.options.turnRequestTimeoutMs,
@@ -204,13 +206,15 @@ export class AgentChatService {
                 },
                 readTask: (taskId) => state.projection.tasks.get(taskId),
                 lifecycle: (event) => {
-                    if (isCurrent())
-                        forwardChatLifecycle(this.options, {
-                            ...event,
-                            launchId,
-                            provider,
-                            terminalId,
-                        });
+                    if (!isCurrent()) return;
+                    // The first new turn writes past the resume point, so a later start resumes the newest record again.
+                    if (event.phase === 'turnStarted') state.resumeAt = undefined;
+                    forwardChatLifecycle(this.options, {
+                        ...event,
+                        launchId,
+                        provider,
+                        terminalId,
+                    });
                 },
                 onSessionBound: (agentSessionId) => {
                     if (!isCurrent()) return;
@@ -218,7 +222,8 @@ export class AgentChatService {
                         this.states.publish(terminalId);
                 },
                 ...chatSessionLogCallbacks(this.options, terminalId),
-                onExit: (exit) => this.onExit(terminalId, provider, state, launchId, exit),
+                onExit: (exit) =>
+                    handleChatExit(this.exitHost(), terminalId, provider, state, launchId, exit),
                 readTranscript: () => readChatTranscript(this.options, terminalId),
             });
             state.session = session;
@@ -250,58 +255,18 @@ export class AgentChatService {
         }
     }
 
-    private onExit(
-        terminalId: string,
-        provider: AgentProvider,
-        state: ChatState,
-        launchId: string,
-        exit: AgentChatExit,
-    ): void {
-        const { database } = this.options;
-        logChatProcessExited(this.options, terminalId, exit);
-        // A start in progress reports its own closed failure reason.
-        if (state.launchId !== launchId || this.isShuttingDown || this.starts.has(terminalId))
-            return;
-        /**
-         * The projection already marked the running turn interrupted; end it for Session Activity too. A requested stop
-         * (Restart, close) ends the turn the way an interrupt does; an unrequested one is a provider failure.
-         */
-        if (exit.activeTurnId)
-            forwardChatLifecycle(this.options, {
-                ...(exit.requested
-                    ? { phase: 'turnFinished', agentTurnId: exit.activeTurnId }
-                    : {
-                          phase: 'turnFailed',
-                          agentTurnId: exit.activeTurnId,
-                          agentFailure: 'provider_failed',
-                      }),
-                launchId,
-                provider,
-                terminalId,
-            });
-        state.session = undefined;
-        state.launchId = undefined;
-        this.endpoint.retire(terminalId);
-        // Background work lives inside the provider process and ended with it.
-        new ChatTaskList({
-            read: () => state.projection.snapshot,
-            apply: (operations) => this.states.apply(terminalId, operations),
-        }).stopAll();
-        this.options.coordinator.endTerminalLaunch(terminalId);
-        if (!database.getTerminal(terminalId)) return;
-        if (exit.requested) this.states.recordRequestedStop(terminalId, state);
-        else {
-            // No detail: the closed reason's own copy already says everything Caxri knows about the exit.
-            this.states.setStatus(terminalId, 'failed', { reason: 'process_exited' });
-            database.updateTerminalExitState(terminalId, 'dead');
-            database.updateAgentProcessExitState(terminalId, 'dead');
-        }
-        this.states.publish(terminalId);
-    }
-
     /**
      * Serializes input per Chat, starting the provider first, so messages and commands reach it in the order sent.
      */
+    private exitHost(): ChatExitHost {
+        return {
+            options: this.options,
+            states: this.states,
+            endpoint: this.endpoint,
+            isSettling: (terminalId) => this.isShuttingDown || this.starts.has(terminalId),
+        };
+    }
+
     private enqueue(terminalId: string, deliver: ChatStateDelivery): Promise<void> {
         requireChatTerminal(this.options.database, terminalId);
         return this.enqueueOn(terminalId, this.states.open(terminalId), deliver);
@@ -505,12 +470,32 @@ export class AgentChatService {
     }
 
     /**
+     * "Edit from here"; see {@link rewindChat}.
+     */
+    async rewind(terminalId: string, request: ChatRewindRequest): Promise<void> {
+        await rewindChat(
+            {
+                options: this.options,
+                enqueue: (id, deliver) => this.enqueue(id, deliver),
+                restart: (id, resumeAt) => this.restart(id, true, resumeAt),
+                send: (id, message) => this.send(id, message),
+            },
+            terminalId,
+            request,
+        );
+    }
+
+    /**
      * Stops the provider and starts it again on the same Agent Session. Clears a previous failure and ends a hand-over:
      * an explicit restart (Retry, a surface switch to Chat) is the user taking the Chat back. A resume keeps the
      * replaced start's approval mode (see `AgentRunAutonomy`). Queued follow-ups carry over; input still waiting in the
      * replaced state's send chain rejects.
      */
-    async restart(terminalId: string, shouldKeepAgentAutonomy = false): Promise<TerminalRecord> {
+    async restart(
+        terminalId: string,
+        shouldKeepAgentAutonomy = false,
+        resumeAt?: string,
+    ): Promise<TerminalRecord> {
         requireChatTerminal(this.options.database, terminalId);
         const previous = this.states.get(terminalId);
         if (previous) previous.retiring ??= 'replaced';
@@ -520,6 +505,12 @@ export class AgentChatService {
         if (terminal.lastProcessState === 'detached') this.states.clearDetached(terminalId);
         const state = this.states.open(terminalId);
         if (previous) state.followUps.adopt(previous.followUps);
+        /**
+         * A rewound Claude Code conversation resumes at `resumeAt` until its next turn writes past it; a restart before
+         * then (Retry after the edited message failed to send) must not resume the rewound branch again.
+         */
+        const carriedResumeAt = resumeAt ?? previous?.resumeAt;
+        if (carriedResumeAt !== undefined) state.resumeAt = carriedResumeAt;
         await this.startQuietly(terminalId, state, shouldKeepAgentAutonomy);
         return this.options.database.getTerminal(terminalId) ?? terminal;
     }

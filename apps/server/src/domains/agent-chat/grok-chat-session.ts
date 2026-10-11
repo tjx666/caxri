@@ -11,6 +11,7 @@ import { CaxriError, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
 import {
     clip,
     closeDanglingItem,
+    endedSessionOperations,
     isRecord,
     MAX_TRACKED_TURNS,
     slashCommandPrompt,
@@ -23,6 +24,7 @@ import type {
     AgentChatSessionHost,
     ChatInputOptions,
     ChatProcessEnd,
+    ChatRewindTarget,
     ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
@@ -34,6 +36,7 @@ import {
     grokUsage,
 } from './grok-items';
 import { GrokRequestBroker } from './grok-requests';
+import { rewindGrokSession } from './grok-rewind';
 import {
     failGrokStart,
     grokSessionParameters,
@@ -318,26 +321,7 @@ class GrokChatSession implements AgentChatProviderSession {
         this.activeTurn = undefined;
         this.updates.dropStreaming();
         const unanswered = this.requests.drain();
-        const operations: AgentChatPatchOperation[] = [];
-        for (const item of snapshot.items) {
-            const closed = closeDanglingItem(item);
-            if (closed) operations.push({ op: 'upsertItem', item: closed });
-        }
-        operations.push({
-            op: 'state',
-            state: {
-                requests: [],
-                activeTurnId: null,
-                ...(activeTurnId && {
-                    turns: snapshot.turns.map((existing) =>
-                        existing.id === activeTurnId
-                            ? { ...existing, status: 'interrupted' as const }
-                            : existing,
-                    ),
-                }),
-            },
-        });
-        this.options.apply(operations);
+        this.options.apply(endedSessionOperations(snapshot));
         this.requests.resolveAttention(unanswered);
         const waiting = turn?.onFinished ?? [];
         for (const settle of waiting) settle();
@@ -508,6 +492,11 @@ class GrokChatSession implements AgentChatProviderSession {
 
     readTaskHistory(): Promise<ChatTaskHistory | undefined> {
         return Promise.resolve(undefined);
+    }
+
+    rewind(target: ChatRewindTarget): Promise<undefined> {
+        const snapshot = this.options.read();
+        return rewindGrokSession(this.requireConnection(), this.sessionId, snapshot, target);
     }
 
     async interrupt(): Promise<void> {

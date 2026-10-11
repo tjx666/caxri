@@ -372,6 +372,44 @@ uuid whose third group is `8c01`. Grok Build keeps no mark, so its resumed messa
   `operation` to `compacting` and raises `compactionStarted`; input sent meanwhile is queued. The
   `/compact` user bubble is hidden because the compaction notice already represents it.
 
+## Edit from here
+
+Hovering a user message that started a turn shows "Edit from here" beside Copy. It puts the
+message's text into the composer (any draft is set aside) and opens the edit bar above the input:
+how many turns sending replaces, an "Also revert file changes" checkbox, and Cancel (Escape), which
+brings the set-aside draft back. The edited message keeps an accent outline. Sending calls
+`agentChat.rewind`, which rewinds the provider's own record to just before the message and sends
+the draft in its place as one request; a later resume shows the same shorter conversation. The edit
+survives switching tabs, like a draft.
+
+- Only a settled Chat rewinds: while a turn runs, the action and Send are disabled and say to stop
+  the turn. A steered message did not start its turn, so it offers no edit, and a message with
+  images cannot be edited, as with a queued message. Server Core checks the same rule
+  (`agentChatRewindTarget` in `packages/protocol/src/agent/agent-chat-rewind.ts`) and answers
+  `CONFLICT` when the Chat changed under the request.
+- Reverting files can discard the user's own later edits to those files, so it asks first in a
+  native dialog (`agentChat.confirmRevertFiles`); Cancel sends nothing and keeps the draft.
+- Each provider rewinds with its native mechanism; Caxri takes no snapshots of its own.
+  `capabilities.chatRewindFiles` says whether files can be reverted, and when they cannot, the
+  checkbox stays disabled with the reason on hover.
+
+| Provider    | Conversation                                                                            | Files                                                                      |
+| ----------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Codex       | `thread/revert { beforeTurnId }`, then a resume reads the remaining turns               | Not supported: `thread/revert` leaves files alone                          |
+| Claude Code | Restart with `resumeSessionAt` (`--resume-session-at`) at the record before the message | `rewindFiles(messageUuid)` after a dry run, with `enableFileCheckpointing` |
+| Grok Build  | `_x.ai/rewind/execute { mode: 'conversation_only' }`                                    | The same call with `mode: 'all'`                                           |
+
+Claude Code's transcript is append-only: a conversation resumed at an earlier record continues from
+there and leaves the old continuation in the file. History replay (`claude-history.ts`) follows the
+active branch from the newest record and drops a sibling branch only where the active branch
+continues with a new user prompt, because parallel tool calls branch the file too. Editing the
+first message has no earlier record to resume at, so the Chat starts a new Claude Code session.
+File checkpoints are taken only from prompts sent with checkpointing on, so a Chat started before
+it was enabled, or a message older than the transcript tail Caxri reads, refuses to revert files
+with the reason. Grok Build names a prompt by its index in the whole session, which the Chat may
+not hold in full, so Caxri counts back from the newest of `_x.ai/rewind/points` and checks that the
+point's preview matches the message before rewinding. Mobile does not offer the action.
+
 ## Approvals and questions
 
 Claude Code asks through the SDK's `canUseTool` callback, keyed by the tool use id. `Bash` is a
@@ -658,8 +696,9 @@ requests, rejected requests, and dropped frames), `agent_chat.turn_finished` (st
 `agent_chat.protocol_rejected` (closed reason, protocol method name), and
 `terminal.surface_switched` (closed outcome, both surfaces, duration), `agent_chat.queue_changed`
 (closed reason and queue depth), `agent_chat.delivery_checked` (request method and closed outcome
-`delivered` or `unknown` after a turn request timed out), and `agent_chat.task_finished` (task kind, final status,
-background flag, duration). None of them carries
+`delivered` or `unknown` after a turn request timed out), `agent_chat.task_finished` (task kind, final status,
+background flag, duration), and `agent_chat.rewound` (closed outcome `rewound`, `refused`, or
+`failed`, provider, whether files were reverted, turns removed, duration). None of them carries
 message text, command output, provider stderr, or protocol bodies.
 
 ## Testing
@@ -671,7 +710,10 @@ table, slow stream, subagent, background shell, failure, crash). The Claude fake
 SDK drives and writes a real transcript, so resume is exercised end to end. Both answer a message
 with images by counting them and implement compaction, so the E2E covers paste, file pick, and the
 slash list for each provider. The Grok fake persists its frames so `session/load` replays them,
-and takes no images. Unit, integration, and fake-mode E2E tests drive them; no test launches the
+and takes no images. All three implement their provider's rewind (Codex `thread/revert`, the
+Claude transcript chain with `--resume-session-at` and `rewind_files`, Grok `_x.ai/rewind/*`) and
+log each call to a JSON-lines file in their state directory, so `service-rewind.integration.test.ts`
+checks the request and the history a later resume reads. Unit, integration, and fake-mode E2E tests drive them; no test launches the
 real CLI or calls a model.
 
 Streaming Markdown has a machine-independent CI gate in
@@ -697,5 +739,5 @@ reasoning effort picker and images (its ACP agent advertises `image: false`). Gr
 of the real-Agent smoke. On mobile, a
 Chat shows no plan, model, or context usage yet, shows an image as its count (`[1 image]`) instead of
 a thumbnail, cannot attach images or run slash commands, does not show background tasks or the
-follow-up queue, older history beyond the window stays on
+follow-up queue, cannot edit from an earlier message, older history beyond the window stays on
 the computer, and switching surface is Desktop-only.

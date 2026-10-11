@@ -9,6 +9,7 @@ import {
     agentChatDeliveryCaption,
     agentChatEffortLabel,
     agentChatEmptyMessage,
+    agentChatEscapeAction,
     agentChatFailureMessage,
     agentChatModelLabel,
     agentChatPlanProgress,
@@ -338,6 +339,31 @@ describe('agentChatActivity', () => {
             Array.from({ length: 40 }, (_, index) => agentChatWorkingVerb(`turn-${index}`)),
         );
         expect(verbs.size).toBeGreaterThan(5);
+    });
+});
+
+describe('agentChatEscapeAction', () => {
+    const escape = { key: 'Escape', isComposing: false, repeat: false };
+
+    it('stops a running turn before it cancels an edit', () => {
+        expect(agentChatEscapeAction(escape, { isTurnRunning: true, isEditing: true })).toBe(
+            'stop',
+        );
+        expect(agentChatEscapeAction(escape, { isTurnRunning: false, isEditing: true })).toBe(
+            'cancelEdit',
+        );
+    });
+
+    it('does nothing when there is nothing to stop or cancel, or the key is not an interrupt', () => {
+        expect(agentChatEscapeAction(escape, { isTurnRunning: false, isEditing: false })).toBe(
+            undefined,
+        );
+        expect(
+            agentChatEscapeAction(
+                { ...escape, isComposing: true },
+                { isTurnRunning: true, isEditing: true },
+            ),
+        ).toBe(undefined);
     });
 });
 

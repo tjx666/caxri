@@ -32,6 +32,10 @@ export interface AgentChatServiceOptions {
         beginTerminalLaunch(terminalId: string, launchId: string): void;
         endTerminalLaunch(terminalId: string): void;
         probeTerminal(terminalId: string): void;
+        /**
+         * Drops the Terminal's Agent Session binding, so its next start opens a new conversation.
+         */
+        prepareTerminalStart(terminalId: string): void;
     };
     observeLifecycleSignal(signal: AgentLifecycleSignal): Promise<unknown>;
     clientVersion: string;

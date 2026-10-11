@@ -31,6 +31,8 @@ import type {
     AgentChatSessionHost,
     ChatInputOptions,
     ChatProcessEnd,
+    ChatResumePoint,
+    ChatRewindTarget,
     ChatTaskHistory,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
@@ -57,6 +59,7 @@ import {
 } from './claude-models';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
+import { rewindClaudeSession } from './claude-rewind';
 import { claudeQueryOptions, claudeStartError } from './claude-session-open';
 import { ClaudeStream } from './claude-stream';
 import { readClaudeSubagentTranscript } from './claude-subagent-transcript';
@@ -436,6 +439,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
      */
     async start(): Promise<'resumed' | 'started'> {
         const resumeId = this.isSessionBound ? this.sessionId : undefined;
+        const { resumeAt } = this.options;
         const transcript = resumeId ? await this.options.readTranscript() : undefined;
         if (resumeId && !transcript)
             throw new AgentChatStartError(
@@ -452,6 +456,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 host: this.options,
                 settings: this.settings,
                 resumeId,
+                resumeAt,
                 sessionId: this.sessionId,
                 spawn: (spawnOptions) => this.spawn(spawnOptions),
                 canUseTool: async (...arguments_) => this.requests.canUseTool(...arguments_),
@@ -476,7 +481,9 @@ class ClaudeChatSession implements AgentChatProviderSession {
             throw claudeStartError(spawnErrorCode, resumeId !== undefined);
         }
         if (transcript)
-            this.options.apply(claudeHistoryOperations(transcript.content, transcript.truncated));
+            this.options.apply(
+                claudeHistoryOperations(transcript.content, transcript.truncated, resumeAt),
+            );
         return resumeId ? 'resumed' : 'started';
     }
 
@@ -503,6 +510,11 @@ class ClaudeChatSession implements AgentChatProviderSession {
         await configureClaudeModel(stream, change, (operations) => this.options.apply(operations));
         // A model switch can move the effort too: to the new model's default, or to none.
         this.reportAppliedEffort(stream);
+    }
+
+    async rewind(target: ChatRewindTarget): Promise<ChatResumePoint> {
+        const query = this.requireOpen();
+        return rewindClaudeSession(query, await this.options.readTranscript(), target);
     }
 
     async interrupt(): Promise<void> {
