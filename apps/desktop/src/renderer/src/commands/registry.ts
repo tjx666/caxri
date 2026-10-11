@@ -31,6 +31,7 @@ export interface CommandContext {
         openArchived(): void;
         openPullRequestSelected(): void;
         renameSelected(): void;
+        renameSelectedWithAi(): void;
         resumeSelected(): void;
         selectAdjacent(delta: 1 | -1): void;
         switchMru(invocation?: SessionMruShortcutInvocation): void;
@@ -56,6 +57,11 @@ export interface CommandContext {
          */
         canSwitchActiveSurface(): boolean;
         switchActiveSurface(): void;
+        /**
+         * True only when the active tab is an Agent Terminal, the subject of an Agent status tab.
+         */
+        isActiveAgent(): boolean;
+        showActiveAgentStatus(): void;
         closeActive(): void;
     };
     workbench: {

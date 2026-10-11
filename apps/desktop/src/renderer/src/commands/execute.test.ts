@@ -114,6 +114,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 openArchived: record('session.openArchived'),
                 openPullRequestSelected: record('session.openPullRequest'),
                 renameSelected: record('session.rename'),
+                renameSelectedWithAi: record('session.renameWithAi'),
                 resumeSelected: record('session.resume'),
                 selectAdjacent: record('session.selectAdjacent'),
                 switchMru: record('session.switchMru'),
@@ -133,6 +134,8 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 startNewAgentSession: record('terminal.startNewAgentSession'),
                 canSwitchActiveSurface: () => true,
                 switchActiveSurface: record('terminal.switchAgentSurface'),
+                isActiveAgent: () => true,
+                showActiveAgentStatus: record('terminal.showAgentStatus'),
                 closeActive: record('terminal.close'),
             },
             workbench: {

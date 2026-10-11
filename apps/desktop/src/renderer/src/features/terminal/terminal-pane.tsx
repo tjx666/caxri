@@ -93,14 +93,16 @@ function TerminalRecoveryActions({
     terminalId: string;
 }) {
     /**
-     * `terminal.restart` owns the shortcut; the tooltip title follows the visible Resume or Restart action.
+     * `terminal.restart` owns the shortcut. An Agent that resumes its conversation names the action "Restart Agent",
+     * the same words the Session row and tab menus use for the same request; a Shell (or an Agent that must be set up
+     * again) says "Restart Terminal".
      */
     const restartShortcut = useCommandShortcut('terminal.restart');
     // Automatic restore owns the Terminal until it settles into a state requiring user action.
     if (processState === 'interrupted' || processState === 'suspended') return null;
     const isNeedsSettings = processState === 'failed' && failureReason === 'executable_not_found';
     const restartDescription =
-        !isNeedsSettings && resumesAgentSession ? 'Resume Agent Session' : 'Restart Terminal';
+        !isNeedsSettings && resumesAgentSession ? 'Restart Agent' : 'Restart Terminal';
     return (
         <>
             {isNeedsSettings && (
@@ -124,8 +126,7 @@ function TerminalRecoveryActions({
                     variant="ghost"
                     onClick={() => restartTerminal(terminalId)}
                 >
-                    <RotateCcw size={12} />{' '}
-                    {!isNeedsSettings && resumesAgentSession ? 'Resume' : 'Restart'}
+                    <RotateCcw size={12} /> Restart
                 </Button>
             </Tooltip>
             {resumesAgentSession && !isNeedsSettings && (

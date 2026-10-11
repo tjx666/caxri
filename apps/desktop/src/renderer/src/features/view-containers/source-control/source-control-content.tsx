@@ -91,14 +91,18 @@ function SourceControlMessage({
                     {state.description}
                 </p>
             )}
-            {(controller.status === 'no-repository' || controller.status === 'unavailable') && (
+            {/*
+             * Only a failure gets a body button: a folder without a repository is a settled state, and the header's
+             * Refresh button already re-reads it, so a second `Refresh` here only duplicated that control.
+             */}
+            {controller.status === 'unavailable' && (
                 <Button
                     size="sm"
                     variant="secondary"
                     disabled={controller.isRefreshing}
                     onClick={controller.refresh}
                 >
-                    {controller.status === 'unavailable' ? 'Retry' : 'Refresh'}
+                    Retry
                 </Button>
             )}
         </Empty>

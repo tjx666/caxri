@@ -13,6 +13,7 @@ import { caxri } from '../../lib/caxri';
 import { getBootstrap, getSelectedSession, getSessionState } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { patchSessionState, refreshWorkbench } from '../../stores/workbench';
+import { confirmBeforeEndingTurn } from './agent-turn-guard';
 import { newAgentSurface, newTerminalCommandKind } from './new-terminal-agent';
 import type { TerminalCommandNavigationDirection } from './terminal-command-tracker';
 import { didNavigateTerminalCommand } from './terminal-command-tracker';
@@ -206,8 +207,9 @@ async function requestTerminalRestart(
 }
 
 /**
- * Resume-restarts a Terminal with the lost-reply recovery offer. `failureTitle` names the action the user took, so a
- * failed Reload Agent does not report itself as a Terminal restart.
+ * Resume-restarts a Terminal with the lost-reply recovery offer, without asking first: the notification center's Retry
+ * and {@link restartTerminal} (after its running-turn confirmation) both land here. `failureTitle` names the action the
+ * user took, so a failed Restart Agent does not report itself as a Terminal restart.
  */
 export function restartTerminalWithRecovery(
     terminalId: string,
@@ -235,32 +237,64 @@ export function restartTerminalWithRecovery(
     );
 }
 
+export const RESTART_AGENT_FAILED = 'Restart Agent failed';
+
 /**
- * Recovery path used by the in-pane Restart action.
+ * Restarts a Terminal: a Shell starts again, and an Agent Terminal ends its current Agent Run and resumes the same
+ * Agent Session ("Restart Agent"). A running turn is never ended silently: every entry point (`terminal.restart`, the
+ * recovery row, the Session row and tab menus' Restart Agent, a detached Chat's Resume) asks first through
+ * {@link confirmBeforeEndingTurn}. A failed Chat's Retry skips it: the failure already ended the turn, while Session
+ * Activity can still read `running` because the crashed provider never reported the turn's end.
  */
 export function restartTerminal(terminalId: string): void {
-    restartTerminalWithRecovery(terminalId);
-}
-
-export function restartActiveTerminal(terminalId: string): void {
-    restartTerminalWithRecovery(terminalId);
+    const isAgent = Boolean(
+        getBootstrap()?.terminals.find((entry) => entry.id === terminalId)?.provider,
+    );
+    const failureTitle = isAgent ? RESTART_AGENT_FAILED : 'Terminal restart failed';
+    // eslint-disable-next-line no-void -- the confirmation and the restart report their own errors
+    void confirmBeforeEndingTurn(
+        terminalId,
+        {
+            confirmLabel: 'Stop and Restart',
+            failureTitle,
+            outcome: 'Restarting stops the current turn and resumes the same conversation.',
+        },
+        () => restartTerminalWithRecovery(terminalId, failureTitle),
+    );
 }
 
 /**
- * The only user action allowed to clear a durable provider-session binding.
+ * `terminal.restart` from a shortcut, the palette, or the native menu: the same guarded restart as the menus.
+ */
+export function restartActiveTerminal(terminalId: string): void {
+    restartTerminal(terminalId);
+}
+
+/**
+ * The only user action allowed to clear a durable provider-session binding. It ends the current Agent Run like a
+ * restart, so a running turn asks first too.
  */
 export function startNewAgentSession(terminalId: string): void {
     const terminal = getBootstrap()?.terminals.find((entry) => entry.id === terminalId);
     if (!terminal?.provider || !terminal.agentSessionId) {
-        pushToast('info', 'The active Terminal has no Agent session to replace.');
+        pushToast('info', 'The active Terminal has no Agent Session to replace.');
         return;
     }
-    // This is a sync UI handler; tryCommand already routes any failure into a toast.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand(
-        'Starting a new Agent session failed',
-        () => requestTerminalRestart(terminalId, 'fresh'),
-        { refresh: refreshWorkbench },
+    const failureTitle = 'Starting a new Agent Session failed';
+    // eslint-disable-next-line no-void -- the confirmation and the restart report their own errors
+    void confirmBeforeEndingTurn(
+        terminalId,
+        {
+            confirmLabel: 'Stop and Start New',
+            failureTitle,
+            outcome:
+                'Starting a new Agent Session stops the current turn and leaves this conversation.',
+        },
+        () =>
+            // eslint-disable-next-line no-void -- tryCommand routes any failure into a toast
+            void tryCommand(failureTitle, () => requestTerminalRestart(terminalId, 'fresh'), {
+                refresh: refreshWorkbench,
+            }),
     );
 }
 

@@ -30,19 +30,32 @@ export function ReportCard({
     );
 }
 
+/**
+ * One headline figure. An undefined `value` is a figure that was not measured: it reads as a muted dash, announced as
+ * "Not measured", and the tile's `detail` carries the reason, so the absence never looks like a zero or an error.
+ */
 export function StatTile({
     label,
     value,
     detail,
 }: {
     label: string;
-    value: string;
+    value: string | undefined;
     detail?: ReactNode;
 }) {
     return (
         <div className="min-w-0 rounded-md border border-border bg-surface px-4 py-3">
             <div className="truncate text-[11px] text-muted">{label}</div>
-            <div className="mt-1 truncate text-[15px] font-semibold tabular-nums">{value}</div>
+            <div className="mt-1 truncate text-[15px] font-semibold tabular-nums">
+                {value ?? (
+                    <>
+                        <span aria-hidden="true" className="font-normal text-muted">
+                            —
+                        </span>
+                        <span className="sr-only">Not measured</span>
+                    </>
+                )}
+            </div>
             {/*
              * Wraps rather than truncates, so a narrow tile still shows the whole caption. `text-pretty` keeps a lone
              * word off the last line; a caption holding two facts marks each `whitespace-nowrap` so it breaks between

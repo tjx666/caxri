@@ -9,6 +9,7 @@ import { useTerminal } from '../../../stores/selectors';
 import {
     agentChatMenuActions,
     agentChatMenuKeyAction,
+    agentChatSkillDiscoveryNotice,
     agentChatSlashQuery,
     filterAgentChatActions,
 } from '../agent-chat-slash-commands';
@@ -21,9 +22,11 @@ import { agentChatActionSuggestion, agentChatSuggestionOptionId } from '../agent
 const DISCOVERY_STALE_MS = 30_000;
 
 /**
- * Suggestion state for a draft that is a bare `/name` or `$name`. Escape dismisses the list for the current draft only:
- * any edit brings it back, including clearing the box and typing the same `/` again. Skills are discovered only once
- * the user starts an invocation, and the provider's commands show while discovery runs or when it fails.
+ * Suggestion state for a draft that is a bare `/name` or `$name`. The list stays open with a `No matching command or
+ * skill` row when nothing matches, so a typo reads as a miss instead of the list silently vanishing. Escape dismisses
+ * the list for the current draft only: any edit brings it back, including clearing the box and typing the same `/`
+ * again. Skills are discovered only once the user starts an invocation, and the provider's commands show while
+ * discovery runs or when it fails; `skillNotice` says why skills are missing until discovery answers.
  */
 export function useAgentChatCommandMenu({
     commands,
@@ -59,9 +62,13 @@ export function useAgentChatCommandMenu({
      * Keyed by query so a new search starts at the first match.
      */
     const [active, setActive] = useState({ query, index: 0 });
-    const matches = query === undefined ? [] : filterAgentChatActions(actions, query);
-    const isOpen = matches.length > 0 && dismissedDraft !== draft;
-    const activeIndex = active.query === query ? Math.min(active.index, matches.length - 1) : 0;
+    const matches =
+        query === undefined
+            ? []
+            : filterAgentChatActions(actions, query, draft.startsWith('$') ? '$' : '/');
+    const isOpen = query !== undefined && dismissedDraft !== draft;
+    const activeIndex =
+        active.query === query ? Math.min(active.index, Math.max(matches.length - 1, 0)) : 0;
     const activeCommand = isOpen ? matches[activeIndex] : undefined;
     const activeOptionId = activeCommand
         ? agentChatSuggestionOptionId(listId, activeCommand.invocation)
@@ -82,6 +89,10 @@ export function useAgentChatCommandMenu({
         isOpen,
         matches,
         suggestions: matches.map(agentChatActionSuggestion),
+        skillNotice: agentChatSkillDiscoveryNotice({
+            isAgentRunning,
+            isLoading: discovery.isLoading,
+        }),
         activeIndex,
         activeCommand,
         listId,
@@ -97,7 +108,8 @@ export function useAgentChatCommandMenu({
         highlight: (index: number) => setActive({ query, index }),
         /**
          * Arrow keys move, Tab completes, Enter chooses, and Escape dismisses while the list is open
-         * (`agentChatMenuKeyAction`). Returns whether the key was the menu's, so the composer skips its own handling.
+         * (`agentChatMenuKeyAction`). With no matching row only Escape is the menu's, so Enter still sends the draft as
+         * a message. Returns whether the key was the menu's, so the composer skips its own handling.
          */
         didHandleKey: (
             event: KeyboardEvent<HTMLTextAreaElement>,
@@ -106,13 +118,13 @@ export function useAgentChatCommandMenu({
                 complete: (action: AgentAction) => void;
             },
         ): boolean => {
-            if (!activeCommand || event.nativeEvent.isComposing) return false;
+            if (!isOpen || event.nativeEvent.isComposing) return false;
             const action = agentChatMenuKeyAction(event);
-            if (!action) return false;
+            if (!action || (action !== 'dismiss' && !activeCommand)) return false;
             event.preventDefault();
             if (action === 'next' || action === 'previous') move(action === 'next' ? 1 : -1);
             else if (action === 'dismiss') setDismissedDraft(draft);
-            else handlers[action](activeCommand);
+            else if (activeCommand) handlers[action](activeCommand);
             return true;
         },
     };

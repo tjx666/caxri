@@ -5,7 +5,7 @@ import { FileDiff, GitPullRequest } from 'lucide-react';
 import { executeCommand } from '../../commands/execute';
 import { DiffStatSign } from '../../components/diff-stat';
 import { StructuredTooltip } from '../../components/structured-tooltip';
-import { diffStatLabel } from '../../lib/diff-stat-label';
+import { diffStatLabel, visibleDiffStatParts } from '../../lib/diff-stat-label';
 import { AcceptanceStatus } from './acceptance-status';
 import type { ChipVisibility } from './chip-priority';
 import { LinearIssueStatus } from './linear-issue-status';
@@ -20,6 +20,7 @@ function showSecondarySidebar(command: Extract<CommandId, `secondarySidebar.show
 }
 
 function RepoChangesStatus({ additions, deletions }: { additions: number; deletions: number }) {
+    const visible = visibleDiffStatParts({ additions, deletions });
     return (
         <StatusItem
             className="diff-stat"
@@ -53,7 +54,12 @@ function RepoChangesStatus({ additions, deletions }: { additions: number; deleti
             }
             onClick={() => showSecondarySidebar('secondarySidebar.showGit')}
         >
-            +{formatLineCount(additions)} -{formatLineCount(deletions)}
+            {[
+                visible.additions && `+${formatLineCount(additions)}`,
+                visible.deletions && `-${formatLineCount(deletions)}`,
+            ]
+                .filter(Boolean)
+                .join(' ')}
         </StatusItem>
     );
 }

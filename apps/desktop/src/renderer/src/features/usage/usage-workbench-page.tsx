@@ -10,11 +10,12 @@ import { Spinner } from '../../components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
-import type { UsageMetric } from './usage-metrics';
+import { cn } from '../../lib/utilities';
 import {
     didUsageRefreshFail,
     formatDate,
     usageEmptyState,
+    usageRangeLabel,
     usageScanCaption,
 } from './usage-metrics';
 import { UsageSections } from './usage-sections';
@@ -32,7 +33,7 @@ const SCOPES: ReadonlyArray<{ value: UsageScope; label: string; description: str
     {
         value: 'all',
         label: 'This Mac',
-        description: 'Every Agent conversation on this Mac, including ones run outside Caxri',
+        description: 'Every Agent Session on this Mac, including ones run outside Caxri',
     },
 ];
 const ALL_AGENTS = 'all';
@@ -57,12 +58,10 @@ function rangeCaption(report: UsageReport): string {
 
 function UsageBody({
     report,
-    metric,
     agent,
     onShowAllAgents,
 }: {
     report: UsageReport;
-    metric: UsageMetric;
     agent: AgentProvider | undefined;
     onShowAllAgents: () => void;
 }) {
@@ -98,19 +97,18 @@ function UsageBody({
                 </p>
             </Empty>
         );
-    return <UsageSections metric={metric} report={report} />;
+    return <UsageSections report={report} />;
 }
 
 /**
- * Usage Workbench tab: token usage, estimated API cost, Agent time, and delivery outcomes for Agent conversations
- * started in Caxri Sessions, or for every Agent conversation on this Mac. Everything is computed by the Server from
- * local transcripts; see `docs/usage.md`.
+ * Usage Workbench tab: token usage, estimated API cost, Agent time, and delivery outcomes for Agent Sessions started in
+ * Caxri Sessions, or for every Agent Session on this Mac. Everything is computed by the Server from local transcripts;
+ * see `docs/usage.md`.
  */
 export function UsageWorkbenchPage() {
     const [scope, setScope] = useState<UsageScope>('caxri');
     const [range, setRange] = useState<UsageRange>('30d');
     const [agent, setAgent] = useState<AgentFilter>(ALL_AGENTS);
-    const [metric, setMetric] = useState<UsageMetric>('tokens');
     const query = useUsageReport({
         timeZone: LOCAL_TIME_ZONE,
         range,
@@ -118,20 +116,36 @@ export function UsageWorkbenchPage() {
         ...(agent !== ALL_AGENTS && { provider: agent }),
     });
     const report = query.data;
+    /**
+     * `keepPreviousData` keeps the last report on screen while a newly picked range, scope, or Agent loads, so the
+     * caption names the selection right away and the body dims until its own figures arrive.
+     */
+    const isShowingPreviousSelection = query.isPlaceholderData;
     const retry = () => {
         // eslint-disable-next-line no-void -- a failed retry surfaces through the same error state.
         void query.refetch();
     };
 
     return (
-        <div data-usage-page className="grid h-full grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
+        // `p-px` keeps the header's fill off the pane's 1px inset focus ring, which it otherwise painted over.
+        <div
+            data-usage-page
+            className="grid h-full grid-rows-[auto_minmax(0,1fr)] overflow-hidden p-px"
+        >
             <div className="flex flex-wrap items-end justify-between gap-3 bg-surface pt-4 pr-4 pb-3 pl-4">
                 <div className="min-w-0">
                     <h1 className="m-0 text-[15px] font-semibold">Usage</h1>
                     <p className="mt-1 mb-0 text-[11px] leading-[1.45] text-muted">
-                        {report
-                            ? rangeCaption(report)
-                            : 'Tokens, estimated cost, and outcomes of Agents in Caxri Sessions'}
+                        {isShowingPreviousSelection ? (
+                            <span className="inline-flex items-center gap-1.5">
+                                {usageRangeLabel(range)} · Updating
+                                <Spinner aria-hidden="true" className="size-3" />
+                            </span>
+                        ) : report ? (
+                            rangeCaption(report)
+                        ) : (
+                            'Tokens, estimated cost, and outcomes of Agents in Caxri Sessions'
+                        )}
                         {didUsageRefreshFail(query) && (
                             <>
                                 {' · '}
@@ -185,16 +199,6 @@ export function UsageWorkbenchPage() {
                         ))}
                     </ToggleGroup>
                     <ToggleGroup
-                        aria-label="Activity metric"
-                        value={[metric]}
-                        onValueChange={(next: UsageMetric[]) => {
-                            if (next[0]) setMetric(next[0]);
-                        }}
-                    >
-                        <ToggleGroupItem value="tokens">Tokens</ToggleGroupItem>
-                        <ToggleGroupItem value="cost">Cost</ToggleGroupItem>
-                    </ToggleGroup>
-                    <ToggleGroup
                         aria-label="Range"
                         value={[range]}
                         onValueChange={(next: UsageRange[]) => {
@@ -209,11 +213,16 @@ export function UsageWorkbenchPage() {
                     </ToggleGroup>
                 </div>
             </div>
-            <div className="min-h-0 overflow-y-auto" aria-busy={query.isFetching}>
+            <div
+                className={cn(
+                    'min-h-0 overflow-y-auto transition-opacity',
+                    isShowingPreviousSelection && 'opacity-50',
+                )}
+                aria-busy={query.isFetching}
+            >
                 {report ? (
                     <UsageBody
                         agent={agent === ALL_AGENTS ? undefined : agent}
-                        metric={metric}
                         report={report}
                         onShowAllAgents={() => setAgent(ALL_AGENTS)}
                     />

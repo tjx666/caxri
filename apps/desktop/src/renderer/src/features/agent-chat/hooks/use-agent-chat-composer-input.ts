@@ -59,25 +59,29 @@ export function useAgentChatComposerInput({
     };
     /**
      * A dropped or picked file is cited by path the way a drop into a Terminal pastes one, relative to where the Agent
-     * runs, and lands at the caret.
+     * runs, and lands at the caret. Returns whether it inserted anything.
      */
-    const insertPaths = (event: DragEvent | undefined, files: readonly File[]): void => {
+    const didInsertPaths = (event: DragEvent | undefined, files: readonly File[]): boolean => {
         const input =
             terminal &&
             (event
                 ? terminalDropInput(event, terminal, workbenchRoot, files)
                 : terminalFilesInput(files, terminal, workbenchRoot));
-        if (input) insertText(input);
-        else if (files.length > 0)
+        if (input) {
+            insertText(input);
+            return true;
+        }
+        if (files.length > 0)
             pushToast(
                 'warning',
                 'This file has no path on disk to insert. Save it, then drop the saved file.',
             );
+        return false;
     };
     const longPaste = useAgentChatLongPaste({ insert: insertText, terminalId });
     const fileInput = useAgentChatFileInput({
         add: images.add,
-        insertPaths,
+        didInsertPaths,
         isImageInputEnabled: supportsImages,
         providerName,
         takeLongPaste: longPaste.didTakePaste,

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { LoaderCircle, Minimize2, X } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
 import { Tooltip } from '../../components/ui/tooltip';
 import type { AgentChatAttachment } from './agent-chat-drafts';
 import { agentChatAttachmentLabel } from './agent-chat-drafts';
@@ -32,9 +33,56 @@ function PendingAttachmentChip() {
 }
 
 /**
+ * One attached image's 64px thumbnail with a transparent Preview button over it. The button is a sibling of the image
+ * rather than its wrapper, so the image keeps its own accessible node (a button's children are presentational). A
+ * resized image wears a corner badge and a tooltip saying so.
+ */
+function AttachmentThumbnail({
+    attachment,
+    index,
+    onPreview,
+}: {
+    attachment: AgentChatAttachment;
+    index: number;
+    onPreview: () => void;
+}) {
+    const label = agentChatAttachmentLabel(attachment, index);
+    const thumbnail = (
+        <span className="relative block">
+            <img
+                alt={label}
+                className="block size-16 rounded-md border border-border object-cover"
+                src={attachment.image.thumbnail}
+            />
+            {attachment.isResized && (
+                <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute bottom-1 left-1 z-10 flex size-4 items-center justify-center rounded-sm bg-background/85 text-muted"
+                    data-attachment-resized=""
+                >
+                    <Minimize2 className="size-3" />
+                </span>
+            )}
+            <button
+                aria-label={`Preview ${label}`}
+                className="absolute inset-0 cursor-zoom-in rounded-md border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-accent"
+                type="button"
+                onClick={onPreview}
+            />
+        </span>
+    );
+    return attachment.isResized ? (
+        <Tooltip content={AGENT_CHAT_IMAGE_RESIZED_NOTE}>{thumbnail}</Tooltip>
+    ) : (
+        thumbnail
+    );
+}
+
+/**
  * Images attached to the message being written, each removable before it is sent. Removing one unmounts the button that
  * had focus, so the caller hands focus back to the message input. A resized image says so on hover and in its alt text,
- * since what is sent is not the original file.
+ * since what is sent is not the original file. Clicking a thumbnail opens the full image in a dialog, since the 64px
+ * chip is too small to check a screenshot before sending it.
  */
 export function AgentChatAttachmentList({
     attachments,
@@ -48,52 +96,59 @@ export function AgentChatAttachmentList({
      */
     pendingCount?: number;
 }) {
+    const [previewId, setPreviewId] = useState<string>();
+    const previewIndex = attachments.findIndex((attachment) => attachment.id === previewId);
+    const preview = previewIndex === -1 ? undefined : attachments[previewIndex];
     return (
-        <ul
-            aria-label="Attached images"
-            className="m-0 flex list-none flex-wrap gap-2 px-3 pt-3 pb-0 empty:hidden"
-        >
-            {attachments.map((attachment, index) => (
-                <li className="group/attachment relative" key={attachment.id}>
-                    {attachment.isResized ? (
-                        <Tooltip content={AGENT_CHAT_IMAGE_RESIZED_NOTE}>
-                            <span className="relative block">
-                                <img
-                                    alt={agentChatAttachmentLabel(attachment, index)}
-                                    className="size-16 rounded-md border border-border object-cover"
-                                    src={attachment.image.thumbnail}
-                                />
-                                <span
-                                    aria-hidden="true"
-                                    className="absolute bottom-1 left-1 flex size-4 items-center justify-center rounded-sm bg-background/85 text-muted"
-                                    data-attachment-resized=""
-                                >
-                                    <Minimize2 className="size-3" />
-                                </span>
-                            </span>
-                        </Tooltip>
-                    ) : (
-                        <img
-                            alt={agentChatAttachmentLabel(attachment, index)}
-                            className="size-16 rounded-md border border-border object-cover"
-                            src={attachment.image.thumbnail}
+        <>
+            <ul
+                aria-label="Attached images"
+                className="m-0 flex list-none flex-wrap gap-2 px-3 pt-3 pb-0 empty:hidden"
+            >
+                {attachments.map((attachment, index) => (
+                    <li className="group/attachment relative" key={attachment.id}>
+                        <AttachmentThumbnail
+                            attachment={attachment}
+                            index={index}
+                            onPreview={() => setPreviewId(attachment.id)}
                         />
+                        <Button
+                            aria-label={`Remove image ${index + 1}`}
+                            className="absolute top-1 right-1 size-5 shadow-sm"
+                            size="icon"
+                            type="button"
+                            variant="secondary"
+                            onClick={() => onRemove(attachment.id)}
+                        >
+                            <X className="size-3" />
+                        </Button>
+                    </li>
+                ))}
+                {Array.from({ length: pendingCount }, (_, index) => (
+                    <PendingAttachmentChip key={`pending-${index}`} />
+                ))}
+            </ul>
+            <Dialog
+                open={preview !== undefined}
+                onOpenChange={(isOpen) => {
+                    if (!isOpen) setPreviewId(undefined);
+                }}
+            >
+                <DialogContent className="w-auto max-w-[min(960px,calc(100vw-32px))] p-3">
+                    {preview && (
+                        <>
+                            <DialogTitle className="mb-2 truncate pr-8 text-[13px] font-normal text-muted">
+                                {agentChatAttachmentLabel(preview, previewIndex)}
+                            </DialogTitle>
+                            <img
+                                alt={agentChatAttachmentLabel(preview, previewIndex)}
+                                className="block max-h-[calc(100vh-120px)] max-w-full rounded-md object-contain"
+                                src={`data:${preview.image.mediaType};base64,${preview.image.data}`}
+                            />
+                        </>
                     )}
-                    <Button
-                        aria-label={`Remove image ${index + 1}`}
-                        className="absolute top-1 right-1 size-5 shadow-sm"
-                        size="icon"
-                        type="button"
-                        variant="secondary"
-                        onClick={() => onRemove(attachment.id)}
-                    >
-                        <X className="size-3" />
-                    </Button>
-                </li>
-            ))}
-            {Array.from({ length: pendingCount }, (_, index) => (
-                <PendingAttachmentChip key={`pending-${index}`} />
-            ))}
-        </ul>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }

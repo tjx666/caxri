@@ -30,16 +30,20 @@ export interface WindowClosePrompt {
 }
 
 /**
- * The close-window confirmation. The running count covers every live Terminal and Agent Chat, so the copy says "tasks"
- * like the Quit dialog (`appQuitPrompt`) instead of "Terminals", and it names the outcome rather than the Server
- * process that keeps them alive.
+ * The close-window confirmation. It asks the question the window's close button just posed and names the running work
+ * with glossary nouns. The Server reports one combined count of live Terminals and Chats (`terminal.runningCount`), so
+ * the message names both kinds rather than guessing which one is running. It names the outcome rather than the Server
+ * process that keeps them alive, and keeps the three buttons the Quit dialog's wording relies on.
  */
 export function windowClosePrompt(runningCount: number): WindowClosePrompt {
     return {
         type: 'warning',
-        title: 'Tasks are still running',
-        message: `${runningCount} ${runningCount === 1 ? 'task is' : 'tasks are'} still running.`,
-        detail: 'Keep Running closes this window and keeps them running in the background. To exit the app, use Quit Caxri and choose whether running tasks should stop.',
+        title: 'Close this window?',
+        message:
+            runningCount === 1
+                ? '1 Terminal or Chat is still running.'
+                : `${runningCount} Terminals or Chats are still running.`,
+        detail: 'Keep Running closes this window and keeps them running in the background. To exit the app, use Quit Caxri and choose whether they should stop.',
         buttons: ['Keep Running', 'Terminate and Close', 'Cancel'],
         defaultId: 2,
         cancelId: 2,

@@ -292,7 +292,7 @@ test('the tab bar reveals the Agent menu on hover with one tab and accents only 
     try {
         await createProjectSession(running.page);
         const tabs = running.page.locator('.work-tabs .work-tab');
-        const newTerminal = running.page.getByRole('button', { name: 'New Terminal' });
+        const newTerminal = running.page.getByRole('button', { name: /^New .*Terminal$/u });
         const newTerminalSlot = running.page.locator('.work-tabs .tab-actions > div');
         await expect(tabs).toHaveCount(1);
         await waitForTabMotionToSettle(running.page);

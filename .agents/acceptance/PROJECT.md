@@ -48,6 +48,8 @@ Android, and iOS Simulator product surfaces.
   remain blocked by the fixture environment and never fall back to a host executable.
   The fixed `grok-build-v1` fixture replaces only Grok and renders a bounded synthetic grid for
   Session identity, turn outcome, and restart checks; host Grok remains blocked.
+  The fixed `agent-chat-v1` fixture makes Claude Code and Codex the deterministic Agent Chat fakes for
+  Chat transcript, approval, and composer checks; see `surfaces/electron.md` in the acceptance skill.
 
 - **Native dialogs:** these are manual Acceptance boundaries by default. Keep the deterministic
   test-root environment and stub Main's dialog result for automated coverage. Hand dialog-specific

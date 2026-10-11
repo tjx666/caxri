@@ -11,10 +11,11 @@ import { unarchiveSession } from '../features/session/session-commands';
 import { createTerminalForSession } from '../features/terminal/terminal-commands';
 import { terminalToastActionHandlers } from '../features/terminal/terminal-toast-actions';
 import { showUpdateDialog } from '../features/updates/update-commands';
+import { openExternalUrl } from '../lib/external-link';
 import { openSettings } from '../stores/dialogs';
 import { getBootstrap } from '../stores/selectors';
 import type { ToastActionHandlers } from '../stores/toast-actions';
-import { tryCommand } from '../stores/toasts';
+import { pushToast, tryCommand } from '../stores/toasts';
 import { undoFollowedWorkbenchRoot } from '../stores/workbench-root-notice';
 
 const MISSING_SESSION_REASON = 'That Session no longer exists.';
@@ -44,6 +45,12 @@ export const toastActionHandlers: ToastActionHandlers = {
     'editor.retrySave': {
         unavailable: saveRetryUnavailableReason,
         run: retrySaveDocument,
+    },
+    'github.open': {
+        run: ({ url }) => {
+            // eslint-disable-next-line no-void -- openExternalUrl reports its own failures through the toast
+            void openExternalUrl(url, (message) => pushToast('error', message));
+        },
     },
     'processExplorer.open': { run: openProcessExplorer },
     'session.unarchive': {

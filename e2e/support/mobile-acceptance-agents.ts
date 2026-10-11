@@ -1,53 +1,30 @@
 import { chmod, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
-import { pathToFileURL } from 'node:url';
 
+import {
+    fakeClaudeChatExecutableSource,
+    fakeCodexChatExecutableSource,
+} from '../../apps/server/src/domains/agent-chat/__tests__/fixtures/fake-chat-executables.ts';
 import { createFakeAgentMode } from './agent-fixture';
 
 // Synthetic provider executables for the Mobile Acceptance fixture: each stands in for a real Agent CLI so a phone
 // scenario never discovers or launches a host provider.
-
-/**
- * The app-server stand-in the Server's Agent Chat tests drive, so the phone sees the same deterministic Chat.
- */
-const FAKE_CODEX_APP_SERVER = join(
-    import.meta.dirname,
-    '..',
-    '..',
-    'apps/server/src/domains/agent-chat/__tests__/fixtures/fake-codex-app-server.ts',
-);
-
-/**
- * The Claude Code stand-in the Server's Agent Chat tests drive through the Claude Agent SDK. Its transcripts live under
- * the fake agent home, where the Server reads history and image originals back.
- */
-const FAKE_CLAUDE_CLI = join(
-    import.meta.dirname,
-    '..',
-    '..',
-    'apps/server/src/domains/agent-chat/__tests__/fixtures/fake-claude-cli.ts',
-);
 
 export async function fakeChatAgent(userDataDirectory: string, testDirectory: string) {
     return createFakeAgentMode({
         userDataDir: userDataDirectory,
         providers: {
             claude: {
-                executableSource: `#!${process.execPath}
-process.env.FAKE_CLAUDE_CONTROL_DIR = ${JSON.stringify(testDirectory)};
-import(${JSON.stringify(pathToFileURL(FAKE_CLAUDE_CLI).href)});
-`,
+                // Transcripts stay under the fake agent home, where the Server reads history and image originals back.
+                executableSource: fakeClaudeChatExecutableSource({
+                    controlDirectory: testDirectory,
+                }),
             },
             codex: {
-                executableSource: String.raw`#!${process.execPath}
-if (process.argv.includes('--version')) {
-  process.stdout.write('codex-cli 0.162.0\n');
-  process.exit(0);
-}
-process.env.FAKE_CODEX_STATE_DIR = ${JSON.stringify(join(testDirectory, 'codex-threads'))};
-import(${JSON.stringify(pathToFileURL(FAKE_CODEX_APP_SERVER).href)});
-`,
+                executableSource: fakeCodexChatExecutableSource({
+                    stateDirectory: join(testDirectory, 'codex-threads'),
+                }),
             },
         },
     });

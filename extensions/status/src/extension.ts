@@ -1,6 +1,7 @@
 import type {
     CancellationToken,
     CaxriApi,
+    CommandResult,
     ExtensionContext,
     TreeDataProvider,
     TreeItem,
@@ -9,7 +10,14 @@ import caxri, { EventEmitter } from 'caxri';
 
 import { statusBadge } from './status-badge';
 import type { StatusNode } from './status-item';
-import { isMergePullRequestArguments, MERGE_PULL_REQUEST_COMMAND } from './status-merge';
+import type { MergePullRequestArguments } from './status-merge';
+import {
+    currentBranchMerge,
+    isMergePullRequestArguments,
+    MERGE_CURRENT_PULL_REQUEST_COMMAND,
+    MERGE_PULL_REQUEST_COMMAND,
+    mergedMessage,
+} from './status-merge';
 import { buildStatusRootNodes } from './status-tree';
 
 export class ProjectStatusProvider implements TreeDataProvider<StatusNode> {
@@ -76,6 +84,28 @@ export class ProjectStatusProvider implements TreeDataProvider<StatusNode> {
     }
 }
 
+/**
+ * Merges the pull request and refreshes the panel either way. Resolves with the success toast text, which names the
+ * method Server Core chose; the inline action's declared `feedback` supplies the failure prefix and Open on GitHub.
+ */
+export async function mergePullRequest(
+    provider: Pick<ProjectStatusProvider, 'refresh'>,
+    target: MergePullRequestArguments,
+    git: Pick<CaxriApi['workspace']['git'], 'mergePullRequest'> = caxri.workspace.git,
+): Promise<CommandResult> {
+    try {
+        const { method } = await git.mergePullRequest(target.repositoryId, {
+            number: target.number,
+            headSha: target.headSha,
+        });
+        return { message: mergedMessage(method, target.number) };
+    } finally {
+        // Refresh on failure too: a rejected merge usually means the row was stale (a new push, a new conflict), and
+        // the forced read shows why instead of offering the same doomed button again.
+        provider.refresh(true);
+    }
+}
+
 export function activate(context: ExtensionContext): void {
     const provider = new ProjectStatusProvider();
     context.subscriptions.push(
@@ -88,16 +118,14 @@ export function activate(context: ExtensionContext): void {
         caxri.commands.registerCommand(MERGE_PULL_REQUEST_COMMAND, async (target: unknown) => {
             if (!isMergePullRequestArguments(target))
                 throw new Error('Merge Pull Request needs a pull request from the Status panel');
-            try {
-                await caxri.workspace.git.mergePullRequest(target.repositoryId, {
-                    number: target.number,
-                    headSha: target.headSha,
-                });
-            } finally {
-                // Refresh on failure too: a rejected merge usually means the row was stale (a new push, a new conflict),
-                // and the forced read shows why instead of offering the same doomed button again.
-                provider.refresh(true);
-            }
+            return mergePullRequest(provider, target);
+        }),
+        caxri.commands.registerCommand(MERGE_CURRENT_PULL_REQUEST_COMMAND, async () => {
+            const decision = currentBranchMerge(
+                (await caxri.workspace.getProjectStatus()).repositories,
+            );
+            if (decision.kind === 'refuse') throw new Error(decision.message);
+            return mergePullRequest(provider, decision.arguments);
         }),
         /**
          * Deliberately no `onDidChangeActiveContext` subscription. The Workbench already rebuilds this View per active

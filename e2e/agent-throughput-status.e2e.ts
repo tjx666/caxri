@@ -164,12 +164,13 @@ test('the status bar shows the active Agent Terminal output speed and usage from
         await chip.hover();
         const tooltip = running.page.locator('.tooltip-popup');
         await expect(tooltip).toContainText('Claude output speed');
-        await expect(tooltip).toContainText('90 tok/s over the last 3 responses');
+        await expect(tooltip).toContainText('90 tok/s');
+        await expect(tooltip).toContainText('Average of the last 3 responses');
         await expect(tooltip).toContainText('300 tokens in 2.0s · 150 tok/s');
         await expect(tooltip).toContainText('Includes waiting for the first token');
         await expect(tooltip).toContainText('API status');
         await expect(tooltip).toContainText('Degraded performance: Claude Code');
-        await expect(tooltip).toContainText('Slow Claude Code responses (identified)');
+        await expect(tooltip).toContainText('Slow Claude Code responses (Identified)');
         await expect(tooltip).not.toContainText('claude.ai');
         await testInfo.attach('agent-throughput-tooltip', {
             body: await running.page.screenshot(),
@@ -194,7 +195,7 @@ test('the status bar shows the active Agent Terminal output speed and usage from
         await chip.click();
         const statusPage = running.page.locator('[data-agent-status-page]');
         await expect(statusPage).toBeVisible();
-        await expect(statusPage.getByRole('heading', { name: 'Claude status' })).toBeVisible();
+        await expect(statusPage.getByRole('heading', { name: 'Claude Status' })).toBeVisible();
         await expect(statusPage).toContainText('300 tokens in 2.0s · 150 tok/s');
         await expect(
             statusPage.getByRole('list', { name: 'Output speed of the last 3 responses' }),

@@ -61,7 +61,7 @@ process.stdin.resume();
         const caption = settingsTab
             .locator('[data-setting-row="agents.claude.hooks"]')
             .getByRole('status');
-        await expect(caption).toHaveText('Active');
+        await expect(caption).toHaveText('Installation: Active');
         await expect(caption).toHaveAttribute('data-tone', 'muted');
         await expect(caption.locator('[aria-hidden="true"]')).toHaveCount(0);
         await caption.screenshot({ path: test.info().outputPath('active-hook-status.png') });

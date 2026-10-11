@@ -7,14 +7,17 @@ import {
     agentChatActivity,
     agentChatCommandCwd,
     agentChatDeliveryCaption,
+    agentChatEmptyHint,
     agentChatEmptyMessage,
     agentChatEscapeAction,
     agentChatFailureMessage,
     agentChatPlanProgress,
     agentChatQuestionAnswers,
     agentChatRecoveryNotice,
-    agentChatRequestTitle,
+    agentChatResumeFailureDetail,
     agentChatSendAction,
+    agentChatSendBlock,
+    agentChatSendTooltip,
     agentChatSubmitDelivery,
     agentChatWorkingVerb,
     canSendAgentChatMessage,
@@ -135,16 +138,52 @@ describe('agentChatSendAction', () => {
     it('sends when idle, queues while busy, and offers steering only during a turn', () => {
         expect(agentChatSendAction({ isTurnRunning: false, isBusy: false }, 'Codex')).toEqual({
             label: 'Send',
-            tooltip: 'Send',
+            tooltip: 'Send (Enter)',
             placeholder: 'Message Codex',
         });
-        expect(agentChatSendAction({ isTurnRunning: false, isBusy: true }, 'Codex').label).toBe(
-            'Queue message',
-        );
+        expect(agentChatSendAction({ isTurnRunning: false, isBusy: true }, 'Codex')).toMatchObject({
+            label: 'Queue message',
+            tooltip: 'Queue (Enter)',
+        });
         expect(agentChatSendAction({ isTurnRunning: true, isBusy: true }, 'Codex')).toMatchObject({
             label: 'Queue message',
             placeholder: 'Queue a follow-up (⌘Enter to steer)',
         });
+    });
+});
+
+describe('agentChatSendTooltip', () => {
+    const action = { tooltip: 'Send (Enter)' };
+    const ready = { block: undefined, hasContent: true, isAttaching: false, isSending: false };
+
+    it('says why Send is disabled, putting the Chat refusal first', () => {
+        expect(agentChatSendBlock(undefined, 'running')).toBe('loading');
+        expect(agentChatSendBlock(snapshot('failed'), 'running')).toBe('failed');
+        expect(agentChatSendBlock(snapshot('failed'), 'detached')).toBe('detached');
+        expect(agentChatSendBlock(snapshot('ready'), 'running')).toBeUndefined();
+        expect(agentChatSendTooltip(action, { ...ready, block: 'loading' })).toBe('Chat loading…');
+        expect(agentChatSendTooltip(action, { ...ready, block: 'failed' })).toBe(
+            'Chat stopped. Retry above',
+        );
+        expect(
+            agentChatSendTooltip(action, { ...ready, block: 'detached', isAttaching: true }),
+        ).toBe('Chat detached. Resume above');
+        expect(agentChatSendTooltip(action, { ...ready, isAttaching: true })).toBe('Attaching…');
+        expect(agentChatSendTooltip(action, { ...ready, hasContent: false })).toBe(
+            'Type a message to send',
+        );
+        expect(agentChatSendTooltip(action, ready)).toBe('Send (Enter)');
+    });
+});
+
+describe('agentChatEmptyHint', () => {
+    it('names the composer gestures, offering images only when the provider takes them', () => {
+        expect(agentChatEmptyHint(true)).toBe(
+            'Type / for commands, $ for skills · paste or drop images and files · ⇧Enter for a new line',
+        );
+        expect(agentChatEmptyHint(false)).toBe(
+            'Type / for commands, $ for skills · drop files to insert paths · ⇧Enter for a new line',
+        );
     });
 });
 
@@ -268,7 +307,14 @@ describe('agentChatActivity', () => {
                 },
                 'Codex',
             ),
-        ).toEqual({ kind: 'waiting', text: 'Waiting for your answer' });
+        ).toEqual({ kind: 'waiting', text: 'Waiting for your approval' });
+    });
+
+    it('loads an existing conversation instead of claiming to start the Agent', () => {
+        expect(agentChatActivity(undefined, 'Claude', { hasConversation: true })).toEqual({
+            kind: 'starting',
+            text: 'Loading conversation…',
+        });
     });
 
     it('keeps one verb for a turn and varies it across turns', () => {
@@ -322,76 +368,35 @@ describe('isAgentChatInterruptKey', () => {
     });
 });
 
+describe('agentChatRecoveryNotice for a conversation that could not be resumed', () => {
+    it('explains the cause and the next step instead of repeating the provider detail', () => {
+        const notice = agentChatRecoveryNotice(
+            {
+                status: 'failed',
+                failure: {
+                    reason: 'resume_failed',
+                    detail: 'Claude could not resume this conversation',
+                },
+            },
+            { isLoadError: false, processState: undefined },
+            'Claude',
+        );
+        expect(notice).toEqual({
+            kind: 'failed',
+            message: agentChatFailureMessage('resume_failed', 'Claude'),
+            detail: agentChatResumeFailureDetail('Claude'),
+            recovery: 'restart',
+            canOpenAsTerminal: true,
+        });
+        expect(notice?.detail).not.toContain('could not be resumed');
+    });
+});
+
 describe('agentChatFailureMessage', () => {
     it('names the Chat provider', () => {
         expect(agentChatFailureMessage('process_exited', 'Claude')).toBe(
             'Claude stopped unexpectedly. Retry to resume the conversation.',
         );
-    });
-});
-
-describe('agentChatRequestTitle', () => {
-    it('asks about a generic tool by name', () => {
-        expect(
-            agentChatRequestTitle(
-                {
-                    id: 'r',
-                    kind: 'tool',
-                    name: 'WebFetch',
-                    decisions: ['accept'],
-                },
-                'Claude Code',
-            ),
-        ).toBe('Allow WebFetch?');
-    });
-
-    it("asks in the timeline's words instead of the raw tool identifier", () => {
-        const tool = (name: string, summary?: string) =>
-            agentChatRequestTitle(
-                { id: 'r', kind: 'tool', name, ...(summary && { summary }), decisions: ['accept'] },
-                'Claude Code',
-            );
-        expect(tool('mcp__github__create_issue', '{"title":"x"}')).toBe(
-            'Allow create_issue from github?',
-        );
-        expect(tool('Edit', '/work/src/app.ts')).toBe('Allow editing app.ts?');
-        expect(tool('WebFetch', `https://example.com/${'a'.repeat(80)}`)).toBe('Allow browsing?');
-    });
-
-    it('names the provider that asks a question', () => {
-        const question = {
-            id: 'q',
-            header: '',
-            question: 'Which?',
-            options: [],
-            allowsOther: true,
-        };
-        expect(
-            agentChatRequestTitle(
-                { id: 'r', kind: 'question', questions: [question] },
-                'Claude Code',
-            ),
-        ).toBe('Claude Code has a question');
-        expect(
-            agentChatRequestTitle(
-                { id: 'r', kind: 'question', questions: [question, { ...question, id: 'q2' }] },
-                'Codex',
-            ),
-        ).toBe('Codex has 2 questions');
-    });
-
-    it('asks to start with the plan Claude Code proposes', () => {
-        expect(
-            agentChatRequestTitle(
-                {
-                    id: 'r',
-                    kind: 'tool',
-                    name: 'ExitPlanMode',
-                    decisions: ['accept'],
-                },
-                'Claude Code',
-            ),
-        ).toBe('Start with this plan?');
     });
 });
 

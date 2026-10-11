@@ -1,16 +1,18 @@
-import type { AgentChatSnapshot, AgentChatUsage } from '@caxri/protocol';
+import type { AgentChatCommand, AgentChatSnapshot, AgentChatUsage } from '@caxri/protocol';
 import { formatDuration, formatTokens, formatUsd } from '@caxri/protocol';
 
 /**
  * Share of the compaction window past which the context counts as high: the meter turns `--danger` and the composer
- * suggests compacting. Claude Code's quality degrades well before it compacts on its own, so the warning comes early.
+ * suggests compacting. Set close to where the provider compacts on its own, so the suggestion arrives while compacting
+ * by hand still saves a turn, without reading as a false alarm for most of a long conversation.
  */
-const HIGH_CONTEXT_SHARE = 0.7;
+const HIGH_CONTEXT_SHARE = 0.85;
 
 /**
- * Share past which the meter turns `--warning`, so the step to `--danger` is not the first change the user sees.
+ * Share past which the meter turns `--warning`. Answer quality starts to degrade around here, and the step gives the
+ * user a calm early signal so the change to `--danger` is not the first one they see.
  */
-const ELEVATED_CONTEXT_SHARE = 0.5;
+const ELEVATED_CONTEXT_SHARE = 0.6;
 
 /**
  * How full the context window is, for the composer's meter. Omitted until the provider reports a window size.
@@ -67,7 +69,7 @@ interface AgentChatContextAlert {
      */
     text: string;
     /**
-     * The numbers behind it, for the hover title.
+     * The numbers behind it, for the hover tooltip.
      */
     detail: string;
 }
@@ -91,18 +93,28 @@ export function agentChatContextAlerts(
             const cost =
                 usage.cacheRewriteUsd === undefined
                     ? ''
-                    : ` (~${formatUsd(usage.cacheRewriteUsd)})`;
+                    : ` (est. ~${formatUsd(usage.cacheRewriteUsd)})`;
             alerts.cache = {
-                text: `Cache expired · next message rewrites ${tokens} tokens${cost}`,
-                detail: `Idle ${formatDuration(idleMs)}, past the ${cacheTtlMinutes}m prompt cache lifetime.${cost && ' The cost is an estimate at standard API prices.'}`,
+                text: `Idle ${formatDuration(idleMs)} · next reply re-reads the whole conversation${cost}`,
+                detail: `The prompt cache lasts ${cacheTtlMinutes}m, so the next reply reads all ${tokens} tokens again without it.${cost && ' The cost is an estimate at standard API prices.'}`,
             };
         }
     }
     const window = usage.compactWindow ?? usage.contextWindow;
     if (window && usage.totalTokens / window >= HIGH_CONTEXT_SHARE)
         alerts.pressure = {
-            text: `Context ${tokens} / ${formatTokens(window)} · consider /compact`,
+            text: `Context ${tokens} / ${formatTokens(window)} · consider compacting`,
             detail: `The conversation fills ${Math.round((usage.totalTokens / window) * 100)}% of the window the Agent compacts at. Compacting now keeps answers sharp.`,
         };
     return alerts;
+}
+
+/**
+ * The provider command that compacts the conversation, when the provider reports one, so the context alert and the
+ * meter's card can offer a Compact button that runs it the way typing `/compact` would.
+ */
+export function agentChatCompactCommand(
+    commands: readonly AgentChatCommand[] | undefined,
+): AgentChatCommand | undefined {
+    return commands?.find((command) => command.name === 'compact');
 }

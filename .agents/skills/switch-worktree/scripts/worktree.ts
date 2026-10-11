@@ -27,6 +27,7 @@ import {
     worktreeIdentity,
     writeJsonAtomic,
 } from './repo';
+import { assertBranchContainsBase, hasBranch } from './worktree-branch';
 import { explicitCdpPort, resolveWorktreeCdpPort } from './worktree-cdp-port';
 import type { DevelopmentProcessRecord } from './worktree-development-process';
 import { developmentProcessPath, readDevelopmentProcess } from './worktree-development-process';
@@ -306,14 +307,6 @@ async function assertProfileCleanupSafe(path: string): Promise<void> {
     }
 }
 
-async function hasBranch(context: RepoContext, branch: string): Promise<boolean> {
-    return didCommandSucceed(
-        'git',
-        ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`],
-        context.root,
-    );
-}
-
 async function upstreamCounts(
     worktree: WorktreeRecord,
 ): Promise<{ ahead: number | null; behind: number | null }> {
@@ -503,6 +496,7 @@ export async function createWorktree(options: CreateOptions): Promise<WorktreeSt
     const install = options.install ?? installWorktreeDependencies;
     return withRepoLock(context, async () => {
         const worktrees = await listWorktrees(context);
+        await assertBranchContainsBase(context.root, options.branch, options.base);
         const existing = worktrees.find((worktree) => worktree.branch === options.branch);
         if (existing) return repairManagedWorktree(context, existing, install);
         if (
@@ -520,7 +514,7 @@ export async function createWorktree(options: CreateOptions): Promise<WorktreeSt
         if (await isPathPresent(path)) {
             throw new CommandError(`Worktree path already exists: ${path}`);
         }
-        const isExists = await hasBranch(context, options.branch);
+        const isExists = await hasBranch(context.root, options.branch);
         if (isExists) {
             await runCapture('git', ['worktree', 'add', path, options.branch], context.root);
         } else {
@@ -551,7 +545,7 @@ export async function switchWorktree(
     return withRepoLock(context, async () => {
         const current = resolveExistingTarget(await listWorktrees(context), cwd, target);
         if (current) return repairManagedWorktree(context, current, install);
-        if (!(await hasBranch(context, target)))
+        if (!(await hasBranch(context.root, target)))
             throw new CommandError(`No worktree or local branch matches: ${target}`, 2);
         const path = worktreeDirectory(context, target);
         if (await isPathPresent(path))

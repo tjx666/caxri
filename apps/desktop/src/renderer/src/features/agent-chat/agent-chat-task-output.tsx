@@ -1,10 +1,13 @@
+import { CodeView } from '../../components/markdown/code-view';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 
 /**
- * A background shell's output tail in a monospaced block that follows new output while the user reads the end and stays
- * put once they scroll up, like the Chat timeline. It says when the output is only the latest part, and when the
- * provider stopped streaming it (the command may still run), so a quiet block is never mistaken for an idle command.
+ * A background shell's output tail in the shared code block (soft-wrap toggle, Copy) that follows new output while the
+ * user reads the end and stays put once they scroll up, like the Chat timeline. It is colored only once the shell ends,
+ * so a fast-streaming tail is not re-colorized on every chunk. It says when the output is only the latest part, and
+ * when the provider stopped streaming it (the command may still run), so a quiet block is never mistaken for an idle
+ * command.
  */
 export function AgentChatTaskOutput({
     command,
@@ -53,9 +56,14 @@ export function AgentChatTaskOutput({
             >
                 <div ref={contentReference}>
                     {text ? (
-                        <pre className="m-0 px-4 py-3 font-mono text-[11px] leading-4 wrap-anywhere whitespace-pre-wrap text-foreground">
-                            {text}
-                        </pre>
+                        <div className="px-4 py-3">
+                            <CodeView
+                                code={text}
+                                isPaintable={!isRunning}
+                                label="Output"
+                                language="shell"
+                            />
+                        </div>
                     ) : (
                         <p className="m-0 px-4 py-3 text-[12px] text-muted">
                             {isRunning ? 'No output yet' : 'No output'}

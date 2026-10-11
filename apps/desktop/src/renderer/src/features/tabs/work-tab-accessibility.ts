@@ -1,3 +1,6 @@
+import type { GitDecoration } from '../../lib/git-decorations';
+import { gitDecorationDescription } from '../../lib/git-decorations';
+
 export type WorkTabNavigationKey = 'ArrowLeft' | 'ArrowRight' | 'End' | 'Home';
 
 /**
@@ -32,4 +35,30 @@ export function workTabNavigationTarget(
     if (activeIndex === -1) return key === 'ArrowRight' ? tabIds[0] : tabIds.at(-1);
     const delta = key === 'ArrowRight' ? 1 : -1;
     return tabIds[(activeIndex + delta + tabIds.length) % tabIds.length];
+}
+
+/**
+ * Everything a tab shows but its accessible name cannot say, spoken through `aria-describedby`; empty when nothing
+ * applies. "Unsaved changes" and the Git state are genuinely different facts: a file can be committed-clean with an
+ * unsaved buffer, or modified on disk with nothing pending, so both are spoken when both hold.
+ */
+export function workTabDescription({
+    accessibleDetail,
+    detail,
+    dirty,
+    gitDecoration,
+}: {
+    accessibleDetail?: string;
+    detail?: string;
+    dirty?: boolean;
+    gitDecoration?: Pick<GitDecoration, 'kind'>;
+}): string {
+    return [
+        detail ? `In ${detail}.` : undefined,
+        accessibleDetail ? `${accessibleDetail}.` : undefined,
+        gitDecoration ? gitDecorationDescription(gitDecoration.kind) : undefined,
+        dirty ? 'Unsaved changes.' : undefined,
+    ]
+        .filter(Boolean)
+        .join(' ');
 }

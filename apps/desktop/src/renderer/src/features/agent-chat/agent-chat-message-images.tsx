@@ -1,12 +1,21 @@
+import { useState } from 'react';
+
 import { ImageIcon } from 'lucide-react';
 
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
-import { useAgentChatImageThumbnail } from './hooks/use-agent-chat-image-thumbnail';
+import { agentChatAttachmentLabel } from './agent-chat-drafts';
+import {
+    useAgentChatImageOriginal,
+    useAgentChatImageThumbnail,
+} from './hooks/use-agent-chat-image-thumbnail';
 
 /**
  * Images a sent message carried. A resumed conversation knows an image was there but not its preview; when `message`
  * names where the message lives, each such image is read back from the provider's record and previewed, and a
- * placeholder tile holds its place until then, or for good when the record no longer has it.
+ * placeholder tile holds its place until then, or for good when the record no longer has it. Clicking a preview opens
+ * it larger, read at full size from the record when it still has it.
  */
 export function AgentChatMessageImages({
     className,
@@ -24,13 +33,16 @@ export function AgentChatMessageImages({
                     index={index}
                     // react-doctor-disable-next-line react-doctor/no-array-index-as-key -- a sent message's images never reorder, so position is their identity.
                     key={index}
-                    message={image.thumbnail ? undefined : message}
+                    message={message}
                     thumbnail={image.thumbnail}
                 />
             ))}
         </div>
     );
 }
+
+const TILE_CLASS_NAME =
+    'flex size-24 items-center justify-center rounded-md border border-border bg-elevated text-muted';
 
 function MessageImage({
     index,
@@ -41,21 +53,68 @@ function MessageImage({
     message: { terminalId: string; itemId: string } | undefined;
     thumbnail: string | undefined;
 }) {
-    const restored = useAgentChatImageThumbnail(message && { ...message, index });
-    const source = thumbnail ?? restored;
-    return source ? (
-        <img
-            alt={`Attachment ${index + 1}`}
-            className="h-24 w-auto max-w-48 min-w-12 rounded-md border border-border object-cover"
-            src={source}
-        />
-    ) : (
-        <div
-            aria-label={`Attachment ${index + 1}`}
-            className="flex size-24 items-center justify-center rounded-md border border-border bg-elevated text-muted"
-            role="img"
-        >
-            <ImageIcon className="size-5" />
-        </div>
+    const [isPreviewOpen, setPreviewOpen] = useState(false);
+    const record = message && { ...message, index };
+    const restored = useAgentChatImageThumbnail(thumbnail ? undefined : record);
+    const original = useAgentChatImageOriginal(record, { isEnabled: isPreviewOpen });
+    const label = agentChatAttachmentLabel({}, index);
+    const source = thumbnail ?? restored.thumbnail;
+    if (!source) {
+        if (restored.status === 'unavailable') {
+            return (
+                <Tooltip content="Image no longer available">
+                    <div
+                        aria-label={`${label}, no longer available`}
+                        className={TILE_CLASS_NAME}
+                        role="img"
+                    >
+                        <ImageIcon className="size-5" />
+                    </div>
+                </Tooltip>
+            );
+        }
+        return (
+            <div
+                aria-busy={restored.status === 'loading' || undefined}
+                aria-label={label}
+                className={cn(
+                    TILE_CLASS_NAME,
+                    restored.status === 'loading' && 'motion-safe:animate-pulse',
+                )}
+                role="img"
+            >
+                <ImageIcon className="size-5" />
+            </div>
+        );
+    }
+    return (
+        <>
+            <button
+                aria-label={`Preview ${label}`}
+                className="cursor-zoom-in rounded-md border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-foreground"
+                type="button"
+                onClick={() => setPreviewOpen(true)}
+            >
+                <img
+                    alt={label}
+                    className="h-24 w-auto max-w-48 min-w-12 rounded-md border border-border object-cover"
+                    src={source}
+                />
+            </button>
+            <Dialog open={isPreviewOpen} onOpenChange={setPreviewOpen}>
+                <DialogContent className="w-auto max-w-[calc(100vw-32px)]">
+                    <DialogHeader>
+                        <DialogTitle>{label}</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex justify-center p-4">
+                        <img
+                            alt={label}
+                            className="max-h-[calc(100vh-160px)] max-w-full rounded-md object-contain"
+                            src={original ?? source}
+                        />
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { z } from 'zod';
 
-import { acceptanceAgentFixtureIds, acceptanceAgentFixtureProviders } from './agent-fixtures';
+import { acceptanceAgentFixtureIds, acceptanceAgentFixtureProviders } from './agent-fixture-ids';
 import { LIFECYCLE_FORCED_COMPLETION_SOURCES } from './case-lifecycle';
 import { errorCode, validateExistingReportDirectory, writeJsonAtomically } from './report-paths';
 

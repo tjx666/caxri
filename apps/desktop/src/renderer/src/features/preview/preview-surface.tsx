@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import type { FilePreviewTab } from '@caxri/protocol';
 import { isExternalEditorTabPath, parseExternalEditorTab } from '@caxri/protocol';
 
+import { executeCommand } from '../../commands/execute';
 import { useResourceLoad } from '../../hooks/use-resource-load';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
 import { useProjectById, useTheme } from '../../stores/selectors';
@@ -48,7 +49,16 @@ function MarkdownPreviewSurface({
      * source tab is gone, so say so instead of showing a load that never finishes.
      */
     if (!document && isExternalEditorTabPath(path))
-        return <div className={emptyWorkClassName}>External file is no longer available.</div>;
+        return (
+            // Recovery is the same free-path Open File the user reached it through (Cmd+P), because an external file
+            // outside every Project can only come back through an explicit open.
+            <EditorLoadFailure
+                actionLabel="Open File…"
+                reason="This file is outside every Project and is no longer open. Open it again to preview it."
+                tone="interrupted"
+                onAction={() => executeCommand('pathBrowser.open')}
+            />
+        );
     if (!document)
         return failure ? (
             <EditorLoadFailure

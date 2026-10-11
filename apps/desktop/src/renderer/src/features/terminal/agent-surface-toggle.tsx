@@ -19,6 +19,13 @@ const SURFACES = [
  * the Agent there through the same request, running-turn confirmation, and shortcut as the tab menu's "Open as ..."
  * entry; the segment that is already showing does nothing.
  *
+ * The group's accessible name, "Open as Terminal or Chat", is the `terminal.switchAgentSurface` title, so the palette,
+ * the native menu, and this control read as one action.
+ *
+ * The pressed segment carries a border on top of the shared Toggle's pressed fill, scoped to this control: the shared
+ * Toggle paints hover and pressed identically (`bg-elevated` + `text-foreground`), which in a two-segment switch made
+ * the hovered other segment look already selected.
+ *
  * The Server answers only after the provider restarted, which takes seconds. While that switch is pending (from any
  * entry point) both segments read as disabled and the target segment shows a spinner, so the press visibly registered.
  * They are `aria-disabled` rather than `disabled`, like the Chat's Stop button: Chromium evicts focus from a natively
@@ -32,7 +39,7 @@ export function AgentSurfaceToggle({ terminal }: { terminal: TerminalRecord }) {
     const isSwitching = pendingSurface !== undefined;
     return (
         <ToggleGroup<TerminalSurface>
-            aria-label="Agent view"
+            aria-label="Open as Terminal or Chat"
             aria-busy={isSwitching}
             className="agent-surface-toggle gap-0.5 rounded border border-border p-0.5"
             value={[current]}
@@ -60,7 +67,7 @@ export function AgentSurfaceToggle({ terminal }: { terminal: TerminalRecord }) {
                             aria-busy={isPending}
                             aria-disabled={isSwitching || undefined}
                             aria-label={label}
-                            className="h-5 min-w-5 px-1 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                            className="h-5 min-w-5 px-1 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-pressed:border-border"
                             value={surface}
                         >
                             {isPending ? (

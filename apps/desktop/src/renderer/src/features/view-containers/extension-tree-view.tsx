@@ -6,9 +6,7 @@ import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual';
 
 import { executeCommand } from '../../commands/execute';
 import { useScrollEdge } from '../../hooks/use-scroll-edge';
-import { openExternalUrl } from '../../lib/external-link';
 import { useExtensionTreeViewState, useSessionViewScope } from '../../stores/selectors';
-import { pushToast, tryCommand } from '../../stores/toasts';
 import { useLogPrefillStore } from '../panel/views/logs/log-prefill';
 import { cancelTreeChildrenRequest, ROOT_HANDLE } from './extension-tree-client';
 import { ExtensionTreeHeader } from './extension-tree-header';
@@ -38,6 +36,7 @@ import {
 } from './extension-tree-state';
 import { useExtensionTreeChildren } from './hooks/use-extension-tree-children';
 import { useExtensionTreeState } from './hooks/use-extension-tree-state';
+import { runTreeItemCommand } from './tree-item-actions';
 import { dispatchExtensionViewAction } from './view-container-commands';
 import { virtualTreeRenderedIndexes } from './virtual-tree-range';
 
@@ -59,18 +58,8 @@ function runTreeCommand(item: TreeItemDto): void {
         executeCommand('panel.showLogs');
         return;
     }
-    if (command.id === 'caxri.openExternal') {
-        // Fire-and-forget: tryCommand() reports command failures through the shared toast path.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void tryCommand(`Unable to run ${command.title}`, async () => {
-            const [url] = command.arguments ?? [];
-            if (typeof url !== 'string') throw new Error('External command requires a URL');
-            await openExternalUrl(url, (message) => pushToast('error', message));
-        });
-        return;
-    }
-    // eslint-disable-next-line no-void -- the shared dispatcher reports failures through the same toast path
-    void dispatchExtensionViewAction(command.id, command.title, command.arguments ?? []);
+    // eslint-disable-next-line no-void -- the shared runner reports failures through the toast path
+    void runTreeItemCommand(command);
 }
 
 function unloadedExpandedHandles(

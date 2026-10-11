@@ -2,21 +2,30 @@ import type { MouseEventHandler, ReactElement } from 'react';
 import { cloneElement, useEffect } from 'react';
 
 import type { CommandId, ProjectRecord } from '@caxri/protocol';
-import { terminalKindSchema } from '@caxri/protocol';
 import { SquareDashed, SquarePen } from 'lucide-react';
 
 import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/menu';
+import { Tooltip } from '../../components/ui/tooltip';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
 import { closeCreateSessionMenu, useDialogStore } from '../../stores/dialogs';
 import { useSettings } from '../../stores/selectors';
-import { newAgentSurface } from '../terminal/new-terminal-agent';
-import { ChatSurfaceMarker, OpenInChatMenuItem } from './open-in-chat-menu-item';
-import { beginSessionCreation, chooseSessionTerminalKind } from './session-creation-commands';
+import {
+    newAgentSurface,
+    newSessionActionLabel,
+    newTerminalAgentChoices,
+} from '../terminal/new-terminal-agent';
+import { AgentChoiceMarker, OpenInChatMenuItem } from './open-in-chat-menu-item';
+import {
+    beginSessionCreation,
+    chooseSessionTerminalKind,
+    openSessionCreationMenu,
+} from './session-creation-commands';
 
 /**
  * The Terminal-choice menu for a new Session, hung from whichever control opened it.
@@ -25,6 +34,9 @@ import { beginSessionCreation, chooseSessionTerminalKind } from './session-creat
  * dialog store rather than locally so the `session.create` command reaches this same menu: a keyboard path that opened
  * a different picker would be the "two ways to do one thing" this repository forbids. That store entry names the
  * trigger as well as the Project, because one Project can render more than one of these at a time.
+ *
+ * With a configured default Agent the Project heading's button splits the way the tab strip's `+` does: a press creates
+ * the default, hovering opens the list to pick a different Agent, and the tooltip names what the press creates.
  */
 function SessionCreationMenu({
     anchor,
@@ -38,7 +50,10 @@ function SessionCreationMenu({
      * Typed to accept an `onClick` override rather than the looser default `ReactElement` props: the default-Agent
      * branch below clones this element with a direct `onClick` instead of handing the click to Base UI's `Menu`.
      */
-    trigger: ReactElement<{ onClick?: MouseEventHandler<HTMLButtonElement> }>;
+    trigger: ReactElement<{
+        'aria-label'?: string;
+        'onClick'?: MouseEventHandler<HTMLButtonElement>;
+    }>;
     /**
      * Renders the trigger inside a `CommandTooltip`. It has to be resolved here rather than by the caller wrapping this
      * component, because Base UI's tooltip trigger reaches its child through `render` and a plain function component
@@ -54,6 +69,7 @@ function SessionCreationMenu({
     const settings = useSettings();
     const defaultAgent = settings?.['session.defaultAgent'];
     const openInChat = settings?.['session.openAgentsInChat'];
+    const sessionCreateShortcut = useCommandShortcut('session.create');
     /**
      * A Project can leave the bootstrap while its menu is open: removed from another window, or dropped by a Server
      * state change. React then unmounts the only component that renders this claim, so Base UI never reports a close
@@ -68,26 +84,31 @@ function SessionCreationMenu({
         [anchor, project.id],
     );
     /**
-     * With a configured `session.defaultAgent` the trigger never has a menu to open, so it must not route the click
-     * through Base UI's `Menu` at all: `beginSessionCreation` returns before ever touching the store's menu claim,
-     * which leaves `open` permanently `false`. A controlled Base UI `Menu` whose `open` prop never turns `true` loses
-     * sync between its internal interaction state and the prop after the first attempt and stops reporting further
-     * `onOpenChange(true)` calls, which is why the second click on this trigger used to do nothing
-     * (github.com/tjx666/caxri/issues/905). Skipping the `Menu`/`MenuTrigger` wrapper entirely when a default Agent is
-     * set avoids that desync outright rather than working around it.
+     * The empty-Project row is a tree row the user reaches by keyboard, not a hover target, so with a configured
+     * `session.defaultAgent` it stays a plain button that creates the default and never routes the click through Base
+     * UI's `Menu`. A controlled `Menu` whose `open` prop never turns `true` after a press loses sync between its
+     * internal interaction state and the prop and stops reporting further `onOpenChange(true)` calls, which is why the
+     * second click on this trigger used to do nothing (github.com/tjx666/caxri/issues/905).
      */
-    if (defaultAgent) {
-        const directTrigger = cloneElement(trigger, {
+    if (defaultAgent && anchor === 'emptyProject') {
+        return cloneElement(trigger, {
             onClick: () => {
                 beginSessionCreation(project.id, anchor);
             },
         });
-        return tooltipCommandId ? (
-            <CommandTooltip commandId={tooltipCommandId}>{directTrigger}</CommandTooltip>
-        ) : (
-            directTrigger
-        );
     }
+    /**
+     * The heading's split: a press creates the default Agent, hover opens the list. The press is vetoed with
+     * `details.cancel()` before Base UI opens anything, the same way the tab strip's `+` does it, so the menu's
+     * internal state never diverges from the store claim (the #905 desync above needed an open request that was
+     * silently dropped, not a canceled one).
+     */
+    const splitTarget = defaultAgent
+        ? { kind: defaultAgent, surface: newAgentSurface(defaultAgent, openInChat) }
+        : undefined;
+    const splitLabel = splitTarget
+        ? newSessionActionLabel(splitTarget, resolveAgentIcon(splitTarget.kind).label)
+        : undefined;
     const menuTrigger = (
         <MenuTrigger
             /**
@@ -105,36 +126,64 @@ function SessionCreationMenu({
                       }
                     : undefined
             }
-            render={trigger}
+            openOnHover={splitTarget !== undefined}
+            delay={100}
+            closeDelay={150}
+            render={
+                splitLabel
+                    ? cloneElement(trigger, {
+                          'aria-label': `${splitLabel} in ${project.displayTitle}`,
+                      })
+                    : trigger
+            }
         />
     );
+    let triggerWithTooltip = menuTrigger;
+    if (splitLabel)
+        triggerWithTooltip = (
+            <Tooltip content={splitLabel} shortcut={sessionCreateShortcut}>
+                {menuTrigger}
+            </Tooltip>
+        );
+    else if (tooltipCommandId)
+        triggerWithTooltip = (
+            <CommandTooltip commandId={tooltipCommandId}>{menuTrigger}</CommandTooltip>
+        );
     return (
         <Menu
             open={open}
             /**
-             * The trigger only _requests_ an open here; `beginSessionCreation` is reached only without a configured
-             * default Agent, since that branch above already short-circuits the direct-create case.
+             * The trigger only _requests_ an open here; the store claim is what opens the menu. `trigger-press` covers
+             * a pointer click and a keyboard Enter/Space alike, while a hover reports `trigger-hover` and opens the
+             * list.
              */
-            onOpenChange={(nextOpen) =>
-                nextOpen ? beginSessionCreation(project.id, anchor) : closeCreateSessionMenu()
-            }
+            onOpenChange={(nextOpen, details) => {
+                if (!nextOpen) {
+                    closeCreateSessionMenu();
+                    return;
+                }
+                if (splitTarget && details.reason === 'trigger-press') {
+                    details.cancel();
+                    beginSessionCreation(project.id, anchor);
+                    return;
+                }
+                openSessionCreationMenu(project.id, anchor);
+            }}
         >
-            {tooltipCommandId ? (
-                <CommandTooltip commandId={tooltipCommandId}>{menuTrigger}</CommandTooltip>
-            ) : (
-                menuTrigger
-            )}
+            {triggerWithTooltip}
             <MenuContent aria-label={`New Session in ${project.displayTitle}`}>
-                {terminalKindSchema.options.map((kind) => (
-                    <MenuItem
-                        key={kind}
-                        onClick={() => chooseSessionTerminalKind(project.id, kind)}
-                    >
-                        <AgentIdentityIcon identity={kind} size={14} />
-                        <span className="flex-1 truncate">{resolveAgentIcon(kind).label}</span>
-                        {newAgentSurface(kind, openInChat) === 'chat' && <ChatSurfaceMarker />}
-                    </MenuItem>
-                ))}
+                {newTerminalAgentChoices(defaultAgent, openInChat).map(
+                    ({ isDefault, kind, surface }) => (
+                        <MenuItem
+                            key={kind}
+                            onClick={() => chooseSessionTerminalKind(project.id, kind)}
+                        >
+                            <AgentIdentityIcon identity={kind} size={14} />
+                            <span className="flex-1 truncate">{resolveAgentIcon(kind).label}</span>
+                            <AgentChoiceMarker isDefault={isDefault} surface={surface} />
+                        </MenuItem>
+                    ),
+                )}
                 <MenuSeparator />
                 {/**
                  * Deliberately quieter than the Terminal choices above: skipping the Terminal is an escape hatch, not a peer of the

@@ -2,6 +2,7 @@ import type { UsageDay } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    activityCardLabel,
     activityHighlights,
     agentTimeDetail,
     buildCumulative,
@@ -10,13 +11,21 @@ import {
     burnRateCaption,
     canOpenUsageSession,
     computeStreaks,
+    costTileDetail,
+    countLabel,
     didUsageRefreshFail,
+    hasUnpricedProviderModel,
     HEATMAP_WEEKS,
+    isUsageUnpriced,
+    limitWindowState,
     peakHour,
+    topCaption,
+    usageCostDisplay,
     usageCoverageNotes,
     usageDayTooltip,
     usageEmptyState,
     usageHourTooltip,
+    usageRangeLabel,
     usageScanCaption,
     usageSessionCount,
 } from '../usage-metrics';
@@ -185,6 +194,7 @@ describe('usage page captions', () => {
 
     it('labels the burn-rate pace as an API-price estimate over its fixed window', () => {
         expect(burnRateCaption(30)).toBe('Last 30 days · est. $30.40/month at API prices');
+        expect(burnRateCaption(0, true)).toBe('Last 30 days · no price for the models used');
     });
 
     it('opens only Sessions that still exist in the PrimarySidebar', () => {
@@ -204,11 +214,11 @@ describe('usage page captions', () => {
         );
     });
 
-    it('counts conversations run outside Caxri as conversations, not Sessions', () => {
+    it('counts Agent Sessions run outside Caxri as Agent Sessions, not Sessions', () => {
         expect(usageSessionCount(1, false)).toBe('1 Session');
         expect(usageSessionCount(3, false)).toBe('3 Sessions');
-        expect(usageSessionCount(1, true)).toBe('1 conversation');
-        expect(usageSessionCount(2819, true)).toBe('2819 conversations');
+        expect(usageSessionCount(1, true)).toBe('1 Agent Session');
+        expect(usageSessionCount(2819, true)).toBe('2819 Agent Sessions');
     });
 
     it('shows scan progress only while transcripts remain', () => {
@@ -236,7 +246,7 @@ describe('usage page captions', () => {
             },
         };
         expect(usageCoverageNotes({ ...base, scope: 'caxri' })[1]).toBe(
-            'Counts 2 Agent conversations started in Caxri Sessions, including archived and deleted Sessions.',
+            'Counts 2 Agent Sessions started in Caxri Sessions, including archived and deleted Sessions.',
         );
         expect(
             usageCoverageNotes({
@@ -245,7 +255,7 @@ describe('usage page captions', () => {
                 coverage: { ...base.coverage, outsideCaxri: { agentSessions: 5, pendingScans: 0 } },
             })[1],
         ).toBe(
-            'Counts 2 Agent conversations started in Caxri Sessions, including archived and deleted Sessions, plus 5 run outside Caxri on this Mac.',
+            'Counts 2 Agent Sessions started in Caxri Sessions, including archived and deleted Sessions, plus 5 run outside Caxri on this Mac.',
         );
     });
 
@@ -262,7 +272,7 @@ describe('usage page captions', () => {
                     unpricedModels: [],
                 },
             }).join(' ');
-        expect(coverage(0)).toContain('1 conversation has no transcript on this machine');
+        expect(coverage(0)).toContain('1 Agent Session has no transcript on this machine');
         expect(coverage(2)).not.toContain('no transcript');
     });
 });
@@ -295,5 +305,155 @@ describe('buildUsageInsights', () => {
         expect(perHour(50)).toBeUndefined();
         expect(perHour(59_999)).toBeUndefined();
         expect(perHour(3_600_000)).toBe('Agents wrote 2k output tokens per active hour.');
+    });
+});
+
+describe('heatmap month labels', () => {
+    it('does not print the current month at both ends of the year', () => {
+        const today = '2026-10-14';
+        const weeks = buildHeatmap([], today, 'tokens');
+        const labels = weeks.map((week) => week.monthLabel).filter(Boolean);
+        expect(labels.filter((label) => label === 'Oct')).toHaveLength(1);
+        expect(labels.at(-1)).toBe('Oct');
+    });
+});
+
+describe('Usage page wording helpers', () => {
+    it('pluralizes counts and captions truncated lists', () => {
+        expect(countLabel(1, 'pull request')).toBe('1 pull request');
+        expect(countLabel(3, 'merged pull request')).toBe('3 merged pull requests');
+        expect(topCaption(12, 40)).toBe('Top 12 of 40');
+        expect(topCaption(12, 12)).toBeUndefined();
+    });
+
+    it('names the picked range and the metric the Activity card is drawn in', () => {
+        expect(usageRangeLabel('7d')).toBe('Last 7 days');
+        expect(usageRangeLabel('all')).toBe('All time');
+        expect(activityCardLabel('tokens')).toBe('Token activity');
+        expect(activityCardLabel('cost')).toBe('Cost activity');
+    });
+});
+
+describe('plan limit windows', () => {
+    it('counts down to a reset', () => {
+        expect(limitWindowState({ windowMinutes: 300, usedPercent: 40 }, 0)).toEqual({
+            kind: 'active',
+        });
+        expect(
+            limitWindowState({ windowMinutes: 300, usedPercent: 40, resetsAt: 90 * 60_000 }, 0),
+        ).toEqual({ kind: 'active', resetLabel: 'resets in 1h 30m' });
+        expect(
+            limitWindowState(
+                { windowMinutes: 10_080, usedPercent: 40, resetsAt: 50 * 3_600_000 },
+                0,
+            ),
+        ).toEqual({ kind: 'active', resetLabel: 'resets in 2d 2h' });
+    });
+
+    it('reports a window whose reset has passed as reset instead of "resets now"', () => {
+        expect(
+            limitWindowState({ windowMinutes: 300, usedPercent: 90, resetsAt: 1_000 }, 5_000),
+        ).toEqual({ kind: 'reset' });
+    });
+});
+
+describe('unpriced usage', () => {
+    it('shows No price instead of $0 and marks a partly priced figure', () => {
+        expect(usageCostDisplay({ costUsd: 0, hasTokens: true, hasUnpriced: true })).toEqual({
+            kind: 'unpriced',
+            label: 'No price',
+        });
+        expect(usageCostDisplay({ costUsd: 4.2, hasTokens: true, hasUnpriced: true })).toEqual({
+            kind: 'partial',
+            label: '$4.20',
+        });
+        expect(usageCostDisplay({ costUsd: 4.2, hasTokens: true, hasUnpriced: false })).toEqual({
+            kind: 'priced',
+            label: '$4.20',
+        });
+    });
+
+    it('finds unpriced models per Agent and says so on the cost tile', () => {
+        const models = [
+            { provider: 'codex' as const, isPriced: true },
+            { provider: 'claude' as const, isPriced: false },
+        ];
+        expect(hasUnpricedProviderModel(models, 'claude')).toBe(true);
+        expect(hasUnpricedProviderModel(models, 'codex')).toBe(false);
+        expect(
+            costTileDetail({
+                coverage: {
+                    agentSessions: 1,
+                    unavailable: 0,
+                    pendingScans: 0,
+                    pendingPullRequests: 0,
+                    unpricedModels: ['a', 'b'],
+                },
+                totals: { cacheSavingsUsd: 1 },
+            }),
+        ).toBe('Partial: 2 models unpriced');
+        expect(
+            costTileDetail(
+                {
+                    coverage: {
+                        agentSessions: 1,
+                        unavailable: 0,
+                        pendingScans: 0,
+                        pendingPullRequests: 0,
+                        unpricedModels: ['a'],
+                    },
+                    totals: { cacheSavingsUsd: 0 },
+                },
+                true,
+            ),
+        ).toBe('1 model without a known price');
+    });
+
+    it('never says most spend goes to a model with no spend', () => {
+        const insights = buildUsageInsights({
+            activity: [],
+            models: [
+                {
+                    model: 'mystery-model',
+                    provider: 'claude',
+                    costUsd: 0,
+                    isPriced: false,
+                    tokens: {
+                        input: 1,
+                        output: 1,
+                        cacheRead: 0,
+                        cacheWrite: 0,
+                        reasoning: 0,
+                        total: 2,
+                    },
+                },
+            ],
+            projects: [],
+            totals: {
+                activeMs: 0,
+                cacheSavingsUsd: 0,
+                costUsd: 0,
+                pullRequestsMerged: 0,
+                tokens: { output: 1 },
+            },
+        });
+        expect(insights.some((insight) => insight.startsWith('Most spend'))).toBe(false);
+    });
+
+    it('treats a range as unpriced only when it has usage and nothing in it could be priced', () => {
+        const report = (costUsd: number, total: number, unpricedModels: string[]) => ({
+            coverage: {
+                agentSessions: 1,
+                unavailable: 0,
+                pendingScans: 0,
+                pendingPullRequests: 0,
+                unpricedModels,
+            },
+            totals: { costUsd, tokens: { total } },
+        });
+        expect(isUsageUnpriced(report(0, 10, ['mystery-model']))).toBe(true);
+        expect(isUsageUnpriced(report(1.5, 10, ['mystery-model']))).toBe(false);
+        expect(isUsageUnpriced(report(0, 0, ['mystery-model']))).toBe(false);
+        expect(isUsageUnpriced(report(0, 10, []))).toBe(false);
     });
 });

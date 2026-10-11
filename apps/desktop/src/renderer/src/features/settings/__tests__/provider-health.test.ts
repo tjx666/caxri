@@ -2,6 +2,7 @@ import type { AgentSkillHealth } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    hookHealthCaption,
     hookHealthLabel,
     hookHealthTone,
     isHookAdapterAvailable,
@@ -18,6 +19,7 @@ describe('hookHealthLabel', () => {
 
     it('maps every health kind to user language and appends the detail message', () => {
         expect(hookHealthLabel(true, { kind: 'active' })).toBe('Active');
+        expect(hookHealthCaption(true, { kind: 'active' })).toBe('Installation: Active');
         expect(hookHealthLabel(true, { kind: 'notInstalled' })).toBe('Not in effect');
         // Issue #1345: `health.message` already carries the actionable instruction ("Install the {CLI} CLI, then
         // restart Caxri."), so the base label must not restate "install": regression for the duplicated wording.
@@ -121,14 +123,21 @@ describe('skillScopeHealth / skillScopeSummary', () => {
         expect(skillScopeSummary(health, health.installations[0], 'global')).toBe(
             'Global · Compatible · installed v1.2.3',
         );
+        expect(
+            skillScopeSummary(
+                health,
+                { ...health.installations[0], status: 'missing', installedVersion: undefined },
+                'global',
+            ),
+        ).toBe('Global · Not installed');
     });
 });
 
 describe('skillScopeTone', () => {
-    it('colors an installation that needs attention and leaves a healthy one plain', () => {
+    it('colors an installation that needs attention and mutes an optional one that is absent', () => {
         const installation = health.installations[0];
         expect(skillScopeTone(installation)).toBe('neutral');
-        expect(skillScopeTone({ ...installation, status: 'missing' })).toBe('warning');
+        expect(skillScopeTone({ ...installation, status: 'missing' })).toBe('muted');
         expect(skillScopeTone({ ...installation, status: 'stale' })).toBe('warning');
         expect(skillScopeTone({ ...installation, status: 'conflict' })).toBe('danger');
         expect(skillScopeTone(undefined)).toBe('neutral');

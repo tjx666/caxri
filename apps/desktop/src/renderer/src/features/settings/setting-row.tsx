@@ -37,7 +37,7 @@ import { IgnoredChecksForm } from './ignored-checks-form';
 import { IntegerControl } from './integer-control';
 import { LaunchArgumentsField } from './launch-arguments-field';
 import { MobileAccessForm } from './mobile-access-form';
-import { hookHealthLabel, hookHealthTone, isHookAdapterAvailable } from './provider-health';
+import { hookHealthCaption, hookHealthTone, isHookAdapterAvailable } from './provider-health';
 import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
 import { isFullWidthRow } from './setting-row-layout';
@@ -314,7 +314,7 @@ function rowControl(properties: SettingRowProperties): {
                         role="status"
                         tone={hookHealthTone(isEnabled, agentHookHealth?.[binding.provider])}
                     >
-                        {hookHealthLabel(isEnabled, agentHookHealth?.[binding.provider])}
+                        {hookHealthCaption(isEnabled, agentHookHealth?.[binding.provider])}
                     </FieldDescription>
                 ) : !supported ? (
                     <FieldDescription>Unavailable for {providerName}.</FieldDescription>

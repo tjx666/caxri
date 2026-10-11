@@ -1,11 +1,17 @@
-import type { ContributedCommandDescriptor, ViewCatalogSnapshot } from '@caxri/protocol';
+import type {
+    ContributedCommandDescriptor,
+    ExtensionCommandResult,
+    TreeItemDto,
+    ViewCatalogSnapshot,
+} from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import { caxriQueryKey, queryClient } from '../../queries/client';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { getSelectedSession } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
-import { pushToast, tryCommand } from '../../stores/toasts';
+import type { ToastAction } from '../../stores/toast-actions';
+import { describeFailure, isCancelledRequest, pushToast, tryCommand } from '../../stores/toasts';
 import { dispatchCoreViewCommand } from './core-view-commands';
 import { invalidateControlledViewSnapshotQueries } from './view-operation-client';
 
@@ -40,19 +46,59 @@ export function getCachedViewCatalogCommandAllowedInEditable(
  * Dispatches one extension-contributed view action and keeps its promise observable by an in-place control. Palette and
  * shortcut entry points intentionally remain fire-and-forget, while a toolbar button needs the completion signal to
  * suppress repeated activation until its provider refresh starts.
+ *
+ * This is the one place every Renderer entry point (palette, shortcut, toolbar, tree inline action) runs an extension
+ * command, so it alone shows the command's `{ message }` result as the success toast. A tree action's declared
+ * `feedback.success` is only the fallback for a command that resolved without one.
  */
 export async function dispatchExtensionViewAction(
     commandId: string,
     commandTitle: string,
     arguments_: readonly unknown[] = [],
+    feedback?: TreeItemActionFeedback,
 ): Promise<'executed' | 'failed'> {
-    const result = await tryCommand(`Unable to run ${commandTitle}`, () =>
+    const execute = () =>
         caxri.request('viewContainers.executeCommand', {
             commandId,
             arguments: [...arguments_],
-        }),
-    );
-    return result === undefined ? 'failed' : 'executed';
+        });
+    if (!feedback) {
+        const result = await tryCommand(`Unable to run ${commandTitle}`, execute);
+        if (result === undefined) return 'failed';
+        if (result.message) pushToast('success', result.message);
+        return 'executed';
+    }
+    const action: ToastAction | undefined = feedback.githubUrl
+        ? { id: 'github.open', params: { url: feedback.githubUrl } }
+        : undefined;
+    let result: ExtensionCommandResult;
+    try {
+        result = await execute();
+    } catch (error) {
+        if (!isCancelledRequest(error))
+            pushToast(
+                'error',
+                actionFailureMessage(error, feedback.failure ?? `Unable to run ${commandTitle}`),
+                { action },
+            );
+        return 'failed';
+    }
+    const message = result.message ?? feedback.success;
+    if (message) pushToast('success', message, { action });
+    return 'executed';
+}
+
+type TreeItemActionFeedback = NonNullable<NonNullable<TreeItemDto['actions']>[number]['feedback']>;
+
+/**
+ * `Couldn't merge #42: <reason>`. The reason goes through the shared `describeFailure` sanitizer (path redaction,
+ * error-code stripping); only its `label. reason` joint becomes a colon, because a provider's failure prefix names the
+ * failed operation and the reason completes that sentence rather than starting a new one.
+ */
+export function actionFailureMessage(error: unknown, label: string): string {
+    const described = describeFailure(error, label);
+    const joint = `${label}. `;
+    return described.startsWith(joint) ? `${label}: ${described.slice(joint.length)}` : described;
 }
 
 /**

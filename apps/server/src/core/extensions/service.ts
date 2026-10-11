@@ -9,7 +9,7 @@ import type {
     TreeChildrenResult,
     ViewCatalogSnapshot,
 } from '@caxri/protocol';
-import { CaxriError, isExtensionViewReadOperation } from '@caxri/protocol';
+import { CaxriError, extensionCommandResult, isExtensionViewReadOperation } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -627,24 +627,24 @@ export class ExtensionService extends EventTarget {
         commandId: string,
         arguments_: unknown[],
         context: ExtensionViewEventContext,
-    ): Promise<{ executed: true }> {
+    ) {
         const descriptor = this.catalog().commands.find(({ id }) => id === commandId);
         if (descriptor?.source.kind !== 'extension')
             throw Object.assign(new Error(`Extension command not found: ${commandId}`), {
                 code: 'ACTIVATION_FAILED',
             });
         const extensionId = descriptor.source.extensionId;
-        const extension = this.discovered.find(
-            (extension) => extension.extensionId === extensionId,
-        )!;
+        const extension = this.discovered.find((item) => item.extensionId === extensionId)!;
         await this.activate(extension, `onCommand:${commandId}`);
-        return (await this.supervisor?.request('executeCommand', {
+        // The Extension Host is a separate process, so its result is revalidated here.
+        const result = await this.supervisor?.request('executeCommand', {
             extensionId: extension.extensionId,
             generation: this.states.get(extension.extensionId)!.generation,
             commandId,
             arguments: arguments_,
             context,
-        })) as { executed: true };
+        });
+        return extensionCommandResult(result);
     }
 
     async cancel(requestId: string): Promise<{ cancelled: boolean }> {

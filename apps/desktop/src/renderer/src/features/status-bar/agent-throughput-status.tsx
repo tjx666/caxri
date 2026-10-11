@@ -1,20 +1,23 @@
 import type { AgentThroughputSample } from '@caxri/protocol';
-import { agentProviderCatalog, agentStatusTabPath } from '@caxri/protocol';
-import { Timer } from 'lucide-react';
+import { agentProviderCatalog, agentStatusTabLabel } from '@caxri/protocol';
+import { Gauge } from 'lucide-react';
 
 import { usePolledQuery } from '@/hooks/use-polled-query';
 import { useRelativeTime } from '@/hooks/use-relative-time';
 
 import { StructuredTooltip } from '../../components/structured-tooltip';
+import { openAgentStatusTab } from '../agent-status/open-agent-status-tab';
 import { ProviderStatusSummary } from '../agent-status/provider-status-summary';
 import { useAgentProviderStatus } from '../agent-status/use-agent-provider-status';
-import { openEditorTab } from '../editor/document-commands';
 import {
     AGENT_THROUGHPUT_METHOD_NOTE,
     describeThroughputAggregate,
     describeThroughputSample,
     formatThroughputDuration,
     formatThroughputRate,
+    isSameThroughputAggregate,
+    recentAverageLabel,
+    spokenThroughputRate,
     throughputRate,
 } from './agent-throughput-label';
 import { StatusItem } from './status-item';
@@ -66,8 +69,8 @@ function ThroughputBars({ samples }: { samples: readonly AgentThroughputSample[]
 /**
  * Output speed of the Agent in the active Terminal, measured from the provider's own transcript, with the provider's
  * public service status beside it so a slow Agent can be told apart from a provider incident. Clicking opens the
- * Terminal's Agent status tab. Renders nothing for a Shell, an unsupported provider, or before the first measured
- * response, so it never holds a slot to say "none".
+ * Terminal's Agent status tab, the same tab `Show Agent Status` opens. Renders nothing for a Shell, an unsupported
+ * provider, or before the first measured response, so it never holds a slot to say "none".
  */
 export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
     const throughput = usePolledQuery(
@@ -82,19 +85,23 @@ export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
     if (!throughput || !latest || rate === undefined) return null;
     const label = formatThroughputRate(rate);
     const agentName = agentProviderCatalog[throughput.provider].displayName;
-    const recentCount = throughput.recent.responseCount;
-    const recentLabel =
-        recentCount === 1 ? 'the last response' : `the last ${recentCount} responses`;
+    const tabLabel = agentStatusTabLabel(agentName);
+    const averageLabel = recentAverageLabel(throughput.recent.responseCount);
+    // The first turn of an Agent Session is the whole Agent Session: two identical rows read as two different facts.
+    const isShowTurn =
+        throughput.turn.responseCount > 0 &&
+        !isSameThroughputAggregate(throughput.turn, throughput.session);
     return (
         <StatusItem
-            ariaLabel={`${agentName} output speed: ${label} over ${recentLabel}`}
-            className="statusbar-agent-throughput"
-            icon={<Timer />}
-            onClick={() => openEditorTab(agentStatusTabPath(terminalId))}
+            ariaLabel={`Open ${tabLabel} — ${agentName} output speed: ${spokenThroughputRate(rate)}, ${averageLabel.toLowerCase()}`}
+            className="statusbar-agent-throughput [&>span]:min-w-[8ch]"
+            icon={<Gauge />}
+            onClick={() => openAgentStatusTab(terminalId)}
             title={
                 <StructuredTooltip
                     eyebrow={`${agentName} output speed`}
-                    title={`${label} over ${recentLabel}`}
+                    title={label}
+                    details={[averageLabel]}
                     rows={[
                         {
                             label: 'Last response',
@@ -110,7 +117,7 @@ export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
                                 </>
                             ),
                         },
-                        ...(throughput.turn.responseCount > 0
+                        ...(isShowTurn
                             ? [
                                   {
                                       label: 'This turn',
@@ -127,7 +134,7 @@ export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
                                   },
                               ]),
                         {
-                            label: 'Session',
+                            label: 'Agent Session',
                             value: describeThroughputAggregate(throughput.session),
                         },
                         ...(throughput.samples.length > 1
@@ -149,7 +156,7 @@ export function AgentThroughputStatus({ terminalId }: { terminalId: string }) {
                               ]),
                     ]}
                     notes={[AGENT_THROUGHPUT_METHOD_NOTE]}
-                    hint={`Click to open ${agentName} status`}
+                    hint={`Click to open ${tabLabel}`}
                 />
             }
         >

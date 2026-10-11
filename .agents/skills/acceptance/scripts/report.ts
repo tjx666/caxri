@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 import { z } from 'zod';
 
+import { acceptanceAgentFixtureIds } from './agent-fixture-ids';
 import { validateAgentFixtureEvidence } from './agent-fixture-lifecycle';
-import { acceptanceAgentFixtureIds } from './agent-fixtures';
 import type { StateIsolation } from './case-lifecycle';
 import {
     caseLifecycleReceiptSchema,

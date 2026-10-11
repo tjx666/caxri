@@ -25,6 +25,9 @@ CAXRI_REACT_SCAN=1 CAXRI_DEV_CDP_PORT=9233 CAXRI_E2E=1 \
   bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev
 ```
 
+- Run it from a disposable worktree (`switch-worktree create`). The launcher binds each checkout to
+  its own profile, and the primary checkout's profile holds the maintainer's real dev data. Never
+  move, rename, or delete an existing profile to get isolation.
 - `CAXRI_DEV_CDP_PORT=9233` keeps this instance off the default dev port `9223`, so a sibling
   session's window and `/Applications/Caxri.app` on `9224` are never the target.
 - `CAXRI_E2E=1` plus `CAXRI_TEST_ROOT_PATH` turns the folder picker into a deterministic seam

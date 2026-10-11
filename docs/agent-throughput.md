@@ -19,13 +19,23 @@ token-weighted (`Σ tokens / Σ time`), never an average of per-response rates, 
 responses cannot dominate.
 
 The chip shows the last `AGENT_THROUGHPUT_RECENT_RESPONSES` (10) responses. The hover card adds the
-last response, the current turn, the whole Session, Codex's own time-to-first-token for the turn,
-and a bar chart of the last `AGENT_THROUGHPUT_SAMPLE_LIMIT` (20) responses. There are no
-thresholds or colours: what counts as slow is the reader's call.
+last response, the current turn, the whole Agent Session, Codex's own time-to-first-token for the
+turn, and a bar chart of the last `AGENT_THROUGHPUT_SAMPLE_LIMIT` (20) responses. While the turn
+covers exactly the same responses as the Agent Session (its first turn), the card drops the turn row
+and shows only the Agent Session row, since two identical rows would read as two different facts.
+There are no thresholds or colours: what counts as slow is the reader's call.
 
-Clicking the chip opens an Agent status tab (`caxri-agent-status://<terminalId>`) for that
-Terminal: the same figures as tiles, a larger per-response chart with the recent average drawn as a
-dashed line, and the provider's API status below.
+Clicking the chip, or running `Show Agent Status` (`terminal.showAgentStatus`, available only while
+the active tab is an Agent Terminal), opens an Agent status tab (`caxri-agent-status://<terminalId>`)
+for that Terminal: the same figures as tiles, led by a `Recent average` tile carrying the chip's own
+number and its `Average of the last N responses` caption, a larger per-response chart with the
+recent average drawn as a dashed line, and the provider's API status below.
+
+Without a measured response the tab names which of three cases it is in, so they never collapse into
+one "nothing measured" sentence (`agent-throughput-state.ts`): a failed transcript read says so in
+`--danger` with a Retry button; a Terminal that closed before its first measured response says
+nothing was measured before it closed; and a live Agent that has not finished a response yet says
+speed appears after its first one. A reading already on screen outranks a later failed poll.
 
 A response whose start was never recorded (a resumed rollout, a compaction request, a Claude
 message with no input after the previous one) is skipped rather than estimated. Until the first
@@ -52,7 +62,7 @@ The provider descriptor's optional `createThroughputScanner` owns the transcript
 `apps/server/src/domains/agents/agent-throughput.ts`). It resolves the Terminal's transcript through the
 provider's locator (cached briefly so a 2 s poll does not rescan Codex's session index), then
 scans only bytes appended since the previous read. Each transcript keeps running totals plus the
-last 20 samples, so cost stays constant however long the Session gets; a rewritten or truncated
+last 20 samples, so cost stays constant however long the Agent Session gets; a rewritten or truncated
 transcript resets its state. No transcript content is retained or logged, only token counts and
 timestamps.
 

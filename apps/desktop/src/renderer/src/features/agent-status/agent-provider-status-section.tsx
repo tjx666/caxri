@@ -9,6 +9,7 @@ import { openExternalUrl } from '../../lib/external-link';
 import { pushToast } from '../../stores/toasts';
 import {
     describeProviderStatus,
+    incidentPhaseLabel,
     providerServiceStatusLabel,
     providerStatusFailureLabel,
 } from './agent-provider-status-label';
@@ -26,16 +27,17 @@ function IncidentItem({ incident }: { incident: AgentProviderStatusIncident }) {
             <div className="flex min-w-0 items-baseline gap-2">
                 <ProviderStatusDot className="translate-y-[-1px]" status={incident.status} />
                 <button
-                    className="min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-[12px] font-semibold text-foreground hover:underline"
+                    className="flex min-w-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-left text-[12px] font-semibold text-foreground hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-accent"
                     type="button"
                     onClick={() => openUrl(incident.url)}
                 >
-                    {incident.name}
+                    <span className="min-w-0 truncate">{incident.name}</span>
+                    <ExternalLink aria-hidden="true" className="flex-none text-muted" size={11} />
                 </button>
             </div>
             <div className="mt-1 text-[11px] text-muted">
                 {[
-                    incident.phase.charAt(0).toUpperCase() + incident.phase.slice(1),
+                    incidentPhaseLabel(incident.phase),
                     providerServiceStatusLabel(incident.status),
                     incident.components.join(', '),
                     updatedAgo && `updated ${updatedAgo}`,
@@ -95,8 +97,7 @@ export function AgentProviderStatusSection({
             {status.state === 'unavailable' ? (
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="m-0 text-[12px] text-muted">
-                        {providerStatusFailureLabel(status.reason)}. Caxri tries again every half
-                        minute.
+                        {providerStatusFailureLabel(status.reason)}. Caxri tries again every minute.
                     </p>
                     {openPage}
                 </div>

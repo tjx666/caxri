@@ -178,17 +178,21 @@ export function canStopAgentChatTask(task: Pick<AgentChatTask, 'canStop' | 'stat
 }
 
 /**
- * The background work strip above the composer: running tasks in start order, and how many have ended.
+ * The background work strip above the composer: running tasks in start order, and the ended ones most recent first, so
+ * the strip can reveal what just finished.
  */
 export function agentChatTaskStrip(tasks: readonly AgentChatTask[] | undefined): {
     running: AgentChatTask[];
-    endedCount: number;
+    ended: AgentChatTask[];
 } {
     const listed = tasks ?? [];
     const running = listed
         .filter((task) => task.status === 'running')
         .toSorted((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0));
-    return { running, endedCount: listed.length - running.length };
+    const ended = listed
+        .filter((task) => task.status !== 'running')
+        .toSorted((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0));
+    return { running, ended };
 }
 
 /**

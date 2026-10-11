@@ -54,9 +54,10 @@ CLI fixture; the service, reducer, and pane do not change.
   first Terminal. Server Core refuses a Chat for an Agent without `capabilities.chat` before writing
   anything (`canUseAgentChat`).
 - Users choose the surface through one setting, `session.openAgentsInChat` (Settings, or the
-  "Open in Chat" toggle at the foot of the New Session and New Terminal menus and the centered
-  Agent-choice dialog). Each menu lists every Agent once; with the toggle on, Chat-capable rows show
-  a muted "Chat" marker. Direct creation with a default Agent and `Cmd+T` follow the setting too,
+  "Always Open Agents in Chat" toggle at the foot of the New Session and New Terminal menus and the
+  centered Agent-choice dialog). Each menu lists every Agent once and gives a row one muted suffix:
+  "Chat" when choosing it opens a Chat, "Default" for the configured default Agent, or "Chat ·
+  Default" for both. Direct creation with a default Agent and `Cmd+T` follow the setting too,
   while a click on the tab strip's `+` clones the primary Agent Terminal on its own surface.
 - A Chat keeps everything else a Terminal owns: its Session, Primary Agent election, naming, pane
   placement, and the `terminal` pane resource.
@@ -73,8 +74,9 @@ CLI fixture; the service, reducer, and pane do not change.
 ## Switching surface
 
 A Chat-capable Agent Terminal reopens on the other surface from the `Terminal | Chat` toggle on the
-tab rail (shown for the active tab), its tab's context menu ("Open as Chat" / "Open as Terminal"),
-or `terminal.switchAgentSurface` (`cmd+shift+j`, also in the command palette), all through
+tab rail (accessible name "Open as Terminal or Chat", shown for the active tab), its tab's context
+menu and its Session row menu ("Open as Chat" / "Open as Terminal"), or
+`terminal.switchAgentSurface` (`cmd+shift+j`, also in the command palette), all through
 `terminal.switchSurface` (`apps/server/src/domains/terminal/surface-switch.ts`). The Terminal row,
 tab, title, and Primary Agent election stay; only the process is replaced.
 
@@ -369,8 +371,8 @@ uuid whose third group is `8c01`. Grok Build keeps no mark, so its resumed messa
   persisted across Server Core restarts.
 - In the composer, Enter queues during a turn and Cmd+Enter steers. Queued entries form one list
   above the composer, each with Edit (back into the composer), Delete, and Steer or Send now; a
-  paused queue says so in the list header with Resume. Phones do not see the queue, so
-  a message sent from a phone during a turn steers it, as before.
+  paused queue says so in the list header with Resume. A phone queues the same way; see
+  [Mobile](#mobile).
 - Compaction (Codex `contextCompaction`, Claude Code `status: 'compacting'`) sets the snapshot's
   `operation` to `compacting` and raises `compactionStarted`; input sent meanwhile is queued. The
   `/compact` user bubble is hidden because the compaction notice already represents it.
@@ -688,6 +690,13 @@ side)`, the selected diff lines with their signs in a `diff` fence, then the com
   available; only an image with neither reads "This image is no longer available.". The gateway caches the last two originals for a minute so
   paging one does not re-read the transcript per chunk. The phone keeps thumbnails in memory and
   writes an opened original only to its cache directory for display.
+- Follow-up queue: `mobile.agentChat.send` forwards the phone's `delivery`, so a message sent during
+  a turn joins the queue by default, like Desktop's Enter; holding Send on the phone sends
+  `delivery: 'steer'`, the stand-in for Cmd+Enter. The snapshot and `state` patches carry the queue
+  as a bounded preview (`clipAgentChatQueueForMobile`: the first 10 entries, each text and command
+  argument cut to 200 characters behind `…`) plus `queuePaused`. The phone lists it read-only above
+  its composer under `Queued`; editing, deleting, sending early, and resuming a paused queue stay on
+  Desktop.
 
 ## Images and slash commands
 
@@ -947,6 +956,6 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 Claude Code's agent picker (its `initialize` response already lists the agents). Grok Build's
 plan mode, reasoning effort picker, and images (its ACP agent advertises `image: false`). Grok Build stays out
 of the real-Agent smoke. On mobile, a
-Chat shows no plan or context usage yet, cannot run slash commands, does not show background tasks or the
-follow-up queue, cannot edit or fork from an earlier message, older history beyond the window stays on
+Chat shows no plan or context usage yet, cannot run slash commands, does not show background tasks,
+shows the follow-up queue read-only, cannot edit or fork from an earlier message, older history beyond the window stays on
 the computer, and switching surface is Desktop-only.

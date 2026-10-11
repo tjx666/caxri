@@ -15,7 +15,7 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSettings } from '../../stores/selectors';
 import { newAgentSurface } from '../terminal/new-terminal-agent';
-import { ChatSurfaceMarker, OpenInChatSwitch } from './open-in-chat-menu-item';
+import { AgentChoiceMarker, OpenInChatSwitch } from './open-in-chat-menu-item';
 import { cancelPendingSession, confirmPendingSession } from './session-creation-commands';
 
 /**
@@ -56,7 +56,10 @@ export function CreateSessionDialog() {
                         >
                             <AgentIdentityIcon identity={kind} size={15} />
                             <span className="flex-1 text-left">{resolveAgentIcon(kind).label}</span>
-                            {newAgentSurface(kind, openInChat) === 'chat' && <ChatSurfaceMarker />}
+                            <AgentChoiceMarker
+                                isDefault={false}
+                                surface={newAgentSurface(kind, openInChat)}
+                            />
                         </Button>
                     ))}
                     {/**

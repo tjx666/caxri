@@ -136,13 +136,21 @@ export const useAgentChat = ({
         setRetry((value) => value + 1);
     }, []);
 
+    /**
+     * Sends a message. While a turn runs it waits in the follow-up queue unless `delivery` is `steer`.
+     */
     const send = useCallback(
-        async (text: string, attachments: readonly AgentChatAttachment[] = []): Promise<void> => {
+        async (
+            text: string,
+            attachments: readonly AgentChatAttachment[] = [],
+            delivery?: 'steer',
+        ): Promise<void> => {
             if (terminalId === null) return;
             await request('mobile.agentChat.send', {
                 terminalId,
                 text,
                 ...(attachments.length > 0 && { attachments: [...attachments] }),
+                ...(delivery && { delivery }),
             });
         },
         [request, terminalId],

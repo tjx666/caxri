@@ -71,7 +71,15 @@ export const terminalCommandDefinitions: CommandDefinition[] = [
         id: 'terminal.restart',
         title: 'Restart Terminal',
         category: 'Terminal',
-        description: 'Restart Shell or resume the active Agent Terminal',
+        /**
+         * One command for both: a Shell starts again, and an Agent Terminal restarts the Agent and resumes its
+         * conversation, which its menus and recovery row call "Restart Agent". The catalog title is static because the
+         * native menu is built from it once, so the Agent wording reaches the palette through the description and
+         * keywords.
+         */
+        description:
+            'Restart the active Shell, or restart the active Agent and resume its conversation (Restart Agent)',
+        keywords: ['restart agent', 'resume agent', 'reload agent'],
         nativeMenu: { menu: 'terminal', group: 0, order: 2 },
     },
     {
@@ -83,12 +91,31 @@ export const terminalCommandDefinitions: CommandDefinition[] = [
     },
     {
         id: 'terminal.switchAgentSurface',
-        title: 'Switch Agent Between Terminal and Chat',
+        /**
+         * Names both directions because the title is static: the native menu is built from the catalog once, so it
+         * cannot follow the active tab the way the tab menu's "Open as Chat" or "Open as Terminal" entry does. The tab
+         * rail's Terminal | Chat toggle carries the same accessible name.
+         */
+        title: 'Open as Terminal or Chat',
         category: 'Terminal',
         description:
             'Reopen the active Agent as a Chat, or a Chat as a Terminal, continuing its conversation',
-        keywords: ['chat view', 'terminal view', 'toggle chat'],
+        keywords: [
+            'open as chat',
+            'open as terminal',
+            'switch agent',
+            'chat view',
+            'terminal view',
+            'toggle chat',
+        ],
         nativeMenu: { menu: 'terminal', group: 0, order: 4 },
+    },
+    {
+        id: 'terminal.showAgentStatus',
+        title: 'Show Agent Status',
+        category: 'Terminal',
+        description: "Open the active Agent's output speed and its provider's service status",
+        keywords: ['tok/s', 'tokens per second', 'speed', 'throughput', 'api status', 'outage'],
     },
     {
         id: 'terminal.close',

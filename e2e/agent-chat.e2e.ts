@@ -89,7 +89,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(message).toHaveAttribute('placeholder', 'Message Codex');
         // The composer keeps the model and the context used in view, as the Codex app does.
         await expect(chat.getByRole('button', { name: /^Model: Fake Codex, / })).toBeVisible();
-        await expect(chat.getByRole('img', { name: /^\d+% of context used, /u })).toBeVisible();
+        await expect(chat.getByRole('meter', { name: /^\d+% of context used, /u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-reply.png') });
         const planRow = chat.getByRole('button', {
             name: 'Plan: 1 of 2 steps done. Current step: Reply',
@@ -110,9 +110,11 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await message.press('Enter');
         const approval = chat.getByRole('region', { name: 'Run this command?' });
         await expect(approval).toContainText('echo approved');
-        await expect(approval.getByRole('button', { name: 'Accept for this Chat' })).toBeVisible();
+        await expect(
+            approval.getByRole('button', { name: 'Always Allow in This Chat' }),
+        ).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('agent-chat-approval.png') });
-        await approval.getByRole('button', { name: 'Accept', exact: true }).click();
+        await approval.getByRole('button', { name: 'Run', exact: true }).click();
         await expect(approval).toHaveCount(0);
         await expect(message).toHaveAttribute('placeholder', 'Message Codex');
 
@@ -231,12 +233,12 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expect(chat.getByText('You chose Blue.')).toBeVisible();
 
         // The tab strip's `+` clones the live primary Agent on its own surface: a Chat, not a PTY.
-        await chat.getByRole('button', { name: 'New Terminal (Codex Chat)' }).click();
+        await chat.getByRole('button', { name: 'New Codex Chat' }).click();
         await expect(chat.getByText('You chose Blue.')).toHaveCount(0);
         await expect(message).toHaveAttribute('placeholder', 'Message Codex');
         // The `+` opens its Agent menu on hover; leave it so only the New Session menu below offers "Codex Chat".
         await page.mouse.move(0, 0);
-        await expect(page.getByRole('menu', { name: 'New Terminal (Codex Chat)' })).toHaveCount(0);
+        await expect(page.getByRole('menu', { name: 'New Codex Chat' })).toHaveCount(0);
 
         // The sidebar's New Session menu shares the preference, so a whole Session can start as a Chat.
         const previous = await pageRequest<{ selectedSessionId?: string }>(page, 'app.bootstrap');
@@ -265,7 +267,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
             chat.getByText('Hello from fake Codex. You said: from a new Session'),
         ).toBeVisible();
 
-        // A file-change approval previews each file's colored diff before Accept.
+        // A file-change approval previews each file's colored diff before Apply Changes.
         await message.fill('make a patch');
         await message.press('Enter');
         const fileApproval = chat.getByRole('region', { name: 'Apply these file changes?' });
@@ -281,7 +283,7 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await expectDisclosuresSettled(fileApproval, 'agent-chat-file-change');
         await expect(fileApproval.getByText('Diff truncated')).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('agent-chat-diff-approval.png') });
-        await fileApproval.getByRole('button', { name: 'Accept', exact: true }).click();
+        await fileApproval.getByRole('button', { name: 'Apply Changes', exact: true }).click();
         await expect(fileApproval).toHaveCount(0);
         await expect(chat.getByText('The files were changed.')).toBeVisible();
 
@@ -388,7 +390,7 @@ test('closing the window with only a Chat running asks first and Terminate stops
                 const value: unknown = Reflect.get(globalThis, '__caxriCloseConfirmMessage');
                 return typeof value === 'string' ? value : undefined;
             }),
-        ).toBe('1 task is still running.');
+        ).toBe('1 Terminal or Chat is still running.');
         const log = join(userData, 'logs', 'server-core.jsonl');
         await expect
             .poll(async () =>
@@ -447,15 +449,15 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
             chat.getByRole('button', { name: 'Model: Default, Medium effort', exact: true }),
         ).toBeVisible();
 
-        // The Terminal | Chat switch stays out of sight until the pointer enters the tab bar.
+        // The Terminal | Chat switch stays findable at rest, muted until the pointer enters the tab bar.
         const surfaceToggle = chat.locator('.agent-surface-toggle').locator('..');
         await message.hover();
-        await expect(surfaceToggle).toHaveCSS('opacity', '0');
+        await expect(surfaceToggle).toHaveCSS('opacity', '0.6');
         await chat.locator('.work-tabs').first().hover();
         await expect(surfaceToggle).toHaveCSS('opacity', '1');
         await page.screenshot({ path: testInfo.outputPath('claude-chat-tab-hover.png') });
         await message.hover();
-        await expect(surfaceToggle).toHaveCSS('opacity', '0');
+        await expect(surfaceToggle).toHaveCSS('opacity', '0.6');
 
         await message.fill('hi there');
         await message.press('Enter');
@@ -464,21 +466,20 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await expect(
             chat.getByRole('button', { name: 'Model: Fake, Medium effort', exact: true }),
         ).toBeVisible();
-        // The reply's Copy action appears only while the pointer is over that reply.
+        // The latest turn's reply keeps its Copy action in view; earlier replies show it on hover.
         const copyRow = chat.getByRole('button', { name: 'Copy message' }).last().locator('..');
         await message.hover();
-        await expect(copyRow).toHaveCSS('opacity', '0');
-        await chat.getByText('Hello from fake Claude. You said: hi there').hover();
         await expect(copyRow).toHaveCSS('opacity', '1');
-        await expect(chat.getByRole('img', { name: /^\d+% of context used, /u })).toBeVisible();
+        await expect(chat.getByRole('meter', { name: /^\d+% of context used, /u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-reply.png') });
         // The meter measures against the compaction window and its tooltip lists what fills the context.
-        await chat.getByRole('img', { name: /^\d+% of context used, /u }).hover();
+        await chat.getByRole('meter', { name: /^\d+% of context used, /u }).hover();
         await expect(page.getByText('Context', { exact: true })).toBeVisible();
         await expect(page.getByText('Messages', { exact: true })).toBeVisible();
         await expect(page.getByText('Auto-compacts at 160k of the 200k window')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-context-breakdown.png') });
-        await message.hover();
+        // The breakdown card sits over the composer, so leave it toward the transcript.
+        await chat.getByText('Hello from fake Claude. You said: hi there').hover();
 
         await message.fill('please approve this');
         await message.press('Enter');
@@ -486,7 +487,7 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await expect(approval).toContainText('echo approved');
         await expect(approval).toContainText('Fake Bash approval');
         await page.screenshot({ path: testInfo.outputPath('claude-chat-approval.png') });
-        await approval.getByRole('button', { name: 'Accept', exact: true }).click();
+        await approval.getByRole('button', { name: 'Run', exact: true }).click();
         await expect(approval).toHaveCount(0);
         await expect(chat.getByText('The command ran.')).toBeVisible();
         // The row reads the Agent's description of the command, and expanded shows the command and how it ended.
@@ -512,14 +513,14 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await expect(chat.getByText('You chose Blue.')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-question.png') });
 
-        // A context past 70% of the compaction window suggests compacting, under the composer.
+        // A context past 85% of the compaction window suggests compacting, under the composer.
         await message.fill('large context please');
         await message.press('Enter');
         await expect(
             chat.getByText('Hello from fake Claude. You said: large context please'),
         ).toBeVisible();
         await expect(
-            chat.getByText(/^Context [\d.]+k \/ 160k · consider \/compact$/u),
+            chat.getByText(/^Context [\d.]+k \/ 160k · consider compacting$/u),
         ).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-context-pressure.png') });
 

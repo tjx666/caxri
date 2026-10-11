@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { AgentChatItem, AgentChatTask, AgentTaskTab } from '@caxri/protocol';
 import { agentTaskTabLabel } from '@caxri/protocol';
@@ -10,6 +10,7 @@ import { openTerminalFileTarget } from '../terminal/terminal-file-link-open';
 import { parseTerminalFileLocation } from '../terminal/terminal-file-location';
 import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import { stopAgentChatTask } from './agent-chat-commands';
+import { AgentChatExpansionState } from './agent-chat-expansion';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { announceAgentChatSelectionCopy } from './agent-chat-selection-copy';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
@@ -27,6 +28,8 @@ import {
 } from './agent-chat-tasks';
 import { buildAgentChatTimeline } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
+import type { AgentChatExpansion } from './hooks/use-agent-chat-expansion';
+import { AgentChatExpansionContext } from './hooks/use-agent-chat-expansion';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import { useAgentChatTask } from './hooks/use-agent-chat-task';
 
@@ -109,9 +112,18 @@ function TaskTimeline({
     terminalId: string;
     truncated: boolean;
 }) {
-    const { scrollReference, contentReference, isFollowing, onScroll, jumpToLatest } =
+    const { scrollReference, contentReference, isFollowing, onScroll, jumpToLatest, anchor } =
         useAgentChatScroll(revision);
     const timeline = useMemo(() => buildAgentChatTimeline(items, [], undefined), [items]);
+    /**
+     * Rows the user expanded stay open as the subagent's timeline rebuilds them, and toggling one holds it in place
+     * instead of following, exactly as in the parent Chat.
+     */
+    const [expansionState] = useState(() => new AgentChatExpansionState());
+    const expansion = useMemo<AgentChatExpansion>(
+        () => ({ state: expansionState, onUserToggle: anchor }),
+        [anchor, expansionState],
+    );
     /**
      * A file the subagent cites resolves the way the parent Chat resolves one: against the Projects its Terminal may
      * reach.
@@ -141,16 +153,19 @@ function TaskTimeline({
                 >
                     {truncated && (
                         <p className="m-0 text-center text-[11px] text-muted">
-                            Earlier messages are not shown
+                            Earlier messages are not shown: Chat keeps only the recent part of a
+                            long subagent conversation.
                         </p>
                     )}
-                    {timeline.map((entry) => (
-                        <AgentChatTimelineEntryView
-                            entry={entry}
-                            key={entry.kind === 'item' ? entry.item.id : entry.id}
-                            onOpenFile={openFile}
-                        />
-                    ))}
+                    <AgentChatExpansionContext value={expansion}>
+                        {timeline.map((entry) => (
+                            <AgentChatTimelineEntryView
+                                entry={entry}
+                                key={entry.kind === 'item' ? entry.item.id : entry.id}
+                                onOpenFile={openFile}
+                            />
+                        ))}
+                    </AgentChatExpansionContext>
                     {timeline.length === 0 && (
                         <p className="m-0 py-8 text-center text-[13px] text-muted">
                             {isRunning

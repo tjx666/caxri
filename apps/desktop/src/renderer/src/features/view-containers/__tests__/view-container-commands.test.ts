@@ -14,6 +14,7 @@ import { useChromeLayoutStore } from '../../../stores/chrome-layout';
 import { dismissToast, getToasts } from '../../../stores/toasts';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import {
+    actionFailureMessage,
     didExecuteViewCatalogCommand,
     dispatchExtensionViewAction,
     executeEditableViewCatalogShortcut,
@@ -313,5 +314,77 @@ describe('dispatchExtensionViewAction', () => {
         });
         request.resolve({ executed: true });
         await expect(dispatch).resolves.toBe('executed');
+    });
+});
+
+describe('dispatchExtensionViewAction with action feedback', () => {
+    const feedback = {
+        success: 'Merged #42',
+        failure: "Couldn't merge #42",
+        githubUrl: 'https://github.com/acme/widget/pull/42',
+    };
+
+    it('confirms success with the declared copy and an Open on GitHub follow-up', async () => {
+        mocks.request.mockResolvedValueOnce({ executed: true });
+        await expect(
+            dispatchExtensionViewAction('publisher.fixture.merge', 'Merge', [], feedback),
+        ).resolves.toBe('executed');
+        const toast = getToasts().at(-1);
+        expect(toast).toMatchObject({ type: 'success', title: 'Merged #42' });
+        expect(toast?.action).toBeTruthy();
+    });
+
+    it("prefers the command's own message and keeps the Open on GitHub follow-up", async () => {
+        mocks.request.mockResolvedValueOnce({ executed: true, message: 'Squash-merged #42' });
+        await dispatchExtensionViewAction('publisher.fixture.merge', 'Merge', [], feedback);
+        const toast = getToasts().at(-1);
+        expect(toast).toMatchObject({ type: 'success', title: 'Squash-merged #42' });
+        expect(toast?.action).toBeTruthy();
+    });
+
+    it('reports a failure as the declared prefix plus the command reason', async () => {
+        mocks.request.mockRejectedValueOnce(
+            Object.assign(new Error('Pull request is not mergeable'), { code: 'GIT' }),
+        );
+        await expect(
+            dispatchExtensionViewAction('publisher.fixture.merge', 'Merge', [], feedback),
+        ).resolves.toBe('failed');
+        expect(getToasts().at(-1)).toMatchObject({
+            type: 'error',
+            title: "Couldn't merge #42: Pull request is not mergeable.",
+        });
+    });
+});
+
+describe('extension command result messages', () => {
+    it('shows a palette command message as a success toast', async () => {
+        mocks.request.mockImplementation((method) =>
+            Promise.resolve(
+                method === 'viewContainers.catalog'
+                    ? catalog()
+                    : { executed: true, message: 'Merged #42' },
+            ),
+        );
+        await executeViewCatalogShortcut('publisher.fixture.refresh');
+        await vi.waitFor(() =>
+            expect(getToasts().at(-1)).toMatchObject({ type: 'success', title: 'Merged #42' }),
+        );
+    });
+
+    it('stays silent for a command that resolves without a message', async () => {
+        const before = getToasts().length;
+        mocks.request.mockResolvedValueOnce({ executed: true });
+        await expect(
+            dispatchExtensionViewAction('publisher.fixture.refresh', 'Refresh Fixture'),
+        ).resolves.toBe('executed');
+        expect(getToasts()).toHaveLength(before);
+    });
+});
+
+describe('actionFailureMessage', () => {
+    it('joins the label and the sanitized reason with a colon', () => {
+        expect(
+            actionFailureMessage(new Error('GIT: base branch policy'), "Couldn't merge #7"),
+        ).toBe("Couldn't merge #7: base branch policy.");
     });
 });
