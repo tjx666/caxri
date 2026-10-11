@@ -11,6 +11,7 @@ import { parseTerminalFileLocation } from '../terminal/terminal-file-location';
 import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import { stopAgentChatTask } from './agent-chat-commands';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
+import { announceAgentChatSelectionCopy } from './agent-chat-selection-copy';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
 import { revealAgentChat } from './agent-chat-task-opener';
@@ -134,8 +135,9 @@ function TaskTimeline({
                 onScroll={onScroll}
             >
                 <div
-                    className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4"
+                    className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4 select-none"
                     ref={contentReference}
+                    onCopy={announceAgentChatSelectionCopy}
                 >
                     {truncated && (
                         <p className="m-0 text-center text-[11px] text-muted">

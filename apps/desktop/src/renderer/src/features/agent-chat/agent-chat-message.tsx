@@ -55,7 +55,8 @@ export function AgentChatMessage({
  * Commentary between tool calls carries no action row, so a long turn does not reserve empty space under every reply.
  * The row appears only while the pointer is over its reply or keyboard focus reaches it, so a scrolled transcript is
  * not lined with copy icons; it keeps its height, so revealing it never shifts the transcript. Copy takes the Markdown
- * source, which pastes back into an issue, a document, or another Agent intact.
+ * source, which pastes back into an issue, a document, or another Agent intact. The reply text is one of the two
+ * selectable surfaces in an otherwise `select-none` transcript (see `announceAgentChatSelectionCopy`).
  */
 export function AgentChatReply({
     canCopy,
@@ -69,7 +70,7 @@ export function AgentChatReply({
     return (
         <div className="group/reply" data-agent-chat-reply="">
             <AgentChatMessage
-                className="text-foreground"
+                className="text-foreground select-text"
                 isStreaming={item.streaming}
                 text={item.text}
                 onOpenFile={onOpenFile}

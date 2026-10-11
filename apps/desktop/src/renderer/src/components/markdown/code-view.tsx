@@ -43,7 +43,8 @@ export function CodeView({
     const wrapLabel = isWrapped ? 'Disable word wrap' : 'Enable word wrap';
     return (
         <div className="overflow-hidden rounded-lg bg-elevated">
-            <div className="flex h-8 items-center gap-1.5 pt-1 pr-1.5 pl-3 text-[12px] text-muted">
+            {/* Chrome, not content: a selection running through the block copies the code without its language label. */}
+            <div className="flex h-8 items-center gap-1.5 pt-1 pr-1.5 pl-3 text-[12px] text-muted select-none">
                 <CodeXml aria-hidden className="size-3.5 shrink-0" />
                 <span className="min-w-0 flex-1 truncate">
                     {label ?? languageName ?? language ?? 'Text'}
