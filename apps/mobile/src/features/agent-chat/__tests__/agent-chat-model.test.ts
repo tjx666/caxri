@@ -11,10 +11,12 @@ import {
     agentChatComposerDisabledReason,
     agentChatEmptyMessage,
     agentChatFailureMessage,
+    agentChatImageCounts,
     agentChatProviderName,
     agentChatQuestionAnswers,
     agentChatRequestTitle,
     agentChatTimelineItems,
+    canAttachAgentChatImages,
     isAgentChatHandedOff,
     isAgentChatTerminal,
 } from '../agent-chat-model';
@@ -50,6 +52,14 @@ describe('Agent Chat model', () => {
             );
         }
         expect(agentChatProviderName({ kind: 'grok' })).toBe('Grok Build');
+    });
+
+    it('offers image attachments only to providers whose Chat takes images', () => {
+        expect(canAttachAgentChatImages({ kind: 'claude' })).toBe(true);
+        expect(canAttachAgentChatImages({ kind: 'codex' })).toBe(true);
+        expect(canAttachAgentChatImages({ kind: 'grok' })).toBe(false);
+        expect(canAttachAgentChatImages({ kind: 'shell' })).toBe(false);
+        expect(canAttachAgentChatImages(undefined)).toBe(false);
     });
 
     it('projects a Chat onto the Conversation timeline with a Thought row and turn dividers', () => {
@@ -114,7 +124,7 @@ describe('Agent Chat model', () => {
         expect(timeline[5]).toMatchObject({ durationMs: 9000 });
     });
 
-    it('counts the images of a message, so an image-only message still shows', () => {
+    it('keeps an image-only message, whose images the Chat view draws', () => {
         const timeline = agentChatTimelineItems({
             ...base,
             items: [
@@ -129,9 +139,18 @@ describe('Agent Chat model', () => {
             ],
         });
         expect(timeline.filter((item) => item.type === 'userMessage')).toEqual([
-            { id: 'u1', type: 'userMessage', text: '[1 image]' },
-            { id: 'u2', type: 'userMessage', text: 'Compare these\n\n[2 images]' },
+            { id: 'u1', type: 'userMessage', text: '' },
+            { id: 'u2', type: 'userMessage', text: 'Compare these' },
         ]);
+        expect(
+            agentChatImageCounts({
+                items: [
+                    { id: 'u1', turnId: 't1', type: 'userMessage', text: '', images: [{}] },
+                    { id: 'a1', turnId: 't1', type: 'agentMessage', text: 'Hi', streaming: true },
+                ],
+            }),
+        ).toBe('[["u1",1]]');
+        expect(agentChatImageCounts(undefined)).toBe('');
     });
 
     it('reports what the Chat is doing and waits on a pending request', () => {

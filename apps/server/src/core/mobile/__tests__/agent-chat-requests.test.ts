@@ -1,5 +1,6 @@
 // oxlint-disable typescript/require-await -- Async domain fakes preserve the production Promise boundary.
 import type { AgentChatSnapshot, Principal } from '@caxri/protocol';
+import { MOBILE_AGENT_CHAT_IMAGE_CHUNK_LENGTH } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ServerDomainService } from '../../domain-service';
@@ -37,27 +38,35 @@ function domainFixture(options: {
     surface?: 'chat';
     snapshot?: AgentChatSnapshot;
     terminals?: number;
+    original?: string;
 }) {
-    const request = vi.fn(async (method: string) => {
-        if (method === 'terminal.queryForPrincipal')
-            return {
-                terminals:
-                    options.terminals === 0
-                        ? []
-                        : [
-                              {
-                                  id: 'terminal-1',
-                                  sessionId: 'session-1',
-                                  kind: 'codex',
-                                  title: 'Codex',
-                                  lastProcessState: 'running',
-                                  ...(options.surface && { surface: options.surface }),
-                              },
-                          ],
-            };
-        if (method === 'agentChat.read') return options.snapshot ?? chatSnapshot('ready');
-        throw new Error(`Unexpected ${method}`);
-    });
+    const request = vi.fn<(method: string, parameters?: unknown) => Promise<unknown>>(
+        async (method) => {
+            if (method === 'terminal.queryForPrincipal')
+                return {
+                    terminals:
+                        options.terminals === 0
+                            ? []
+                            : [
+                                  {
+                                      id: 'terminal-1',
+                                      sessionId: 'session-1',
+                                      kind: 'codex',
+                                      title: 'Codex',
+                                      lastProcessState: 'running',
+                                      ...(options.surface && { surface: options.surface }),
+                                  },
+                              ],
+                };
+            if (method === 'agentChat.read') return options.snapshot ?? chatSnapshot('ready');
+            if (method === 'mobile.image.readInternal') return ['T1JJRw==', 'VEhVTUI='];
+            if (method === 'agentChat.readImage')
+                return options.original === undefined
+                    ? null
+                    : { mediaType: 'image/png', data: options.original };
+            throw new Error(`Unexpected ${method}`);
+        },
+    );
     return { domainService: { request } as unknown as ServerDomainService, request };
 }
 
@@ -93,12 +102,12 @@ describe('mobile Agent Chat requests', () => {
     });
 
     it('returns the frame-sized window of the Chat projection', async () => {
-        const result = await invoke(
+        const result = (await invoke(
             { method: 'mobile.agentChat.read', params: { terminalId: 'terminal-1' } },
             domainFixture({ surface: 'chat' }),
-        );
-        expect(result?.revision).toBe(3);
-        const item = result?.items[0] as { text: string };
+        )) as AgentChatSnapshot;
+        expect(result.revision).toBe(3);
+        const item = result.items[0] as { text: string };
         expect(item.text.length).toBeLessThan(20_000);
     });
 
@@ -144,6 +153,88 @@ describe('mobile Agent Chat requests', () => {
         ]);
     });
 
+    it('sends uploaded images with their thumbnails, read under the Chat Session for this device', async () => {
+        const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
+        const domain = domainFixture({ surface: 'chat' });
+        const attachment = {
+            attachmentId: `image_${'a'.repeat(32)}`,
+            thumbnailAttachmentId: `image_${'b'.repeat(32)}`,
+        };
+        await invoke(
+            {
+                method: 'mobile.agentChat.send',
+                params: { terminalId: 'terminal-1', text: '', attachments: [attachment] },
+            },
+            domain,
+            forward,
+        );
+        expect(domain.request).toHaveBeenCalledWith('mobile.image.readInternal', {
+            sessionId: 'session-1',
+            attachmentIds: [attachment.attachmentId, attachment.thumbnailAttachmentId],
+            principal,
+        });
+        expect(forward).toHaveBeenCalledWith({
+            method: 'agentChat.send',
+            params: {
+                terminalId: 'terminal-1',
+                text: '',
+                images: [
+                    {
+                        mediaType: 'image/jpeg',
+                        data: 'T1JJRw==',
+                        thumbnail: 'data:image/jpeg;base64,VEhVTUI=',
+                    },
+                ],
+                delivery: 'steer',
+            },
+        });
+    });
+
+    it('reads a thumbnail the window left out, and pages an original in frame-sized chunks', async () => {
+        const snapshot = chatSnapshot('ready');
+        snapshot.items = [
+            {
+                id: 'message-1',
+                type: 'userMessage',
+                text: '',
+                images: [{ thumbnail: 'data:image/webp;base64,V0VCUA==' }, {}],
+            },
+        ];
+        const domain = domainFixture({
+            surface: 'chat',
+            snapshot,
+            original: 'A'.repeat(MOBILE_AGENT_CHAT_IMAGE_CHUNK_LENGTH + 8),
+        });
+        const read = (variant: 'thumbnail' | 'original', index: number, chunkIndex = 0) =>
+            invoke(
+                {
+                    method: 'mobile.agentChat.readImage',
+                    params: {
+                        terminalId: 'terminal-1',
+                        itemId: 'message-1',
+                        index,
+                        variant,
+                        chunkIndex,
+                    },
+                },
+                domain,
+            );
+        expect(await read('thumbnail', 0)).toEqual({
+            mediaType: 'image/webp',
+            data: 'V0VCUA==',
+            chunkIndex: 0,
+            chunkCount: 1,
+        });
+        expect(await read('thumbnail', 1)).toBeNull();
+        expect(await read('original', 1, 1)).toEqual({
+            mediaType: 'image/png',
+            data: 'AAAAAAAA',
+            chunkIndex: 1,
+            chunkCount: 2,
+        });
+        await expect(read('original', 1, 2)).rejects.toMatchObject({ code: 'VALIDATION' });
+    });
+
     it('restarts only a failed Chat on Retry', async () => {
         const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
         await invoke(
@@ -164,8 +255,12 @@ describe('mobile Agent Chat requests', () => {
     });
 
     it('lets every role read, reply devices send, and only control devices answer or stop', () => {
-        for (const role of ['view', 'reply', 'control'] as const)
+        for (const role of ['view', 'reply', 'control'] as const) {
             expect(isMobileGatewayMethodAllowedForRole(role, 'mobile.agentChat.read')).toBe(true);
+            expect(isMobileGatewayMethodAllowedForRole(role, 'mobile.agentChat.readImage')).toBe(
+                true,
+            );
+        }
         expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.agentChat.send')).toBe(false);
         expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.agentChat.send')).toBe(true);
         expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.agentChat.respond')).toBe(

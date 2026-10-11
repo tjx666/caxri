@@ -505,6 +505,22 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   granted Projects, refuse a non-Chat Terminal with `CONFLICT`, and go through Core's mutation
   admission like a Desktop request. Retry restarts only a `failed` Chat (`terminal.restart` with
   `mode: 'resume'`).
+- Images. A `reply` or `control` phone attaches up to 4 images from the library, camera, or
+  clipboard when the provider has `capabilities.chatImages`; Grok Build's composer has no attach
+  button. The phone compresses each to a JPEG (at most 3 MB) and also makes the thumbnail Desktop
+  would (fitted to 384 px, at most 48 KB), and uploads both through the Terminal composer's chunked
+  `mobile.image.upload`. `mobile.agentChat.send` names each pair by attachment id; the gateway reads
+  the uploaded bytes back through `mobile.image.readInternal` (same device, generation, and
+  Session) and forwards an ordinary `agentChat.send`, so the provider sees the same message a
+  Desktop paste produces.
+- A thumbnail would exhaust the 48 KiB window by itself, so the window replaces a user message's
+  image list with empty placeholders that keep only the count. The phone fetches each thumbnail on
+  render, and the original on tap, through `mobile.agentChat.readImage` (item id, image position,
+  `thumbnail` or `original`), in 45,000-character chunks so no frame overflows. Originals come from
+  `agentChat.readImage`, so they reach exactly the images Desktop can reopen; a missing one reads
+  "This image is no longer available.". The gateway caches the last two originals for a minute so
+  paging one does not re-read the transcript per chunk. The phone keeps thumbnails in memory and
+  writes an opened original only to its cache directory for display.
 
 ## Images and slash commands
 
@@ -652,7 +668,6 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 Claude Code's agent picker (its `initialize` response already lists the agents). Grok Build's
 model picker, images (its ACP agent advertises `image: false`), and questions
 (`_x.ai/ask_user_question`, turned off for now). Grok Build stays out of the real-Agent smoke. On mobile, a
-Chat shows no plan, model, or context usage yet, shows an image as its count (`[1 image]`) instead of
-a thumbnail, cannot attach images or run slash commands, does not show background tasks or the
+Chat shows no plan, model, or context usage yet, cannot run slash commands, does not show background tasks or the
 follow-up queue, older history beyond the window stays on
 the computer, and switching surface is Desktop-only.

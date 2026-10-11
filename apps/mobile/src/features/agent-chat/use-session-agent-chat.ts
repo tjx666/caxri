@@ -1,6 +1,7 @@
 import type { MobileTerminal } from '../sessions/session-model';
 import {
     agentChatProviderName,
+    canAttachAgentChatImages,
     isAgentChatHandedOff,
     isAgentChatTerminal,
 } from './agent-chat-model';
@@ -15,6 +16,11 @@ export interface SessionAgentChat {
      */
     isHandedOff: boolean;
     provider: string;
+    /**
+     * The provider accepts images in a Chat message (`chatImages`); Grok does not, so its composer has no attach
+     * button.
+     */
+    supportsImages: boolean;
 }
 
 /**
@@ -39,5 +45,6 @@ export const useSessionAgentChat = ({
         hasItems: (controller.snapshot?.items.length ?? 0) > 0,
         isHandedOff: isAgentChatHandedOff(terminal),
         provider: agentChatProviderName(terminal),
+        supportsImages: canAttachAgentChatImages(terminal),
     };
 };

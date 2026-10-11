@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { splitMobileImage } from './image-attachment';
+import {
+    chatThumbnailSize,
+    isWithinChatThumbnailLimit,
+    splitMobileImage,
+} from './image-attachment';
 
 describe('mobile image chunking', () => {
     it('keeps each chunk within the encrypted gateway request limit', () => {
@@ -15,5 +19,14 @@ describe('mobile image chunking', () => {
     it('removes Android clipboard line breaks before chunking', () => {
         expect(splitMobileImage('data:image/jpeg;base64,/9j/\nAA==')).toEqual(['/9j/AA==']);
         expect(() => splitMobileImage('/9j/?')).toThrow();
+    });
+
+    it('fits a Chat thumbnail into its box and the projection limit', () => {
+        expect(chatThumbnailSize(4_000, 3_000)).toEqual({ width: 384, height: 288 });
+        expect(chatThumbnailSize(1_000, 3_000)).toEqual({ width: 128, height: 384 });
+        expect(chatThumbnailSize(200, 100)).toEqual({ width: 200, height: 100 });
+        expect(isWithinChatThumbnailLimit('a'.repeat(40_000))).toBe(true);
+        expect(isWithinChatThumbnailLimit('a'.repeat(49_152))).toBe(false);
+        expect(isWithinChatThumbnailLimit('')).toBe(false);
     });
 });
