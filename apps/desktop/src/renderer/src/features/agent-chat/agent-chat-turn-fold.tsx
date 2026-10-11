@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
-import { useId, useState } from 'react';
+import { use, useId, useState } from 'react';
 
 import { ChevronRight, CircleStop, CircleX } from 'lucide-react';
 
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { cn } from '../../lib/utilities';
 import { agentChatChevronMotion } from './agent-chat-disclosure';
+import { AgentChatFindQueryContext, isAgentChatTurnFoldMatch } from './agent-chat-find';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 import { agentChatTurnTone } from './agent-chat-timeline';
 
@@ -23,6 +24,26 @@ export function AgentChatTurnFold({
     renderEntry: (entry: Exclude<AgentChatTimelineEntry, { kind: 'turn' }>) => ReactNode;
 }) {
     const [isExpanded, setExpanded] = useState(false);
+    /**
+     * A find query that matches a message folded here opens the fold, so the match can be highlighted, and folds it
+     * back when a refined query stops matching. Closing the bar leaves it open where the reader landed, and toggling it
+     * by hand hands it back to the reader. Find opens it without the height animation, so the match is revealed where
+     * the settled layout puts it.
+     */
+    const findQuery = use(AgentChatFindQueryContext);
+    const [checkedQuery, setCheckedQuery] = useState('');
+    const [isOpenedByFind, setOpenedByFind] = useState(false);
+    if (findQuery !== checkedQuery) {
+        setCheckedQuery(findQuery);
+        const isMatch = isAgentChatTurnFoldMatch(entry, findQuery);
+        if (isMatch && !isExpanded) {
+            setExpanded(true);
+            setOpenedByFind(true);
+        } else if (!isMatch && isOpenedByFind) {
+            if (findQuery) setExpanded(false);
+            setOpenedByFind(false);
+        }
+    }
     const detailId = useId();
     const tone = agentChatTurnTone(entry.status);
     const ToneIcon = tone === 'danger' ? CircleX : CircleStop;
@@ -40,7 +61,10 @@ export function AgentChatTurnFold({
                           : 'text-muted hover:text-foreground',
                 )}
                 type="button"
-                onClick={() => setExpanded((value) => !value)}
+                onClick={() => {
+                    setExpanded((value) => !value);
+                    setOpenedByFind(false);
+                }}
             >
                 {tone && <ToneIcon aria-hidden="true" className="size-3.5 shrink-0" />}
                 <span>{entry.label}</span>
@@ -53,7 +77,12 @@ export function AgentChatTurnFold({
                     )}
                 />
             </button>
-            <DisclosureMotion animate expanded={isExpanded} id={detailId} kind="agent-chat-turn">
+            <DisclosureMotion
+                animate={!isOpenedByFind}
+                expanded={isExpanded}
+                id={detailId}
+                kind="agent-chat-turn"
+            >
                 <div className="mt-3 flex flex-col gap-3">
                     {entry.entries.map((child) => renderEntry(child))}
                 </div>

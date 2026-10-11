@@ -493,3 +493,16 @@
     font-weight: 700;
     line-height: 1;
 }
+
+/*
+ * Find in Chat (`features/agent-chat/agent-chat-find-highlights.ts`) paints matches through the CSS Custom Highlight
+ * API so the rendered Markdown is never rewrapped; a `::highlight()` pseudo-element has no Tailwind utility. Every match
+ * gets a quiet wash and the current one the warning color, like the Terminal's find decorations.
+ */
+::highlight(agent-chat-find) {
+    background-color: color-mix(in srgb, var(--warning) 28%, transparent);
+}
+::highlight(agent-chat-find-active) {
+    background-color: var(--warning);
+    color: var(--background);
+}
