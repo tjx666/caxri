@@ -35,6 +35,7 @@ import {
     TerminalReferencePreviewStore,
 } from './terminal-reference-preview';
 import type { TerminalSearchResults } from './terminal-search';
+import { isTerminalSwitchingToChat } from './terminal-surface-switch-pending';
 
 /**
  * Shared, non-hook support used by `useTerminalPaneRuntime`: user-facing copy, small pure helpers, and the xterm
@@ -86,6 +87,9 @@ export function xtermThemeWithoutOverviewRulerBorder(theme: ITheme | undefined):
 /**
  * Keeps keyboard input and Files-drop paste on the same live xterm path. `xterm.paste` preserves bracketed-paste
  * semantics. Xterm emits byte-encoded mouse reports through `onBinary`, separate from keyboard `onData`.
+ *
+ * Every path shares one gate: the caller's `isRunning`, closed as well while the Terminal is switching to Chat (see
+ * `isTerminalSwitchingToChat` for the query replies that would otherwise fail against the Server's PTY guard).
  */
 export function registerTerminalInputHandlers(
     terminal: Terminal,
@@ -94,6 +98,7 @@ export function registerTerminalInputHandlers(
     expectedAgentLaunchId: () => string | undefined = () => {},
 ): () => void {
     let isDisposed = false;
+    const isInputOpen = (): boolean => isRunning() && !isTerminalSwitchingToChat(terminalId);
     const sendInput = async (data: string): Promise<void> => {
         try {
             const expected = expectedAgentLaunchId();
@@ -104,22 +109,22 @@ export function registerTerminalInputHandlers(
         }
     };
     const dataDisposable = terminal.onData((data) => {
-        if (!isRunning()) return;
+        if (!isInputOpen()) return;
         // xterm's onData callback cannot be async; sendInput already reports its own failure.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void sendInput(data);
     });
     const binaryDisposable = terminal.onBinary((data) => {
-        if (!isRunning()) return;
+        if (!isInputOpen()) return;
         // eslint-disable-next-line no-void -- the request reports its own failure.
         void sendTerminalBinaryInput(terminalId, data, expectedAgentLaunchId()).catch((error) => {
             if (!isDisposed) reportTerminalOperationError(error, 'Terminal input failed');
         });
     });
-    const unregisterInputGate = registerTerminalInputGate(terminalId, isRunning);
+    const unregisterInputGate = registerTerminalInputGate(terminalId, isInputOpen);
     const unregisterPasteHandler = registerTerminalPasteHandler(terminalId, {
         paste(data) {
-            if (!isRunning()) return false;
+            if (!isInputOpen()) return false;
             terminal.paste(data);
             terminal.focus();
             return true;

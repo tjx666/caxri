@@ -40,6 +40,7 @@ describe('Server Core application', () => {
         };
         vi.spyOn(extensionServiceFactory, 'createExtensionService').mockResolvedValue({
             activeContextChanged: vi.fn(),
+            markCoreStopping: vi.fn(() => order.push('extensionService.markCoreStopping')),
             shutdown: vi.fn(record('extensionService.shutdown')),
         } as never);
         const app = await startServerCore({
@@ -58,6 +59,11 @@ describe('Server Core application', () => {
         await app.stop('test-shutdown-order');
 
         // Extension Host teardown can block up to 5s; Terminal snapshot capture must not wait behind it (see `stop()`).
-        expect(order).toEqual(['domainService.shutdown', 'extensionService.shutdown']);
+        // The Extension Host is marked first so a signal that kills it during that wait is not restarted as a crash.
+        expect(order).toEqual([
+            'extensionService.markCoreStopping',
+            'domainService.shutdown',
+            'extensionService.shutdown',
+        ]);
     });
 });

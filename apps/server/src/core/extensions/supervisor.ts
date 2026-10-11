@@ -5,12 +5,7 @@ import { once } from 'node:events';
 import { dirname } from 'node:path';
 import process from 'node:process';
 
-import {
-    inheritedExecArgv,
-    inspectExecArgv,
-    isNonExpiringViewOperation,
-    logLevelEnvironment,
-} from '@caxri/protocol';
+import { inheritedExecArgv, inspectExecArgv, logLevelEnvironment } from '@caxri/protocol';
 import type { ExtensionHostProtocolFault, StructuredLogger } from '@caxri/system';
 import {
     currentObservationContext,
@@ -33,6 +28,7 @@ import {
     isExtensionHostMessage,
     isExtensionHostResult,
 } from './host-message-validation';
+import { cancellableRequestId, requestTimeout } from './host-request-policy';
 
 interface PendingRequest {
     method: ExtensionHostRequest['method'];
@@ -61,37 +57,12 @@ export interface ExtensionHostSupervisorOptions {
 }
 
 const READY_TIMEOUT_MS = 15_000;
-const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_CONCURRENT_REQUESTS = 32;
 const MAX_AUTO_RESTARTS = 5;
 const RESTART_STABILITY_MS = 30_000;
 
 function isChildRunning(child: ChildProcess): boolean {
     return child.exitCode === null && child.signalCode === null;
-}
-
-function requestTimeout(
-    method: ExtensionHostRequest['method'],
-    parameters: ExtensionHostRequest['params'],
-): number | undefined {
-    if (method !== 'viewOperation') return REQUEST_TIMEOUT_MS;
-    const operation = (
-        parameters as Extract<ExtensionHostRequest, { method: 'viewOperation' }>['params']
-    ).operation;
-    return isNonExpiringViewOperation(operation) ? undefined : REQUEST_TIMEOUT_MS;
-}
-
-function cancellableRequestId(
-    method: ExtensionHostRequest['method'],
-    parameters: ExtensionHostRequest['params'],
-): string | undefined {
-    if (method === 'treeChildren')
-        return (parameters as Extract<ExtensionHostRequest, { method: 'treeChildren' }>['params'])
-            .requestId;
-    if (method === 'viewOperation')
-        return (parameters as Extract<ExtensionHostRequest, { method: 'viewOperation' }>['params'])
-            .requestId;
-    return undefined;
 }
 
 /**
@@ -107,6 +78,13 @@ function isChildConnected(child: ChildProcess): boolean {
  */
 export class ExtensionHostSupervisor extends EventTarget {
     private child?: ChildProcess;
+    /**
+     * Set by {@link markCoreStopping} when Server Core's own `stop()` begins. Core shuts this supervisor down last
+     * (after the domain services), so an OS signal delivered to the whole process tree, for example a quitting Desktop
+     * or an app update, can kill the Extension Host before {@link shutdown} runs. Such an exit is teardown, not a crash:
+     * it is logged at `warn` with `source: 'core-stopping'` and never restarted.
+     */
+    private coreStopping = false;
     private intentionalStop = false;
     private pending = new Map<string, PendingRequest>();
     private readonly apiRequests = new Map<string, AbortController>();
@@ -325,11 +303,19 @@ export class ExtensionHostSupervisor extends EventTarget {
         this.corruptNextReplyResult = false;
     }
 
-    private handleExit(code: number): void {
-        this.retireChild(`Extension Host exited with code ${code}`);
+    private handleExit(code: number | null, signal: NodeJS.Signals | null): void {
+        this.retireChild(
+            `Extension Host exited with ${signal ? `signal ${signal}` : `code ${code ?? 'unknown'}`}`,
+        );
         if (this.intentionalStop) return;
+        if (this.coreStopping) {
+            this.options.logger.write('warn', logEventCatalog.extensionHost.exit, {
+                fields: { code, signal, source: 'core-stopping' },
+            });
+            return;
+        }
         this.options.logger.write('error', logEventCatalog.extensionHost.exit, {
-            fields: { code },
+            fields: { code, signal },
             failure: {
                 code: 'EXTENSION_HOST_UNAVAILABLE',
                 owner: 'extension-host',
@@ -413,8 +399,8 @@ export class ExtensionHostSupervisor extends EventTarget {
         child.on('message', (message: unknown) => {
             if (this.child === child) this.onMessage(message);
         });
-        child.on('exit', (code) => {
-            if (this.child === child) this.handleExit(code ?? -1);
+        child.on('exit', (code, signal) => {
+            if (this.child === child) this.handleExit(code, signal);
         });
         child.on('error', (error) =>
             this.options.logger.write('error', logEventCatalog.extensionHost.error, {
@@ -561,9 +547,9 @@ export class ExtensionHostSupervisor extends EventTarget {
         return () => this.removeEventListener('event', handler);
     }
 
-    onExit(listener: (code: number) => void): () => void {
+    onExit(listener: (code: number | null) => void): () => void {
         const handler = (event: Event): void =>
-            listener((event as CustomEvent<{ code: number }>).detail.code);
+            listener((event as CustomEvent<{ code: number | null }>).detail.code);
         this.addEventListener('exit', handler);
         return () => this.removeEventListener('exit', handler);
     }
@@ -584,6 +570,16 @@ export class ExtensionHostSupervisor extends EventTarget {
         this.retireChild('Extension Host is restarting');
         if (child) await this.terminateChild(child);
         await this.start();
+    }
+
+    /**
+     * Marks Server Core as stopping before its ordered teardown reaches {@link shutdown}; see {@link coreStopping}. Also
+     * cancels an already armed crash restart so no replacement Host is forked while Core is going away.
+     */
+    markCoreStopping(): void {
+        this.coreStopping = true;
+        if (this.restartTimer) clearTimeout(this.restartTimer);
+        this.restartTimer = undefined;
     }
 
     async shutdown(): Promise<void> {

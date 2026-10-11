@@ -50,6 +50,7 @@ import {
     revokeDesktop,
     routeDesktopOperation,
 } from './control-server-desktop-lease';
+import { shouldSettleOutsideOrderedLane } from './control-server-lane';
 import type {
     ClientState,
     ControlServerOptions,
@@ -69,7 +70,6 @@ import {
     operatorContext,
     refreshDelegationReply,
     reserveControlRequest,
-    shouldSettleOutsideOrderedLane,
     terminateSocket,
     trackControlRequest,
     untrackControlRequest,
@@ -663,7 +663,7 @@ export class ControlServer {
                             clientState,
                             command.request,
                             timing,
-                            shouldSettleOutsideOrderedLane(command.request.method),
+                            shouldSettleOutsideOrderedLane(command.request),
                             terminalDetach,
                         ),
                     );
