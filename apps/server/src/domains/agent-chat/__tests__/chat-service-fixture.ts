@@ -74,6 +74,7 @@ export async function fixture(
                 FAKE_CODEX_STATE_DIR: stateDirectory,
                 FAKE_GROK_STATE_DIR: grokStateDirectory,
                 CLAUDE_CONFIG_DIR: claudeConfigDirectory,
+                FAKE_CLAUDE_CONTROL_DIR: claudeConfigDirectory,
             }),
         launchSettings: () => ({
             ...defaultAgentProviderSettings[provider].launch,

@@ -33,6 +33,10 @@
  *
  * Every turn is appended to a JSONL transcript at Claude Code's own location under `CLAUDE_CONFIG_DIR`, so `--resume`
  * and Caxri's transcript-based history read real records.
+ *
+ * Under `FAKE_CLAUDE_CONTROL_DIR`, a file the test creates there turns on a failure the real CLI can produce: with
+ * `drop-images`, the transcript keeps no image blocks, as when the record no longer has the original; with
+ * `reject-model-change`, `set_model` answers with an error.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -86,6 +90,9 @@ function argument(name: string): string | undefined {
 const resumeId = argument('--resume');
 const sessionId = resumeId ?? argument('--session-id') ?? crypto.randomUUID();
 const configDirectory = process.env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(), '.claude');
+const controlDirectory = process.env.FAKE_CLAUDE_CONTROL_DIR;
+const isControlled = (name: string) =>
+    controlDirectory !== undefined && fs.existsSync(path.join(controlDirectory, name));
 const transcriptPath = path.join(
     configDirectory,
     'projects',
@@ -313,7 +320,13 @@ async function runTurn({ text, content, priority, uuid, isAuto = false }: Queued
         record({
             type: 'user',
             ...(uuid && { uuid }),
-            message: { role: 'user', content: content ?? text },
+            message: {
+                role: 'user',
+                content:
+                    Array.isArray(content) && isControlled('drop-images')
+                        ? content.filter((block) => (block as { type?: unknown }).type !== 'image')
+                        : (content ?? text),
+            },
         });
     send(
         frame({
@@ -503,6 +516,17 @@ lines.on('line', (line) => {
     }
     if (message.type === 'control_request') {
         const request = message.request as Json;
+        if (request.subtype === 'set_model' && isControlled('reject-model-change')) {
+            send({
+                type: 'control_response',
+                response: {
+                    subtype: 'error',
+                    request_id: message.request_id,
+                    error: 'Model switch rejected',
+                },
+            });
+            return;
+        }
         if (request.subtype === 'interrupt') state.interrupted = true;
         else if (request.subtype === 'initialize') state.hooks = hookCallbackIds(request.hooks);
         if (request.subtype === 'set_model' && typeof request.model === 'string')
