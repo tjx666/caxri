@@ -15,11 +15,27 @@ export interface TerminalSuspensionDecision {
  * which keeps the "untouched" rule from judging input it never saw.
  */
 export interface TerminalActivitySample {
+    /**
+     * The Agent asked the user for a permission or an answer (`attentionRequested`) and nothing has resolved it yet: no
+     * `attentionResolved`/`toolBatchFinished`, no new turn, and no end of turn. Such an Agent is not idle even though
+     * it is not producing output, so neither automatic rule may park it.
+     */
+    awaitingUser?: boolean;
     launchedAt?: number;
     lastInputAt?: number;
+    /**
+     * Latest accepted lifecycle signal of any phase, including subagent-scoped ones that do not move the turn state.
+     */
+    lastSignalAt?: number;
     lastTurnFinishedAt?: number;
     lastTurnStartedAt?: number;
     turnInFlight: boolean;
+}
+
+export interface IdleSuspensionSettings {
+    'terminal.idleSuspension.afterMinutes': AppSettings['terminal.idleSuspension.afterMinutes'];
+    'terminal.idleSuspension.enabled': AppSettings['terminal.idleSuspension.enabled'];
+    'terminal.suspendUntouchedAgents': AppSettings['terminal.suspendUntouchedAgents'];
 }
 
 export interface TerminalSuspensionPolicyInput {
@@ -29,9 +45,14 @@ export interface TerminalSuspensionPolicyInput {
      */
     startedAt: number;
     selectedSessionId: string | undefined;
-    settings: Pick<AppSettings, 'terminal.suspendIdleAgents' | 'terminal.suspendUntouchedAgents'>;
+    settings: IdleSuspensionSettings;
     terminals: readonly TerminalRecord[];
     deselectedAt(sessionId: string): number | undefined;
+    /**
+     * Whether a phone is currently observing or driving this Terminal through the mobile gateway. That is a viewer just
+     * like the selected Session on the desktop, so automatic suspension leaves it alone.
+     */
+    isObservedRemotely(terminalId: string): boolean;
     sample(terminalId: string): TerminalActivitySample | undefined;
     session(sessionId: string): SessionRecord | undefined;
 }
@@ -42,17 +63,40 @@ export interface TerminalSuspensionPolicyInput {
  */
 export const UNTOUCHED_SUSPENSION_DELAY_MS = 30_000;
 
-export const IDLE_SUSPENSION_DELAYS_MS = {
-    '2h': 2 * 60 * 60 * 1000,
-    '30m': 30 * 60 * 1000,
-} as const satisfies Record<Exclude<AppSettings['terminal.suspendIdleAgents'], 'off'>, number>;
+const MINUTE_MS = 60 * 1000;
+
+/**
+ * The configured idle window in milliseconds, or `undefined` while idle suspension is off.
+ */
+export function idleSuspensionDelayMs(settings: IdleSuspensionSettings): number | undefined {
+    if (!settings['terminal.idleSuspension.enabled']) return undefined;
+    return settings['terminal.idleSuspension.afterMinutes'] * MINUTE_MS;
+}
+
+/**
+ * The most recent moment this launch showed any sign of use: launch, Core-delivered input, or an accepted lifecycle
+ * signal. A launch older than this Server process counts as active since the process started.
+ */
+export function lastActiveAt(
+    sample: TerminalActivitySample | undefined,
+    startedAt: number,
+): number {
+    return Math.max(
+        sample?.launchedAt ?? startedAt,
+        sample?.lastInputAt ?? 0,
+        sample?.lastSignalAt ?? 0,
+        sample?.lastTurnStartedAt ?? 0,
+        sample?.lastTurnFinishedAt ?? 0,
+    );
+}
 
 const LIVE_AGENT_STATES = new Set<TerminalRecord['lastAgentProcessState']>(['running', 'starting']);
 
 /**
  * Pure decision over the current records: which live Agent Terminals of unselected Sessions should be suspended now.
- * The selected Session is never touched, and an Agent that is mid-turn or awaiting the user's approval is left alone
- * because killing it would discard work the user has not seen.
+ * The selected Session is never touched, nor is a Terminal a phone is watching, and an Agent that is mid-turn or
+ * awaiting the user's approval or answer is left alone because killing it would discard work the user has not seen. The
+ * full rule set is documented in `.agents/skills/project-architecture/references/terminal-lifecycle.md`.
  */
 export function decideTerminalSuspensions(
     input: TerminalSuspensionPolicyInput,
@@ -70,11 +114,15 @@ function decideTerminal(
     input: TerminalSuspensionPolicyInput,
 ): TerminalSuspensionReason | undefined {
     if (!terminal.provider || terminal.lastProcessState !== 'running') return undefined;
-    // A Chat has no PTY to park; its idle provider process is stopped by the Chat service instead.
+    /**
+     * A Chat has no PTY to park. Its provider process starts lazily on the first read and stops only when its Terminal
+     * or Session is closed, archived, or detached; idle Chats are not suspended automatically.
+     */
     if (!isPtyTerminal(terminal)) return undefined;
     if (!agentProviderCatalog[terminal.provider].capabilities.automaticSuspension) return undefined;
     if (!LIVE_AGENT_STATES.has(terminal.lastAgentProcessState)) return undefined;
     if (terminal.sessionId === input.selectedSessionId) return undefined;
+    if (input.isObservedRemotely(terminal.id)) return undefined;
     const session = input.session(terminal.sessionId);
     if (!session || session.archivedAt !== undefined) return undefined;
     const deselectedAt = input.deselectedAt(terminal.sessionId);
@@ -86,7 +134,7 @@ function decideTerminal(
      */
     if (terminal.lastAgentProcessState === 'starting' && sample?.launchedAt === undefined)
         return undefined;
-    if (sample?.turnInFlight) return undefined;
+    if (sample?.turnInFlight || sample?.awaitingUser) return undefined;
     if (
         session.primaryAgentTerminalId === terminal.id &&
         (session.lastActivityState === 'running' || session.lastActivityState === 'waiting')
@@ -102,15 +150,12 @@ function decideTerminal(
         input.now - sample.launchedAt >= UNTOUCHED_SUSPENSION_DELAY_MS
     )
         return 'untouched';
-    const idleSetting = input.settings['terminal.suspendIdleAgents'];
-    if (idleSetting === 'off') return undefined;
-    const idleDelay = IDLE_SUSPENSION_DELAYS_MS[idleSetting];
-    const lastActiveAt = Math.max(
-        sample?.launchedAt ?? input.startedAt,
-        sample?.lastInputAt ?? 0,
-        sample?.lastTurnStartedAt ?? 0,
-        sample?.lastTurnFinishedAt ?? 0,
-    );
-    if (sinceDeselected >= idleDelay && input.now - lastActiveAt >= idleDelay) return 'idle';
+    const idleDelay = idleSuspensionDelayMs(input.settings);
+    if (idleDelay === undefined) return undefined;
+    if (
+        sinceDeselected >= idleDelay &&
+        input.now - lastActiveAt(sample, input.startedAt) >= idleDelay
+    )
+        return 'idle';
     return undefined;
 }

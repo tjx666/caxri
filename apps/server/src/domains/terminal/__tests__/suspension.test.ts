@@ -8,6 +8,11 @@ import { UNTOUCHED_SUSPENSION_DELAY_MS } from '../suspension-policy';
 
 const START = 10_000_000;
 
+const idleAfterThirtyMinutes = {
+    'terminal.idleSuspension.afterMinutes': 30,
+    'terminal.idleSuspension.enabled': true,
+} as const;
+
 type ParkedState = 'detached' | 'stopped' | 'suspended';
 
 function terminal(id: string, sessionId: string, overrides: Partial<TerminalRecord> = {}) {
@@ -68,6 +73,9 @@ function createHarness(
         ['terminal-b', terminal('terminal-b', 'session-b')],
     ]);
     const live = new Set(terminals.keys());
+    const observedRemotely = new Set<string>();
+    const conversationWatched = new Set<string>();
+    const logs: Array<{ event: string; fields: Record<string, unknown> }> = [];
     const events: ServerEvent[] = [];
     let poller: PollerRegistrationOptions | undefined;
     const pendingSuspends: Array<() => void> = [];
@@ -76,10 +84,11 @@ function createHarness(
         const finish = () => {
             live.delete(terminalId);
             const record = terminals.get(terminalId)!;
-            const suspended = terminal(terminalId, record.sessionId, {
+            const suspended = {
+                ...record,
                 lastAgentProcessState: state,
                 lastProcessState: state,
-            });
+            };
             terminals.set(terminalId, suspended);
             return suspended;
         };
@@ -102,12 +111,19 @@ function createHarness(
                     .filter((record) => sessionId === undefined || record.sessionId === sessionId)
                     .toArray(),
         } as never,
-        logger: { write: vi.fn() } as never,
+        logger: {
+            write: (_level: string, event: string, entry?: { fields?: Record<string, unknown> }) =>
+                logs.push({ event, fields: entry?.fields ?? {} }),
+        } as never,
         now: () => now,
         onSuspendedSessionReselected: options.onSuspendedSessionReselected,
         selectedSessionId: () => selected,
         send: (event) => events.push(event),
         settings: () => ({ ...defaultAppSettings, ...options.settings }),
+        remoteObservers: [
+            { isObservedRemotely: (terminalId: string) => observedRemotely.has(terminalId) },
+            { isObservedRemotely: (terminalId: string) => conversationWatched.has(terminalId) },
+        ],
         terminals: {
             processId: (terminalId: string) => (live.has(terminalId) ? 4242 : undefined),
             settleLaunches: () => Promise.resolve(),
@@ -127,8 +143,11 @@ function createHarness(
         set selected(sessionId: string) {
             selected = sessionId;
         },
+        conversationWatched,
         events,
         live,
+        logs,
+        observedRemotely,
         poller: () => poller,
         /**
          * Resolves the oldest still-pending `terminals.suspend` call created while `controlledSuspend` is set.
@@ -150,7 +169,7 @@ function createHarness(
 
 describe('TerminalSuspensionService', () => {
     it('does not suspend a starting Agent before lifecycle activation on an old Server', async () => {
-        const harness = createHarness({ settings: { 'terminal.suspendIdleAgents': '30m' } });
+        const harness = createHarness({ settings: idleAfterThirtyMinutes });
         harness.service.start();
         harness.advance(31 * 60_000);
         harness.terminals.set(
@@ -209,7 +228,7 @@ describe('TerminalSuspensionService', () => {
         const harness = createHarness({ selected: 'session-a' });
         harness.service.start();
         harness.service.observeLaunch('terminal-a');
-        harness.service.observeInput('terminal-a');
+        harness.service.observeInput('terminal-a', 'hello');
         harness.select('session-b');
         harness.advance(UNTOUCHED_SUSPENSION_DELAY_MS);
         expect(await harness.service.sweep()).toEqual([]);
@@ -251,7 +270,7 @@ describe('TerminalSuspensionService', () => {
     it('never re-parks a detached Terminal during a sweep', async () => {
         const harness = createHarness({
             selected: 'session-a',
-            settings: { 'terminal.suspendIdleAgents': '30m' },
+            settings: idleAfterThirtyMinutes,
         });
         harness.service.start();
         harness.service.observeLaunch('terminal-a');
@@ -317,6 +336,25 @@ describe('TerminalSuspensionService', () => {
         expect(harness.terminals.get('terminal-a')?.lastProcessState).toBe('suspended');
         expect(harness.terminals.get('terminal-b')?.lastProcessState).toBe('running');
         expect(await harness.service.suspendSession('session-a')).toEqual([]);
+    });
+
+    it('logs a resume only for a parked Agent, never for a Shell that later launches an Agent', async () => {
+        const harness = createHarness({ selected: 'session-b' });
+        const shell = terminal('shell-a', 'session-a', { kind: 'shell', provider: undefined });
+        harness.terminals.set(shell.id, shell);
+        harness.live.add(shell.id);
+        harness.service.start();
+        expect(await harness.service.suspendSession('session-a')).toEqual([
+            'terminal-a',
+            'shell-a',
+        ]);
+        harness.service.observeLaunch('shell-a');
+        harness.service.observeLaunch('terminal-a');
+        expect(
+            harness.logs
+                .filter(({ event }) => event === 'terminal.resumed')
+                .map(({ fields }) => fields.terminalId),
+        ).toEqual(['terminal-a']);
     });
 
     it('notices a selection change made outside the select handler at the next sweep', async () => {
@@ -386,5 +424,152 @@ describe('TerminalSuspensionService', () => {
             expect(harness.suspend).toHaveBeenCalledTimes(1);
             expect(harness.terminals.get('terminal-c')?.lastProcessState).toBe('running');
         });
+    });
+});
+
+describe('TerminalSuspensionService: idle suspension', () => {
+    const oneMinute = {
+        'terminal.idleSuspension.afterMinutes': 1,
+        'terminal.idleSuspension.enabled': true,
+    } as const;
+
+    /**
+     * An Agent in a background Session that ran one turn and finished it, so the untouched rule never applies.
+     */
+    function finishedTurn(harness: ReturnType<typeof createHarness>) {
+        harness.service.start();
+        harness.service.observeLaunch('terminal-a');
+        harness.service.observeLifecycle({ phase: 'turnStarted', terminalId: 'terminal-a' });
+        finishTurn(harness);
+    }
+
+    /**
+     * The coordinator applies a completion before the runtime forwards the accepted raw hook.
+     */
+    function finishTurn(harness: ReturnType<typeof createHarness>) {
+        const signal = { phase: 'turnFinished', terminalId: 'terminal-a' } as const;
+        harness.service.observeAppliedLifecycle(signal);
+        harness.service.observeLifecycle(signal);
+    }
+
+    it('parks after the configured window and logs the park and the resume with their durations', async () => {
+        const harness = createHarness({ settings: oneMinute });
+        finishedTurn(harness);
+        harness.advance(59_999);
+        expect(await harness.service.sweep()).toEqual([]);
+        harness.advance(1);
+        expect(await harness.service.sweep()).toEqual(['terminal-a']);
+        expect(harness.suspend).toHaveBeenCalledWith('terminal-a', 'suspended', 'idleSuspended');
+        expect(harness.logs).toContainEqual({
+            event: 'terminal.suspended',
+            fields: {
+                backgroundMs: 60_000,
+                idleMs: 60_000,
+                provider: 'claude',
+                reason: 'idle',
+                sessionId: 'session-a',
+                terminalId: 'terminal-a',
+            },
+        });
+
+        // Selecting the Session runs the interrupted-restore path, whose relaunch reports a new launch.
+        harness.select('session-a');
+        harness.advance(5 * 60_000);
+        harness.service.observeLaunch('terminal-a');
+        expect(harness.logs).toContainEqual({
+            event: 'terminal.resumed',
+            fields: {
+                provider: 'claude',
+                reason: 'idle',
+                sessionId: 'session-a',
+                suspendedForMs: 5 * 60_000,
+                terminalId: 'terminal-a',
+            },
+        });
+        // A later ordinary launch is not another resume.
+        harness.service.observeLaunch('terminal-a');
+        expect(harness.logs.filter(({ event }) => event === 'terminal.resumed')).toHaveLength(1);
+    });
+
+    it('keeps an Agent waiting for a permission until the request resolves', async () => {
+        const harness = createHarness({ settings: oneMinute });
+        finishedTurn(harness);
+        harness.service.observeLifecycle({ phase: 'attentionRequested', terminalId: 'terminal-a' });
+        harness.advance(60 * 60_000);
+        expect(await harness.service.sweep()).toEqual([]);
+        harness.service.observeLifecycle({ phase: 'attentionResolved', terminalId: 'terminal-a' });
+        finishTurn(harness);
+        harness.advance(60_000);
+        expect(await harness.service.sweep()).toEqual(['terminal-a']);
+    });
+
+    it('releases an Agent whose permission prompt the user dismissed with Escape', async () => {
+        const harness = createHarness({ settings: oneMinute });
+        harness.service.start();
+        harness.service.observeLaunch('terminal-a');
+        harness.service.observeLifecycle({ phase: 'turnStarted', terminalId: 'terminal-a' });
+        harness.service.observeLifecycle({ phase: 'attentionRequested', terminalId: 'terminal-a' });
+        // Claude sends no Stop for an interrupted turn, so the Escape is the only end the turn gets.
+        harness.service.observeInput('terminal-a', '\u{1B}');
+        harness.advance(60_000);
+        expect(await harness.service.sweep()).toEqual(['terminal-a']);
+    });
+
+    it('keeps a parent whose completion the coordinator deferred for its background subagents', async () => {
+        const harness = createHarness({ settings: oneMinute });
+        harness.service.start();
+        harness.service.observeLaunch('terminal-a');
+        harness.service.observeLifecycle({ phase: 'turnStarted', terminalId: 'terminal-a' });
+        // The raw Stop is accepted, but the coordinator holds the completion until the subagents finish.
+        harness.service.observeLifecycle({ phase: 'turnFinished', terminalId: 'terminal-a' });
+        harness.advance(60 * 60_000);
+        expect(await harness.service.sweep()).toEqual([]);
+        harness.service.observeAppliedLifecycle({
+            phase: 'turnFinished',
+            terminalId: 'terminal-a',
+        });
+        harness.advance(60_000);
+        expect(await harness.service.sweep()).toEqual(['terminal-a']);
+    });
+
+    it('does not treat a finished subagent as the end of the main turn', async () => {
+        const harness = createHarness({ settings: oneMinute });
+        harness.service.start();
+        harness.service.observeLaunch('terminal-a');
+        harness.service.observeLifecycle({ phase: 'turnStarted', terminalId: 'terminal-a' });
+        harness.service.observeLifecycle({
+            agentId: 'subagent-1',
+            phase: 'turnFinished',
+            terminalId: 'terminal-a',
+        });
+        harness.advance(60 * 60_000);
+        expect(await harness.service.sweep()).toEqual([]);
+    });
+
+    it('leaves a Terminal a phone is observing running', async () => {
+        const harness = createHarness({ settings: oneMinute });
+        finishedTurn(harness);
+        harness.observedRemotely.add('terminal-a');
+        harness.advance(60 * 60_000);
+        expect(await harness.service.sweep()).toEqual([]);
+        harness.observedRemotely.delete('terminal-a');
+        expect(await harness.service.sweep()).toEqual(['terminal-a']);
+    });
+
+    it('leaves an Agent whose Conversation a phone has open running', async () => {
+        const harness = createHarness({ settings: oneMinute });
+        finishedTurn(harness);
+        harness.conversationWatched.add('terminal-a');
+        harness.advance(60 * 60_000);
+        expect(await harness.service.sweep()).toEqual([]);
+        harness.conversationWatched.delete('terminal-a');
+        expect(await harness.service.sweep()).toEqual(['terminal-a']);
+    });
+
+    it('never parks while the setting is off, which is the default', async () => {
+        const harness = createHarness();
+        finishedTurn(harness);
+        harness.advance(24 * 60 * 60_000);
+        expect(await harness.service.sweep()).toEqual([]);
     });
 });

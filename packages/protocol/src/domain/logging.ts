@@ -443,7 +443,18 @@ export const logEventCatalog = {
         restoreCwdRejected: 'terminal.restore_cwd_rejected',
         restoreInterruptedFailed: 'terminal.restore_interrupted_failed',
         resumeSkipped: 'terminal.resume_skipped',
+        /**
+         * An Agent launch that resumed a Terminal this Server Core parked earlier: the closed park `reason` (`idle`,
+         * `untouched`, `archived`, `detached`, `requested`), the provider, and `suspendedForMs`. A park from before a
+         * Server Core restart resumes without this record.
+         */
+        resumed: 'terminal.resumed',
         suspendFailed: 'terminal.suspend_failed',
+        /**
+         * One parked PTY: the closed `reason` (`idle`, `untouched`, `archived`, `detached`, `requested`, `terminated`)
+         * and the provider; the automatic `idle`/`untouched` reasons also carry `idleMs` (time since the Agent's last
+         * activity) and `backgroundMs` (time since its Session was left).
+         */
         suspended: 'terminal.suspended',
         /**
          * One `terminal.switchSurface` request: the closed `outcome` (`switched`, `startedNew` for an Agent with no
