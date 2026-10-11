@@ -5,11 +5,13 @@ import {
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { attachmentsAfterSend } from '../agent-chat-drafts';
+import { agentChatAttachmentLabel, attachmentsAfterSend } from '../agent-chat-drafts';
 import {
     agentChatImageBytes,
     agentChatImageRejection,
     agentChatImageRejectionMessage,
+    agentChatImageReservedBytes,
+    agentChatImageResizeAttempts,
     agentChatImagesUnsupportedMessage,
     agentChatThumbnailSize,
 } from '../agent-chat-images';
@@ -22,7 +24,7 @@ describe('Agent Chat image attachments', () => {
         expect(agentChatImageRejection({ type: 'application/pdf', size: 10 }, empty)).toBe('type');
         expect(
             agentChatImageRejection(
-                { type: 'image/jpeg', size: MAX_AGENT_CHAT_IMAGE_BYTES + 1 },
+                { type: 'image/gif', size: MAX_AGENT_CHAT_IMAGE_BYTES + 1 },
                 empty,
             ),
         ).toBe('size');
@@ -58,6 +60,66 @@ describe('Agent Chat image attachments', () => {
         expect(agentChatImageBytes({ data: btoa('abc') })).toBe(3);
         expect(agentChatImageBytes({ data: btoa('abcd') })).toBe(4);
         expect(agentChatImageBytes({ data: btoa('abcde') })).toBe(5);
+    });
+
+    it.each(['image/png', 'image/jpeg', 'image/webp'])(
+        'accepts an oversized %s so it can be resized instead of refused',
+        (type) => {
+            expect(
+                agentChatImageRejection(
+                    { type, size: MAX_AGENT_CHAT_IMAGE_BYTES * 3 },
+                    { count: 0, bytes: 0 },
+                ),
+            ).toBeUndefined();
+        },
+    );
+
+    it('reserves an oversized image at the per-image limit it will be resized to', () => {
+        expect(agentChatImageReservedBytes({ size: MAX_AGENT_CHAT_IMAGE_BYTES * 3 })).toBe(
+            MAX_AGENT_CHAT_IMAGE_BYTES,
+        );
+        expect(agentChatImageReservedBytes({ size: 1024 })).toBe(1024);
+        // A 15 MB screenshot still fits beside images that leave room for one resized image.
+        expect(
+            agentChatImageRejection(
+                { type: 'image/png', size: MAX_AGENT_CHAT_IMAGE_BYTES * 3 },
+                { count: 2, bytes: MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES - MAX_AGENT_CHAT_IMAGE_BYTES },
+            ),
+        ).toBeUndefined();
+    });
+
+    it('resizes an 8 MB PNG screenshot losslessly, starting near the limit and shrinking further', () => {
+        const attempts = agentChatImageResizeAttempts(5120, 2880, 8 * 1024 * 1024, 'image/png');
+        // sqrt(5 MB * 0.85 / 8 MB) is about 0.729 of each edge.
+        expect(attempts[0]).toEqual({ width: 3732, height: 2099 });
+        expect(attempts.every((attempt) => attempt.quality === undefined)).toBe(true);
+        expect(attempts.at(1)).toEqual({ width: 2985, height: 1679 });
+        expect(attempts).toHaveLength(6);
+    });
+
+    it('steps a photo down in both size and quality, keeping its aspect ratio', () => {
+        const attempts = agentChatImageResizeAttempts(4000, 3000, 20 * 1024 * 1024, 'image/jpeg');
+        expect(attempts.map((attempt) => attempt.quality)).toEqual([
+            0.9, 0.85, 0.8, 0.75, 0.7, 0.65,
+        ]);
+        for (const attempt of attempts)
+            expect(attempt.width / attempt.height).toBeCloseTo(4 / 3, 2);
+    });
+
+    it('stops before an image would become too small to be worth sending', () => {
+        expect(agentChatImageResizeAttempts(600, 400, 200 * 1024 * 1024, 'image/png')).toEqual([]);
+        expect(
+            agentChatImageResizeAttempts(1000, 1000, 8 * 1024 * 1024, 'image/png').map(
+                (attempt) => attempt.width,
+            ),
+        ).toEqual([729, 583, 466, 373]);
+    });
+
+    it('notes a resized image in its alt text', () => {
+        expect(agentChatAttachmentLabel({ name: 'shot.png', isResized: true }, 0)).toBe(
+            'shot.png (resized to fit the 5 mb limit)',
+        );
+        expect(agentChatAttachmentLabel({ name: '' }, 1)).toBe('Attachment 2');
     });
 
     it('sizes thumbnails to cover their previews at 2x while keeping the aspect ratio', () => {
