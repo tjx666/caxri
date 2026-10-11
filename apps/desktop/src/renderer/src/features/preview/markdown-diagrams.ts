@@ -6,8 +6,8 @@ import type Mermaid from 'mermaid';
 import { MemoCache } from '../../lib/memo-cache';
 
 /**
- * Rendered SVG keyed by theme and diagram source, so a keystroke elsewhere in the document does not re-run Mermaid's
- * layout for every diagram in it.
+ * Rendered SVG keyed by the Mermaid theme seed and diagram source, so a keystroke elsewhere in the document does not
+ * re-run Mermaid's layout for every diagram in it.
  */
 const renderedDiagrams = new MemoCache<string>(48);
 /**
@@ -19,7 +19,7 @@ type MermaidModule = typeof Mermaid;
 
 const state = {
     module: undefined as Promise<MermaidModule> | undefined,
-    themeId: undefined as string | undefined,
+    themeKey: undefined as string | undefined,
     sequence: 0,
 };
 
@@ -63,10 +63,18 @@ async function importMermaid(): Promise<MermaidModule> {
     return module.default;
 }
 
-async function loadMermaid(theme: ThemeTokens): Promise<MermaidModule> {
+/**
+ * Identity of the colors Mermaid is seeded with. Keyed on content rather than `theme.id` because editing a custom theme
+ * keeps its id, and an id key would keep painting diagrams with the colors from before the edit.
+ */
+function mermaidThemeKey(theme: ThemeTokens): string {
+    return JSON.stringify(mermaidThemeVariables(theme));
+}
+
+async function loadMermaid(theme: ThemeTokens, themeKey: string): Promise<MermaidModule> {
     state.module ??= importMermaid();
     const mermaid = await state.module;
-    if (state.themeId !== theme.id) {
+    if (state.themeKey !== themeKey) {
         mermaid.initialize({
             startOnLoad: false,
             securityLevel: 'strict',
@@ -74,7 +82,7 @@ async function loadMermaid(theme: ThemeTokens): Promise<MermaidModule> {
             themeVariables: mermaidThemeVariables(theme),
             fontFamily: 'inherit',
         });
-        state.themeId = theme.id;
+        state.themeKey = themeKey;
         renderedDiagrams.clear();
     }
     return mermaid;
@@ -86,13 +94,14 @@ async function renderDiagram(
     theme: ThemeTokens,
     signal: AbortSignal,
 ): Promise<void> {
-    const key = `${theme.id}\0${diagram.source}`;
+    const themeKey = mermaidThemeKey(theme);
+    const key = `${themeKey}\0${diagram.source}`;
     const cached = renderedDiagrams.get(key);
     if (cached !== undefined) {
         element.innerHTML = cached;
         return;
     }
-    const mermaid = await loadMermaid(theme);
+    const mermaid = await loadMermaid(theme, themeKey);
     if (signal.aborted) return;
     state.sequence += 1;
     // Mermaid needs a document-unique id: it mounts a scratch copy of the diagram while measuring text.

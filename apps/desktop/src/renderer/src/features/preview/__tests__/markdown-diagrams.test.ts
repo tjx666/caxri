@@ -2,7 +2,8 @@ import { draculaTheme } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const render = vi.fn<(id: string, source: string) => Promise<{ svg: string }>>();
-vi.mock('mermaid', () => ({ default: { initialize: vi.fn(), render } }));
+const initialize = vi.fn<(config: { themeVariables?: Record<string, string> }) => void>();
+vi.mock('mermaid', () => ({ default: { initialize, render } }));
 
 class DiagramElement {
     html = '';
@@ -38,6 +39,7 @@ async function fixture(count: number) {
 afterEach(() => {
     vi.unstubAllGlobals();
     render.mockReset();
+    initialize.mockReset();
 });
 
 describe('Markdown diagram scheduling', () => {
@@ -99,5 +101,25 @@ describe('Markdown diagram scheduling', () => {
             diagrams[1].source,
             diagrams[2].source,
         ]);
+    });
+
+    it('re-seeds Mermaid and misses the cache when an edited custom theme keeps its id', async () => {
+        render.mockImplementation((_id, source) =>
+            Promise.resolve({ svg: `<svg>${source}</svg>` }),
+        );
+        const { container, diagrams, renderDiagrams } = await fixture(1);
+        const signal = new AbortController().signal;
+        await renderDiagrams(container, diagrams, draculaTheme, signal);
+        const edited = {
+            ...draculaTheme,
+            colors: { ...draculaTheme.colors, elevated: '#123456' },
+        };
+        await renderDiagrams(container, diagrams, edited, signal);
+        expect(render).toHaveBeenCalledTimes(2);
+        expect(initialize).toHaveBeenCalledTimes(2);
+        expect(initialize.mock.calls[1]?.[0].themeVariables?.primaryColor).toBe('#123456');
+        await renderDiagrams(container, diagrams, edited, signal);
+        expect(render).toHaveBeenCalledTimes(2);
+        expect(initialize).toHaveBeenCalledTimes(2);
     });
 });
