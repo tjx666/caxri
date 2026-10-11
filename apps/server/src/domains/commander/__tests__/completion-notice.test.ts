@@ -2,12 +2,8 @@ import type { AgentDelegationReceipt, SessionRecord } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AgentLifecycleSignal } from '../../agents';
-import {
-    classifyCommanderCompletionNotice,
-    CommanderCompletionNotifier,
-    formatCommanderCompletionNotice,
-    formatCommanderResumePrompt,
-} from '../completion-notice';
+import { classifyCommanderCompletionNotice, CommanderCompletionNotifier } from '../completion-notice';
+import { formatCommanderCompletionNotice, formatCommanderResumePrompt } from '../notice-text';
 import { pendingStore } from './pending-notices-fake';
 
 function receipt(overrides: Partial<AgentDelegationReceipt> = {}): AgentDelegationReceipt {
@@ -62,6 +58,20 @@ describe('formatCommanderCompletionNotice', () => {
         expect(text).toBe(
             '[Caxri notice] 3 delegation updates: delegation d1 in Session s1 completed; ' +
                 'delegation d2 in Session s2 failed; delegation d3 in Session s3 needs your input.',
+        );
+    });
+
+    it('names Inbox events by item ID only, and counts mixed updates together', () => {
+        expect(formatCommanderCompletionNotice([], [{ itemId: 'i1', event: 'replied' }])).toBe(
+            '[Caxri notice] 1 inbox update: inbox item i1 has a new reply.',
+        );
+        expect(
+            formatCommanderCompletionNotice(
+                [{ delegationId: 'd1', sessionId: 's1', status: 'completed' }],
+                [{ itemId: 'i1', event: 'merged' }],
+            ),
+        ).toBe(
+            '[Caxri notice] 2 updates: delegation d1 in Session s1 completed; inbox item i1 was merged.',
         );
     });
 
@@ -201,6 +211,29 @@ describe('CommanderCompletionNotifier', () => {
         f.finishTurn('launch-1', 'turn-1');
         f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
         expect(f.writeCalls).toHaveLength(1);
+    });
+
+    it('delivers an Inbox event at the next idle point, keeping only the latest event per item', () => {
+        f.startTurn('launch-1');
+        f.notifier.notifyInbox('item-1', 'replied');
+        f.notifier.notifyInbox('item-1', 'dismissed');
+        f.notifier.notifyReceiptChanged(receipt({ status: 'completed' }));
+        expect(f.writeCalls).toHaveLength(0);
+        f.finishTurn('launch-1', 'turn-1');
+        expect(f.writeCalls).toHaveLength(1);
+        expect(f.writeCalls[0].data).toBe(
+            '[Caxri notice] 2 updates: delegation delegation-1 in Session session-1 completed; ' +
+                'inbox item item-1 was dismissed by the user.\r',
+        );
+    });
+
+    it('drops an Inbox event while no Commander Terminal exists', () => {
+        f.rows.terminalId = undefined;
+        f.notifier.notifyInbox('item-1', 'replied');
+        f.rows.terminalId = COMMANDER_TERMINAL_ID;
+        f.startTurn('launch-1');
+        f.finishTurn('launch-1', 'turn-1');
+        expect(f.writeCalls).toHaveLength(0);
     });
 
     it('coalesces several pending transitions into exactly one write', () => {
@@ -479,6 +512,7 @@ describe('CommanderCompletionNotifier', () => {
         expect(fieldsOf('completion_notice_delivered')).toEqual([
             {
                 count: 1,
+                inboxCount: 0,
                 waitMs: fieldsOf('completion_notice_delivered')[0].waitMs,
                 blockedTurns: 1,
             },

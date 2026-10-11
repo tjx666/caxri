@@ -53,6 +53,7 @@ import { deliveryKeys, DeliveryWatch, isInFlight } from './watch';
 
 export { extractLinearReferences } from './external';
 export type { ProjectStatusServiceOptions } from './options';
+export { parseGitHubPullRequest } from './parse';
 export { SessionPullRequestService } from './session-pull-requests';
 export { VercelDeploymentStore } from './vercel-store';
 export { parseGitHubRemote } from '@caxri/utils';
@@ -83,7 +84,6 @@ const SLOW_LOCAL_PREPARE_MS = 250;
  */
 const POLL_MIN_DELAY_MS = 15_000;
 const POLL_MAX_DELAY_MS = 5 * 60_000;
-type RepoContext = BranchPublicationContext;
 
 export class ProjectStatusService {
     private readonly requests = new SingleFlight<string, ProjectStatusSummary>();
@@ -367,7 +367,7 @@ export class ProjectStatusService {
 
     private async loadGitHub(
         cwd: string,
-        context: RepoContext,
+        context: BranchPublicationContext,
         isForced: boolean,
         number: number | undefined,
     ): Promise<

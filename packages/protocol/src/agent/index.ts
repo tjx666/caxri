@@ -7,6 +7,7 @@ export * from './agent-chat-requests.js';
 export * from './agent-chat-rewind.js';
 export * from './agent-chat-usage.js';
 export * from './agent-commander-contract.js';
+export * from './agent-commander-inbox-contract.js';
 export * from './agent-delegation-contract.js';
 export * from './agent-delegation-settings.js';
 export * from './agent-delegation-usage.js';

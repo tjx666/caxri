@@ -2,16 +2,17 @@ import { useEffect, useState } from 'react';
 
 import { debounce } from 'es-toolkit';
 
-import { caxri } from '../../lib/caxri';
-import { caxriQueryKey, queryClient } from '../../queries/client';
-import { describeFailure } from '../../stores/toasts';
-import { refreshWorkbench, useWorkbenchStore } from '../../stores/workbench';
+import { caxri } from '../../../lib/caxri';
+import { caxriQueryKey, queryClient } from '../../../queries/client';
+import { describeFailure } from '../../../stores/toasts';
+import { refreshWorkbench, useWorkbenchStore } from '../../../stores/workbench';
 import {
     ensureAgentCommander,
     refreshCommanderBoardPullRequests,
     useAgentCommanderStore,
-} from './commander-client';
-import { commanderEventEffect } from './commander-events';
+} from '../commander-client';
+import { commanderEventEffect } from '../commander-events';
+import { invalidateCommanderInbox } from '../commander-inbox-commands';
 
 /**
  * Long enough to fold one burst of `state.changed` (a delegation touches a Session, its Terminal, and its Project) into
@@ -90,6 +91,9 @@ export function useAgentCommander(): { retry: () => void; status: AgentCommander
                 }));
             if (effect.snapshot) refreshCommanderSnapshot();
             if (effect.board) refetchBoard();
+            // Fire-and-forget: the Inbox query surfaces its own failure in the Inbox column.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            if (effect.inbox) void invalidateCommanderInbox();
             if (effect.pullRequestSessionIds.length > 0) {
                 for (const sessionId of effect.pullRequestSessionIds)
                     pullRequestSessionIds.add(sessionId);

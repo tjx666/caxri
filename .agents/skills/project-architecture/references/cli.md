@@ -41,7 +41,9 @@ Endpoint, generation, and launch identity; restart, exit, close, deletion, Serve
 expiry revoke it. The inherited Agent credential supplies same-Project read capabilities by default,
 while bounded generation grants add debug, business-write, or Agent-control capabilities. The Agent
 Commander's Endpoint alone carries the fixed `commander` capability for `commander board`,
-`commander session create`, and the `commander task` ledger (see `docs/agent-commander.md`). A Shell
+`commander session create`, the `commander task` ledger, and the Commander's side of the Inbox
+(`commander inbox add|list|show|ack|resolve`); replying, dismissing, and merging require `desktop` (see
+`docs/agent-commander.md`). A Shell
 promotion never receives an Endpoint. These bearer capabilities are a product authorization boundary,
 not a sandbox from same-user code that can independently read the private owner manifest.
 

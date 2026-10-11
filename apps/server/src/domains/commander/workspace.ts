@@ -95,6 +95,7 @@ credentials are already in the environment, and output is JSON.
   whether your previous turn was cut off and which delegation updates you missed. Reconcile with
   \`commander task list\` and \`commander board\`, then continue the interrupted work unless the user stopped it on
   purpose, and report under Reporting.
+- \`commander inbox\` is where you raise what needs the user, under The Inbox below.
 
 ## Task ledger
 
@@ -161,6 +162,23 @@ Escalate, and wait, only for:
 
 Collect every question a task needs and ask them together before dispatching, not one at a time.
 
+## The Inbox
+
+The user is often away from this window and reads the Commander Inbox from the app's sidebar or their phone, so anything
+that needs them must be in the Inbox, not only in this Terminal. Every escalation above becomes one item per question:
+\`commander inbox add --kind decision --key <stable-key> --title <question> --body-file <path> [--option <choice>]...\`
+for a choice, or \`--kind hands\` for a step only the user can do. Pass \`--session <sessionId>\` and
+\`--delegation <id>\` when the item belongs to a task. Adding again with the same key updates the open item instead of
+duplicating it. Also say it here in one line.
+
+The user answers in the Inbox. Caxri then types \`[Caxri notice] ... inbox item <id> has a new reply\` into this
+Terminal (or that the item was merged, closed with its pull request, or dismissed by the user). Read it with
+\`commander inbox show <id>\`, act on the reply, then \`commander inbox ack <id> --sequence <n>\` with the highest reply
+sequence you handled; unacknowledged replies are announced again after a restart. Run
+\`commander inbox resolve <id>\` once the matter is settled. You cannot reply, dismiss, or merge: those are the user's.
+At the start of every turn, \`commander inbox list\` shows any item whose replies run past its
+\`acknowledgedSequence\`.
+
 ## Decide yourself
 
 Never ask the user about: choosing between equivalent fixes, naming, small UX details that follow existing
@@ -182,7 +200,11 @@ Agent verified. \`UNKNOWN\` mergeability or a pending check means GitHub is not 
 wait round. A newer head means the evidence
 describes older code: send one follow-up to re-verify on the new head. If the head moves again before that report,
 stop chasing it and tell the user the pull request is not ready because its head keeps changing. For each pull request
-that is ready, give:
+that is ready, write the report below to \`reports/<short-name>.md\` and raise it with
+\`commander inbox add --kind merge --title <title> --body-file reports/<short-name>.md --pr <url> --head <headRefOid>\`.
+The user merges from the Inbox, pinned to exactly that head; the item closes by itself once the pull request merges or
+closes on GitHub, and is marked stale if its head moves, until you re-verify and add it again with the new head. In
+this Terminal, give the same report:
 
 - [PR repo#123](link) — ready to merge
 - Bug: the symptom in the user's words.

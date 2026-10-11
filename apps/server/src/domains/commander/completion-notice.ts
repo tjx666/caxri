@@ -1,5 +1,5 @@
 import type { AgentDelegationReceipt } from '@caxri/protocol';
-import { isChatTerminal, normalizeTerminalTitle } from '@caxri/protocol';
+import { isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -7,19 +7,13 @@ import type { AgentChatService } from '../agent-chat';
 import type { AgentCoordinator, AgentLifecycleSignal } from '../agents';
 import type { CaxriDatabase, CommanderPendingNoticesModel, DeliveredNotice } from '../db';
 import type { TerminalManager } from '../terminal';
-
-/**
- * How a delegation's terminal transition reads in the Commander Terminal. `needsInput` covers both a startup prompt
- * (`startup_waiting`) and an in-task permission request (`permission_required`): both need the user's hands, and the
- * board already groups both under `attention` for the same reason.
- */
-export type CommanderCompletionNoticeStatus = 'completed' | 'failed' | 'needsInput';
-
-export interface CommanderCompletionNoticeEntry {
-    delegationId: string;
-    sessionId: string;
-    status: CommanderCompletionNoticeStatus;
-}
+import {
+    type CommanderInboxNoticeEntry,
+    type CommanderCompletionNoticeStatus,
+    type CommanderInboxNoticeEvent,
+    formatCommanderCompletionNotice,
+    formatCommanderResumePrompt,
+} from './notice-text';
 
 /**
  * Why a consumed notice batch's PTY write did not provably land. Both are rare: the Commander Terminal was just
@@ -54,23 +48,6 @@ export type CommanderCompletionNoticeDeferral =
      */
     | 'awaiting_permission';
 
-const STATUS_LABEL: Record<CommanderCompletionNoticeStatus, string> = {
-    completed: 'completed',
-    failed: 'failed',
-    needsInput: 'needs your input',
-};
-
-/**
- * Flattens a value this module writes into the Commander Terminal to one control-character-free line, reusing the same
- * flatten/sanitize/cap `normalizeTerminalTitle` already applies to untrusted PTY and Agent-reported titles
- * (`packages/protocol/src/domain/terminal-title.ts`). Belt-and-suspenders here: these values already come from
- * validated records, but this text becomes literal PTY input, a stronger trust boundary than a JSON field, and an empty
- * identifier must still render as something rather than silently disappearing from the line.
- */
-function sanitizeSingleLine(value: string): string {
-    return normalizeTerminalTitle(value) ?? '?';
-}
-
 /**
  * Classifies a delegation receipt into the notice it should raise, or `undefined` when the transition is not one the
  * Commander needs pushed to it (an in-flight status, a human takeover, or an interrupted/stopped task the Commander
@@ -87,48 +64,6 @@ export function classifyCommanderCompletionNotice(
     )
         return 'needsInput';
     return undefined;
-}
-
-/**
- * Builds the single injected line for one or more coalesced transitions. Content is Server-generated only: a delegation
- * ID, a Session ID, and a closed status word, never a transcript or Agent-authored text. Multiple pending transitions
- * join into this one line instead of one injection per delegation, so a Commander that was busy through several
- * completions still receives exactly one line to read.
- */
-export function formatCommanderCompletionNotice(
-    entries: readonly CommanderCompletionNoticeEntry[],
-): string {
-    const clauses = entries.map(
-        (entry) =>
-            `delegation ${sanitizeSingleLine(entry.delegationId)} in Session ${sanitizeSingleLine(
-                entry.sessionId,
-            )} ${STATUS_LABEL[entry.status]}`,
-    );
-    const summary =
-        entries.length === 1 ? '1 delegation update' : `${entries.length} delegation updates`;
-    return `[Caxri notice] ${summary}: ${clauses.join('; ')}.`;
-}
-
-/**
- * The line a relaunched Commander receives as its first prompt. It names what the Commander missed while it was not
- * running (a turn that never finished, delegations that settled), never what they produced, and tells it to reconcile
- * before acting. Server-generated only, like every notice.
- */
-export function formatCommanderResumePrompt(
-    entries: readonly CommanderCompletionNoticeEntry[],
-    wasTurnInterrupted: boolean,
-): string {
-    const parts = ['[Caxri notice] The Agent Commander restarted.'];
-    if (wasTurnInterrupted)
-        parts.push(
-            'Your previous turn did not finish: Caxri or Codex restarted, or the turn was interrupted. Continue it unless the user stopped it on purpose.',
-        );
-    if (entries.length > 0)
-        parts.push(formatCommanderCompletionNotice(entries).replace('[Caxri notice] ', 'Missed '));
-    parts.push(
-        'Reconcile with `commander task list` and `commander board` before you act, then report under Reporting.',
-    );
-    return parts.join(' ');
 }
 
 export interface CommanderCompletionNotifierOptions {
@@ -203,6 +138,11 @@ interface LaunchPromptClaim {
  * between spawn and that report repeats them on the next launch rather than losing them.
  */
 export class CommanderCompletionNotifier {
+    /**
+     * Inbox events by item, in memory only: the Inbox service re-queues unacknowledged replies after a restart. A later
+     * event replaces an earlier one, since the Commander reads the item's current state with `commander inbox show`.
+     */
+    private readonly pendingInbox = new Map<string, CommanderInboxNoticeEntry & { queuedAt: number }>();
     /**
      * Highest receipt revision already turned into a pending or delivered notice, per delegation. Guards against a
      * duplicate `notifyReceiptChanged` call re-queuing the same transition; `AgentDelegationService.save` already
@@ -297,7 +237,9 @@ export class CommanderCompletionNotifier {
      */
     private tryFlush(terminalId: string, isTurnFinished = false): void {
         const pending = this.pendingDelegations();
-        if (pending.length === 0) return;
+        const inbox = this.pendingInbox.values().toArray();
+        const pendingCount = pending.length + inbox.length;
+        if (pendingCount === 0) return;
         const deferral = this.deferral(terminalId);
         if (deferral) {
             if (isTurnFinished) this.blockedTurns += 1;
@@ -309,7 +251,7 @@ export class CommanderCompletionNotifier {
                     {
                         fields: {
                             reason: deferral,
-                            pendingCount: pending.length,
+                            pendingCount,
                             blockedTurns: this.blockedTurns,
                             ...(deferral === 'draft_input' && {
                                 inputsSinceTurnStart: this.inputsSinceTurnStart(terminalId),
@@ -327,7 +269,9 @@ export class CommanderCompletionNotifier {
          * consume-before-send comment for the identical reason.
          */
         this.options.database.commanderPendingNotices.removeDelegations(pending);
-        const waitMs = Math.max(0, this.now() - pending[0].queuedAt);
+        this.pendingInbox.clear();
+        const queuedAt = [...pending, ...inbox].map((notice) => notice.queuedAt);
+        const waitMs = Math.max(0, this.now() - Math.min(...queuedAt));
         const { blockedTurns } = this;
         this.resetBatch();
         /**
@@ -339,7 +283,7 @@ export class CommanderCompletionNotifier {
          * pair, so at most one write happens per proven-idle turn.
          */
         this.lastFinishedTurn = undefined;
-        const text = formatCommanderCompletionNotice(pending);
+        const text = formatCommanderCompletionNotice(pending, inbox);
         const accepted = this.options.write(terminalId, text, finished.launchId, (wasAccepted) => {
             if (!wasAccepted) this.reportDeliveryFailed('unconfirmed');
         });
@@ -348,7 +292,9 @@ export class CommanderCompletionNotifier {
             this.options.logger?.write(
                 'info',
                 logEventCatalog.agentCommander.completionNoticeDelivered,
-                { fields: { count: pending.length, waitMs, blockedTurns } },
+                {
+                    fields: { count: pendingCount, inboxCount: inbox.length, waitMs, blockedTurns },
+                },
             );
     }
 
@@ -509,7 +455,25 @@ export class CommanderCompletionNotifier {
                 delegationId: receipt.delegationId,
                 sessionId: receipt.sessionId,
                 status,
-                pendingCount: this.pendingDelegations().length,
+                pendingCount: this.pendingDelegations().length + this.pendingInbox.size,
+            },
+        });
+        this.tryFlush(rows.terminalId);
+    }
+
+    /**
+     * Queues one Inbox event for the Commander. Content-free like a delegation notice: the line names only the item ID
+     * and a closed event word, and the Commander reads the reply itself with `commander inbox show`.
+     */
+    notifyInbox(itemId: string, event: CommanderInboxNoticeEvent): void {
+        const rows = this.options.database.agentCommanderRows();
+        if (!rows?.terminalId) return;
+        this.pendingInbox.set(itemId, { itemId, event, queuedAt: this.now() });
+        this.options.logger?.write('debug', logEventCatalog.agentCommander.completionNoticeQueued, {
+            fields: {
+                itemId,
+                inboxEvent: event,
+                pendingCount: this.pendingDelegations().length + this.pendingInbox.size,
             },
         });
         this.tryFlush(rows.terminalId);

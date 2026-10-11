@@ -1,6 +1,7 @@
 /**
  * Agent Commander events of the structured-log registry (`logEventCatalog.agentCommander` in `./logging.ts`): the
- * Commander window, its Server lifecycle, completion notices, and its task ledger.
+ * Commander window, its Server lifecycle, completion notices, its task ledger, and the
+ * Commander Inbox.
  */
 export const agentCommanderLogEvents = {
     consoleError: 'agent_commander.console_error',
@@ -59,6 +60,31 @@ export const agentCommanderLogEvents = {
      * A Commander task changed status: `fields.from`, `fields.to`, and the task's `ageMs`.
      */
     taskTransitioned: 'agent_commander.task_transitioned',
+    /**
+     * The Commander added an Inbox item or replaced the open one with the same key. Fields are the item ID, its closed
+     * `kind`, and `outcome` (`added` or `updated`); never its title or body.
+     */
+    inboxItemReported: 'agent_commander.inbox_item_reported',
+    /**
+     * An Inbox item closed. `fields.reason` is a closed `CommanderInboxCloseReason`, with the item's `kind`, its
+     * `openMs` lifetime, and its reply count, so how long the owner takes to act is measurable per kind.
+     */
+    inboxItemClosed: 'agent_commander.inbox_item_closed',
+    /**
+     * The owner replied to an Inbox item. Fields are the item ID, its `kind`, the reply `sequence`, and the reply
+     * `source` (`desktop` or `mobile`); never the reply text.
+     */
+    inboxReplied: 'agent_commander.inbox_replied',
+    /**
+     * A `merge` item's evidence went stale or became current again. `fields.reason` is the closed
+     * `CommanderInboxStaleReason`, or `null` when cleared.
+     */
+    inboxStaleChanged: 'agent_commander.inbox_stale_changed',
+    /**
+     * Refreshing one `merge` item's pull request from GitHub failed. `fields.kind` is the shared CLI failure class; the
+     * item keeps its last known state rather than being closed.
+     */
+    inboxPullRequestRefreshFailed: 'agent_commander.inbox_pull_request_refresh_failed',
     pageException: 'agent_commander.page_exception',
     preloadError: 'agent_commander.preload_error',
     renderProcessCrashLoop: 'agent_commander.render_process_crash_loop',

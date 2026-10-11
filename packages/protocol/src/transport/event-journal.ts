@@ -25,6 +25,7 @@ export type TransientServerEvent = Extract<
             | 'agent.message.receipt'
             | 'agent.messaging.changed'
             | 'command.execute'
+            | 'commanderInbox.changed'
             | 'desktop.openRequested'
             | 'host.connectionChanged'
             | 'gpu.recoveryRequested'
@@ -64,6 +65,11 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
     'agent.message.held',
     'agent.message.receipt',
     'command.execute',
+    /**
+     * An Inbox reader that missed this re-reads the whole list on reconnect, and the list is small and bounded, so a
+     * replay would only repeat that read.
+     */
+    'commanderInbox.changed',
     'desktop.openRequested',
     /**
      * A one-shot Main-side resync trigger: replaying it after the Renderer already re-attached would only force a

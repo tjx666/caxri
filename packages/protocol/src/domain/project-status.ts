@@ -2,11 +2,13 @@ import { z } from 'zod';
 
 import { logLevelSchema } from './business-contract.js';
 import { hexColorSchema } from './color.js';
-import { projectStatusStateSchema } from './project-status-state.js';
+import { projectStatusStateSchema, pullRequestMergeStateSchema } from './project-status-state.js';
 import {
     pullRequestUnavailableSchema,
     sessionPullRequestStateSchema,
 } from './session-pull-request.js';
+
+export { pullRequestMergeStateSchema } from './project-status-state.js';
 
 /**
  * Project Status wire shapes: the per-repository rollup the Status panel renders and the compact overview the Session
@@ -168,21 +170,6 @@ const projectStatusErrorSchema = z.object({
     retryAt: z.number().optional(),
     logs: projectStatusErrorLogsSchema.optional(),
 });
-
-/**
- * Whether GitHub would merge the pull request right now, reduced from its `mergeable` and `mergeStateStatus` fields.
- * `clean` merges as is; `unstable` has a non-required check that is failing or still running; `blocked` is waiting on a
- * branch-protection requirement such as a required check or review; `behind` must be updated with its base first;
- * `conflicting` cannot merge until its conflicts are resolved; `unknown` means GitHub has not finished computing it.
- */
-export const pullRequestMergeStateSchema = z.enum([
-    'clean',
-    'unstable',
-    'blocked',
-    'behind',
-    'conflicting',
-    'unknown',
-]);
 
 const projectStatusRepoSchema = z.object({
     id: z.string(),

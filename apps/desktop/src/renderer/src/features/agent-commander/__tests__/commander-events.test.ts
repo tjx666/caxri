@@ -31,6 +31,7 @@ describe('commanderEventEffect', () => {
         ).toEqual({
             board: true,
             ensure: false,
+            inbox: false,
             pullRequestSessionIds: [],
             reattach: false,
             snapshot: true,
@@ -47,6 +48,7 @@ describe('commanderEventEffect', () => {
         ).toEqual({
             board: true,
             ensure: false,
+            inbox: false,
             pullRequestSessionIds: [],
             reattach: false,
             snapshot: false,
@@ -87,6 +89,7 @@ describe('commanderEventEffect', () => {
         expect(commanderEventEffect(serverEvent, identity)).toEqual({
             board: true,
             ensure: shouldEnsure,
+            inbox: true,
             pullRequestSessionIds: [],
             reattach: true,
             snapshot: true,
@@ -97,6 +100,7 @@ describe('commanderEventEffect', () => {
         const none = {
             board: false,
             ensure: false,
+            inbox: false,
             pullRequestSessionIds: [],
             reattach: false,
             snapshot: false,
@@ -117,6 +121,7 @@ describe('commanderEventEffect', () => {
             expect(commanderEventEffect(event(name, {}), identity)).toEqual({
                 board: false,
                 ensure: false,
+                inbox: false,
                 pullRequestSessionIds: [],
                 reattach: false,
                 snapshot: true,
@@ -140,7 +145,24 @@ describe('commanderEventEffect', () => {
         ).toEqual({
             board: false,
             ensure: false,
+            inbox: false,
             pullRequestSessionIds: ['session-1', 'session-2'],
+            reattach: false,
+            snapshot: false,
+        });
+    });
+
+    it('re-reads the Inbox, and only the Inbox, when it changes', () => {
+        expect(
+            commanderEventEffect(
+                event('commanderInbox.changed', { itemIds: ['item-1'] }),
+                identity,
+            ),
+        ).toEqual({
+            board: false,
+            ensure: false,
+            inbox: true,
+            pullRequestSessionIds: [],
             reattach: false,
             snapshot: false,
         });
@@ -150,6 +172,7 @@ describe('commanderEventEffect', () => {
         const none = {
             board: false,
             ensure: false,
+            inbox: false,
             pullRequestSessionIds: [],
             reattach: false,
             snapshot: false,

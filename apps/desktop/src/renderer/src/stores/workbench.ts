@@ -30,6 +30,7 @@ import { mergeStructurally } from './structural-sharing';
 import { describeFailure, isCancelledRequest, pushToast } from './toasts';
 import type { WorkbenchEventHandlers } from './workbench-event-handlers';
 import { recordAgentNotification, recordProjectStatusAlert } from './workbench-event-notifications';
+import { isWorkbenchIgnoredEvent } from './workbench-ignored-events';
 import { reportWorkbenchRootChange } from './workbench-root-notice';
 import {
     applyPendingSessionPatches,
@@ -612,6 +613,7 @@ function currentWorkbenchProjectId(sessionId: string): string | undefined {
  */
 export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () => void {
     return caxri.onEvent((event) => {
+        if (isWorkbenchIgnoredEvent(event)) return;
         switch (event.event) {
             case 'state.changed': {
                 const refresh = applyStateChange(event.payload);
@@ -727,34 +729,6 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 return;
             case 'projectStatus.alert':
                 recordProjectStatusAlert(event.payload);
-                return;
-            case 'agent.dispatch.changed':
-            case 'agentChat.patch':
-            case 'agentChat.taskPatch':
-            case 'viewContainers.catalogChanged':
-            case 'viewContainers.treeChanged':
-            case 'viewContainers.viewChanged':
-            case 'agent.message.held':
-            case 'agent.message.receipt':
-            case 'agent.messaging.changed':
-            case 'agent.permissionAutoAllowChanged':
-            case 'agentTranscript.changed':
-            case 'agentHooks.changed':
-            case 'files.changed':
-            case 'files.operationChanged':
-            case 'git.changed':
-            case 'gitReview.changed':
-            case 'projectStatus.changed':
-            case 'sessionPullRequests.changed':
-            case 'terminal.exit':
-            case 'terminal.output':
-            case 'terminal.sizeOwnership':
-            case 'updates.state':
-                // `agent.permissionAutoAllowChanged` (issue caxri#1295) goes to `subscribeRuntimeQueryInvalidation` in
-                // `queries/invalidation.ts`, which refreshes the Session row menu's `session.permissionAutoAllowStatus`
-                // read; nothing here to update. `gitReview.changed` (issue caxri#1294) likewise refreshes
-                // `gitReview.list` and `gitReview.pending`. `agentChat.patch` and `agentChat.taskPatch` update cached
-                // snapshots through `subscribeAgentChatPatches`.
                 return;
             default:
                 return assertNever(event, 'Unhandled workbench Runtime event');
