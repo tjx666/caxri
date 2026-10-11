@@ -136,8 +136,9 @@ describe('usageEmptyState', () => {
         agentSessions: number,
         tokens: number,
         outsideCaxri?: { agentSessions: number; pendingScans: number },
+        pendingScans = 0,
     ) => ({
-        coverage: { agentSessions, outsideCaxri },
+        coverage: { agentSessions, pendingScans, outsideCaxri },
         totals: { tokens: { total: tokens } },
     });
 
@@ -150,6 +151,12 @@ describe('usageEmptyState', () => {
         expect(
             usageEmptyState(report(0, 0, { agentSessions: 2, pendingScans: 0 }), undefined),
         ).toBeUndefined();
+    });
+
+    it('waits for the background ledger scan in the Caxri scope too', () => {
+        expect(usageEmptyState(report(3, 0, undefined, 3), undefined)).toEqual({
+            kind: 'scanning',
+        });
     });
 
     it('names the filtered Agent when it used nothing in the range', () => {
@@ -205,12 +212,16 @@ describe('usage page captions', () => {
     });
 
     it('shows scan progress only while transcripts remain', () => {
-        const coverage = (pendingScans: number) => ({
-            coverage: { outsideCaxri: { agentSessions: 0, pendingScans } },
+        const coverage = (pendingScans: number, ledger = 0) => ({
+            coverage: { pendingScans: ledger, outsideCaxri: { agentSessions: 0, pendingScans } },
         });
         expect(usageScanCaption(coverage(1_234))).toBe('Reading 1,234 more transcripts…');
+        expect(usageScanCaption(coverage(1_234, 6))).toBe('Reading 1,240 more transcripts…');
         expect(usageScanCaption(coverage(0))).toBeUndefined();
-        expect(usageScanCaption({ coverage: {} })).toBeUndefined();
+        expect(usageScanCaption({ coverage: { pendingScans: 1 } })).toBe(
+            'Reading 1 more transcript…',
+        );
+        expect(usageScanCaption({ coverage: { pendingScans: 0 } })).toBeUndefined();
     });
 
     it('says what the coverage counts for each scope', () => {
@@ -219,6 +230,7 @@ describe('usage page captions', () => {
             coverage: {
                 agentSessions: 2,
                 unavailable: 0,
+                pendingScans: 0,
                 pendingPullRequests: 0,
                 unpricedModels: [],
             },
@@ -235,6 +247,23 @@ describe('usage page captions', () => {
         ).toBe(
             'Counts 2 Agent conversations started in Caxri Sessions, including archived and deleted Sessions, plus 5 run outside Caxri on this Mac.',
         );
+    });
+
+    it('calls a transcript missing only once the scan has looked for it', () => {
+        const coverage = (pendingScans: number) =>
+            usageCoverageNotes({
+                pricing: { source: 'bundled' },
+                scope: 'caxri',
+                coverage: {
+                    agentSessions: 2,
+                    unavailable: 1,
+                    pendingScans,
+                    pendingPullRequests: 0,
+                    unpricedModels: [],
+                },
+            }).join(' ');
+        expect(coverage(0)).toContain('1 conversation has no transcript on this machine');
+        expect(coverage(2)).not.toContain('no transcript');
     });
 });
 

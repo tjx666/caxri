@@ -22,6 +22,7 @@ import type {
     AgentChatProviderSession,
     AgentChatResponse,
     AgentChatSessionHost,
+    ChatForkTarget,
     ChatInputOptions,
     ChatProcessEnd,
     ChatRewindTarget,
@@ -36,7 +37,7 @@ import {
     grokUsage,
 } from './grok-items';
 import { GrokRequestBroker } from './grok-requests';
-import { rewindGrokSession } from './grok-rewind';
+import { forkGrokSession, rewindGrokSession } from './grok-rewind';
 import {
     failGrokStart,
     grokSessionParameters,
@@ -497,6 +498,22 @@ class GrokChatSession implements AgentChatProviderSession {
     rewind(target: ChatRewindTarget): Promise<undefined> {
         const snapshot = this.options.read();
         return rewindGrokSession(this.requireConnection(), this.sessionId, snapshot, target);
+    }
+
+    fork(target: ChatForkTarget): Promise<string> {
+        const source = { sessionId: this.sessionId, cwd: this.options.cwd };
+        return forkGrokSession(this.requireConnection(), source, this.options.read(), target);
+    }
+
+    async restoreFiles(target: ChatRewindTarget): Promise<void> {
+        const snapshot = this.options.read();
+        await rewindGrokSession(
+            this.requireConnection(),
+            this.sessionId,
+            snapshot,
+            target,
+            'files',
+        );
     }
 
     async interrupt(): Promise<void> {

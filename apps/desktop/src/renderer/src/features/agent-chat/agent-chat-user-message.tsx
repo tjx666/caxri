@@ -1,4 +1,6 @@
-import { Undo2 } from 'lucide-react';
+import { useState } from 'react';
+
+import { GitFork, History, Undo2 } from 'lucide-react';
 
 import { writeToClipboardWithFeedback } from '../../components/copy-feedback';
 import { CopyIconButton } from '../../components/markdown/copy-icon-button';
@@ -21,7 +23,10 @@ import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
  * (see `agentChatDeliveryCaption`). Under it, a row with the time it was sent and a Copy action appears while the
  * pointer is over the message or keyboard focus reaches it, as under a final reply; the row keeps its height, so
  * revealing it never shifts the transcript. A message that started a turn also offers "Edit from here", which puts its
- * text back into the composer to send in its place; the message being edited keeps an accent outline until then.
+ * text back into the composer to send in its place (the message being edited keeps an accent outline until then), "Fork
+ * from here", which opens the conversation before it in a new Session with its text in the composer, and, when the
+ * provider restores files, "Restore code to here", which reverts the files changed since and keeps the conversation, as
+ * Claude Code's `/rewind` "Restore code" does.
  */
 export function AgentChatUserMessage({
     createdAt,
@@ -48,7 +53,10 @@ export function AgentChatUserMessage({
     const edit = useAgentChatEdit();
     const isEditing = edit?.editingId === id;
     const hasActions =
-        text !== '' || createdAt !== undefined || edit?.availability(id) !== undefined;
+        text !== '' ||
+        createdAt !== undefined ||
+        edit?.availability(id) !== undefined ||
+        edit?.restore?.availability(id) !== undefined;
     return (
         <div
             className="group/user-message flex flex-col items-end gap-1.5"
@@ -83,6 +91,8 @@ export function AgentChatUserMessage({
                 <div className="-mt-1 flex h-6 items-center gap-1 opacity-0 group-hover/user-message:opacity-100 focus-within:opacity-100">
                     {createdAt !== undefined && <AgentChatMessageTime timestamp={createdAt} />}
                     <EditFromHereButton id={id} text={text} />
+                    <ForkFromHereButton id={id} text={text} />
+                    <RestoreCodeButton id={id} />
                     {text && (
                         <CopyIconButton
                             className="-mr-1"
@@ -96,6 +106,9 @@ export function AgentChatUserMessage({
     );
 }
 
+const ACTION_BUTTON_CLASS =
+    'flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted';
+
 /**
  * "Edit from here" in a user message's action row, when the Chat offers it for this message; disabled with the reason
  * on hover while it cannot run.
@@ -108,12 +121,63 @@ function EditFromHereButton({ id, text }: { id: string; text: string }) {
         <Tooltip content={availability ?? 'Edit from here'}>
             <button
                 aria-label="Edit from here"
-                className="flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted"
+                className={ACTION_BUTTON_CLASS}
                 disabled={availability !== null}
                 type="button"
                 onClick={() => edit.startEdit(id, text)}
             >
                 <Undo2 className="size-3.5" />
+            </button>
+        </Tooltip>
+    );
+}
+
+/**
+ * "Fork from here" in a user message's action row, beside "Edit from here"; disabled with the reason on hover while it
+ * cannot run, and while a fork it started is in flight so a second click cannot open two Sessions.
+ */
+function ForkFromHereButton({ id, text }: { id: string; text: string }) {
+    const edit = useAgentChatEdit();
+    const [isForking, setIsForking] = useState(false);
+    const availability = edit?.forkAvailability(id);
+    if (!edit || availability === undefined) return null;
+    return (
+        <Tooltip content={availability ?? 'Fork from here'}>
+            <button
+                aria-label="Fork from here"
+                className={ACTION_BUTTON_CLASS}
+                disabled={availability !== null || isForking}
+                type="button"
+                onClick={() => {
+                    setIsForking(true);
+                    // eslint-disable-next-line no-void -- `forkAgentChat` reports its own failure through a toast
+                    void edit.fork(id, text).finally(() => setIsForking(false));
+                }}
+            >
+                <GitFork className="size-3.5" />
+            </button>
+        </Tooltip>
+    );
+}
+
+/**
+ * "Restore code to here" in a user message's action row, when the provider restores files; disabled with the reason on
+ * hover while it cannot run.
+ */
+function RestoreCodeButton({ id }: { id: string }) {
+    const restore = useAgentChatEdit()?.restore;
+    const availability = restore?.availability(id);
+    if (!restore || availability === undefined) return null;
+    return (
+        <Tooltip content={availability ?? 'Restore code to here'}>
+            <button
+                aria-label="Restore code to here"
+                className={ACTION_BUTTON_CLASS}
+                disabled={availability !== null}
+                type="button"
+                onClick={() => restore.run(id)}
+            >
+                <History className={ACTION_BUTTON_CLASS} />
             </button>
         </Tooltip>
     );

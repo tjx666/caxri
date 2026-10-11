@@ -24,7 +24,8 @@
  * compacting` first; `/compact break` fails with a compaction error and `/compact crash` exits mid-compaction. The CLI
  * reports `/compact`, `/review`, and the terminal-bound `/exit` as its commands. A message steered with `priority:
  * 'next'` is quoted with `[next]`. It lists an `opus` alias and a model without effort control; `set_model` and an
- * `effortLevel` flag setting change what the next init message and hook input report.
+ * `effortLevel` flag setting change what the next init message and hook input report. Ultracode is a flag setting
+ * offered only on models with effort control, and an effort change without an `ultracode` key turns it off.
  *
  * Like the real CLI, `session_state_changed` is reported only under `CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1`, subagent
  * text only when `initialize` asked for `forwardSubagentText`, and an interrupt kills background subagents unless
@@ -105,6 +106,7 @@ const state: {
     queued: QueuedTurn[];
     model: string;
     effort?: string;
+    ultracode: boolean;
     /**
      * Whether the current turn's prompt asked for a large context. Real long conversations fill most of the compaction
      * window; this lets a dev instance or E2E show the high-context `/compact` warning without one.
@@ -121,6 +123,7 @@ const state: {
     turnRunning: false,
     queued: [],
     model: FAKE_CLAUDE_MODEL,
+    ultracode: false,
     isLargeContextTurn: false,
     hooks: {},
 };
@@ -507,7 +510,13 @@ lines.on('line', (line) => {
                 FAKE_CLAUDE_MODELS.find((model) => model.value === request.model)?.resolvedModel ??
                 request.model;
         const flags = request.subtype === 'apply_flag_settings' ? (request.settings as Json) : {};
-        if (typeof flags.effortLevel === 'string') state.effort = flags.effortLevel;
+        if (typeof flags.effortLevel === 'string') {
+            // Like the real CLI, moving the effort without an `ultracode` key turns ultracode off.
+            if (flags.effortLevel !== state.effort && !('ultracode' in flags))
+                state.ultracode = false;
+            state.effort = flags.effortLevel;
+        }
+        if (typeof flags.ultracode === 'boolean') state.ultracode = flags.ultracode;
         const answer =
             request.subtype === 'rewind_files'
                 ? rewindFiles(request, transcriptPath, configDirectory)

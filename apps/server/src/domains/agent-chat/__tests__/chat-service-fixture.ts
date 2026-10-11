@@ -1,6 +1,6 @@
 import type { SpawnOptionsWithoutStdio } from 'node:child_process';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -54,7 +54,8 @@ export async function fixture(
         probeTerminal: vi.fn<() => void>(),
         prepareTerminalStart: vi.fn<() => void>(),
     };
-    const logger = { write: vi.fn() } as unknown as StructuredLogger;
+    const logWrite = vi.fn<StructuredLogger['write']>();
+    const logger = { write: logWrite } as unknown as StructuredLogger;
     const agentEnvironment = {
         homeDirectory: directory,
         variables: { CLAUDE_CONFIG_DIR: claudeConfigDirectory },
@@ -130,6 +131,13 @@ export async function fixture(
             .trim()
             .split('\n')
             .map((line) => JSON.parse(line) as Record<string, unknown>);
+    /**
+     * Makes the fake Codex refuse to resume `threadId`, as when another client still holds its writer.
+     */
+    const holdCodexThreadWriter = async (threadId: string) => {
+        await mkdir(stateDirectory, { recursive: true });
+        await writeFile(join(stateDirectory, `${threadId}.writer-held`), '');
+    };
     const sessionOpens = async () =>
         (await readFile(join(grokStateDirectory, 'session-opens.jsonl'), 'utf8'))
             .trim()
@@ -161,6 +169,7 @@ export async function fixture(
     return {
         database,
         agentEnvironment,
+        logWrite,
         claudeConfigDirectory,
         fakeLog,
         service,
@@ -171,6 +180,7 @@ export async function fixture(
         client,
         until,
         threadOpens,
+        holdCodexThreadWriter,
         sessionOpens,
     };
 }

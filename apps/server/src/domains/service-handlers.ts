@@ -37,6 +37,7 @@ import type { PullRequestMergeNoticeOptions } from './pull-request-merge-notice'
 import { createPullRequestMergeNotice } from './pull-request-merge-notice';
 import { refreshAfterMerge } from './pull-request-merge-refresh';
 import type { SessionContextService } from './session';
+import { defaultSessionReferenceDirectory, SessionConversationReferenceService } from './session';
 import { resolveTerminalFileLink } from './terminal';
 import { UsageService } from './usage';
 
@@ -66,6 +67,7 @@ type ServiceHandlerMethods =
     | 'files.write'
     | 'files.search'
     | 'terminal.agentThroughput'
+    | 'terminal.agentUsage'
     | 'terminal.agentTranscript'
     | 'terminal.commitLink.resolve'
     | 'terminal.reference.preview'
@@ -100,8 +102,12 @@ type ServiceHandlerMethods =
     | 'commander.session.create'
     | 'commander.status'
     | 'commander.stop'
+    | 'commander.task.create'
+    | 'commander.task.list'
+    | 'commander.task.update'
     | 'session.refreshDeliveryOnFocus'
     | 'session.searchContent'
+    | 'session.conversationReference'
     | 'settings.get'
     | 'settings.inspect'
     | 'settings.patch'
@@ -174,6 +180,12 @@ export function createServiceHandlers(services: {
         vercel,
     } = services;
     const sessionContentSearch = new SessionContentSearch(database, agentEnvironment);
+    const sessionConversationReferences = new SessionConversationReferenceService(
+        defaultSessionReferenceDirectory(),
+        database,
+        logger,
+        agentEnvironment,
+    );
     const agentThroughput = new AgentThroughputService(database, agentEnvironment);
     const sessionPullRequests = new SessionPullRequestService(
         database,
@@ -269,6 +281,8 @@ export function createServiceHandlers(services: {
             files.readAsset(sessionId, path, signal),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'session.searchContent': ({ query }, signal) => sessionContentSearch.search(query, signal),
+        'session.conversationReference': ({ sessionId }, signal) =>
+            sessionConversationReferences.prepare(sessionId, signal),
         'files.search': (parameters, signal) => files.search(parameters, signal),
         'terminal.agentThroughput': ({ terminalId }) => agentThroughput.read(terminalId),
         'terminal.agentTranscript': async ({ terminalId, withContent }) => {
@@ -352,6 +366,11 @@ export function createServiceHandlers(services: {
         'commander.stop': () => commander.stop(),
         'commander.board': () => commander.board(),
         'commander.session.create': ({ projectId }) => commander.createSession(projectId),
+        'commander.task.create': (parameters) => commander.tasks.create(parameters),
+        'commander.task.list': ({ includeClosed }) => ({
+            tasks: commander.tasks.list({ includeClosed: includeClosed ?? false }),
+        }),
+        'commander.task.update': (parameters) => commander.tasks.update(parameters),
         'session.refreshDeliveryOnFocus': ({ sessionId }) => {
             // Fire-and-forget: the refresh logs its own outcome and the change events converge the UI.
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -366,6 +385,7 @@ export function createServiceHandlers(services: {
         'agentHooks.get': () => agentHooks.getHealth(),
         'agentSkills.get': agentSkillHealthReader(database, agentEnvironment, userDataPath),
         'usage.report': (parameters) => usage.report(parameters),
+        'terminal.agentUsage': ({ terminalId }) => usage.readTerminal(terminalId),
         'settings.update': async ({ source }) => {
             await configuration.updateSettings(source);
             await awaitAgentSettingsReconcile();

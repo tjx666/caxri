@@ -4,9 +4,9 @@ import { join } from 'node:path';
 
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
+import * as schema from '../full-schema';
 import { CaxriDatabase } from '../index';
 import type * as ManifestModule from '../migrations/manifest';
-import * as schema from '../schema';
 import { drizzleKit } from './drizzle-kit.fixture';
 
 /**

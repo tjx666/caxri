@@ -1,7 +1,9 @@
 /**
  * The fake Grok ACP agent's `_x.ai/rewind/points` and `_x.ai/rewind/execute`, which "Edit from here" uses to drop the
- * prompts after an earlier message.
+ * prompts after an earlier message, and `_x.ai/session/fork`, which "Fork from here" uses to copy the prompts before
+ * one into a new session.
  */
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -60,6 +62,7 @@ export function rewindPoints(frames: readonly RewindFrame[]): Json {
 /**
  * Drops the target prompt and everything after it, then logs the call to `rewinds.jsonl` so tests can check the mode. A
  * real Grok Build appends a rewind marker instead; either way a later `session/load` replays the shorter history.
+ * `files_only` keeps the conversation, as the real `RewindMode::FilesOnly` does.
  */
 export function rewindExecute(
     session: RewindSession,
@@ -72,12 +75,45 @@ export function rewindExecute(
         return { success: false, error: `Cannot rewind to prompt ${targetPromptIndex}` };
     const promptTextAtTarget = promptText(session.frames[frameIndex]);
     if (parameters.force === true) {
-        session.frames = session.frames.slice(0, frameIndex);
-        save();
+        if (parameters.mode !== 'files_only') {
+            session.frames = session.frames.slice(0, frameIndex);
+            save();
+        }
         fs.appendFileSync(
             path.join(stateDirectory, 'rewinds.jsonl'),
             `${JSON.stringify({ sessionId: session.id, targetPromptIndex, mode: parameters.mode })}\n`,
         );
     }
     return { success: true, prompt_text: promptTextAtTarget };
+}
+
+/**
+ * Writes a new session holding the prompts before `targetPromptIndex` of the stored source session, without opening it,
+ * and logs the call to `forks.jsonl`. `sessionPath` maps a session id to its stored file.
+ */
+export function forkSession(
+    parameters: Json,
+    {
+        stateDirectory,
+        sessionPath,
+    }: { stateDirectory: string; sessionPath: (id: string) => string },
+): Json {
+    const sourceSessionId = String(parameters.sourceSessionId);
+    if (!fs.existsSync(sessionPath(sourceSessionId)))
+        return { error: { code: -32603, message: 'Path not found.' } };
+    const targetPromptIndex = Number(parameters.targetPromptIndex);
+    const source = JSON.parse(
+        fs.readFileSync(sessionPath(sourceSessionId), 'utf8'),
+    ) as RewindSession;
+    const frameIndex = promptFrameIndexes(source.frames).at(targetPromptIndex);
+    if (frameIndex === undefined)
+        return { error: { code: -32602, message: `No prompt ${targetPromptIndex}` } };
+    const newSessionId = crypto.randomUUID();
+    const forked = { ...source, id: newSessionId, frames: source.frames.slice(0, frameIndex) };
+    fs.writeFileSync(sessionPath(newSessionId), JSON.stringify(forked));
+    fs.appendFileSync(
+        path.join(stateDirectory, 'forks.jsonl'),
+        `${JSON.stringify({ sourceSessionId, newSessionId, targetPromptIndex })}\n`,
+    );
+    return { result: { newSessionId, sourceSessionId, targetPromptIndex } };
 }

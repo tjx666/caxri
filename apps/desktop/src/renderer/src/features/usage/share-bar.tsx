@@ -5,7 +5,7 @@ export function ShareBar({ share }: { share: number }) {
     return (
         <div aria-hidden="true" className="h-1 w-full overflow-hidden rounded-sm bg-elevated">
             <div
-                className="h-full rounded-sm bg-success"
+                className="h-full rounded-sm bg-chart"
                 style={{ width: `${Math.max(share > 0 ? 2 : 0, Math.min(1, share) * 100)}%` }}
             />
         </div>

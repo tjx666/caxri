@@ -2,7 +2,7 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import { clip, isRecord, stringField } from './chat-items';
-import type { ChatRewindTarget } from './chat-provider';
+import type { ChatForkTarget, ChatRewindTarget } from './chat-provider';
 import type { JsonRpcConnection } from './json-rpc-connection';
 import { JsonRpcRequestError } from './json-rpc-connection';
 
@@ -43,17 +43,17 @@ export function grokRewindPoint(
 }
 
 /**
- * `_x.ai/rewind/execute` returns the session to before one prompt and appends a rewind marker that a later
- * `session/load` honors; `mode: all` also restores Grok Build's per-prompt file snapshots. It takes the prompt's index
- * in the whole session, while the projection may hold only the newest turns, so the index comes from
- * `_x.ai/rewind/points` counted back from the newest prompt, and the point's preview must agree with the message.
+ * The index Grok Build gives the prompt that `target` starts, in the whole session, while the projection may hold only
+ * the newest turns: it comes from `_x.ai/rewind/points` counted back from the newest prompt, and the point's preview
+ * must agree with the message. `action` names the user's action in the refusal.
  */
-export async function rewindGrokSession(
+async function grokPromptIndex(
     connection: JsonRpcConnection,
     sessionId: string,
     snapshot: Pick<AgentChatSnapshot, 'items' | 'turns'>,
-    target: ChatRewindTarget,
-): Promise<undefined> {
+    target: ChatForkTarget,
+    action: 'edit' | 'fork' | 'restore',
+): Promise<number> {
     /**
      * A steered message reached Grok Build as `_x.ai/interject`, which may count as a prompt of its own, so the Chat's
      * turns no longer map one to one onto rewind points from the end.
@@ -71,7 +71,7 @@ export async function rewindGrokSession(
     )
         throw new CaxriError(
             'CONFLICT',
-            'A message was steered into a later turn; restart the Chat, then edit from here',
+            `A message was steered into a later turn; restart the Chat, then ${action === 'restore' ? 'restore code' : `${action} from here`}`,
         );
     let listed: unknown;
     try {
@@ -84,7 +84,7 @@ export async function rewindGrokSession(
         if (!(error instanceof JsonRpcRequestError)) throw error;
         throw new CaxriError(
             'UNAVAILABLE',
-            'This Grok Build version cannot rewind a conversation; update Grok Build',
+            `This Grok Build version cannot ${action === 'fork' ? 'fork' : 'rewind'} a conversation; update Grok Build`,
         );
     }
     const point = grokRewindPoint(listed, target);
@@ -93,6 +93,39 @@ export async function rewindGrokSession(
             'CONFLICT',
             "Grok Build's record does not match this Chat; restart the Chat and try again",
         );
+    return point;
+}
+
+/**
+ * Grok Build's `RewindMode`: `files_only` restores the per-prompt file snapshots and keeps the conversation, the way
+ * "Restore code to here" asks.
+ */
+function grokRewindMode(
+    scope: 'conversation' | 'files',
+    target: Pick<ChatRewindTarget, 'restoreFiles'>,
+): string {
+    if (scope === 'files') return 'files_only';
+    return target.restoreFiles ? 'all' : 'conversation_only';
+}
+
+function failedAction(scope: 'conversation' | 'files'): string {
+    return scope === 'files' ? 'restore code' : 'rewind this conversation';
+}
+
+/**
+ * `_x.ai/rewind/execute` returns the session to before one prompt and appends a rewind marker that a later
+ * `session/load` honors; `mode: all` also restores Grok Build's per-prompt file snapshots, and `files_only` restores
+ * them alone.
+ */
+export async function rewindGrokSession(
+    connection: JsonRpcConnection,
+    sessionId: string,
+    snapshot: Pick<AgentChatSnapshot, 'items' | 'turns'>,
+    target: ChatRewindTarget,
+    scope: 'conversation' | 'files' = 'conversation',
+): Promise<undefined> {
+    const action = scope === 'files' ? 'restore' : 'edit';
+    const point = await grokPromptIndex(connection, sessionId, snapshot, target, action);
     let result: unknown;
     try {
         result = await connection.request(
@@ -101,19 +134,19 @@ export async function rewindGrokSession(
                 sessionId,
                 targetPromptIndex: point,
                 force: true,
-                mode: target.restoreFiles ? 'all' : 'conversation_only',
+                mode: grokRewindMode(scope, target),
             },
             REWIND_REQUEST_TIMEOUT_MS,
         );
     } catch (error) {
         if (!(error instanceof JsonRpcRequestError)) throw error;
-        throw new CaxriError('UNAVAILABLE', 'Grok Build could not rewind this conversation');
+        throw new CaxriError('UNAVAILABLE', `Grok Build could not ${failedAction(scope)}`);
     }
     if (!isRecord(result) || result.success !== true)
         throw new CaxriError(
             'UNAVAILABLE',
             clip(
-                `Grok Build could not rewind this conversation${
+                `Grok Build could not ${failedAction(scope)}${
                     isRecord(result) && stringField(result.error)
                         ? `: ${stringField(result.error)}`
                         : ''
@@ -122,4 +155,36 @@ export async function rewindGrokSession(
             ),
         );
     return undefined;
+}
+
+/**
+ * `_x.ai/session/fork` copies the session's files up to before one prompt into a new session (the same index a rewind
+ * takes) without opening it; the new Chat opens it with `session/load`.
+ */
+export async function forkGrokSession(
+    connection: JsonRpcConnection,
+    source: { sessionId: string; cwd: string },
+    snapshot: Pick<AgentChatSnapshot, 'items' | 'turns'>,
+    target: ChatForkTarget,
+): Promise<string> {
+    const point = await grokPromptIndex(connection, source.sessionId, snapshot, target, 'fork');
+    let forked: unknown;
+    try {
+        forked = await connection.request(
+            '_x.ai/session/fork',
+            {
+                sourceSessionId: source.sessionId,
+                sourceCwd: source.cwd,
+                newCwd: source.cwd,
+                targetPromptIndex: point,
+            },
+            REWIND_REQUEST_TIMEOUT_MS,
+        );
+    } catch (error) {
+        if (!(error instanceof JsonRpcRequestError)) throw error;
+        throw new CaxriError('UNAVAILABLE', 'Grok Build could not fork this conversation');
+    }
+    const id = isRecord(forked) ? stringField(forked.newSessionId) : undefined;
+    if (!id) throw new CaxriError('UNAVAILABLE', 'Grok Build did not report the forked session');
+    return id;
 }

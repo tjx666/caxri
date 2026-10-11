@@ -67,6 +67,7 @@ export type TerminalLaunchPlanResult<T> =
 export interface TerminalLaunchPlannerOptions {
     agentEnvironment?: () => Promise<NodeJS.ProcessEnv>;
     agentLaunchArguments?: TerminalManagerOptions['agentLaunchArguments'];
+    agentLaunchPrompt?: TerminalManagerOptions['agentLaunchPrompt'];
     agentLaunchSettings?: (provider: AgentProvider) => AgentLaunchSettings;
     lifecycleEnvironment?: TerminalManagerOptions['lifecycleEnvironment'];
     shellEnvironment?: TerminalManagerOptions['shellEnvironment'];
@@ -144,8 +145,10 @@ export class TerminalLaunchPlanner {
                         ...agentProviders[record.kind].resumeArguments(start.resumeAgentSessionId),
                     );
                 }
-                if (start?.initialPrompt && !agentProviders[record.kind].prepareLaunch)
-                    agentArguments.push('--', start.initialPrompt);
+                const initialPrompt =
+                    start?.initialPrompt ?? this.options.agentLaunchPrompt?.(record);
+                if (initialPrompt && !agentProviders[record.kind].prepareLaunch)
+                    agentArguments.push('--', initialPrompt);
                 return {
                     ok: true,
                     value: {
@@ -154,7 +157,7 @@ export class TerminalLaunchPlanner {
                         agent: {
                             resumeAgentSessionId: start?.resumeAgentSessionId,
                             assignedAgentSessionId: start?.assignedAgentSessionId,
-                            initialPrompt: start?.initialPrompt,
+                            initialPrompt,
                             args: agentArguments,
                             executable: agentExecutable,
                             launch,

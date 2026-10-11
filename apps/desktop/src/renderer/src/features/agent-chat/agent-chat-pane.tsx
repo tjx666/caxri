@@ -14,8 +14,14 @@ import { parseTerminalFileLocation } from '../terminal/terminal-file-location';
 import { TerminalLinkPicker } from '../terminal/terminal-link-picker';
 import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import { usePaneViewSession } from '../workbench/pane-view-session';
+import { forkAgentChat, restoreAgentChatFiles } from './agent-chat-commands';
 import { AgentChatComposer } from './agent-chat-composer';
-import { agentChatEditAvailability, readAgentChatEdit } from './agent-chat-edit';
+import {
+    agentChatEditAvailability,
+    agentChatForkAvailability,
+    agentChatRestoreAvailability,
+    readAgentChatEdit,
+} from './agent-chat-edit';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { AgentChatMessageRail } from './agent-chat-message-rail';
 import { AgentChatDayBreak } from './agent-chat-message-time';
@@ -193,8 +199,8 @@ export function AgentChatPane({
         [tasks, terminalId],
     );
     /**
-     * "Edit from here" on each message that started a turn. Memoized on what the availability reads, so a streamed
-     * delta does not re-render every user message.
+     * "Edit from here", and "Restore code to here" when the provider restores files, on each message that started a
+     * turn. Memoized on what the availability reads, so a streamed delta does not re-render every user message.
      */
     const editActions = useMemo<AgentChatEditActions | undefined>(() => {
         if (!items || !turns) return;
@@ -210,8 +216,42 @@ export function AgentChatPane({
             },
             editingId,
             startEdit: (itemId, text) => composerEdit.current?.startEdit(itemId, text),
+            forkAvailability: (itemId) => {
+                if (!rewindable.has(itemId)) return;
+                const availability = agentChatForkAvailability(
+                    { items, turns, activeTurnId },
+                    itemId,
+                );
+                return availability.canFork ? null : availability.reason;
+            },
+            fork: (itemId, text) => forkAgentChat(terminalId, itemId, text),
+            ...(supportsRewindFiles && {
+                restore: {
+                    availability: (itemId) => {
+                        if (!rewindable.has(itemId)) return;
+                        const availability = agentChatRestoreAvailability(
+                            { items, turns, activeTurnId },
+                            itemId,
+                        );
+                        return 'reason' in availability ? availability.reason : null;
+                    },
+                    run: (itemId) => {
+                        const availability = agentChatRestoreAvailability(
+                            { items, turns, activeTurnId },
+                            itemId,
+                        );
+                        if ('reason' in availability) return;
+                        // eslint-disable-next-line no-void -- tryCommand reports a failure through the toast
+                        void restoreAgentChatFiles(terminalId, {
+                            itemId,
+                            providerName,
+                            restoredTurns: availability.restoredTurns,
+                        });
+                    },
+                },
+            }),
         };
-    }, [items, turns, activeTurnId, editingId]);
+    }, [items, turns, activeTurnId, editingId, supportsRewindFiles, terminalId, providerName]);
     /**
      * Read from the Terminal record like the PTY pane does: a hand-over to another client is recorded there as
      * `detached`, while the projection only reads `stopped`.

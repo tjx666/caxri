@@ -196,7 +196,7 @@ export function externalStatusCommandOperation(
     if (source === 'vc') return arguments_[0] === 'teams' ? 'teams.list' : 'deployments.list';
     if (arguments_[0] === 'remote') return 'remote.get-url';
     if (arguments_[0] === 'symbolic-ref') return 'default-branch.get';
-    if (arguments_[0] === 'rev-parse') return 'head.get';
+    if (arguments_[0] === 'for-each-ref') return 'head.get';
     return 'unknown';
 }
 

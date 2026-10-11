@@ -106,6 +106,74 @@ export const commanderBoardRowSchema = z.strictObject({
         .optional(),
 });
 
+/**
+ * Upper bound on Commander tasks one list returns, and on open tasks the Commander may keep. Far above a real queue, so
+ * a runaway loop fails with `CAPACITY` instead of growing the table without bound.
+ */
+export const MAX_COMMANDER_TASKS = 500;
+
+/**
+ * Lifecycle of one Commander task. `pending` is recorded but not dispatched (often waiting on a precondition its note
+ * names), `dispatched` has a delegation, `waiting_user` needs the user (a decision, or a pull request ready to merge),
+ * and `done` / `dropped` are closed.
+ */
+export const commanderTaskStatuses = [
+    'pending',
+    'dispatched',
+    'waiting_user',
+    'done',
+    'dropped',
+] as const;
+export const commanderTaskStatusSchema = z.enum(commanderTaskStatuses);
+export const openCommanderTaskStatuses: readonly CommanderTaskStatus[] = [
+    'pending',
+    'dispatched',
+    'waiting_user',
+];
+
+const commanderTaskTitleSchema = z.string().trim().min(1).max(200);
+const commanderTaskNoteSchema = z.string().trim().max(2_000);
+const pullRequestUrlSchema = z.url({ protocol: /^https$/u }).max(2_048);
+
+/**
+ * One entry of the Commander's durable task ledger. Server-owned so it survives restarts, upgrades, and context
+ * compaction instead of living only in the Commander's conversation. `delegationId` is the root delegation of the task:
+ * follow-ups and resumes of that delegation stay on the same task.
+ */
+export const commanderTaskSchema = z.strictObject({
+    id: identifierSchema,
+    title: commanderTaskTitleSchema,
+    status: commanderTaskStatusSchema,
+    projectId: identifierSchema.nullable(),
+    sessionId: identifierSchema.nullable(),
+    delegationId: identifierSchema.nullable(),
+    note: commanderTaskNoteSchema.nullable(),
+    pullRequestUrl: pullRequestUrlSchema.nullable(),
+    createdAt: z.number(),
+    updatedAt: z.number(),
+});
+
+export const commanderTaskCreateSchema = z.strictObject({
+    title: commanderTaskTitleSchema,
+    status: commanderTaskStatusSchema.optional(),
+    projectId: identifierSchema.optional(),
+    note: commanderTaskNoteSchema.optional(),
+});
+
+/**
+ * Omitted fields keep their value; `null` clears a nullable one. Linking a delegation that a task was already
+ * auto-recorded for merges that automatic row into this task.
+ */
+export const commanderTaskUpdateSchema = z.strictObject({
+    taskId: identifierSchema,
+    title: commanderTaskTitleSchema.optional(),
+    status: commanderTaskStatusSchema.optional(),
+    projectId: identifierSchema.nullable().optional(),
+    delegationId: identifierSchema.nullable().optional(),
+    note: commanderTaskNoteSchema.nullable().optional(),
+    pullRequestUrl: pullRequestUrlSchema.nullable().optional(),
+});
+
 const commanderBoardProjectSchema = z.strictObject({
     id: identifierSchema,
     title: z.string(),
@@ -120,6 +188,10 @@ export const commanderBoardSchema = z.strictObject({
     pullRequestsRefreshedAt: z.number(),
     projects: z.array(commanderBoardProjectSchema).max(MAX_COMMANDER_BOARD_ROWS),
     rows: z.array(commanderBoardRowSchema).max(MAX_COMMANDER_BOARD_ROWS),
+    /**
+     * The Commander's open tasks, oldest first, so one board read also answers "what was I doing".
+     */
+    tasks: z.array(commanderTaskSchema).max(MAX_COMMANDER_TASKS),
 });
 
 /**
@@ -144,6 +216,10 @@ export type CommanderBoardRow = z.infer<typeof commanderBoardRowSchema>;
 export type CommanderBoard = z.infer<typeof commanderBoardSchema>;
 export type CommanderRunState = z.infer<typeof commanderRunStateSchema>;
 export type CommanderStatus = z.infer<typeof commanderStatusSchema>;
+export type CommanderTaskStatus = z.infer<typeof commanderTaskStatusSchema>;
+export type CommanderTask = z.infer<typeof commanderTaskSchema>;
+export type CommanderTaskCreate = z.infer<typeof commanderTaskCreateSchema>;
+export type CommanderTaskUpdate = z.infer<typeof commanderTaskUpdateSchema>;
 
 const noParameters = z.object({}).default({});
 
@@ -198,6 +274,28 @@ export const commanderMethods = {
         ...commandPolicy('server', 'control', ['commander']),
         params: z.strictObject({ projectId: identifierSchema }),
         result: z.strictObject({ projectId: identifierSchema, sessionId: identifierSchema }),
+    },
+    /**
+     * The Commander's durable task ledger. Content is the Commander's own short bookkeeping (a title and a note), never
+     * a delegated Agent's transcript.
+     */
+    'commander.task.create': {
+        ...commandPolicy('server', 'control', ['commander']),
+        params: commanderTaskCreateSchema,
+        result: commanderTaskSchema,
+    },
+    'commander.task.update': {
+        ...commandPolicy('server', 'control', ['commander']),
+        params: commanderTaskUpdateSchema,
+        result: commanderTaskSchema,
+    },
+    /**
+     * Open tasks oldest first; `includeClosed` adds the most recently closed ones up to the list bound.
+     */
+    'commander.task.list': {
+        ...commandPolicy('server', 'read', ['commander']),
+        params: z.strictObject({ includeClosed: z.boolean().optional() }).default({}),
+        result: z.strictObject({ tasks: z.array(commanderTaskSchema).max(MAX_COMMANDER_TASKS) }),
     },
     /**
      * Desktop-owned window controls: open (or raise) the Commander window, and select a Session in the Workbench and

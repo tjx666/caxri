@@ -21,6 +21,7 @@ export const monokaiTheme: ThemeTokens = {
         warning: '#e6db74',
         danger: '#f92672',
         merged: '#ae81ff',
+        chart: '#a6e22e',
         /**
          * Monokai sets no `activityBarBadge.background`, so VS Code paints its registry default. Its own
          * `badge.background` (`#75715e`) styles search-result chips, a different control.

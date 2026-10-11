@@ -48,6 +48,9 @@ describe('CLI business command catalog', () => {
                 'agent message policy-set',
                 'commander board',
                 'commander session create',
+                'commander task list',
+                'commander task add',
+                'commander task update',
                 'terminal send',
                 'skills list',
                 'skills get',
@@ -209,6 +212,7 @@ describe('CLI business command catalog', () => {
                 'agent message send',
                 'commander board',
                 'commander session create',
+                'commander task list',
                 'terminal send',
             ]),
         );

@@ -29,6 +29,7 @@ import type {
     AgentChatProviderSession,
     AgentChatResponse,
     AgentChatSessionHost,
+    ChatForkTarget,
     ChatInputOptions,
     ChatProcessEnd,
     ChatResumePoint,
@@ -39,6 +40,7 @@ import { AgentChatStartError } from './chat-provider';
 import { withCacheRewriteEstimate } from './chat-usage';
 import {
     claudeCacheTtlMinutes,
+    ClaudeContextRefresh,
     DEFAULT_CLAUDE_CACHE_TTL_MINUTES,
     refreshClaudeContextDetails,
 } from './claude-context';
@@ -55,11 +57,11 @@ import {
     claudeHookEffort,
     claudeInitEffort,
     configureClaudeModel,
-    readClaudeAppliedEffort,
+    readClaudeAppliedSettings,
 } from './claude-models';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
-import { rewindClaudeSession } from './claude-rewind';
+import { forkClaudeSession, restoreClaudeFiles, rewindClaudeSession } from './claude-rewind';
 import { claudeQueryOptions, claudeStartError } from './claude-session-open';
 import { ClaudeStream } from './claude-stream';
 import { readClaudeSubagentTranscript } from './claude-subagent-transcript';
@@ -129,6 +131,11 @@ class ClaudeChatSession implements AgentChatProviderSession {
     private readonly turns: ClaudeTurns;
 
     private readonly commands = new ClaudeCommandList();
+
+    private readonly contextDetails = new ClaudeContextRefresh(async () => {
+        if (this.query && this.isOpen)
+            await refreshClaudeContextDetails(this.query, this.options, () => this.isEnded);
+    });
 
     constructor(private readonly options: AgentChatSessionHost) {
         this.settings = claudeChatSettings(options.launch);
@@ -210,14 +217,16 @@ class ClaudeChatSession implements AgentChatProviderSession {
         const totalTokens = claudeUsageTokens(message.usage);
         if (operations.length > 0) this.options.apply(operations);
         if (totalTokens !== undefined) {
-            // The breakdown described the previous context; the turn's end asks for a fresh one.
-            const { compactWindow, cacheTtlMinutes } = this.options.read().usage ?? {};
+            // The previous breakdown stays until the refresh below replaces it, so an open context meter keeps its rows
+            // instead of collapsing to the total for every response of a running turn.
+            const { breakdown, compactWindow, cacheTtlMinutes } = this.options.read().usage ?? {};
             const usage = withCacheRewriteEstimate(
                 {
                     totalTokens,
                     ...(this.turns.contextWindow && {
                         contextWindow: this.turns.contextWindow,
                     }),
+                    ...(breakdown && { breakdown }),
                     ...(compactWindow && { compactWindow }),
                     cacheTtlMinutes:
                         claudeCacheTtlMinutes(message.usage) ??
@@ -228,6 +237,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
                 stringField(message.model) ?? this.options.read().model,
             );
             this.options.apply([{ op: 'state', state: { usage } }]);
+            this.contextDetails.request();
         }
         this.stream.settle(mapped.items);
         this.toolClock.start(mapped.items);
@@ -334,9 +344,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             }
             case 'result': {
                 this.turns.finish(message);
-                if (!this.options.read().activeTurnId && this.query && this.isOpen)
-                    // eslint-disable-next-line no-void -- best effort; the context meter keeps its total without it
-                    void refreshClaudeContextDetails(this.query, this.options, () => this.isEnded);
+                if (!this.options.read().activeTurnId) this.contextDetails.request();
                 return;
             }
             case 'system': {
@@ -395,9 +403,9 @@ class ClaudeChatSession implements AgentChatProviderSession {
         this.options.apply([{ op: 'state', state: { commands: this.commands.report(commands) } }]);
     }
 
-    private reportAppliedEffort(stream: Query): void {
+    private reportAppliedSettings(stream: Query): void {
         // eslint-disable-next-line no-void -- best effort; each turn's hooks still report the effort it ran with
-        void readClaudeAppliedEffort(stream)
+        void readClaudeAppliedSettings(stream)
             .then((operations) => !this.isEnded && this.options.apply(operations))
             .catch(() => {});
     }
@@ -474,7 +482,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
             this.reportCommands(initialized.commands);
             const models = claudeChatModels(initialized.models);
             if (models.length > 0) this.options.apply([{ op: 'state', state: { models } }]);
-            this.reportAppliedEffort(stream);
+            this.reportAppliedSettings(stream);
         } catch {
             const spawnErrorCode = this.spawnErrorCode;
             await this.close();
@@ -507,14 +515,29 @@ class ClaudeChatSession implements AgentChatProviderSession {
 
     async configure(change: AgentChatModelChange): Promise<void> {
         const stream = this.requireOpen();
-        await configureClaudeModel(stream, change, (operations) => this.options.apply(operations));
-        // A model switch can move the effort too: to the new model's default, or to none.
-        this.reportAppliedEffort(stream);
+        await configureClaudeModel(
+            stream,
+            change,
+            { ultracode: this.options.read().ultracode },
+            (operations) => this.options.apply(operations),
+        );
+        // A model switch can move the effort too, to the new model's default or to none, and can withdraw ultracode.
+        this.reportAppliedSettings(stream);
     }
 
     async rewind(target: ChatRewindTarget): Promise<ChatResumePoint> {
         const query = this.requireOpen();
         return rewindClaudeSession(query, await this.options.readTranscript(), target);
+    }
+
+    async fork(target: ChatForkTarget): Promise<string | undefined> {
+        this.requireOpen();
+        const transcript = await this.options.readTranscript();
+        return forkClaudeSession(this.sessionId, this.options, transcript, target);
+    }
+
+    async restoreFiles(target: ChatRewindTarget): Promise<void> {
+        await restoreClaudeFiles(this.requireOpen(), target.itemId);
     }
 
     async interrupt(): Promise<void> {

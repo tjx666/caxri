@@ -10,6 +10,7 @@ const POLLED_READ_METHODS = [
     'app.records',
     'session.refreshDeliveryOnFocus',
     'terminal.agentThroughput',
+    'terminal.agentUsage',
     'terminal.queryForPrincipal',
     'terminal.resources',
 ] satisfies ServerOperation[];

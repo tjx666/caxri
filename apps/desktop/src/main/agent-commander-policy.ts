@@ -9,8 +9,10 @@ import { z } from 'zod';
  * (`contextMenu.show`), which Main pops over this window and which only reports the chosen entry back: the entry's
  * action is a Renderer request admitted here on its own. Anything that edits files, Projects, Settings, or another
  * Session's Terminal is deliberately absent, and so are `app.bootstrap` and `app.records`: the window reads its rows
- * through `commander.snapshot`. It shares the Workbench's Desktop principal, so this list is its only authority
- * boundary.
+ * through `commander.snapshot`. `session.pullRequests` is the board's own pull request read: the board patches its rows
+ * from it after a `sessionPullRequests.changed` event, and it answers from the same snapshot `commander.board` embeds,
+ * so it exposes nothing the board does not already show. It shares the Workbench's Desktop principal, so this list is
+ * its only authority boundary.
  */
 const ADMITTED_METHODS = new Set<string>([
     'agentCommander.openSettings',
@@ -23,6 +25,7 @@ const ADMITTED_METHODS = new Set<string>([
     'events.recover',
     'external.open',
     'keybindings.get',
+    'session.pullRequests',
     'settings.get',
     'theme.get',
 ]);

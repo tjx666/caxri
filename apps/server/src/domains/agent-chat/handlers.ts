@@ -1,18 +1,22 @@
 import type { DomainHandlers } from '../domain-services';
+import type { createSessionCreator } from '../session';
 import { readChatImage } from './chat-images';
 import type { AgentChatService } from './service';
 import type { AgentChatServiceOptions } from './service-options';
 
 /**
  * Core methods a Client uses to read and drive a Chat Terminal. `records` locates the provider's on-disk record, which
- * `agentChat.readImage` reads without the service or a provider process.
+ * `agentChat.readImage` reads without the service or a provider process; `createSessionForProject` opens a fork.
  */
 export function createAgentChatHandlers(
     agentChat: AgentChatService,
-    records: Pick<AgentChatServiceOptions, 'agentEnvironment' | 'database'>,
+    records: Pick<AgentChatServiceOptions, 'agentEnvironment' | 'database'> & {
+        createSessionForProject: ReturnType<typeof createSessionCreator>;
+    },
 ): Pick<
     DomainHandlers,
     | 'agentChat.configure'
+    | 'agentChat.fork'
     | 'agentChat.interrupt'
     | 'agentChat.read'
     | 'agentChat.readImage'
@@ -21,6 +25,7 @@ export function createAgentChatHandlers(
     | 'agentChat.respond'
     | 'agentChat.resumeQueue'
     | 'agentChat.rewind'
+    | 'agentChat.restoreFiles'
     | 'agentChat.runCommand'
     | 'agentChat.send'
     | 'agentChat.sendQueuedNow'
@@ -40,14 +45,36 @@ export function createAgentChatHandlers(
             });
             return null;
         },
+        'agentChat.fork': ({ terminalId, itemId }) =>
+            agentChat.fork(
+                terminalId,
+                itemId,
+                async ({ projectId, provider, cwd, agentSessionId }) => {
+                    const created = await records.createSessionForProject(
+                        projectId,
+                        provider,
+                        // The Client selects it once the fork's composer draft is in place.
+                        'preserve',
+                        undefined,
+                        'chat',
+                        { cwd, agentSessionId },
+                    );
+                    return { sessionId: created.session.id, terminalId: created.terminal!.id };
+                },
+            ),
+        'agentChat.restoreFiles': async ({ terminalId, itemId }) => {
+            await agentChat.restoreFiles(terminalId, itemId);
+            return null;
+        },
         'agentChat.runCommand': async ({ terminalId, name, arguments: arguments_ }) => {
             await agentChat.runCommand(terminalId, name, arguments_);
             return null;
         },
-        'agentChat.configure': async ({ terminalId, model, effort }) => {
+        'agentChat.configure': async ({ terminalId, model, effort, ultracode }) => {
             await agentChat.configure(terminalId, {
                 ...(model !== undefined && { model }),
                 ...(effort !== undefined && { effort }),
+                ...(ultracode !== undefined && { ultracode }),
             });
             return null;
         },

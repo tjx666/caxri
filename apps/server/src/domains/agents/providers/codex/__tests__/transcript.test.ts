@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resolveSafeAgentTranscriptPath } from '../../../transcript-security';
 import { codexProvider } from '..';
-import { locateCodexTranscript } from '../transcript';
+import { locateCodexTranscript, locateEarlierCodexRollouts } from '../transcript';
 
 vi.mock('node:fs/promises', async (importOriginal) => {
     const actual = await importOriginal<typeof filesystem>();
@@ -188,6 +188,44 @@ describe('locateCodexTranscript', () => {
 
         const location = await locateCodexTranscript({ agentSessionId: THREAD_ID }, environment());
         expect(location?.path).toBe(path);
+    });
+
+    it('lists the rollouts a reverted thread wrote before its current one, oldest first', async () => {
+        const original = localDaySegments(THREAD_CREATED_AT);
+        const first = await writeRollout(
+            original,
+            `rollout-${original.join('-')}T11-14-52-${THREAD_ID}.jsonl`,
+        );
+        const middle = await writeRollout(
+            original,
+            `rollout-${original.join('-')}T18-00-00-${THREAD_ID}_019e6900-0000-7000-8000-000000000001.jsonl`,
+        );
+        // Another thread on the same day is not part of this one.
+        await writeRollout(
+            original,
+            `rollout-${original.join('-')}T12-00-00-019e676d-8740-7bb2-8bcb-f189c8260608.jsonl`,
+        );
+        const reverted = localDaySegments(REVERTED_ROLLOUT_CREATED_AT);
+        const current = await writeRollout(
+            reverted,
+            `rollout-${reverted.join('-')}T09-34-55-${THREAD_ID}_${REVERTED_ROLLOUT_ID}.jsonl`,
+        );
+        // A rollout written after the current one is not history the current one continues.
+        await writeRollout(
+            reverted,
+            `rollout-${reverted.join('-')}T23-00-00-${THREAD_ID}_019e9000-0000-7000-8000-000000000002.jsonl`,
+        );
+        const location = await locateCodexTranscript({ agentSessionId: THREAD_ID }, environment());
+        expect(location).toBeDefined();
+
+        const earlier = await locateEarlierCodexRollouts(
+            { ...location!, path: current.path, root: current.directory },
+            environment(),
+        );
+        expect(earlier.map((file) => file.path)).toEqual([first.path, middle.path]);
+        expect(
+            await locateEarlierCodexRollouts({ ...location!, path: first.path }, environment()),
+        ).toEqual([]);
     });
 
     it('honors CODEX_HOME over the home default', async () => {

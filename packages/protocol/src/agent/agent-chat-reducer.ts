@@ -213,6 +213,7 @@ export function applyAgentChatOperation(
             if (state.plan !== undefined) next.plan = state.plan ?? undefined;
             if (state.model !== undefined) next.model = state.model ?? undefined;
             if (state.effort !== undefined) next.effort = state.effort ?? undefined;
+            if (state.ultracode !== undefined) next.ultracode = state.ultracode ?? undefined;
             if (state.models !== undefined) next.models = state.models;
             if (state.usage !== undefined) next.usage = state.usage ?? undefined;
             if (state.commands !== undefined) next.commands = state.commands;
@@ -226,6 +227,7 @@ export function applyAgentChatOperation(
                 'plan',
                 'model',
                 'effort',
+                'ultracode',
                 'usage',
                 'operation',
             ] as const)

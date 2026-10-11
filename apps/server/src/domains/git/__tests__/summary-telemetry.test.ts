@@ -110,6 +110,15 @@ describe('GitSummaryTelemetry', () => {
         expect(JSON.stringify(info)).not.toContain('src/');
     });
 
+    it('writes no per-call record for an unchanged production served entirely from cache', () => {
+        const { fields, telemetry, writesOf } = createTelemetry();
+        telemetry.recordProduced('session-a', summary(), 10, fields);
+        telemetry.recordProduced('session-a', summary(), 1, { ...fields, commandCount: 0 });
+        expect(writesOf('git.summary')).toHaveLength(1);
+        telemetry.flush();
+        expect(writesOf('git.refresh_summary')[0]?.fields).toMatchObject({ refreshes: 2 });
+    });
+
     it('tracks fingerprints per Session so another Session does not suppress a first record', () => {
         const { fields, telemetry, writesOf } = createTelemetry();
         telemetry.recordProduced('session-a', summary(), 10, fields);
@@ -156,11 +165,17 @@ describe('GitSummaryTelemetry', () => {
             },
         });
         expect(aggregate.fields).not.toHaveProperty('requesterOverview');
+        expect(aggregate.fields).toMatchObject({
+            joinedOverview: 1,
+            queuedExtension: 1,
+            queuedShared: 0,
+        });
+        // Joined and queued reads spawned no Git command; only the aggregate counts them.
         expect(
             writesOf('git.summary', 'debug')
                 .map((record) => record.fields.outcome)
                 .filter((outcome) => outcome !== 'fresh'),
-        ).toEqual(['joined', 'queued']);
+        ).toEqual([]);
         // The refresh that closed the old window belongs to the new one.
         advance(60_000);
         telemetry.recordProduced('session-a', summary({ generation: 4 }), 5, fields);

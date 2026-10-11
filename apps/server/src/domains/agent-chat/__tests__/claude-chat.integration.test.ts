@@ -1,24 +1,27 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { fixture } from './chat-service-fixture';
 import { FAKE_CLAUDE_PLAN } from './fixtures/fake-claude-approvals';
 
 describe('AgentChatService with a fake Claude Code CLI', () => {
     it('streams a turn and binds the preset session on its first turn', async () => {
-        const { database, service, terminal, signals, until } = await fixture({
+        const { client, database, service, terminal, signals, until } = await fixture({
             provider: 'claude',
         });
         await until((snapshot) => snapshot.status === 'ready');
         expect(database.getTerminal(terminal.id)?.agentSessionId).toBeUndefined();
 
         await service.send(terminal.id, { text: 'hi there' });
-        // The context breakdown arrives just after the turn ends, so wait for it to compare a settled snapshot.
-        const snapshot = await until(
+        // The context breakdown refreshes once more just after the turn ends, which adds a revision of its own, so the
+        // Client's copy and the service's are compared once they agree rather than at one instant.
+        await until(
             (current) =>
                 current.turns.at(-1)?.status === 'completed' &&
                 !current.activeTurnId &&
                 current.usage?.breakdown !== undefined,
         );
+        await vi.waitFor(() => expect(service.read(terminal.id)).toEqual(client()));
+        const snapshot = client();
         expect(snapshot.items.map((item) => item.type)).toEqual([
             'userMessage',
             'reasoning',
@@ -51,7 +54,6 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
             lastResponseAt: snapshot.usage?.lastResponseAt,
         });
         expect(snapshot.usage?.lastResponseAt).toBeGreaterThan(0);
-        expect(service.read(terminal.id)).toEqual(snapshot);
         expect(database.getTerminal(terminal.id)?.agentSessionId).toMatch(/^[\da-f-]{36}$/u);
         expect(signals.map((signal) => signal.phase)).toEqual([
             'sessionIdentified',
@@ -63,7 +65,11 @@ describe('AgentChatService with a fake Claude Code CLI', () => {
     it('asks before a command and runs it once accepted', async () => {
         const { service, terminal, signals, until } = await fixture({ provider: 'claude' });
         await service.send(terminal.id, { text: 'please approve this' });
-        const pending = await until((snapshot) => snapshot.requests.length === 1);
+        // The turn is still running, yet the context meter already lists what fills the window.
+        const pending = await until(
+            (snapshot) => snapshot.requests.length === 1 && snapshot.usage?.breakdown !== undefined,
+        );
+        expect(pending.activeTurnId).toBeDefined();
         const request = pending.requests[0];
         expect(request).toMatchObject({
             kind: 'command',

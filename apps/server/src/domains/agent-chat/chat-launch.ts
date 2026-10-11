@@ -31,6 +31,7 @@ const TERMINAL_FAILURE_REASONS: Record<AgentChatFailureReason, TerminalFailureRe
     handshake_failed: 'spawn_failed',
     process_exited: 'spawn_failed',
     resume_failed: 'agent_session_unavailable',
+    conversation_in_use: 'agent_session_unavailable',
     unsupported_version: 'spawn_failed',
 };
 

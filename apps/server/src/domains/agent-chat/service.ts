@@ -22,6 +22,8 @@ import { agentChatDrivers } from './chat-drivers';
 import { ChatEndpointLease } from './chat-endpoint-lease';
 import type { ChatExitHost } from './chat-exit';
 import { handleChatExit } from './chat-exit';
+import type { CreateForkSession } from './chat-fork';
+import { forkChat } from './chat-fork';
 import { isAgentChatCommandListed } from './chat-items';
 import {
     chatStartFailure,
@@ -34,7 +36,7 @@ import {
 import type { AgentChatProviderSession, AgentChatResponse } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
 import type { ChatRewindRequest } from './chat-rewind';
-import { rewindChat } from './chat-rewind';
+import { restoreChatFiles, rewindChat } from './chat-rewind';
 import { chatSessionLogCallbacks } from './chat-session-logs';
 import type { ChatState, ChatStateDelivery, ChatTerminal } from './chat-states';
 import { ChatStates } from './chat-states';
@@ -170,7 +172,7 @@ export class AgentChatService {
             const launch = this.agentRunAutonomy.launch(
                 terminalId,
                 provider,
-                this.options.launchSettings(provider),
+                this.options.launchSettings(provider, terminal),
                 shouldKeepAgentAutonomy,
             );
             const prepared = await prepareChatLaunch(this.options, provider, launch, terminal.cwd);
@@ -242,6 +244,7 @@ export class AgentChatService {
             logger.write('info', logEventCatalog.agentChat.processStarted, {
                 fields: { terminalId, outcome: 'ready', mode, durationMs: Date.now() - startedAt },
             });
+            this.options.onReady?.(terminalId);
         } catch (error) {
             if (state.session === session) state.session = undefined;
             await session?.close();
@@ -380,7 +383,8 @@ export class AgentChatService {
     async configure(terminalId: string, change: AgentChatModelRequest): Promise<void> {
         await this.enqueue(terminalId, async (session, state) => {
             const config = resolveAgentChatModelChange(state.projection.snapshot, change);
-            if (config.model || config.effort) await session.configure?.(config);
+            if (config.model || config.effort || config.ultracode !== undefined)
+                await session.configure?.(config);
         });
     }
 
@@ -482,6 +486,25 @@ export class AgentChatService {
             },
             terminalId,
             request,
+        );
+    }
+
+    /**
+     * "Fork from here"; see {@link forkChat}.
+     */
+    fork(terminalId: string, itemId: string, createSession: CreateForkSession) {
+        const host = { options: this.options, enqueue: this.enqueue.bind(this) };
+        return forkChat(host, terminalId, itemId, createSession);
+    }
+
+    /**
+     * "Restore code to here"; see {@link restoreChatFiles}.
+     */
+    async restoreFiles(terminalId: string, itemId: string): Promise<void> {
+        await restoreChatFiles(
+            { options: this.options, enqueue: (id, deliver) => this.enqueue(id, deliver) },
+            terminalId,
+            itemId,
         );
     }
 

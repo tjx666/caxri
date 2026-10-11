@@ -73,6 +73,7 @@ roles below.
 | `--accent-foreground`                                     | text/icons on accent fills (derived, not hardcoded)                             |
 | `--success` / `--warning` / `--danger`                    | status dots, exit banners, destructive buttons                                  |
 | `--merged`                                                | landed work: the merged pull request glyph                                      |
+| `--chart`                                                 | quantity data series: Usage heatmap, trend line, share bars, hourly bars        |
 | `--badge`                                                 | neutral view-container count badge fill                                         |
 | `--badge-foreground`                                      | text on `--badge` (derived, not hardcoded)                                      |
 | `--error-badge` / `--warning-badge`                       | severity view-container badge fills: the glyph chip, never a text color         |
@@ -144,6 +145,13 @@ collapses added and untracked onto one color and paints a modified file the same
 chip. `renamed` deliberately has no role of its own: VS Code's two defaults resolve to the same
 green, so it shares `--git-untracked`; ignored entries stay on `--muted`. A theme file saved before
 these roles existed is repaired by `upgradeThemeColors` the same way `--merged` is.
+
+`--chart` paints quantities, not states. Usage charts used to borrow `--success`, so retuning status
+green repainted every chart and a busy day read as "passed". Charts draw intensity as opacity steps of
+the one role (`bg-chart/25` through `bg-chart`) rather than a multi-hue scale. Every built-in theme
+seeds it with its own `success` value, so the default appearance is unchanged; a VS Code import reads
+`charts.green`, falling back to the imported `success`, and `upgradeThemeColors` backfills an older
+custom theme from its `success`.
 
 `--merged` is a role rather than a reuse of `--success` because `--success` also identifies an open
 pull request; sharing it left a landed PR and an open PR distinguishable
@@ -265,8 +273,8 @@ acceptance (which has only an opaque id) spends its width on the passed-check ta
 of the current verdict, and keeps the subject, round, and provenance on the hover card. A link Caxri
 recognized but could not read is `unknown`: `--muted` and not clickable, because it has no
 destination and must not look like it does. When the window is too narrow for all of them they drop
-one at a time, lowest first: child-process count, memory, Agent output speed, Linear issue,
-acceptance, pull request.
+one at a time, lowest first: child-process count, memory, Agent output speed, Agent conversation
+usage, Linear issue, acceptance, pull request.
 Acceptance outranks Linear because it reports whether the current work passed, which changes what
 the reviewer does next; the pull request survives longest because it is the branch's identity.
 The right side follows the active tab: a normal file shows
@@ -278,7 +286,11 @@ An Agent Terminal also shows its Agent's output speed (`62 tok/s`) once the Agen
 measured response. It is a persistent gauge, not a transient Agent operation, so it lives here. It
 carries no threshold colour: the number is measured, and what counts as slow is the reader's call.
 The hover card breaks it down by last response, turn, and Session, charts the recent responses, and
-states the method (see `docs/agent-throughput.md`). Blame lives here and nowhere else. The editor header once
+states the method (see `docs/agent-throughput.md`). Beside it, the conversation's running usage
+(`1.2M · $3.40 · 5h 62%`: tokens, estimated cost, and the shortest rate-limit window that has not
+reset) appears once the transcript records a billed request. Cost is left out while no model has a
+price, since `$0.00` would read as free. The hover card breaks tokens down by kind and lists every
+limit window with its reset; clicking opens Usage (see `docs/usage.md`). Blame lives here and nowhere else. The editor header once
 carried the file's last commit too, and on any line belonging to that commit the two read
 word-for-word the same; the status bar's is the finer answer, it follows the cursor, and it does not
 take width from the breadcrumbs. Transient Agent operations stay with the owning work tab

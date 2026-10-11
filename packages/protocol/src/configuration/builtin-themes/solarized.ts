@@ -49,6 +49,7 @@ export const solarizedDarkTheme: ThemeTokens = {
          * Solarized violet lifted off `#6c71c4` so the glyph clears 3:1 against both dark chrome surfaces.
          */
         merged: '#8f8fd4',
+        chart: '#859900',
         badge: '#007acc',
         errorBadge: '#dc322f',
         warningBadge: '#b58900',
@@ -128,6 +129,7 @@ export const solarizedLightTheme: ThemeTokens = {
          * Solarized violet darkened off `#6c71c4` so the glyph clears 3:1 against this light theme's raised surfaces.
          */
         merged: '#5c5fb0',
+        chart: '#859900',
         badge: '#b58900',
         errorBadge: '#dc322f',
         warningBadge: '#b58900',

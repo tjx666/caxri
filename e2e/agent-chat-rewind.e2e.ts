@@ -89,6 +89,45 @@ test('a Claude Chat edits an earlier message and reverts its files', async ({}, 
 });
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Claude Chat restores code to an earlier message and keeps the conversation', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-rewind-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await fakeClaudeChatAgentMode(userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await answerNativeDialogs(running.app, 0);
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Claude Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        await sendAndSettle(chat, 'first question', /You said: first question/u);
+        await sendAndSettle(chat, 'second question', /You said: second question/u);
+
+        await userMessage(chat, 'first question').hover();
+        const restore = chat.getByRole('button', { name: 'Restore code to here' }).first();
+        await expect(restore).toBeEnabled();
+        await page.screenshot({ path: testInfo.outputPath('claude-restore-code-action.png') });
+        await restore.click();
+        await expect
+            .poll(() =>
+                running.app.evaluate(
+                    () => (globalThis as { shownDialogs?: string[] }).shownDialogs,
+                ),
+            )
+            .toEqual(['Revert the files Claude changed in these 2 turns?']);
+        // The conversation stays: both questions and their replies are still there.
+        await expect(userMessage(chat, 'second question')).toHaveCount(1);
+        await expect(chat.getByText(/You said: second question/u)).toBeVisible();
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('a Codex Chat edits only the conversation and Escape cancels', async ({}, testInfo) => {
     const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-rewind-'));
     const directory = await realpath(created);
@@ -110,6 +149,7 @@ test('a Codex Chat edits only the conversation and Escape cancels', async ({}, t
         await chat.getByRole('button', { name: 'Edit from here' }).click();
         await expect(message).toHaveValue('hello there');
         await expect(chat.getByRole('checkbox')).toBeDisabled();
+        await expect(chat.getByRole('button', { name: 'Restore code to here' })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-edit-bar.png') });
 
         await message.press('Escape');

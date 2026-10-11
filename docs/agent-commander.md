@@ -332,10 +332,27 @@ Delivery is deduplicated by delegation ID and the receipt revision that produced
 the Commander Terminal's current launch, so a Codex relaunch mid-flight cannot double-send: at most
 one notice per settled transition, never two. The residual risk is the same in-flight-keystroke race
 every exact-launch write already accepts (a keystroke sent in the same event-loop turn as the write,
-before its epoch bump is observed). Pending notices live only in Server Core memory: an undelivered
-one waits through a Codex relaunch for the new launch's first clean turn, but it does not survive a
-Server restart. The shutdown logs what it discards (`completion_notice_dropped`), and
-`commander board` plus the delegation CLI reads are the compensation for that loss.
+before its epoch bump is observed).
+
+Pending notices are stored in `commander_pending_notices`, one row per delegation, and a row is
+deleted when its notice is consumed, so they survive a Codex relaunch and a Server restart. A
+relaunched Commander has no finished turn to prove idle against, and waiting for the user to speak
+first would leave it silent after every restart. Instead the launch resolves its first prompt
+(`TerminalManagerOptions.agentLaunchPrompt`) from what is still owed: `[Caxri notice] The Agent
+Commander restarted.`, the missed delegation updates, and whether a turn was cut off. That prompt is
+built without consuming anything; the rows it carried are settled only once the launch reports
+running (`onLaunched`), so this path is at least once rather than at most once: a crash between
+spawn and that report repeats them on the next launch instead of losing them. Settlement removes
+only the exact revisions the prompt reported, so a newer transition that lands before the launch
+runs stays owed. A Chat Commander has no launch argv, so `AgentChatService`'s `onReady` hook sends
+the same prompt as its first Chat message once the provider is ready, and settles it only after the
+Chat accepted it.
+
+The cut-off turn comes from an `interrupted_turn` row the notifier writes when a main-thread
+Commander turn starts and deletes when that turn finishes or fails. A row still present at launch
+means Caxri or Codex went away mid-turn, so the prompt tells the Commander to continue that work.
+`commander.stop` deletes it first: a deliberate stop must not resume on the next launch, though the
+delegation updates it missed are still owed.
 
 A follow-up or resume refused at admission (`target_busy`, `target_not_ready`, and the other
 rejections that fail a task straight out of `requested`) raises no notice: the refusal happens inside
@@ -359,7 +376,9 @@ they reconstruct a bug report without Terminal output or transcripts:
 | `agent_commander.completion_notice_queued`     | A settled task was queued for the Commander Terminal, with the batch size (debug).                                                |
 | `agent_commander.completion_notice_deferred`   | Which gate holds the batch back (`commander_busy`, `draft_input`, `awaiting_permission`, ...), once per change (debug).           |
 | `agent_commander.completion_notice_delivered`  | The coalesced line was written, with its task count, the oldest entry's wait, and the finished turns that could not take it.      |
-| `agent_commander.completion_notice_dropped`    | A Server shutdown discarded the pending batch: `count`, `waitMs`, `blockedTurns`, and the `lastDeferral` gate that held it.       |
+| `agent_commander.resume_prompt_delivered`      | A relaunched Commander received its launch prompt: missed delegation `count`, `interruptedTurn`, and the oldest entry's `waitMs`. |
+| `agent_commander.task_recorded`                | A ledger task was created, with `origin` `commander` (`commander task add`) or `delegation` (an unregistered dispatch).           |
+| `agent_commander.task_transitioned`            | A ledger task changed status: `from`, `to`, and the task's age.                                                                   |
 
 The delegation ID links them: the Commander's `agent delegate create` returns it, every transition
 and notice names it, and the `ipc.request` line of each `agent.delegation.*` call carries it as
@@ -370,8 +389,9 @@ command attaches it to a bug report: the Commander run `state`, its Terminal ID 
 Agent process states, the number of Commander Sessions, the 20 most recently updated tasks in those
 Sessions (`delegationId`, `status`, `failure`, `correlationFailure`, provider, whether the
 Commander sent it, and the time from admission to the latest transition), and completion notice
-delivery (batch, delivered, and dropped notice counts, average and maximum `waitMs`, and
-`rejected`/`unconfirmed` failures). Task fields are IDs, enums, and timestamps only, never the prompt, answer, or launch
+delivery (batch and delivered notice counts, average and maximum `waitMs`,
+`rejected`/`unconfirmed` failures, launch prompts with the notices they carried, and the delegation
+notices still pending in the database). Task fields are IDs, enums, and timestamps only, never the prompt, answer, or launch
 input. Notice latency is aggregated from the retained `agent_commander.completion_notice_*` log
 lines, so it covers only what log rotation still keeps; the snapshot does not measure how long a
 notice waits before it is queued.
@@ -380,9 +400,45 @@ notice waits before it is queued.
 
 The generated `AGENTS.md` (`COMMANDER_INSTRUCTIONS` in
 `apps/server/src/domains/commander/workspace.ts`) is the Commander's whole operating manual. It is
-rewritten on every `commander.ensure`, so an upgrade replaces it. The Commander keeps its own state
-in the workspace instead: `ledger.md` has one line per task, and `tasks/` holds one task file per
-delegation.
+rewritten on every `commander.ensure`, so an upgrade replaces it. What the Commander has to keep
+lives elsewhere: tasks in the durable task ledger, what it learned in `memory/`, and one task file
+per delegation in `tasks/`.
+
+### Task ledger
+
+The ledger is the `commander_tasks` table, read and written through `commander task add|update|list`
+(`CommanderTaskLedger`, `apps/server/src/domains/commander/tasks.ts`). It replaced a hand-kept
+`ledger.md`, which existed only while the Commander remembered to write it. A task has a title, a
+status (`pending`, `dispatched`, `waiting_user`, `done`, `dropped`), and optional Project, Session,
+root delegation, one-line note, and pull request URL. The open tasks also appear on
+`commander board`.
+
+The ledger does not depend on the Commander's diligence. The first receipt of a root delegation the
+Commander sends records a `dispatched` task on its own, titled after the Session the Commander
+named. When the Commander then links that delegation to the task it registered at intake
+(`commander task update <id> --delegation <id>`), the automatic row merges into it in one
+transaction. Follow-ups and resumes resolve to their chain's root delegation, so one task follows a
+request through every continuation. At most 500 tasks may be open; closing finished ones frees room.
+An older workspace's `ledger.md` is imported once by the Commander itself, as its instructions
+direct.
+
+### Memory and choosing the repository
+
+`memory/repositories.md`, `memory/preferences.md`, and `memory/lessons.md` in the workspace are the
+Commander's long-term memory and the user's way to teach it. `commander.ensure` seeds each one with a
+short template only when it is missing, never overwrites it, and embeds all three after the
+instructions in the generated `AGENTS.md`, so they reach every new conversation. The embedded copy is
+capped at 40 KiB, cut at a line boundary with a note to read the rest, and the Commander launches
+with `-c project_doc_max_bytes=65536` (on both surfaces: a Chat Commander carries it as a
+`codex app-server` root option) because Codex's default 32 KiB limit would otherwise drop the
+memory silently. The files live in `<userData>/agent-commander/memory/`; the user can edit them
+directly or tell the Commander what to remember.
+
+The instructions make repository choice evidence-based: `memory/repositories.md` first, then each
+candidate Project's `README` and `AGENTS.md`, and a question to the user only when two stay equally
+plausible. A repository missing from the board is reported, never substituted with a related
+Project. Every dispatch reply names its target on its own line, and a correction is recorded in
+memory before the task is redispatched.
 
 - **Intake.** Requests are expected to be short: an issue link, a screenshot, or a one-line symptom,
   and most of them bug fixes. The Commander reads linked issues itself and writes down everything a
@@ -390,6 +446,9 @@ delegation.
 - **Dispatch.** Each task gets its own Commander Session and task file. The task tells the Agent to
   follow the target repository's own `AGENTS.md` and delivery flow, work on its own branch, deliver a
   pull request with green checks, and not merge, release, or deploy unless the user asked.
+- **Resuming itself.** A relaunched Commander gets the restart notice described under "Completion
+  notices" as its first prompt, reconciles with `commander task list` and `commander board`, and
+  continues an interrupted turn unless the user stopped it.
 - **Continuing after a restart.** A follow-up reaches only a running Agent. When one fails with
   `target_changed` or `target_not_ready` because the Agent exited or Caxri restarted, the Commander
   sends the same prompt with `--resume`, which relaunches the Agent on the same conversation. A task
@@ -420,6 +479,8 @@ Project scope stays the Commander's own system Project, so `agent:control`, disp
 Settings writes are never implied.
 
 - `commander.board` requires `commander`.
+- `commander.task.create`, `commander.task.update`, and `commander.task.list` require `commander`.
+  A task may name only a visible Project, and may link only a delegation the Commander sent.
 - `commander.session.create` requires `commander`. It creates an empty Session in a visible
   top-level Project without changing the Workbench selection, and records the Session as a
   Commander Session. Once the Commander owns 1,000 existing Sessions it refuses with `CAPACITY`
@@ -448,6 +509,9 @@ Session from a shell.
 
 ```bash
 caxri commander board --json
+caxri commander task add --title <title> --project <project-id> --json
+caxri commander task update <task-id> --delegation <delegation-id> --json
+caxri commander task list --all --json
 caxri agent delegate create --project <project-id> --new-session --title <title> --prompt-file task.md --provider codex --json
 caxri agent delegate create --project <project-id> --session <session-id> --prompt-file task.md --resume <delegation-id> --json
 caxri commander session create --project <project-id> --json
@@ -479,15 +543,20 @@ Inside the Commander Terminal, the Commander calls the version-matched CLI throu
   and `commander.ensure` rebuilds a missing record. A `projects` role column would add a migration
   without fixing a known defect. Revisit it when a second kind of system Project appears or a real
   integrity defect does.
-- Stopping the Commander ends its current turn. Reopening resumes the conversation, not the turn.
+- Stopping the Commander ends its current turn. Reopening resumes the conversation, not the turn;
+  only a turn that a restart or crash cut off is continued.
 - There is no setting to stop the Commander whenever its window closes. The status bar chip and the
   explicit Stop cover the single-maintainer workflow; add one only when a real need appears.
 - The Commander runs with the user's own Codex configuration, including its sandbox mode. Endpoint
   capabilities are product authorization, not a filesystem sandbox for processes of the same OS
   user.
 - The Commander delegates only into Sessions it created, normally with `--new-session`. It cannot
-  yet queue work into a user's Session, and it does not own a persistent to-do queue.
-- A completion notice's pending queue is in-memory only (see "Completion notices" below), so an
-  undelivered notice does not survive a Codex relaunch or a Server restart. `commander board` and
-  `agent delegate status`/`agent delegate wait` remain the recovery path for that gap, the same way
-  they were the Commander's only path before this feature.
+  yet queue work into a user's Session.
+- Memory edits reach the Commander's embedded copy only on the next `commander.ensure`. Within a
+  running conversation the Commander knows its own edits, and reads the files again when the user
+  says they changed them.
+- The launch prompt is at least once: a Server crash between the Commander's spawn and its running
+  report repeats the same restart notice on the next launch.
+- The cut-off turn marker clears only on `turnFinished`, `turnFailed`, or `commander.stop`. A turn
+  the user interrupted inside Codex that reports neither is still described as cut off after a
+  restart; the prompt asks the Commander to continue unless the user stopped it on purpose.

@@ -84,12 +84,16 @@ export async function createDefaultTerminal(options: CreateTerminalOptions = {})
     });
 }
 
+/**
+ * Resolves the new Terminal's id once it is placed, or `undefined` when creation failed (already reported in a toast)
+ * or the Terminal was closed before it could be placed.
+ */
 export async function createTerminalForSession(
     sessionId: string,
     kind: TerminalKind,
     { cwd, externalDocumentId, paneId, split, surface }: CreateTerminalOptions,
-): Promise<void> {
-    await tryCommand(
+): Promise<string | undefined> {
+    return tryCommand(
         'Terminal creation failed',
         async () => {
             const terminal = externalDocumentId
@@ -136,6 +140,7 @@ export async function createTerminalForSession(
                             : opened,
                 });
             }
+            return terminal.id;
         },
         {
             // These errors come from directory/session validation before Server creates a Terminal. A lost response

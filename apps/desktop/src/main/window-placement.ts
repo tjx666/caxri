@@ -23,6 +23,19 @@ export const defaultWindowState: PersistedWindowState = {
 };
 
 /**
+ * Captures the Workbench window's geometry for `app.windowState.update`. Normal bounds keep the restored size even
+ * while the window is maximized or fullscreen, so leaving either state after a relaunch returns to the user's own
+ * size.
+ */
+export function readWindowState(window: BrowserWindow): PersistedWindowState {
+    return {
+        bounds: window.getNormalBounds(),
+        isMaximized: window.isMaximized(),
+        isFullScreen: window.isFullScreen(),
+    };
+}
+
+/**
  * Upper bound on waiting for the re-zoomed page to present before showing; a hidden window may never deliver the frame.
  */
 const ZOOM_PRESENT_TIMEOUT_MS = 200;

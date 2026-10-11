@@ -11,6 +11,10 @@ export const supervisorHarness = {
     requests: [] as Array<{ method: string; parameters?: Record<string, unknown> }>,
     startListeners: [] as Array<() => void>,
     treeChildrenFailure: undefined as Error | undefined,
+    /**
+     * How many consecutive `treeChildren` requests reject with {@link supervisorHarness.treeChildrenFailure}.
+     */
+    treeChildrenFailureCount: 1,
     viewOperationResult: undefined as unknown,
 };
 
@@ -20,6 +24,7 @@ export function resetSupervisorHarness(): void {
     supervisorHarness.requests.length = 0;
     supervisorHarness.startListeners.length = 0;
     supervisorHarness.treeChildrenFailure = undefined;
+    supervisorHarness.treeChildrenFailureCount = 1;
     supervisorHarness.viewOperationResult = undefined;
 }
 
@@ -151,7 +156,9 @@ export const supervisorModule = {
             if (method === 'activate') return supervisorHarness.activation.promise;
             if (method === 'treeChildren') {
                 const failure = supervisorHarness.treeChildrenFailure;
-                supervisorHarness.treeChildrenFailure = undefined;
+                supervisorHarness.treeChildrenFailureCount -= 1;
+                if (supervisorHarness.treeChildrenFailureCount <= 0)
+                    supervisorHarness.treeChildrenFailure = undefined;
                 if (failure) return Promise.reject(failure);
             } else if (method === 'viewOperation')
                 return Promise.resolve(supervisorHarness.viewOperationResult);
