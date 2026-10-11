@@ -167,6 +167,10 @@ export const effectfulCommandRecovery = {
     'external.open': 'durable',
     'editor.confirmDiscard': 'durable',
     /**
+     * Answers one quit-time question whose Main-side wait has its own timeout; a replay would answer nobody.
+     */
+    'editor.unsavedReply': 'none',
+    /**
      * A menu choice answers one right-click gesture; replaying it after a reconnect would run an action the user can no
      * longer see the menu for.
      */

@@ -9,6 +9,7 @@ import type { ServerEvent } from '@caxri/protocol';
  * - `gitReview.changed` (issue caxri#1294) likewise refreshes `gitReview.list` and `gitReview.pending`.
  * - `agentChat.patch` and `agentChat.taskPatch` update cached snapshots through `subscribeAgentChatPatches`.
  * - `commanderInbox.changed` concerns only the Agent Commander window, which re-reads its Inbox in `useAgentCommander`.
+ * - `subscribeUnsavedEditorRequests` answers `editor.unsavedRequest`.
  */
 const WORKBENCH_IGNORED_EVENTS = [
     'agent.dispatch.changed',
@@ -21,6 +22,7 @@ const WORKBENCH_IGNORED_EVENTS = [
     'agentHooks.changed',
     'agentTranscript.changed',
     'commanderInbox.changed',
+    'editor.unsavedRequest',
     'files.changed',
     'files.operationChanged',
     'git.changed',

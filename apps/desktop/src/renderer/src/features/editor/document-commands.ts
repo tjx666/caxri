@@ -409,7 +409,7 @@ export function pinDocumentTab(sessionId: string, tabId: string): void {
 /**
  * Writes one document's current content to disk; returns false only when the write itself failed.
  */
-async function didSaveDocumentAt(sessionId: string, path: string): Promise<boolean> {
+export async function didSaveDocumentAt(sessionId: string, path: string): Promise<boolean> {
     const document = getSessionDocuments(sessionId)?.[path];
     if (!document || document.readOnly) return true;
     const operation = trackDocumentOperation(sessionId, path);
