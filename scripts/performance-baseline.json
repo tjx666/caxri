@@ -3,8 +3,8 @@
     "armed": true,
     "source": "runner",
     "spec": "e2e/renderer.performance.e2e.ts",
-    "recordedAt": "2026-10-10T22:34:56.493Z",
-    "commit": "05c09962f335c6775feea9be7b7757ca89bfe11e",
+    "recordedAt": "2026-10-11T00:17:28.158Z",
+    "commit": "b653c6989333f7d7ef64c792e70a5114c82956f5",
     "provenance": "98 renderer-performance-receipt artifacts from self-hosted CI runs 35967460812-36421490139 (2026-09-24T07:13:31Z to 2026-09-28T12:48:30Z)",
     "metrics": {
         "durationMs": {
@@ -304,28 +304,6 @@
             "thresholdMs": 1,
             "sampleCount": 98
         },
-        "requests.sessionSelect.totalDurationMs": {
-            "kind": "continuous",
-            "median": 5.7,
-            "mad": 0.5,
-            "k": 5,
-            "relativeMargin": 0.08,
-            "absoluteMarginMs": 1,
-            "historicalMaxMs": 9.6,
-            "thresholdMs": 11.368,
-            "sampleCount": 98
-        },
-        "requests.sessionSelect.maxDurationMs": {
-            "kind": "continuous",
-            "median": 5.7,
-            "mad": 0.5,
-            "k": 5,
-            "relativeMargin": 0.08,
-            "absoluteMarginMs": 1,
-            "historicalMaxMs": 9.6,
-            "thresholdMs": 11.368,
-            "sampleCount": 98
-        },
         "requests.appBootstrap.count": {
             "kind": "discrete",
             "median": 1,
@@ -335,28 +313,6 @@
             "absoluteMarginMs": 0,
             "historicalMaxMs": 1,
             "thresholdMs": 1,
-            "sampleCount": 98
-        },
-        "requests.appBootstrap.totalDurationMs": {
-            "kind": "continuous",
-            "median": 6.5,
-            "mad": 0.5,
-            "k": 5,
-            "relativeMargin": 0.08,
-            "absoluteMarginMs": 1,
-            "historicalMaxMs": 10.3,
-            "thresholdMs": 12.124,
-            "sampleCount": 98
-        },
-        "requests.appBootstrap.maxDurationMs": {
-            "kind": "continuous",
-            "median": 6.5,
-            "mad": 0.5,
-            "k": 5,
-            "relativeMargin": 0.08,
-            "absoluteMarginMs": 1,
-            "historicalMaxMs": 10.3,
-            "thresholdMs": 12.124,
             "sampleCount": 98
         },
         "terminals.attachedCount": {
@@ -664,6 +620,22 @@
         },
         "react.surfaces.primary-sidebar.baseDurationMaxMs": {
             "historicalMaxMs": 15.5,
+            "sampleCount": 98
+        },
+        "requests.sessionSelect.totalDurationMs": {
+            "historicalMaxMs": 9.6,
+            "sampleCount": 98
+        },
+        "requests.sessionSelect.maxDurationMs": {
+            "historicalMaxMs": 9.6,
+            "sampleCount": 98
+        },
+        "requests.appBootstrap.totalDurationMs": {
+            "historicalMaxMs": 10.3,
+            "sampleCount": 98
+        },
+        "requests.appBootstrap.maxDurationMs": {
+            "historicalMaxMs": 10.3,
             "sampleCount": 98
         },
         "frames.sampleCount": {
