@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { claudeCacheTtlMinutes, claudeContextDetails } from '../claude-context';
+import {
+    claudeCacheTtlMinutes,
+    claudeContextDetails,
+    ClaudeContextRefresh,
+} from '../claude-context';
 
 describe('claudeCacheTtlMinutes', () => {
     it('reads the cache lifetime from the split of a cache write', () => {
@@ -51,5 +55,39 @@ describe('claudeContextDetails', () => {
             {},
         );
         expect(claudeContextDetails('not a response', 200_000)).toEqual({});
+    });
+});
+
+describe('ClaudeContextRefresh', () => {
+    it('keeps one request in flight and collapses the ones made meanwhile into one more', async () => {
+        const pending: Array<() => void> = [];
+        let calls = 0;
+        const refresh = new ClaudeContextRefresh(async () => {
+            calls += 1;
+            await new Promise<void>((resolve) => pending.push(resolve));
+        });
+        refresh.request();
+        refresh.request();
+        refresh.request();
+        expect(calls).toBe(1);
+        pending.shift()?.();
+        await vi.waitFor(() => expect(calls).toBe(2));
+        pending.shift()?.();
+        await Promise.resolve();
+        refresh.request();
+        await vi.waitFor(() => expect(calls).toBe(3));
+    });
+
+    it('keeps refreshing after a failed request', async () => {
+        let calls = 0;
+        const refresh = new ClaudeContextRefresh(() => {
+            calls += 1;
+            return Promise.reject(new Error('timeout'));
+        });
+        refresh.request();
+        await vi.waitFor(() => expect(calls).toBe(1));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        refresh.request();
+        await vi.waitFor(() => expect(calls).toBe(2));
     });
 });

@@ -114,12 +114,13 @@ function appliedEffort({ model, effort }: { model: string; effort?: string }): s
 }
 
 /**
- * The answer to a control request that depends only on the session's model and effort (`initialize`,
- * `get_context_usage`, `get_settings`); `undefined` for every other request.
+ * The answer to a control request that depends only on the session's model, effort, and ultracode (`initialize`,
+ * `get_context_usage`, `get_settings`); `undefined` for every other request. Like Claude Code 2.1.296, `get_settings`
+ * reports `ultracodeAvailable` and the applied `ultracode`, offering it only on a model with effort control.
  */
 export function fakeClaudeSessionAnswer(
     subtype: unknown,
-    session: { model: string; effort?: string },
+    session: { model: string; effort?: string; ultracode?: boolean },
 ): Record<string, unknown> | undefined {
     switch (subtype) {
         case 'initialize': {
@@ -136,7 +137,20 @@ export function fakeClaudeSessionAnswer(
             return FAKE_CLAUDE_CONTEXT_USAGE;
         }
         case 'get_settings': {
-            return { applied: { model: session.model, effort: appliedEffort(session) } };
+            const isUltracodeAvailable =
+                FAKE_CLAUDE_MODELS.find(
+                    (candidate) =>
+                        candidate.resolvedModel === session.model ||
+                        candidate.value === session.model,
+                )?.supportsEffort === true;
+            return {
+                applied: {
+                    model: session.model,
+                    effort: appliedEffort(session),
+                    ultracode: isUltracodeAvailable && session.ultracode === true,
+                    ultracodeAvailable: isUltracodeAvailable,
+                },
+            };
         }
         default: {
             return undefined;

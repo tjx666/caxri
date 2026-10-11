@@ -17,6 +17,14 @@ export interface AgentChatEditActions {
      */
     forkAvailability: (itemId: string) => string | null | undefined;
     fork: (itemId: string, text: string) => Promise<void>;
+    /**
+     * "Restore code to here", absent when the provider cannot restore files. `availability` follows the same shape as
+     * the edit's: `undefined` offers no action, a string disables it with that reason, `null` enables it.
+     */
+    restore?: {
+        availability: (itemId: string) => string | null | undefined;
+        run: (itemId: string) => void;
+    };
 }
 
 export const AgentChatEditContext = createContext<AgentChatEditActions | undefined>(undefined);

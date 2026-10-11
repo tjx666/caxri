@@ -63,9 +63,42 @@ export function claudeContextDetails(
 }
 
 /**
- * Asks Claude Code what fills the context once a turn ends. `summary` answers from local estimates without extra
- * token-count requests. A newer response that changed the total in the meantime wins, so the rows never describe an
- * older context; a failure leaves the meter with its total alone.
+ * Coalesces context refreshes: Claude Code answers `get_context_usage` while a turn runs, so every response asks for
+ * the rows that fill its new total. At most one request is in flight; requests made meanwhile collapse into one more.
+ */
+export class ClaudeContextRefresh {
+    private isRunning = false;
+
+    private isRequestedAgain = false;
+
+    constructor(private readonly refresh: () => Promise<void>) {}
+
+    private async run(): Promise<void> {
+        try {
+            await this.refresh();
+        } catch {
+            // The meter keeps its total without the rows.
+        }
+        this.isRunning = false;
+        if (this.isRequestedAgain) this.request();
+    }
+
+    request(): void {
+        if (this.isRunning) {
+            this.isRequestedAgain = true;
+            return;
+        }
+        this.isRunning = true;
+        this.isRequestedAgain = false;
+        // eslint-disable-next-line no-void -- best effort; the context meter keeps its total without it
+        void this.run();
+    }
+}
+
+/**
+ * Asks Claude Code what fills the context, during a turn and once it ends. `summary` answers from local estimates
+ * without extra token-count requests. A newer response that changed the total in the meantime wins, so the rows never
+ * describe an older context; a failure leaves the meter with its total alone.
  */
 export async function refreshClaudeContextDetails(
     query: Pick<Query, 'getContextUsage'>,
@@ -85,12 +118,10 @@ export async function refreshClaudeContextDetails(
     }
     const usage = host.read().usage;
     if (isEnded() || usage?.totalTokens !== before.totalTokens) return;
-    host.apply([
-        {
-            op: 'state',
-            state: { usage: { ...usage, ...claudeContextDetails(response, usage.contextWindow) } },
-        },
-    ]);
+    // The previous rows were kept only until this answer; an answer without rows drops them.
+    const next = { ...usage, ...claudeContextDetails(response, usage.contextWindow) };
+    if (next.breakdown === usage.breakdown) delete next.breakdown;
+    host.apply([{ op: 'state', state: { usage: next } }]);
 }
 
 function isPositive(value: unknown): value is number {

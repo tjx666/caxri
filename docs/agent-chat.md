@@ -392,6 +392,14 @@ survives switching tabs, like a draft.
 - Each provider rewinds with its native mechanism; Caxri takes no snapshots of its own.
   `capabilities.chatRewindFiles` says whether files can be reverted, and when they cannot, the
   checkbox stays disabled with the reason on hover.
+- "Restore code to here" sits beside "Edit from here" for a provider that reverts files: it calls
+  `agentChat.restoreFiles`, which puts back the files changed from that message onward and keeps
+  the conversation, as Claude Code's `/rewind` "Restore code" does. It asks first in the same
+  native dialog, follows the same running-turn and turn-start rules (a message with images can
+  restore code, since nothing returns to the composer), and logs `agent_chat.files_restored`.
+  Claude Code uses `rewindFiles` alone, without a restart; Grok Build uses
+  `_x.ai/rewind/execute { mode: 'files_only' }`. Codex offers no file restore, so the action is
+  absent there.
 
 | Provider    | Conversation                                                                            | Files                                                                      |
 | ----------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -664,11 +672,15 @@ The snapshot's `usage` (`packages/protocol/src/agent/agent-chat-usage.ts`) descr
 as of the latest model response. Besides the total and the model window it can carry:
 
 - `breakdown`: what fills the window. Claude Code answers `getContextUsage({ detail: 'summary' })`
-  after each turn ends (local estimates, no extra token-count requests); the Chat keeps its `used`
-  and `buffer` rows (system prompt, tools, memory files, messages, the autocompact reserve) and
-  drops free space and deferred tool schemas. Codex reports its last request's cached input, new
-  input, and output (reasoning is already part of output). Grok Build reports none. A newer response
-  drops the rows until the next turn ends, so they never describe an older context.
+  after every model response, mid-turn included, and once more when the turn ends (local
+  estimates, no extra token-count requests; Claude Code 2.1.296 answers in milliseconds while a
+  tool runs). Requests coalesce so at most one is in flight (`ClaudeContextRefresh`). The Chat
+  keeps its `used` and `buffer` rows (system prompt, tools, memory files, messages, the autocompact
+  reserve) and drops free space and deferred tool schemas; the previous rows stay until the fresh
+  answer replaces them, so an open meter never collapses to the total during a running turn, and an
+  answer that arrives after the total moved again is discarded. Codex reports its last request's
+  cached input, new input, and output (reasoning is already part of output). Grok Build reports
+  none.
 - `compactWindow`: the window Claude Code compacts against (`rawMaxTokens`) when it is smaller
   than the model's, as with `CLAUDE_CODE_AUTO_COMPACT_WINDOW` or the 200K boundary on a 1M model.
   The meter's percentage and color measure against it: `--warning` from 50%, `--danger` from 70%.
@@ -725,6 +737,14 @@ A running turn keeps the model it started with.
   settings, environment overrides, and model downgrades. Claude Code fills it only for a hook with
   a tool-use context, so `PreToolUse` and `Stop` always carry it and `UserPromptSubmit` only
   sometimes. Before the first turn ends, or a switch, the effort can be unknown.
+  Ultracode (standing multi-agent Workflow orchestration) is a separate toggle, as in Claude
+  Code's own `/effort` picker since 2.1.284: the snapshot's `ultracode` is present only while
+  `get_settings` reports `applied.ultracodeAvailable` for the current model, and the model menu
+  shows an Ultracode checkbox below the efforts. `agentChat.configure { ultracode }` sends it
+  through `applyFlagSettings`. Claude Code turns ultracode off when `effortLevel` moves without an
+  `ultracode` key, so an effort change carries the current ultracode along, and every switch reads
+  `get_settings` back so a model without ultracode withdraws the toggle. Typing the `ultracode`
+  keyword in a message still opts that one turn in, since the text reaches Claude Code verbatim.
 - **Grok Build** lists models in the `session/new` or `session/load` result's `models`
   (`availableModels`, `currentModelId`). A switch applies in place with `session/set_model`, and
   the usage meter takes the new model's `totalContextTokens`. Its reasoning efforts are not
