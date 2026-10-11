@@ -43,9 +43,8 @@ function ThroughputChart({
                 <span>{formatThroughputRate(max)}</span>
                 <span>0</span>
             </div>
-            <div
-                className="relative flex min-w-0 flex-1 items-end gap-1 border-b border-border"
-                role="list"
+            <ul
+                className="relative m-0 flex min-w-0 flex-1 list-none items-end gap-1 border-b border-border p-0"
                 aria-label={`Output speed of the last ${samples.length} responses`}
                 style={{ height: CHART_HEIGHT }}
             >
@@ -59,11 +58,13 @@ function ThroughputChart({
                 {samples.map((sample, index) => {
                     const description = `${describeThroughputSample(sample)}, finished ${clockTime.format(sample.completedAt)}`;
                     return (
-                        <Tooltip key={`${sample.completedAt}:${index}`} content={description}>
-                            <div
+                        <Tooltip
+                            key={`${sample.completedAt}:${sample.outputTokens}:${sample.durationMs}`}
+                            content={description}
+                        >
+                            <li
                                 aria-label={description}
                                 className="flex h-full max-w-6 min-w-0 flex-1 items-end rounded-sm hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)]"
-                                role="listitem"
                             >
                                 <div
                                     className={
@@ -75,11 +76,11 @@ function ThroughputChart({
                                         height: Math.max(2, (rates[index] / max) * CHART_HEIGHT),
                                     }}
                                 />
-                            </div>
+                            </li>
                         </Tooltip>
                     );
                 })}
-            </div>
+            </ul>
         </div>
     );
 }
