@@ -37,9 +37,10 @@ export interface FakeClaudeIo {
      */
     startAutoTurn(): void;
     /**
-     * Leaves plan mode after an approved plan, as Claude Code does, reporting the mode it returned to.
+     * Leaves plan mode after an approved plan, as Claude Code does, reporting the mode it returned to: the `setMode`
+     * update the approval carried, else `default`.
      */
-    exitPlanMode(): void;
+    exitPlanMode(mode?: string): void;
 }
 
 export interface QueuedTurn {
