@@ -20,6 +20,7 @@ const THEME_TOKEN_LABELS: Readonly<Record<string, string>> = {
     gitModified: 'Modified file',
     gitUntracked: 'Untracked file',
     merged: 'Merged',
+    chart: 'Chart',
     muted: 'Muted',
     selection: 'Selection',
     success: 'Success',

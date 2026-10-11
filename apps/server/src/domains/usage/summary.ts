@@ -4,6 +4,7 @@ import type { UsageTokens } from './accumulator';
 import type { ModelPrice } from './pricing';
 import { cacheSavingsOf, costOf } from './pricing';
 import type { UsageRecord } from './record';
+import { NATIVE_COST_TICKS_PER_USD } from './record';
 
 /**
  * One decoded hour-by-model bucket of a {@link UsageRecord}, priced. The shared unit every usage view folds: the Usage
@@ -21,7 +22,8 @@ export interface PricedUsageBucket {
      */
     total: number;
     /**
-     * Estimated API list-price cost; zero when `isPriced` is false.
+     * The provider's own cost when it reported one, else the API list-price estimate at the requests' context tier;
+     * zero when `isPriced` is false.
      */
     costUsd: number;
     cacheSavingsUsd: number;
@@ -40,6 +42,8 @@ export function* pricedUsageBuckets(
 ): Generator<PricedUsageBucket> {
     for (const [hour, modelIndex, ...values] of record.tokens) {
         const model = record.models[modelIndex] ?? 'unknown';
+        const priceClass = { contextFloorK: values[6], serviceTier: values[8] };
+        const nativeCostTicks = values[7] ?? undefined;
         const tokens: UsageTokens = {
             input: values[0],
             output: values[1],
@@ -49,14 +53,18 @@ export function* pricedUsageBuckets(
             reasoning: values[5],
         };
         const price = priceOf(model);
+        const listCost = price ? costOf(tokens, price, priceClass) : 0;
         yield {
             at: hour * 1000,
             model,
             tokens,
             total: totalTokensOf(tokens),
-            costUsd: price ? costOf(tokens, price) : 0,
-            cacheSavingsUsd: price ? cacheSavingsOf(tokens, price) : 0,
-            isPriced: price !== undefined,
+            costUsd:
+                nativeCostTicks === undefined
+                    ? listCost
+                    : nativeCostTicks / NATIVE_COST_TICKS_PER_USD,
+            cacheSavingsUsd: price ? cacheSavingsOf(tokens, price, priceClass) : 0,
+            isPriced: price !== undefined || nativeCostTicks !== undefined,
         };
     }
 }

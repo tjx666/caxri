@@ -238,20 +238,29 @@ export function peakHour(hourOfDay: readonly number[]): number | undefined {
  *
  * - `agentFilter`: one Agent is selected and it used nothing in the range. Saying "No Agent usage yet" there blamed the
  *   whole page on a filter the user may have forgotten, so the copy names the Agent and offers to clear the filter.
- * - `scanning`: the first read of transcripts outside Caxri has found nothing yet, so "no usage" would be premature.
+ * - `scanning`: the background read of transcripts has found nothing yet, so "no usage" would be premature.
  * - `noUsage`: no Agent conversation was ever recorded.
  */
 export type UsageEmptyState =
     { kind: 'agentFilter'; title: string } | { kind: 'scanning' } | { kind: 'noUsage' };
 
+/**
+ * Transcripts the Server is still reading in the background, inside and outside Caxri Sessions.
+ */
+export function pendingTranscriptScans(report: {
+    coverage: Pick<UsageReport['coverage'], 'pendingScans' | 'outsideCaxri'>;
+}): number {
+    return report.coverage.pendingScans + (report.coverage.outsideCaxri?.pendingScans ?? 0);
+}
+
 export function usageEmptyState(
     report: {
-        coverage: Pick<UsageReport['coverage'], 'agentSessions' | 'outsideCaxri'>;
+        coverage: Pick<UsageReport['coverage'], 'agentSessions' | 'pendingScans' | 'outsideCaxri'>;
         totals: { tokens: Pick<UsageReport['totals']['tokens'], 'total'> };
     },
     agent: AgentProvider | undefined,
 ): UsageEmptyState | undefined {
-    if (report.totals.tokens.total === 0 && (report.coverage.outsideCaxri?.pendingScans ?? 0) > 0)
+    if (report.totals.tokens.total === 0 && pendingTranscriptScans(report) > 0)
         return { kind: 'scanning' };
     const agentSessions =
         report.coverage.agentSessions + (report.coverage.outsideCaxri?.agentSessions ?? 0);
@@ -287,12 +296,12 @@ export function usageSessionCount(count: number, isOutsideCaxri: boolean): strin
 }
 
 /**
- * The page caption's progress note while the first read of transcripts outside Caxri is still running.
+ * The page caption's progress note while the Server is still reading transcripts in the background.
  */
 export function usageScanCaption(report: {
-    coverage: Pick<UsageReport['coverage'], 'outsideCaxri'>;
+    coverage: Pick<UsageReport['coverage'], 'pendingScans' | 'outsideCaxri'>;
 }): string | undefined {
-    const pending = report.coverage.outsideCaxri?.pendingScans ?? 0;
+    const pending = pendingTranscriptScans(report);
     return pending > 0
         ? `Reading ${pending.toLocaleString('en-US')} more ${pending === 1 ? 'transcript' : 'transcripts'}…`
         : undefined;
@@ -313,7 +322,8 @@ export function usageCoverageNotes(
             ? `Counts ${counted}, plus ${outside} run outside Caxri on this Mac.`
             : `Counts ${counted}.`,
     ];
-    if (coverage.unavailable > 0)
+    // An unread row has no aggregate yet either; only a finished scan proves the transcript is gone.
+    if (coverage.unavailable > 0 && coverage.pendingScans === 0)
         notes.push(
             `${coverage.unavailable} ${coverage.unavailable === 1 ? 'conversation has' : 'conversations have'} no transcript on this machine, so their usage is missing.`,
         );

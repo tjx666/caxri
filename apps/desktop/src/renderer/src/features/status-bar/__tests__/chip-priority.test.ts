@@ -6,6 +6,7 @@ import { CHIP_PRIORITY_BREAKPOINTS, resolveChipVisibility } from '../chip-priori
 const ALL_VISIBLE: ChipVisibility = {
     acceptance: true,
     agentThroughput: true,
+    agentUsage: true,
     childProcessCount: true,
     linearIssue: true,
     memory: true,
@@ -49,11 +50,23 @@ describe('status bar chip priority resolution', () => {
         });
     });
 
+    it('drops the conversation usage after the output speed', () => {
+        const width = CHIP_PRIORITY_BREAKPOINTS.agentUsage - 1;
+        expect(resolveChipVisibility(width)).toEqual({
+            ...ALL_VISIBLE,
+            agentThroughput: false,
+            agentUsage: false,
+            childProcessCount: false,
+            memory: false,
+        });
+    });
+
     it('drops the Linear issue chip before the acceptance chip', () => {
         const width = CHIP_PRIORITY_BREAKPOINTS.linearIssue - 1;
         expect(resolveChipVisibility(width)).toEqual({
             acceptance: true,
             agentThroughput: false,
+            agentUsage: false,
             childProcessCount: false,
             linearIssue: false,
             memory: false,
@@ -66,6 +79,7 @@ describe('status bar chip priority resolution', () => {
         expect(resolveChipVisibility(width)).toEqual({
             acceptance: false,
             agentThroughput: false,
+            agentUsage: false,
             childProcessCount: false,
             linearIssue: false,
             memory: false,
@@ -73,11 +87,12 @@ describe('status bar chip priority resolution', () => {
         });
     });
 
-    it('drops the pull request chip last of the six', () => {
+    it('drops the pull request chip last of the seven', () => {
         const width = CHIP_PRIORITY_BREAKPOINTS.pullRequest - 1;
         expect(resolveChipVisibility(width)).toEqual({
             acceptance: false,
             agentThroughput: false,
+            agentUsage: false,
             childProcessCount: false,
             linearIssue: false,
             memory: false,
@@ -89,7 +104,7 @@ describe('status bar chip priority resolution', () => {
         // Excludes the `<= 0` "unmeasured" sentinel, which is a special case (fully visible), not part
         // of a real monotonically decreasing width sequence.
         const widths = [
-            1200, 900, 830, 800, 760, 752, 700, 680, 620, 610, 560, 545, 500, 480, 400, 1,
+            1200, 910, 900, 830, 800, 760, 752, 700, 680, 620, 610, 560, 545, 500, 480, 400, 1,
         ];
         let previous: ChipVisibility | undefined;
         for (const width of widths) {

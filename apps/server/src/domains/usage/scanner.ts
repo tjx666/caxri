@@ -4,9 +4,14 @@ import { basename, dirname, join } from 'node:path';
 import type { AgentProvider } from '@caxri/protocol';
 
 import type { AgentEnvironment, AgentTranscriptLocation, TranscriptScanCursor } from '../agents';
-import { agentProviders, locateAgentTranscriptForIdentity, scanTranscriptLines } from '../agents';
+import {
+    agentProviders,
+    locateAgentTranscriptForIdentity,
+    locateEarlierCodexRollouts,
+    scanTranscriptLines,
+} from '../agents';
 import { UsageAccumulator } from './accumulator';
-import type { UsageLineParser, UsageParserOptions } from './parsers';
+import type { ClaudeMessageUsage, UsageLineParser, UsageParserOptions } from './parsers';
 import { usageParserFor } from './parsers';
 import type { UsageRecord } from './record';
 import { USAGE_RECORD_VERSION } from './record';
@@ -20,6 +25,12 @@ const MAX_DIRECTORY_ENTRIES = 8_192;
  * Upper bound on Claude subagent side files folded into one Agent Session.
  */
 const MAX_SIDE_FILES = 256;
+/**
+ * How long a Claude conversation that no project directory holds is not searched for again, unless the projects
+ * directory itself changes. A pruned transcript never returns; a conversation resumed under a new working directory
+ * usually creates that directory, and is otherwise found within this window.
+ */
+const CLAUDE_MISS_TTL_MS = 3_600_000;
 
 export interface UsageScanTarget {
     provider: AgentProvider;
@@ -30,6 +41,10 @@ export interface UsageScanTarget {
 export interface UsageTranscriptFiles {
     main: AgentTranscriptLocation;
     /**
+     * Earlier rollouts of a reverted Codex thread, oldest first; `main` continues them.
+     */
+    earlier: AgentTranscriptLocation[];
+    /**
      * Claude subagent transcripts (`<conversation>/subagents/*.jsonl`): billed tokens without their own Agent Session.
      */
     side: AgentTranscriptLocation[];
@@ -37,7 +52,17 @@ export interface UsageTranscriptFiles {
      * Size and mtime of every file; equal fingerprints mean an unchanged aggregate.
      */
     fingerprint: string;
+    /**
+     * Creation time of the first main file, epoch milliseconds.
+     */
+    bornAt: number;
 }
+
+/**
+ * Claude conversations the fallback search did not find, kept across syncs so a pruned transcript is not searched for
+ * in every project directory on every report.
+ */
+export type ClaudeTranscriptMisses = Map<string, { baseMtimeMs: number; checkedAt: number }>;
 
 async function listDirectory(directory: string): Promise<string[]> {
     const names: string[] = [];
@@ -60,10 +85,28 @@ async function listDirectory(directory: string): Promise<string[]> {
     return names;
 }
 
-async function fileStamp(path: string): Promise<string | undefined> {
+interface FileStamp {
+    stamp: string;
+    bornAt: number;
+}
+
+async function fileStamp(path: string): Promise<FileStamp | undefined> {
     try {
         const stats = await lstat(path);
-        return stats.isFile() ? `${stats.size}:${Math.trunc(stats.mtimeMs)}` : undefined;
+        if (!stats.isFile()) return undefined;
+        return {
+            stamp: `${stats.size}:${Math.trunc(stats.mtimeMs)}`,
+            // A filesystem without creation times reports 0; the modification time is the closest stand-in.
+            bornAt: Math.trunc(stats.birthtimeMs > 0 ? stats.birthtimeMs : stats.mtimeMs),
+        };
+    } catch {
+        return undefined;
+    }
+}
+
+async function directoryMtime(path: string): Promise<number | undefined> {
+    try {
+        return (await lstat(path)).mtimeMs;
     } catch {
         return undefined;
     }
@@ -76,8 +119,16 @@ async function fileStamp(path: string): Promise<string | undefined> {
  */
 export class UsageTranscriptLocator {
     private claudeDirectories?: Promise<string[]>;
+    /**
+     * Fallback searches skipped because the conversation was recently not found.
+     */
+    skippedSearches = 0;
 
-    constructor(private readonly environment: AgentEnvironment) {}
+    constructor(
+        private readonly environment: AgentEnvironment,
+        private readonly claudeMisses: ClaudeTranscriptMisses = new Map(),
+        private readonly now: () => number = Date.now,
+    ) {}
 
     private claudeBaseRoot(): string | undefined {
         return agentProviders.claude.transcriptBaseRoot?.(this.environment);
@@ -88,6 +139,13 @@ export class UsageTranscriptLocator {
     ): Promise<AgentTranscriptLocation | undefined> {
         const baseRoot = this.claudeBaseRoot();
         if (!baseRoot) return;
+        const baseMtimeMs = await directoryMtime(baseRoot);
+        if (baseMtimeMs === undefined) return;
+        const miss = this.claudeMisses.get(agentSessionId);
+        if (miss?.baseMtimeMs === baseMtimeMs && this.now() - miss.checkedAt < CLAUDE_MISS_TTL_MS) {
+            this.skippedSearches += 1;
+            return;
+        }
         this.claudeDirectories ??= listDirectory(baseRoot);
         const fileName = `${agentSessionId}.jsonl`;
         const directories = await this.claudeDirectories;
@@ -95,8 +153,12 @@ export class UsageTranscriptLocator {
             const root = join(baseRoot, directory);
             const path = join(root, fileName);
             // eslint-disable-next-line no-await-in-loop -- stops at the first directory holding the conversation
-            if (await fileStamp(path)) return { baseRoot, root, path };
+            if (await fileStamp(path)) {
+                this.claudeMisses.delete(agentSessionId);
+                return { baseRoot, root, path };
+            }
         }
+        this.claudeMisses.set(agentSessionId, { baseMtimeMs, checkedAt: this.now() });
         return undefined;
     }
 
@@ -121,21 +183,35 @@ export class UsageTranscriptLocator {
     private async withSideFiles(
         provider: AgentProvider,
         main: AgentTranscriptLocation,
-        mainStamp: string,
+        mainStamp: FileStamp,
+        earlier: AgentTranscriptLocation[] = [],
     ): Promise<UsageTranscriptFiles> {
         const side = provider === 'claude' ? await this.claudeSideFiles(main) : [];
-        const stamps = await Promise.all(side.map((file) => fileStamp(file.path)));
+        const [earlierStamps, sideStamps] = await Promise.all([
+            Promise.all(earlier.map((file) => fileStamp(file.path))),
+            Promise.all(side.map((file) => fileStamp(file.path))),
+        ]);
+        const present = earlier.filter((_, index) => earlierStamps[index] !== undefined);
         return {
             main,
+            earlier: present,
             side,
+            // The main file keeps the second position, which the outside-Caxri scan reads as the file's mtime.
             fingerprint: [
                 `v${USAGE_RECORD_VERSION}`,
-                mainStamp,
-                ...stamps.map((stamp) => stamp ?? '-'),
+                mainStamp.stamp,
+                ...earlierStamps.flatMap((stamp) => (stamp ? [stamp.stamp] : [])),
+                ...sideStamps.map((stamp) => stamp?.stamp ?? '-'),
             ].join('|'),
+            bornAt: (earlierStamps.find(Boolean) ?? mainStamp).bornAt,
         };
     }
 
+    /**
+     * Finds an Agent Session's files from its ledger binding. A reverted Codex thread's ledger row points at its
+     * current rollout; the rollouts before the revert hold the thread's earlier turns and are read with it, so its
+     * history keeps the hours it happened in instead of arriving as one lump with the first total after the revert.
+     */
     async locate(target: UsageScanTarget): Promise<UsageTranscriptFiles | undefined> {
         let main = await locateAgentTranscriptForIdentity(target, this.environment);
         let mainStamp = main && (await fileStamp(main.path));
@@ -144,7 +220,11 @@ export class UsageTranscriptLocator {
             mainStamp = main && (await fileStamp(main.path));
         }
         if (!main || !mainStamp) return;
-        return this.withSideFiles(target.provider, main, mainStamp);
+        const earlier =
+            target.provider === 'codex'
+                ? await locateEarlierCodexRollouts(main, this.environment)
+                : [];
+        return this.withSideFiles(target.provider, main, mainStamp, earlier);
     }
 
     /**
@@ -168,6 +248,8 @@ interface UsageStream {
     parser: UsageLineParser;
 }
 
+export type UsageScanOptions = Pick<UsageParserOptions, 'isContinuation' | 'isCountedElsewhere'>;
+
 /**
  * Folds one Agent Session's transcript files into a {@link UsageRecord} and can resume where it stopped: each file keeps
  * its read cursor and parser state, so a later {@link advance} parses only appended records. A full scan is one
@@ -177,28 +259,54 @@ interface UsageStream {
 export class IncrementalUsageScan {
     private accumulator = new UsageAccumulator();
     private streams = new Map<string, UsageStream>();
+    private claudeMessages = new Map<string, ClaudeMessageUsage>();
 
     constructor(
         private readonly provider: AgentProvider,
-        private readonly options: Pick<UsageParserOptions, 'isContinuation'> = {},
+        private readonly options: UsageScanOptions = {},
     ) {}
 
+    /**
+     * Earlier rollouts first, oldest first, then the main file and its side files. Only the first file of a chain
+     * starts from zero; every later rollout opens with the thread's running total.
+     */
+    private parserOptions(
+        files: UsageTranscriptFiles,
+    ): Array<[AgentTranscriptLocation, UsageParserOptions]> {
+        const chain = [...files.earlier, files.main];
+        return [
+            ...chain.map((location, index): [AgentTranscriptLocation, UsageParserOptions] => [
+                location,
+                {
+                    isContinuation: index > 0 || this.options.isContinuation,
+                    isCountedElsewhere: this.options.isCountedElsewhere,
+                },
+            ]),
+            ...files.side.map((location): [AgentTranscriptLocation, UsageParserOptions] => [
+                location,
+                { isSideStream: true },
+            ]),
+        ];
+    }
+
     private async readAppended(files: UsageTranscriptFiles): Promise<StreamReadOutcome> {
-        for (const [index, location] of [files.main, ...files.side].entries()) {
+        this.accumulator.bornAt = files.bornAt;
+        for (const [location, options] of this.parserOptions(files)) {
             let stream = this.streams.get(location.path);
             if (!stream) {
                 stream = {
                     location,
                     cursor: { offset: 0 },
                     parser: usageParserFor(this.provider, this.accumulator, {
-                        ...this.options,
-                        isSideStream: index > 0,
+                        ...options,
+                        claudeMessages: this.claudeMessages,
                     }),
                 };
                 this.streams.set(location.path, stream);
             }
             // eslint-disable-next-line no-await-in-loop -- files are folded one at a time to bound memory
             if ((await readCompleteLines(stream)) === 'reset') return 'reset';
+            stream.parser.flush?.();
         }
         return 'read';
     }
@@ -214,6 +322,7 @@ export class IncrementalUsageScan {
             if ((await this.readAppended(files)) === 'read') return;
             this.accumulator = new UsageAccumulator();
             this.streams = new Map();
+            this.claudeMessages = new Map();
         }
     }
 
@@ -282,7 +391,7 @@ async function readCompleteLines(stream: UsageStream): Promise<StreamReadOutcome
 export async function scanUsage(
     provider: AgentProvider,
     files: UsageTranscriptFiles,
-    options?: Pick<UsageParserOptions, 'isContinuation'>,
+    options?: UsageScanOptions,
 ): Promise<UsageRecord> {
     const scan = new IncrementalUsageScan(provider, options);
     await scan.advance(files);

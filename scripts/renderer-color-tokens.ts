@@ -39,6 +39,7 @@ export const registeredColorRoles = [
     'list-inactive-selection-background',
     'list-inactive-selection-foreground',
     'merged',
+    'chart',
     'muted',
     'overlay',
     'shadow',
