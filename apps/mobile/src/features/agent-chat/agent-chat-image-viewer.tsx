@@ -43,9 +43,9 @@ const ZoomableImage = ({ uri }: { uri: string }) => {
             else savedScale.value = scale.value;
         });
     const pan = Gesture.Pan()
-        .minPointers(1)
+        .maxPointers(1)
         .onUpdate((event) => {
-            if (savedScale.value <= MIN_SCALE && scale.value <= MIN_SCALE) return;
+            if (savedScale.value <= MIN_SCALE) return;
             translateX.value = savedX.value + event.translationX;
             translateY.value = savedY.value + event.translationY;
         })
@@ -55,13 +55,16 @@ const ZoomableImage = ({ uri }: { uri: string }) => {
         });
     const doubleTap = Gesture.Tap()
         .numberOfTaps(2)
-        .onEnd(() => {
+        .onEnd((_event, isSuccess) => {
+            if (!isSuccess) return;
             if (savedScale.value > MIN_SCALE) reset();
             else {
                 scale.value = withTiming(DOUBLE_TAP_SCALE);
                 savedScale.value = DOUBLE_TAP_SCALE;
             }
         });
+    // As in Paseo's viewport, a drag or pinch wins over the double tap instead of all three racing for one touch.
+    const gesture = Gesture.Exclusive(Gesture.Simultaneous(pan, pinch), doubleTap);
     const style = useAnimatedStyle(() => ({
         transform: [
             { translateX: translateX.value },
@@ -70,7 +73,7 @@ const ZoomableImage = ({ uri }: { uri: string }) => {
         ],
     }));
     return (
-        <GestureDetector gesture={Gesture.Simultaneous(pinch, pan, doubleTap)}>
+        <GestureDetector gesture={gesture}>
             <Animated.View collapsable={false} style={[styles.fill, style]}>
                 <Image
                     accessibilityIgnoresInvertColors
