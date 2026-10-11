@@ -47,6 +47,7 @@
                     "apps/server/src/domains/files/mutation-journal.ts",
                     "apps/server/src/domains/files/mutations-copy.ts",
                     "apps/server/src/domains/terminal/file-links.ts",
+                    "apps/server/src/domains/usage/external.ts",
                     "apps/server/src/terminal-host/engine/screen.ts",
                     "packages/client/src/supervise/binary-stream-client.ts",
                     "packages/system/src/observability/process-manifest.ts",
