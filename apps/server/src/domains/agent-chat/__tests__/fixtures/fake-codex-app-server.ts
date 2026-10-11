@@ -50,7 +50,7 @@ import {
 } from './fake-codex-history.ts';
 import type { FakeCodexIo, FakeItem, FakeThread, FakeTurn } from './fake-codex-io.ts';
 import { FAKE_MODELS } from './fake-codex-models.ts';
-import { revertThread } from './fake-codex-rewind.ts';
+import { forkThread, revertThread } from './fake-codex-rewind.ts';
 import {
     didHandleTaskRequest,
     dropTerminalsSilently,
@@ -454,6 +454,20 @@ function handle(message: RpcMessage) {
             });
             send({ id, ...reverted });
             if ('result' in reverted) notify('thread/reverted', {});
+            return;
+        }
+        case 'thread/fork': {
+            send({
+                id,
+                ...forkThread(currentThread(), parameters.beforeTurnId, {
+                    stateDirectory: fakeCodexStateDirectory(),
+                    threadPath,
+                }),
+            });
+            return;
+        }
+        case 'thread/unsubscribe': {
+            send({ id, result: { status: 'unsubscribed' } });
             return;
         }
         case 'model/list': {

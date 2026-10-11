@@ -5,6 +5,7 @@ import {
     agentChatEditAvailability,
     agentChatEditCaption,
     agentChatEditRemovedTurns,
+    agentChatForkAvailability,
 } from '../agent-chat-edit';
 
 type EditSnapshot = Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'>;
@@ -32,6 +33,18 @@ describe('Agent Chat edit from here', () => {
         expect(agentChatEditAvailability({ ...settled, activeTurnId: 't3' }, 'u1')).toEqual({
             canEdit: false,
             reason: 'Stop the running turn to edit from here',
+        });
+    });
+
+    it('forks a message with images too, but not while a turn runs', () => {
+        expect(agentChatForkAvailability(settled, 'u2')).toEqual({ canFork: true });
+        expect(agentChatForkAvailability({ ...settled, activeTurnId: 't3' }, 'u1')).toEqual({
+            canFork: false,
+            reason: 'Stop the running turn to fork from here',
+        });
+        expect(agentChatForkAvailability(settled, 'missing')).toEqual({
+            canFork: false,
+            reason: 'The conversation cannot fork from this message',
         });
     });
 

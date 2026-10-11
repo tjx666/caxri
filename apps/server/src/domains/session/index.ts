@@ -6,6 +6,6 @@ export {
     defaultSessionReferenceDirectory,
     SessionConversationReferenceService,
 } from './conversation-reference';
-export { createMobileSessionHandler, createSessionCreator } from './creation';
+export { createSessionCreationHandlers, createSessionCreator } from './creation';
 export { SessionRenameService } from './rename';
 export { SessionSelectionQueue } from './selection';

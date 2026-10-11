@@ -201,17 +201,28 @@ export interface ChatTaskHistory {
 }
 
 /**
- * What "Edit from here" rewinds: the user message that started `turnId`, which goes away with that turn and the
- * `removedTurns - 1` turns after it.
+ * Where "Fork from here" cuts: just before the user message that started `turnId`, so the fork holds the turns before
+ * it.
  */
-export interface ChatRewindTarget {
+export interface ChatForkTarget {
     itemId: string;
     turnId: string;
     /**
      * The message's text, which a provider can match against its own record before it changes anything.
      */
     text: string;
+    /**
+     * Turns older than `turnId` that the projection holds; a provider record may hold more.
+     */
+    keptTurns: number;
     removedTurns: number;
+}
+
+/**
+ * What "Edit from here" rewinds: the user message that started `turnId`, which goes away with that turn and the
+ * `removedTurns - 1` turns after it.
+ */
+export interface ChatRewindTarget extends ChatForkTarget {
     restoreFiles: boolean;
 }
 
@@ -262,6 +273,13 @@ export interface AgentChatProviderSession {
      * when the provider refuses, as far as the provider allows.
      */
     rewind(target: ChatRewindTarget): Promise<ChatResumePoint | undefined>;
+    /**
+     * "Fork from here": copies the provider's own record up to just before `target` into a new Agent Session and
+     * returns its id, or `undefined` when nothing comes before it and the new Chat starts a conversation of its own.
+     * Leaves this conversation unchanged. The service has already checked that no turn runs, and forks the first
+     * message of a whole conversation without asking the provider.
+     */
+    fork(target: ChatForkTarget): Promise<string | undefined>;
     /**
      * Stops the running turn. Background tasks keep running.
      */
