@@ -71,8 +71,10 @@ Closing the last macOS window with live PTYs asks whether to keep running, termi
 cancel. `Keep Running` detaches every Renderer view and closes the window while Server Core, Terminal
 Host, and PTYs remain alive; reopening creates a new window and attaches it to the live Server.
 `Terminate and Close` sends `terminal.terminateAll`, which ends work, not the Server: it fences queued
-restores, stops every live PTY and Chat as `stopped` (never auto-restored), stops any launch that lands
-while it runs, and returns once every launch in flight settled. Server Core, the Terminal Host, and every
+restores, stops every live PTY as `stopped` along with any launch that lands while it runs, then, once
+every launch in flight settled, stops every live Chat as `stopped` and returns. A stopped PTY is never
+auto-restored; a Chat starts lazily on its next read, as after any Server Core restart
+(`docs/agent-chat.md`). Server Core, the Terminal Host, and every
 Server service keep running, so a window reopened from the Dock creates, restarts, and restores Terminals
 and starts Chats on the same Server. `Quit Caxri` stops an idle Server without prompting. With live PTYs
 it asks whether to terminate every Terminal and Agent process before `host.stop`, keep work attached to
