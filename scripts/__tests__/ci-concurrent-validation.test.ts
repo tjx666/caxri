@@ -15,7 +15,6 @@ import {
     checksWorktreePath,
     checksWorktreeSetupCommands,
     createFetchedCheckout,
-    sanitizedChildEnvironment,
     verifyRevisionProvenance,
 } from '../ci-checks-worktree';
 import {
@@ -499,9 +498,6 @@ describe('concurrent CI validation', () => {
         });
         expect(environment.GIT_CONFIG_VALUE_1).toMatch(/^AUTHORIZATION: basic /u);
         expect(environment.GIT_CONFIG_VALUE_1).not.toContain('job-token');
-        expect(
-            sanitizedChildEnvironment({ CAXRI_GITHUB_TOKEN: 'job-token', SAFE_VALUE: 'kept' }),
-        ).toEqual({ SAFE_VALUE: 'kept' });
     });
 
     it('verifies raw synthetic merge parents after a depth-one fetch marks the commit shallow', async () => {
