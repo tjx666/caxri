@@ -21,7 +21,6 @@ import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
     CONTROL_TRANSPORT_MAX_FRAME_BYTES,
-    isConcurrentRead,
     localServerEventSchema,
     toWireError,
 } from '@caxri/protocol';
@@ -175,16 +174,6 @@ export function reserveControlRequest(state: ClientState): (() => void) | undefi
 export interface OrderedQueueTiming {
     enqueuedAt: number;
     queueDepth: number;
-}
-
-const SELF_SERIALIZED_OPERATIONS = new Set(['files.copy', 'terminal.prepareLongPaste']);
-
-/**
- * Reads do not carry mutation ordering. Long-running operations may also settle independently only when their domain
- * service serializes its own shared mutations and revalidates authority after every await boundary.
- */
-export function shouldSettleOutsideOrderedLane(method: string): boolean {
-    return isConcurrentRead(method) || SELF_SERIALIZED_OPERATIONS.has(method);
 }
 
 /**
