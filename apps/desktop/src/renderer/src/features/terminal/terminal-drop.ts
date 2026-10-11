@@ -5,6 +5,7 @@ import type { TerminalRecord } from '@caxri/protocol';
 import {
     hasOsFiles,
     hasTerminalDraggedPath,
+    osFilePaths,
     projectTerminalInput,
     terminalDragPaths,
     terminalReferencePath,
@@ -69,7 +70,30 @@ export function terminalDropInput(
     const projectInput = projectTerminalInput(dataTransfer);
     if (projectInput) return projectInput;
     const editorPath = dataTransfer.getData(EDITOR_PATH_DRAG_TYPE);
-    const paths = editorPath ? [editorPath] : terminalDragPaths(event, files);
+    return terminalPathsInput(
+        editorPath ? [editorPath] : terminalDragPaths(event, files),
+        terminal,
+        workbenchRoot,
+    );
+}
+
+/**
+ * The text that cites `files` chosen in a file picker, spelled the way a drop of the same files would be. A file with
+ * no path on disk is left out.
+ */
+export function terminalFilesInput(
+    files: Iterable<File>,
+    terminal: Pick<TerminalRecord, 'agentCwd' | 'cwd' | 'lastAgentProcessState'>,
+    workbenchRoot?: string,
+): string | undefined {
+    return terminalPathsInput(osFilePaths(files), terminal, workbenchRoot);
+}
+
+function terminalPathsInput(
+    paths: readonly string[],
+    terminal: Pick<TerminalRecord, 'agentCwd' | 'cwd' | 'lastAgentProcessState'>,
+    workbenchRoot: string | undefined,
+): string | undefined {
     return paths.length > 0
         ? paths.map((path) => terminalReferencePath(path, terminal, workbenchRoot)).join(' ')
         : undefined;

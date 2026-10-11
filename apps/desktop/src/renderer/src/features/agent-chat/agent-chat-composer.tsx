@@ -16,9 +16,10 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { useTerminal } from '../../stores/selectors';
 import { pushToast } from '../../stores/toasts';
-import { terminalDropInput } from '../terminal/terminal-drop';
+import { terminalDropInput, terminalFilesInput } from '../terminal/terminal-drop';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import { AgentChatActivityBar } from './agent-chat-activity-bar';
+import { AgentChatAttachButton } from './agent-chat-attach-button';
 import { AgentChatAttachmentList } from './agent-chat-attachment-list';
 import { interruptAgentChat } from './agent-chat-commands';
 import { agentChatContextUsage } from './agent-chat-context';
@@ -45,6 +46,8 @@ import { useAgentChatDraftAppends } from './hooks/use-agent-chat-draft-appends';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatFileInput } from './hooks/use-agent-chat-file-input';
 import { useAgentChatHandoff } from './hooks/use-agent-chat-handoff';
+import type { AgentChatPasteRange } from './hooks/use-agent-chat-long-paste';
+import { useAgentChatLongPaste } from './hooks/use-agent-chat-long-paste';
 import { useAgentChatPromptHistory } from './hooks/use-agent-chat-prompt-history';
 import { useAgentChatSessionMenu } from './hooks/use-agent-chat-session-menu';
 import { useAgentChatSubmit } from './hooks/use-agent-chat-submit';
@@ -105,12 +108,13 @@ interface AgentChatComposerProperties {
  * Message input. Enter sends, Shift+Enter adds a line. While a turn runs (or the context compacts), Enter queues the
  * message for after the turn and Cmd+Enter steers it into the running turn; queued messages wait as cards above the
  * input. Escape or the Stop button that replaces Send while the input is empty interrupts the turn. Images can be
- * pasted, dropped, or picked when the provider accepts them; any other dropped file, Files entry, or Editor tab is
- * inserted as its path. A leading `/` or `$` offers the provider's commands and the discovered skills, and a word that
- * starts with `@` offers other Sessions whose conversation the message can cite. It shares the timeline's centered
- * column so the input lines up with the conversation, and keeps the activity row, attachments, the input, and its
- * actions inside one card so they read as a single control. The action row picks the model and effort for the next turn
- * and shows how full the context window is. Clicking Send, Stop, or a chip or queue action hands focus back to the
+ * pasted, dropped, or picked with Attach files when the provider accepts them; any other dropped or picked file, Files
+ * entry, or Editor tab is inserted as its path. Text pasted past `AGENT_CHAT_LONG_PASTE_THRESHOLD` is saved to a file
+ * and the message cites it instead. A leading `/` or `$` offers the provider's commands and the discovered skills, and
+ * a word that starts with `@` offers other Sessions whose conversation the message can cite. It shares the timeline's
+ * centered column so the input lines up with the conversation, and keeps the activity row, attachments, the input, and
+ * its actions inside one card so they read as a single control. The action row picks the model and effort for the next
+ * turn and shows how full the context window is. Clicking Send, Stop, or a chip or queue action hands focus back to the
  * input, since each of those controls disables or unmounts itself and would otherwise drop focus to the document body.
  * The unsent text survives switching Sessions and restarting Caxri, and ArrowUp on an empty input recalls the prompts
  * this Chat already sent. "Edit from here" on an earlier message (`useAgentChatComposerEdit`) puts its text in the
@@ -180,11 +184,32 @@ export function AgentChatComposer({
         terminal,
     });
     /**
-     * A dropped file is cited by path the way a drop into a Terminal pastes one, relative to where the Agent runs, and
-     * lands at the caret.
+     * Inserts `text` over `range` while the input still holds the text the range was taken from, and at the caret
+     * otherwise (the user kept typing while a long paste was saved), then puts the caret after it.
      */
-    const insertPaths = (event: DragEvent, files: readonly File[]): void => {
-        const input = terminal && terminalDropInput(event, terminal, workbenchRoot, files);
+    const insertText = (text: string, range?: AgentChatPasteRange): void => {
+        const textarea = inputReference.current;
+        const current = textarea?.value ?? draft;
+        const start = textarea?.selectionStart ?? current.length;
+        const at =
+            range?.value === current ? range : { start, end: textarea?.selectionEnd ?? start };
+        const inserted = draftWithInsertion(current, at.start, at.end, text);
+        setDraft(() => inserted.draft);
+        requestAnimationFrame(() => {
+            textarea?.focus();
+            textarea?.setSelectionRange(inserted.caret, inserted.caret);
+        });
+    };
+    /**
+     * A dropped or picked file is cited by path the way a drop into a Terminal pastes one, relative to where the Agent
+     * runs, and lands at the caret.
+     */
+    const insertPaths = (event: DragEvent | undefined, files: readonly File[]): void => {
+        const input =
+            terminal &&
+            (event
+                ? terminalDropInput(event, terminal, workbenchRoot, files)
+                : terminalFilesInput(files, terminal, workbenchRoot));
         if (!input) {
             if (files.length > 0)
                 pushToast(
@@ -193,21 +218,15 @@ export function AgentChatComposer({
                 );
             return;
         }
-        const textarea = inputReference.current;
-        const start = textarea?.selectionStart ?? draft.length;
-        const end = textarea?.selectionEnd ?? start;
-        const inserted = draftWithInsertion(draft, start, end, input);
-        setDraft(() => inserted.draft);
-        requestAnimationFrame(() => {
-            textarea?.focus();
-            textarea?.setSelectionRange(inserted.caret, inserted.caret);
-        });
+        insertText(input);
     };
+    const longPaste = useAgentChatLongPaste({ insert: insertText, terminalId });
     const fileInput = useAgentChatFileInput({
         add: images.add,
         insertPaths,
         isImageInputEnabled: supportsImages,
         providerName,
+        takeLongPaste: longPaste.didTakePaste,
     });
     useImperativeHandle(dropHandlersReference, () => fileInput.dropHandlers);
     const {
@@ -245,7 +264,8 @@ export function AgentChatComposer({
         setDraft,
     });
     const contextUsage = agentChatContextUsage(snapshot);
-    const isSendable = edit.canSend && !isSending && !images.isReading && hasContent;
+    const isSendable =
+        edit.canSend && !isSending && !images.isReading && !longPaste.isSaving && hasContent;
     const { sendAction } = edit;
     const submit = async (delivery?: 'steer'): Promise<void> => {
         if (isSendable) await edit.submit(draft, async () => submitDraft(draft, delivery));
@@ -379,6 +399,13 @@ export function AgentChatComposer({
                 />
                 <div className="flex items-center gap-1 px-2 pb-2">
                     <div className="flex min-w-0 flex-1 items-center justify-end gap-0.5">
+                        <AgentChatAttachButton
+                            isBusy={images.isReading || longPaste.isSaving}
+                            onPick={(files) => {
+                                fileInput.pick(files);
+                                focusInput();
+                            }}
+                        />
                         {contextUsage && <AgentChatContextMeter usage={contextUsage} />}
                         <AgentChatModelMenu snapshot={snapshot} terminalId={terminalId} />
                     </div>

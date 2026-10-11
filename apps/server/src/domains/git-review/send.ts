@@ -1,6 +1,7 @@
 import {
     CaxriError,
     formatGitReviewComments,
+    formatLongPasteReference,
     formatReviewTerminalInput,
     isGitReviewPromptInline,
     isLongPasteWithinLimit,
@@ -28,27 +29,6 @@ function resolveRepoFilePath(repoRootPath: string, relativePath: string): string
     const root = repoRootPath === '/' ? '/' : repoRootPath.replace(/\/+$/u, '');
     if (!root) return undefined;
     return root === '/' ? `/${relativePath}` : `${root}/${relativePath}`;
-}
-
-/**
- * Duplicated from the Desktop Renderer's `features/terminal/terminal-long-paste.ts` (`formatLongPasteReference`) rather
- * than imported: same Server/Renderer boundary as above. Keep both copies in sync if the reference text changes.
- */
-function reviewLongPasteReference(result: {
-    characterCount: number;
-    filePath: string;
-    lineCount: number;
-}): string {
-    const lines = `${result.lineCount} ${result.lineCount === 1 ? 'line' : 'lines'}`;
-    const characters = `${result.characterCount} ${result.characterCount === 1 ? 'character' : 'characters'}`;
-    return [
-        '[Long paste saved locally]',
-        `Original file: ${JSON.stringify(result.filePath)}`,
-        `Original size: ${lines}, ${characters}`,
-        '',
-        'Read the original file for the exact content.',
-        'If a summary is enough, delegate it to a subagent on a small, fast model so the full text stays out of this conversation.',
-    ].join('\n');
 }
 
 interface GitReviewSendOptions {
@@ -107,7 +87,7 @@ export function createGitReviewSendHandler(
             const accepted = options.terminals.writeAgentExact(
                 terminalId,
                 formatReviewTerminalInput(
-                    `${reviewLongPasteReference(result)}\nAddress every review comment in that file.`,
+                    `${formatLongPasteReference(result)}\nAddress every review comment in that file.`,
                 ),
                 result.agentLaunchId,
             );

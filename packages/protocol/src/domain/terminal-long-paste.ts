@@ -26,6 +26,43 @@ export const terminalLongPasteParametersSchema = z.object({
     }),
 });
 
+const savedLongPasteFields = {
+    characterCount: z.number().int().min(1).max(MAX_LONG_PASTE_BYTES),
+    filePath: pathSchema,
+    lineCount: z
+        .number()
+        .int()
+        .min(1)
+        .max(MAX_LONG_PASTE_BYTES + 1),
+};
+
+/**
+ * Where a saved paste lives and how big the original was, which is everything its reference tells the Agent.
+ */
+export const savedLongPasteSchema = z.object(savedLongPasteFields);
+export type SavedLongPaste = z.infer<typeof savedLongPasteSchema>;
+
+/**
+ * What the Agent sees in place of the pasted text, in a Terminal, an Agent Chat message, or a Git review hand-off.
+ *
+ * Caxri used to summarize the paste itself with a low-cost model call before the Agent saw anything, which held
+ * Terminal input for the length of that call and left nothing behind when it timed out. The Agent is better placed to
+ * decide what the text is worth: it can read the file, grep it, or hand it to a small-model subagent. So this says
+ * where the file is, how big it is, and names the subagent route, and then gets out of the way.
+ */
+export function formatLongPasteReference(result: SavedLongPaste): string {
+    const lines = `${result.lineCount} ${result.lineCount === 1 ? 'line' : 'lines'}`;
+    const characters = `${result.characterCount} ${result.characterCount === 1 ? 'character' : 'characters'}`;
+    return [
+        '[Long paste saved locally]',
+        `Original file: ${JSON.stringify(result.filePath)}`,
+        `Original size: ${lines}, ${characters}`,
+        '',
+        'Read the original file for the exact content.',
+        'If a summary is enough, delegate it to a subagent on a small, fast model so the full text stays out of this conversation.',
+    ].join('\n');
+}
+
 /**
  * Long pastes are saved, never summarized.
  *
@@ -41,13 +78,7 @@ export const terminalLongPasteResultSchema = z.discriminatedUnion('status', [
     z.object({ status: z.literal('passthrough') }),
     z.object({
         agentLaunchId: identifierSchema,
-        characterCount: z.number().int().min(1).max(MAX_LONG_PASTE_BYTES),
-        filePath: pathSchema,
-        lineCount: z
-            .number()
-            .int()
-            .min(1)
-            .max(MAX_LONG_PASTE_BYTES + 1),
+        ...savedLongPasteFields,
         status: z.literal('saved'),
     }),
 ]);

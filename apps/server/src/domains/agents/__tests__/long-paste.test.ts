@@ -214,4 +214,33 @@ describe('LongPasteService', () => {
         ).rejects.toMatchObject({ code: 'CONFLICT' });
         expect(await readdir(shell.userDataPath)).not.toContain('pastes');
     });
+
+    it('saves a Chat paste to the shared directory without needing a PTY Agent', async () => {
+        const test = await fixture();
+        test.database.updateTerminalSurface(test.terminal.id, 'chat');
+        // A Chat decides for itself when text is long, so even a short paste is saved as asked.
+        const content = 'first line\nsecond line';
+
+        const result = await test.service.saveForChat({ terminalId: test.terminal.id, content });
+
+        expect(result).toMatchObject({ characterCount: content.length, lineCount: 2 });
+        expect(result.filePath).toMatch(/\/pastes\/paste-20260831T123456-/u);
+        expect(await readFile(result.filePath, 'utf8')).toBe(content);
+        expect((await stat(result.filePath)).mode & 0o777).toBe(0o600);
+    });
+
+    it('refuses a Chat paste for a PTY Terminal or one past the shared budget', async () => {
+        const test = await fixture();
+        await expect(
+            test.service.saveForChat({ terminalId: test.terminal.id, content: 'text' }),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
+        test.database.updateTerminalSurface(test.terminal.id, 'chat');
+        const tooLarge = '界'.repeat(Math.floor(MAX_LONG_PASTE_BYTES / 3) + 1);
+        await expect(
+            test.service.saveForChat({ terminalId: test.terminal.id, content: tooLarge }),
+        ).rejects.toMatchObject({ code: 'VALIDATION' });
+        await expect(readdir(join(test.userDataPath, 'pastes'))).rejects.toMatchObject({
+            code: 'ENOENT',
+        });
+    });
 });

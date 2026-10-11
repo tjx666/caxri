@@ -976,8 +976,9 @@ dragged over it. A dropped image attaches; any other file, Files entry, or Edito
 the caret as its path, spelled relative to the Agent's directory the way a Terminal drop is. Inside, top to bottom: the attached-image strip (64px radius-6 thumbnails, drawn
 from a preview that covers the 96px sent-message tile at 2x, each with its remove control inset in
 the top-right corner), a borderless auto-growing textarea, and one action row, right-aligned in
-`--muted`: Attach images (pasting or dropping is the common path, so the picker does not claim the
-leading corner), the context meter (a 14px ring that fills with the share of the window in use, its percentage beside it, `--warning` from 80%
+`--muted`: Attach files (a paperclip ghost icon that turns into a spinner while picked images are
+read or a long paste is saved; pasting or dropping is the common path, so the picker does not claim
+the leading corner), the context meter (a 14px ring that fills with the share of the window in use, its percentage beside it, `--warning` from 80%
 and `--danger` from 95%, the token counts in its tooltip) and the model picker (the model's name and
 the next turn's effort, opening a menu of models with their descriptions and the current model's
 efforts, which stays open after a choice), and a single primary action slot: a 28px `--foreground`

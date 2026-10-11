@@ -73,6 +73,7 @@ type ServiceHandlerMethods =
     | 'terminal.reference.preview'
     | 'terminal.fileLink.resolve'
     | 'terminal.prepareLongPaste'
+    | 'agentChat.saveLongPaste'
     | 'terminal.referenceContext'
     | 'project.create'
     | 'project.setIcon'
@@ -296,6 +297,8 @@ export function createServiceHandlers(services: {
                 trustedFolders: configuration.getSettings().value['security.trustedFolders'],
             }),
         'terminal.prepareLongPaste': (parameters, signal) => longPastes.prepare(parameters, signal),
+        'agentChat.saveLongPaste': (parameters, signal) =>
+            longPastes.saveForChat(parameters, signal),
         'terminal.referenceContext': ({ terminalId }) => {
             const terminal = database.getTerminal(terminalId);
             if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');

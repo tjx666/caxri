@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatAttachmentLabel,
-    agentChatPasteTruncationWarning,
     appendToAgentChatDraft,
     draftAfterSend,
     draftWithInsertion,
@@ -48,41 +47,6 @@ describe('Agent Chat drafts', () => {
         expect(agentChatAttachmentLabel({ name: '' }, 1)).toBe('Attachment 2');
         expect(agentChatAttachmentLabel({}, 2)).toBe('Attachment 3');
     });
-
-    it('warns only when a paste would pass the message limit', () => {
-        expect(
-            agentChatPasteTruncationWarning(
-                { currentLength: 4, pastedLength: 6, selectedLength: 0 },
-                10,
-            ),
-        ).toBeUndefined();
-        // The selection the paste replaces frees room.
-        expect(
-            agentChatPasteTruncationWarning(
-                { currentLength: 8, pastedLength: 6, selectedLength: 4 },
-                10,
-            ),
-        ).toBeUndefined();
-        expect(
-            agentChatPasteTruncationWarning(
-                { currentLength: 8, pastedLength: 6, selectedLength: 0 },
-                100_000,
-            ),
-        ).toBeUndefined();
-        expect(
-            agentChatPasteTruncationWarning(
-                { currentLength: 99_998, pastedLength: 3, selectedLength: 0 },
-                100_000,
-            ),
-        ).toBe('Pasted text was cut off at the 100,000-character message limit');
-        // An image-only paste carries no text to cut.
-        expect(
-            agentChatPasteTruncationWarning(
-                { currentLength: 100_000, pastedLength: 0, selectedLength: 0 },
-                100_000,
-            ),
-        ).toBeUndefined();
-    });
 });
 
 describe('draftWithInsertion', () => {
@@ -93,5 +57,13 @@ describe('draftWithInsertion', () => {
         ['fix this now', 4, 8, { draft: 'fix src/a.ts now', caret: 12 }],
     ])('inserts into %j at [%i, %i)', (draft, start, end, expected) => {
         expect(draftWithInsertion(draft, start, end, 'src/a.ts')).toEqual(expected);
+    });
+
+    it.each([
+        ['', 0, { draft: 'a\nb\n', caret: 4 }],
+        ['see notes.txt ', 14, { draft: 'see notes.txt \na\nb\n', caret: 19 }],
+        ['before\nafter', 7, { draft: 'before\na\nb\nafter', caret: 11 }],
+    ])('sets a multi-line insertion into %j at %i on lines of its own', (draft, at, expected) => {
+        expect(draftWithInsertion(draft, at, at, 'a\nb')).toEqual(expected);
     });
 });

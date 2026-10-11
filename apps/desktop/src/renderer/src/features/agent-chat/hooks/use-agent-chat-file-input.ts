@@ -1,12 +1,9 @@
 import type { ClipboardEvent, DragEvent } from 'react';
 import { useState } from 'react';
 
-import { MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
-
 import { hasTerminalDraggedPath, PROJECT_PATH_DRAG_TYPE } from '../../../lib/file-drag';
 import { pushToast } from '../../../stores/toasts';
 import { EDITOR_PATH_DRAG_TYPE } from '../../workbench/pane-drop-zone';
-import { agentChatPasteTruncationWarning } from '../agent-chat-drafts';
 import { agentChatImageFiles, agentChatImagesUnsupportedMessage } from '../agent-chat-images';
 
 /**
@@ -26,33 +23,51 @@ function isComposerDrag(event: DragEvent): boolean {
 export type AgentChatDropHandlers = ReturnType<typeof useAgentChatFileInput>['dropHandlers'];
 
 /**
- * Paste and drag-and-drop handlers for the composer. Images go to `add` when the provider accepts them; every other
- * dropped file, Files entry, Editor tab, or Project is cited by path through `insertPaths`, as a drop into a Terminal
- * is. `insertPaths` receives the drop and the files it should cite. A pasted image the provider cannot take has no path
- * to cite, so it says why in an info toast instead of silently doing nothing. Pasted text the message limit would cut
- * says so in a warning, since the textarea's `maxLength` cuts it silently.
+ * Paste, drag-and-drop, and file picker handlers for the composer. Images go to `add` when the provider accepts them;
+ * every other dropped or picked file, Files entry, Editor tab, or Project is cited by path through `insertPaths`, as a
+ * drop into a Terminal is. `insertPaths` receives the drop (absent for a pick) and the files it should cite. A pasted
+ * image the provider cannot take has no path to cite, so it says why in an info toast instead of silently doing
+ * nothing. Pasted text goes to `takeLongPaste` first, which keeps a long paste out of the input.
  */
 export function useAgentChatFileInput({
     add,
     insertPaths,
     isImageInputEnabled,
     providerName,
+    takeLongPaste,
 }: {
     add: (files: readonly File[]) => Promise<void>;
-    insertPaths: (event: DragEvent, files: readonly File[]) => void;
+    insertPaths: (event: DragEvent | undefined, files: readonly File[]) => void;
     isImageInputEnabled: boolean;
     /**
      * The provider catalog's display name, for the toast that says it takes no images.
      */
     providerName: string;
+    /**
+     * Returns whether it took the paste's text (`useAgentChatLongPaste`).
+     */
+    takeLongPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => boolean;
 }) {
     const [isDragOver, setDragOver] = useState(false);
     const attach = (files: readonly File[]): void => {
         // eslint-disable-next-line no-void -- add reports unreadable or rejected images through toasts
         if (isImageInputEnabled && files.length > 0) void add(files);
     };
+    /**
+     * Splits files between image attachments and path references, the same way for a drop and a pick.
+     */
+    const route = (event: DragEvent | undefined, files: readonly File[]): void => {
+        const images = isImageInputEnabled ? agentChatImageFiles(files) : [];
+        attach(images);
+        const attached = new Set(images);
+        insertPaths(
+            event,
+            files.filter((file) => !attached.has(file)),
+        );
+    };
     return {
         isDragOver,
+        pick: (files: readonly File[]) => route(undefined, files),
         dropHandlers: {
             onDragLeave: (event: DragEvent) => {
                 // Leaving for a child of the composer is still over it.
@@ -74,28 +89,12 @@ export function useAgentChatFileInput({
                 if (!isComposerDrag(event)) return;
                 event.preventDefault();
                 event.stopPropagation();
-                const files = [...event.dataTransfer.files];
-                const images = isImageInputEnabled ? agentChatImageFiles(event.dataTransfer) : [];
-                attach(images);
-                const attached = new Set(images);
-                insertPaths(
-                    event,
-                    files.filter((file) => !attached.has(file)),
-                );
+                route(event, [...event.dataTransfer.files]);
             },
         },
         onPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => {
-            const { selectionEnd, selectionStart, value } = event.currentTarget;
-            const warning = agentChatPasteTruncationWarning(
-                {
-                    currentLength: value.length,
-                    pastedLength: event.clipboardData.getData('text/plain').length,
-                    selectedLength: selectionEnd - selectionStart,
-                },
-                MAX_AGENT_CHAT_MESSAGE_LENGTH,
-            );
-            if (warning) pushToast('warning', warning);
-            const files = agentChatImageFiles(event.clipboardData);
+            takeLongPaste(event);
+            const files = agentChatImageFiles(event.clipboardData.files);
             if (files.length === 0) return;
             // Text copied alongside an image (an app that offers both) still pastes as text, and then says nothing.
             const hasText = Boolean(event.clipboardData.getData('text/plain'));
