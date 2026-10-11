@@ -57,6 +57,25 @@ export function formatMetric(value: number, metric: UsageMetric): string {
     return metric === 'tokens' ? `${formatTokens(value)} tokens` : formatUsd(value);
 }
 
+/**
+ * Hover text for one heatmap day: every figure the cell's color stands for, since the color alone is only a quartile.
+ */
+export function usageDayTooltip(date: string, day: UsageDay | undefined): string {
+    const detail =
+        !day || day.tokens === 0
+            ? 'No usage'
+            : `${formatTokens(day.tokens)} tokens · ${formatUsd(day.costUsd)} · ${formatDuration(day.activeMs)} active`;
+    return `${formatDate(date)} · ${detail}`;
+}
+
+/**
+ * Hover text for one Time of day bar, naming the hour as a span so `11:00` does not read as a single instant.
+ */
+export function usageHourTooltip(hour: number, tokens: number): string {
+    const span = `${formatHour(hour)}–${formatHour((hour + 1) % 24)}`;
+    return `${span} · ${tokens > 0 ? `${formatTokens(tokens)} tokens` : 'No usage'}`;
+}
+
 interface HeatmapCell {
     date: string;
     value: number;
