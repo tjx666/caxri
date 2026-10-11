@@ -43,17 +43,8 @@ export const CommanderInboxCard = ({
     theme: MobileTheme;
 }) => {
     const [isComposing, setComposing] = useState(false);
-    const [draft, setDraft] = useState('');
     const model = commanderInboxCardModel(item, readAt);
     const pullRequestUrl = item.pullRequest?.url;
-    const body = commanderInboxReplyBody(draft);
-    const send = async (): Promise<void> => {
-        if (!body) return;
-        if (await onSend(item.id, body)) {
-            setDraft('');
-            setComposing(false);
-        }
-    };
     return (
         <View
             style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
@@ -104,100 +95,18 @@ export const CommanderInboxCard = ({
                 </View>
             ) : null}
             {item.replies.length > 0 ? (
-                <View style={[styles.replies, { borderColor: theme.border }]}>
-                    {item.earlierReplyCount > 0 ? (
-                        <Text style={[styles.meta, { color: theme.muted }]}>
-                            {`${item.earlierReplyCount} earlier ${item.earlierReplyCount === 1 ? 'reply' : 'replies'}`}
-                        </Text>
-                    ) : null}
-                    {item.replies.map((reply) => (
-                        <Text key={reply.sequence} style={[styles.reply, { color: theme.text }]}>
-                            {reply.body}
-                        </Text>
-                    ))}
-                    {model.replyState ? (
-                        <Text
-                            style={[
-                                styles.meta,
-                                { color: model.replyState.isRead ? theme.success : theme.muted },
-                            ]}
-                            testID={`commander-inbox-reply-state-${item.id}`}
-                        >
-                            {model.replyState.label}
-                        </Text>
-                    ) : null}
-                </View>
+                <CommanderInboxReplies item={item} replyState={model.replyState} theme={theme} />
             ) : null}
             {isComposing ? (
-                <View style={styles.composer}>
-                    <TextInput
-                        accessibilityLabel={`Reply to ${item.title}`}
-                        autoFocus
-                        editable={!isSending}
-                        multiline
-                        onChangeText={setDraft}
-                        onFocus={onComposerFocus}
-                        placeholder="Reply to the Commander"
-                        placeholderTextColor={theme.muted}
-                        style={[
-                            styles.input,
-                            {
-                                backgroundColor: theme.background,
-                                borderColor: theme.border,
-                                color: theme.text,
-                            },
-                        ]}
-                        testID={`commander-inbox-reply-input-${item.id}`}
-                        value={draft}
-                    />
-                    {error ? (
-                        <Text
-                            accessibilityRole="alert"
-                            style={[styles.meta, { color: theme.danger }]}
-                            testID={`commander-inbox-reply-error-${item.id}`}
-                        >
-                            {error}
-                        </Text>
-                    ) : null}
-                    <View style={styles.actions}>
-                        <Pressable
-                            accessibilityRole="button"
-                            disabled={isSending}
-                            onPress={() => setComposing(false)}
-                            style={styles.action}
-                            testID={`commander-inbox-reply-cancel-${item.id}`}
-                        >
-                            <Text style={[styles.actionText, { color: theme.muted }]}>Cancel</Text>
-                        </Pressable>
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityState={{ busy: isSending, disabled: !body || isSending }}
-                            disabled={!body || isSending}
-                            onPress={() => {
-                                // eslint-disable-next-line no-void -- The reply hook renders send failures.
-                                void send();
-                            }}
-                            style={[
-                                styles.action,
-                                {
-                                    backgroundColor: theme.primary,
-                                    opacity: !body || isSending ? 0.5 : 1,
-                                },
-                            ]}
-                            testID={`commander-inbox-reply-send-${item.id}`}
-                        >
-                            {isSending ? (
-                                <ActivityIndicator color={theme.primaryForeground} size="small" />
-                            ) : (
-                                <Text
-                                    style={[styles.actionText, { color: theme.primaryForeground }]}
-                                >
-                                    Send
-                                </Text>
-                            )}
-                        </Pressable>
-                    </View>
-                </View>
+                <CommanderInboxReplyComposer
+                    error={error}
+                    isSending={isSending}
+                    item={item}
+                    onClose={() => setComposing(false)}
+                    onComposerFocus={onComposerFocus}
+                    onSend={onSend}
+                    theme={theme}
+                />
             ) : (
                 <Pressable
                     accessibilityRole="button"
@@ -209,6 +118,136 @@ export const CommanderInboxCard = ({
                     <Text style={[styles.actionText, { color: theme.primary }]}>Reply</Text>
                 </Pressable>
             )}
+        </View>
+    );
+};
+
+/**
+ * The owner's replies on one card, with the Commander's read state under the latest.
+ */
+const CommanderInboxReplies = ({
+    item,
+    replyState,
+    theme,
+}: {
+    item: MobileCommanderInboxItem;
+    replyState: ReturnType<typeof commanderInboxCardModel>['replyState'];
+    theme: MobileTheme;
+}) => (
+    <View style={[styles.replies, { borderColor: theme.border }]}>
+        {item.earlierReplyCount > 0 ? (
+            <Text style={[styles.meta, { color: theme.muted }]}>
+                {`${item.earlierReplyCount} earlier ${item.earlierReplyCount === 1 ? 'reply' : 'replies'}`}
+            </Text>
+        ) : null}
+        {item.replies.map((reply) => (
+            <Text key={reply.sequence} style={[styles.reply, { color: theme.text }]}>
+                {reply.body}
+            </Text>
+        ))}
+        {replyState ? (
+            <Text
+                style={[styles.meta, { color: replyState.isRead ? theme.success : theme.muted }]}
+                testID={`commander-inbox-reply-state-${item.id}`}
+            >
+                {replyState.label}
+            </Text>
+        ) : null}
+    </View>
+);
+
+/**
+ * The in-place reply composer of one card. It owns the draft, so Cancel discards it.
+ */
+const CommanderInboxReplyComposer = ({
+    error,
+    isSending,
+    item,
+    onClose,
+    onComposerFocus,
+    onSend,
+    theme,
+}: {
+    error: string | undefined;
+    isSending: boolean;
+    item: MobileCommanderInboxItem;
+    onClose: () => void;
+    onComposerFocus: () => void;
+    onSend: (itemId: string, body: string) => Promise<boolean>;
+    theme: MobileTheme;
+}) => {
+    const [draft, setDraft] = useState('');
+    const body = commanderInboxReplyBody(draft);
+    const send = async (): Promise<void> => {
+        if (body && (await onSend(item.id, body))) onClose();
+    };
+    return (
+        <View style={styles.composer}>
+            <TextInput
+                accessibilityLabel={`Reply to ${item.title}`}
+                autoFocus
+                editable={!isSending}
+                multiline
+                onChangeText={setDraft}
+                onFocus={onComposerFocus}
+                placeholder="Reply to the Commander"
+                placeholderTextColor={theme.muted}
+                style={[
+                    styles.input,
+                    {
+                        backgroundColor: theme.background,
+                        borderColor: theme.border,
+                        color: theme.text,
+                    },
+                ]}
+                testID={`commander-inbox-reply-input-${item.id}`}
+                value={draft}
+            />
+            {error ? (
+                <Text
+                    accessibilityRole="alert"
+                    style={[styles.meta, { color: theme.danger }]}
+                    testID={`commander-inbox-reply-error-${item.id}`}
+                >
+                    {error}
+                </Text>
+            ) : null}
+            <View style={styles.actions}>
+                <Pressable
+                    accessibilityRole="button"
+                    disabled={isSending}
+                    onPress={onClose}
+                    style={styles.action}
+                    testID={`commander-inbox-reply-cancel-${item.id}`}
+                >
+                    <Text style={[styles.actionText, { color: theme.muted }]}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ busy: isSending, disabled: !body || isSending }}
+                    disabled={!body || isSending}
+                    onPress={() => {
+                        // eslint-disable-next-line no-void -- The reply hook renders send failures.
+                        void send();
+                    }}
+                    style={[
+                        styles.action,
+                        {
+                            backgroundColor: theme.primary,
+                            opacity: !body || isSending ? 0.5 : 1,
+                        },
+                    ]}
+                    testID={`commander-inbox-reply-send-${item.id}`}
+                >
+                    {isSending ? (
+                        <ActivityIndicator color={theme.primaryForeground} size="small" />
+                    ) : (
+                        <Text style={[styles.actionText, { color: theme.primaryForeground }]}>
+                            Send
+                        </Text>
+                    )}
+                </Pressable>
+            </View>
         </View>
     );
 };

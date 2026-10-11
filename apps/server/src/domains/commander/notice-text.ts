@@ -20,7 +20,7 @@ export interface CommanderCompletionNoticeEntry {
  * validated records, but this text becomes literal PTY input, a stronger trust boundary than a JSON field, and an empty
  * identifier must still render as something rather than silently disappearing from the line.
  */
-export function sanitizeSingleLine(value: string): string {
+function sanitizeSingleLine(value: string): string {
     return normalizeTerminalTitle(value) ?? '?';
 }
 
@@ -50,14 +50,14 @@ function noticeUpdateCount(count: number, noun: string): string {
 /**
  * One Inbox clause of a notice line: the item ID and a closed event word, never the item's title, body, or reply.
  */
-export function inboxNoticeClause(entry: CommanderInboxNoticeEntry): string {
+function inboxNoticeClause(entry: CommanderInboxNoticeEntry): string {
     return `inbox item ${sanitizeSingleLine(entry.itemId)} ${INBOX_EVENT_LABEL[entry.event]}`;
 }
 
 /**
  * The count before a notice's clauses, naming the kind only when every clause shares it.
  */
-export function noticeSummary(delegationCount: number, inboxCount: number): string {
+function noticeSummary(delegationCount: number, inboxCount: number): string {
     if (inboxCount === 0) return noticeUpdateCount(delegationCount, 'delegation ');
     if (delegationCount === 0) return noticeUpdateCount(inboxCount, 'inbox ');
     return noticeUpdateCount(delegationCount + inboxCount, '');
