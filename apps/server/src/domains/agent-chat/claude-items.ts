@@ -141,7 +141,12 @@ export function mapClaudeToolUse(
             output: '',
         };
     }
-    if (FILE_TOOLS.has(name))
+    if (FILE_TOOLS.has(name)) {
+        const fullDiff = fileChangeDiff(name, input);
+        const diff = clip(
+            fullDiff,
+            Math.min(MAX_AGENT_CHAT_DIFF_LENGTH, MAX_AGENT_CHAT_FILE_CHANGE_DIFF_TOTAL),
+        );
         return {
             ...base,
             type: 'fileChange',
@@ -150,13 +155,12 @@ export function mapClaudeToolUse(
                 {
                     path: clip(filePath(input), 4_096),
                     kind: 'update' as const,
-                    diff: clip(
-                        fileChangeDiff(name, input),
-                        Math.min(MAX_AGENT_CHAT_DIFF_LENGTH, MAX_AGENT_CHAT_FILE_CHANGE_DIFF_TOTAL),
-                    ),
+                    diff,
+                    ...(diff.length < fullDiff.length && { truncated: true }),
                 },
             ].slice(0, MAX_AGENT_CHAT_FILE_CHANGES),
         };
+    }
     const summary = claudeToolSummary(input);
     return {
         ...base,

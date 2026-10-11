@@ -1,5 +1,6 @@
 import type { AgentChatItem, AgentChatPatchOperation } from '@caxri/protocol';
 import { MAX_AGENT_CHAT_DIFF_LENGTH, MAX_AGENT_CHAT_OUTPUT_LENGTH } from '@caxri/protocol';
+import { omit } from 'es-toolkit';
 
 import { clip, isRecord, stringField, tail } from './chat-items';
 import { structuredPatchDiff, text } from './claude-items';
@@ -76,6 +77,21 @@ function settleClaudeCommand(
     };
 }
 
+type FileChange = Extract<AgentChatItem, { type: 'fileChange' }>['changes'][number];
+
+/**
+ * A change carrying the real patch in place of the diff guessed from the tool input. `truncated` follows the patch, so
+ * Undo refuses a change whose diff was cut instead of reversing only part of it.
+ */
+function settledDiff(change: FileChange, patch: string): FileChange {
+    const diff = clip(patch, MAX_AGENT_CHAT_DIFF_LENGTH);
+    return {
+        ...omit(change, ['truncated']),
+        diff,
+        ...(diff.length < patch.length && { truncated: true }),
+    };
+}
+
 /**
  * Settles the item a `tool_result` block answers.
  */
@@ -109,9 +125,8 @@ export function settleClaudeToolItem(
                 changes: item.changes.map((change, index) =>
                     index === 0
                         ? {
-                              ...change,
+                              ...(patch ? settledDiff(change, patch) : change),
                               ...(structured.type === 'create' && { kind: 'add' as const }),
-                              ...(patch && { diff: clip(patch, MAX_AGENT_CHAT_DIFF_LENGTH) }),
                           }
                         : change,
                 ),
