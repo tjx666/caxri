@@ -54,6 +54,10 @@ const chat = (items: AgentChatSnapshot['items']): AgentChatSnapshot => ({
         } as unknown as AgentChatSnapshot['requests'][number],
     ],
     model: 'opus',
+    models: [
+        { id: 'opus', displayName: 'Opus', efforts: ['high'], defaultEffort: 'high' },
+        { id: 'sonnet', displayName: 'Sonnet', efforts: [] },
+    ],
 });
 
 describe('read cache model', () => {
@@ -99,6 +103,7 @@ describe('read cache model', () => {
         expect(trimmed.items[3]).toMatchObject({ name: 'webSearch', summary: 'caxri' });
         expect(trimmed.requests).toEqual([]);
         expect(trimmed.model).toBe('opus');
+        expect(trimmed.models?.map((model) => model.displayName)).toEqual(['Opus']);
         expect(cachedChatSchema.safeParse(trimmed).success).toBe(true);
     });
 
