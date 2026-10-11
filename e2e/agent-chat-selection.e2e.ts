@@ -12,9 +12,9 @@ import {
 } from './support/helpers.ts';
 
 /**
- * A Chat transcript selects only message text. Dragging from the user's message to the end of the reply holds both
- * messages' text and none of the transcript chrome between them, and copying it confirms with a toast. The copy event
- * is dispatched rather than sent as Cmd+C, so the run never overwrites the developer's system clipboard.
+ * A Chat transcript selects only message text. Dragging from the user's message to the reply's time holds both
+ * messages' text and none of the transcript chrome, and copying it confirms with a toast. The copy event is dispatched
+ * rather than sent as Cmd+C, so the run never overwrites the developer's system clipboard.
  */
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('a Chat selects and copies only message text', async ({}, testInfo) => {
@@ -34,11 +34,13 @@ test('a Chat selects and copies only message text', async ({}, testInfo) => {
         await message.press('Enter');
         const reply = chat.getByText('Hello from fake Codex. You said: hi there', { exact: true });
         await expect(reply).toBeVisible();
-        // The finished turn's "Worked" fold sits between the two messages.
-        await expect(chat.getByRole('button', { name: /^Worked(?: for |$)/u })).toBeVisible();
+        // The reply's action row, chrome under the reply text that a selectable transcript would take along.
+        const time = chat.locator('[data-agent-chat-reply] time');
+        const timeText = (await time.textContent()) ?? '';
+        expect(timeText).not.toBe('');
 
         const start = await chat.getByText('hi there', { exact: true }).boundingBox();
-        const end = await reply.boundingBox();
+        const end = await time.boundingBox();
         if (!start || !end) throw new Error('Chat messages are not laid out');
         // Inside the bubble's text, past its 12px padding: a press on the padding alone starts no selection.
         await page.mouse.move(start.x + 14, start.y + start.height / 2);
@@ -48,7 +50,7 @@ test('a Chat selects and copies only message text', async ({}, testInfo) => {
         const selected = await page.evaluate(() => getSelection()?.toString() ?? '');
         expect(selected).toContain('hi there');
         expect(selected).toContain('Hello from fake Codex. You said: hi there');
-        expect(selected).not.toContain('Worked');
+        expect(selected).not.toContain(timeText);
 
         await reply.dispatchEvent('copy', { bubbles: true });
         const toast = page.locator('[data-sonner-toast][data-type="success"]', {
