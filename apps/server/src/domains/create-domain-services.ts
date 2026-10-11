@@ -448,7 +448,7 @@ export async function createDomainServices(
             startedAt,
             activePtyCount: countRunning(),
         }),
-        ...createAgentChatHandlers(agentChat),
+        ...createAgentChatHandlers(agentChat, { database, agentEnvironment }),
         ...createWindowStateHandlers(database),
         ...createWorkbenchRootHandlers(workbenchRoots, mainOwned),
         ...createTerminalMoveHandler({

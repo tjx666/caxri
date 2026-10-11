@@ -81,7 +81,7 @@ export async function prepareChatLaunch(
  * Bounded tail of a bound Chat's on-disk Agent transcript, for providers whose resume does not return history.
  */
 export async function readChatTranscript(
-    options: AgentChatServiceOptions,
+    options: Pick<AgentChatServiceOptions, 'agentEnvironment' | 'database'>,
     terminalId: string,
 ): Promise<AgentChatTranscript | undefined> {
     const transcript = await readAgentTranscript(

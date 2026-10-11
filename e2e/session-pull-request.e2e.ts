@@ -237,18 +237,16 @@ esac
             ]);
 
             if (state === 'open') {
-                // The Status panel's merge action stays visible without hovering the row, and reads as unsafe while
-                // its checks are red; the reason is in its accessible name.
+                // The Status panel's merge action stays visible without hovering the row. While its checks are red it
+                // is only a danger-colored glyph, so the title keeps the row's width; the reason is its accessible name.
                 await statusTab.click();
                 const merge = running.page.locator(
                     '[data-tree-item-action="caxri.project-status.mergePullRequest"]',
                 );
                 await expect(merge).toBeVisible();
-                await expect(merge).toHaveText('Merge anyway');
+                await expect(merge).toHaveText('');
                 await expect(merge).toHaveClass(/text-danger/u);
-                await expect(merge).toHaveAccessibleName(
-                    'Merge Pull Request: Checks did not pass (Merge anyway)',
-                );
+                await expect(merge).toHaveAccessibleName('Merge Pull Request: Checks did not pass');
                 await running.page
                     .locator('[role="tree"]', { has: merge })
                     .screenshot({ path: test.info().outputPath('status-merge-blocked.png') });
