@@ -87,8 +87,10 @@ describe('Status panel merge action', () => {
         [{ mergeState: 'unknown' }, 'Checking mergeability', 'warning'],
     ] as const)('flags a blocked merge %o and names why', (pullRequest, reason, tone) => {
         const action = pullRequestRow(pullRequest).actions?.[0];
-        expect(action).toMatchObject({ label: 'Merge anyway', tone });
-        expect(action?.icon.id).toBe('warning');
+        // A blocked merge is not the next step, so it is a colored glyph and leaves the row's width to the title.
+        expect(action).toMatchObject({ tone });
+        expect(action?.label).toBeUndefined();
+        expect(action?.icon.id).toBe('git-merge');
         expect(action?.command.title).toBe(`Merge Pull Request: ${reason}`);
     });
 

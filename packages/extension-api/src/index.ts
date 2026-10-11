@@ -144,12 +144,12 @@ export interface TreeItemAction {
     command: Command;
     icon: ThemeIcon;
     /**
-     * Short visible text. A labeled action is the row's primary call to action: it stays visible at rest instead of
-     * revealing on hover, and `tone` colors it so its state reads at a glance.
+     * Short visible text. A labeled action is the row's primary call to action: it renders as a text button and stays
+     * visible at rest instead of revealing on hover.
      */
     label?: string;
     /**
-     * Color of a labeled action. Ignored without `label`; defaults to `neutral`.
+     * Color of the action, which keeps it visible at rest: a colored text button with `label`, else a colored icon.
      */
     tone?: TreeItemActionTone;
     /**

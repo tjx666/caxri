@@ -46,7 +46,7 @@ export function serializeTreeItem(handle: string, item: TreeItem): TreeItemDto {
                 command: command(action.command),
                 icon: themeIcon(action.icon),
                 ...(action.label && { label: action.label }),
-                ...(action.label && action.tone && { tone: action.tone }),
+                ...(action.tone && { tone: action.tone }),
                 ...(action.confirmation && {
                     confirmation: {
                         title: action.confirmation.title,
