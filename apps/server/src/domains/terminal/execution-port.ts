@@ -105,6 +105,10 @@ export interface TerminalExecutionPort {
         observerId: string,
     ): Promise<{ snapshot: TerminalSnapshot | null; nextSequence: number; generation: number }>;
     unobserve(terminalId: string, observerId: string): Promise<void>;
+    /**
+     * Whether a mobile observer is watching this Terminal: between its successful `observe` and its `unobserve`.
+     */
+    isObservedRemotely(terminalId: string): boolean;
     onObserverEvent(listener: (event: TerminalObserverEvent) => void): () => void;
     takeOver(
         terminalId: string,

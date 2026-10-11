@@ -65,7 +65,6 @@ import {
     validateWorkbenchRequestContext,
 } from './workbench';
 
-const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
 export async function createDomainServices(
     dependencies: DomainDependencies,
 ): Promise<DomainServices> {
@@ -104,6 +103,7 @@ export async function createDomainServices(
         },
         onLifecycleApplied: (signal) => {
             delegationState.service?.observe(signal);
+            suspensionState.service?.observeAppliedLifecycle(signal);
             commanderHooks.notifier?.onLifecycleApplied(signal);
         },
         send,
@@ -167,7 +167,7 @@ export async function createDomainServices(
             coordinator.observeOutput(terminalId, processId),
         onInput: (terminalId, data) => {
             compactionReadiness.input(terminalId, data);
-            suspensionState.service?.observeInput(terminalId);
+            suspensionState.service?.observeInput(terminalId, data);
             commanderHooks.notifier?.observeInput(terminalId, data);
             delegationState.service?.interruptTerminal(terminalId, true);
         },
@@ -206,6 +206,7 @@ export async function createDomainServices(
         send,
         settings: () => configuration.getSettings().value,
         ...dependencies.terminalSuspension,
+        remoteObservers: [dependencies.terminalExecution, transcripts],
         terminals,
         watchHub,
     });
@@ -284,8 +285,7 @@ export async function createDomainServices(
         terminalDirectoryIdentity,
         terminals,
         userDataPath,
-        visibleGridWaitMs:
-            dependencies.terminalRestoreGridWaitMs ?? VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS,
+        visibleGridWaitMs: dependencies.terminalRestoreGridWaitMs,
     };
     const restoreInterruptedTerminals = createInterruptedTerminalRestorer({
         ...restorerOptions,

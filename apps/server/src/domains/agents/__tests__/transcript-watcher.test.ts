@@ -133,7 +133,12 @@ describe('AgentTranscriptWatcher', () => {
         });
         await watcher.watch('terminal-a');
         await watcher.watchMobile('terminal-a');
+        await watcher.watchMobile('terminal-a');
         watcher.unwatchMobile('terminal-a');
+        // A second phone still has the Conversation open, which keeps idle suspension away from the Agent.
+        expect(watcher.isObservedRemotely('terminal-a')).toBe(true);
+        watcher.unwatchMobile('terminal-a');
+        expect(watcher.isObservedRemotely('terminal-a')).toBe(false);
         callbacks[0]?.(null, [{ path, type: 'update' }]);
         expect(emit).toHaveBeenCalledOnce();
         expect(unsubscribe).not.toHaveBeenCalled();

@@ -21,6 +21,7 @@ What/why of current shipped behavior, core modules, protocols, and operator know
 | [agent-commander.md](agent-commander.md)                           | Second-window Codex commander and cross-Project Agent board    |
 | [agent-delegation.md](agent-delegation.md)                         | Visible Agent delegation into a sibling pane                   |
 | [agent-dispatch-receipts.md](agent-dispatch-receipts.md)           | Managed dispatch launch requests and observed process lifetime |
+| [agent-suspension.md](agent-suspension.md)                         | Parking idle background Agents and resuming them on return     |
 | [agent-throughput.md](agent-throughput.md)                         | Agent output speed (tok/s) in the status bar                   |
 | [architecture-debt.md](architecture-debt.md)                       | Persistent architecture-debt audit ledger                      |
 | [bundle-size.md](bundle-size.md)                                   | Packaged app size baseline and the CI budget gate              |

@@ -15,6 +15,7 @@ import type {
     TerminalExecutionPort,
     TerminalObserverEvent,
 } from '../../domains/terminal';
+import { TerminalRemoteObservers } from '../../domains/terminal';
 import { submitAgentText } from '../../terminal-host/agent-submission';
 import { TerminalExecutionEngine } from '../../terminal-host/engine';
 import { isValidAgentSubmitText } from '../../terminal-host/protocol';
@@ -40,6 +41,7 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
     private readonly agents = new Map<string, { launchId: string; processId: number }>();
     private readonly engine: TerminalExecutionEngine;
     private readonly generations = new Map<string, number>();
+    private readonly remoteObservers = new TerminalRemoteObservers();
 
     constructor(options: LocalTerminalExecutionOptions) {
         super();
@@ -117,12 +119,18 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
         generation: number;
     }> {
         const result = await this.engine.observe(terminalId, observerId);
+        this.remoteObservers.add(terminalId, observerId);
         return { ...result, generation: this.generations.get(terminalId) ?? 1 };
     }
 
     unobserve(terminalId: string, observerId: string): Promise<void> {
+        this.remoteObservers.remove(terminalId, observerId);
         this.engine.unobserve(terminalId, observerId);
         return Promise.resolve();
+    }
+
+    isObservedRemotely(terminalId: string): boolean {
+        return this.remoteObservers.has(terminalId);
     }
 
     takeOver(

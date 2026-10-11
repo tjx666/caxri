@@ -27,6 +27,7 @@ export type {
 } from './manager-types';
 export { createTerminalMoveHandler } from './move';
 export { createRelaunchHandlers } from './relaunch';
+export { TerminalRemoteObservers } from './remote-observers';
 export { TerminalResourceMonitor } from './resource-monitor';
 export {
     createCommanderTerminalRestorer,

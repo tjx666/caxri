@@ -61,10 +61,16 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     private readonly views = new Map<string, RemoteView>();
     private readonly mobileControl: RemoteMobileTerminalControl;
     /**
-     * Both forward straight to `mobileControl` with its own signature, so binding in the constructor keeps the
-     * pass-through to one declaration per capability instead of re-typing every parameter the interface already pins
-     * down. Assigned after `mobileControl` exists, not as a field initializer, which would run before it.
+     * The mobile capabilities forward straight to `mobileControl` with its own signature, so binding in the constructor
+     * keeps the pass-through to one declaration per capability instead of re-typing every parameter the interface
+     * already pins down. Assigned after `mobileControl` exists, not as a field initializer, which would run before it.
      */
+    readonly observe: TerminalExecutionPort['observe'];
+    readonly unobserve: TerminalExecutionPort['unobserve'];
+    readonly isObservedRemotely: TerminalExecutionPort['isObservedRemotely'];
+    readonly takeOver: TerminalExecutionPort['takeOver'];
+    readonly renewTakeOver: TerminalExecutionPort['renewTakeOver'];
+    readonly releaseTakeOver: TerminalExecutionPort['releaseTakeOver'];
     readonly inputForGeneration: TerminalExecutionPort['inputForGeneration'];
     readonly scrollForGeneration: TerminalExecutionPort['scrollForGeneration'];
 
@@ -75,8 +81,15 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         super();
         this.discardStops = new DiscardStops(supervisor);
         this.mobileControl = new RemoteMobileTerminalControl(this.identities, supervisor);
-        this.inputForGeneration = this.mobileControl.inputForGeneration.bind(this.mobileControl);
-        this.scrollForGeneration = this.mobileControl.scrollForGeneration.bind(this.mobileControl);
+        const control = this.mobileControl;
+        this.observe = control.observe.bind(control);
+        this.unobserve = control.unobserve.bind(control);
+        this.isObservedRemotely = control.isObserved.bind(control);
+        this.takeOver = control.takeOver.bind(control);
+        this.renewTakeOver = control.renewTakeOver.bind(control);
+        this.releaseTakeOver = control.releaseTakeOver.bind(control);
+        this.inputForGeneration = control.inputForGeneration.bind(control);
+        this.scrollForGeneration = control.scrollForGeneration.bind(control);
         supervisor.onEvent((event) => this.projectHostEvent(event));
         supervisor.onExit(() => this.handleHostExit());
     }
@@ -559,55 +572,6 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             terminalScope(identity, 'terminal.view'),
         )) as { snapshot: TerminalSnapshot | null };
         return result.snapshot;
-    }
-
-    observe(
-        terminalId: string,
-        observerId: string,
-    ): Promise<{ snapshot: TerminalSnapshot | null; nextSequence: number; generation: number }> {
-        return this.mobileControl.observe(terminalId, observerId);
-    }
-
-    unobserve(terminalId: string, observerId: string): Promise<void> {
-        return this.mobileControl.unobserve(terminalId, observerId);
-    }
-
-    takeOver(
-        terminalId: string,
-        holderId: string,
-        expectedGeneration: number,
-        size: { cols: number; rows: number },
-        timeoutMs: number,
-    ): Promise<{ expiresAt: number }> {
-        return this.mobileControl.takeOver(
-            terminalId,
-            holderId,
-            expectedGeneration,
-            size,
-            timeoutMs,
-        );
-    }
-
-    renewTakeOver(
-        terminalId: string,
-        holderId: string,
-        expectedGeneration: number,
-        timeoutMs: number,
-    ): Promise<{ expiresAt: number }> {
-        return this.mobileControl.renewTakeOver(
-            terminalId,
-            holderId,
-            expectedGeneration,
-            timeoutMs,
-        );
-    }
-
-    releaseTakeOver(
-        terminalId: string,
-        holderId: string,
-        expectedGeneration: number,
-    ): Promise<void> {
-        return this.mobileControl.releaseTakeOver(terminalId, holderId, expectedGeneration);
     }
 
     async textTail(terminalId: string, maximumCharacters: number): Promise<string | null> {

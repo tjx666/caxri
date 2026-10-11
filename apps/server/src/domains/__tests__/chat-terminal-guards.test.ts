@@ -242,12 +242,14 @@ describe('Chat Terminal PTY guards', () => {
         const decide = (surface: TerminalSurface) =>
             decideTerminalSuspensions({
                 deselectedAt: () => 0,
+                isObservedRemotely: () => false,
                 now: 1_000_000_000,
                 sample: () => ({ launchedAt: 0, turnInFlight: false }),
                 selectedSessionId: 'other-session',
                 session: () => ({ id: 'session-a' }) as SessionRecord,
                 settings: {
-                    'terminal.suspendIdleAgents': 'off',
+                    'terminal.idleSuspension.afterMinutes': 30,
+                    'terminal.idleSuspension.enabled': true,
                     'terminal.suspendUntouchedAgents': true,
                 },
                 startedAt: 0,

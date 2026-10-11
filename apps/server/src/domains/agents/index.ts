@@ -30,6 +30,7 @@ export {
     type AgentLifecycleSignal,
     type AgentSignalDecision,
 } from './hooks/contract';
+export { isStandaloneEscape } from './lifecycle-watchdogs';
 export { LongPasteService } from './long-paste';
 export { lowCostSandboxFailureReason } from './low-cost-sandbox';
 export { reconcilePrimaryTurnFailure } from './primary-turn-failure';
