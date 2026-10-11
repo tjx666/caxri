@@ -12,8 +12,15 @@ interface VisibleSessionStatus {
     ariaLabel: string;
 }
 
+/**
+ * The shape an unread attention glyph takes, so "the Agent is blocked on you" and "there is a result to read" differ
+ * without relying on color (issue caxri#1632). A failed turn or an unknown cause has nothing to answer, so it keeps the
+ * result's dot.
+ */
+export type SessionAttentionVariant = 'result' | 'waiting';
+
 export type SessionStatus =
-    | (VisibleSessionStatus & { kind: 'attention' })
+    | (VisibleSessionStatus & { kind: 'attention'; variant: SessionAttentionVariant })
     | (VisibleSessionStatus & { kind: 'detached' })
     | (VisibleSessionStatus & { kind: 'running' })
     | { kind: 'default' };
@@ -59,6 +66,7 @@ export function sessionStatus(
                     ? 'Unread'
                     : `Unread, ${attentionActivity.label.toLowerCase()}`,
             kind: 'attention',
+            variant: session.lastAttentionKind === 'waiting' ? 'waiting' : 'result',
         };
     }
 
