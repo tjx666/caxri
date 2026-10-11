@@ -442,8 +442,11 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await expect(message).toHaveAttribute('placeholder', 'Message Claude');
         // Images arrive by paste or drop; the composer has no picker button.
         await expect(chat.getByRole('button', { name: 'Attach images' })).toHaveCount(0);
-        // Claude Code names its model only in a turn's init, so the picker reads as the default until then.
-        await expect(chat.getByRole('button', { name: 'Model: Default' })).toBeVisible();
+        // Claude Code names its model only in a turn's init, so the picker reads as the default until then, but the
+        // effort it will apply is known as soon as it starts.
+        await expect(
+            chat.getByRole('button', { name: 'Model: Default, Medium effort', exact: true }),
+        ).toBeVisible();
 
         // The Terminal | Chat switch stays out of sight until the pointer enters the tab bar.
         const surfaceToggle = chat.locator('.agent-surface-toggle').locator('..');
@@ -509,6 +512,17 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await question.getByRole('button', { name: 'Submit' }).click();
         await expect(chat.getByText('You chose Blue.')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-question.png') });
+
+        // A context past 70% of the compaction window suggests compacting, under the composer.
+        await message.fill('large context please');
+        await message.press('Enter');
+        await expect(
+            chat.getByText('Hello from fake Claude. You said: large context please'),
+        ).toBeVisible();
+        await expect(
+            chat.getByText(/^Context [\d.]+k \/ 160k · consider \/compact$/u),
+        ).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('claude-chat-context-pressure.png') });
 
         // A crash fails the Chat; Retry resumes the same Claude Code session and reloads its history from the transcript.
         await message.fill('crash now');

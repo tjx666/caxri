@@ -29,7 +29,7 @@ export const FAKE_CLAUDE_MODELS = [
  * The fake CLI's `get_context_usage` answer: two rows that fill the window, free space and a deferred tool schema the
  * Chat must leave out, and a 160K autocompact window below the model's 200K.
  */
-export const FAKE_CLAUDE_CONTEXT_USAGE = {
+const FAKE_CLAUDE_CONTEXT_USAGE = {
     categories: [
         { name: 'System prompt', tokens: 1500, color: 'gray', kind: 'used' },
         { name: 'Messages', tokens: 540, color: 'purple', kind: 'used' },
@@ -87,4 +87,59 @@ export function hookCallbackRequest(
             ...fields,
         },
     };
+}
+
+/**
+ * The commands the fake CLI's `initialize` lists, including a terminal-bound one (`exit`) the Chat must leave out.
+ */
+export const FAKE_CLAUDE_COMMANDS = [
+    {
+        name: 'compact',
+        description: 'Clear conversation history but keep a summary in context',
+        argumentHint: '<optional custom summarization instructions>',
+    },
+    { name: 'review', description: 'Review a pull request', argumentHint: '' },
+    { name: 'exit', description: 'Exit the REPL', argumentHint: '' },
+];
+
+/**
+ * The effort the real CLI's `get_settings` reports as `applied.effort`: the session's level, the model default
+ * (`medium`) when none was set, and `null` for a model without effort control.
+ */
+function appliedEffort({ model, effort }: { model: string; effort?: string }): string | null {
+    const listed = FAKE_CLAUDE_MODELS.find(
+        (candidate) => candidate.resolvedModel === model || candidate.value === model,
+    );
+    return listed?.supportsEffort === false ? null : (effort ?? 'medium');
+}
+
+/**
+ * The answer to a control request that depends only on the session's model and effort (`initialize`,
+ * `get_context_usage`, `get_settings`); `undefined` for every other request.
+ */
+export function fakeClaudeSessionAnswer(
+    subtype: unknown,
+    session: { model: string; effort?: string },
+): Record<string, unknown> | undefined {
+    switch (subtype) {
+        case 'initialize': {
+            return {
+                commands: FAKE_CLAUDE_COMMANDS,
+                agents: [],
+                models: FAKE_CLAUDE_MODELS,
+                account: {},
+                output_style: 'default',
+                available_output_styles: ['default'],
+            };
+        }
+        case 'get_context_usage': {
+            return FAKE_CLAUDE_CONTEXT_USAGE;
+        }
+        case 'get_settings': {
+            return { applied: { model: session.model, effort: appliedEffort(session) } };
+        }
+        default: {
+            return undefined;
+        }
+    }
 }
