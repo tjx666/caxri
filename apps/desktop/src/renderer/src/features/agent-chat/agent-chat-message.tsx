@@ -1,7 +1,7 @@
-import { useDeferredValue, useMemo } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 
 import type { MarkdownBlockOptions } from '@caxri/markdown';
-import { parseMarkdownBlocks, repairStreamingMarkdown } from '@caxri/markdown';
+import { createStreamingMarkdownParser, repairStreamingMarkdown } from '@caxri/markdown';
 import type { AgentChatItem } from '@caxri/protocol';
 import { CircleAlert } from 'lucide-react';
 
@@ -16,9 +16,11 @@ import { agentChatNoticeMessage } from './agent-chat-presentation';
 const CHAT_PARSE_OPTIONS: MarkdownBlockOptions = { tables: true, fileLinks: true };
 
 /**
- * Agent text rendered as Markdown. A streaming reply re-parses as it grows; the projection bounds every message, so the
- * parse stays small. The deferred text lets React drop intermediate deltas under load instead of queueing a render for
- * each, and unfinished syntax at the tail is completed so `**bold` does not flash as raw asterisks.
+ * Agent text rendered as Markdown. A streaming reply is parsed incrementally: each delta re-parses only the constructs
+ * that can still change and keeps every settled block as the same object, so the memoized renderer skips it on a
+ * reference check (see `createStreamingMarkdownParser`). The deferred text lets React drop intermediate deltas under
+ * load instead of queueing a render for each, and unfinished syntax at the tail is completed so `**bold` does not flash
+ * as raw asterisks.
  */
 export function AgentChatMessage({
     className,
@@ -33,7 +35,8 @@ export function AgentChatMessage({
 }) {
     const deferredText = useDeferredValue(text);
     const source = isStreaming ? repairStreamingMarkdown(deferredText) : deferredText;
-    const blocks = useMemo(() => parseMarkdownBlocks(source, CHAT_PARSE_OPTIONS), [source]);
+    const [parser] = useState(() => createStreamingMarkdownParser(CHAT_PARSE_OPTIONS));
+    const blocks = useMemo(() => parser.parse(source), [parser, source]);
     return (
         <div className={cn('flex flex-col gap-3 text-[13px] leading-5 wrap-anywhere', className)}>
             <MarkdownBlocks

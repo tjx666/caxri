@@ -12,5 +12,6 @@
         "rootDir": "src",
         "sourceMap": true
     },
-    "exclude": ["src/**/*.test.ts"]
+    "include": ["src/**/*.ts"],
+    "exclude": ["src/**/__tests__/**", "src/**/*.test.ts"]
 }
