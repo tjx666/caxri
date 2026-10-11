@@ -12,6 +12,7 @@ import { CaxriError, isTopLevelProject, logEventCatalog } from '@caxri/protocol'
 import type { StructuredLogger } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
+import { agentCommanderTerminal } from '../db';
 import { commanderBoard } from './board';
 import { CommanderTaskLedger } from './tasks';
 import { prepareCommanderWorkspace } from './workspace';
@@ -260,15 +261,10 @@ export class AgentCommanderService {
     }
 
     snapshot(): CommanderSnapshot | null {
-        const rows = this.options.database.agentCommanderRows();
-        if (!rows?.terminalId) return null;
-        const project = this.options.database.getProject(rows.projectId);
+        const identity = agentCommanderTerminal(this.options.database);
+        if (!identity) return null;
+        const project = this.options.database.getProject(identity.projectId);
         if (!project) return null;
-        const identity = {
-            projectId: rows.projectId,
-            sessionId: rows.sessionId,
-            terminalId: rows.terminalId,
-        };
         return {
             identity,
             workspacePath: project.rootPath,
@@ -316,8 +312,8 @@ export class AgentCommanderService {
  * diagnostics snapshot, which must report it without owning the Commander service.
  */
 export function commanderRunState(database: CaxriDatabase): CommanderRunState {
-    const rows = database.agentCommanderRows();
-    const terminal = rows?.terminalId ? database.getTerminal(rows.terminalId) : undefined;
+    const rows = agentCommanderTerminal(database);
+    const terminal = rows && database.getTerminal(rows.terminalId);
     if (!rows || !terminal) return 'stopped';
     const shell = terminal.lastProcessState;
     if (shell !== 'starting' && shell !== 'running') return 'stopped';

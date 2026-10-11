@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AgentChatItem, AgentChatSnapshot } from '../agent/agent-chat-contract.js';
-import { agentChatSnapshotSchema } from '../agent/agent-chat-contract.js';
-import { applyAgentChatPatch } from '../agent/agent-chat-reducer.js';
+import type { AgentChatItem, AgentChatSnapshot } from '../../agent/agent-chat-contract.js';
+import { agentChatSnapshotSchema } from '../../agent/agent-chat-contract.js';
+import { applyAgentChatPatch } from '../../agent/agent-chat-reducer.js';
 import {
     clipAgentChatItemForMobile,
     clipAgentChatPatchForMobile,
@@ -14,8 +14,8 @@ import {
     MOBILE_AGENT_CHAT_QUEUE_PREVIEW_LENGTH,
     mobileAgentChatMethods,
     windowAgentChatSnapshotForMobile,
-} from '../mobile/mobile-agent-chat-contract.js';
-import { mobileDashboardSessionSchema } from '../mobile/mobile-contract.js';
+} from '../mobile-agent-chat-contract.js';
+import { mobileDashboardSessionSchema } from '../mobile-contract.js';
 
 const message = (id: string, text: string, turnId = 'turn-1'): AgentChatItem => ({
     id,

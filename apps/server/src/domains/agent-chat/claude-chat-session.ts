@@ -15,6 +15,7 @@ import type {
     AgentChatModelChange,
     AgentChatPatchOperation,
     AgentChatPermission,
+    AgentChatResponse,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
@@ -28,8 +29,8 @@ import {
 import type {
     AgentChatDriver,
     AgentChatProviderSession,
-    AgentChatResponse,
     AgentChatSessionHost,
+    ChatFork,
     ChatForkTarget,
     ChatInputOptions,
     ChatProcessEnd,
@@ -523,7 +524,7 @@ class ClaudeChatSession implements AgentChatProviderSession {
         return rewindClaudeSession(query, await this.options.readTranscript(), target);
     }
 
-    async fork(target: ChatForkTarget): Promise<string | undefined> {
+    async fork(target: ChatForkTarget): Promise<ChatFork> {
         this.requireOpen();
         const transcript = await this.options.readTranscript();
         return forkClaudeSession(this.sessionId, this.options, transcript, target);

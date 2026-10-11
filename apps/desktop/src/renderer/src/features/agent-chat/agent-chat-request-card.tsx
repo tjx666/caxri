@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 
-import type { AgentChatDecision, AgentChatItem, AgentChatRequest } from '@caxri/protocol';
+import type { AgentChatItem, AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
 import {
     AGENT_CHAT_EXIT_PLAN_TOOL,
     agentChatApprovalChoices,
+    agentChatQuestionAnswers,
     agentChatRequestTitle,
 } from '@caxri/protocol';
 
@@ -15,15 +16,11 @@ import { AGENT_CHAT_APPROVE_SHORTCUT, AGENT_CHAT_DENY_SHORTCUT } from './agent-c
 import { didAnswerAgentChatRequest } from './agent-chat-commands';
 import { AgentChatFileChanges } from './agent-chat-file-changes';
 import { AgentChatMessage } from './agent-chat-message';
-import { agentChatCommandCwd, agentChatQuestionAnswers } from './agent-chat-presentation';
+import { agentChatCommandCwd } from './agent-chat-presentation';
 import {
     AGENT_CHAT_APPROVAL_ATTRIBUTE,
     useAgentChatApprovalKeys,
 } from './hooks/use-agent-chat-approval-keys';
-
-type AgentChatResponse =
-    | { kind: 'decision'; decision: AgentChatDecision }
-    | { kind: 'answers'; answers: Record<string, string[]> };
 
 function QuestionForm({
     isAnswering,
@@ -36,8 +33,7 @@ function QuestionForm({
 }) {
     const [selected, setSelected] = useState<Record<string, string | undefined>>({});
     const [other, setOther] = useState<Record<string, string | undefined>>({});
-    const answers = agentChatQuestionAnswers(selected, other);
-    const isComplete = request.questions.every((question) => Object.hasOwn(answers, question.id));
+    const { answers, isComplete } = agentChatQuestionAnswers(request, selected, other);
     return (
         <form
             className="space-y-3"

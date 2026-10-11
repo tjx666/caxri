@@ -3,11 +3,10 @@ import type {
     AgentChatModel,
     AgentChatPatchOperation,
     AgentChatRequest,
+    AgentChatResponse,
     AgentChatSnapshot,
 } from '@caxri/protocol';
 import { agentChatModelSchema, CaxriError, MAX_AGENT_CHAT_MODELS } from '@caxri/protocol';
-
-import type { AgentChatResponse } from './chat-provider';
 
 /**
  * Provider-neutral helpers every Chat provider uses to build projection operations. Provider inputs are untrusted JSON,

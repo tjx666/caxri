@@ -328,3 +328,10 @@ export const agentChatMethods = {
     },
 };
 /* eslint-enable unicorn/max-nested-calls */
+
+/**
+ * The answer `agentChat.respond` carries: a decision on an approval, or the answers to a question.
+ */
+export type AgentChatResponse = z.infer<
+    (typeof agentChatMethods)['agentChat.respond']['params']
+>['response'];

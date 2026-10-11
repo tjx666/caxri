@@ -1,15 +1,47 @@
 import type { AgentChatPermission, AgentChatPermissionMode } from '@caxri/protocol';
+import { agentChatPermissionModes } from '@caxri/protocol';
 
-import {
-    chatPermissionState,
-    claudeChatPermission,
-    claudePermissionMode,
-    supportedChatPermission,
-} from './chat-permissions';
+import { chatPermissionState, supportedChatPermission } from './chat-permissions';
 import type { AgentChatSessionHost } from './chat-provider';
 import type { ClaudeChatSettings } from './launch-settings';
 
 type ClaudePermissionMode = ClaudeChatSettings['permissionMode'];
+
+const CLAUDE_PERMISSIONS: Partial<Record<AgentChatPermissionMode, ClaudePermissionMode>> = {
+    ask: 'default',
+    acceptEdits: 'acceptEdits',
+    auto: 'auto',
+    fullAccess: 'bypassPermissions',
+};
+
+/**
+ * The Agent SDK permission mode for a choice: `plan` while plan mode is on, the chosen level otherwise, and the launch
+ * settings' mode without a chosen level.
+ */
+export function claudePermissionMode(
+    permission: AgentChatPermission,
+    launchMode: ClaudePermissionMode,
+): ClaudePermissionMode {
+    if (permission.planMode) return 'plan';
+    const mode = permission.permissionMode && CLAUDE_PERMISSIONS[permission.permissionMode];
+    if (mode) return mode;
+    // A launch `--permission-mode plan` is not carried over: plan mode is the composer's toggle.
+    return launchMode === 'plan' ? 'default' : launchMode;
+}
+
+/**
+ * The level and plan mode an Agent SDK permission mode stands for. `dontAsk` matches no level.
+ */
+export function claudeChatPermission(mode: string): {
+    permissionMode?: AgentChatPermissionMode;
+    planMode: boolean;
+} {
+    if (mode === 'plan') return { planMode: true };
+    const level = agentChatPermissionModes('claude').find(
+        (candidate) => CLAUDE_PERMISSIONS[candidate] === mode,
+    );
+    return { ...(level && { permissionMode: level }), planMode: false };
+}
 
 /**
  * The part of the Agent SDK `Query` that switches the permission mode in place.

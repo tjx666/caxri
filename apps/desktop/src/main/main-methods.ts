@@ -56,7 +56,7 @@ import { openExternalUrl } from './external-links';
 import { createLinkFavicons } from './link-favicons';
 import { createLinkPreviews } from './link-previews';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
-import { currentRequestWindow } from './request-window';
+import { requestWindowOr } from './request-window';
 import type { DesktopServerConnection } from './server-connection';
 import type { ShellCommandEnvironment } from './shell-command';
 import {
@@ -440,8 +440,9 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return { choice: unsavedChangesChoice(result.response) };
             }
             case 'agentChat.confirmRevertFiles': {
+                // The Agent Commander window asks too, so the sheet attaches to the window that sent the request.
                 const result = await dialog.showMessageBox(
-                    mainWindow!,
+                    requestWindowOr(mainWindow),
                     revertAgentChatFilesPrompt(request.params),
                 );
                 return { confirmed: result.response === 0 };
@@ -449,12 +450,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
             case 'editor.unsavedReply':
                 options.onUnsavedEditorsReply?.(request.params);
                 return null;
-            case 'contextMenu.show': {
-                const window = currentRequestWindow() ?? mainWindow;
-                if (!window || window.isDestroyed())
-                    throw new CaxriError('UNAVAILABLE', 'No window is available for the menu');
-                return showContextMenu(window, request.params);
-            }
+            case 'contextMenu.show':
+                return showContextMenu(requestWindowOr(mainWindow), request.params);
             case 'processExplorer.open':
                 options.getProcessExplorer().open();
                 return null;

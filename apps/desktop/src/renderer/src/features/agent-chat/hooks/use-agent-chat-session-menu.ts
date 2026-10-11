@@ -1,17 +1,17 @@
 import type { KeyboardEvent, RefObject } from 'react';
 import { useEffect, useId, useState } from 'react';
 
+import {
+    mentionAtCaret,
+    suggestionMenuKeyAction,
+    suggestionOptionId,
+} from '../../../lib/suggestion-options';
 import { useProjects, useSessions } from '../../../stores/selectors';
 import type { SessionReferenceCandidate } from '../../session/session-reference';
 import { searchSessionReferences } from '../../session/session-reference';
 import { prepareSessionReference } from '../../session/session-reference-commands';
 import { draftWithInsertion } from '../agent-chat-drafts';
-import { agentChatMenuKeyAction } from '../agent-chat-slash-commands';
-import {
-    agentChatMentionAt,
-    agentChatSessionSuggestion,
-    agentChatSuggestionOptionId,
-} from '../agent-chat-suggestions';
+import { agentChatSessionSuggestion } from '../agent-chat-suggestions';
 
 /**
  * The `@` Sessions list: typing `@` at the start of a word offers the other Sessions with an Agent conversation,
@@ -40,7 +40,7 @@ export function useAgentChatSessionMenu({
     const [caret, setCaret] = useState(draft.length);
     const sessions = useSessions();
     const projects = useProjects();
-    const mention = agentChatMentionAt(draft, caret);
+    const mention = mentionAtCaret(draft, caret);
     const [dismissedDraft, setDismissedDraft] = useState<string>();
     const [isPreparing, setIsPreparing] = useState(false);
     // Reset during render, as the slash-command list does: the dismissal ends at the first edit.
@@ -55,7 +55,7 @@ export function useAgentChatSessionMenu({
         active.query === mention?.query ? Math.min(active.index, candidates.length - 1) : 0;
     const activeCandidate = isOpen ? candidates[activeIndex] : undefined;
     const activeOptionId = activeCandidate
-        ? agentChatSuggestionOptionId(listId, agentChatSessionSuggestion(activeCandidate).key)
+        ? suggestionOptionId(listId, agentChatSessionSuggestion(activeCandidate).key)
         : undefined;
     useEffect(() => {
         if (!activeOptionId) return;
@@ -121,7 +121,7 @@ export function useAgentChatSessionMenu({
                 return true;
             }
             if (!activeCandidate) return false;
-            const action = agentChatMenuKeyAction(event);
+            const action = suggestionMenuKeyAction(event);
             if (!action) return false;
             event.preventDefault();
             if (action === 'next' || action === 'previous') {

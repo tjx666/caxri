@@ -1,11 +1,12 @@
 import type { CommanderInboxItem } from '@caxri/protocol';
+import { commanderInboxKindLabel } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
-    activeInboxMention,
     commanderInboxMergeState,
     commanderInboxSections,
     inboxMentionCandidates,
+    inboxMentionSuggestion,
     inboxReplyTarget,
     removeInboxMention,
 } from '../commander-inbox';
@@ -102,13 +103,6 @@ describe('commanderInboxMergeState', () => {
 });
 
 describe('Inbox mentions', () => {
-    it('finds the mention the caret is in, only at a word start', () => {
-        expect(activeInboxMention('@tab', 4)).toEqual({ query: 'tab', start: 0 });
-        expect(activeInboxMention('answer @', 8)).toEqual({ query: '', start: 7 });
-        expect(activeInboxMention('mail@host', 9)).toBeUndefined();
-        expect(activeInboxMention('@tab done', 9)).toBeUndefined();
-    });
-
     it('filters open items by title or kind and removes the token once chosen', () => {
         const items = [
             item({ id: 'a', title: 'Pick a table layout' }),
@@ -117,9 +111,22 @@ describe('Inbox mentions', () => {
         ];
         expect(inboxMentionCandidates(items, 'TABLE').map(({ id }) => id)).toEqual(['a']);
         expect(inboxMentionCandidates(items, 'hands').map(({ id }) => id)).toEqual(['b']);
-        expect(removeInboxMention('Use @tab two tables', { start: 4 }, 8)).toEqual({
+        expect(removeInboxMention('Use @tab two tables', { start: 4, end: 8 })).toEqual({
             text: 'Use  two tables',
             caret: 4,
+        });
+    });
+
+    it('renders a candidate as a picker row keyed by the item id', () => {
+        expect(
+            inboxMentionSuggestion(
+                item({ id: 'b', kind: 'hands', title: 'Log in to the registry' }),
+            ),
+        ).toEqual({
+            key: 'b',
+            label: 'Log in to the registry',
+            isLabelLiteral: false,
+            description: commanderInboxKindLabel('hands'),
         });
     });
 

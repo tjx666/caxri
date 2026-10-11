@@ -107,9 +107,7 @@ test('Workbench Root switches preserve the visible Terminal view and input', asy
         await expect(running.page.locator('.workbench-pane')).toHaveCount(1);
         expect(await original.evaluate((element) => element.isConnected)).toBe(true);
         await expect(search).toHaveValue('retained-search');
-        await running.page
-            .getByRole('button', { name: 'Close Terminal search', exact: true })
-            .click();
+        await running.page.getByRole('button', { name: 'Close Find', exact: true }).click();
         await input.focus();
         await input.pressSequentially(String.raw`printf 'ROOT_%s_OK\n' SWITCH_INPUT`);
         await input.press('Enter');

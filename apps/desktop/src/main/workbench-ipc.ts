@@ -1,5 +1,6 @@
 import type {
     CaxriReply,
+    RendererDiagnostic,
     StartupFrameDiagnostic,
     TerminalRendererDiagnostic,
 } from '@caxri/protocol';
@@ -50,7 +51,7 @@ export interface WorkbenchIpcOptions {
     isRecovering(): boolean;
     isQuitting(): boolean;
     logger(): StructuredLogger | undefined;
-    onRendererDiagnostic?(diagnostic: TerminalRendererDiagnostic): void;
+    onRendererDiagnostic?(diagnostic: TerminalRendererDiagnostic, window: RendererWindow): void;
     /**
      * Main's own event-loop gaps, stamped onto the Renderer diagnostics whose cause may sit outside the Renderer. The
      * Renderer cannot measure this itself, and a reader joining two logs by timestamp gets no answer when the record
@@ -62,12 +63,30 @@ export interface WorkbenchIpcOptions {
     renderer(): WebContents | undefined;
     /**
      * Optional second Renderer (the Agent Commander window) that shares the Workbench preload and Main's single
-     * Desktop↔Server connection. It is trusted only for the requests its policy admits; diagnostics and Workbench
-     * readiness stay bound to the main window.
+     * Desktop↔Server connection. It is trusted only for the requests its policy admits. It mounts the same Terminal
+     * pane, so its Terminal diagnostics (`TERMINAL_DIAGNOSTIC_KINDS`) are accepted and tagged `window: 'commander'`;
+     * startup-frame, editor, performance, and Workbench readiness diagnostics stay bound to the main window.
      */
     companion?: CompanionRendererPolicy;
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;
 }
+
+/**
+ * Which window a Renderer diagnostic came from, logged as the closed `window` field so a Terminal failure in the Agent
+ * Commander window is told apart from one in the Workbench.
+ */
+export type RendererWindow = 'commander' | 'workbench';
+
+/**
+ * The diagnostics the Terminal pane emits, which both windows mount. Every other kind describes the Workbench itself
+ * (its startup frame, editor Workers, performance scenarios) and is accepted only from the main window.
+ */
+const TERMINAL_DIAGNOSTIC_KINDS: ReadonlySet<RendererDiagnostic['kind']> = new Set([
+    'gpu-incident-budget',
+    'terminal-osc52-clipboard-write-failure',
+    'terminal-renderer',
+    'terminal-resize-burst',
+]);
 
 export interface CompanionRendererPolicy {
     renderer(): WebContents | undefined;
@@ -127,12 +146,15 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             );
     });
     ipcMain.on(RENDERER_DIAGNOSTIC_CHANNEL, (event, rawDiagnostic: unknown) => {
-        if (event.sender !== options.renderer()) return;
+        const role = senderRole(event.sender);
+        if (!role) return;
         const parsed = rendererDiagnosticSchema.safeParse(rawDiagnostic);
         if (!parsed.success) return;
         const diagnostic = parsed.data;
+        if (role === 'companion' && !TERMINAL_DIAGNOSTIC_KINDS.has(diagnostic.kind)) return;
+        const rendererWindow: RendererWindow = role === 'companion' ? 'commander' : 'workbench';
         if (diagnostic.kind === 'terminal-renderer') {
-            options.onRendererDiagnostic?.(diagnostic);
+            options.onRendererDiagnostic?.(diagnostic, rendererWindow);
             return;
         }
         if (diagnostic.kind === 'startup-frame') {
@@ -156,6 +178,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                             contextLossEpisodeCount: diagnostic.contextLossEpisodeCount,
                             threshold: diagnostic.threshold,
                             preference: diagnostic.preference,
+                            window: rendererWindow,
                         },
                     },
                 );
@@ -225,6 +248,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                     truncated: diagnostic.truncated,
                     localAppliedCount: diagnostic.localAppliedCount,
                     requestCount: diagnostic.requestCount,
+                    window: rendererWindow,
                 },
             });
             return;
@@ -245,6 +269,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                         terminalFocused: diagnostic.terminalFocused,
                         userActivationActive: diagnostic.userActivationActive,
                         userActivationHasBeenActive: diagnostic.userActivationHasBeenActive,
+                        window: rendererWindow,
                     },
                 });
             return;
