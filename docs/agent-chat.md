@@ -576,7 +576,16 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   content-free `agentChat.changed`, and the phone re-reads. The phone folds patches with the
   shared `applyAgentChatPatch`, holds those that arrive during a read, and re-reads on any break in
   the revision chain.
-- Roles: `view` reads; `reply` also sends and retries a failed Chat; `control` also answers
+- The composer shows the model and effort the next turn uses, with the same names as the Desktop
+  model menu (`agentChatModelLabel` in `packages/protocol`). Tapping it opens a sheet with the
+  `Model` and `Reasoning effort` lists; a choice applies on tap through
+  `mobile.agentChat.configure`, which forwards `agentChat.configure` and therefore the same
+  validation against `models`. A new Chat can be configured before its first message. During a
+  turn the sheet says the change applies from the next turn. A Claude Code Chat that has not named
+  its model yet asks for a model before it lists efforts. A provider without a model list, a
+  `view` device, or a stale connection shows the model as plain text; an open sheet stays open with
+  its lists disabled and the composer's reason.
+- Roles: `view` reads; `reply` also sends, switches the model and effort, and retries a failed Chat; `control` also answers
   approvals and questions and stops a turn. Mutations resolve the Terminal through the device's
   granted Projects, refuse a non-Chat Terminal with `CONFLICT`, and go through Core's mutation
   admission like a Desktop request. Retry restarts only a `failed` Chat (`terminal.restart` with
@@ -737,7 +746,7 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 Claude Code's agent picker (its `initialize` response already lists the agents). Grok Build's
 reasoning effort picker and images (its ACP agent advertises `image: false`). Grok Build stays out
 of the real-Agent smoke. On mobile, a
-Chat shows no plan, model, or context usage yet, shows an image as its count (`[1 image]`) instead of
+Chat shows no plan or context usage yet, shows an image as its count (`[1 image]`) instead of
 a thumbnail, cannot attach images or run slash commands, does not show background tasks or the
 follow-up queue, cannot edit from an earlier message, older history beyond the window stays on
 the computer, and switching surface is Desktop-only.

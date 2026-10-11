@@ -17,7 +17,8 @@ export type MobileAgentChatRequest = Extract<
             | 'mobile.agentChat.send'
             | 'mobile.agentChat.interrupt'
             | 'mobile.agentChat.respond'
-            | 'mobile.agentChat.retry';
+            | 'mobile.agentChat.retry'
+            | 'mobile.agentChat.configure';
     }
 >;
 
@@ -86,6 +87,21 @@ export async function invokeMobileAgentChatRequest(
                     terminalId,
                     requestId: request.params.requestId,
                     response: request.params.response,
+                },
+            });
+            return null;
+        }
+        case 'mobile.agentChat.configure': {
+            /**
+             * Core validates the switch against the Chat's listed models (`resolveAgentChatModelChange`), so a phone
+             * holding a stale list cannot choose a model or effort the provider never offered.
+             */
+            await forward({
+                method: 'agentChat.configure',
+                params: {
+                    terminalId,
+                    ...(request.params.model !== undefined && { model: request.params.model }),
+                    ...(request.params.effort !== undefined && { effort: request.params.effort }),
                 },
             });
             return null;
