@@ -190,6 +190,29 @@ export async function runBackgroundCommand(io: FakeCodexIo, turn: FakeTurn, isFl
     await io.streamMessage(turn, 'The dev server is running in the background.', 0);
 }
 
+/**
+ * Codex cleans up every background terminal without a notification, as when its own housekeeping reaps them.
+ */
+export function dropTerminalsSilently() {
+    for (const terminal of tasks.terminals.values()) clearInterval(terminal.timer);
+    tasks.terminals.clear();
+}
+
+/**
+ * A background terminal Codex runs but never announced on this connection, so only its list reports it.
+ */
+export function startUnannouncedTerminal(turn: FakeTurn) {
+    const processId = String(tasks.nextProcessId++);
+    const itemId = crypto.randomUUID();
+    tasks.terminals.set(processId, {
+        itemId,
+        processId,
+        command: '/bin/zsh -lc "tail -f server.log"',
+        output: '',
+        turn,
+    });
+}
+
 function stopTerminal(io: FakeCodexIo, processId: string) {
     const terminal = tasks.terminals.get(processId);
     if (!terminal) return;

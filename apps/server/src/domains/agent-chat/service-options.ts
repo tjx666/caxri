@@ -31,4 +31,8 @@ export interface AgentChatServiceOptions {
     observeLifecycleSignal(signal: AgentLifecycleSignal): Promise<unknown>;
     clientVersion: string;
     spawnProcess?: SpawnChatProcess;
+    /**
+     * Overrides how long a request that starts or steers a turn may take, so tests can exercise a late answer.
+     */
+    turnRequestTimeoutMs?: number;
 }

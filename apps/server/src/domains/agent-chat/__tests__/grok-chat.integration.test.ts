@@ -132,6 +132,100 @@ describe('AgentChatService with a fake Grok Build ACP agent', () => {
         expect(next.items.at(-1)).toMatchObject({ text: 'You said: still alive' });
     });
 
+    it('asks a question card and answers Grok Build by question text', async () => {
+        const { service, terminal, signals, until } = await fixture({ provider: 'grok' });
+        await service.send(terminal.id, { text: 'ask me a question' });
+        const pending = await until((snapshot) => snapshot.requests.length === 1);
+        const request = pending.requests[0];
+        expect(request).toMatchObject({
+            kind: 'question',
+            questions: [
+                {
+                    id: 'q0',
+                    header: '',
+                    question: 'Which color?',
+                    options: [
+                        { label: 'Red', description: 'Warm' },
+                        { label: 'Blue', description: 'Cool' },
+                    ],
+                    allowsOther: true,
+                },
+                { id: 'q1', question: 'Which sizes?' },
+            ],
+        });
+        expect(signals.map((signal) => signal.phase)).toContain('attentionRequested');
+        service.respond(terminal.id, request.id, {
+            kind: 'answers',
+            answers: { q0: ['Blue'], q1: ['Small', 'Large'] },
+        });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.requests).toEqual([]);
+        expect(done.items.find((item) => item.type === 'notice')).toMatchObject({
+            kind: 'answered',
+            message: 'Which color?: Blue\nWhich sizes?: Small, Large',
+        });
+        expect(done.items.at(-1)).toMatchObject({
+            type: 'agentMessage',
+            text: 'Answers: {"Which color?":"Blue","Which sizes?":["Small","Large"]}',
+        });
+        expect(signals.map((signal) => signal.phase)).toContain('attentionResolved');
+    });
+
+    it('tells Grok Build a skipped question was cancelled', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'grok' });
+        await service.send(terminal.id, { text: 'ask me a question' });
+        const pending = await until((snapshot) => snapshot.requests.length === 1);
+        service.respond(terminal.id, pending.requests[0].id, {
+            kind: 'decision',
+            decision: 'cancel',
+        });
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        expect(done.requests).toEqual([]);
+        expect(done.items.at(-1)).toMatchObject({ text: 'The question was skipped.' });
+    });
+
+    it('clears a pending question when the turn is interrupted', async () => {
+        const { service, terminal, signals, until } = await fixture({ provider: 'grok' });
+        await service.send(terminal.id, { text: 'ask me a question' });
+        await until((snapshot) => snapshot.requests.length === 1);
+        await service.interrupt(terminal.id);
+        const done = await until((snapshot) => snapshot.turns.at(-1)?.status === 'interrupted');
+        expect(done.requests).toEqual([]);
+        expect(signals.map((signal) => signal.phase)).toContain('attentionResolved');
+        await service.send(terminal.id, { text: 'still alive' });
+        const next = await until(
+            (snapshot) => snapshot.turns.length === 2 && !snapshot.activeTurnId,
+        );
+        expect(next.items.at(-1)).toMatchObject({ text: 'You said: still alive' });
+    });
+
+    it('lists Grok Build models and switches the conversation to another', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'grok' });
+        const ready = await until((snapshot) => snapshot.status === 'ready');
+        expect(ready.models).toEqual([
+            { id: 'grok-fake', displayName: 'Grok Fake', efforts: [] },
+            {
+                id: 'grok-fake-fast',
+                displayName: 'Grok Fake Fast',
+                description: 'Faster replies',
+                efforts: [],
+            },
+        ]);
+        await service.configure(terminal.id, { model: 'grok-fake-fast' });
+        expect(service.read(terminal.id).model).toBe('grok-fake-fast');
+        await service.send(terminal.id, { text: 'which model' });
+        const done = await until(
+            (snapshot) => snapshot.turns.at(-1)?.status === 'completed' && !snapshot.activeTurnId,
+        );
+        expect(done.items.at(-1)).toMatchObject({
+            text: 'You said: which model (grok-fake-fast)',
+        });
+        expect(done.usage?.contextWindow).toBe(128_000);
+        await expect(service.configure(terminal.id, { effort: 'high' })).rejects.toMatchObject({
+            code: 'VALIDATION',
+        });
+    });
+
     it('survives a second Stop for the same turn', async () => {
         const { service, terminal, until } = await fixture({ provider: 'grok' });
         await service.send(terminal.id, { text: 'slow please' });
@@ -238,11 +332,16 @@ describe('AgentChatService with a fake Grok Build ACP agent', () => {
 
     it('resumes the bound session with the history session/load replays', async () => {
         const { service, terminal, until, sessionOpens } = await fixture({ provider: 'grok' });
+        const sentAt = Date.now();
         await service.send(terminal.id, { text: 'remember me' });
         await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
         await service.restart(terminal.id);
         const resumed = service.read(terminal.id);
         expect(resumed.status).toBe('ready');
+        // Every replayed item keeps the time its first frame was originally emitted, not the replay's.
+        const times = resumed.items.map((item) => item.createdAt ?? 0);
+        expect(times.every((time) => time >= sentAt && time <= Date.now())).toBe(true);
+        expect(times).toEqual(times.toSorted((left, right) => left - right));
         expect(resumed.items.map((item) => item.type)).toEqual([
             'userMessage',
             'reasoning',
