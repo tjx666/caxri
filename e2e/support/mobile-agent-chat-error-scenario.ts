@@ -6,7 +6,7 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
-import { hasCheck, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
+import { hasCheck, sendFromPhone, waitForCheck, waitForNoCheck } from './mobile-agent-chat-helpers';
 import {
     adbShell,
     mobileSemantics,
@@ -30,6 +30,18 @@ const imageMessage = (snapshot: AgentChatSnapshot) =>
     );
 
 /**
+ * Pairs and opens the fixture's Chat, returning its Server-side reader.
+ */
+async function openChat(serial: string, fixture: ChatFixture) {
+    await fixture.pair();
+    const chat = fixture.agentChat;
+    if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
+    await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
+    await waitForCheck(serial, 'agent-chat-attach-image');
+    return chat;
+}
+
+/**
  * Pairs, opens the fixture's Chat, attaches the gallery photo with `text` beside it, sends it, and returns the sent
  * message once its reply has finished.
  */
@@ -38,11 +50,7 @@ async function sendGalleryImage(
     fixture: ChatFixture,
     text: string,
 ): Promise<NonNullable<ReturnType<typeof imageMessage>>> {
-    await fixture.pair();
-    const chat = fixture.agentChat;
-    if (!chat || !fixture.allowedSessionId) throw new Error('Chat fixture is unavailable');
-    await tapMobileCheck(serial, `session-row-${fixture.allowedSessionId}`);
-    await waitForCheck(serial, 'agent-chat-attach-image');
+    const chat = await openChat(serial, fixture);
     await tapMobileCheckByBounds(serial, 'agent-chat-attach-image');
     await waitForCheck(serial, 'image-source-library');
     await tapMobileCheck(serial, 'image-source-library');
@@ -75,11 +83,10 @@ async function sendGalleryImage(
 
 /**
  * `MOB-CHAT-07`: in a Claude Code Chat whose record no longer holds an image's original, the viewer shows the sent
- * thumbnail with a note saying so; and when Claude Code refuses a model change, the sheet says the model could not be
- * changed and keeps the model in use checked. Both failures come from the fake CLI's control files, the same answers
- * the real CLI gives.
+ * thumbnail with a note saying so. The fake CLI's `drop-images` control file leaves the image out of its transcript, as
+ * the real record does once the original is gone.
  */
-export async function executeMobileChatErrorScenario(
+export async function executeMobileChatPreviewScenario(
     environment: MobileAgentScenarioEnvironment,
     artifacts: string[],
 ): Promise<void> {
@@ -103,31 +110,7 @@ export async function executeMobileChatErrorScenario(
         await tapMobileCheckByBounds(serial, 'agent-chat-image-viewer-close');
         await waitForNoCheck(serial, 'agent-chat-image-viewer');
 
-        await writeFile(join(fixture.testDirectory, 'reject-model-change'), '');
-        await tapMobileCheckByBounds(serial, 'agent-chat-model-button');
-        await waitForCheck(serial, 'agent-chat-model-sheet');
-        const before = (await mobileSemantics(serial)).find(
-            ({ checked, checkId }) => checked && checkId.startsWith('agent-chat-model-'),
-        )?.checkId;
-        if (!before || before === 'agent-chat-model-opus')
-            throw new Error('The sheet did not mark the model in use');
-        await tapMobileCheckByBounds(serial, 'agent-chat-model-opus');
-        await waitForCheck(serial, 'agent-chat-model-error');
-        const after = await mobileSemantics(serial);
-        const checked = after.find(
-            ({ checked: isChecked, checkId }) =>
-                isChecked && checkId.startsWith('agent-chat-model-'),
-        )?.checkId;
-        if (checked !== before) throw new Error('A refused model change moved the checkmark');
-        await capture(environment, 'model-error', artifacts);
-        await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
-        await waitForNoCheck(serial, 'agent-chat-model-sheet');
-
-        await finish(environment, artifacts, {
-            modelChange: 'refused-and-kept',
-            status: 'passed',
-            viewer: 'preview-fallback',
-        });
+        await finish(environment, artifacts, { status: 'passed', viewer: 'preview-fallback' });
     } finally {
         try {
             await fixture.stop();
@@ -151,8 +134,7 @@ export async function executeMobileChatMissingImageScenario(
         await addMobileGalleryImage(serial);
         // The fake app-server echoes a message containing `unpaired` without the id that pairs its thumbnail.
         const message = await sendGalleryImage(serial, fixture, 'unpaired');
-        if (hasCheck(await mobileSemantics(serial), `agent-chat-message-thumbnail-${message.id}-0`))
-            throw new Error('The tile kept a thumbnail the Server no longer holds');
+        const thumbnail = `agent-chat-message-thumbnail-${message.id}-0`;
         await capture(environment, 'sent', artifacts);
 
         await tapMobileCheckByBounds(serial, `agent-chat-message-image-${message.id}-0`);
@@ -166,6 +148,10 @@ export async function executeMobileChatMissingImageScenario(
         await capture(environment, 'viewer-missing', artifacts);
         await tapMobileCheckByBounds(serial, 'agent-chat-image-viewer-close');
         await waitForNoCheck(serial, 'agent-chat-image-viewer');
+        // Checked after the viewer round trip, so a merely slow thumbnail cannot pass for a missing one.
+        if (hasCheck(await mobileSemantics(serial), thumbnail))
+            throw new Error('The tile showed a thumbnail the Server no longer holds');
+        await capture(environment, 'closed', artifacts);
 
         await finish(environment, artifacts, { status: 'passed', viewer: 'no-longer-available' });
     } finally {
@@ -174,5 +160,66 @@ export async function executeMobileChatMissingImageScenario(
         } finally {
             await removeMobileGalleryImage(serial);
         }
+    }
+}
+
+/**
+ * `MOB-CHAT-09`: when Claude Code refuses a model change, the sheet says so in Desktop's words, keeps the model in use
+ * checked, and the Chat keeps running that model. The fake CLI's `reject-model-change` control file makes `set_model`
+ * answer with an error, as the real CLI does.
+ */
+export async function executeMobileChatModelRefusedScenario(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> {
+    const { serial } = environment;
+    const fixture = await createMobileAcceptanceFixture({
+        chatProvider: 'claude',
+        mode: 'agent-chat',
+        serial,
+    });
+    try {
+        const chat = await openChat(serial, fixture);
+        // Claude Code names its model in the first turn's init message.
+        await sendFromPhone(serial, 'hello');
+        const ready = await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                snapshot.model !== undefined &&
+                snapshot.turns.at(-1)?.status === 'completed' &&
+                !snapshot.activeTurnId,
+        );
+        await waitForNoCheck(serial, 'agent-chat-activity');
+        await tapMobileCheckByBounds(serial, 'agent-chat-model-button');
+        await waitForCheck(serial, 'agent-chat-model-sheet');
+        const checkedModel = async () =>
+            (await mobileSemantics(serial)).find(
+                ({ checked, checkId }) => checked && checkId.startsWith('agent-chat-model-'),
+            )?.checkId;
+        const before = await checkedModel();
+        if (!before || before === 'agent-chat-model-opus')
+            throw new Error('The sheet did not mark the model in use');
+        await capture(environment, 'sheet', artifacts);
+
+        await writeFile(join(fixture.testDirectory, 'reject-model-change'), '');
+        await tapMobileCheckByBounds(serial, 'agent-chat-model-opus');
+        await waitForCheck(serial, 'agent-chat-model-error');
+        if ((await checkedModel()) !== before)
+            throw new Error('A refused model change moved the checkmark');
+        const refused = await chat.read();
+        if (refused.model !== ready.model)
+            throw new Error('A refused model change changed the model the Chat runs');
+        await capture(environment, 'model-error', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-model-done');
+        await waitForNoCheck(serial, 'agent-chat-model-sheet');
+        await capture(environment, 'model-kept', artifacts);
+
+        await finish(environment, artifacts, {
+            model: { after: refused.model, before: ready.model },
+            modelChange: 'refused-and-kept',
+            status: 'passed',
+        });
+    } finally {
+        await fixture.stop();
     }
 }
