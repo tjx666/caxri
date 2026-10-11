@@ -5,19 +5,23 @@
  *
  * - `approve`: a shell command needing approval; accept runs it, decline fails it.
  * - `patch`: a file edit needing approval, reported as an ACP diff; nothing is written to disk.
+ * - `question`: an `_x.ai/ask_user_question` request (one single-select and one multi-select question); the reply quotes
+ *   the answers. Like Grok Build, `session/cancel` stops the turn without answering the pending question.
  * - `slow`: a thought, a running command, and a long streamed reply that `session/cancel` can stop.
  * - `fail`: the prompt fails with a provider error.
  * - `crash`: the process exits mid-turn.
  * - `/compact`: a compaction reply.
- * - Anything else: a thought, a plan, and a streamed reply quoting the message.
+ * - Anything else: a thought, a plan, and a streamed reply quoting the message, naming the current model once switched.
+ *
+ * `session/set_model` switches between the two listed models.
  *
  * An `_x.ai/interject` during `slow` is quoted in the rest of the reply. Sessions persist to `FAKE_GROK_STATE_DIR` (or
  * the OS temp directory) as their update list, so `session/load` replays real history. Each session open appends its
  * method and the process arguments to `session-opens.jsonl` there, so tests can assert what Caxri asked for.
  *
  * Mirrors the shapes a real Grok Build 1.0.50 agent emitted in a content-free protocol probe: `_meta.availableCommands`
- * on `initialize`, `_x.ai/*` process notifications, replayed frames marked `_meta.isReplay`, and `turn_completed` on
- * `_x.ai/session/update` when replayed.
+ * on `initialize`, `_x.ai/*` process notifications, replayed frames marked `_meta.isReplay` with their original
+ * `_meta.agentTimestampMs`, and `turn_completed` on `_x.ai/session/update` when replayed.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -35,6 +39,10 @@ interface RpcMessage {
 interface StoredFrame {
     method: string;
     update: Record<string, unknown>;
+    /**
+     * When the frame was emitted, replayed as `_meta.agentTimestampMs` like Grok Build's own records.
+     */
+    at?: number;
 }
 interface FakeSession {
     id: string;
@@ -61,9 +69,24 @@ function exitProcess(code: number): never {
     process.exit(code);
 }
 
-const state: { session?: FakeSession; prompt?: PromptState; nextRequestId: number } = {
+const state: {
+    session?: FakeSession;
+    prompt?: PromptState;
+    nextRequestId: number;
+    model: string;
+} = {
     nextRequestId: 1,
+    model: 'grok-fake',
 };
+const MODELS = [
+    { modelId: 'grok-fake', name: 'Grok Fake', _meta: { totalContextTokens: 256_000 } },
+    {
+        modelId: 'grok-fake-fast',
+        name: 'Grok Fake Fast',
+        description: 'Faster replies',
+        _meta: { totalContextTokens: 128_000 },
+    },
+];
 const pendingRequests = new Map<number, (result: unknown) => void>();
 
 function send(message: Record<string, unknown>) {
@@ -96,7 +119,7 @@ function save() {
  */
 function update(sessionUpdate: Record<string, unknown>) {
     const session = currentSession();
-    session.frames.push({ method: 'session/update', update: sessionUpdate });
+    session.frames.push({ method: 'session/update', update: sessionUpdate, at: Date.now() });
     send({ method: 'session/update', params: { sessionId: session.id, update: sessionUpdate } });
 }
 function delay(ms: number) {
@@ -227,6 +250,52 @@ async function wasPatchApproved(): Promise<boolean> {
     return isAccepted;
 }
 
+/**
+ * Asks Grok Build's extension question and resolves with its answers, or `undefined` once the turn is cancelled: Grok
+ * Build stops the turn on `session/cancel` and ignores a later answer.
+ */
+async function askQuestions(): Promise<Record<string, unknown> | undefined> {
+    const session = currentSession();
+    const answer = request('_x.ai/ask_user_question', {
+        sessionId: session.id,
+        toolCallId: `call-${crypto.randomUUID()}`,
+        questions: [
+            {
+                question: 'Which color?',
+                options: [
+                    { label: 'Red', description: 'Warm' },
+                    { label: 'Blue', description: 'Cool' },
+                ],
+                multiSelect: false,
+            },
+            {
+                question: 'Which sizes?',
+                options: [
+                    { label: 'Small', description: '' },
+                    { label: 'Large', description: '' },
+                ],
+                multiSelect: true,
+            },
+        ],
+        mode: 'default',
+    }) as Promise<{ outcome?: string; answers?: Record<string, unknown> }>;
+    const cancelled = new Promise<undefined>((resolve) => {
+        const timer = setInterval(() => {
+            if (!state.prompt?.cancelled) return;
+            clearInterval(timer);
+            resolve(undefined);
+        }, 20);
+        // eslint-disable-next-line no-void -- the poll only needs to stop once the answer arrives
+        void answer.then(() => clearInterval(timer));
+    });
+    const result = await Promise.race([answer, cancelled]);
+    if (!result) return undefined;
+    if (result.outcome === 'accepted') return result.answers ?? {};
+    // Caxri answers `cancelled` just before `session/cancel` when the user stops the turn.
+    await delay(50);
+    return state.prompt?.cancelled ? undefined : {};
+}
+
 async function runPrompt(id: number | string | undefined, text: string) {
     const session = currentSession();
     const prompt: PromptState = { cancelled: false, interjections: [] };
@@ -234,11 +303,13 @@ async function runPrompt(id: number | string | undefined, text: string) {
     session.frames.push({
         method: 'session/update',
         update: { sessionUpdate: 'user_message_chunk', content: { type: 'text', text } },
+        at: Date.now(),
     });
     const startedAt = Date.now();
     const finish = (stopReason: string) => {
         state.prompt = undefined;
         session.frames.push({
+            at: Date.now(),
             method: '_x.ai/session/update',
             update: {
                 sessionUpdate: 'turn_completed',
@@ -282,6 +353,21 @@ async function runPrompt(id: number | string | undefined, text: string) {
         finish(prompt.cancelled ? 'cancelled' : 'end_turn');
         return;
     }
+    if (text.includes('question')) {
+        const answers = await askQuestions();
+        if (!answers) {
+            finish('cancelled');
+            return;
+        }
+        await streamText(
+            'agent_message_chunk',
+            Object.keys(answers).length > 0
+                ? `Answers: ${JSON.stringify(answers)}`
+                : 'The question was skipped.',
+        );
+        finish('end_turn');
+        return;
+    }
     if (text.includes('patch')) {
         const applied = await wasPatchApproved();
         await streamText(
@@ -315,7 +401,12 @@ async function runPrompt(id: number | string | undefined, text: string) {
             { content: 'Reply', priority: 'medium', status: 'in_progress' },
         ],
     });
-    await streamText('agent_message_chunk', `You said: ${text}`);
+    await streamText(
+        'agent_message_chunk',
+        state.model === MODELS[0].modelId
+            ? `You said: ${text}`
+            : `You said: ${text} (${state.model})`,
+    );
     finish('end_turn');
 }
 
@@ -323,12 +414,7 @@ function openSession(id: number | string | undefined, sessionId: string) {
     state.session = { id: sessionId, frames: [] };
     respond(id, {
         sessionId,
-        models: {
-            currentModelId: 'grok-fake',
-            availableModels: [
-                { modelId: 'grok-fake', name: 'Grok Fake', _meta: { totalContextTokens: 256000 } },
-            ],
-        },
+        models: { currentModelId: state.model, availableModels: MODELS },
     });
     send({
         method: 'session/update',
@@ -405,7 +491,14 @@ function handle(message: RpcMessage) {
             for (const frame of stored.frames)
                 send({
                     method: frame.method,
-                    params: { sessionId, update: frame.update, _meta: { isReplay: true } },
+                    params: {
+                        sessionId,
+                        update: frame.update,
+                        _meta: {
+                            isReplay: true,
+                            ...(frame.at !== undefined && { agentTimestampMs: frame.at }),
+                        },
+                    },
                 });
             const id = message.id;
             openSession(id, sessionId);
@@ -430,6 +523,16 @@ function handle(message: RpcMessage) {
             }
             state.prompt.interjections.push(String(parameters.text));
             respond(message.id, {});
+            return;
+        }
+        case 'session/set_model': {
+            const modelId = String(parameters.modelId);
+            if (MODELS.every((model) => model.modelId !== modelId)) {
+                respondError(message.id, -32602, `Unknown model ${modelId}`);
+                return;
+            }
+            state.model = modelId;
+            respond(message.id, { _meta: { model: { Ok: null } } });
             return;
         }
         case 'session/cancel': {

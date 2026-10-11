@@ -38,6 +38,7 @@ import type {
     ChatLifecycleEvent,
 } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
+import { chatSessionLogCallbacks } from './chat-session-logs';
 import type { ChatState, ChatStateDelivery, ChatTerminal } from './chat-states';
 import { ChatStates } from './chat-states';
 import { ChatTaskList } from './chat-tasks';
@@ -193,6 +194,7 @@ export class AgentChatService {
                 agentSessionId: database.getTerminal(terminalId)?.agentSessionId,
                 clientVersion: this.options.clientVersion,
                 spawnProcess: this.options.spawnProcess,
+                turnRequestTimeoutMs: this.options.turnRequestTimeoutMs,
                 read: () => state.projection.snapshot,
                 apply: (operations) => {
                     if (isCurrent()) this.states.apply(terminalId, operations);
@@ -209,14 +211,7 @@ export class AgentChatService {
                     if (database.rebindAgentSession(terminalId, provider, agentSessionId))
                         this.states.publish(terminalId);
                 },
-                onTurnFinished: (status, durationMs) =>
-                    logger.write('info', logEventCatalog.agentChat.turnFinished, {
-                        fields: { terminalId, status, durationMs: durationMs ?? null },
-                    }),
-                onProtocolRejected: (reason, method) =>
-                    logger.write('warn', logEventCatalog.agentChat.protocolRejected, {
-                        fields: { terminalId, reason, method: method.slice(0, 100) },
-                    }),
+                ...chatSessionLogCallbacks(this.options, terminalId),
                 onExit: (exit) => this.onExit(terminalId, provider, state, launchId, exit),
                 readTranscript: () => readChatTranscript(this.options, terminalId),
             });
@@ -461,6 +456,13 @@ export class AgentChatService {
         const state = this.states.open(terminalId);
         state.projection.flush();
         const live = state.projection.tasks.resolve(taskId);
+        const listed = state.projection.snapshot.tasks?.find(
+            (task) => task.id === taskId || task.itemId === taskId,
+        );
+        // Opening a running shell's tab confirms the provider still runs it; the list patch follows.
+        if (listed?.kind === 'shell' && listed.status === 'running' && state.session?.isOpen)
+            // eslint-disable-next-line no-void -- best effort: an unreadable list leaves the tasks as they are
+            void state.session.refreshTasks?.().catch(() => {});
         if (live) return agentChatTaskSnapshotSchema.parse(live);
         let session: AgentChatProviderSession;
         try {

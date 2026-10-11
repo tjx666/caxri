@@ -41,6 +41,36 @@ describe('Agent Chat follow-up queue with a fake Codex app-server', () => {
         ]);
     });
 
+    it('keeps queued and steered marks on messages after a restart', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'slow please' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await service.send(terminal.id, { text: 'hello steer' }, 'steer');
+        await service.send(terminal.id, { text: 'hello queued' });
+        await until((snapshot) => snapshot.queue?.length === 1);
+        await service.interrupt(terminal.id);
+        await until((snapshot) => !snapshot.activeTurnId && snapshot.queuePaused === true);
+        service.resumeQueue(terminal.id);
+        await until(
+            (snapshot) =>
+                snapshot.queue?.length === 0 &&
+                !snapshot.activeTurnId &&
+                snapshot.turns.length === 2,
+        );
+
+        // Codex keeps the delivery in each message's `clientId`, so the resumed history still shows it.
+        await service.restart(terminal.id);
+        const resumed = await until((snapshot) => snapshot.status === 'ready');
+        const deliveries = resumed.items.flatMap((item) =>
+            item.type === 'userMessage' ? [[item.text, item.delivery]] : [],
+        );
+        expect(deliveries).toEqual([
+            ['slow please', undefined],
+            ['hello steer', 'steered'],
+            ['hello queued', 'queued'],
+        ]);
+    });
+
     it('removes a queued message, and sends another ahead of the queue', async () => {
         const { service, terminal, until } = await fixture();
         await service.send(terminal.id, { text: 'slow please' });
@@ -55,7 +85,10 @@ describe('Agent Chat follow-up queue with a fake Codex app-server', () => {
             expect.objectContaining({ code: 'CONFLICT' }),
         );
         await service.sendQueuedNow(terminal.id, keepId);
-        const steered = await until((snapshot) => snapshot.queue?.length === 0);
+        // The steer's echo can follow its answer, so wait for both.
+        const steered = await until(
+            (snapshot) => snapshot.queue?.length === 0 && userTexts(snapshot).length === 2,
+        );
         expect(userTexts(steered)).toEqual(['slow please', 'hello keep']);
         await expect(service.sendQueuedNow(terminal.id, keepId)).rejects.toMatchObject({
             code: 'CONFLICT',
@@ -78,6 +111,56 @@ describe('Agent Chat follow-up queue with a fake Codex app-server', () => {
             'hello after',
         ]);
         await service.interrupt(terminal.id);
+    });
+
+    it('counts a queued message Codex answers late as sent, once', async () => {
+        const { service, terminal, until } = await fixture({ turnRequestTimeoutMs: 200 });
+        await service.send(terminal.id, { text: 'slow please' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await service.send(terminal.id, { text: 'hello stall' });
+        await until((snapshot) => snapshot.queue?.length === 1);
+        await service.interrupt(terminal.id);
+        await until((snapshot) => !snapshot.activeTurnId && snapshot.queuePaused === true);
+
+        service.resumeQueue(terminal.id);
+        const drained = await until(
+            (snapshot) =>
+                snapshot.turns.length === 2 &&
+                !snapshot.activeTurnId &&
+                snapshot.turns.every((turn) => turn.status !== 'running'),
+        );
+        expect(userTexts(drained)).toEqual(['slow please', 'hello stall']);
+        expect(drained.queue).toEqual([]);
+        expect(drained.queuePaused).toBe(false);
+        expect(drained.items.some((item) => item.id.startsWith('delivery-unknown:'))).toBe(false);
+    });
+
+    it('holds a queued message Codex never confirms instead of sending it again', async () => {
+        const { service, terminal, until } = await fixture({ turnRequestTimeoutMs: 200 });
+        await service.send(terminal.id, { text: 'slow please' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await service.send(terminal.id, { text: 'hello lost' });
+        await service.send(terminal.id, { text: 'hello after' });
+        const queued = await until((snapshot) => snapshot.queue?.length === 2);
+        await expect(
+            service.sendQueuedNow(terminal.id, queued.queue?.[0]?.id ?? ''),
+        ).rejects.toMatchObject({ code: 'TIMEOUT', details: { deliveryUnknown: true } });
+        const held = await until((snapshot) => snapshot.queuePaused === true);
+        expect(held.queue?.map((entry) => entry.text)).toEqual(['hello lost', 'hello after']);
+        expect(held.items).toContainEqual(
+            expect.objectContaining({
+                type: 'notice',
+                kind: 'error',
+                id: expect.stringMatching(/^delivery-unknown:/u) as string,
+            }),
+        );
+
+        // The turn ending does not send the held message or the one behind it.
+        await service.interrupt(terminal.id);
+        const ended = await until((snapshot) => !snapshot.activeTurnId);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        expect(userTexts(service.read(terminal.id))).toEqual(['slow please']);
+        expect(ended.queue).toHaveLength(2);
     });
 
     it('steers the running turn when asked to, without queueing', async () => {

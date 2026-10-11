@@ -14,7 +14,7 @@ import {
 
 import { extractVisibleTranscriptMessage } from '../agents';
 import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
-import { claudeUserImageCount, isClaudeCompactCommand } from './claude-input';
+import { claudeUserImageCount, isClaudeCompactCommand, isQueuedClaudePrompt } from './claude-input';
 import { claudeAssistantItems, ClaudeBlockIds, text } from './claude-items';
 import { settleClaudeToolItem } from './claude-tool-results';
 
@@ -95,6 +95,7 @@ function applyUserRecord(state: HistoryState, record: Json, message: Json): void
         type: 'userMessage',
         text: clip(visible?.text ?? '', MAX_AGENT_CHAT_TEXT_LENGTH),
         ...(imageCount > 0 && { images: Array.from({ length: imageCount }, () => ({})) }),
+        ...(isQueuedClaudePrompt(uuid) && { delivery: 'queued' as const }),
         ...recordTime(record),
     });
 }
@@ -108,8 +109,49 @@ function recordTime(record: Json): { createdAt?: number } {
     return Number.isFinite(time) && time >= 0 ? { createdAt: time } : {};
 }
 
+/**
+ * A message steered into a running turn. Claude Code records the prompt it folds in mid-turn as a `queued_command`
+ * attachment keyed by the sent uuid (`source_uuid`), not as a user record (verified with Claude Code 2.1.296).
+ */
+function applySteeredRecord(state: HistoryState, attachment: Json, record: Json): void {
+    const uuid = stringField(attachment.source_uuid);
+    if (!uuid || !state.turnId) return;
+    // Claude Code queues background task notifications and peer Agent messages the same way; only a human prompt is
+    // the user's steered message.
+    const origin = isRecord(attachment.origin) ? attachment.origin.kind : undefined;
+    if ((attachment.commandMode ?? 'prompt') !== 'prompt' || (origin ?? 'human') !== 'human')
+        return;
+    const { prompt } = attachment;
+    const blocks = Array.isArray(prompt) ? prompt.filter(isRecord) : [];
+    const promptText =
+        typeof prompt === 'string'
+            ? prompt
+            : blocks.flatMap((block) => (block.type === 'text' ? [text(block.text)] : [])).join('');
+    const imageCount = claudeUserImageCount(blocks);
+    if (!promptText && imageCount === 0) return;
+    const id = clip(uuid, 200);
+    state.items.set(id, {
+        id,
+        turnId: state.turnId,
+        type: 'userMessage',
+        text: clip(promptText, MAX_AGENT_CHAT_TEXT_LENGTH),
+        ...(imageCount > 0 && { images: Array.from({ length: imageCount }, () => ({})) }),
+        delivery: 'steered',
+        ...recordTime(record),
+    });
+}
+
 function applyHistoryRecord(state: HistoryState, record: Json): void {
-    if (record.isMeta === true || (record.isSidechain === true && !state.isSidechain)) return;
+    if (record.isSidechain === true && !state.isSidechain) return;
+    if (
+        record.type === 'attachment' &&
+        isRecord(record.attachment) &&
+        record.attachment.type === 'queued_command'
+    ) {
+        applySteeredRecord(state, record.attachment, record);
+        return;
+    }
+    if (record.isMeta === true) return;
     if (record.type === 'system') {
         applySystemRecord(state, record);
         return;

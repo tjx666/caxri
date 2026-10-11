@@ -37,18 +37,59 @@ function turnStatus(value: unknown): AgentChatTurn['status'] {
 }
 
 /**
- * One recorded turn's items, with the dangling ones closed unless the turn is still running.
+ * A recorded turn's start in milliseconds. Codex records `startedAt` in Unix seconds; older history has none.
+ */
+function turnStartMs(turn: Json): number | undefined {
+    return typeof turn.startedAt === 'number' &&
+        Number.isFinite(turn.startedAt) &&
+        turn.startedAt > 0
+        ? turn.startedAt * 1000
+        : undefined;
+}
+
+/**
+ * One recorded turn's items, with the dangling ones closed unless the turn is still running. The user message that
+ * opened the turn is dated by `startedAt`; a message steered in later, and every other item, stays undated until
+ * {@link itemTimeOperations} finds its own time.
  */
 export function historyItems(
     rawItems: unknown,
     turnId: string,
     isRunning: boolean,
+    startedAt?: number,
 ): AgentChatItem[] {
     if (!Array.isArray(rawItems)) return [];
+    let isOpeningMessage = true;
     return rawItems.flatMap((rawItem) => {
-        const item = mapCodexItem(rawItem, turnId, false);
-        if (!item) return [];
+        const mapped = mapCodexItem(rawItem, turnId, false);
+        if (!mapped) return [];
+        const isOpening = isOpeningMessage && mapped.type === 'userMessage';
+        if (mapped.type === 'userMessage') isOpeningMessage = false;
+        const item =
+            startedAt !== undefined && isOpening ? { ...mapped, createdAt: startedAt } : mapped;
         return [isRunning ? item : (closeDanglingItem(item) ?? item)];
+    });
+}
+
+/**
+ * Operations that date resumed items from `thread/items/list` entries, whose `startedAtMs` is when Codex started each
+ * item. Only items still undated are touched, so a live stamp or the turn's own start is never replaced.
+ */
+export function itemTimeOperations(
+    snapshot: AgentChatSnapshot,
+    entries: readonly unknown[],
+): AgentChatPatchOperation[] {
+    const times = new Map<string, number>();
+    for (const entry of entries) {
+        if (!isRecord(entry) || !isRecord(entry.item)) continue;
+        const id = stringField(entry.item.id);
+        const time = entry.startedAtMs;
+        if (id && typeof time === 'number' && Number.isFinite(time) && time > 0)
+            times.set(clip(id, 200), time);
+    }
+    return snapshot.items.flatMap((item): AgentChatPatchOperation[] => {
+        const createdAt = item.createdAt === undefined ? times.get(item.id) : undefined;
+        return createdAt === undefined ? [] : [{ op: 'upsertItem', item: { ...item, createdAt } }];
     });
 }
 
@@ -78,7 +119,7 @@ export function historyOperations(
             ...(typeof rawTurn.durationMs === 'number' &&
                 rawTurn.durationMs >= 0 && { durationMs: rawTurn.durationMs }),
         });
-        items.push(...historyItems(rawTurn.items, turnId, isRunning));
+        items.push(...historyItems(rawTurn.items, turnId, isRunning, turnStartMs(rawTurn)));
     }
     const operations: AgentChatPatchOperation[] = [{ op: 'reset' }];
     for (const item of items) operations.push({ op: 'upsertItem', item });

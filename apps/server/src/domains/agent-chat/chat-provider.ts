@@ -12,6 +12,7 @@ import type {
     AgentChatTurn,
     AgentLaunchSettings,
 } from '@caxri/protocol';
+import { CaxriError, isCaxriError } from '@caxri/protocol';
 
 import type { AgentLifecycleSignal } from '../agents';
 
@@ -81,6 +82,22 @@ export class AgentChatStartError extends Error {
 }
 
 /**
+ * An input whose request timed out and whose arrival the provider could not confirm: it may have started a turn that is
+ * still on its way, so it must not be sent again automatically. `details.deliveryUnknown` marks it across the wire.
+ */
+export function deliveryUnknownError(label: string): CaxriError {
+    return new CaxriError(
+        'TIMEOUT',
+        `${label} did not confirm this message in time. It may still have been sent, so check the conversation before sending it again.`,
+        { deliveryUnknown: true },
+    );
+}
+
+export function isDeliveryUnknown(error: unknown): boolean {
+    return isCaxriError(error) && error.details?.deliveryUnknown === true;
+}
+
+/**
  * Bounded tail of an Agent Session's transcript. `truncated` is true when older records were cut off.
  */
 export interface AgentChatTranscript {
@@ -124,6 +141,10 @@ export interface AgentChatSessionHost {
     agentSessionId?: string;
     clientVersion: string;
     spawnProcess?: SpawnChatProcess;
+    /**
+     * Bound on a request that starts or steers a turn. Tests shorten it to exercise a provider that answers late.
+     */
+    turnRequestTimeoutMs?: number;
     read(): AgentChatSnapshot;
     apply(operations: AgentChatPatchOperation[]): void;
     /**
@@ -143,6 +164,10 @@ export interface AgentChatSessionHost {
     onSessionBound(agentSessionId: string): void;
     onTurnFinished(status: AgentChatTurn['status'], durationMs: number | undefined): void;
     onProtocolRejected(reason: 'unsupportedRequest' | 'unkeyedRequest', method: string): void;
+    /**
+     * A turn request timed out and the session checked whether the provider recorded the input anyway.
+     */
+    onDeliveryChecked(method: string, outcome: 'delivered' | 'unknown'): void;
     onExit(exit: AgentChatExit): void;
     /**
      * Bounded tail of the bound Agent Session's on-disk transcript, for a provider whose resume does not return history
@@ -207,6 +232,11 @@ export interface AgentChatProviderSession {
      * Stops the running turn. Background tasks keep running.
      */
     interrupt(): Promise<void>;
+    /**
+     * Re-reads the provider's own record of running background work and corrects the snapshot's `tasks` where it
+     * drifted. Providers whose task list cannot drift (it is pushed with every change) omit it.
+     */
+    refreshTasks?(): Promise<void>;
     /**
      * Stops one task listed in the snapshot's `tasks`. Fails with `CONFLICT` when the task is no longer running.
      */

@@ -288,8 +288,12 @@ record is the source of truth.
 - An item's optional `createdAt` is when it began. Server Core stamps an item on its first live
   upsert (`stampNewItems` in `apps/server/src/domains/agent-chat/chat-projection.ts`) and the
   reducer keeps it across later upserts that omit it. A history replay is not stamped with the read
-  time: Claude Code history takes each message's transcript record time, and a provider whose
-  history carries no time leaves resumed items undated, so they show no time rather than a wrong one.
+  time: Claude Code history takes each message's transcript record time. Codex dates a resumed user
+  message by its turn's `startedAt` (Unix seconds), then dates the other items from
+  `thread/items/list`'s `startedAtMs`, newest first and bounded. Grok Build stamps every replayed
+  frame with its original `_meta.agentTimestampMs`, and an item takes the time of the frame that
+  created it. An item with no recorded time stays undated, so it shows no time rather than a wrong
+  one.
 
 ## Background work
 
@@ -310,8 +314,9 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   tool call and the `task_started`, `task_progress`, `task_notification`, `task_updated`, and
   `background_tasks_changed` system messages. A background shell uses Claude's `task_id` and links
   its Bash row; its output tail comes from polling the SDK's `getTaskOutput` about once a second.
-  `perTaskStopAffordance` keeps background tasks alive across an interrupt, and `stopTask` maps to
-  the SDK's `stop_task`. History is rebuilt from
+  `perTaskStopAffordance` keeps background subagents alive across an interrupt; a background shell
+  outlives an interrupt either way, with no task event (verified with Claude Code 2.1.296). `stopTask`
+  maps to the SDK's `stop_task`. History is rebuilt from
   `<session>/subagents/agent-<id>.meta.json` (matched by `toolUseId`) and its `.jsonl`.
 - **Codex.** A subagent is a child thread; its task id is the child thread id and its row is the
   `collabAgentToolCall` (or `subAgentActivity`) item. App-server sends no `thread/started` for a
@@ -319,7 +324,10 @@ evicts only its own history. Server Core keeps at most 50 tasks per Chat (ended 
   a spawn item names it. Stopping interrupts the child's turn; history comes from `thread/read`. A
   `commandExecution` with a `processId` still running when its turn ends becomes a shell task;
   Caxri initializes with `experimentalApi: true` so `thread/backgroundTerminals/terminate` can stop
-  it. Codex stops streaming a command after 10,000 deltas, which sets `isOutputCapped`.
+  it. Codex stops streaming a command after 10,000 deltas, which sets `isOutputCapped`. A resumed
+  thread lists each command its history still shows running in a finished turn as a stopped shell
+  task ("Ended: Caxri restarted and can no longer track it"), since the app-server that ran it is
+  gone; one `thread/backgroundTerminals/list` still reports is taken back running and stoppable.
 - **Grok Build.** No tasks are projected yet: its background task updates are ignored, `stopTask`
   answers `CONFLICT`, and `readTaskHistory` knows no task.
 - **Pane.** A subagent or background row opens its task in a Workbench tab
@@ -336,7 +344,11 @@ A message sent while a turn runs waits in Server Core's queue by default and goe
 turn once the Chat is idle, one turn at a time and in order; a message also waits behind earlier
 queued ones. `agentChat.send` with `delivery: 'steer'` instead adds it to the running turn (Codex
 `turn/steer`, Claude Code `priority: 'next'`, Grok Build `_x.ai/interject`). A slash command issued during a turn is queued.
-User messages record how they arrived (`delivery: 'queued' | 'steered'`), in memory only.
+User messages record how they arrived (`delivery: 'queued' | 'steered'`). The mark lives in the
+provider's own record, so a resume after a restart still shows it: Codex keeps it as the
+`clientUserMessageId` prefix (`queued:<uuid>`) its user message echoes as `clientId`; Claude Code
+records a steered message as a `queued_command` attachment, and a queued one carries a version-8
+uuid whose third group is `8c01`. Grok Build keeps no mark, so its resumed messages show none.
 
 - The snapshot's `queue` lists each entry's text, image count, and command; image data stays on
   Server Core. At most 20 entries and 256 KiB of text.
@@ -344,6 +356,12 @@ User messages record how they arrived (`delivery: 'queued' | 'steered'`), in mem
   next message by surprise; `agentChat.resumeQueue` continues it. `agentChat.removeQueued` drops an
   entry and `agentChat.sendQueuedNow` sends one ahead of the rest (steering a running turn; a
   command cannot steer). A failed dispatch puts the entry back and pauses the queue.
+- A Codex `turn/start` or `turn/steer` that times out may still have started the turn, so Codex
+  Chat checks before failing: the user message's `clientId` echo, or `thread/turns/list` over the
+  newest turns. A recorded message counts as delivered. One it cannot confirm fails as delivery
+  unknown: the entry stays in the paused queue (Send now and Remove still work), and the timeline
+  gets an `error` notice telling the user to check the conversation before sending it again, so
+  nothing is sent twice automatically.
 - The queue survives a restart of the Chat and goes out once the new process is ready; it is never
   persisted across Server Core restarts.
 - In the composer, Enter queues during a turn and Cmd+Enter steers. Queued entries form one list
@@ -365,9 +383,14 @@ marks its row declined.
 
 Grok Build asks through `session/request_permission`, keyed by the tool call id; its permission
 options (`allow_once`, `allow_always`, `reject_once`, `reject_always`) set the offered decisions,
-and Skip or a decision with no matching option answers `cancelled`. Caxri turns off
-`_x.ai/ask_user_question` when it opens the session, so Grok Build never asks a question the Chat
-cannot render.
+and Skip or a decision with no matching option answers `cancelled`. Caxri turns on
+`_x.ai/ask_user_question` (`_meta.askUserQuestion`) when it opens the session, and each question
+request becomes a `question` keyed by its `toolCallId`. Grok Build's questions carry no id or
+header, so question ids are positional (`q0`, `q1`, ...) and the answer goes back keyed by question
+text: one string, or a list for a `multiSelect` question. Skip answers `{"outcome":"cancelled"}`,
+which Grok Build reads as "the user declined to answer" and continues the turn. On
+`session/cancel` Grok Build stops the turn without withdrawing a pending question and ignores a
+later answer, so Caxri answers it `cancelled` and clears the card when the turn ends.
 
 Codex server requests become pending `requests` keyed by the approval callback id when present,
 else the item id. Codex re-sends pending requests with fresh transport ids after a resume, and
@@ -597,6 +620,10 @@ A running turn keeps the model it started with.
   settings, environment overrides, and model downgrades. Claude Code fills it only for a hook with
   a tool-use context, so `PreToolUse` and `Stop` always carry it and `UserPromptSubmit` only
   sometimes. Before the first turn ends, or a switch, the effort can be unknown.
+- **Grok Build** lists models in the `session/new` or `session/load` result's `models`
+  (`availableModels`, `currentModelId`). A switch applies in place with `session/set_model`, and
+  the usage meter takes the new model's `totalContextTokens`. Its reasoning efforts are not
+  offered yet, so every Grok Build model lists no `efforts`.
 
 ## Lifecycle signals
 
@@ -615,7 +642,8 @@ resume mode, duration),
 requests, rejected requests, and dropped frames), `agent_chat.turn_finished` (status, duration),
 `agent_chat.protocol_rejected` (closed reason, protocol method name), and
 `terminal.surface_switched` (closed outcome, both surfaces, duration), `agent_chat.queue_changed`
-(closed reason and queue depth), and `agent_chat.task_finished` (task kind, final status,
+(closed reason and queue depth), `agent_chat.delivery_checked` (request method and closed outcome
+`delivered` or `unknown` after a turn request timed out), and `agent_chat.task_finished` (task kind, final status,
 background flag, duration). None of them carries
 message text, command output, provider stderr, or protocol bodies.
 
@@ -650,8 +678,8 @@ logs, or captures reply text. The PTY smoke's policy, in turn, still refuses to 
 ## Not yet supported
 
 Claude Code's agent picker (its `initialize` response already lists the agents). Grok Build's
-model picker, images (its ACP agent advertises `image: false`), and questions
-(`_x.ai/ask_user_question`, turned off for now). Grok Build stays out of the real-Agent smoke. On mobile, a
+reasoning effort picker and images (its ACP agent advertises `image: false`). Grok Build stays out
+of the real-Agent smoke. On mobile, a
 Chat shows no plan, model, or context usage yet, shows an image as its count (`[1 image]`) instead of
 a thumbnail, cannot attach images or run slash commands, does not show background tasks or the
 follow-up queue, older history beyond the window stays on
