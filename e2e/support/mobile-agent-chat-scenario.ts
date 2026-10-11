@@ -5,6 +5,10 @@ import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import type { MobileAgentScenarioEnvironment } from './mobile-agent-actions-scenarios';
 import { capture, finish } from './mobile-agent-actions-scenarios';
 import {
+    executeMobileChatErrorScenario,
+    executeMobileChatMissingImageScenario,
+} from './mobile-agent-chat-error-scenario';
+import {
     agentText,
     hasCheck,
     sendFromPhone,
@@ -366,6 +370,10 @@ export async function executeMobileAgentChatCase(
             return executeMobileChatImageScenario(environment, artifacts);
         case 'MOB-CHAT-06':
             return executeMobileReadCacheScenario(environment, artifacts);
+        case 'MOB-CHAT-07':
+            return executeMobileChatErrorScenario(environment, artifacts);
+        case 'MOB-CHAT-08':
+            return executeMobileChatMissingImageScenario(environment, artifacts);
         default:
             throw new Error(`Unsupported Agent Chat Acceptance case: ${environment.caseId}`);
     }

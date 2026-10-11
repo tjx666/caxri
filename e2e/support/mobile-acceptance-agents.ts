@@ -35,6 +35,7 @@ export async function fakeChatAgent(userDataDirectory: string, testDirectory: st
         providers: {
             claude: {
                 executableSource: `#!${process.execPath}
+process.env.FAKE_CLAUDE_CONTROL_DIR = ${JSON.stringify(testDirectory)};
 import(${JSON.stringify(pathToFileURL(FAKE_CLAUDE_CLI).href)});
 `,
             },
