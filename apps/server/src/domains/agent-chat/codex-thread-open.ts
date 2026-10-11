@@ -81,6 +81,17 @@ function reportedModel(result: unknown): { model?: string; effort?: string } {
 }
 
 /**
+ * Codex lets one process write a thread at a time. A thread still open in another client (the Codex app, a `codex` TUI,
+ * another Caxri profile) fails `thread/resume` with `thread <id> already has an active writer` until that client
+ * releases it, so this is a recoverable conflict rather than a lost conversation.
+ */
+function isThreadWriterConflict(error: unknown): boolean {
+    return (
+        error instanceof JsonRpcRequestError && /already has an active writer/u.test(error.message)
+    );
+}
+
+/**
  * Resumes `threadId` with its history, or starts a new thread when there is none.
  */
 export async function openCodexThread(
@@ -105,8 +116,13 @@ export async function openCodexThread(
                 { ...threadParameters, threadId },
                 THREAD_OPEN_TIMEOUT_MS,
             );
-        } catch {
+        } catch (error) {
             await connection.close();
+            if (isThreadWriterConflict(error))
+                throw new AgentChatStartError(
+                    'conversation_in_use',
+                    'Another Codex client is using this conversation',
+                );
             throw new AgentChatStartError(
                 'resume_failed',
                 'Codex could not resume this conversation',

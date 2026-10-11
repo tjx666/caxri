@@ -61,6 +61,9 @@ export const agentChatFailureMessage = (
         case 'resume_failed': {
             return 'The previous conversation could not be resumed.';
         }
+        case 'conversation_in_use': {
+            return `This conversation is open in another ${provider} app or window on your computer.`;
+        }
         case 'unsupported_version': {
             return `This ${provider} version does not support Chat. Update it on your computer.`;
         }
