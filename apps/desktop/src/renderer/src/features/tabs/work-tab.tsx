@@ -131,7 +131,7 @@ interface WorkTabProperties {
     /**
      * Builds the tab's native right-click menu when it opens.
      */
-    contextMenu?: () => ContextMenuEntries;
+    contextMenu?: () => ContextMenuEntries | Promise<ContextMenuEntries>;
     onClose: () => void;
     onDoubleClick?: () => void;
     onDragStart?: (event: DragEvent<HTMLDivElement>) => void;

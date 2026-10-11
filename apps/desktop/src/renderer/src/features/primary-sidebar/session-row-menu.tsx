@@ -29,7 +29,10 @@ import {
     setSessionPinned,
 } from '../session/session-commands';
 import { agentReloadMenuEntry } from '../terminal/terminal-reload-commands';
-import { agentResumeCommandMenuEntry } from '../terminal/terminal-surface-commands';
+import {
+    agentResumeCommandMenuEntry,
+    isAgentConversationResumable,
+} from '../terminal/terminal-surface-commands';
 import { canSuggestSessionTitle } from './session-rename-draft';
 
 /**
@@ -166,7 +169,10 @@ async function sessionRowMenu({
     const missingConversationReason = primaryTerminal?.provider
         ? NO_CONVERSATION_REASON
         : NO_AGENT_REASON;
-    const isAutoAllowGranted = await isPermissionAutoAllowGranted(session.id);
+    const [isAutoAllowGranted, isResumable] = await Promise.all([
+        isPermissionAutoAllowGranted(session.id),
+        isAgentConversationResumable(primaryTerminal),
+    ]);
     return [
         /**
          * Rename's hint is read from the live keybinding table now that `session.rename` is a real command. Archive
@@ -254,7 +260,7 @@ async function sessionRowMenu({
             onSelect: () =>
                 primaryTerminal && agentSessionId && copyAgentTranscriptPath(primaryTerminal.id),
         },
-        agentResumeCommandMenuEntry(primaryTerminal, missingConversationReason),
+        agentResumeCommandMenuEntry(primaryTerminal, isResumable, missingConversationReason),
         CONTEXT_MENU_SEPARATOR,
         {
             label: 'Delete Session…',
