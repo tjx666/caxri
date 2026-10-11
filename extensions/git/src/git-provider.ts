@@ -14,6 +14,7 @@ import type {
 import caxri, { CancellationTokenSource, EventEmitter, GitPullRequestErrorMessage } from 'caxri';
 
 import { DetailQueue } from './detail-queue';
+import { canDetectPullRequest, hasDetectedPullRequest } from './pull-request-detection';
 import {
     buildSourceControlHistoryDetails,
     buildSourceControlHistoryPage,
@@ -97,17 +98,6 @@ function assertNotCancelled(token: CancellationToken): void {
 
 function isMode(value: string | undefined): value is GitSourceControlMode {
     return ['working', 'commit', 'pull-request'].includes(value ?? '');
-}
-
-/**
- * Whether any listed repository's branch has a pull request, as far as the settled lookups know. A repository whose
- * lookup is still loading or failed does not count, so the panel only switches on a pull request that was found.
- */
-export function hasDetectedPullRequest(
-    repositories: ReadonlyArray<Pick<GitRepositorySummary, 'id'>>,
-    pullRequests: ReadonlyMap<string, { value?: GitPullRequestChanges | null }>,
-): boolean {
-    return repositories.some((repo) => Boolean(pullRequests.get(repo.id)?.value));
 }
 
 /**
@@ -492,7 +482,8 @@ export class GitProvider implements SourceControlProvider {
         const repoIds = new Set(summary.repositories.map(({ id }) => id));
         this.pruneDetails(state, repoIds);
         if (!state.isModeChosen && state.mode === 'working') {
-            for (const repo of summary.repositories) this.loadPullRequest(state, repo);
+            for (const repo of summary.repositories)
+                if (canDetectPullRequest(repo)) this.loadPullRequest(state, repo);
             if (hasDetectedPullRequest(summary.repositories, state.pullRequests))
                 state.mode = 'pull-request';
         }

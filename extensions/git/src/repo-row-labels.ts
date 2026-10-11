@@ -3,7 +3,7 @@ import type { GitRepositorySummary } from 'caxri';
 /**
  * The literal `git status --porcelain=v2 --branch` reports as the branch of a detached HEAD.
  */
-const DETACHED_BRANCH = '(detached)';
+export const DETACHED_BRANCH = '(detached)';
 
 interface RepoReference {
     /**
