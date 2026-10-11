@@ -40,6 +40,11 @@ const mobileGatewayMethodsByRole = {
          */
         'mobile.agentChat.send',
         'mobile.agentChat.retry',
+        /**
+         * The model and effort decide how the reply device's own next message runs, so choosing them belongs with
+         * sending it, as the Desktop composer keeps the picker beside the input.
+         */
+        'mobile.agentChat.configure',
         'mobile.session.show',
         'mobile.timeline.read',
         'mobile.changes.list',
@@ -58,6 +63,7 @@ const mobileGatewayMethodsByRole = {
         'mobile.agentChat.read',
         'mobile.agentChat.send',
         'mobile.agentChat.retry',
+        'mobile.agentChat.configure',
         /**
          * Approvals, answers, and Stop match `mobile.attention.answer` and `agent.control.interrupt`: control only.
          */

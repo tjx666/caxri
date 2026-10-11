@@ -5,7 +5,7 @@ _Researched 2026-08-06._
 - **Positioning**: Self-hostable orchestrator for coding agents: "one interface for Claude Code, Codex, Copilot, OpenCode, and Pi" that runs agents on your own machines and drives them from desktop, mobile, web, or CLI. Frames itself as not a hosted agent, not an IDE, and not a model provider; it wraps existing CLIs rather than shipping its own agent.
 - **Company/traction**: Independent open-source project led by Mohamed Boudra (`boudra`, by far the top contributor); created 2025-10-13. Fast-growing: ~12.2k GitHub stars, ~1.2k forks, 686 open issues as of research date. Ships an Electron desktop app, an Expo (React Native) mobile/web app, a CLI, and Google Play/App Store listings.
 - **Tech stack**: Monorepo: `packages/server` (Node.js daemon: agent process orchestration, WebSocket API, MCP server), `packages/app` (Expo client for iOS/Android/web), `packages/cli`, `packages/desktop` (Electron wrapper that can spawn the daemon as a managed subprocess), `packages/relay` (encrypted relay transport, separate repo `getpaseo/paseo-relay` written in Elixir), `packages/website` (TanStack Router + Cloudflare Workers).
-- **License**: AGPL-3.0 (GitHub shows "Other" because the LICENSE file is a custom header over the full AGPLv3 text; third-party components keep their own licenses), copyleft, stricter than Caxri's needs; reference-only for code.
+- **License**: Apache-2.0 as of the 2026-10-10 clone (`b63a325`): the LICENSE file is a custom header over the full Apache 2.0 text, and third-party components keep their own licenses. Earlier revisions were AGPL-3.0; recheck the clone's LICENSE before copying code.
 
 ## Architecture highlights
 
@@ -45,3 +45,11 @@ _Researched 2026-09-24 from source `ee7949a` (2026-09-21)._
 _Researched 2026-10-10._
 
 - Surfaces are fixed per Agent; continuing elsewhere means copying the provider's resume command, the pattern behind Caxri's "Copy Resume Command".
+
+## Mobile model choice, images, and cache
+
+_Researched 2026-10-11 from source `b63a325`._
+
+- Model and thinking choice: on a phone the composer's model trigger opens a bottom sheet with `Model` and `Thinking` sections that apply on tap; a running turn keeps its model. Caxri mirrors this as the Agent Chat model sheet.
+- Images: user messages show 48 px thumbnails; tapping opens a full-screen lightbox with pinch zoom (reanimated plus gesture-handler) that closes on tap or an X button.
+- Offline reads: an `expo-sqlite` replica cache stores rows keyed by `(server_id, kind, id)` with a JSON payload, keeps the last 50 timeline items per Agent, caps the database at 32 MiB, and evicts whole hosts least-recently-used first. Catch-up shows "Updating messages" and "Reconnecting" banners instead of blanking the timeline.

@@ -204,6 +204,15 @@ export const mobileAgentChatMethods = {
         result: z.null(),
     },
     /**
+     * Switches the model or reasoning effort the Chat's next turn uses, the phone's equivalent of the Desktop
+     * composer's model menu. Core validates the change against the snapshot's `models`.
+     */
+    'mobile.agentChat.configure': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: agentChatMethods['agentChat.configure'].params,
+        result: z.null(),
+    },
+    /**
      * Restarts a failed Chat and resumes its bound conversation, the phone's equivalent of the Desktop pane's Retry.
      * Refused for any Terminal that is not a Chat.
      */

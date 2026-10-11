@@ -21,7 +21,13 @@ describe('native Terminal pinch', () => {
                 { checkId: 'session-detail', bounds: '[0,0][1080,2400]' },
                 { checkId: 'terminal-take-over', bounds: '[0,2200][100,2300]' },
                 { checkId: 'terminal-live-webview', bounds: '[0,200][1080,2200]' },
-            ].map((node) => ({ ...node, enabled: true, clickable: false, selected: false })),
+            ].map((node) => ({
+                ...node,
+                enabled: true,
+                checked: false,
+                clickable: false,
+                selected: false,
+            })),
         );
     });
 
@@ -56,7 +62,13 @@ describe('native Terminal pinch', () => {
                 { checkId: 'session-detail', bounds: '[0,0][1080,2400]' },
                 { checkId: 'terminal-release', bounds: '[0,2200][100,2300]' },
                 { checkId: 'terminal-live-webview', bounds: '[0,200][1080,2200]' },
-            ].map((node) => ({ ...node, enabled: true, clickable: false, selected: false })),
+            ].map((node) => ({
+                ...node,
+                enabled: true,
+                checked: false,
+                clickable: false,
+                selected: false,
+            })),
         );
         vi.mocked(runMobileDeviceCommand).mockResolvedValue(
             'INSTRUMENTATION_RESULT: status=ok\nINSTRUMENTATION_RESULT: gesture=pinch-out\nINSTRUMENTATION_CODE: -1',
