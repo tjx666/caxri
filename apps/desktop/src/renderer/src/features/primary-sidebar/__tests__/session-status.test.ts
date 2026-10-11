@@ -30,6 +30,7 @@ describe('Session list status', () => {
             ariaDescription: 'The Agent finished its latest turn. Current status: Working.',
             ariaLabel: 'Unread, finished',
             kind: 'attention',
+            variant: 'result',
         });
     });
 
@@ -41,9 +42,11 @@ describe('Session list status', () => {
         ).toMatchObject({
             ariaDescription: 'The Agent is waiting for input or confirmation.',
             ariaLabel: 'Unread, waiting for you',
+            variant: 'waiting',
         });
         expect(sessionStatus(sessionSource('idle', { hasUnread: true }))).toMatchObject({
             ariaLabel: 'Unread',
+            variant: 'result',
         });
     });
 
@@ -106,6 +109,14 @@ describe('Session list status', () => {
                 { lastProcessState: 'detached' },
             ),
         ).toMatchObject({ kind: 'attention' });
+    });
+
+    it('gives failed attention the result shape, since there is nothing to answer', () => {
+        expect(
+            sessionStatus(
+                sessionSource('failed', { hasUnread: true, lastAttentionKind: 'failed' }),
+            ),
+        ).toMatchObject({ kind: 'attention', variant: 'result' });
     });
 
     it('keeps reliable failed attention in the unified unread state', () => {

@@ -83,6 +83,7 @@ process.stdout.write('Question fixture ready\r\n');
         await expect.poll(state).toBe('waiting');
         await expect(status).toHaveAttribute('data-session-status', 'attention');
         await expect(status).toHaveAttribute('data-attention-kind', 'waiting');
+        await expect(status).toHaveAttribute('data-attention-variant', 'waiting');
         expect(
             await status
                 .locator('[data-session-status-ripple]')

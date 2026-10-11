@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useId } from 'react';
 
 import type { SessionRecord } from '@caxri/protocol';
-import { Unplug } from 'lucide-react';
+import { CircleAlert, Unplug } from 'lucide-react';
 
 import { cn } from '../../lib/utilities';
 import type { SessionStatusTerminal } from './session-status';
@@ -81,6 +81,7 @@ export function SessionStatusIndicator({
                 data-attention-kind={
                     status.kind === 'attention' ? session.lastAttentionKind : undefined
                 }
+                data-attention-variant={status.kind === 'attention' ? status.variant : undefined}
                 data-session-status={status.kind}
             >
                 {status.kind === 'attention' ? (
@@ -90,14 +91,20 @@ export function SessionStatusIndicator({
                             className="absolute inset-0 rounded-full border border-warning opacity-75 motion-safe:animate-ping motion-reduce:hidden"
                             data-session-status-ripple=""
                         />
-                        <span
-                            aria-hidden="true"
-                            className="size-3.5 rounded-full border border-warning"
-                        />
-                        <span
-                            aria-hidden="true"
-                            className="absolute size-2 rounded-full bg-warning"
-                        />
+                        {status.variant === 'waiting' ? (
+                            <CircleAlert aria-hidden="true" size={14} strokeWidth={2.25} />
+                        ) : (
+                            <>
+                                <span
+                                    aria-hidden="true"
+                                    className="size-3.5 rounded-full border border-warning"
+                                />
+                                <span
+                                    aria-hidden="true"
+                                    className="absolute size-2 rounded-full bg-warning"
+                                />
+                            </>
+                        )}
                     </>
                 ) : status.kind === 'detached' ? (
                     <Unplug aria-hidden="true" size={12} />
