@@ -99,7 +99,8 @@ test('Source Control keeps its caption and recovery action without a repository'
         await expect(panel.getByText('No Git repository')).toBeVisible();
         await expect(panel.getByText('No Git repository')).toHaveAttribute('tabindex', '0');
         await expect(panel.getByText('This Project root is not a repository yet.')).toBeVisible();
-        await panel.getByRole('button', { name: 'Refresh', exact: true }).click();
+        await expect(panel.getByRole('button', { name: 'Refresh', exact: true })).toHaveCount(0);
+        await panel.getByRole('button', { name: 'Refresh Source Control' }).click();
         await expect(panel.getByText('No Git repository')).toBeVisible();
         await expect(panel.getByRole('button', { name: 'Refresh Source Control' })).toBeEnabled();
     } finally {

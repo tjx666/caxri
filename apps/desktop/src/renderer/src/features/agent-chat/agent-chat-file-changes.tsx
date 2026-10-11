@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Fragment, useId, useMemo, useState } from 'react';
 
 import type { AgentChatItemStatus } from '@caxri/protocol';
-import { ChevronRight, Plus } from 'lucide-react';
+import { ChevronRight, FileDiff, Plus } from 'lucide-react';
 
 import { DiffStat } from '../../components/diff-stat';
 import { DisclosureMotion } from '../../components/disclosure-motion';
@@ -12,7 +12,8 @@ import { diffStatLabel } from '../../lib/diff-stat-label';
 import { projectRelativePath } from '../../lib/file-path';
 import { gitDecorationClassName } from '../../lib/git-decorations';
 import { cn } from '../../lib/utilities';
-import { openFileForSession } from '../editor/document-commands';
+import { useCaxriQuery } from '../../queries/client';
+import { didOpenEditorTabForSession, openFileForSession } from '../editor/document-commands';
 import { usePaneViewSession } from '../workbench/pane-view-session';
 import type { AgentChatDiffLine, AgentChatFileChange } from './agent-chat-diff';
 import {
@@ -23,6 +24,10 @@ import {
     canOpenAgentChatChange,
 } from './agent-chat-diff';
 import { agentChatChevronMotion } from './agent-chat-disclosure';
+import {
+    agentChatChangeDiffTabPath,
+    agentChatChangeFirstLine,
+} from './agent-chat-file-change-targets';
 import type { AgentChatReviewRange } from './agent-chat-turn-review';
 import { isAgentChatReviewableLine } from './agent-chat-turn-review';
 
@@ -62,16 +67,18 @@ export interface AgentChatDiffReview {
  * A unified diff colored with the same `--diff-stat-*` roles as every `+N -M` count, with old and new line-number
  * gutters. Long lines scroll horizontally instead of wrapping so the gutters stay aligned; a tall diff scrolls inside
  * its own bounded box unless `isBounded` is off, as in the turn review, which scrolls as a whole. A diff Server Core
- * cut says so at the cut instead of ending silently.
+ * cut says so at the cut instead of ending silently, and offers the full diff editor when Git still has the change.
  */
 export function AgentChatDiff({
     isBounded = true,
     lines,
+    onOpenDiff,
     review,
     truncated,
 }: {
     isBounded?: boolean;
     lines: readonly AgentChatDiffLine[];
+    onOpenDiff?: () => void;
     review?: AgentChatDiffReview;
     truncated: boolean | undefined;
 }) {
@@ -158,8 +165,17 @@ export function AgentChatDiff({
                     </Fragment>
                 ))}
                 {truncated && (
-                    <p className="m-0 border-t border-border px-2 py-1 font-sans text-muted">
+                    <p className="m-0 flex items-center gap-2 border-t border-border px-2 py-1 font-sans text-muted">
                         Diff truncated
+                        {onOpenDiff && (
+                            <button
+                                className="cursor-pointer border-0 bg-transparent p-0 text-foreground hover:underline focus-visible:outline focus-visible:outline-accent"
+                                type="button"
+                                onClick={onOpenDiff}
+                            >
+                                Open diff
+                            </button>
+                        )}
                     </p>
                 )}
             </div>
@@ -169,7 +185,8 @@ export function AgentChatDiff({
 
 /**
  * One changed file: a header with its Git status letter, Project-relative path, and line counts, over a disclosed diff.
- * The path opens the file in the Editor when the file exists on disk at this point of the change.
+ * The path opens the file in the Editor at the change's first line when the file exists on disk at this point of the
+ * change; Open diff shows the file's working-tree diff in the Git diff editor while Git still reports it changed.
  */
 function FileChangeBlock({
     change,
@@ -190,6 +207,20 @@ function FileChangeBlock({
         (session?.rootPath && projectRelativePath(change.path, session.rootPath)) ?? change.path;
     const sessionId = session?.id;
     const canOpen = sessionId !== undefined && canOpenAgentChatChange(change.kind, status);
+    const summary = useCaxriQuery(
+        'git.summary',
+        { sessionId: sessionId ?? '' },
+        { enabled: sessionId !== undefined, retry: false, staleTime: 60_000 },
+    ).data;
+    const diffTabPath = agentChatChangeDiffTabPath(
+        summary?.isRepository ? summary : undefined,
+        change.path,
+    );
+    const openDiff =
+        sessionId !== undefined && diffTabPath !== undefined
+            ? () => didOpenEditorTabForSession(sessionId, diffTabPath)
+            : undefined;
+    const firstLine = agentChatChangeFirstLine(lines);
     const pathClassName = cn(
         'min-w-0 truncate font-mono text-[11px]',
         gitDecorationClassName(decoration.kind),
@@ -226,7 +257,12 @@ function FileChangeBlock({
                             type="button"
                             onClick={() => {
                                 // eslint-disable-next-line no-void -- openFileForSession reports failures through tryCommand
-                                void openFileForSession(sessionId, change.path);
+                                void openFileForSession(sessionId, change.path, {
+                                    location:
+                                        firstLine === undefined
+                                            ? undefined
+                                            : { mode: 'caret', line: firstLine, column: 1 },
+                                });
                             }}
                         >
                             {displayPath}
@@ -245,6 +281,18 @@ function FileChangeBlock({
                     className={cn('text-[11px]', !change.truncated && 'ml-auto')}
                     deletions={stat.deletions}
                 />
+                {openDiff && (
+                    <Tooltip content="Open diff">
+                        <button
+                            aria-label={`Open diff: ${displayPath}`}
+                            className="grid size-5 shrink-0 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-accent"
+                            type="button"
+                            onClick={openDiff}
+                        >
+                            <FileDiff aria-hidden="true" className="size-3.5" />
+                        </button>
+                    </Tooltip>
+                )}
             </div>
             <DisclosureMotion
                 animate
@@ -253,7 +301,11 @@ function FileChangeBlock({
                 kind="agent-chat-file-change"
             >
                 <div className="border-t border-border bg-background">
-                    <AgentChatDiff lines={lines} truncated={change.truncated} />
+                    <AgentChatDiff
+                        lines={lines}
+                        truncated={change.truncated}
+                        onOpenDiff={openDiff}
+                    />
                 </div>
             </DisclosureMotion>
         </div>

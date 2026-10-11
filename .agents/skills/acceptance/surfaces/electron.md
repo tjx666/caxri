@@ -32,6 +32,15 @@ give the dialog-specific observation to the user. Do not trigger system UI. Only
 request explicitly asking the agent to verify a native dialog permits the fail-closed exception in
 [../references/native-dialogs.md](../references/native-dialogs.md).
 
+## Agent Chat with fake Agents
+
+Declare `"agentFixture": "agent-chat-v1"` and launch with `--agent-fixture agent-chat-v1`: Claude Code
+and Codex become the deterministic Agent Chat fakes (stream-json and app-server JSON-RPC) from
+`apps/server/src/domains/agent-chat/__tests__/fixtures/`, whose header comments list the message keywords
+(`approve` asks for a command approval, `edit`/`patch` for a file-change diff, anything else streams a reply).
+For a `switch-worktree dev` or render-audit launch, run
+`eval "$(bun run .agents/skills/acceptance/scripts/agent-fixture-environment.ts --fixture agent-chat-v1 --root <abs tmp dir> --test-root <abs repo>)"` first.
+
 ## Case ids bound to a launcher fixture
 
 Some fixtures arm themselves only for a fixed case id, so the plan must reuse that exact id and the

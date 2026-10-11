@@ -39,9 +39,11 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
             data-settings-page
             className="grid h-full grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden"
         >
-            <div className="bg-surface pt-4 pr-4 pb-3 pl-4">
-                <h1 className="m-0 text-[15px] font-semibold">Settings</h1>
-                <p className="mt-1 mb-0 text-[11px] leading-[1.45] text-muted">
+            <div className="bg-surface pt-3 pr-4 pb-2 pl-4">
+                {/* The workbench tab and the section strip below both say "Settings"; a third visible copy only
+                 * repeated them, so the heading stays for assistive tech alone. */}
+                <h1 className="sr-only">Settings</h1>
+                <p className="m-0 text-[11px] leading-[1.45] text-muted">
                     Changes apply immediately and are stored as editable files.
                 </p>
             </div>

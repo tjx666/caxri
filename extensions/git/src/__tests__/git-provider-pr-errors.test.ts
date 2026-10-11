@@ -1,7 +1,7 @@
 import { CancellationTokenSource, GitPullRequestErrorMessage } from 'caxri';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createHarness, scopeId } from './git-provider.fixture';
+import { createHarness, repo, scopeId } from './git-provider.fixture';
 
 describe('pull request error presentation', () => {
     it.each([
@@ -36,4 +36,26 @@ describe('pull request error presentation', () => {
             }
         },
     );
+
+    it('explains detached HEAD in Pull Request mode without looking up a pull request', async () => {
+        const { git, provider } = createHarness();
+        const cancellation = new CancellationTokenSource();
+        try {
+            vi.mocked(git.summary).mockResolvedValue({
+                isRepository: true,
+                repositories: [{ ...repo, branch: '(detached)' }],
+            });
+            const view = await provider.provideView(
+                { scopeId, preferredModeId: 'pull-request', refresh: 0 },
+                cancellation.token,
+            );
+            expect(view.providers[0].groups[0].emptyMessage).toBe(
+                'Detached HEAD has no pull request. Switch to a branch to see one.',
+            );
+            expect(git.pullRequestChanges).not.toHaveBeenCalled();
+        } finally {
+            cancellation.dispose();
+            provider.dispose();
+        }
+    });
 });

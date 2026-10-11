@@ -8,11 +8,13 @@ import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { agentChatChevronMotion } from './agent-chat-disclosure';
+import { agentChatTurnExpansionKey, agentChatTurnWorkItems } from './agent-chat-expansion';
 import { AgentChatFindQueryContext, isAgentChatTurnFoldMatch } from './agent-chat-find';
 import type { AgentChatTurnSubagent } from './agent-chat-tasks';
 import { agentChatTurnSubagents } from './agent-chat-tasks';
 import type { AgentChatTimelineEntry } from './agent-chat-timeline';
-import { agentChatTurnTone } from './agent-chat-timeline';
+import { agentChatTurnTimeTooltip, agentChatTurnTone } from './agent-chat-timeline';
+import { useAgentChatExpansion } from './hooks/use-agent-chat-expansion';
 import { AgentChatTaskLinksContext } from './hooks/use-agent-chat-task-link';
 
 type TurnEntry = Extract<AgentChatTimelineEntry, { kind: 'turn' }>;
@@ -62,44 +64,58 @@ function TurnFoldHeader({
     onToggle,
     status,
     subagents,
+    timeTooltip,
 }: {
     detailId: string;
     isExpanded: boolean;
     label: string;
     onOpenSubagent: ((taskId: string) => void) | undefined;
-    onToggle: () => void;
+    onToggle: (element: HTMLElement) => void;
     status: TurnEntry['status'];
     subagents: readonly AgentChatTurnSubagent[];
+    /**
+     * When the turn finished, shown on hover.
+     */
+    timeTooltip: string | undefined;
 }) {
     const tone = agentChatTurnTone(status);
     const ToneIcon = tone === 'danger' ? CircleX : CircleStop;
+    const toggleButton = (
+        <button
+            aria-controls={detailId}
+            aria-expanded={isExpanded}
+            className={cn(
+                'flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-0 pt-0.5 pb-0.5 text-left focus-visible:outline focus-visible:outline-accent',
+                tone === 'danger'
+                    ? 'text-danger'
+                    : tone === 'warning'
+                      ? 'text-warning'
+                      : 'text-muted hover:text-foreground',
+            )}
+            type="button"
+            onClick={(event) => onToggle(event.currentTarget)}
+        >
+            {tone && <ToneIcon aria-hidden="true" className="size-3.5 shrink-0" />}
+            <span>{label}</span>
+            <ChevronRight
+                aria-hidden="true"
+                className={cn(
+                    'size-3.5 shrink-0',
+                    agentChatChevronMotion(isExpanded),
+                    isExpanded && 'rotate-90',
+                )}
+            />
+        </button>
+    );
     return (
         <div className="flex min-w-0 items-center gap-1 border-b border-solid border-border pb-1">
-            <button
-                aria-controls={detailId}
-                aria-expanded={isExpanded}
-                className={cn(
-                    'flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-0 pt-0.5 pb-0.5 text-left focus-visible:outline focus-visible:outline-accent',
-                    tone === 'danger'
-                        ? 'text-danger'
-                        : tone === 'warning'
-                          ? 'text-warning'
-                          : 'text-muted hover:text-foreground',
-                )}
-                type="button"
-                onClick={onToggle}
-            >
-                {tone && <ToneIcon aria-hidden="true" className="size-3.5 shrink-0" />}
-                <span>{label}</span>
-                <ChevronRight
-                    aria-hidden="true"
-                    className={cn(
-                        'size-3.5 shrink-0',
-                        agentChatChevronMotion(isExpanded),
-                        isExpanded && 'rotate-90',
-                    )}
-                />
-            </button>
+            {timeTooltip ? (
+                <Tooltip anchorMode="cursor" content={timeTooltip}>
+                    {toggleButton}
+                </Tooltip>
+            ) : (
+                toggleButton
+            )}
             {onOpenSubagent &&
                 subagents.map((subagent) => (
                     <TurnSubagentButton
@@ -113,11 +129,36 @@ function TurnFoldHeader({
 }
 
 /**
+ * Opens the fold while a find query matches a message folded in it, so the match can be highlighted, and folds it back
+ * when a refined query stops matching. Closing the bar (an empty query) leaves it open where the reader landed, and a
+ * toggle by hand hands it back to the reader (`release`). The hold sits beside the persisted expansion rather than in
+ * it, so a find never rewrites what the user opened. Find opens it without the height animation (`isOpenedByFind`), so
+ * the match is revealed where the settled layout puts it.
+ */
+function useTurnFoldFindExpansion(entry: TurnEntry, isExpandedByUser: boolean) {
+    const findQuery = use(AgentChatFindQueryContext);
+    const [checkedQuery, setCheckedQuery] = useState('');
+    const [hold, setHold] = useState<'find' | 'kept' | undefined>();
+    if (findQuery !== checkedQuery) {
+        setCheckedQuery(findQuery);
+        const isMatch = isAgentChatTurnFoldMatch(entry, findQuery);
+        if (isMatch && !isExpandedByUser && hold === undefined) setHold('find');
+        else if (!isMatch && hold === 'find') setHold(findQuery ? undefined : 'kept');
+    }
+    return {
+        isOpen: hold !== undefined,
+        isOpenedByFind: hold === 'find',
+        release: () => setHold(undefined),
+    };
+}
+
+/**
  * A finished turn's work and commentary behind one `Worked for 2m 1s` row with a hairline, so the prompt and the final
  * reply read as one exchange. A failed or stopped turn carries its tone in the glyph and the words, so a turn that did
  * not finish is not read as one that did. Expanded, it renders the folded entries exactly as they looked while the turn
  * ran. A subagent the turn started stays one click away on the row itself, since it has left the Background work strip
- * by the time the turn folds.
+ * by the time the turn folds. A row the user opened while the turn ran keeps the fold open when the turn ends, so
+ * finishing never hides what they were reading; hovering the row says when the turn finished.
  */
 export function AgentChatTurnFold({
     entry,
@@ -126,27 +167,12 @@ export function AgentChatTurnFold({
     entry: TurnEntry;
     renderEntry: (entry: Exclude<AgentChatTimelineEntry, { kind: 'turn' }>) => ReactNode;
 }) {
-    const [isExpanded, setExpanded] = useState(false);
-    /**
-     * A find query that matches a message folded here opens the fold, so the match can be highlighted, and folds it
-     * back when a refined query stops matching. Closing the bar leaves it open where the reader landed, and toggling it
-     * by hand hands it back to the reader. Find opens it without the height animation, so the match is revealed where
-     * the settled layout puts it.
-     */
-    const findQuery = use(AgentChatFindQueryContext);
-    const [checkedQuery, setCheckedQuery] = useState('');
-    const [isOpenedByFind, setOpenedByFind] = useState(false);
-    if (findQuery !== checkedQuery) {
-        setCheckedQuery(findQuery);
-        const isMatch = isAgentChatTurnFoldMatch(entry, findQuery);
-        if (isMatch && !isExpanded) {
-            setExpanded(true);
-            setOpenedByFind(true);
-        } else if (!isMatch && isOpenedByFind) {
-            if (findQuery) setExpanded(false);
-            setOpenedByFind(false);
-        }
-    }
+    const containedItems = useMemo(() => agentChatTurnWorkItems(entry), [entry]);
+    const expansion = useAgentChatExpansion(agentChatTurnExpansionKey(entry.id), {
+        containedItems,
+    });
+    const find = useTurnFoldFindExpansion(entry, expansion.isExpanded);
+    const isExpanded = expansion.isExpanded || find.isOpen;
     const detailId = useId();
     const links = use(AgentChatTaskLinksContext);
     const subagents = useMemo(
@@ -161,14 +187,15 @@ export function AgentChatTurnFold({
                 label={entry.label}
                 status={entry.status}
                 subagents={subagents}
+                timeTooltip={agentChatTurnTimeTooltip(entry)}
                 onOpenSubagent={links?.openTask}
-                onToggle={() => {
-                    setExpanded((value) => !value);
-                    setOpenedByFind(false);
+                onToggle={(element) => {
+                    expansion.toggle(element, !isExpanded);
+                    find.release();
                 }}
             />
             <DisclosureMotion
-                animate={!isOpenedByFind}
+                animate={!find.isOpenedByFind}
                 expanded={isExpanded}
                 id={detailId}
                 kind="agent-chat-turn"

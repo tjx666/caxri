@@ -27,6 +27,12 @@ export const treeItemCommandSchema = z.object({
  */
 export const MAX_TREE_ITEM_ACTIONS = 3;
 
+const treeItemTooltipUrlSchema = z
+    .string()
+    .min(1)
+    .max(16_384)
+    .refine((value) => parseExternalHttpUrl(value).ok, 'Expected a safe HTTP(S) URL');
+
 export const treeItemActionSchema = z.object({
     command: treeItemCommandSchema,
     icon: viewIconSchema,
@@ -48,14 +54,23 @@ export const treeItemActionSchema = z.object({
             confirmLabel: z.string().min(1).max(64),
         })
         .optional(),
+    /**
+     * Hover and keyboard-focus explanation of the action's state; see `TreeItemAction.tooltip`.
+     */
+    tooltip: z.string().min(1).max(1_024).optional(),
+    /**
+     * Toast copy the Workbench shows when the command settles; see `TreeItemActionFeedback`.
+     */
+    feedback: z
+        .object({
+            success: z.string().min(1).max(200).optional(),
+            failure: z.string().min(1).max(200).optional(),
+            githubUrl: treeItemTooltipUrlSchema.optional(),
+        })
+        .optional(),
 });
 
 export const treeItemVariantSchema = z.enum(['header', 'message']);
-const treeItemTooltipUrlSchema = z
-    .string()
-    .min(1)
-    .max(16_384)
-    .refine((value) => parseExternalHttpUrl(value).ok, 'Expected a safe HTTP(S) URL');
 const treeItemTooltipBadgeSchema = z.object({
     label: z.string().min(1).max(64),
     tone: z.enum(['neutral', 'success', 'warning', 'danger']),

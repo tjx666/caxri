@@ -101,3 +101,20 @@ export function extensionTreeHorizontalIntent(
         ? { focusIndex: index + 1 }
         : {};
 }
+
+/**
+ * The visually hidden summary a row with inline actions announces, following {@link extensionTreeHorizontalIntent}: on a
+ * collapsed branch Right expands it first, so promising "Right Arrow reaches them" there would send a screen reader
+ * user into the children instead. Each action's state explanation (`tooltip`) is spoken beside its name.
+ */
+export function extensionTreeActionsHint(
+    actions: ReadonlyArray<{ command: { title: string }; tooltip?: string }>,
+    isCollapsedBranch: boolean,
+): string {
+    const names = actions
+        .map(({ command, tooltip }) => (tooltip ? `${command.title} (${tooltip})` : command.title))
+        .join(', ');
+    return isCollapsedBranch
+        ? `Actions: ${names}. Press Right Arrow to expand the row, then Right Arrow again to reach them.`
+        : `Actions: ${names}. Press Right Arrow to reach them.`;
+}

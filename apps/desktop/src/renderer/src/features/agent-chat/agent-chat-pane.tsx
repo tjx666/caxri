@@ -1,99 +1,54 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { agentChatRewindableMessageIds } from '@caxri/protocol';
-import { CircleAlert, RotateCcw, Unplug } from 'lucide-react';
-
-import { Button } from '../../components/ui/button';
-import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { useTerminal } from '../../stores/selectors';
 import { useTerminalLinkPicker } from '../terminal/hooks/use-terminal-link-picker';
-import { registerTerminalFocusHandler, restartTerminal } from '../terminal/terminal-commands';
+import {
+    registerTerminalFocusHandler,
+    RESTART_AGENT_FAILED,
+    restartTerminal,
+    restartTerminalWithRecovery,
+} from '../terminal/terminal-commands';
 import { openTerminalFileTarget } from '../terminal/terminal-file-link-open';
 import { parseTerminalFileLocation } from '../terminal/terminal-file-location';
 import { TerminalLinkPicker } from '../terminal/terminal-link-picker';
 import { terminalPaneHost } from '../terminal/terminal-pane-host';
-import { usePaneViewSession } from '../workbench/pane-view-session';
-import { forkAgentChat, restoreAgentChatFiles } from './agent-chat-commands';
-import { AgentChatComposer } from './agent-chat-composer';
 import {
-    agentChatEditAvailability,
-    agentChatForkAvailability,
-    agentChatRestoreAvailability,
-    readAgentChatEdit,
-} from './agent-chat-edit';
+    canSwitchTerminalSurface,
+    switchTerminalSurfaceTo,
+} from '../terminal/terminal-surface-commands';
+import { usePaneViewSession } from '../workbench/pane-view-session';
+import { AgentChatComposer } from './agent-chat-composer';
+import { AgentChatDock } from './agent-chat-dock';
+import { AgentChatExpansionState } from './agent-chat-expansion';
 import { AgentChatFindScope } from './agent-chat-find-scope';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { AgentChatMessageRail } from './agent-chat-message-rail';
 import { AgentChatDayBreak } from './agent-chat-message-time';
-import { AgentChatPlanCard } from './agent-chat-plan-card';
-import type { AgentChatRecoveryNotice } from './agent-chat-presentation';
 import {
     agentChatActivity,
+    agentChatEmptyHint,
     agentChatEmptyMessage,
     agentChatRecoveryNotice,
-    canSendAgentChatMessage,
+    agentChatSendBlock,
     isAgentChatBusy,
-    isAgentChatTurnRunning,
 } from './agent-chat-presentation';
 import { agentChatRailMarks } from './agent-chat-rail-marks';
-import { AgentChatRequestCard } from './agent-chat-request-card';
 import { announceAgentChatSelectionCopy } from './agent-chat-selection-copy';
-import { AgentChatTaskStrip } from './agent-chat-task-strip';
 import { agentChatDayBreaks } from './agent-chat-time';
 import { buildAgentChatTimeline } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
+import { AgentChatTurnAnnouncer } from './agent-chat-turn-announcer';
 import { useAgentChatActivationFocus } from './hooks/use-agent-chat-activation-focus';
-import type { AgentChatComposerEditHandle } from './hooks/use-agent-chat-composer-edit';
-import type { AgentChatEditActions } from './hooks/use-agent-chat-edit';
-import { AgentChatEditContext } from './hooks/use-agent-chat-edit';
+import { AGENT_CHAT_PANE_ATTRIBUTE } from './hooks/use-agent-chat-approval-keys';
+import { AgentChatEditContext, useAgentChatEditActions } from './hooks/use-agent-chat-edit';
+import type { AgentChatExpansion } from './hooks/use-agent-chat-expansion';
+import { AgentChatExpansionContext } from './hooks/use-agent-chat-expansion';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatMessageRail } from './hooks/use-agent-chat-message-rail';
 import { useAgentChatScroll } from './hooks/use-agent-chat-scroll';
 import { AgentChatTaskLinksContext, useAgentChatTaskLinks } from './hooks/use-agent-chat-task-link';
 import { AgentChatTerminalContext } from './hooks/use-agent-chat-terminal';
-
-/**
- * Why the Chat cannot continue, with the one action that recovers it. It sits in the dock, outside the scrolling
- * timeline, so reading history never hides the action. A failure reads in the danger tone with Retry; a hand-over to
- * another client is not a fault, so it takes the neutral border and the PTY recovery bar's unplugged glyph and Resume.
- */
-function AgentChatRecoveryBanner({
-    notice,
-    onRecover,
-}: {
-    notice: AgentChatRecoveryNotice | undefined;
-    onRecover: () => void;
-}) {
-    if (!notice) return null;
-    const isDetached = notice.kind === 'detached';
-    const Icon = isDetached ? Unplug : CircleAlert;
-    return (
-        <div
-            className={cn(
-                'flex items-start gap-2 rounded-lg border bg-surface px-3 py-2 text-[12px] leading-5',
-                isDetached ? 'border-border' : 'border-danger',
-            )}
-            data-agent-chat-recovery={notice.kind}
-            role={isDetached ? 'status' : 'alert'}
-        >
-            <Icon
-                className={cn(
-                    'mt-0.5 size-3.5 shrink-0',
-                    isDetached ? 'text-muted' : 'text-danger',
-                )}
-            />
-            <div className="min-w-0 flex-1">
-                <p className="m-0 text-foreground">{notice.message}</p>
-                {notice.detail && <p className="m-0 wrap-anywhere text-muted">{notice.detail}</p>}
-            </div>
-            <Button size="sm" variant="secondary" onClick={onRecover}>
-                <RotateCcw className="size-3.5" />
-                {isDetached ? 'Resume' : 'Retry'}
-            </Button>
-        </div>
-    );
-}
 
 /**
  * The structured surface of a Chat Terminal (ADR 0012): the conversation Server Core projects from the provider's own
@@ -133,8 +88,11 @@ export function AgentChatPane({
     const projectRoot = usePaneViewSession()?.rootPath;
     const inputReference = useRef<HTMLTextAreaElement | null>(null);
     const composerDrop = useRef<AgentChatDropHandlers | null>(null);
-    const composerEdit = useRef<AgentChatComposerEditHandle | null>(null);
-    const [editingId, setEditingId] = useState(() => readAgentChatEdit(terminalId)?.itemId);
+    const { composerEdit, editActions, setEditingId } = useAgentChatEditActions(
+        terminalId,
+        snapshot,
+        { providerName, supportsRewindFiles },
+    );
     const {
         scrollReference,
         contentReference,
@@ -142,7 +100,17 @@ export function AgentChatPane({
         onScroll,
         jumpToLatest,
         stopFollowing,
+        anchor,
     } = useAgentChatScroll(snapshot?.revision);
+    /**
+     * Which rows the user expanded, kept for the Chat's lifetime so a row stays open when the timeline rebuilds it (a
+     * finished turn folding, a live row joining a summary group). Toggling one holds it in place instead of following.
+     */
+    const [expansionState] = useState(() => new AgentChatExpansionState());
+    const expansion = useMemo<AgentChatExpansion>(
+        () => ({ state: expansionState, onUserToggle: anchor }),
+        [anchor, expansionState],
+    );
     const focusComposer = useCallback(() => inputReference.current?.focus(), []);
     /**
      * A cited file resolves exactly like a path printed in a Terminal: against the Projects this Chat Terminal may
@@ -186,64 +154,18 @@ export function AgentChatPane({
     };
     const taskLinks = useAgentChatTaskLinks(snapshot?.tasks, terminalId);
     /**
-     * "Edit from here", and "Restore code to here" when the provider restores files, on each message that started a
-     * turn. Memoized on what the availability reads, so a streamed delta does not re-render every user message.
-     */
-    const editActions = useMemo<AgentChatEditActions | undefined>(() => {
-        if (!items || !turns) return;
-        const rewindable = agentChatRewindableMessageIds({ items, turns, activeTurnId });
-        return {
-            availability: (itemId) => {
-                if (!rewindable.has(itemId)) return;
-                const availability = agentChatEditAvailability(
-                    { items, turns, activeTurnId },
-                    itemId,
-                );
-                return availability.canEdit ? null : availability.reason;
-            },
-            editingId,
-            startEdit: (itemId, text) => composerEdit.current?.startEdit(itemId, text),
-            forkAvailability: (itemId) => {
-                if (!rewindable.has(itemId)) return;
-                const availability = agentChatForkAvailability(
-                    { items, turns, activeTurnId },
-                    itemId,
-                );
-                return availability.canFork ? null : availability.reason;
-            },
-            fork: (itemId, text) => forkAgentChat(terminalId, itemId, text),
-            ...(supportsRewindFiles && {
-                restore: {
-                    availability: (itemId) => {
-                        if (!rewindable.has(itemId)) return;
-                        const availability = agentChatRestoreAvailability(
-                            { items, turns, activeTurnId },
-                            itemId,
-                        );
-                        return 'reason' in availability ? availability.reason : null;
-                    },
-                    run: (itemId) => {
-                        const availability = agentChatRestoreAvailability(
-                            { items, turns, activeTurnId },
-                            itemId,
-                        );
-                        if ('reason' in availability) return;
-                        // eslint-disable-next-line no-void -- tryCommand reports a failure through the toast
-                        void restoreAgentChatFiles(terminalId, {
-                            itemId,
-                            providerName,
-                            restoredTurns: availability.restoredTurns,
-                        });
-                    },
-                },
-            }),
-        };
-    }, [items, turns, activeTurnId, editingId, supportsRewindFiles, terminalId, providerName]);
-    /**
      * Read from the Terminal record like the PTY pane does: a hand-over to another client is recorded there as
      * `detached`, while the projection only reads `stopped`.
      */
-    const processState = useTerminal(terminalId)?.lastProcessState;
+    const terminal = useTerminal(terminalId);
+    const processState = terminal?.lastProcessState;
+    const openAsTerminal =
+        terminal && canSwitchTerminalSurface(terminal)
+            ? () => {
+                  // eslint-disable-next-line no-void -- the switch reports its own failures as toasts
+                  void switchTerminalSurfaceTo(terminal, 'pty');
+              }
+            : undefined;
     const emptyMessage = agentChatEmptyMessage(snapshot, processState, providerName);
     const recoveryNotice = agentChatRecoveryNotice(
         snapshot,
@@ -257,14 +179,21 @@ export function AgentChatPane({
          * document body.
          */
         focusComposer();
-        if (recoveryNotice?.recovery === 'restart') restartTerminal(terminalId);
+        if (recoveryNotice?.recovery === 'restart') {
+            // A failed Chat has no turn left to stop, so its Retry restarts without the running-turn confirmation.
+            if (recoveryNotice.kind === 'failed')
+                restartTerminalWithRecovery(terminalId, RESTART_AGENT_FAILED);
+            else restartTerminal(terminalId);
+        }
         // eslint-disable-next-line no-void -- the query owns the refetch result and error state
         else void query.refetch();
     };
     return (
         <section
+            {...{ [AGENT_CHAT_PANE_ATTRIBUTE]: '' }}
             aria-label={ariaLabel}
-            className="flex h-full min-h-0 flex-col bg-background"
+            // `relative` anchors the composer's whole-Chat drop tint (see `AgentChatComposer`).
+            className="relative flex h-full min-h-0 flex-col bg-background"
             onDragLeave={(event) => composerDrop.current?.onDragLeave(event)}
             onDragOver={(event) => composerDrop.current?.onDragOver(event)}
             onDrop={(event) => composerDrop.current?.onDrop(event)}
@@ -289,35 +218,59 @@ export function AgentChatPane({
                         >
                             {snapshot?.truncated && (
                                 <p className="m-0 text-center text-[11px] text-muted">
-                                    Earlier messages are not shown
+                                    Earlier messages are not shown: Chat keeps only the recent part
+                                    of a long conversation. {providerName} still has all of it.
+                                    {openAsTerminal && (
+                                        <>
+                                            {' '}
+                                            <button
+                                                className="cursor-pointer border-0 bg-transparent p-0 text-foreground hover:underline focus-visible:outline focus-visible:outline-accent"
+                                                type="button"
+                                                onClick={openAsTerminal}
+                                            >
+                                                Open as Terminal
+                                            </button>
+                                        </>
+                                    )}
                                 </p>
                             )}
-                            <AgentChatTaskLinksContext value={taskLinks}>
-                                <AgentChatTerminalContext value={terminalId}>
-                                    <AgentChatEditContext value={editActions}>
-                                        {timeline.map((entry) => {
-                                            const key =
-                                                entry.kind === 'item' ? entry.item.id : entry.id;
-                                            const dayBreak = dayBreaks.get(key);
-                                            return (
-                                                <Fragment key={key}>
-                                                    {dayBreak !== undefined && (
-                                                        <AgentChatDayBreak timestamp={dayBreak} />
-                                                    )}
-                                                    <AgentChatTimelineEntryView
-                                                        entry={entry}
-                                                        onOpenFile={openFile}
-                                                    />
-                                                </Fragment>
-                                            );
-                                        })}
-                                    </AgentChatEditContext>
-                                </AgentChatTerminalContext>
-                            </AgentChatTaskLinksContext>
+                            <AgentChatExpansionContext value={expansion}>
+                                <AgentChatTaskLinksContext value={taskLinks}>
+                                    <AgentChatTerminalContext value={terminalId}>
+                                        <AgentChatEditContext value={editActions}>
+                                            {timeline.map((entry) => {
+                                                const key =
+                                                    entry.kind === 'item'
+                                                        ? entry.item.id
+                                                        : entry.id;
+                                                const dayBreak = dayBreaks.get(key);
+                                                return (
+                                                    <Fragment key={key}>
+                                                        {dayBreak !== undefined && (
+                                                            <AgentChatDayBreak
+                                                                timestamp={dayBreak}
+                                                            />
+                                                        )}
+                                                        <AgentChatTimelineEntryView
+                                                            entry={entry}
+                                                            onOpenFile={openFile}
+                                                        />
+                                                    </Fragment>
+                                                );
+                                            })}
+                                        </AgentChatEditContext>
+                                    </AgentChatTerminalContext>
+                                </AgentChatTaskLinksContext>
+                            </AgentChatExpansionContext>
                             {emptyMessage && (
-                                <p className="m-0 py-8 text-center text-[13px] text-muted">
-                                    {emptyMessage}
-                                </p>
+                                <div className="flex flex-col items-center gap-1.5 py-8 text-center">
+                                    <p className="m-0 text-[13px] text-muted">{emptyMessage}</p>
+                                    {processState !== 'detached' && (
+                                        <p className="m-0 text-[11px] leading-4 text-muted">
+                                            {agentChatEmptyHint(supportsImages)}
+                                        </p>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>
@@ -333,31 +286,17 @@ export function AgentChatPane({
                     />
                 </AgentChatFindScope>
             </div>
-            <div className="mx-auto flex max-h-[45%] w-full max-w-3xl shrink-0 flex-col gap-2 overflow-y-auto px-4 empty:hidden">
-                <AgentChatRecoveryBanner notice={recoveryNotice} onRecover={recover} />
-                {snapshot?.plan && (
-                    <AgentChatPlanCard
-                        isTurnRunning={isAgentChatTurnRunning(snapshot)}
-                        plan={snapshot.plan}
-                    />
-                )}
-                {snapshot?.requests.map((request) => (
-                    <AgentChatRequestCard
-                        key={request.id}
-                        linkedItem={
-                            request.kind === 'question'
-                                ? undefined
-                                : snapshot.items.find((item) => item.id === request.itemId)
-                        }
-                        onAnswered={focusComposer}
-                        projectRoot={projectRoot}
-                        providerName={providerName}
-                        request={request}
-                        terminalId={terminalId}
-                    />
-                ))}
-                <AgentChatTaskStrip tasks={snapshot?.tasks} terminalId={terminalId} />
-            </div>
+            <AgentChatDock
+                projectRoot={projectRoot}
+                providerName={providerName}
+                recoveryNotice={recoveryNotice}
+                snapshot={snapshot}
+                terminalId={terminalId}
+                onAnswered={focusComposer}
+                onOpenAsTerminal={openAsTerminal}
+                onRecover={recover}
+            />
+            <AgentChatTurnAnnouncer activeTurnId={snapshot?.activeTurnId} turns={snapshot?.turns} />
             <TerminalLinkPicker
                 isOpen={linkPicker.isOpen}
                 isTruncated={linkPicker.isTruncated}
@@ -369,8 +308,10 @@ export function AgentChatPane({
             />
             <AgentChatComposer
                 activeTurnId={snapshot?.activeTurnId}
-                activity={agentChatActivity(snapshot, providerName)}
-                canSend={canSendAgentChatMessage(snapshot, processState)}
+                activity={agentChatActivity(snapshot, providerName, {
+                    hasConversation: Boolean(terminal?.agentSessionId),
+                })}
+                sendBlock={agentChatSendBlock(snapshot, processState)}
                 commands={snapshot?.commands}
                 dropHandlersReference={composerDrop}
                 edit={{

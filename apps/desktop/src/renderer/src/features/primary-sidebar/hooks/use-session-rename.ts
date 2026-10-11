@@ -6,7 +6,11 @@ import { useLatestReference } from '../../../hooks/use-latest-reference';
 import { clearSessionRenameRequest, useDialogStore } from '../../../stores/dialogs';
 import { didRenameSession } from '../../session/session-commands';
 import { suggestSessionTitle } from '../../session/session-title-suggestion-commands';
-import { decideSessionRename, syncUntouchedRenameDraft } from '../session-rename-draft';
+import {
+    decideSessionRename,
+    landSessionTitleSuggestion,
+    syncUntouchedRenameDraft,
+} from '../session-rename-draft';
 
 export interface SessionRenameController {
     beginRename: (sessionId: string, displayTitle: string, rowId: string) => void;
@@ -24,7 +28,8 @@ export interface SessionRenameController {
     renameSuggestingSessionId?: string;
     /**
      * Opens the row's editor if it is not already open, then asks the Server for a name generated from the Session's
-     * Agent conversation and commits it like a typed name.
+     * Agent conversation and puts it into the editor fully selected (see `landSessionTitleSuggestion`): Enter accepts
+     * it, typing edits it, and Escape keeps the old title.
      */
     suggestRename: (sessionId: string, displayTitle: string, rowId: string) => void;
     /**
@@ -80,11 +85,27 @@ export function useSessionRename(
      * handlers rebuilt from it would reach every row as new props and render all of them again (issue #1356).
      */
     const latestSessions = useLatestReference(sessions);
+    const latestRevealSessionRow = useLatestReference(revealSessionRow);
+    /**
+     * The mounted rename input, so a suggestion that arrives after it mounted can select the text it just filled in.
+     */
+    const renameInputReference = useRef<HTMLInputElement | null>(null);
+    /**
+     * Bumped when a suggestion fills the draft; the effect below selects the whole draft after that value rendered.
+     */
+    const [selectAllRevision, setSelectAllRevision] = useState(0);
 
     const focusRenameInput = useCallback((element: HTMLInputElement | null) => {
+        renameInputReference.current = element;
         element?.focus();
         element?.select();
     }, []);
+
+    useEffect(() => {
+        if (selectAllRevision === 0) return;
+        renameInputReference.current?.focus();
+        renameInputReference.current?.select();
+    }, [selectAllRevision]);
 
     useEffect(() => {
         if (renamingRowId) return;
@@ -202,7 +223,7 @@ export function useSessionRename(
             suggestionReference.current = request;
             setRenameSuggestingSessionId(sessionId);
             setRenameError(undefined);
-            // Fire-and-forget: `suggestSessionTitle` and `didRenameSession` funnel their own failures into a toast.
+            // Fire-and-forget: `suggestSessionTitle` funnels its own failures into a toast.
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void suggestSessionTitle(sessionId).then((suggestion) => {
                 if (suggestionReference.current !== request) return;
@@ -210,15 +231,30 @@ export function useSessionRename(
                 setRenameSuggestingSessionId(undefined);
                 // On failure the editor stays open with the draft untouched, so the user can type a name instead.
                 if (!suggestion) return;
-                finishRename(sessionId, true);
-                const currentTitle = latestSessions.current.find(
-                    (session) => session.id === sessionId,
-                )?.displayTitle;
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-                if (suggestion !== currentTitle) void didRenameSession(sessionId, suggestion);
+                const landing = landSessionTitleSuggestion(
+                    renamingSessionIdReference.current,
+                    sessionId,
+                );
+                if (landing === 'discard') return;
+                if (landing === 'reopen') {
+                    const session = latestSessions.current.find(
+                        (candidate) => candidate.id === sessionId,
+                    );
+                    if (!session) return;
+                    beginRename(
+                        sessionId,
+                        session.displayTitle,
+                        latestRevealSessionRow.current(session),
+                    );
+                }
+                // Marked as the user's draft so an automatic name landing next does not replace the suggestion.
+                isRenameDraftEditedReference.current = true;
+                setRenameValue(suggestion);
+                setRenameError(undefined);
+                setSelectAllRevision((revision) => revision + 1);
             });
         },
-        [beginRename, finishRename, latestSessions],
+        [beginRename, latestRevealSessionRow, latestSessions],
     );
 
     const onRenameValueChange = useCallback((value: string): void => {
@@ -234,7 +270,7 @@ export function useSessionRename(
      */
     const renameRequest = useDialogStore((state) => state.renameSessionRequest);
     const latestBeginRename = useLatestReference(beginRename);
-    const latestRevealSessionRow = useLatestReference(revealSessionRow);
+    const latestSuggestRename = useLatestReference(suggestRename);
     useEffect(() => {
         if (!renameRequest) return;
         const session = latestSessions.current.find(
@@ -246,7 +282,10 @@ export function useSessionRename(
             // editor the user never asked for whenever they later expand that group. The row id has to come back from
             // the same call, because a pinned Session has no row under its Project at all.
             const rowId = latestRevealSessionRow.current(session);
-            latestBeginRename.current(session.id, session.displayTitle, rowId);
+            // `session.renameWithAi` asks for the same suggestion the row's `Shift+Enter` does.
+            if (renameRequest.suggest)
+                latestSuggestRename.current(session.id, session.displayTitle, rowId);
+            else latestBeginRename.current(session.id, session.displayTitle, rowId);
         }
         // Consumed, not just observed. `Cmd+[` unmounts the whole side bar, so a request left standing would run again
         // on the next reveal and drop the row back into an editor nobody asked for. A mount-time revision baseline

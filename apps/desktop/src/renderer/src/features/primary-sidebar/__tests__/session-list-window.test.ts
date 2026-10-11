@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     DEFAULT_VISIBLE_SESSION_COUNT,
     nextRevealedSessionCount,
+    revealedCountIncluding,
     SESSION_REVEAL_STEP,
     sessionListWindow,
 } from '../session-list-window';
@@ -116,5 +117,16 @@ describe('nextRevealedSessionCount', () => {
 
     it('promises nothing once the list is complete', () => {
         expect(sessionListWindow(sessions(3), undefined, 'session-3').nextRevealCount).toBe(0);
+    });
+});
+
+describe('revealedCountIncluding', () => {
+    it('opens the window down to a Session below it', () => {
+        expect(revealedCountIncluding(7, DEFAULT_VISIBLE_SESSION_COUNT)).toBe(8);
+    });
+
+    it('leaves the window alone when the Session is already inside it', () => {
+        expect(revealedCountIncluding(4, DEFAULT_VISIBLE_SESSION_COUNT)).toBeUndefined();
+        expect(revealedCountIncluding(0, DEFAULT_VISIBLE_SESSION_COUNT)).toBeUndefined();
     });
 });

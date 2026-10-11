@@ -21,8 +21,10 @@ and Project grant again before answering. A second answer, a retired Terminal la
 hook, or an expired request is rejected. The hook returns Claude's native decision JSON; it never
 writes a guessed key into the PTY. Other providers continue to require Terminal interaction.
 
-Permission cards offer **Allow once**, **Deny**, and, for a `control` device only, **Always allow in
-this Session**. The third action tells the Server to auto-answer every later permission request in
+Permission cards offer **Allow**, **Deny**, and, for a `control` device only, **Always Allow in
+This Session**, the shared approval words from `packages/protocol/src/agent/agent-chat-approval.ts`
+scoped to the Session. A device without control access sees no buttons, only how to pair again
+with control access. The third action tells the Server to auto-answer every later permission request in
 the current Session with `allow`, without waiting for a card or the native prompt; the card states
 this in text before the device taps it. The grant covers permission requests only; question
 requests are never auto-answered, no matter the Session's grant state, and it applies even while no

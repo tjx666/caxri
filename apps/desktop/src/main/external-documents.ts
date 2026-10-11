@@ -8,6 +8,7 @@ import { dirname } from 'node:path';
 import type { MethodResult } from '@caxri/protocol';
 import { CaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
 
+import { EXTERNAL_FILE_SIZE_LIMIT_LABEL } from './external-file-limits';
 import type { RootIdentity } from './path-browser-identity';
 import { authorizeCandidate, pathFailure, validateDirectory } from './path-browser-identity';
 
@@ -165,7 +166,7 @@ export async function writeExternalDocument(
     if (bytes.byteLength > MAX_CONFIGURABLE_FILE_BYTES)
         throw new CaxriError(
             'CAPACITY',
-            `File exceeds the ${MAX_CONFIGURABLE_FILE_BYTES} byte safety limit`,
+            `File is larger than ${EXTERNAL_FILE_SIZE_LIMIT_LABEL} and can't be saved here.`,
         );
     const authorized = await authorizedTarget(documentId);
     const entry = documents.get(documentId)!;
@@ -190,7 +191,7 @@ export async function writeExternalDocument(
         if (opened.nlink > 1n)
             throw new CaxriError(
                 'PATH_DENIED',
-                'Files with multiple filesystem links cannot be saved',
+                "This file is hard-linked elsewhere, so Caxri can't save it safely. Use Open with Default App.",
             );
         /**
          * Every check runs before the first byte is written. Once truncation starts, the descriptor (already proven to

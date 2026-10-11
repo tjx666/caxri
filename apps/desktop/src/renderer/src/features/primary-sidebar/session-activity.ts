@@ -1,4 +1,9 @@
-import type { AgentActivityState, AgentOperation, SessionRecord } from '@caxri/protocol';
+import type {
+    AgentActivityState,
+    AgentOperation,
+    SessionRecord,
+    TerminalKind,
+} from '@caxri/protocol';
 
 import type { SessionStatusTerminal } from './session-status';
 
@@ -118,12 +123,25 @@ const DETACHED_PRESENTATION: SessionActivityPresentation = {
 };
 
 /**
- * What the Session's Agent is doing right now, as the hover card words it.
+ * A Shell Session has no Agent, so its card must not claim one is idle or working; Session Activity only ever describes
+ * an Agent's turn.
+ */
+const NO_AGENT_PRESENTATION = presentation(
+    'No Agent',
+    'This Session has no Agent.',
+    'neutral',
+    'text-muted',
+);
+
+/**
+ * What the Session's Agent is doing right now, as the hover card words it. `terminal.kind` is the Session's Terminal
+ * kind; a `shell` kind reads as having no Agent instead of borrowing an Agent's activity wording.
  */
 export function currentSessionActivityPresentation(
     session: Pick<SessionRecord, 'lastActivityState'>,
-    terminal?: SessionStatusTerminal,
+    terminal?: SessionStatusTerminal & { kind?: TerminalKind },
 ): SessionActivityPresentation {
+    if (terminal?.kind === 'shell') return NO_AGENT_PRESENTATION;
     if (terminal?.lastProcessState === 'detached') return DETACHED_PRESENTATION;
     return sessionActivityPresentation(session.lastActivityState, terminal?.agentOperation);
 }

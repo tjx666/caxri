@@ -212,16 +212,16 @@ describe('task presentation', () => {
 });
 
 describe('agentChatTaskStrip', () => {
-    it('lists running tasks in start order and counts the ended ones', () => {
+    it('lists running tasks in start order and ended ones most recent first', () => {
         const strip = agentChatTaskStrip([
             task({ id: 'late', startedAt: 20 }),
-            task({ id: 'done', status: 'completed' }),
+            task({ id: 'done', status: 'completed', endedAt: 30 }),
             task({ id: 'early', kind: 'shell', startedAt: 10 }),
-            task({ id: 'stopped', status: 'stopped' }),
+            task({ id: 'stopped', status: 'stopped', endedAt: 40 }),
         ]);
         expect(strip.running.map((entry) => entry.id)).toEqual(['early', 'late']);
-        expect(strip.endedCount).toBe(2);
-        expect(agentChatTaskStrip(undefined)).toEqual({ running: [], endedCount: 0 });
+        expect(strip.ended.map((entry) => entry.id)).toEqual(['stopped', 'done']);
+        expect(agentChatTaskStrip(undefined)).toEqual({ running: [], ended: [] });
     });
 });
 

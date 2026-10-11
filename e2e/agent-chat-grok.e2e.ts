@@ -33,7 +33,7 @@ test('a Grok Build Chat streams a reply, answers an approval and a question, swi
         await expect(chat.getByText('You said: hi there')).toBeVisible();
         const picker = chat.getByRole('button', { name: /^Model: / });
         await expect(picker).toHaveAccessibleName('Model: Grok Fake');
-        await expect(chat.getByRole('img', { name: /^\d+% of context used, /u })).toBeVisible();
+        await expect(chat.getByRole('meter', { name: /^\d+% of context used, /u })).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('grok-chat-reply.png') });
 
         await message.fill('please approve this');
@@ -41,7 +41,7 @@ test('a Grok Build Chat streams a reply, answers an approval and a question, swi
         const approval = chat.getByRole('region', { name: 'Run this command?' });
         await expect(approval).toContainText('npm test');
         await page.screenshot({ path: testInfo.outputPath('grok-chat-approval.png') });
-        await approval.getByRole('button', { name: 'Accept', exact: true }).click();
+        await approval.getByRole('button', { name: 'Run', exact: true }).click();
         await expect(approval).toHaveCount(0);
         await expect(chat.getByText('The command ran.')).toBeVisible();
 

@@ -148,9 +148,9 @@ export function ProviderRecoveryEditor({
                             }}
                         />
                         <FieldDescription>
-                            One additional literal, case-insensitive suffix per line. Caxri also
-                            applies reviewed built-in patterns when this provider has them. Matching
-                            uses parsed Terminal text after output becomes quiet.
+                            One phrase per line, matched at the end of the Agent&apos;s output,
+                            ignoring case. Caxri already recognizes common network errors for this
+                            Agent. Checked once the Terminal stops printing.
                         </FieldDescription>
                         {value.patterns.length === 0 && !patternDraft.error && (
                             <p className="m-0 text-[11px] text-muted" role="status">

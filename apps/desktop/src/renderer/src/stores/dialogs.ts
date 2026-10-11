@@ -81,7 +81,14 @@ interface DialogState {
      * the editor: the Primary Side Bar unmounts whenever it is hidden, so an answered request left standing here would
      * re-open the editor by itself the next time the side bar came back.
      */
-    renameSessionRequest?: { id: number; sessionId: string };
+    renameSessionRequest?: {
+        id: number;
+        sessionId: string;
+        /**
+         * Opens the editor and asks for an AI-generated name, as the row's `Shift+Enter` does.
+         */
+        suggest?: boolean;
+    };
     /**
      * A pending request to open one status-bar picker. Same revision contract as {@link DialogState.settingsRequest}:
      * the chip owns its popover's open state, and the command only asks.
@@ -119,7 +126,7 @@ interface DialogState {
     askAgentForProject(projectId: string): void;
     clearPending(): void;
     openCreateSessionMenu(projectId: string, anchor: CreateSessionAnchor): void;
-    requestSessionRename(sessionId: string): void;
+    requestSessionRename(sessionId: string, options?: { suggest?: boolean }): void;
     clearSessionRenameRequest(): void;
     openStatusBarPicker(picker: StatusBarPicker): void;
     closeCreateSessionMenu(): void;
@@ -189,9 +196,13 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     clearPending: () => set({ pendingRoot: undefined, pendingProjectId: undefined }),
     openCreateSessionMenu: (projectId, anchor) => set({ createSessionMenu: { anchor, projectId } }),
     closeCreateSessionMenu: () => set({ createSessionMenu: undefined }),
-    requestSessionRename: (sessionId) =>
+    requestSessionRename: (sessionId, options) =>
         set((state) => ({
-            renameSessionRequest: { id: (state.renameSessionRequest?.id ?? 0) + 1, sessionId },
+            renameSessionRequest: {
+                id: (state.renameSessionRequest?.id ?? 0) + 1,
+                sessionId,
+                ...(options?.suggest && { suggest: true }),
+            },
         })),
     clearSessionRenameRequest: () => set({ renameSessionRequest: undefined }),
     openStatusBarPicker: (picker) =>
@@ -235,8 +246,8 @@ export const closeProjectIconDialog = (): void => useDialogStore.getState().clos
 export const clearPendingSession = (): void => useDialogStore.getState().clearPending();
 export const closeCreateSessionMenu = (): void =>
     useDialogStore.getState().closeCreateSessionMenu();
-export const requestSessionRename = (sessionId: string): void =>
-    useDialogStore.getState().requestSessionRename(sessionId);
+export const requestSessionRename = (sessionId: string, options?: { suggest?: boolean }): void =>
+    useDialogStore.getState().requestSessionRename(sessionId, options);
 
 export const clearSessionRenameRequest = (): void =>
     useDialogStore.getState().clearSessionRenameRequest();

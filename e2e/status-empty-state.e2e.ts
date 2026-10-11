@@ -82,7 +82,10 @@ test('Project Status presents a non-Git Project as a complete message', async ()
             .getByRole('button', { name: 'Refresh Project Status', exact: true })
             .click();
         const repo = tree.getByRole('treeitem', { name: 'project', exact: true });
-        const branch = tree.getByRole('treeitem', { name: 'main, No origin', exact: true });
+        const branch = tree.getByRole('treeitem', {
+            name: 'main, No origin, add a GitHub remote named origin to compare it',
+            exact: true,
+        });
         await expect(repo).toHaveAttribute('data-tree-item-variant', 'header');
         await expect(branch).toBeVisible();
         await expect

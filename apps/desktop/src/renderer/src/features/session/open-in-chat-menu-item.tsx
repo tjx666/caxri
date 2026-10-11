@@ -1,15 +1,19 @@
+import type { TerminalSurface } from '@caxri/protocol';
+
 import { MenuCheckboxItem } from '../../components/ui/menu';
 import { Switch } from '../../components/ui/switch';
 import { useSettings } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
 import { applyFormEdit } from '../settings/config-edit';
 import { getSettings, updateSettings } from '../settings/settings-client';
+import { agentChoiceMarker } from '../terminal/new-terminal-agent';
 
 /**
- * The Settings title of `session.openAgentsInChat` (`settings-spec.ts`): the toggle writes that persistent setting, so
- * it names it the way Settings does rather than reading like a one-off action for the next pick.
+ * The toggle writes the persistent `session.openAgentsInChat` setting, not a choice for the next pick, so its label
+ * says so with "Always": sitting in a menu of one-off choices, the Settings title alone read like an action for the
+ * Agent about to be picked.
  */
-const LABEL = 'Open Agents in Chat';
+const LABEL = 'Always Open Agents in Chat';
 
 /**
  * Writes `session.openAgentsInChat` through `settings.jsonc`, the same path the Settings page uses, so the menus and
@@ -30,8 +34,8 @@ function useIsOpenInChatOn(): boolean {
 }
 
 /**
- * The New Session and New Terminal menus' footer toggle. It stays in the open menu so the "Chat" marker on each Agent
- * row updates before the user picks one.
+ * The New Session and New Terminal menus' footer toggle. It stays in the open menu so each Agent row's "Chat" marker
+ * updates before the user picks one.
  */
 export function OpenInChatMenuItem() {
     const isOn = useIsOpenInChatOn();
@@ -57,8 +61,16 @@ export function OpenInChatSwitch() {
 }
 
 /**
- * The muted marker an Agent row carries when choosing it will open a Chat.
+ * The one muted suffix an Agent row carries in the New Session and New Terminal menus and the Agent-choice dialog:
+ * `Chat`, `Default`, or `Chat · Default` (`agentChoiceMarker`).
  */
-export function ChatSurfaceMarker() {
-    return <span className="text-muted">Chat</span>;
+export function AgentChoiceMarker({
+    isDefault,
+    surface,
+}: {
+    isDefault: boolean;
+    surface: TerminalSurface;
+}) {
+    const marker = agentChoiceMarker({ isDefault, surface });
+    return marker ? <span className="text-muted">{marker}</span> : null;
 }

@@ -100,7 +100,7 @@ if (process.argv.includes('app-server')) {
             `.terminal-pane[data-terminal-id="${terminalId}"] .xterm-rows`,
         );
         // The tab rail's Terminal | Chat switch shows which view the active Agent is in.
-        const surfaceSwitch = session.getByRole('group', { name: 'Agent view' });
+        const surfaceSwitch = session.getByRole('group', { name: 'Open as Terminal or Chat' });
         await expect(surfaceSwitch.getByRole('button', { name: 'Chat' })).toHaveAttribute(
             'aria-pressed',
             'true',

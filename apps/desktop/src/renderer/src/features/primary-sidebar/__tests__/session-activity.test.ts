@@ -85,4 +85,17 @@ describe('current Session activity', () => {
             ).label,
         ).toBe('Detached');
     });
+
+    it('describes a Shell Session as having no Agent instead of an idle one', () => {
+        const activity = currentSessionActivityPresentation(
+            { lastActivityState: 'idle' },
+            { kind: 'shell' },
+        );
+        expect(activity.label).toBe('No Agent');
+        expect(activity.ariaLabel).not.toContain('currently idle');
+        expect(
+            currentSessionActivityPresentation({ lastActivityState: 'idle' }, { kind: 'codex' })
+                .label,
+        ).toBe('Idle');
+    });
 });

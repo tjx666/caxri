@@ -7,12 +7,14 @@ import { describe, expect, it } from 'vitest';
 
 import { agentChatAttachmentLabel, attachmentsAfterSend } from '../agent-chat-drafts';
 import {
+    agentChatDroppedImagePlan,
     agentChatImageBytes,
     agentChatImageRejection,
     agentChatImageRejectionMessage,
     agentChatImageReservedBytes,
     agentChatImageResizeAttempts,
     agentChatImagesUnsupportedMessage,
+    agentChatInsertedImagePathMessage,
     agentChatThumbnailSize,
 } from '../agent-chat-images';
 
@@ -154,6 +156,27 @@ describe('Agent Chat image attachments', () => {
         );
         expect(agentChatImagesUnsupportedMessage('Grok Build')).toBe(
             'Grok Build Chat does not accept images',
+        );
+    });
+
+    it('cites a dropped image by path when its format or size cannot be attached, resizing what it can', () => {
+        const png = { type: 'image/png', size: 10 };
+        const svg = { type: 'image/svg+xml', size: 10 };
+        const hugeJpeg = { type: 'image/jpeg', size: MAX_AGENT_CHAT_IMAGE_BYTES + 1 };
+        const huge = { type: 'image/gif', size: MAX_AGENT_CHAT_IMAGE_BYTES + 1 };
+        expect(agentChatDroppedImagePlan([png, svg, hugeJpeg, huge])).toEqual({
+            attach: [png, hugeJpeg],
+            inserted: [
+                { file: svg, rejection: 'type' },
+                { file: huge, rejection: 'size' },
+            ],
+        });
+        expect(agentChatInsertedImagePathMessage([])).toBeUndefined();
+        expect(agentChatInsertedImagePathMessage(['type'])).toBe(
+            'Only PNG, JPEG, GIF, and WebP images can be attached. Inserted the path instead',
+        );
+        expect(agentChatInsertedImagePathMessage(['size', 'size'])).toBe(
+            `GIFs over ${MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024} MB cannot be attached. Inserted the paths instead`,
         );
     });
 });

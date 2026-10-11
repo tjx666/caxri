@@ -23,7 +23,11 @@ import { panelIcon } from '../../panels/panel-icon';
 import type { Panel } from '../../panels/use-panels';
 import type { MobileSessionItem } from '../session-model';
 import type { SESSION_SEGMENTS, SessionSegment } from '../session-ui-state';
-import { isPanelSessionSegment, panelIdOfSegment } from '../session-ui-state';
+import {
+    isPanelSessionSegment,
+    isSegmentAwaitingAnswer,
+    panelIdOfSegment,
+} from '../session-ui-state';
 import { sessionDetailStyles as styles } from './session-detail-styles';
 import { SessionStatusGlyph } from './session-status-glyph';
 
@@ -52,7 +56,8 @@ const segmentPresentation = (
     if (segment === 'conversation' && isChat) return { icon: MessagesSquare, label: 'Chat' };
     if (!isPanelSessionSegment(segment)) return fixedSegmentPresentation[segment];
     const panel = panels?.find((candidate) => candidate.id === panelIdOfSegment(segment));
-    return { icon: panelIcon(panel?.icon), label: panel?.title ?? 'Project view' };
+    // A view whose title has not loaded yet is still just a view; do not name the internal grouping.
+    return { icon: panelIcon(panel?.icon), label: panel?.title ?? 'View' };
 };
 
 /**
@@ -69,6 +74,7 @@ const segmentTestId = (segment: SessionSegment): string =>
  */
 const SessionSegmentTab = ({
     changesCount,
+    isAwaitingAnswer,
     isChat,
     onPress,
     option,
@@ -77,6 +83,10 @@ const SessionSegmentTab = ({
     theme,
 }: {
     changesCount: number | null;
+    /**
+     * See {@link isSegmentAwaitingAnswer}.
+     */
+    isAwaitingAnswer: boolean;
     isChat: boolean;
     onPress: () => void;
     option: SessionSegment;
@@ -92,7 +102,11 @@ const SessionSegmentTab = ({
     const color = selected ? theme.text : theme.muted;
     return (
         <AnimatedPressable
-            accessibilityLabel={count === null ? label : `${label}, ${count}`}
+            accessibilityLabel={[
+                label,
+                ...(count === null ? [] : [String(count)]),
+                ...(isAwaitingAnswer ? ['waiting for your answer'] : []),
+            ].join(', ')}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             layout={tabLayoutTransition}
@@ -100,7 +114,18 @@ const SessionSegmentTab = ({
             style={[styles.tab, selected ? { backgroundColor: theme.surface } : null]}
             testID={segmentTestId(option)}
         >
-            <Icon color={color} size={18} strokeWidth={selected ? 2.25 : 2} />
+            <View>
+                <Icon color={color} size={18} strokeWidth={selected ? 2.25 : 2} />
+                {isAwaitingAnswer ? (
+                    <View
+                        style={[
+                            styles.tabAttentionDot,
+                            { backgroundColor: theme.warning, borderColor: theme.background },
+                        ]}
+                        testID="session-segment-awaiting-answer"
+                    />
+                ) : null}
+            </View>
             {selected ? (
                 <Animated.Text
                     entering={tabLabelEntering}
@@ -159,6 +184,7 @@ export const SessionDetailHeader = ({
     const { close: closeMenu } = menu;
     const [markReadError, setMarkReadError] = useState<string | null>(null);
     const [isTitleExpanded, setTitleExpanded] = useState(false);
+    const isChat = isAgentChatTerminal(session.primaryTerminal);
     const handleMarkRead = useCallback(async (): Promise<void> => {
         closeMenu();
         try {
@@ -189,10 +215,13 @@ export const SessionDetailHeader = ({
                     ) : null}
                     <View style={styles.titleGroup}>
                         <AgentGlyph kind={session.primaryTerminal?.kind} size={18} theme={theme} />
-                        {/* A long title is cut to one line; tapping it reveals the rest. */}
+                        {/* A long title is cut to one line; tapping it reveals the rest, so it is announced as a toggle. */}
                         <Text
-                            accessibilityHint="Shows the full title."
-                            accessibilityRole="header"
+                            accessibilityHint={
+                                isTitleExpanded ? 'Shortens the title.' : 'Shows the full title.'
+                            }
+                            accessibilityRole="button"
+                            accessibilityState={{ expanded: isTitleExpanded }}
                             numberOfLines={isTitleExpanded ? 3 : 1}
                             onPress={() => setTitleExpanded((current) => !current)}
                             style={[styles.title, { color: theme.text }]}
@@ -264,7 +293,13 @@ export const SessionDetailHeader = ({
                     <SessionSegmentTab
                         key={option}
                         changesCount={changesCount}
-                        isChat={isAgentChatTerminal(session.primaryTerminal)}
+                        isAwaitingAnswer={isSegmentAwaitingAnswer({
+                            isChat,
+                            isSelected: segment === option,
+                            lastActivityState: session.lastActivityState,
+                            segment: option,
+                        })}
+                        isChat={isChat}
                         onPress={() => onSegmentChange(option)}
                         option={option}
                         panels={panels}

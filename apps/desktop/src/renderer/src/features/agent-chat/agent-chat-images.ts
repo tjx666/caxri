@@ -142,8 +142,43 @@ export function agentChatImageRejectionMessage(
 }
 
 /**
+ * How a drop splits its image files. A dropped file has a path on disk, so an image the provider cannot take for its
+ * format or size (an oversized GIF, the one format that cannot be resized) is cited by path like any other file instead
+ * of being refused; `inserted` keeps why, for the info toast. The count and combined limits are judged against the
+ * images already attached, so they stay with `add`'s own check.
+ */
+export function agentChatDroppedImagePlan<Image extends { type: string; size: number }>(
+    images: readonly Image[],
+): {
+    attach: Image[];
+    inserted: Array<{ file: Image; rejection: 'size' | 'type' }>;
+} {
+    const attach: Image[] = [];
+    const inserted: Array<{ file: Image; rejection: 'size' | 'type' }> = [];
+    for (const file of images) {
+        const rejection = agentChatImageRejection(file, { bytes: 0, count: 0 });
+        if (rejection === 'size' || rejection === 'type') inserted.push({ file, rejection });
+        else attach.push(file);
+    }
+    return { attach, inserted };
+}
+
+/**
+ * The info toast after dropped images were cited by path instead of attached (`agentChatDroppedImagePlan`).
+ */
+export function agentChatInsertedImagePathMessage(
+    rejections: ReadonlyArray<'size' | 'type'>,
+): string | undefined {
+    if (rejections.length === 0) return undefined;
+    const reason = rejections.includes('type')
+        ? 'Only PNG, JPEG, GIF, and WebP images can be attached'
+        : `GIFs over ${MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024} MB cannot be attached`;
+    return `${reason}. Inserted the ${rejections.length === 1 ? 'path' : 'paths'} instead`;
+}
+
+/**
  * Said when an image is pasted into a Chat whose provider takes no image input, so the gesture does not silently do
- * nothing. A drop needs no message: it cites the image by path instead.
+ * nothing. A drop or pick needs no message: it cites the image by path instead.
  */
 export function agentChatImagesUnsupportedMessage(providerName: string): string {
     return `${providerName} Chat does not accept images`;

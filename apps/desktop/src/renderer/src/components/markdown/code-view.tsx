@@ -4,14 +4,16 @@ import { CodeXml, WrapText } from 'lucide-react';
 
 import { cn } from '../../lib/utilities';
 import { writeToClipboardWithFeedback } from '../copy-feedback';
+import { Tooltip } from '../ui/tooltip';
 import { CopyIconButton } from './copy-icon-button';
 import { useColorizedCode } from './use-colorized-code';
 
 /**
  * A titled block of code, lifted onto `--elevated` with its header inside the same panel as the Codex app sets it: the
  * label, a soft-wrap toggle for long lines, and a Copy button that stay visible (hover-only controls are undiscoverable
- * on a block the reader is scrolling past), over the code painted with the editor's colors. Markdown fences and Agent
- * Chat tool output share it so both read the same.
+ * on a block the reader is scrolling past), over the code painted with the editor's colors. Markdown fences, Agent Chat
+ * tool output, and a background shell's output share it so they read the same, set in the `meta` tier DESIGN.md gives
+ * every monospace preview and diff.
  */
 export function CodeView({
     className,
@@ -49,19 +51,20 @@ export function CodeView({
                 <span className="min-w-0 flex-1 truncate">
                     {label ?? languageName ?? language ?? 'Text'}
                 </span>
-                <button
-                    aria-label={wrapLabel}
-                    aria-pressed={isWrapped}
-                    className={cn(
-                        'flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent',
-                        isWrapped && 'text-foreground',
-                    )}
-                    title={wrapLabel}
-                    type="button"
-                    onClick={() => setWrapped((value) => !value)}
-                >
-                    <WrapText className="size-3.5" />
-                </button>
+                <Tooltip content={wrapLabel}>
+                    <button
+                        aria-label={wrapLabel}
+                        aria-pressed={isWrapped}
+                        className={cn(
+                            'flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-muted hover:bg-[var(--selection)] hover:text-foreground focus-visible:outline focus-visible:outline-accent',
+                            isWrapped && 'text-foreground',
+                        )}
+                        type="button"
+                        onClick={() => setWrapped((value) => !value)}
+                    >
+                        <WrapText className="size-3.5" />
+                    </button>
+                </Tooltip>
                 <CopyIconButton
                     copy={() => writeToClipboardWithFeedback(navigator.clipboard, code)}
                     label="Copy code"
@@ -69,7 +72,7 @@ export function CodeView({
             </div>
             <pre
                 className={cn(
-                    'my-0 overflow-x-auto px-3 pt-1 pb-2.5 font-mono text-[12px] leading-[1.5] text-foreground',
+                    'my-0 overflow-x-auto px-3 pt-1 pb-2.5 font-mono text-[11px] leading-[1.5] text-foreground',
                     isWrapped && 'wrap-anywhere whitespace-pre-wrap',
                     className,
                 )}

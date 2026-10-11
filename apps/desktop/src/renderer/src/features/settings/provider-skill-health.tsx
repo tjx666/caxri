@@ -1,11 +1,14 @@
 import type { AgentProvider, AgentSkillHealth } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 
+import { writeToClipboardWithFeedback } from '../../components/copy-feedback';
+import { CopyIconButton } from '../../components/markdown/copy-icon-button';
 import { cn } from '../../lib/utilities';
 import { skillScopeHealth, skillScopeSummary, skillScopeTone } from './provider-health';
 
 const scopeToneClassName = {
     danger: 'text-danger',
+    muted: 'text-muted',
     neutral: 'text-foreground',
     warning: 'text-warning',
 } as const;
@@ -49,8 +52,8 @@ export function ProviderSkillHealth({ provider, agentSkillHealth }: ProviderSkil
                     >
                         {/*
                          * An installation that needs attention says so in color, the same way the lifecycle-hook
-                         * caption does. `Missing · not installed` used to render in the same plain foreground as a
-                         * healthy one, which is the opposite treatment for the same severity.
+                         * caption does. An absent one stays muted: the skill is optional, and its install command
+                         * sits right beneath.
                          */}
                         <span
                             className={cn(
@@ -64,9 +67,21 @@ export function ProviderSkillHealth({ provider, agentSkillHealth }: ProviderSkil
                             <span className="mt-0.5 block">{installation.action}</span>
                         )}
                         {installation?.repairCommand && (
-                            <code className="mt-1 block overflow-x-auto font-mono text-[10px] text-foreground">
-                                {installation.repairCommand}
-                            </code>
+                            <span className="mt-1 flex min-w-0 items-center gap-1">
+                                <code className="block min-w-0 flex-1 overflow-x-auto font-mono text-[10px] text-foreground">
+                                    {installation.repairCommand}
+                                </code>
+                                <CopyIconButton
+                                    className="flex-none"
+                                    label="Copy command"
+                                    copy={() =>
+                                        writeToClipboardWithFeedback(
+                                            navigator.clipboard,
+                                            installation.repairCommand ?? '',
+                                        )
+                                    }
+                                />
+                            </span>
                         )}
                     </div>
                 );

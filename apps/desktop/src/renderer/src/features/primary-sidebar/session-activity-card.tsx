@@ -152,8 +152,12 @@ export function SessionActivityCard({
 }) {
     const accessibleDescriptionId = useId();
     const [open, setOpen] = useState(false);
-    const activity = currentSessionActivityPresentation(session, terminal);
     const agent = terminal?.kind ?? 'shell';
+    const activity = currentSessionActivityPresentation(session, {
+        agentOperation: terminal?.agentOperation,
+        kind: agent,
+        lastProcessState: terminal?.lastProcessState,
+    });
     const agentLabel = resolveAgentIcon(agent).label;
     const lastOpened = useRelativeTime(session.lastOpenedAt);
     const unreadAttention = unreadAttentionPresentation(session);

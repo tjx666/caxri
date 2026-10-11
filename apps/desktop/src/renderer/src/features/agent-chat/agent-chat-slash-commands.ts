@@ -44,13 +44,46 @@ export function agentChatMenuActions(
 }
 
 /**
- * Menu rows matching `query`, ranked like the Agent Commands & Skills picker.
+ * Menu rows matching `query`, ranked like the Agent Commands & Skills picker, then grouped: the provider's commands
+ * under `Commands`, the discovered skills under `Skills`, each group keeping its rank order. The sigil the user typed
+ * picks the leading group: `/` leads with commands and `$` with skills, so `$rev` never opens on a command that only
+ * matched its description. The arrow keys walk this order, so it has to be the order the rows are drawn in.
  */
 export function filterAgentChatActions(
     actions: readonly AgentAction[],
     query: string,
+    sigil: '/' | '$' = '/',
 ): AgentAction[] {
-    return searchAgentActions(actions, query).slice(0, MAX_SUGGESTIONS);
+    const ranked = searchAgentActions(actions, query).slice(0, MAX_SUGGESTIONS);
+    const commands = ranked.filter((action) => action.kind === 'command');
+    const skills = ranked.filter((action) => action.kind !== 'command');
+    return sigil === '$' ? [...skills, ...commands] : [...commands, ...skills];
+}
+
+/**
+ * The group heading a row starts, or `undefined` when it continues the group above it.
+ */
+export function agentChatMenuGroupHeading(
+    actions: readonly AgentAction[],
+    index: number,
+): 'Commands' | 'Skills' | undefined {
+    const group = (action: AgentAction | undefined) =>
+        action === undefined ? undefined : action.kind === 'command' ? 'Commands' : 'Skills';
+    const current = group(actions[index]);
+    return current === group(actions[index - 1]) ? undefined : current;
+}
+
+/**
+ * The menu's status line for skills, or `undefined` when discovery has answered: skills are discovered only from a
+ * running Agent, and the first discovery takes a moment.
+ */
+export function agentChatSkillDiscoveryNotice(state: {
+    isAgentRunning: boolean;
+    isLoading: boolean;
+}): { text: string; isLoading: boolean } | undefined {
+    if (!state.isAgentRunning)
+        return { text: 'Skills appear once the Agent is running', isLoading: false };
+    return state.isLoading ? { text: 'Loading skills…', isLoading: true } : undefined;
 }
 
 /**

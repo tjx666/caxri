@@ -2,7 +2,8 @@ import { Fragment } from 'react';
 
 import { formatTokens } from '@caxri/protocol';
 
-import { Tooltip } from '../../components/ui/tooltip';
+import { Button } from '../../components/ui/button';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
 import { cn } from '../../lib/utilities';
 import type { AgentChatContextUsage } from './agent-chat-context';
 
@@ -36,10 +37,18 @@ function shade(index: number): string {
  * The meter's hover card, laid out like Claude Code's `/context`: the headline count, a bar of the window with what
  * fills it, and a legend. Without a breakdown the bar is one segment in the meter's tone.
  */
-function ContextCard({ usage, percent }: { usage: AgentChatContextUsage; percent: number }) {
+function ContextCard({
+    onCompact,
+    percent,
+    usage,
+}: {
+    onCompact: (() => void) | undefined;
+    percent: number;
+    usage: AgentChatContextUsage;
+}) {
     const rows = usage.breakdown;
     return (
-        <span className="flex w-60 flex-col gap-2 py-0.5">
+        <span className="flex flex-col gap-2 text-[12px]">
             <span className="flex items-baseline justify-between gap-3">
                 <span className="font-medium">Context</span>
                 <span className="tabular-nums">
@@ -83,6 +92,17 @@ function ContextCard({ usage, percent }: { usage: AgentChatContextUsage; percent
                     {formatTokens(usage.modelWindow)} window
                 </span>
             )}
+            {onCompact && (
+                <Button
+                    className="min-h-6 self-end px-2 text-[12px]"
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                    onClick={onCompact}
+                >
+                    Compact
+                </Button>
+            )}
         </span>
     );
 }
@@ -90,23 +110,45 @@ function ContextCard({ usage, percent }: { usage: AgentChatContextUsage; percent
 /**
  * How much of the context window the conversation uses, as a filling ring with the percentage beside it, the way the
  * Codex app shows it. Both measure against the window the provider compacts at, so the ring turns `--danger` exactly
- * when the composer suggests compacting. The hover card gives the token counts and, when the provider reports it, what
- * fills the window. The ring is a Tab stop so a keyboard user can raise that card too, and its accessible name carries
- * the counts for a screen reader.
+ * when the composer suggests compacting. The hover card gives the token counts, what fills the window when the provider
+ * reports it, and a Compact button when the provider has a compact command; it is a preview card rather than a tooltip
+ * because it holds that button. The ring is a Tab stop so a keyboard user can raise the card too, and it is a `meter`,
+ * so a screen reader hears the share as a value with the counts as its text.
  */
-export function AgentChatContextMeter({ usage }: { usage: AgentChatContextUsage }) {
+export function AgentChatContextMeter({
+    onCompact,
+    usage,
+}: {
+    /**
+     * Runs the provider's compact command; omitted when the provider reports none.
+     */
+    onCompact?: () => void;
+    usage: AgentChatContextUsage;
+}) {
     const percent = Math.round(usage.used * 100);
     const tokens = `${formatTokens(usage.totalTokens)} / ${formatTokens(usage.window)} tokens`;
+    const description = `${percent}% of context used, ${tokens}`;
     return (
-        <Tooltip content={<ContextCard percent={percent} usage={usage} />}>
-            <span
-                aria-label={`${percent}% of context used, ${tokens}`}
-                className={cn(
-                    'flex h-7 shrink-0 items-center gap-1 rounded-md px-1 text-[12px] leading-4 tabular-nums focus-visible:outline focus-visible:outline-accent',
-                    TONE_CLASS_NAMES[usage.tone],
-                )}
-                role="img"
-                tabIndex={0}
+        <HoverCard>
+            <HoverCardTrigger
+                closeDelay={120}
+                delay={300}
+                render={
+                    <span
+                        aria-label={description}
+                        aria-valuemax={100}
+                        aria-valuemin={0}
+                        aria-valuenow={percent}
+                        aria-valuetext={description}
+                        className={cn(
+                            'flex h-7 shrink-0 items-center gap-1 rounded-md px-1 text-[12px] leading-4 tabular-nums focus-visible:outline focus-visible:outline-accent',
+                            TONE_CLASS_NAMES[usage.tone],
+                        )}
+                        // react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- the HoverCard trigger draws an SVG ring; a native <meter> cannot host it.
+                        role="meter"
+                        tabIndex={0}
+                    />
+                }
             >
                 <svg aria-hidden className="size-3.5 -rotate-90" viewBox="0 0 14 14">
                     <circle
@@ -132,7 +174,10 @@ export function AgentChatContextMeter({ usage }: { usage: AgentChatContextUsage 
                     )}
                 </svg>
                 {percent}%
-            </span>
-        </Tooltip>
+            </HoverCardTrigger>
+            <HoverCardContent align="end" className="w-60" side="top">
+                <ContextCard onCompact={onCompact} percent={percent} usage={usage} />
+            </HoverCardContent>
+        </HoverCard>
     );
 }

@@ -8,6 +8,8 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import type { HeatmapWeek, UsageMetric } from './usage-metrics';
 import {
+    activityCardLabel,
+    activityHighlights,
     buildCumulative,
     buildHeatmap,
     formatDate,
@@ -172,20 +174,21 @@ function CumulativeChart({
 }
 
 /**
- * Token activity over the trailing year: a GitHub-style day grid, weekly bars, or the running total. Day cells and week
- * bars carry their figures in a Tooltip; the continuous cumulative line has no discrete target, so it reports the
- * hovered week in the caption under the chart instead of the summary.
+ * Token or cost activity over the trailing year: a GitHub-style day grid, weekly bars, or the running total. Day cells
+ * and week bars carry their figures in a Tooltip; the continuous cumulative line has no discrete target, so it reports
+ * the hovered week in the caption under the chart instead of the summary. The Tokens/Cost switch lives here, beside the
+ * view switch, because nothing else on the page follows it. The chart is one `img` whose name is the year's summary
+ * plus its busiest day, so a keyboard or screen-reader user gets the reading without stepping through 365 cells.
  */
 export function UsageActivityCard({
     activity,
     today,
-    metric,
 }: {
     activity: readonly UsageDay[];
     today: string;
-    metric: UsageMetric;
 }) {
     const [view, setView] = useState<ActivityView>('daily');
+    const [metric, setMetric] = useState<UsageMetric>('tokens');
     const [hover, setHover] = useState<HoverTarget>();
     const weeks = useMemo(() => buildHeatmap(activity, today, metric), [activity, today, metric]);
     const days = useMemo(() => new Map(activity.map((day) => [day.date, day])), [activity]);
@@ -197,11 +200,15 @@ export function UsageActivityCard({
     );
     const activeDays = yearDays.filter((day) => day.tokens > 0).length;
     const summary = `${formatMetric(yearTotal, metric)} over ${activeDays} active ${activeDays === 1 ? 'day' : 'days'} in the last year`;
+    const busiestDay = activityHighlights(yearDays).busiestDay;
+    const chartLabel = busiestDay
+        ? `${summary}; busiest day ${usageDayTooltip(busiestDay.date, busiestDay)}`
+        : summary;
 
     return (
         <section
             className="rounded-md border border-border bg-surface p-4"
-            aria-label="Token activity"
+            aria-label={activityCardLabel(metric)}
         >
             <div className="flex items-center justify-between gap-3">
                 {/* The range selector does not apply here: the chart always covers the trailing year. */}
@@ -209,21 +216,38 @@ export function UsageActivityCard({
                     Activity
                     <span className="text-[11px] font-normal text-muted">Last 12 months</span>
                 </h2>
-                <ToggleGroup
-                    aria-label="Activity view"
-                    value={[view]}
-                    onValueChange={(next: ActivityView[]) => {
-                        if (next[0]) setView(next[0]);
-                    }}
-                >
-                    {ACTIVITY_VIEWS.map((item) => (
-                        <ToggleGroupItem key={item.value} value={item.value}>
-                            {item.label}
-                        </ToggleGroupItem>
-                    ))}
-                </ToggleGroup>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    <ToggleGroup
+                        aria-label="Activity metric"
+                        value={[metric]}
+                        onValueChange={(next: UsageMetric[]) => {
+                            if (next[0]) setMetric(next[0]);
+                        }}
+                    >
+                        <ToggleGroupItem value="tokens">Tokens</ToggleGroupItem>
+                        <ToggleGroupItem value="cost">Cost</ToggleGroupItem>
+                    </ToggleGroup>
+                    <ToggleGroup
+                        aria-label="Activity view"
+                        value={[view]}
+                        onValueChange={(next: ActivityView[]) => {
+                            if (next[0]) setView(next[0]);
+                        }}
+                    >
+                        {ACTIVITY_VIEWS.map((item) => (
+                            <ToggleGroupItem key={item.value} value={item.value}>
+                                {item.label}
+                            </ToggleGroupItem>
+                        ))}
+                    </ToggleGroup>
+                </div>
             </div>
-            <div className="mt-3 overflow-x-auto" role="img" aria-label={summary}>
+            <div
+                className="mt-3 overflow-x-auto rounded-sm focus-visible:outline focus-visible:outline-accent"
+                role="img"
+                aria-label={chartLabel}
+                tabIndex={0}
+            >
                 <div className="flex min-w-160 gap-2" onPointerLeave={() => setHover(undefined)}>
                     {view === 'daily' && (
                         <div

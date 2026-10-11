@@ -54,6 +54,14 @@ export function serializeTreeItem(handle: string, item: TreeItem): TreeItemDto {
                         confirmLabel: action.confirmation.confirmLabel,
                     },
                 }),
+                ...(action.tooltip && { tooltip: action.tooltip }),
+                ...(action.feedback && {
+                    feedback: {
+                        ...(action.feedback.success && { success: action.feedback.success }),
+                        ...(action.feedback.failure && { failure: action.feedback.failure }),
+                        ...(action.feedback.githubUrl && { githubUrl: action.feedback.githubUrl }),
+                    },
+                }),
             })),
         }),
     });

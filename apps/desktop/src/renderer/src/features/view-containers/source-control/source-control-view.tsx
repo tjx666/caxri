@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import type { SourceControlViewState } from '@caxri/protocol';
 
 import { useSessionViewScope, useSourceControlViewState } from '../../../stores/selectors';
 import { useControlledView } from '../controlled-view-context';
+import { useIsViewContainerActive } from '../view-container-activity';
 import { useSourceControlController } from './hooks/use-source-control-controller';
 import type { SourceControlNavigationScope } from './hooks/use-source-control-navigation';
 import { SourceControlContent } from './source-control-content';
@@ -11,10 +12,22 @@ import { SourceControlContent } from './source-control-content';
 /**
  * Uses a scope key so switching Session or Workbench Root initializes from that snapshot without briefly showing the
  * previous root's disclosure state.
+ *
+ * A hidden keep-alive container holds the scope it last showed instead of following every Session switch: re-keying
+ * there remounted the whole hidden view (about a hundred components) per switch for nothing on screen. Revealing the
+ * container adopts the current scope during render, so the stale scope never paints.
  */
 export function SourceControlView() {
     const { viewId } = useControlledView();
-    const { sessionId, workbenchProjectId } = useSessionViewScope();
+    const isActive = useIsViewContainerActive();
+    const live = useSessionViewScope();
+    const [shown, setShown] = useState(live);
+    if (
+        isActive &&
+        (shown.sessionId !== live.sessionId || shown.workbenchProjectId !== live.workbenchProjectId)
+    )
+        setShown(live);
+    const { sessionId, workbenchProjectId } = shown;
     const persisted = useSourceControlViewState(viewId);
     const scope = useMemo<SourceControlNavigationScope | undefined>(
         () =>

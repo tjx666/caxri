@@ -7,7 +7,11 @@ import { pinnedSessionDropTarget, pinnedSessions } from '../pinned-session-order
 import { PINNED_GROUP_ROW_ID } from '../primary-sidebar-tree';
 import { sessionWorktreeProject } from '../project-visibility';
 import type { SessionListWindow } from '../session-list-window';
-import { nextRevealedSessionCount, sessionListWindow } from '../session-list-window';
+import {
+    nextRevealedSessionCount,
+    revealedCountIncluding,
+    sessionListWindow,
+} from '../session-list-window';
 import type { SessionOrderController } from './use-session-order';
 import { useSessionOrder } from './use-session-order';
 
@@ -49,6 +53,10 @@ export interface PinnedSessionGroupModel extends SessionListWindow<SessionRecord
      */
     revealMore: () => void;
     /**
+     * Opens the window down to one pinned Session, for a pin that landed below it.
+     */
+    revealSession: (sessionId: string) => void;
+    /**
      * Every pinned Session in Pinned order, frozen while a drag is in flight, including the ones the window hides, so
      * the heading's count stays the real membership.
      */
@@ -88,6 +96,15 @@ export function usePinnedSessionGroup({
         () => setRevealedCount(nextRevealedSessionCount(windowCount)),
         [windowCount],
     );
+    const revealSession = useCallback(
+        (sessionId: string) => {
+            const index = groupSessions.findIndex((session) => session.id === sessionId);
+            if (index === -1) return;
+            const count = revealedCountIncluding(index, windowCount);
+            if (count !== undefined) setRevealedCount(count);
+        },
+        [groupSessions, windowCount],
+    );
     const projectsById = useMemo(
         () => new Map(projects.map((project) => [project.id, project])),
         [projects],
@@ -110,6 +127,7 @@ export function usePinnedSessionGroup({
         ...listWindow,
         projects: owningProjects,
         revealMore,
+        revealSession,
         sessionOrder,
         sessions: groupSessions,
         worktreeProjects,

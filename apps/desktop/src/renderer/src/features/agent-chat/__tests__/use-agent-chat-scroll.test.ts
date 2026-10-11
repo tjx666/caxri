@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     AGENT_CHAT_FOLLOW_THRESHOLD_PX,
+    agentChatAnchoredScrollTop,
     agentChatFollowScrollTop,
     isScrolledToEnd,
 } from '../hooks/use-agent-chat-scroll';
@@ -39,5 +40,18 @@ describe('agentChatFollowScrollTop', () => {
             agentChatFollowScrollTop({ scrollHeight: 1000, clientHeight: 300 }, false),
         ).toBeNull();
         expect(agentChatFollowScrollTop({ scrollHeight: 200, clientHeight: 300 }, true)).toBe(0);
+    });
+});
+
+describe('agentChatAnchoredScrollTop', () => {
+    it('keeps a clicked row in place when the content above or around it changes height', () => {
+        // The row sat 300px below the view's top; expanding it pushed it to 420px, so the view scrolls by 120px.
+        expect(agentChatAnchoredScrollTop(500, 300, 420)).toBe(620);
+        // Collapsing pulled it up to 260px.
+        expect(agentChatAnchoredScrollTop(500, 300, 260)).toBe(460);
+    });
+
+    it('never scrolls above the top', () => {
+        expect(agentChatAnchoredScrollTop(10, 300, 100)).toBe(0);
     });
 });

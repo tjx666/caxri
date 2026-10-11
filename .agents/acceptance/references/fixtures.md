@@ -53,3 +53,7 @@ The `agent-delegation-v1` fixture provides Claude Code, Codex, and Grok Build. E
 private synthetic task pointer, emits correlated native hooks, and saves the fixed task result
 in the isolated provider home. Use it to verify visible delegation and caller focus without
 launching a host Agent.
+
+The `agent-chat-v1` fixture replaces Claude Code and Codex with the deterministic Agent Chat fakes
+the E2E suite uses (stream-json and app-server JSON-RPC). Message keywords drive replies, approvals,
+and file-change diffs; the fakes' header comments list them.

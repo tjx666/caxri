@@ -254,6 +254,7 @@ cleanup checks still apply, and the round is `partial` until a later round prove
 
 A plan may declare `agentFixture: "agent-features-v1"` for fake Claude Code or Codex processes,
 `agentFixture: "agent-delegation-v1"` for visible Claude/Codex/Grok task delegation with a synthetic caller,
+`agentFixture: "agent-chat-v1"` for Claude Code and Codex Agent Chat backed by the protocol fakes,
 or `agentFixture: "grok-build-v1"` for fake Grok Build. Launch with the matching `--agent-fixture` value and include
 `assets/<case-id>-agent-fixture.json` in the case evidence. Finalization requires the receipt to
 match the frozen id and every fixture launch to have completed owned-profile cleanup.

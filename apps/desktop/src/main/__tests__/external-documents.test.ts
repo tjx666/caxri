@@ -14,6 +14,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -114,8 +115,16 @@ describe('external documents', () => {
         await link(document.displayPath, join(directory, 'alias.md'));
 
         await expect(writeExternalDocument(document.id, 'shared')).rejects.toThrow(
-            /multiple filesystem links/,
+            /hard-linked elsewhere, so Caxri can't save it safely\. Use Open with Default App\./,
         );
+    });
+
+    it('states the save size limit in human units', async () => {
+        const { document } = await externalFile();
+
+        await expect(
+            writeExternalDocument(document.id, 'a'.repeat(MAX_CONFIGURABLE_FILE_BYTES + 1)),
+        ).rejects.toThrow("File is larger than 16 MB and can't be saved here.");
     });
 });
 

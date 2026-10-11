@@ -53,6 +53,17 @@ export function hookHealthLabel(
 }
 
 /**
+ * The caption under a lifecycle-hook switch. Labelled, because a bare `Active` under the switch did not say what was
+ * active.
+ */
+export function hookHealthCaption(
+    isEnabled: boolean,
+    health: AgentHookHealthMap[AgentProvider] | undefined,
+): string {
+    return `Installation: ${hookHealthLabel(isEnabled, health)}`;
+}
+
+/**
  * Distinguishes states requiring intervention from healthy, disabled, and informational states.
  */
 export function hookHealthTone(
@@ -89,19 +100,20 @@ export function isHookAdapterAvailable(
 }
 
 /**
- * Tone for one bundled-skill installation line. `missing` and `stale` both have a repair command right under them, so
- * they read as warnings; a conflicting installation is somebody else's file in our place, which the user has to resolve
- * before anything works.
+ * Tone for one bundled-skill installation line. The skill is optional, so a `missing` one is muted information with its
+ * install command beneath, not a warning; a `stale` one is installed but out of date and does warn; a conflicting
+ * installation is somebody else's file in our place, which the user has to resolve before anything works.
  */
 export function skillScopeTone(
     installation: AgentSkillInstallationHealth | undefined,
-): 'danger' | 'neutral' | 'warning' {
+): 'danger' | 'muted' | 'neutral' | 'warning' {
     switch (installation?.status) {
         case 'conflict':
             return 'danger';
-        case 'missing':
         case 'stale':
             return 'warning';
+        case 'missing':
+            return 'muted';
         default:
             return 'neutral';
     }
@@ -127,6 +139,9 @@ export function skillScopeSummary(
     if (scope === 'local' && !health.selectedProjectId)
         return `${label} · Select a Project to inspect`;
     if (!installation) return `${label} · Unable to inspect this location`;
+    // `Missing · not installed` said one thing twice.
+    if (installation.status === 'missing' || !installation.installedVersion)
+        return `${label} · Not installed`;
     const status = installation.status[0].toUpperCase() + installation.status.slice(1);
-    return `${label} · ${status} · ${installation.installedVersion ? `installed v${installation.installedVersion}` : 'not installed'}`;
+    return `${label} · ${status} · installed v${installation.installedVersion}`;
 }

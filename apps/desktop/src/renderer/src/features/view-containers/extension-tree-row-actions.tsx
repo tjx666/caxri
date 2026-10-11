@@ -8,6 +8,7 @@ import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { ExtensionTreeActionIcon } from './extension-tree-item-icon';
+import { extensionTreeActionsHint } from './extension-tree-navigation';
 import type { TreeItemAction } from './tree-item-actions';
 import { runTreeItemAction, treeItemActionKeyIntent } from './tree-item-actions';
 
@@ -59,12 +60,15 @@ function TreeItemActionButton({
     const [isRunning, setIsRunning] = useState(false);
     const isLabeled = action.label !== undefined;
     return (
-        // Hover only: the tree moves focus onto these buttons itself (Right from the row, and the confirmation modal
-        // handing focus back), and a focus-opened tooltip would both pop up unasked and consume the Escape that returns
-        // to the row. The title is the button's accessible name, so a screen reader still hears it.
-        <Tooltip hoverOnly content={action.command.title}>
+        // A plain action's tooltip is hover only: the tree moves focus onto these buttons itself (Right from the row,
+        // and the confirmation modal handing focus back), and a focus-opened tooltip that only repeats the accessible
+        // name would pop up unasked. An action that explains its state (`tooltip`, a blocked merge's reason) also opens
+        // on keyboard focus, because a keyboard user has no hover to discover why the button is colored; Escape still
+        // returns to the row, which closes the popup with the focus that raised it.
+        <Tooltip hoverOnly={!action.tooltip} content={action.tooltip ?? action.command.title}>
             <Button
                 aria-label={actionAccessibleName(action)}
+                aria-description={action.tooltip}
                 aria-busy={isRunning || undefined}
                 // `aria-disabled` rather than `disabled`: Chromium evicts focus from a button the moment it becomes
                 // disabled, and the confirmation modal hands focus back to this button when it closes. A natively
@@ -147,9 +151,14 @@ function handleActionGroupKeyDown(
 export function ExtensionTreeRowActions({
     actions,
     descriptionId,
+    isCollapsedBranch,
     rowElement,
 }: {
     actions: TreeItemDto['actions'];
+    /**
+     * Whether Right on the row would expand it before reaching the actions, which changes the spoken key hint.
+     */
+    isCollapsedBranch: boolean;
     /**
      * Id of the visually hidden summary the row references through `aria-describedby`, so a screen reader hears that
      * the row has actions and how to reach them while the buttons themselves are still hidden.
@@ -163,7 +172,7 @@ export function ExtensionTreeRowActions({
     return (
         <>
             <span className="sr-only" id={descriptionId}>
-                {`Actions: ${actions.map(({ command }) => command.title).join(', ')}. Press Right Arrow to reach them.`}
+                {extensionTreeActionsHint(actions, isCollapsedBranch)}
             </span>
             <span
                 className={cn(
