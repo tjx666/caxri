@@ -1,12 +1,19 @@
 import { useMemo, useState } from 'react';
 
 import type { UsageDay } from '@caxri/protocol';
-import { formatDuration, formatTokens, formatUsd, shiftLocalDate } from '@caxri/protocol';
+import { shiftLocalDate } from '@caxri/protocol';
 
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
+import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import type { HeatmapWeek, UsageMetric } from './usage-metrics';
-import { buildCumulative, buildHeatmap, formatDate, formatMetric } from './usage-metrics';
+import {
+    buildCumulative,
+    buildHeatmap,
+    formatDate,
+    formatMetric,
+    usageDayTooltip,
+} from './usage-metrics';
 
 type ActivityView = 'daily' | 'weekly' | 'cumulative';
 
@@ -33,11 +40,6 @@ interface HoverTarget {
     detail: string;
 }
 
-function dayDetail(day: UsageDay | undefined): string {
-    if (!day || day.tokens === 0) return 'No usage';
-    return `${formatTokens(day.tokens)} tokens · ${formatUsd(day.costUsd)} · ${formatDuration(day.activeMs)} active`;
-}
-
 function MonthLabels({ weeks }: { weeks: readonly HeatmapWeek[] }) {
     return (
         <div className="grid grid-cols-[repeat(53,minmax(0,1fr))] gap-0.5" aria-hidden="true">
@@ -55,77 +57,65 @@ function MonthLabels({ weeks }: { weeks: readonly HeatmapWeek[] }) {
 
 function DailyGrid({
     weeks,
-    onHover,
     days,
 }: {
     weeks: readonly HeatmapWeek[];
-    onHover: (target: HoverTarget | undefined) => void;
     days: ReadonlyMap<string, UsageDay>;
 }) {
     return (
         <div className="grid grid-cols-[repeat(53,minmax(0,1fr))] gap-0.5">
             {weeks.map((week) => (
                 <div key={week.start} className="grid grid-rows-7 gap-0.5">
-                    {week.cells.map((cell) => (
-                        <div
-                            key={cell.date}
-                            className={cn(
-                                'aspect-square rounded-sm',
-                                cell.isFuture ? 'bg-transparent' : LEVEL_CLASSES[cell.level],
-                            )}
-                            onPointerEnter={
-                                cell.isFuture
-                                    ? undefined
-                                    : () =>
-                                          onHover({
-                                              label: formatDate(cell.date),
-                                              detail: dayDetail(days.get(cell.date)),
-                                          })
-                            }
-                        />
-                    ))}
+                    {week.cells.map((cell) =>
+                        cell.isFuture ? (
+                            <div key={cell.date} className="aspect-square" />
+                        ) : (
+                            <Tooltip
+                                key={cell.date}
+                                content={usageDayTooltip(cell.date, days.get(cell.date))}
+                            >
+                                <div
+                                    className={cn(
+                                        'aspect-square rounded-sm',
+                                        LEVEL_CLASSES[cell.level],
+                                    )}
+                                />
+                            </Tooltip>
+                        ),
+                    )}
                 </div>
             ))}
         </div>
     );
 }
 
-function WeeklyBars({
-    weeks,
-    metric,
-    onHover,
-}: {
-    weeks: readonly HeatmapWeek[];
-    metric: UsageMetric;
-    onHover: (target: HoverTarget | undefined) => void;
-}) {
+function WeeklyBars({ weeks, metric }: { weeks: readonly HeatmapWeek[]; metric: UsageMetric }) {
     const peak = Math.max(0, ...weeks.map((week) => week.total));
     return (
         <div className="grid h-28 grid-cols-[repeat(53,minmax(0,1fr))] items-end gap-0.5">
+            {/* The full-height column is the trigger, so a short week's bar is as easy to hover as the peak. */}
             {weeks.map((week) => (
-                <div
+                <Tooltip
                     key={week.start}
-                    className="flex h-full items-end"
-                    onPointerEnter={() =>
-                        onHover({
-                            label: `Week of ${formatDate(week.start)}`,
-                            detail: week.total > 0 ? formatMetric(week.total, metric) : 'No usage',
-                        })
-                    }
+                    content={`Week of ${formatDate(week.start)} · ${week.total > 0 ? formatMetric(week.total, metric) : 'No usage'}`}
                 >
-                    <div
-                        className={cn(
-                            'w-full rounded-sm',
-                            week.total > 0 ? LEVEL_CLASSES[Math.max(1, week.level)] : 'bg-elevated',
-                        )}
-                        style={{
-                            height:
-                                peak > 0 && week.total > 0
-                                    ? `${Math.max(4, (week.total / peak) * 100)}%`
-                                    : '4%',
-                        }}
-                    />
-                </div>
+                    <div className="flex h-full items-end">
+                        <div
+                            className={cn(
+                                'w-full rounded-sm',
+                                week.total > 0
+                                    ? LEVEL_CLASSES[Math.max(1, week.level)]
+                                    : 'bg-elevated',
+                            )}
+                            style={{
+                                height:
+                                    peak > 0 && week.total > 0
+                                        ? `${Math.max(4, (week.total / peak) * 100)}%`
+                                        : '4%',
+                            }}
+                        />
+                    </div>
+                </Tooltip>
             ))}
         </div>
     );
@@ -188,8 +178,9 @@ function CumulativeChart({
 }
 
 /**
- * Token activity over the trailing year: a GitHub-style day grid, weekly bars, or the running total. The hover caption
- * is the text twin of the color scale; the summary line stays readable without a pointer.
+ * Token activity over the trailing year: a GitHub-style day grid, weekly bars, or the running total. Day cells and week
+ * bars carry their figures in a Tooltip; the continuous cumulative line has no discrete target, so it reports the
+ * hovered week in the caption under the chart instead of the summary.
  */
 export function UsageActivityCard({
     activity,
@@ -254,12 +245,8 @@ export function UsageActivityCard({
                     )}
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                         {view !== 'cumulative' && <MonthLabels weeks={weeks} />}
-                        {view === 'daily' && (
-                            <DailyGrid weeks={weeks} days={days} onHover={setHover} />
-                        )}
-                        {view === 'weekly' && (
-                            <WeeklyBars weeks={weeks} metric={metric} onHover={setHover} />
-                        )}
+                        {view === 'daily' && <DailyGrid weeks={weeks} days={days} />}
+                        {view === 'weekly' && <WeeklyBars weeks={weeks} metric={metric} />}
                         {view === 'cumulative' && (
                             <CumulativeChart weeks={weeks} metric={metric} onHover={setHover} />
                         )}
