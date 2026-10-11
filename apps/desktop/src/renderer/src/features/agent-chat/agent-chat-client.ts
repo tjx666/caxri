@@ -8,7 +8,7 @@ import { applyAgentChatPatch, applyAgentChatTaskPatch } from '@caxri/protocol';
 import type { QueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../../lib/caxri';
-import { caxriQueryKey, isQueryMethod } from '../../queries/client';
+import { caxriQueryKey, isQueryMethod, queryClient } from '../../queries/client';
 
 /**
  * Patches held per Chat or task while its read is in flight. Past this many the read is simply repeated, which costs
@@ -18,6 +18,17 @@ const MAX_BUFFERED_PATCHES = 200;
 
 function agentChatQueryKey(terminalId: string) {
     return caxriQueryKey('agentChat.read', { terminalId });
+}
+
+/**
+ * The Chat's current snapshot for a one-off decision outside its pane: the live cache when the pane has read it (kept
+ * current by `agentChat.patch`), otherwise one fresh `agentChat.read`.
+ */
+export async function readAgentChatSnapshot(terminalId: string): Promise<AgentChatSnapshot> {
+    return (
+        queryClient.getQueryData<AgentChatSnapshot>(agentChatQueryKey(terminalId)) ??
+        caxri.request('agentChat.read', { terminalId })
+    );
 }
 
 function agentChatTaskQueryKey(terminalId: string, taskId: string) {

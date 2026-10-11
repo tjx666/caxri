@@ -1,10 +1,11 @@
-import type { SessionRecord, TerminalRecord } from '@caxri/protocol';
+import type { AgentChatSnapshot, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { agentProviderCatalog, isChatTerminal } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import type { ContextMenuEntry } from '../../lib/context-menu';
 import { getBootstrap } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
+import { readAgentChatSnapshot } from '../agent-chat/agent-chat-client';
 import { restartTerminalWithRecovery } from './terminal-commands';
 
 const RELOAD_AGENT_FAILED = 'Reload Agent failed';
@@ -46,17 +47,39 @@ function reloadAgentBlockedReason(
  * Whether the Agent in `terminal` is mid-turn, so reloading it would end that turn. Mirrors the Server's check behind
  * `terminal.switchSurface`'s `turnRunning` result (`terminal-surface-switch.ts`): Session Activity reports a running or
  * waiting turn for the Session's Primary Agent, and a PTY Agent must still have its process alive. `terminal.restart`
- * has no such result, so the Renderer asks before sending it. Activity is tracked for the Primary Agent only, so a
- * secondary Agent Terminal reads as idle here, the same answer the Server gives it for a PTY switch.
+ * has no such result, so the Renderer asks before sending it.
+ *
+ * Session Activity tracks the Primary Agent only. A secondary Chat answers from its own snapshot instead, since the
+ * Chat knows whether a turn is active (issue caxri#1630). A secondary PTY Agent has no per-Terminal activity, so it
+ * reads as idle, the same answer the Server gives it for a PTY switch.
  */
 export function isAgentTurnRunning(
     terminal: Pick<TerminalRecord, 'id' | 'lastAgentProcessState' | 'surface'>,
     session: Pick<SessionRecord, 'lastActivityState' | 'primaryAgentTerminalId'> | undefined,
+    chat?: Pick<AgentChatSnapshot, 'activeTurnId'>,
 ): boolean {
-    if (session?.primaryAgentTerminalId !== terminal.id) return false;
+    if (session?.primaryAgentTerminalId !== terminal.id)
+        return isChatTerminal(terminal) && Boolean(chat?.activeTurnId);
     if (session.lastActivityState !== 'running' && session.lastActivityState !== 'waiting')
         return false;
     return isChatTerminal(terminal) || terminal.lastAgentProcessState === 'running';
+}
+
+/**
+ * A secondary Chat's snapshot for {@link isAgentTurnRunning}; unread for every other Terminal. An unreadable Chat
+ * reloads without asking, as before, rather than blocking the reload on a failed read.
+ */
+async function secondaryChatSnapshot(
+    terminal: Pick<TerminalRecord, 'id' | 'surface'>,
+    session: Pick<SessionRecord, 'primaryAgentTerminalId'> | undefined,
+): Promise<AgentChatSnapshot | undefined> {
+    if (!isChatTerminal(terminal) || session?.primaryAgentTerminalId === terminal.id)
+        return undefined;
+    try {
+        return await readAgentChatSnapshot(terminal.id);
+    } catch {
+        return undefined;
+    }
 }
 
 /**
@@ -70,7 +93,8 @@ export async function reloadAgent(terminal: ReloadAgentTerminal): Promise<void> 
     const latest = getBootstrap();
     const current = latest?.terminals.find((entry) => entry.id === terminal.id) ?? terminal;
     const session = latest?.sessions.find((entry) => entry.id === terminal.sessionId);
-    if (isAgentTurnRunning(current, session)) {
+    const chat = await secondaryChatSnapshot(current, session);
+    if (isAgentTurnRunning(current, session, chat)) {
         const providerName = agentProviderCatalog[provider].displayName;
         const isConfirmed = await tryCommand(RELOAD_AGENT_FAILED, () =>
             caxri.window.showConfirm({
