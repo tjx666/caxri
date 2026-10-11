@@ -183,8 +183,18 @@ setInterval(() => {
             .locator('.session-row-actions');
         await expect(rowActions).toHaveCSS('opacity', '1');
         await expect(rowActions).toHaveCSS('pointer-events', 'auto');
-        // The hover actions take the right edge, so the lifecycle glyph steps out of their way.
-        await expect(firstStatus).toHaveCSS('opacity', '0');
+        /**
+         * The hover actions take the right edge. A running glyph is what the user hovers a busy row to check, so it
+         * stays visible and moves left of the actions instead of fading out under them.
+         */
+        await expect(firstStatus).toHaveCSS('opacity', '1');
+        const [hoveredStatusBox, rowActionsBox] = await Promise.all([
+            firstStatus.boundingBox(),
+            rowActions.boundingBox(),
+        ]);
+        if (!hoveredStatusBox || !rowActionsBox)
+            throw new Error('Session row geometry is unavailable');
+        expect(hoveredStatusBox.x + hoveredStatusBox.width).toBeLessThanOrEqual(rowActionsBox.x);
         const activityCard = running.page.locator('.session-activity-card');
         await expect(activityCard).toBeVisible();
         await expect(activityCard.locator('h3')).toHaveText(longTitle);
