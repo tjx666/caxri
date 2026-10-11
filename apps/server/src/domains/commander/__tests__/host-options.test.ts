@@ -18,6 +18,7 @@ function hostOptions(surface: 'chat' | 'pty') {
                 ({ id, sessionId: 'commander-session', surface }) as TerminalRecord,
         },
         createAndStartTerminal: vi.fn(),
+        onStopped: vi.fn(),
         restores: { cancel: vi.fn(), settled: () => Promise.resolve() },
         restoreTerminals,
         scopedWorkbench: vi.fn(),

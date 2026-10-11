@@ -7,6 +7,7 @@ import { describe, expect, it, onTestFinished } from 'vitest';
 
 import { CURRENT_SCHEMA_VERSION } from '../connection';
 import { CaxriDatabase } from '../index';
+import { BASELINE_SCHEMA_VERSION } from '../migrations/manifest';
 
 async function openDatabase() {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-db-usage-'));
@@ -101,19 +102,24 @@ describe('Agent Session usage ledger', () => {
     });
 
     it('creates the usage tables when upgrading from each earlier schema version', async () => {
+        /**
+         * Absolute versions: `0002_agent_session_usage` is schema 40 and `0003_external_agent_usage` schema 41. Every
+         * later table is dropped too, because a database at either version predates it.
+         */
+        const laterTables = ['commander_tasks', 'commander_pending_notices'];
         const upgrades = [
             {
-                from: CURRENT_SCHEMA_VERSION - 2,
-                drop: ['agent_session_usage', 'pull_request_outcomes'],
+                from: BASELINE_SCHEMA_VERSION + 1,
+                drop: ['agent_session_usage', 'pull_request_outcomes', 'external_agent_usage'],
             },
-            { from: CURRENT_SCHEMA_VERSION - 1, drop: [] },
+            { from: BASELINE_SCHEMA_VERSION + 2, drop: ['external_agent_usage'] },
         ];
         for (const { from, drop } of upgrades) {
             // eslint-disable-next-line no-await-in-loop -- each upgrade gets its own database
             const { path, database } = await openDatabase();
             database.close();
             const raw = new Database(path);
-            for (const table of [...drop, 'external_agent_usage']) raw.exec(`DROP TABLE ${table}`);
+            for (const table of [...drop, ...laterTables]) raw.exec(`DROP TABLE ${table}`);
             raw.pragma(`user_version = ${from}`);
             raw.close();
 

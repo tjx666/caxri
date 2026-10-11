@@ -21,6 +21,7 @@ export function commanderHostOptions(dependencies: {
     coordinator: Pick<AgentCoordinator, 'probeTerminal'>;
     database: Pick<CaxriDatabase, 'getTerminal'>;
     createAndStartTerminal: CommanderHostOptions['createAndStartTerminal'];
+    onStopped: () => void;
     restores: { cancel(sessionId: string): void; settled(sessionId: string): Promise<void> };
     restoreTerminals: (sessionId: string, options: { includeDetached: boolean }) => void;
     scopedWorkbench: CommanderHostOptions['scopedWorkbench'];
@@ -35,6 +36,7 @@ export function commanderHostOptions(dependencies: {
             return restores.settled(sessionId);
         },
         createAndStartTerminal: dependencies.createAndStartTerminal,
+        onStopped: dependencies.onStopped,
         probeTerminal: (terminalId) => coordinator.probeTerminal(terminalId),
         /**
          * `includeDetached` is what lets an explicit reopen resume a Commander the user stopped: `commander.stop` parks

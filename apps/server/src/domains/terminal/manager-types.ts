@@ -31,6 +31,13 @@ export interface TerminalManagerOptions {
      * and restart. They sit outside the user's launch settings, so a delegation's frozen settings never drop them.
      */
     agentLaunchArguments?: (record: TerminalRecord) => readonly string[];
+    /**
+     * Server-owned first prompt for a launch whose caller supplied none (a restore or a pane restart). Called while a
+     * launch is resolved, which may not end in a spawn, so it must not consume anything; the Agent Commander uses it to
+     * hand a relaunched Commander the notices it missed and settles them once `onLaunched` reports the PTY running. A
+     * delegation's own `initialPrompt` always wins.
+     */
+    agentLaunchPrompt?: (record: TerminalRecord) => string | undefined;
     agentLaunchSettings?: (provider: AgentProvider) => AgentLaunchSettings;
     agentOutputRecoverySettings?: (provider: AgentProvider) => AgentOutputRecoverySettings;
     agentEnvironment?: () => Promise<NodeJS.ProcessEnv>;

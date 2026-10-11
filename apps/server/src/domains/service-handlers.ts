@@ -102,6 +102,9 @@ type ServiceHandlerMethods =
     | 'commander.session.create'
     | 'commander.status'
     | 'commander.stop'
+    | 'commander.task.create'
+    | 'commander.task.list'
+    | 'commander.task.update'
     | 'session.refreshDeliveryOnFocus'
     | 'session.searchContent'
     | 'session.conversationReference'
@@ -363,6 +366,11 @@ export function createServiceHandlers(services: {
         'commander.stop': () => commander.stop(),
         'commander.board': () => commander.board(),
         'commander.session.create': ({ projectId }) => commander.createSession(projectId),
+        'commander.task.create': (parameters) => commander.tasks.create(parameters),
+        'commander.task.list': ({ includeClosed }) => ({
+            tasks: commander.tasks.list({ includeClosed: includeClosed ?? false }),
+        }),
+        'commander.task.update': (parameters) => commander.tasks.update(parameters),
         'session.refreshDeliveryOnFocus': ({ sessionId }) => {
             // Fire-and-forget: the refresh logs its own outcome and the change events converge the UI.
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above

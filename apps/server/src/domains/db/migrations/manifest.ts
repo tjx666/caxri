@@ -6,6 +6,7 @@ import baselineMigrationSql from './0000_baseline.sql?raw';
 import terminalSurfaceMigrationSql from './0001_terminal_surface.sql?raw';
 import agentSessionUsageMigrationSql from './0002_agent_session_usage.sql?raw';
 import externalAgentUsageMigrationSql from './0003_external_agent_usage.sql?raw';
+import commanderTasksAndNoticesMigrationSql from './0004_commander_tasks_and_notices.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -46,6 +47,7 @@ export const migrationManifest = [
     { tag: '0001_terminal_surface', sql: terminalSurfaceMigrationSql },
     { tag: '0002_agent_session_usage', sql: agentSessionUsageMigrationSql },
     { tag: '0003_external_agent_usage', sql: externalAgentUsageMigrationSql },
+    { tag: '0004_commander_tasks_and_notices', sql: commanderTasksAndNoticesMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

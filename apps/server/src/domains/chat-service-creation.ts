@@ -5,6 +5,7 @@ import type { StructuredLogger } from '@caxri/system';
 
 import { AgentChatService } from './agent-chat';
 import type { createAgentRuntime } from './agent-runtime';
+import type { CommanderTerminalHooks } from './commander';
 import { commanderChatEndpoint } from './commander';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
@@ -16,6 +17,7 @@ import type { DomainDependencies } from './domain-services';
  */
 export function createAgentChatService({
     agentRuntime,
+    commanderHooks,
     configuration,
     database,
     dependencies,
@@ -26,6 +28,7 @@ export function createAgentChatService({
         Awaited<ReturnType<typeof createAgentRuntime>>,
         'agentEnvironment' | 'agentLaunchSettings' | 'coordinator' | 'observeChatLifecycleSignal'
     >;
+    commanderHooks: Pick<CommanderTerminalHooks, 'chatReady' | 'launchArguments'>;
     configuration: Pick<ConfigService, 'getSettings'>;
     database: CaxriDatabase;
     dependencies: Pick<DomainDependencies, 'agentEndpoints' | 'terminal'>;
@@ -38,8 +41,21 @@ export function createAgentChatService({
         logger,
         send,
         agentEnvironment,
-        launchSettings: (provider) =>
-            (dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings)(provider),
+        /**
+         * A Chat Commander needs the same Codex overrides as a PTY one, notably the raised `project_doc_max_bytes` that
+         * keeps its embedded memory from being cut; `codexChatSettings` carries `-c` over as an app-server root
+         * option.
+         */
+        launchSettings: (provider, terminal) => {
+            const settings = (dependencies.terminal?.agentLaunchSettings ?? agentLaunchSettings)(
+                provider,
+            );
+            const extra = commanderHooks.launchArguments(terminal);
+            return extra.length === 0
+                ? settings
+                : { ...settings, args: [...settings.args, ...extra] };
+        },
+        onReady: commanderHooks.chatReady,
         resolveExecutable: dependencies.terminal?.resolveExecutable,
         coordinator,
         observeLifecycleSignal: agentRuntime.observeChatLifecycleSignal,

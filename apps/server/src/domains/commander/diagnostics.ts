@@ -13,14 +13,19 @@ function finiteNonNegative(value: unknown): number | undefined {
 interface CompletionNoticeTally {
     deliveredBatches: number;
     deliveredNotices: number;
-    droppedNotices: number;
+    resumePrompts: number;
+    resumePromptNotices: number;
     deliveryFailures: { rejected: number; unconfirmed: number };
     maximumWaitMs: number | undefined;
     totalWaitMs: number;
 }
 
 function tallyCompletionNoticeLine(line: string, tally: CompletionNoticeTally): void {
-    if (!line.includes('agent_commander.completion_notice_')) return;
+    if (
+        !line.includes('agent_commander.completion_notice_') &&
+        !line.includes('agent_commander.resume_prompt_')
+    )
+        return;
     try {
         const record = JSON.parse(line) as { event?: unknown; fields?: unknown };
         const fields = (
@@ -34,8 +39,9 @@ function tallyCompletionNoticeLine(line: string, tally: CompletionNoticeTally): 
                 tally.totalWaitMs += waitMs;
                 tally.maximumWaitMs = Math.max(tally.maximumWaitMs ?? 0, waitMs);
             }
-        } else if (record.event === logEventCatalog.agentCommander.completionNoticeDropped) {
-            tally.droppedNotices += finiteNonNegative(fields.count) ?? 0;
+        } else if (record.event === logEventCatalog.agentCommander.resumePromptDelivered) {
+            tally.resumePrompts += 1;
+            tally.resumePromptNotices += finiteNonNegative(fields.count) ?? 0;
         } else if (
             record.event === logEventCatalog.agentCommander.completionNoticeDeliveryFailed &&
             (fields.reason === 'rejected' || fields.reason === 'unconfirmed')
@@ -48,14 +54,18 @@ function tallyCompletionNoticeLine(line: string, tally: CompletionNoticeTally): 
 }
 
 /**
- * Aggregates the completion notice delivery log lines. Reads only the event name and the numeric or closed-enum fields
- * the notifier writes (`count`, `waitMs`, `reason`); the notice text itself is never logged.
+ * Aggregates the completion notice and resume prompt log lines. Reads only the event name and the numeric or
+ * closed-enum fields the notifier writes (`count`, `waitMs`, `reason`); the notice text itself is never logged.
  */
-function summarizeCommanderCompletionNotices(logs: readonly string[]): CompletionNoticeSummary {
+function summarizeCommanderCompletionNotices(
+    logs: readonly string[],
+    pendingNotices: number,
+): CompletionNoticeSummary {
     const tally: CompletionNoticeTally = {
         deliveredBatches: 0,
         deliveredNotices: 0,
-        droppedNotices: 0,
+        resumePrompts: 0,
+        resumePromptNotices: 0,
         deliveryFailures: { rejected: 0, unconfirmed: 0 },
         maximumWaitMs: undefined,
         totalWaitMs: 0,
@@ -69,7 +79,9 @@ function summarizeCommanderCompletionNotices(logs: readonly string[]): Completio
     return {
         deliveredBatches: tally.deliveredBatches,
         deliveredNotices: tally.deliveredNotices,
-        droppedNotices: tally.droppedNotices,
+        resumePrompts: tally.resumePrompts,
+        resumePromptNotices: tally.resumePromptNotices,
+        pendingNotices,
         ...(tally.deliveredBatches > 0 && {
             averageWaitMs: Math.round((tally.totalWaitMs / tally.deliveredBatches) * 100) / 100,
         }),
@@ -115,6 +127,10 @@ export function commanderDiagnostics(
         }),
         sessionCount: rows?.sessionIds.length ?? 0,
         recentDelegations,
-        completionNotices: summarizeCommanderCompletionNotices(logs),
+        completionNotices: summarizeCommanderCompletionNotices(
+            logs,
+            database.commanderPendingNotices.list().filter((notice) => notice.kind === 'delegation')
+                .length,
+        ),
     };
 }
