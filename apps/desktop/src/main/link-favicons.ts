@@ -66,19 +66,23 @@ async function fetchFavicon(fetch: Fetch, origin: string): Promise<LinkFavicon |
  */
 export function createLinkFavicons(fetch: Fetch) {
     const cache = new Map<string, Promise<LinkFavicon>>();
-    async function read(origin: string, attempt: Promise<LinkFavicon | undefined>) {
-        const result = await attempt;
-        if (result) return result;
-        cache.delete(origin);
-        return {};
+    /**
+     * Resolves a cache entry and forgets it when the request failed outright. Only that exact entry is forgotten:
+     * eviction may already have replaced it with a newer attempt for the same origin.
+     */
+    async function settle(origin: string, entry: PromiseWithResolvers<LinkFavicon>): Promise<void> {
+        const result = await fetchFavicon(fetch, origin);
+        if (!result && cache.get(origin) === entry.promise) cache.delete(origin);
+        entry.resolve(result ?? {});
     }
     return (origin: string): Promise<LinkFavicon> => {
-        let icon = cache.get(origin);
-        if (!icon) {
-            if (cache.size >= MAX_CACHED_ORIGINS) cache.delete(cache.keys().next().value!);
-            icon = read(origin, fetchFavicon(fetch, origin));
-            cache.set(origin, icon);
-        }
-        return icon;
+        const cached = cache.get(origin);
+        if (cached) return cached;
+        if (cache.size >= MAX_CACHED_ORIGINS) cache.delete(cache.keys().next().value!);
+        const entry = Promise.withResolvers<LinkFavicon>();
+        cache.set(origin, entry.promise);
+        // eslint-disable-next-line no-void -- the entry's promise carries the outcome; settling has nothing else to report
+        void settle(origin, entry);
+        return entry.promise;
     };
 }
