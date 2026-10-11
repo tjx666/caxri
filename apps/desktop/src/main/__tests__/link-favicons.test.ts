@@ -107,4 +107,28 @@ describe('createLinkFavicons', () => {
         await favicon('https://a.example');
         expect(fetch).toHaveBeenCalledTimes(2);
     });
+    it('keeps a newer cached attempt when an evicted failed attempt settles', async () => {
+        const first = Promise.withResolvers<Response>();
+        let isFirstAsked = false;
+        const fetch = vi.fn((url: string) => {
+            if (url === 'https://a.example/favicon.ico' && !isFirstAsked) {
+                isFirstAsked = true;
+                return first.promise;
+            }
+            return iconResponse(new Uint8Array([1]), { headers: { 'content-type': 'image/png' } });
+        });
+        const favicon = createLinkFavicons(fetch);
+        const stale = favicon('https://a.example');
+        // Fill the cache past its bound so the pending attempt for a.example is evicted, then ask again.
+        await Promise.all(
+            Array.from({ length: 256 }, (_, index) => favicon(`https://${index}.example`)),
+        );
+        const fresh = await favicon('https://a.example');
+        first.reject(new Error('offline'));
+        await expect(stale).resolves.toEqual({});
+        await expect(favicon('https://a.example')).resolves.toBe(fresh);
+        expect(
+            fetch.mock.calls.filter(([url]) => url === 'https://a.example/favicon.ico'),
+        ).toHaveLength(2);
+    });
 });
