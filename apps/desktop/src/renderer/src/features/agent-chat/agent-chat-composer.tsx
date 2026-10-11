@@ -41,6 +41,7 @@ import { useAgentChatAttachments } from './hooks/use-agent-chat-attachments';
 import { useAgentChatCommandMenu } from './hooks/use-agent-chat-command-menu';
 import type { AgentChatComposerEditOptions } from './hooks/use-agent-chat-composer-edit';
 import { useAgentChatComposerEdit } from './hooks/use-agent-chat-composer-edit';
+import { useAgentChatDraftAppends } from './hooks/use-agent-chat-draft-appends';
 import type { AgentChatDropHandlers } from './hooks/use-agent-chat-file-input';
 import { useAgentChatFileInput } from './hooks/use-agent-chat-file-input';
 import { useAgentChatHandoff } from './hooks/use-agent-chat-handoff';
@@ -155,6 +156,7 @@ export function AgentChatComposer({
             writeAgentChatDraft(terminalId, next);
             return next;
         });
+    useAgentChatDraftAppends(terminalId, setDraftState);
     const terminal = useTerminal(terminalId);
     const sessionMenu = useAgentChatSessionMenu({
         currentSessionId: terminal?.sessionId,
