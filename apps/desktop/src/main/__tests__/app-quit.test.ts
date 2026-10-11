@@ -261,6 +261,51 @@ describe('createAppQuitHandler', () => {
         expect(readStatus).toHaveBeenCalledTimes(2);
         expect(confirm).toHaveBeenCalledTimes(2);
     });
+
+    it('accepts a termination signal while the quit prompt is still open instead of waiting on it', async () => {
+        const prompt = Promise.withResolvers<'stop'>();
+        const target = options({
+            confirm: vi.fn().mockReturnValue(prompt.promise),
+            readStatus: vi.fn().mockResolvedValue({ activePtyCount: 2, clientCount: 1 }),
+        });
+        const requestQuit = createAppQuitHandler(target);
+
+        const prompted = requestQuit();
+        await vi.waitFor(() => expect(target.confirm).toHaveBeenCalledOnce());
+        expect(target.acceptQuit).not.toHaveBeenCalled();
+
+        await expect(requestQuit('SIGTERM')).resolves.toBe('kept-running');
+        expect(target.acceptQuit).toHaveBeenCalledOnce();
+        expect(target.detachAll).toHaveBeenCalledOnce();
+        expect(target.stopServer).not.toHaveBeenCalled();
+        expect(target.exit).toHaveBeenCalledOnce();
+
+        // Answering the stale prompt afterwards must not run quit acceptance a second time.
+        prompt.resolve('stop');
+        await prompted;
+        expect(target.acceptQuit).toHaveBeenCalledOnce();
+    });
+
+    it('lets an already accepted Stop Tasks quit finish when a termination signal arrives mid-stop', async () => {
+        const stopping = Promise.withResolvers<void>();
+        const target = options({
+            confirm: vi.fn().mockResolvedValue('stop'),
+            readStatus: vi.fn().mockResolvedValue({ activePtyCount: 2, clientCount: 1 }),
+            stopServer: vi.fn().mockReturnValue(stopping.promise),
+        });
+        const requestQuit = createAppQuitHandler(target);
+
+        const quitting = requestQuit();
+        await vi.waitFor(() => expect(target.stopServer).toHaveBeenCalledOnce());
+        const signalled = requestQuit('SIGTERM');
+
+        expect(target.detachAll).not.toHaveBeenCalled();
+        expect(target.exit).not.toHaveBeenCalled();
+        stopping.resolve();
+        expect(await signalled).toBe(await quitting);
+        expect(target.detachAll).not.toHaveBeenCalled();
+        expect(target.acceptQuit).toHaveBeenCalledOnce();
+    });
 });
 
 describe('appQuitPrompt', () => {

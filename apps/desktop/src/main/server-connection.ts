@@ -1,4 +1,3 @@
-import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 
 import type { RecoveringEventClient, ServerConnectionState } from '@caxri/client';
@@ -38,7 +37,6 @@ import {
 } from '@caxri/protocol';
 import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
 import { computeBuildFingerprint, logEventCatalog } from '@caxri/system';
-import type { PowerMonitor } from 'electron';
 
 import { activeDesktopCommand, runDesktopCommand } from './desktop-command-scope';
 import { buildServerLaunchEnvironment } from './server-launch-environment';
@@ -130,17 +128,6 @@ async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void>
     }
 }
 
-export function resolveDesktopLaunch(options: {
-    currentDirectory: string;
-    executable: string;
-    isPackaged: boolean;
-}): ServerDesktopLaunch {
-    if (options.isPackaged)
-        return { executable: options.executable, args: [], cwd: dirname(options.executable) };
-    const projectRoot = resolve(options.currentDirectory, '../..');
-    return { executable: options.executable, args: [projectRoot], cwd: projectRoot };
-}
-
 /**
  * Desktop-side client facade for typed Server operations and recovery.
  */
@@ -160,6 +147,12 @@ export class DesktopServerConnection extends EventTarget {
      */
     private hasReplacedStaleServer = false;
     private isCoreRecoveryPending = false;
+    /**
+     * Set by {@link markQuitting} once Main has accepted a quit. Quit teardown still needs this attachment for its
+     * best-effort window-state and detach requests, so it is not disposed yet, but a connection loss from then on is
+     * the expected end of the Server rather than an outage to recover from.
+     */
+    private isQuitting = false;
     private readonly serverSupervisor: DesktopServerSupervisor;
     private readonly unsubscribeServerLifecycle: () => void;
 
@@ -385,6 +378,13 @@ export class DesktopServerConnection extends EventTarget {
                     },
                 }),
             );
+            return;
+        }
+        if (this.isQuitting) {
+            this.options.logger.write('info', logEventCatalog.serverConnection.connectionLost, {
+                fields: { closeCode: closeCode ?? null, source: 'desktop-quitting' },
+            });
+            this.disposeLifecycle();
             return;
         }
         this.options.logger.write('warn', logEventCatalog.serverConnection.connectionLost, {
@@ -649,6 +649,15 @@ export class DesktopServerConnection extends EventTarget {
         this.client?.renewLeaseNow();
     }
 
+    /**
+     * Fences Server recovery for the rest of this Main lifetime once a quit is accepted. Without it, a Server Core that
+     * exits during quit teardown (for example killed by the same SIGTERM that is quitting Desktop) is reported as a
+     * crash: the supervisor spawns a replacement Server and the replacement resumes Agent work nobody asked for.
+     */
+    markQuitting(): void {
+        this.isQuitting = true;
+    }
+
     close(): void {
         this.disposeLifecycle();
         /**
@@ -711,19 +720,4 @@ export class DesktopServerConnection extends EventTarget {
         this.close();
         return Promise.resolve();
     }
-}
-
-/**
- * Wires the two `powerMonitor` events Main's bootstrap needs at startup. `shutdown` marks the pending quit as an OS
- * shutdown rather than a user action; `resume`/`unlock-screen` force an immediate lease renewal (see
- * `DesktopServerConnection.renewLeaseNow`) instead of waiting on the connection's background renew interval.
- */
-export function wirePowerWake(
-    powerMonitor: Pick<PowerMonitor, 'on'>,
-    onShutdown: () => void,
-    connection: Pick<DesktopServerConnection, 'renewLeaseNow'>,
-): void {
-    powerMonitor.on('shutdown', onShutdown);
-    powerMonitor.on('resume', () => connection.renewLeaseNow());
-    powerMonitor.on('unlock-screen', () => connection.renewLeaseNow());
 }
