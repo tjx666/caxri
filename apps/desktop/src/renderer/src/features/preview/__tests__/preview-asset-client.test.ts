@@ -2,10 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const request = vi.fn<(...parameters: unknown[]) => Promise<unknown>>();
 vi.mock('../../../lib/caxri', () => ({
-    caxri: { request: (...parameters: unknown[]) => request(...parameters) },
+    caxri: {
+        request: (...parameters: unknown[]) => request(...parameters),
+        requestWithSignal: (method: unknown, _signal: unknown, parameters_: unknown) =>
+            request(method, parameters_),
+    },
 }));
 
-const { acquireAsset, releaseAsset } = await import('../preview-asset-client');
+const { acquireAsset, readAssetBytes, releaseAsset } = await import('../preview-asset-client');
 
 const PIXEL = 'R0lGODlhAQABAAAAACw=';
 
@@ -183,5 +187,31 @@ describe('preview asset client', () => {
         expect(request).toHaveBeenCalledTimes(1);
         releaseAsset(source, '/tmp/notes/assets/logo.gif');
         expect(revoked).toEqual([created[0]]);
+    });
+});
+
+describe('readAssetBytes', () => {
+    it('returns the decoded bytes of one read, without caching them', async () => {
+        request.mockReset();
+        request.mockResolvedValue({
+            path: '/p/manual.pdf',
+            mediaType: 'application/pdf',
+            base64: btoa('%PDF-1.7'),
+            size: 8,
+        });
+
+        const bytes = await readAssetBytes(
+            'session-1',
+            '/p/manual.pdf',
+            new AbortController().signal,
+        );
+
+        expect(new TextDecoder().decode(bytes)).toBe('%PDF-1.7');
+        expect(request).toHaveBeenCalledWith('files.readAsset', {
+            sessionId: 'session-1',
+            path: '/p/manual.pdf',
+        });
+        await readAssetBytes('session-1', '/p/manual.pdf', new AbortController().signal);
+        expect(request).toHaveBeenCalledTimes(2);
     });
 });

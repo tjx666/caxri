@@ -38,6 +38,17 @@ growth by silently breaking `architecture` diagrams and ELK layouts in a user's 
 a trade this project wants to make invisibly; the renderer, asar, and app budgets were raised
 together instead.
 
+The PDF preview adds ~11 MiB with source maps (`out/renderer` measured 118.9 MiB before and
+130.1 MiB after, 2026-10): pdf.js (~0.8 MiB), its viewer components (~0.3 MiB), its worker
+(~1.7 MiB), and the data pdf.js asks for while parsing: 168 Adobe CMaps for CJK text in
+non-embedded fonts, the Symbol and ZapfDingbats standard fonts, and the JBIG2 and JPEG 2000
+WebAssembly decoders. Only files pdf.js actually requests are bundled: other standard fonts are
+drawn with local system fonts, and the ICC decoder is never requested in this configuration. The
+packaged Renderer is a `file://` page that cannot `fetch` application files, so each data file is
+an inline module in its own lazy chunk (`features/preview/pdf-binary-data.ts`). None of it is in
+the initial Renderer bundle (which grew by ~4 KB of routing code), and a PDF loads only the CMap or
+decoder it actually uses. The renderer and asar budgets were raised to 140 MiB and 145 MiB.
+
 The renderer carries the full `@yutengjing/vscode-icons` SVG set (~4.5 MiB across 1553 files,
 emitted as individual assets). This is a conscious budget increase, not drift: the Files secondarySidebar
 can encounter any file or folder name in a user's project at runtime, so there is no meaningful

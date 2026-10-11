@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
 import { measurePreviewDecode } from './support/preview-decode-benchmark.ts';
+import { syntheticPdf } from './support/synthetic-pdf.ts';
 
 const CODE_BLOCK_SOURCE = 'const answer = 42;\nexport { answer };\n';
 
@@ -159,6 +160,88 @@ test('previews Markdown and SVG in a virtual editor tab', async () => {
         const imagePreview = running.page.locator('.caxri-image-preview-canvas');
         await expect(imagePreview).toBeVisible();
         await expect(running.page.getByText('64 × 32')).toBeVisible();
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * The three formats added beside Markdown each cross the Renderer/Server boundary differently: a PDF is the only
+ * preview that opens directly and reads through `files.readAsset` into a pdf.js worker, while CSV and Mermaid render
+ * from the same buffer the source tab edits.
+ */
+test('previews PDF, CSV, and Mermaid files', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-preview-formats-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+    await Promise.all([
+        writeFile(
+            join(root, 'manual.pdf'),
+            syntheticPdf(['Synthetic page one', 'Synthetic page two']),
+        ),
+        writeFile(join(root, 'broken.pdf'), 'not a PDF\n', 'utf8'),
+        writeFile(
+            join(root, 'cities.csv'),
+            'city,note,population\n"Lisbon, PT","said ""hi""\nthen left",545000\nOslo,plain,709000\n',
+            'utf8',
+        ),
+        writeFile(join(root, 'flow.mmd'), 'graph LR\n  Draft --> Review\n', 'utf8'),
+        writeFile(join(root, 'broken.mmd'), 'graph LR\n  Draft -->\n', 'utf8'),
+    ]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const { page } = running;
+    try {
+        await createProjectSession(page);
+
+        await page.getByRole('treeitem', { name: 'manual.pdf', exact: true }).click();
+        await expect(page.getByRole('tab', { name: 'Preview: manual.pdf' })).toBeVisible();
+        const pdf = page.getByTestId('pdf-preview');
+        await expect(pdf.locator('.page')).toHaveCount(2);
+        await expect(pdf.locator('.textLayer').first()).toContainText('Synthetic page one');
+        await expect(page.getByText('Page 1 of 2')).toBeVisible();
+        const zoom = page.getByText(/^\d+%$/u);
+        const fitted = await zoom.textContent();
+        await page.getByRole('button', { name: 'Zoom In' }).click();
+        await expect(zoom).not.toHaveText(fitted ?? '');
+        await page.getByRole('button', { name: 'Fit Width' }).click();
+        await expect(zoom).toHaveText(fitted ?? '');
+
+        await page.getByRole('treeitem', { name: 'broken.pdf', exact: true }).click();
+        await expect(page.locator('.empty-work[role="alert"]')).toContainText(
+            'This file is not a valid PDF, or it is damaged.',
+        );
+
+        await page.getByRole('treeitem', { name: 'cities.csv', exact: true }).click();
+        await expect(page.getByRole('tab', { name: 'cities.csv', exact: true })).toBeVisible();
+        await expect(page.locator('.monaco-editor').first()).toContainText('population');
+        await page.keyboard.press('Meta+Shift+V');
+        const table = page.getByRole('table', { name: 'Table preview' });
+        await expect(table.getByRole('columnheader', { name: 'population' })).toBeVisible();
+        await expect(table.getByRole('cell', { name: 'Lisbon, PT' })).toBeVisible();
+        await expect(table.getByRole('row')).toHaveCount(3);
+        await expect(page.getByText('2 rows × 3 columns')).toBeVisible();
+
+        await page.getByRole('treeitem', { name: 'flow.mmd', exact: true }).click();
+        await expect(page.getByRole('tab', { name: 'flow.mmd', exact: true })).toBeVisible();
+        await expect(page.locator('.monaco-editor').first()).toContainText('Review');
+        await page.keyboard.press('Meta+Shift+V');
+        await expect(page.getByTestId('mermaid-preview').locator('svg')).toBeVisible();
+        await expect(page.getByTestId('mermaid-preview')).toContainText('Review');
+
+        await page.getByRole('treeitem', { name: 'broken.mmd', exact: true }).click();
+        await expect(page.getByRole('tab', { name: 'broken.mmd', exact: true })).toBeVisible();
+        await expect(page.locator('.monaco-editor').first()).toContainText('Draft');
+        await page.keyboard.press('Meta+Shift+V');
+        await expect(
+            page.getByTestId('mermaid-preview').locator('.caxri-markdown-diagram-error'),
+        ).toBeVisible();
     } finally {
         try {
             await running.app.close();

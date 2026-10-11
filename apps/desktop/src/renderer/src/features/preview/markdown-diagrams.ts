@@ -90,12 +90,12 @@ async function loadMermaid(theme: ThemeTokens, themeKey: string): Promise<Mermai
 
 async function renderDiagram(
     element: HTMLElement,
-    diagram: MarkdownDiagram,
+    source: string,
     theme: ThemeTokens,
     signal: AbortSignal,
 ): Promise<void> {
     const themeKey = mermaidThemeKey(theme);
-    const key = `${themeKey}\0${diagram.source}`;
+    const key = `${themeKey}\0${source}`;
     const cached = renderedDiagrams.get(key);
     if (cached !== undefined) {
         element.innerHTML = cached;
@@ -105,16 +105,22 @@ async function renderDiagram(
     if (signal.aborted) return;
     state.sequence += 1;
     // Mermaid needs a document-unique id: it mounts a scratch copy of the diagram while measuring text.
-    const { svg } = await mermaid.render(`caxri-mermaid-${state.sequence}`, diagram.source);
+    const { svg } = await mermaid.render(`caxri-mermaid-${state.sequence}`, source);
     renderedDiagrams.set(key, svg);
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- the render above is awaited, so the signal can abort between the two checks; the narrowing is a false positive
     if (signal.aborted) return;
     element.innerHTML = svg;
 }
 
-async function renderDiagramReportingFailure(
+/**
+ * Renders one Mermaid source into `element`, or replaces its content with the parse or layout error.
+ *
+ * Shared by the Markdown preview's `mermaid` fences and the `.mmd` / `.mermaid` file preview, so both take the same
+ * theme seeding, render cache, layout permit, and error presentation.
+ */
+export async function renderMermaidDiagram(
     element: HTMLElement,
-    diagram: MarkdownDiagram,
+    source: string,
     theme: ThemeTokens,
     signal: AbortSignal,
 ): Promise<void> {
@@ -125,7 +131,7 @@ async function renderDiagramReportingFailure(
          * A task boundary lets scrolling, input, and tab changes run between synchronous Mermaid layouts.
          */
         await delay(0, { signal });
-        await renderDiagram(element, diagram, theme, signal);
+        await renderDiagram(element, source, theme, signal);
     } catch (error) {
         if (!signal.aborted) reportDiagramFailure(element, error);
     } finally {
@@ -156,7 +162,7 @@ export async function renderDiagrams(
     for (const diagram of diagrams) {
         const element = container.querySelector(`[data-caxri-diagram="${CSS.escape(diagram.id)}"]`);
         if (!(element instanceof HTMLElement)) continue;
-        renders.push(renderDiagramReportingFailure(element, diagram, theme, signal));
+        renders.push(renderMermaidDiagram(element, diagram.source, theme, signal));
     }
     await Promise.all(renders);
 }

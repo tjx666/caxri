@@ -1,4 +1,5 @@
 import type { MarkdownAsset } from '@caxri/markdown';
+import { isPreviewImagePath } from '@caxri/protocol';
 
 import type { PreviewAssetSource } from './preview-asset-client';
 import { acquireAsset, releaseAsset } from './preview-asset-client';
@@ -56,7 +57,7 @@ export function attachImages(
             element.src = asset.url;
             continue;
         }
-        if (!asset.path) {
+        if (!asset.path || !isPreviewImagePath(asset.path)) {
             element.dataset.state = 'unresolved';
             continue;
         }

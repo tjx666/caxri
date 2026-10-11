@@ -6,12 +6,12 @@ status: current
 # File preview
 
 Caxri can render a Project file instead of editing it: Markdown as formatted text, `.svg` as an
-image. A preview is a virtual editor tab, so it opens, splits, persists, and restores exactly like
+image, `.pdf` as pages, `.csv` / `.tsv` as a table, and `.mmd` / `.mermaid` as a diagram. A preview is a virtual editor tab, so it opens, splits, persists, and restores exactly like
 a source tab, and the same file can sit open as source in one pane and as a preview in another.
 
 This document covers the shipped behavior, the contracts a new format has to satisfy, and the
-reasons behind the two decisions that are easy to get wrong later: where HTML is produced, and
-where images come from.
+reasons behind the decisions that are easy to get wrong later: where HTML is produced, where
+binary bytes come from, and how the PDF engine loads its data inside a `file://` Renderer.
 
 ## Using it
 
@@ -31,10 +31,12 @@ and the folders below it: a link that climbs out (`../`) or reaches outside thro
 is refused, and a linked file opens as another external document. An external `.svg` has no
 preview, because the image view loads its asset through Project file reads.
 
-Double-clicking a Markdown or SVG file in the explorer still opens the source. Both formats are
-readable as text, so the preview stays an explicit command; VS Code makes the same call with
-`priority.textEditor: 'option'`. A format with no useful text form registers `defaultView:
-'preview'` instead and nothing else about the surface changes.
+Double-clicking a Markdown, SVG, CSV/TSV, or Mermaid file in the explorer still opens the source.
+Those formats are readable as text, so the preview stays an explicit command; VS Code makes the
+same call with `priority.textEditor: 'option'`. A PDF has no useful text form, so it registers
+`defaultView: 'preview'`: every open path (Files, Quick Open, a Terminal link) lands on its preview
+tab without attempting a text read, and nothing else about the surface changes.
+Moving a file or folder to the Trash closes its preview tabs along with its source tabs.
 
 Edits re-render live. The preview follows the source editor's scroll position one way: scrolling
 the editor moves the preview, and scrolling the preview does not move the editor. A failed source
@@ -45,6 +47,64 @@ Root, or file discards the old failure, and late results cannot overwrite the cu
 Markdown support is CommonMark plus GitHub task lists, linkified bare URLs, heading anchors,
 `mermaid` diagrams, and the raw inline HTML real READMEs depend on (`<details>`, centered banners).
 Smart typography is deliberately off, so what you typed is what you see.
+
+## Formats
+
+| Format             | Opens as | Reads                                 | Limits                                 |
+| ------------------ | -------- | ------------------------------------- | -------------------------------------- |
+| Markdown           | Source   | Editor buffer                         | None beyond the editor's               |
+| SVG                | Source   | `files.readAsset`                     | 8 MiB                                  |
+| PDF                | Preview  | `files.readAsset` (`application/pdf`) | 32 MiB                                 |
+| CSV / TSV          | Source   | Editor buffer                         | First 50,000 data rows and 256 columns |
+| `.mmd`, `.mermaid` | Source   | Editor buffer                         | One diagram per file                   |
+
+### PDF
+
+The view is a continuous scroll of pages rendered by
+[pdf.js](https://github.com/mozilla/pdf.js) (`pdfjs-dist`) onto canvases, with a text layer so
+text is selectable and copyable, and link annotations so internal links jump and `http(s)` /
+`mailto` links open in the system browser. A toolbar above the pages shows **Page N of M** and
+offers Zoom Out, Zoom In, and Fit Width; `Ctrl` + wheel (trackpad pinch) zooms around the pointer.
+Zoom is clamped to 25% to 500%, and a document opens at page width, which it keeps as the pane
+resizes until the user picks another zoom. Pages keep their own colors in every theme; only the
+chrome and the gap between pages follow the Caxri theme, the way every PDF reader treats paper.
+
+A damaged or non-PDF file, a password-protected one, and one over 32 MiB each show a readable cause
+with **Retry**. The bytes are read once when the tab opens; the view does not follow later changes
+on disk (Retry, or reopening the tab, reads it again).
+
+Electron's built-in Chromium viewer was the other option. It needs `plugins: true` plus an
+`object-src` / `frame-src` CSP opening, renders inside its own frame where the theme cannot reach,
+and has no API for page or zoom state, so pdf.js in the Workbench document was chosen.
+
+pdf.js asks for data files while parsing: binary CMaps for CJK text in non-embedded fonts, the
+Symbol and ZapfDingbats standard fonts (other non-embedded standard fonts are drawn with a local
+system font), and WebAssembly decoders for JBIG2 and JPEG 2000. Its default is to
+`fetch` them from a URL, which a packaged Renderer served from `file://` cannot do.
+[`pdf-binary-data.ts`](../apps/desktop/src/renderer/src/features/preview/pdf-binary-data.ts)
+instead maps each file to an inline module in its own lazy chunk through a custom
+`BinaryDataFactory`, so a document pulls in only the CMap or decoder it uses, and parsing works the
+same in development and in the packaged app. The worker is bundled with Vite's `?worker` import
+like Monaco's workers. None of this is in the initial Renderer bundle; the size cost is recorded in
+[bundle-size.md](bundle-size.md).
+
+### CSV and TSV
+
+The table parses the editor's buffer with [Papa Parse](https://www.papaparse.com/), so quoted
+fields, escaped quotes, delimiters inside quotes, and line breaks inside a quoted field follow
+RFC 4180, and edits in the source pane re-render the table. `.tsv` splits on tabs; `.csv` guesses
+among comma, tab, pipe, and semicolon. The first record is the header. Rows are virtualized, so a
+50,000-row file scrolls like a short one; numeric columns align right with tabular figures. A
+footer reports the row and column count. When parsing stops at the row or column cap, or the parser
+reports a malformed record, a warning bar above the table says so and names the first bad row.
+
+### Mermaid
+
+A `.mmd` or `.mermaid` file is one diagram rendered through the same path as a `mermaid` fence in
+the Markdown preview (`renderMermaidDiagram`), so both share theme colors, the render permit, the
+cache, and the error presentation: a syntax error shows the parser's message in place of the
+diagram until the source parses again. The source is deferred, so typing re-lays out the diagram
+at low priority.
 
 ## How a preview tab is addressed
 
@@ -133,7 +193,7 @@ decoders in the same Renderer at the 8 MiB ceiling and records timings without a
 
 `files.readAsset` returns base64 over the ordinary request channel rather than through an Electron
 custom protocol handler, and its media type comes from a Server-side allowlist that never echoes a
-caller-supplied value (`previewAssetMediaTypes`, 8 MiB cap). Both choices exist for the same
+caller-supplied value (`previewAssetMediaTypes`; 8 MiB for images, 32 MiB for PDF). Both choices exist for the same
 reason: a mobile client gets images through the identical request, with no Electron-only path to
 reimplement.
 
@@ -150,12 +210,16 @@ Everything format-specific lives in two places.
    with a view id and a `defaultView`.
 2. Add the matching branch to `PreviewSurface` in
    [`preview-surface.tsx`](../apps/desktop/src/renderer/src/features/preview/preview-surface.tsx).
+   Keep the view itself in its own lazily imported module, as the PDF and table views are, so its
+   dependencies never enter the initial Renderer bundle.
 
 The commands, the tab scheme, split-to-the-side, persistence, and the explorer's open behavior all
 read from the registry and need no change. A format that renders from text reads it with
 `useDocument` like `MarkdownPreviewSurface`; a binary format reads bytes with `files.readAsset`
-like `ImagePreview`, and extends `previewAssetMediaTypes` if its type is not on the
-allowlist yet.
+like `ImagePreview` or `PdfPreview`, and extends `previewAssetMediaTypes` in
+[`preview-asset.ts`](../packages/protocol/src/domain/preview-asset.ts) if its type is not on the
+allowlist yet. A document type larger than an image gets its own ceiling in
+`previewAssetByteLimit` instead of raising the 8 MiB image cap.
 
 If a future format needs its own rendering engine, put the engine in a `packages/*` package under
 the same two rules as `@caxri/markdown` (no DOM, untrusted output) so the mobile client can reuse
@@ -163,7 +227,12 @@ it.
 
 ## Known limits
 
-- Scroll sync is one-way by design: the source editor drives the preview.
+- Scroll sync is one-way by design: the source editor drives the preview. It applies to Markdown
+  only.
+- PDF previews need a Project: a PDF opened from outside every Project has no preview yet. There
+  is no in-document search, password prompt, or outline sidebar.
+- PDF ICC color profiles are not applied: pdf.js turns ICC conversion off when it cannot fetch its
+  data from the worker, and draws those colors through the profile's alternate color space.
 - A preview of an unsaved buffer renders the buffer; images and relative links still resolve
   against the file's on-disk location.
 - **Open Preview to the Side** falls back to opening in place when the source is the only tab in

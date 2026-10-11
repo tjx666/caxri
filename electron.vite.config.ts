@@ -149,6 +149,12 @@ export default defineConfig(async ({ command }) => {
              * (`apps/desktop/src/renderer/src/icons/files/file-icon-assets.ts`).
              */
             publicDir: resolve('apps/desktop/node_modules/@yutengjing/vscode-icons/assets'),
+            /**
+             * Pdf.js's binary CMaps and Type 1 standard fonts, which the PDF preview imports with `?inline`
+             * (`features/preview/pdf-binary-data.ts`). Vite inlines only file types it knows as assets; any other
+             * `?inline` import is loaded as a module and fails.
+             */
+            assetsInclude: ['**/*.bcmap', '**/*.pfb', '**/*.wasm'],
             build: {
                 sourcemap: IS_SOURCEMAP_ENABLED,
                 // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;
