@@ -27,6 +27,7 @@ import {
 import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { MAX_TRUSTED_DOMAIN_LENGTH } from '../configuration/trusted-domains.js';
 import { MAX_TRUSTED_FOLDER_LENGTH } from '../configuration/trusted-folders.js';
+import { agentProviderStatusDesktopMethods } from '../desktop/agent-provider-status-contract.js';
 import { argvDesktopMethods } from '../desktop/argv-config.js';
 import { contextMenuDesktopMethods } from '../desktop/context-menu-contract.js';
 import {
@@ -271,6 +272,7 @@ export const methods = {
     ...contextMenuDesktopMethods,
     ...externalDocumentDesktopMethods,
     ...linkFaviconDesktopMethods,
+    ...agentProviderStatusDesktopMethods,
     'external.open': {
         ...desktopControl,
         params: z.object({ url: z.string().min(1).max(16_384) }),

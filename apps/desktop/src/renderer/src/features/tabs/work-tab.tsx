@@ -8,7 +8,7 @@ import type {
 } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-import { Bot, ChartColumn, SlidersHorizontal, SquareTerminal, X } from 'lucide-react';
+import { Bot, ChartColumn, Gauge, SlidersHorizontal, SquareTerminal, X } from 'lucide-react';
 import { useIsPresent } from 'motion/react';
 import * as m from 'motion/react-m';
 
@@ -90,7 +90,14 @@ interface WorkTabProperties {
      * and `'shell-task'` mark an Agent Chat's subagent and background shell tabs with the glyphs their timeline rows
      * use.
      */
-    icon: 'file' | 'settings' | 'usage' | 'agent-task' | 'shell-task' | AgentIconIdentity;
+    icon:
+        | 'file'
+        | 'settings'
+        | 'usage'
+        | 'agent-task'
+        | 'shell-task'
+        | 'agent-status'
+        | AgentIconIdentity;
     label: string;
     /**
      * Hover/focus detail shown alongside `label`. For a Terminal this is the untruncated title behind an abbreviated
@@ -192,6 +199,7 @@ const WORK_TAB_GLYPHS = {
     'usage': ChartColumn,
     'agent-task': Bot,
     'shell-task': SquareTerminal,
+    'agent-status': Gauge,
 } as const;
 
 function isWorkTabGlyph(icon: WorkTabProperties['icon']): icon is keyof typeof WORK_TAB_GLYPHS {
