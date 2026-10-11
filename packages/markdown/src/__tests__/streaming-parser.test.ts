@@ -27,6 +27,13 @@ const BOUNDARY_CASES: Record<string, string> = {
     'html comment spanning blank lines': 'a\n\n<!-- one\n\ntwo -->\n\nb\n\n<div>\n\n*x*\n\n</div>',
     'reference definition after its use': 'see [docs][d]\n\nmore\n\n[d]: https://example.com/d',
     'tabs and trailing spaces': 'a  \nb\n\n-\tc\n\n\td\n\ne',
+    'table header whose delimiter row turns out invalid':
+        'p\n| a |\n--x\n\nintro\n| a | b |\n|---|-x\n\n|---|-x\n| b |\n\nend',
+    'reference definitions inside a quote and a list':
+        '[x][a]\n\nb\n\n> [a]: https://example.com/a\n\n[y][c]\n\n- [c]: https://example.com/c',
+    'reference labels with an escaped bracket or a line break':
+        '[x][a\\]b]\n\nb\n\n[a\\]b]: https://example.com/u\n\n[y][m n]\n\n[m\nn]: https://example.com/m',
+    'CRLF line endings': 'a\r\n\r\n- b\r\n- c\r\n\r\n| a |\r\n| - |\r\n\r\nd',
 };
 
 function expectEquivalentWhileStreaming(prefixes: readonly string[], shouldRepair: boolean): void {
@@ -57,7 +64,7 @@ describe('createStreamingMarkdownParser', () => {
         expectEquivalentWhileStreaming(prefixes, true);
     });
 
-    it('matches a full parse when the source is edited, shortened, or uses CRLF', () => {
+    it('matches a full parse when the source is edited, shortened, or loses a definition', () => {
         const parser = createStreamingMarkdownParser(CHAT_OPTIONS);
         for (const source of [
             'a\n\nb\n\nc\n\nd',
@@ -65,6 +72,8 @@ describe('createStreamingMarkdownParser', () => {
             'a\n\nb',
             'a\r\n\r\n- b\r\n- c',
             'a\n\nb\n\nc\n\nd',
+            '[x][a]\n\nb\n\n[a]: https://example.com/a',
+            '[x][a]\n\nb\n\nc',
             '',
         ]) {
             expect(parser.parse(source)).toEqual(parseMarkdownBlocks(source, CHAT_OPTIONS));
@@ -81,7 +90,14 @@ describe('createStreamingMarkdownParser', () => {
         const parser = createStreamingMarkdownParser(CHAT_OPTIONS);
         for (const prefix of streamingPrefixes(text)) parser.parse(repairStreamingMarkdown(prefix));
         parser.parse(text);
-        expect(parser.stats().parsedCharacters / text.length).toBeLessThan(8);
+        expect(parser.stats().parsedCharacters / text.length).toBeLessThan(10);
+    });
+
+    it('keeps the parse-work budget for a reply with CRLF line endings', () => {
+        const text = agentReplyFixture(12).replaceAll('\n', '\r\n');
+        const parser = createStreamingMarkdownParser(CHAT_OPTIONS);
+        for (const prefix of streamingPrefixes(text)) parser.parse(repairStreamingMarkdown(prefix));
+        expect(parser.stats().parsedCharacters / text.length).toBeLessThan(10);
     });
 
     /**

@@ -1,4 +1,4 @@
-import type { Token } from 'markdown-it';
+import type { Env, Token } from 'markdown-it';
 import createMarkdownIt from 'markdown-it';
 
 import { fileLinkTarget, fileReferenceTarget, proseFileReferences } from './file-reference.js';
@@ -435,13 +435,15 @@ export interface TopLevelMarkdownEntry {
 
 /**
  * Parses `source` into its top-level constructs, keeping each one's start line so the streaming parser can reuse the
- * ones a later delta cannot change.
+ * ones a later delta cannot change. `hasReferences` reports a link reference definition anywhere in the source,
+ * including inside a quote or list, as markdown-it itself resolved it.
  */
 export function parseTopLevelMarkdown(
     source: string,
     options: MarkdownBlockOptions,
-): TopLevelMarkdownEntry[] {
-    const tokens = engine.parse(source, {});
+): { entries: TopLevelMarkdownEntry[]; hasReferences: boolean } {
+    const environment: Env = {};
+    const tokens = engine.parse(source, environment);
     const entries: TopLevelMarkdownEntry[] = [];
     let index = 0;
     while (index < tokens.length) {
@@ -450,7 +452,10 @@ export function parseTopLevelMarkdown(
         entries.push(block ? { block, line } : { line });
         index = next;
     }
-    return entries;
+    return {
+        entries,
+        hasReferences: Object.keys(environment.references ?? {}).length > 0,
+    };
 }
 
 /**
