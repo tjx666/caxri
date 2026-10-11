@@ -111,8 +111,8 @@ async function blobToBase64(blob: Blob): Promise<string> {
     return btoa(binary);
 }
 
-async function thumbnailDataUrl(file: File): Promise<string> {
-    const bitmap = await createImageBitmap(file);
+async function thumbnailDataUrl(image: Blob): Promise<string> {
+    const bitmap = await createImageBitmap(image);
     try {
         const size = agentChatThumbnailSize(bitmap.width, bitmap.height);
         const canvas = new OffscreenCanvas(size.width, size.height);
@@ -141,4 +141,15 @@ export async function readAgentChatImage(file: File): Promise<AgentChatImageInpu
     if (!isAgentChatImageType(file.type)) throw new Error('Unsupported image type');
     const [data, thumbnail] = await Promise.all([blobToBase64(file), thumbnailDataUrl(file)]);
     return { mediaType: file.type, data, thumbnail };
+}
+
+/**
+ * A thumbnail for an image read back from the provider's record (`agentChat.readImage`), made the same way as one for a
+ * newly attached file so a resumed message looks like it did when it was sent.
+ */
+export async function agentChatImageThumbnail(
+    image: Omit<AgentChatImageInput, 'thumbnail'>,
+): Promise<string> {
+    const bytes = Uint8Array.from(atob(image.data), (character) => character.codePointAt(0) ?? 0);
+    return thumbnailDataUrl(new Blob([bytes], { type: image.mediaType }));
 }

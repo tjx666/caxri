@@ -463,7 +463,11 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   content block) and never stores it. The projection keeps only the Renderer-made JPEG thumbnail (at
   most 48 KB, raster data URLs only), which counts against the text budget. Codex pairs it with the
   echoed user message through `clientUserMessageId`. A resumed Chat knows how many images a message
-  had, but their previews were the sending Client's, so it shows placeholders.
+  had, but their previews were the sending Client's. For Claude Code, whose transcript keeps each
+  image, the Renderer reads the original back with `agentChat.readImage` (message item id and image
+  position; no provider process is needed), makes the same thumbnail, and caches only the thumbnail.
+  Codex history comes from its app-server, whose item ids name no on-disk record, so a resumed Codex
+  image stays a placeholder, as does an image the transcript tail no longer reaches.
 - **Slash commands.** The snapshot's `commands` is the list the composer offers after a leading
   `/`. Codex lists `/compact`, which runs `thread/compact/start`; issued during a turn it waits in the
   queue.

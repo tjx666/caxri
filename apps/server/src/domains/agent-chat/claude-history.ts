@@ -1,11 +1,16 @@
 import type {
+    AgentChatImageInput,
     AgentChatItem,
     AgentChatPatchOperation,
     AgentChatPlan,
     AgentChatTaskPatchOperation,
     AgentChatTurn,
 } from '@caxri/protocol';
-import { MAX_AGENT_CHAT_TASK_ITEMS, MAX_AGENT_CHAT_TEXT_LENGTH } from '@caxri/protocol';
+import {
+    agentChatImageInputSchema,
+    MAX_AGENT_CHAT_TASK_ITEMS,
+    MAX_AGENT_CHAT_TEXT_LENGTH,
+} from '@caxri/protocol';
 
 import { extractVisibleTranscriptMessage } from '../agents';
 import { clip, closeDanglingItem, isRecord, stringField } from './chat-items';
@@ -181,4 +186,35 @@ export function claudeTaskHistoryOperations(
             ? [{ op: 'state' as const, state: { truncated: true } }]
             : []),
     ];
+}
+
+const storedImageSchema = agentChatImageInputSchema.omit({ thumbnail: true });
+
+/**
+ * The `index`th image of the user message whose record `uuid` is `itemId` (the id `applyUserRecord` gives it), as the
+ * transcript stores it; `undefined` when the transcript no longer holds that message or image. Only a line naming the
+ * id is parsed, so finding one message does not decode every image in the transcript.
+ */
+export function claudeHistoryImage(
+    transcript: string,
+    itemId: string,
+    index: number,
+): Omit<AgentChatImageInput, 'thumbnail'> | undefined {
+    for (const line of transcript.split('\n')) {
+        if (!line.includes(itemId)) continue;
+        const record = parseRecord(line);
+        if (record?.type !== 'user' || stringField(record.uuid) !== itemId) continue;
+        const message = isRecord(record.message) ? record.message : undefined;
+        const images = Array.isArray(message?.content)
+            ? message.content.filter((block) => isRecord(block) && block.type === 'image')
+            : [];
+        const source: unknown = (images[index] as Json | undefined)?.source;
+        if (!isRecord(source) || source.type !== 'base64') return undefined;
+        const parsed = storedImageSchema.safeParse({
+            mediaType: source.media_type,
+            data: source.data,
+        });
+        return parsed.success ? parsed.data : undefined;
+    }
+    return undefined;
 }

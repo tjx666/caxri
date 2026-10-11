@@ -6,6 +6,7 @@ import { AgentChatInvocationChip } from './agent-chat-invocation-chip';
 import { AgentChatMessageImages } from './agent-chat-message-images';
 import { agentChatDeliveryCaption } from './agent-chat-presentation';
 import { agentChatLeadingInvocation } from './agent-chat-slash-commands';
+import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
 
 /**
  * The user's message, right-aligned. A message steered into a running turn says so in a quiet caption under the bubble
@@ -13,21 +14,31 @@ import { agentChatLeadingInvocation } from './agent-chat-slash-commands';
  */
 export function AgentChatUserMessage({
     delivery,
+    id,
     images,
     text,
     onOpenFile,
 }: {
     delivery?: 'queued' | 'steered';
+    /**
+     * The message's item id, which names it when an image without a thumbnail is read back from the provider's record.
+     */
+    id: string;
     images?: ReadonlyArray<{ thumbnail?: string }>;
     text: string;
     onOpenFile?: (target: string) => void;
 }) {
+    const terminalId = useAgentChatTerminal();
     const invocation = agentChatLeadingInvocation(text);
     const caption = agentChatDeliveryCaption(delivery);
     return (
         <div className="flex flex-col items-end gap-1.5">
             {images && images.length > 0 && (
-                <AgentChatMessageImages className="max-w-[85%]" images={images} />
+                <AgentChatMessageImages
+                    className="max-w-[85%]"
+                    images={images}
+                    message={terminalId === undefined ? undefined : { terminalId, itemId: id }}
+                />
             )}
             {text && (
                 <div className="max-w-[85%] rounded-lg bg-elevated px-3 py-2 text-[13px] leading-5 wrap-anywhere whitespace-pre-wrap text-foreground">
