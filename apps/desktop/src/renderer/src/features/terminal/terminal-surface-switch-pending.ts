@@ -53,6 +53,20 @@ export class TerminalSurfaceSwitchRegistry {
 
 export const terminalSurfaceSwitches = new TerminalSurfaceSwitchRegistry();
 
+/**
+ * True while `terminalId` is being reopened as a Chat. The Server stops the PTY before it flips the surface, so the
+ * provider's final output still reaches xterm while this Renderer waits for the switch and its `processState` still
+ * reads `running`. Xterm answers terminal queries in that output (device attributes, cursor position reports) through
+ * `onData` without any user input, and each answer would reach the Server after the flip and fail as a Chat Terminal's
+ * `terminal.input`.
+ */
+export function isTerminalSwitchingToChat(
+    terminalId: string,
+    switches: TerminalSurfaceSwitchRegistry = terminalSurfaceSwitches,
+): boolean {
+    return switches.pendingSurface(terminalId) === 'chat';
+}
+
 function subscribeToSurfaceSwitches(listener: () => void): () => void {
     return terminalSurfaceSwitches.subscribe(listener);
 }

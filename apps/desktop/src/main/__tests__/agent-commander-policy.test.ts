@@ -22,6 +22,8 @@ describe('Agent Commander Renderer policy', () => {
         const policy = new AgentCommanderRendererPolicy(onDenied);
 
         expect(() => policy.admit(request('commander.board'))).not.toThrow();
+        // The board patches its pull request rows from this read after a `sessionPullRequests.changed` event.
+        expect(() => policy.admit(request('session.pullRequests'))).not.toThrow();
         expect(() => policy.admit(request('agentCommander.revealSession'))).not.toThrow();
         expect(() => policy.admit(request('agentCommander.openSettings'))).not.toThrow();
         expect(() => policy.admit(request('agentCommander.stop'))).not.toThrow();
