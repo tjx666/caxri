@@ -20,7 +20,7 @@ type TurnEntry = Extract<AgentChatTimelineEntry, { kind: 'turn' }>;
 function* turnItems(entry: TurnEntry) {
     for (const child of entry.entries) {
         if (child.kind === 'work') yield* child.items;
-        else yield child.item;
+        else if (child.kind === 'item') yield child.item;
     }
 }
 

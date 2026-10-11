@@ -18,7 +18,7 @@ export type UnsavedEditorsPurpose = 'close' | 'quit';
 /**
  * Closed outcome of one quit or close consultation, logged as `app.unsaved_editors_decided`.
  */
-export type UnsavedEditorsOutcome =
+type UnsavedEditorsOutcome =
     'cancelled' | 'discarded' | 'none' | 'promptFailed' | 'readFailed' | 'saveFailed' | 'saved';
 
 /**
@@ -107,8 +107,6 @@ export function createUnsavedEditorsBridge(options: UnsavedEditorsBridgeOptions)
     };
 }
 
-export type UnsavedEditorsBridge = ReturnType<typeof createUnsavedEditorsBridge>;
-
 export function unsavedEditorsPrompt(
     summary: UnsavedEditorsSummary,
     purpose: UnsavedEditorsPurpose,
@@ -136,7 +134,7 @@ export function unsavedEditorsPrompt(
     };
 }
 
-export async function confirmUnsavedEditors(
+async function confirmUnsavedEditors(
     dialog: Dialog,
     window: BrowserWindow | undefined,
     summary: UnsavedEditorsSummary,

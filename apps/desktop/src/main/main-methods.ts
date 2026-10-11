@@ -48,10 +48,10 @@ import {
 } from './confirmations';
 import { showContextMenu } from './context-menu';
 import {
+    createExternalDocumentChangeWatcher,
     handleExternalDocumentRequest,
     isExternalDocumentRequest,
 } from './external-document-methods';
-import { createExternalDocumentWatcher } from './external-document-watcher';
 import { openExternalUrl } from './external-links';
 import { createLinkFavicons } from './link-favicons';
 import { createLinkPreviews } from './link-previews';
@@ -202,13 +202,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
         );
     }
 
-    const { sendEvent } = options;
-    const externalDocumentWatcher = sendEvent
-        ? createExternalDocumentWatcher({
-              emit: (documentId) =>
-                  sendEvent({ event: 'externalDocument.changed', payload: { documentId } }),
-          })
-        : { setWatched: () => {} };
+    const externalDocumentWatcher = createExternalDocumentChangeWatcher(options.sendEvent);
 
     return async function handleMainMethod(request: MainRequest): Promise<unknown> {
         const supervisor = options.getSupervisor();
