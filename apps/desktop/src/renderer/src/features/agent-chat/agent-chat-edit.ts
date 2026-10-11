@@ -50,6 +50,21 @@ export function agentChatEditAvailability(
 }
 
 /**
+ * Whether a message's "Fork from here" action is enabled, and the reason shown on it when it is not. Unlike an edit, a
+ * message with images forks: only its text comes back to the new Chat's composer.
+ */
+export function agentChatForkAvailability(
+    snapshot: EditSnapshot,
+    itemId: string,
+): { canFork: true } | { canFork: false; reason: string } {
+    const result = agentChatRewindTarget(snapshot, itemId);
+    if ('target' in result) return { canFork: true };
+    if (result.refusal === 'turnRunning')
+        return { canFork: false, reason: 'Stop the running turn to fork from here' };
+    return { canFork: false, reason: 'The conversation cannot fork from this message' };
+}
+
+/**
  * How many turns sending the edit removes, counting a turn that is running now, or `undefined` when the message is no
  * longer one the Chat can rewind to (the Chat was reset or restarted onto other history), which ends the edit.
  */

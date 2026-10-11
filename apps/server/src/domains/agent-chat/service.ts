@@ -22,6 +22,8 @@ import { agentChatDrivers } from './chat-drivers';
 import { ChatEndpointLease } from './chat-endpoint-lease';
 import type { ChatExitHost } from './chat-exit';
 import { handleChatExit } from './chat-exit';
+import type { CreateForkSession } from './chat-fork';
+import { forkChat } from './chat-fork';
 import { isAgentChatCommandListed } from './chat-items';
 import {
     chatStartFailure,
@@ -484,6 +486,14 @@ export class AgentChatService {
             terminalId,
             request,
         );
+    }
+
+    /**
+     * "Fork from here"; see {@link forkChat}.
+     */
+    fork(terminalId: string, itemId: string, createSession: CreateForkSession) {
+        const host = { options: this.options, enqueue: this.enqueue.bind(this) };
+        return forkChat(host, terminalId, itemId, createSession);
     }
 
     /**

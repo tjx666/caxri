@@ -29,6 +29,7 @@ import type {
     AgentChatProviderSession,
     AgentChatResponse,
     AgentChatSessionHost,
+    ChatForkTarget,
     ChatInputOptions,
     ChatProcessEnd,
     ChatResumePoint,
@@ -59,7 +60,7 @@ import {
 } from './claude-models';
 import { PromptQueue, withTimeout } from './claude-prompt-queue';
 import { ClaudeRequestBroker } from './claude-requests';
-import { rewindClaudeSession } from './claude-rewind';
+import { forkClaudeSession, rewindClaudeSession } from './claude-rewind';
 import { claudeQueryOptions, claudeStartError } from './claude-session-open';
 import { ClaudeStream } from './claude-stream';
 import { readClaudeSubagentTranscript } from './claude-subagent-transcript';
@@ -515,6 +516,12 @@ class ClaudeChatSession implements AgentChatProviderSession {
     async rewind(target: ChatRewindTarget): Promise<ChatResumePoint> {
         const query = this.requireOpen();
         return rewindClaudeSession(query, await this.options.readTranscript(), target);
+    }
+
+    async fork(target: ChatForkTarget): Promise<string | undefined> {
+        this.requireOpen();
+        const transcript = await this.options.readTranscript();
+        return forkClaudeSession(this.sessionId, this.options, transcript, target);
     }
 
     async interrupt(): Promise<void> {

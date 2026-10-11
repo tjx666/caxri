@@ -14,8 +14,13 @@ import { parseTerminalFileLocation } from '../terminal/terminal-file-location';
 import { TerminalLinkPicker } from '../terminal/terminal-link-picker';
 import { terminalPaneHost } from '../terminal/terminal-pane-host';
 import { usePaneViewSession } from '../workbench/pane-view-session';
+import { forkAgentChat } from './agent-chat-commands';
 import { AgentChatComposer } from './agent-chat-composer';
-import { agentChatEditAvailability, readAgentChatEdit } from './agent-chat-edit';
+import {
+    agentChatEditAvailability,
+    agentChatForkAvailability,
+    readAgentChatEdit,
+} from './agent-chat-edit';
 import { AgentChatJumpToLatest } from './agent-chat-jump-to-latest';
 import { AgentChatMessageRail } from './agent-chat-message-rail';
 import { AgentChatDayBreak } from './agent-chat-message-time';
@@ -210,8 +215,17 @@ export function AgentChatPane({
             },
             editingId,
             startEdit: (itemId, text) => composerEdit.current?.startEdit(itemId, text),
+            forkAvailability: (itemId) => {
+                if (!rewindable.has(itemId)) return;
+                const availability = agentChatForkAvailability(
+                    { items, turns, activeTurnId },
+                    itemId,
+                );
+                return availability.canFork ? null : availability.reason;
+            },
+            fork: (itemId, text) => forkAgentChat(terminalId, itemId, text),
         };
-    }, [items, turns, activeTurnId, editingId]);
+    }, [items, turns, activeTurnId, editingId, terminalId]);
     /**
      * Read from the Terminal record like the PTY pane does: a hand-over to another client is recorded there as
      * `detached`, while the projection only reads `stopped`.
