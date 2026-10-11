@@ -2,7 +2,11 @@ import { useState } from 'react';
 
 import type { AgentChatCommand } from '@caxri/protocol';
 
-import { didRunAgentChatCommand, didSendAgentChatMessage } from '../agent-chat-commands';
+import {
+    didRewindAgentChat,
+    didRunAgentChatCommand,
+    didSendAgentChatMessage,
+} from '../agent-chat-commands';
 import type { AgentChatAttachment } from '../agent-chat-drafts';
 import { draftAfterSend } from '../agent-chat-drafts';
 import { parseAgentChatCommand } from '../agent-chat-slash-commands';
@@ -75,5 +79,42 @@ export function useAgentChatSubmit({
             },
         );
     };
-    return { isSending, runCommand, submit };
+    /**
+     * Sends the draft in place of an earlier message ("Edit from here"). It is always sent as a message, never run as a
+     * slash command, because it replaces a message. Once delivered, the draft the edit replaced comes back.
+     */
+    const submitEdit = (
+        sent: string,
+        edit: {
+            itemId: string;
+            restoreFiles: boolean;
+            previousDraft: string;
+            providerName: string;
+            removedTurns: number;
+        },
+        onDone: () => void,
+    ): Promise<void> => {
+        const sentAttachments = attachments;
+        return send(
+            () =>
+                didRewindAgentChat(terminalId, {
+                    itemId: edit.itemId,
+                    restoreFiles: edit.restoreFiles,
+                    providerName: edit.providerName,
+                    removedTurns: edit.removedTurns,
+                    message: {
+                        text: sent,
+                        ...(sentAttachments.length > 0 && {
+                            images: sentAttachments.map((attachment) => attachment.image),
+                        }),
+                    },
+                }),
+            () => {
+                setDraft((current) => (current === sent ? edit.previousDraft : current));
+                clearSent(sentAttachments);
+                onDone();
+            },
+        );
+    };
+    return { isSending, runCommand, submit, submitEdit };
 }

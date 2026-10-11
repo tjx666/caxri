@@ -23,6 +23,11 @@ export interface ClaudeQueryOptionsInput {
      * The bound Agent Session to `--resume`; a new conversation presets `sessionId` instead.
      */
     resumeId: string | undefined;
+    /**
+     * The assistant message uuid "Edit from here" rewound the resumed conversation to, so Claude Code drops later
+     * messages from its context.
+     */
+    resumeAt: string | undefined;
     sessionId: string;
     spawn: (spawnOptions: SpawnOptions) => SpawnedProcess;
     canUseTool: CanUseTool;
@@ -33,6 +38,7 @@ export function claudeQueryOptions({
     host,
     settings,
     resumeId,
+    resumeAt,
     sessionId,
     spawn,
     canUseTool,
@@ -49,6 +55,12 @@ export function claudeQueryOptions({
             CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
         },
         ...(resumeId ? { resume: resumeId } : { sessionId }),
+        ...(resumeId && resumeAt !== undefined && { resumeSessionAt: resumeAt }),
+        /**
+         * Claude Code backs up each file before its first edit in a turn, keyed by the prompt's uuid, so "Edit from
+         * here" can put the files back with `rewindFiles`. The backups persist with the session.
+         */
+        enableFileCheckpointing: true,
         includePartialMessages: true,
         // Subagent text and thinking reach the task tab, not only their tool calls.
         forwardSubagentText: true,

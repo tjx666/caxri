@@ -41,7 +41,8 @@ import process from 'node:process';
 import readline from 'node:readline';
 
 import { didRunApprovalScenario } from './fake-claude-approvals.ts';
-import type { FakeClaudeIo } from './fake-claude-io.ts';
+import type { FakeClaudeIo, QueuedTurn } from './fake-claude-io.ts';
+import { queuedTurn } from './fake-claude-io.ts';
 import {
     FAKE_CLAUDE_COMMANDS,
     FAKE_CLAUDE_MODEL,
@@ -51,6 +52,7 @@ import {
     hookCallbackRequest,
 } from './fake-claude-models.ts';
 import { streamPlannedReply } from './fake-claude-replies.ts';
+import { resumedLeaf, rewindFiles } from './fake-claude-rewind.ts';
 import {
     runSubagent,
     startBackgroundAgent,
@@ -95,20 +97,6 @@ if (resumeId && !fs.existsSync(transcriptPath)) {
     exitProcess(1);
 }
 
-interface QueuedTurn {
-    text: string;
-    content: unknown;
-    priority?: unknown;
-    /**
-     * The uuid the SDK sent, which Claude Code keeps as the transcript record's `uuid`.
-     */
-    uuid?: string;
-    /**
-     * A turn the CLI starts on its own, such as after a background task finished.
-     */
-    isAuto?: boolean;
-}
-
 const state: {
     nextRequestId: number;
     lastUuid: string | null;
@@ -138,6 +126,8 @@ const state: {
 };
 const isEmittingSessionState = process.env.CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS === '1';
 const pendingControl = new Map<string, (response: Json) => void>();
+
+state.lastUuid = resumeId ? resumedLeaf(transcriptPath, argument('--resume-session-at')) : null;
 
 function send(message: Json) {
     process.stdout.write(`${JSON.stringify(message)}\n`);
@@ -496,20 +486,6 @@ function isInterrupted(): boolean {
     return state.interrupted;
 }
 
-function userText(message: unknown): string {
-    if (!message || typeof message !== 'object') return '';
-    const { content } = message as { content?: unknown };
-    if (typeof content === 'string') return content;
-    if (!Array.isArray(content)) return '';
-    return content
-        .map((block) =>
-            block && typeof block === 'object' && 'text' in block
-                ? String((block as { text: unknown }).text)
-                : '',
-        )
-        .join('');
-}
-
 const lines = readline.createInterface({ input: process.stdin });
 lines.on('line', (line) => {
     if (!line.trim()) return;
@@ -532,7 +508,10 @@ lines.on('line', (line) => {
                 request.model;
         const flags = request.subtype === 'apply_flag_settings' ? (request.settings as Json) : {};
         if (typeof flags.effortLevel === 'string') state.effort = flags.effortLevel;
-        const answer = taskControl(scenarioIo, request);
+        const answer =
+            request.subtype === 'rewind_files'
+                ? rewindFiles(request, transcriptPath, configDirectory)
+                : taskControl(scenarioIo, request);
         if (answer.error !== undefined) {
             send({
                 type: 'control_response',
@@ -551,12 +530,7 @@ lines.on('line', (line) => {
         return;
     }
     if (message.type === 'user') {
-        state.queued.push({
-            text: userText(message.message),
-            content: (message.message as { content?: unknown } | undefined)?.content,
-            priority: message.priority,
-            ...(typeof message.uuid === 'string' && { uuid: message.uuid }),
-        });
+        state.queued.push(queuedTurn(message));
         // eslint-disable-next-line no-void -- the turn loop reports through stdout
         void drain();
     }

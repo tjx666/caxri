@@ -356,6 +356,19 @@ export function isAgentChatInterruptKey(event: {
     return event.key === 'Escape' && !event.isComposing && !event.repeat;
 }
 
+/**
+ * What Escape does in the composer: stop the running turn first, else cancel an "Edit from here" in progress.
+ * `undefined` when Escape has nothing to do or the key is not an interrupt (`isAgentChatInterruptKey`).
+ */
+export function agentChatEscapeAction(
+    event: Parameters<typeof isAgentChatInterruptKey>[0],
+    state: { isTurnRunning: boolean; isEditing: boolean },
+): 'cancelEdit' | 'stop' | undefined {
+    if (!isAgentChatInterruptKey(event)) return undefined;
+    if (state.isTurnRunning) return 'stop';
+    return state.isEditing ? 'cancelEdit' : undefined;
+}
+
 export type AgentChatStatusTone = 'danger' | 'muted' | 'running' | 'success' | 'warning';
 
 export function agentChatItemStatusTone(status: AgentChatItemStatus): AgentChatStatusTone {

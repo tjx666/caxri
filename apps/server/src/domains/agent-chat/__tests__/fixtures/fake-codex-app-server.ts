@@ -43,9 +43,15 @@ import readline from 'node:readline';
 
 import { runApprovalCommand, runApprovalPatch, runQuestion } from './fake-codex-approvals.ts';
 import { runTurnArtifacts } from './fake-codex-artifacts.ts';
-import { listThreadItems, listThreadTurns } from './fake-codex-history.ts';
+import {
+    listThreadItems,
+    listThreadTurns,
+    threadResponse,
+    wireTurn,
+} from './fake-codex-history.ts';
 import type { FakeCodexIo, FakeItem, FakeThread, FakeTurn } from './fake-codex-io.ts';
 import { FAKE_MODELS } from './fake-codex-models.ts';
+import { revertThread } from './fake-codex-rewind.ts';
 import {
     didHandleTaskRequest,
     dropTerminalsSilently,
@@ -385,21 +391,6 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
     finishTurn(turn);
 }
 
-/**
- * The turn fields Codex sends; the fake's own bookkeeping flags stay private.
- */
-function wireTurn(turn: FakeTurn) {
-    return {
-        id: turn.id,
-        items: turn.items,
-        status: turn.status,
-        error: turn.error,
-        // Codex records turn times in Unix seconds.
-        startedAt: Math.floor(turn.startedAt / 1000),
-        durationMs: turn.durationMs,
-    };
-}
-
 function finishTurn(turn: FakeTurn) {
     if (turn.finished) return;
     turn.finished = true;
@@ -410,20 +401,6 @@ function finishTurn(turn: FakeTurn) {
     save();
     notify('turn/completed', { turn: { ...wireTurn(turn), items: [] } });
     turn.onFinished?.();
-}
-
-function threadResponse() {
-    const thread = currentThread();
-    return {
-        thread: {
-            id: thread.id,
-            status: { type: 'idle' },
-            cwd: process.cwd(),
-            turns: thread.turns.map((turn) => wireTurn(turn)),
-        },
-        model: thread.model ?? 'fake-codex-model',
-        reasoningEffort: thread.effort ?? null,
-    };
 }
 
 /**
@@ -463,7 +440,7 @@ function handle(message: RpcMessage) {
         case 'thread/start': {
             recordThreadOpen(method, parameters);
             state.thread = { id: crypto.randomUUID(), turns: [] };
-            send({ id, result: threadResponse() });
+            send({ id, result: threadResponse(currentThread()) });
             return;
         }
         case 'thread/resume': {
@@ -478,7 +455,18 @@ function handle(message: RpcMessage) {
                 return;
             }
             state.thread = JSON.parse(fs.readFileSync(file, 'utf8')) as FakeThread;
-            send({ id, result: threadResponse() });
+            send({ id, result: threadResponse(currentThread()) });
+            return;
+        }
+        case 'thread/revert': {
+            const thread = currentThread();
+            const reverted = revertThread(thread, parameters.beforeTurnId, {
+                isTurnActive: state.activeTurn !== undefined,
+                threadFile: threadPath(thread.id),
+                stateDirectory,
+            });
+            send({ id, ...reverted });
+            if ('result' in reverted) notify('thread/reverted', {});
             return;
         }
         case 'model/list': {
@@ -557,7 +545,7 @@ function handle(message: RpcMessage) {
             return;
         }
         case 'thread/turns/list': {
-            send({ id, result: listThreadTurns(currentThread(), parameters, wireTurn) });
+            send({ id, result: listThreadTurns(currentThread(), parameters) });
             return;
         }
         case 'turn/interrupt': {
