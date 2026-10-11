@@ -1,11 +1,94 @@
 import type { AgentChatImageInput } from '@caxri/protocol';
+import { debounce } from 'es-toolkit';
+
+import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
 
 /**
- * Unsent composer text and images per Chat Terminal. Switching tabs or Sessions unmounts a Chat's composer, and the
- * draft must survive that the way a Terminal's typed-but-unsent line does. Plain maps rather than a store: nothing
- * renders from them, and they hold the user's own message, which stays out of the `__caxriStores` debugging snapshot.
+ * Unsent composer text per Chat Terminal. Switching tabs or Sessions unmounts a Chat's composer, and the draft must
+ * survive that the way a Terminal's typed-but-unsent line does; it also survives quitting Caxri, so it is mirrored to
+ * device-local `localStorage` (the same choice t3code makes for its composer drafts). A draft is never written through
+ * to Server Core: it is this device's unsent input, not Session state, which is exactly what `lib/local-storage` is
+ * for. Plain maps rather than a store: nothing renders from them, and they hold the user's own message, which stays out
+ * of the `__caxriStores` debugging snapshot.
+ *
+ * Loaded lazily on first use so module load never touches storage, and kept in recency order (a write moves the draft
+ * to the end) so trimming drops the drafts left alone longest, typically those of Chats that no longer exist.
  */
-const drafts = new Map<string, string>();
+const loaded: { drafts?: Map<string, string> } = {};
+
+export const AGENT_CHAT_DRAFTS_STORAGE_KEY = 'caxri.agent-chat.drafts';
+
+/**
+ * Bounds on what is persisted, newest first. A Chat that is deleted never clears its draft, and one draft may be as
+ * long as a message (100,000 characters), so without a bound the entry grows until `localStorage` refuses every write.
+ */
+export const MAX_PERSISTED_AGENT_CHAT_DRAFTS = 50;
+export const MAX_PERSISTED_AGENT_CHAT_DRAFT_CHARACTERS = 1_000_000;
+
+/**
+ * Typing writes the draft on every keystroke; storage is written once the typing pauses, and right away when the window
+ * is hidden or closed, so a quit loses at most this window of keystrokes.
+ */
+const PERSIST_DELAY_MS = 300;
+
+/**
+ * Reads the persisted entry, oldest first. Anything malformed is dropped rather than trusted: the entry is written only
+ * by this module, but a hand-edited or corrupt profile must not break the composer.
+ */
+export function parsePersistedAgentChatDrafts(value: unknown): Map<string, string> {
+    const parsed = new Map<string, string>();
+    if (!Array.isArray(value)) return parsed;
+    for (const entry of value) {
+        if (!Array.isArray(entry) || entry.length !== 2) continue;
+        const [terminalId, text] = entry as unknown[];
+        if (typeof terminalId === 'string' && typeof text === 'string' && terminalId && text)
+            parsed.set(terminalId, text);
+    }
+    return parsed;
+}
+
+/**
+ * The entries to persist, oldest first: the newest drafts that fit both bounds. A single draft is never cut, since a
+ * partial message restored later would read as the user's own text.
+ */
+export function persistableAgentChatDrafts(
+    current: ReadonlyMap<string, string>,
+): Array<[string, string]> {
+    const kept: Array<[string, string]> = [];
+    let characters = 0;
+    for (const entry of [...current].toReversed()) {
+        if (kept.length >= MAX_PERSISTED_AGENT_CHAT_DRAFTS) break;
+        characters += entry[1].length;
+        if (characters > MAX_PERSISTED_AGENT_CHAT_DRAFT_CHARACTERS) break;
+        kept.push(entry);
+    }
+    return kept.toReversed();
+}
+
+function loadedDrafts(): Map<string, string> {
+    loaded.drafts ??= parsePersistedAgentChatDrafts(
+        readLocalStorageJson(AGENT_CHAT_DRAFTS_STORAGE_KEY),
+    );
+    return loaded.drafts;
+}
+
+const persistDrafts = debounce(() => {
+    if (loaded.drafts)
+        writeLocalStorageJson(
+            AGENT_CHAT_DRAFTS_STORAGE_KEY,
+            persistableAgentChatDrafts(loaded.drafts),
+        );
+}, PERSIST_DELAY_MS);
+
+// oxlint-disable-next-line typescript/no-unnecessary-condition -- absent under Vitest's Node environment
+if (typeof window !== 'undefined') {
+    // `pagehide` fires when the window closes or reloads, including a quit; `visibilitychange` covers the window being
+    // hidden first. Either way the pending keystrokes reach storage before the Renderer can go away.
+    window.addEventListener('pagehide', () => persistDrafts.flush());
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') persistDrafts.flush();
+    });
+}
 
 export interface AgentChatAttachment {
     /**
@@ -20,15 +103,22 @@ export interface AgentChatAttachment {
     name?: string;
 }
 
+/**
+ * Unsent images per Chat Terminal. Unlike the text they live for this Renderer only: a few encoded images already
+ * approach the whole `localStorage` quota, which the text drafts and the layout share.
+ */
 const attachments = new Map<string, AgentChatAttachment[]>();
 
 export function readAgentChatDraft(terminalId: string): string {
-    return drafts.get(terminalId) ?? '';
+    return loadedDrafts().get(terminalId) ?? '';
 }
 
 export function writeAgentChatDraft(terminalId: string, text: string): void {
-    if (text) drafts.set(terminalId, text);
-    else drafts.delete(terminalId);
+    const current = loadedDrafts();
+    if (current.get(terminalId) === text || (!text && !current.has(terminalId))) return;
+    current.delete(terminalId);
+    if (text) current.set(terminalId, text);
+    persistDrafts();
 }
 
 export function readAgentChatAttachments(terminalId: string): AgentChatAttachment[] {

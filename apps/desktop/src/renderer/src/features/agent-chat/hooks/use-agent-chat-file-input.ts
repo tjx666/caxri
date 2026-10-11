@@ -1,9 +1,12 @@
 import type { ClipboardEvent, DragEvent } from 'react';
 import { useState } from 'react';
 
+import { MAX_AGENT_CHAT_MESSAGE_LENGTH } from '@caxri/protocol';
+
 import { hasTerminalDraggedPath, PROJECT_PATH_DRAG_TYPE } from '../../../lib/file-drag';
 import { pushToast } from '../../../stores/toasts';
 import { EDITOR_PATH_DRAG_TYPE } from '../../workbench/pane-drop-zone';
+import { agentChatPasteTruncationWarning } from '../agent-chat-drafts';
 import { agentChatImageFiles, agentChatImagesUnsupportedMessage } from '../agent-chat-images';
 
 /**
@@ -26,7 +29,8 @@ export type AgentChatDropHandlers = ReturnType<typeof useAgentChatFileInput>['dr
  * Paste and drag-and-drop handlers for the composer. Images go to `add` when the provider accepts them; every other
  * dropped file, Files entry, Editor tab, or Project is cited by path through `insertPaths`, as a drop into a Terminal
  * is. `insertPaths` receives the drop and the files it should cite. A pasted image the provider cannot take has no path
- * to cite, so it says why in an info toast instead of silently doing nothing.
+ * to cite, so it says why in an info toast instead of silently doing nothing. Pasted text the message limit would cut
+ * says so in a warning, since the textarea's `maxLength` cuts it silently.
  */
 export function useAgentChatFileInput({
     add,
@@ -80,7 +84,17 @@ export function useAgentChatFileInput({
                 );
             },
         },
-        onPaste: (event: ClipboardEvent) => {
+        onPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => {
+            const { selectionEnd, selectionStart, value } = event.currentTarget;
+            const warning = agentChatPasteTruncationWarning(
+                {
+                    currentLength: value.length,
+                    pastedLength: event.clipboardData.getData('text/plain').length,
+                    selectedLength: selectionEnd - selectionStart,
+                },
+                MAX_AGENT_CHAT_MESSAGE_LENGTH,
+            );
+            if (warning) pushToast('warning', warning);
             const files = agentChatImageFiles(event.clipboardData);
             if (files.length === 0) return;
             // Text copied alongside an image (an app that offers both) still pastes as text, and then says nothing.
