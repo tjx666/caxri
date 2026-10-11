@@ -17,8 +17,8 @@ import { CommanderBoardView } from './commander-board-view';
 import { useAgentCommanderStore } from './commander-client';
 import { stopCommander } from './commander-commands';
 import { openCommanderInboxCount } from './commander-inbox';
+import { CommanderInboxColumn } from './commander-inbox-column';
 import { setCommanderInboxVisible, useCommanderInboxUiStore } from './commander-inbox-store';
-import { CommanderInboxView } from './commander-inbox-view';
 import { useCommanderShortcuts } from './commander-shortcuts';
 import { CommanderTerminal } from './commander-terminal';
 import { useAgentCommander } from './hooks/use-agent-commander';
@@ -37,12 +37,11 @@ export function AgentCommanderApp() {
     useCommanderShortcuts();
     // The Chat pane reads its projection from the query cache, which these patches keep current once it runs as a Chat.
     useEffect(() => subscribeAgentChatPatches(queryClient), []);
-    const isInboxVisible = useCommanderInboxUiStore((state) => state.isVisible);
     return (
         <TooltipProvider>
             <div className="agent-commander flex h-screen w-screen flex-col bg-background text-foreground">
                 <AgentCommanderHeader />
-                <div className="flex min-h-0 flex-1">
+                <div className="relative flex min-h-0 flex-1">
                     <aside
                         aria-label="Sessions"
                         className="agent-commander-board flex w-90 flex-none flex-col bg-surface"
@@ -52,14 +51,7 @@ export function AgentCommanderApp() {
                     <main className="agent-commander-terminal relative min-h-0 min-w-0 flex-1">
                         <CommanderTerminal onRetry={retry} status={status} />
                     </main>
-                    {isInboxVisible && (
-                        <aside
-                            aria-label="Needs you"
-                            className="agent-commander-inbox flex w-88 flex-none flex-col bg-surface"
-                        >
-                            <CommanderInboxView />
-                        </aside>
-                    )}
+                    <CommanderInboxColumn />
                 </div>
                 <ConfirmationDialog />
                 <ToastOutlet />
