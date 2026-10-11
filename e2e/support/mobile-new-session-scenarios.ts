@@ -146,6 +146,18 @@ async function executeSuccessfulCreate(
             fixture.deniedProjectId,
             'claude',
         );
+        // With the Mac's Open Agents in Chat setting off, Open as must default to Terminal.
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) =>
+                nodes.some(
+                    ({ checkId, selected }) =>
+                        checkId === 'new-session-surface-terminal' && selected,
+                ) &&
+                nodes.some(
+                    ({ checkId, selected }) => checkId === 'new-session-surface-chat' && !selected,
+                ),
+        );
         await capture(environment, 'selection', artifacts);
         await tapMobileCheck(environment.serial, 'new-session-create');
         await waitForCreatedConversation(environment.serial);
@@ -166,6 +178,7 @@ async function executeSuccessfulCreate(
         await finish(environment, artifacts, {
             agent: 'synthetic-Claude',
             composer: 'focused',
+            defaultSurface: 'pty',
             desktopSelection: 'preserved',
             pairing: 'verified-before-media',
             status: 'passed',
