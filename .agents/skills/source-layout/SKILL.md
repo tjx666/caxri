@@ -143,6 +143,8 @@ belong to `e2e-testing`.
 
 ## 7. Finish
 
-If a file is approaching 800 physical lines, split a cohesive module before the `max-lines` gate.
+If an edit would leave a source file at 600 lines or more and larger than at the merge base, split a
+cohesive module first: `bun run source-size-ratchet` fails that growth at 600 lines, well before
+ESLint's absolute `max-lines: 800` ceiling.
 Call the Skill tool with "quality-check" on the moved set. If the change adds or removes a locked
 domain name, update the contract test that owns that list in the same change.

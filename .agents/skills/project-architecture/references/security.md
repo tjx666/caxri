@@ -37,3 +37,37 @@ Every path that registers a Project is one of these authorities; a new one belon
   to that device; see [mobile authorization](../../../../docs/mobile/authorization.md#adding-a-project-from-mobile).
 - The Agent Commander system Project, which Server Core registers for its own `agent-commander`
   workspace inside the profile; no Client supplies that path.
+- The external-caller delegation bootstrap: the profile owner's confirmed
+  `caxri agent delegate access create --root <path> --register-project`. Server Core
+  (`agent.delegation.access.bootstrap`, `apps/server/src/domains/db/delegation-context.ts`)
+  canonicalizes the root, reuses an existing Project for that exact root or creates an ordinary,
+  visible Project only when `--register-project` is set, rejects a non-top-level (worktree) Project,
+  and creates or reuses a dedicated Session in the same transaction without changing the Desktop's
+  selection; see [external callers](../../../../docs/agent-delegation.md#external-callers-and-directory-authorization).
+
+## Main outbound requests
+
+Electron Main makes only these outbound HTTP requests; a new one belongs in this list with its
+trigger and caps. Link and status reads use Electron's `net.fetch`, so the system proxy, cookies,
+and Chromium's HTTP cache apply. None uploads user data.
+
+- **Link favicons** (`links.favicon`, `apps/desktop/src/main/link-favicons.ts`):
+  `GET <origin>/favicon.ico` when a transcript renders a web link (GitHub links use a bundled mark).
+  The contract accepts only an `https://` origin. 5 s timeout, 32 KiB body cap, one cached result
+  per origin for the app's lifetime (at most 256 origins, oldest inserted evicted first); an
+  outright failure is not cached.
+- **Link previews** (`links.preview`, `apps/desktop/src/main/link-previews.ts`): `GET` of the linked
+  `https:` URL only while the user hovers that link's card. 5 s timeout, reads at most 256 KiB and
+  stops at `</head>`, parses only title, description, and an `https:` share image; cached per URL
+  with the same 256-entry, insertion-order eviction and no caching of outright failures.
+- **Agent provider status** (`agentProviderStatus.read`,
+  `apps/desktop/src/main/agent-provider-status.ts`): the fixed public Statuspage endpoints for
+  Claude and OpenAI, polled every 60 s while a status bar tok/s item or an Agent status tab for that
+  provider is mounted. 10 s timeout, no body cap (the response is parsed as JSON); cached per
+  provider for 60 s after success and 30 s after failure. E2E launches read
+  fixtures instead.
+- **Update check and download** (`apps/desktop/src/main/updates.ts`): the GitHub latest-release API,
+  once automatically per packaged launch (skipped in E2E and acceptance discovery) and on a manual
+  check. 15 s timeout and 1 MiB response cap; 404 and rate-limit responses degrade to
+  `unavailable`. Only a user-started download fetches the release checksum (4 KiB cap) and DMG
+  (1 GiB cap).

@@ -41,7 +41,10 @@ constructs and wires every domain service from injected dependencies (data direc
 sink, and Terminal/Agent seams) and returns an exhaustive handler table plus one disposal path. The
 Server Core entrypoint therefore owns composition and transport only, while the request surface remains
 exercisable in-process without Electron. One dispatcher validates each request, invokes its handler,
-records the request boundary, and classifies failures.
+records the request boundary, and classifies failures. The table covers `DomainOperation`, derived from
+protocol owner metadata: Server-owned and internal methods plus the `desktopServerOperationIds` Main
+delegates. A Desktop-owned method Main answers itself needs no Server stub; if one reaches the dispatcher
+it fails with `CONFLICT`.
 
 Server domain placement follows one scale rule: a domain may remain flat while it has at most two
 production modules; at three or more cohesive modules it owns `apps/server/src/domains/<domain>/`,
