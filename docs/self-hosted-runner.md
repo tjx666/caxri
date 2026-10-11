@@ -11,10 +11,13 @@ owns release steps and refers here for runner operations.
 
 ## Scope and trust boundary
 
-Caxri uses the repository-level `m2-24` runner for every GitHub Actions job: retry policy,
-platform checks, Electron E2E, the final gate, and unsigned arm64 GitHub Releases. Its labels are
-`self-hosted`, `macOS`, `ARM64`, `caxri-ci`, `caxri-e2e`, and `caxri-release`. There is no
-GitHub-hosted runner route.
+Caxri uses the repository-level `m2-24` runner for every `CI` and `Release` workflow job: retry
+policy, platform checks, Electron E2E, the final gate, and unsigned arm64 GitHub Releases. Its
+labels are `self-hosted`, `macOS`, `ARM64`, `caxri-ci`, `caxri-e2e`, and `caxri-release`. Those
+jobs have no GitHub-hosted fallback. Two workflows deliberately run on GitHub-hosted
+`ubuntu-latest` instead: the required `guards` check (`.github/workflows/guards.yml`), which reads
+only the diff and a pinned public binary, and the scheduled Renderer performance trend
+(`.github/workflows/performance-trend.yml`).
 
 Superseded PR runs must release the same-ref concurrency slot. The E2E job and final gate use
 `!cancelled()` at job scope: dependency failures still reach the gate, while cancellation stops
@@ -28,10 +31,12 @@ material. Temporary profiles, blocked Agent discovery, owner-scoped cleanup, and
 prevent accidental inheritance; they do not contain malicious workflow code.
 
 Only a same-repository PR authored, triggered, and retriggered by `tjx666`, a trusted
-`release: v<package-version>` push to `main`, or an explicit owner-run validation can execute
+`release: v<package-version>` push to `main`, the nightly schedule, or an explicit owner-run
+validation can execute
 repository source on this machine. Untrusted PRs run only the fixed final gate from the trusted base
-workflow: it performs no checkout and fails closed. A trusted release push runs the one-worker
-control E2E suite and Release.
+workflow: it performs no checkout and fails closed. A trusted release push whose exact commit is
+the verified release commit skips the CI checks and E2E (`scripts/ci-execution-plan.ts` reuses the
+merged PR's CI) and runs Release.
 
 An ordinary merge to `main` skips every job, including the final gate. The one runner is strictly
 serial, and the merged head has already passed the same gate on its PR, so re-running it would only
@@ -171,7 +176,8 @@ probe, or temporary workflow override. Do not treat a queued job as successful.
 Because one physical runner owns all capability labels, jobs execute serially. The full E2E path is
 one job that runs its two logical pools in sequence after one setup/build; checks, E2E, and Release
 still cannot compete for the same workspace or native UI. This preserves one desktop owner while
-allowing the explicitly isolated `parallel-safe` pool to use two namespaced workers internally.
+allowing the explicitly isolated `parallel-safe` pool to use namespaced workers internally: three by
+default (`CAXRI_E2E_PARALLEL_WORKERS`, which a `workflow_dispatch` A/B run may set to 2, 3, or 4).
 
 ## Remote diagnosis
 

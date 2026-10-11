@@ -77,8 +77,9 @@ Successful output reports dirty ownership layers, suggested follow-up gates, and
 checks as separate fields. Suggested gates are not execution receipts. Failures include the
 underlying tool output needed to act.
 
-`bun run knip` remains a repository-wide CI gate; run `knip` (or `--knip`) before pushing Renderer
-or shared-contract changes. CI runs `doctor` through `bun run doctor:changed` (scoped to the diff
+`bun run knip` is repository-wide, and CI runs it only in the `full` checks scope (nightly, or a
+ready PR on a full-validation path), not in the `affected` scope most PRs get. Run `knip` (or
+`--knip`) locally before pushing Renderer or shared-contract changes. CI runs `doctor` through `bun run doctor:changed` (scoped to the diff
 against `origin/main`, full-repo only on an initial push); `doctor` is slower and normally remains
 a CI validator.
 For mobile or Renderer React changes, run `bun run doctor:changed` after new files are staged or
@@ -92,9 +93,10 @@ Use these when a focused `check` is the wrong width, not as the default after ev
   `bun run format:md:check`.
 - Full local gates: `bun run lint` (syntactic ESLint), `bun run lint:type-aware` (oxlint/tsgolint
   type-aware rules, see `docs/type-aware-linting.md`), and `bun run typecheck`.
-- `bun run test` is **not** one of them. The full unit suite is a remote gate that CI runs on every
-  pushed head, so `bun run test` and a bare `vitest run` refuse to start locally. Only the user
-  authorizes a local full run, by setting `CAXRI_FULL_SUITE_AUTHORIZED=1`; an agent never sets that
+- `bun run test` is **not** one of them. The full unit suite is a remote gate that CI runs in the
+  `full` checks scope (nightly, or a ready PR on a full-validation path); a ready PR's `affected`
+  scope runs only `vitest related` on its changed sources. Either way, `bun run test` and a bare
+  `vitest run` refuse to start locally. Only the user authorizes a local full run, by setting `CAXRI_FULL_SUITE_AUTHORIZED=1`; an agent never sets that
   variable on its own judgement or on another agent's verdict, including while repairing CI. Use
   `bun run check <changed files>` or name the test files with
   `bunx vitest run <file>` instead.
@@ -119,14 +121,18 @@ a standalone or repository-wide run.
   on `PATH` at the pinned version.
 - **`bun run source-size-ratchet`** compares each changed source file's working-tree line count
   against its line count at the merge base with `origin/main` (`--base <ref>` to override). It fails
-  when a file already at or above 600 lines grew further, or a new path (including a rename target)
-  lands at or above 600 lines -- using Git rename detection so a pure move never counts as growth.
+  whenever a file ends at or above 600 lines and grew: a file already over 600 that grew further, an
+  existing file under 600 that your edit pushes to 600 or more, or a new path (including a rename
+  target) that lands at or above 600. Git rename detection keeps a pure move from counting as growth.
   `check --lint` runs it when the changed set includes source, and the pre-commit hook runs it when
   the staged set does -- a one-line test fix is exactly the edit that skips `check`. It
   never fails a file that shrank, even while still above 600 lines: it is a growth ratchet, not a
   restatement of ESLint's absolute `max-lines: 800` ceiling. To fix: split the flagged file by
   responsibility into smaller, cohesively-owned files (see the source-layout skill) -- do not
-  compress it to fit.
+  compress it to fit. This applies to an edit that newly crosses 600: extract a cohesive module in
+  the same change so the edited file ends below 600 or no larger than its merge-base size. There is
+  no allowlist for hand-written files; `RATCHET_IGNORE_PATH_PREFIXES` exempts only generated or
+  vendored paths.
 - **`bun run docs-check`** (`scripts/documentation-check.ts`) validates the documentation this
   repository always keeps consistent (frontmatter, cross-references, repository-relative links,
   README index completeness). It always runs unscoped, even from a focused invocation, both because

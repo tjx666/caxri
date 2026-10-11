@@ -205,7 +205,8 @@ Vite's `.vite` directory is not a reusable production-output cache.
   one assertion fix at a time.
 - Reproduce the exact failed spec against a fresh production build with one worker and
   `--repeat-each=3`. A `parallel-safe` failure must also be exercised under its namespaced
-  two-worker pool so local validation matches CI scheduling pressure.
+  multi-worker pool (CI runs three workers by default; `CAXRI_E2E_PARALLEL_WORKERS` accepts 2 to 4)
+  so local validation matches CI scheduling pressure.
 - Finish the complete repair batch and focused local gates before pushing once. Use `e2e-repair`
   only when the repair delta modifies existing top-level E2E specs and nothing else. Product,
   workflow, dependency, pool, fixture, shared E2E support, spec-add/delete, and retry-policy changes
@@ -276,7 +277,9 @@ A ready source PR no longer runs the full suite. `scripts/ci-execution-plan.ts` 
   suite, as does a malformed or protected `CI-E2E-Tests` declaration.
 
 Knip, React Doctor, bundle budgets, the Renderer performance gate, and every unselected E2E spec now
-run only in the nightly full suite. The `schedule` trigger runs it on `main` at 00:00 UTC (08:00
+run only in the `full` checks scope: the nightly full suite, or a ready PR that takes the
+full-suite fallback above. The `affected` scope's `check --lint` never passes `--knip`, so an unused
+export a PR introduces fails the next nightly unless the author ran `bun run knip` locally. The `schedule` trigger runs it on `main` at 00:00 UTC (08:00
 Asia/Shanghai) in its own concurrency group, so a release push cannot cancel it. When `main` has
 not moved since the previous completed nightly, the run skips every gate. A failed nightly runs
 `scripts/ci-nightly-report.ts`, which opens or comments on the single open `Nightly 全量 CI 失败`
