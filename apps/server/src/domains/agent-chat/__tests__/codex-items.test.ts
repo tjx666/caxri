@@ -79,8 +79,16 @@ describe('Codex item mapping', () => {
         });
     });
 
+    it('shows a plan-mode plan as an Agent message', () => {
+        expect(mapCodexItem({ type: 'plan', id: 'p', text: '1. Read' }, 't', false)).toMatchObject({
+            id: 'p',
+            turnId: 't',
+            type: 'agentMessage',
+            text: '1. Read',
+        });
+    });
+
     it('skips items that are not conversation content and malformed input', () => {
-        expect(mapCodexItem({ type: 'plan', id: 'p', text: 'x' }, 't', false)).toBeUndefined();
         expect(mapCodexItem({ type: 'agentMessage' }, 't', false)).toBeUndefined();
         expect(mapCodexItem('nope', 't', false)).toBeUndefined();
     });

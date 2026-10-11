@@ -6,6 +6,7 @@ import type {
     AgentChatMessageInput,
     AgentChatModelChange,
     AgentChatPatchOperation,
+    AgentChatPermission,
     AgentChatSnapshot,
     AgentChatTaskPatchOperation,
     AgentChatTaskSnapshot,
@@ -136,6 +137,11 @@ export interface AgentChatSessionHost {
      */
     isRealAgentE2E: boolean;
     /**
+     * The permission level and plan mode the Chat chose. A level the provider does not offer, or none, leaves `launch`
+     * to decide. The driver reports what it runs with as the snapshot's `permissionMode` and `planMode`.
+     */
+    permission: AgentChatPermission;
+    /**
      * Agent Session to resume. Absent for a Chat that has never started a turn.
      */
     agentSessionId?: string;
@@ -168,6 +174,11 @@ export interface AgentChatSessionHost {
      */
     onSessionBound(agentSessionId: string): void;
     onTurnFinished(status: AgentChatTurn['status'], durationMs: number | undefined): void;
+    /**
+     * The provider changed the Chat's permission on its own (Claude Code leaving plan mode once its plan is approved),
+     * so the service saves it as the Chat's choice.
+     */
+    onPermissionChanged(permission: AgentChatPermission): void;
     onProtocolRejected(reason: 'unsupportedRequest' | 'unkeyedRequest', method: string): void;
     /**
      * A turn request timed out and the session checked whether the provider recorded the input anyway.
@@ -266,6 +277,12 @@ export interface AgentChatProviderSession {
      * that lists no models (Grok Build) omits it: validation already rejects every switch it could receive.
      */
     configure?(config: AgentChatModelChange): Promise<void>;
+    /**
+     * Applies a validated permission level and plan mode to the live provider, for the next turn onward; a running turn
+     * keeps its own where the provider allows. A provider that fixes them at launch (Grok Build) omits it, and the
+     * service restarts it on the same conversation instead.
+     */
+    setPermission?(permission: AgentChatPermission): Promise<void>;
     /**
      * Rewinds the provider's own record to just before `target`, restoring files first when asked. The service has
      * already checked that no turn runs and that the provider offers file restore; it restarts the session afterwards,

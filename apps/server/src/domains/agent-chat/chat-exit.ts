@@ -1,4 +1,5 @@
 import type { AgentProvider } from '@caxri/protocol';
+import { logEventCatalog } from '@caxri/system';
 
 import type { ChatEndpointLease } from './chat-endpoint-lease';
 import { forwardChatLifecycle, logChatProcessExited } from './chat-launch';
@@ -71,5 +72,33 @@ export function handleChatExit(
         database.updateTerminalExitState(terminalId, 'dead');
         database.updateAgentProcessExitState(terminalId, 'dead');
     }
+    states.publish(terminalId);
+}
+
+/**
+ * Ends a start whose Chat began a teardown before its provider spawned. Nothing ran, so this is not a failure: the
+ * Terminal records the stop a running provider's requested exit would have.
+ */
+export function abandonChatStart(
+    { options, states, endpoint }: ChatExitHost,
+    isShuttingDown: boolean,
+    start: { terminalId: string; state: ChatState; launchId: string; startedAt: number },
+): void {
+    const { coordinator, database, logger } = options;
+    const { terminalId, state, launchId, startedAt } = start;
+    if (state.launchId === launchId) state.launchId = undefined;
+    endpoint.retire(terminalId);
+    coordinator.endTerminalLaunch(terminalId);
+    logger.write('info', logEventCatalog.agentChat.processStarted, {
+        fields: {
+            terminalId,
+            outcome: 'abandoned',
+            reason: state.retiring ?? 'closed',
+            durationMs: Date.now() - startedAt,
+        },
+    });
+    // Shutdown stamps durable state through the shared shutdown path.
+    if (isShuttingDown || !database.getTerminal(terminalId)) return;
+    states.recordRequestedStop(terminalId, state);
     states.publish(terminalId);
 }

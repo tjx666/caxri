@@ -193,9 +193,24 @@ describe('AgentChatService with a fake Codex app-server', () => {
         await service.restart(terminal.id);
 
         expect(await threadOpens()).toEqual([
-            { method: 'thread/start', sandbox: 'danger-full-access', approvalPolicy: 'never' },
-            { method: 'thread/resume', sandbox: 'danger-full-access', approvalPolicy: 'never' },
-            { method: 'thread/resume', sandbox: 'workspace-write', approvalPolicy: 'on-request' },
+            {
+                method: 'thread/start',
+                sandbox: 'danger-full-access',
+                approvalPolicy: 'never',
+                approvalsReviewer: 'user',
+            },
+            {
+                method: 'thread/resume',
+                sandbox: 'danger-full-access',
+                approvalPolicy: 'never',
+                approvalsReviewer: 'user',
+            },
+            {
+                method: 'thread/resume',
+                sandbox: 'workspace-write',
+                approvalPolicy: 'on-request',
+                approvalsReviewer: 'user',
+            },
         ]);
     });
 
@@ -347,7 +362,12 @@ describe('AgentChatService under a real-Agent E2E policy', () => {
         await until((snapshot) => snapshot.status === 'ready');
         expect(spawnProcess.mock.calls[0][1]).toEqual(['app-server', '--listen', 'stdio://']);
         expect(await threadOpens()).toEqual([
-            { method: 'thread/start', sandbox: 'read-only', approvalPolicy: 'never' },
+            {
+                method: 'thread/start',
+                sandbox: 'read-only',
+                approvalPolicy: 'never',
+                approvalsReviewer: 'user',
+            },
         ]);
         await expect(service.send(terminal.id, { text: 'x'.repeat(201) })).rejects.toThrow(
             /short natural prompts/u,

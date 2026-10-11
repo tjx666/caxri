@@ -208,6 +208,7 @@ export const effectfulCommandRecovery = {
     'project.hide': 'durable',
     'project.reorder': 'durable',
     'project.setIcon': 'durable',
+    'project.setChatDefault': 'durable',
     'session.create': 'durable',
     'session.delete': 'memory',
     'session.deleteMany': 'memory',

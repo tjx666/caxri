@@ -26,6 +26,7 @@ import { AgentChatContextMeter } from './agent-chat-context-meter';
 import { readAgentChatDraft, writeAgentChatDraft } from './agent-chat-drafts';
 import { AgentChatEditBar } from './agent-chat-edit-bar';
 import { AgentChatModelMenu } from './agent-chat-model-menu';
+import { AgentChatPermissionMenu } from './agent-chat-permission-menu';
 import type { AgentChatActivity } from './agent-chat-presentation';
 import { agentChatEscapeAction, agentChatSubmitDelivery } from './agent-chat-presentation';
 import { draftAfterQueueEdit } from './agent-chat-queue';
@@ -85,12 +86,20 @@ interface AgentChatComposerProperties {
     providerName: string;
     queue: readonly AgentChatQueuedMessage[] | undefined;
     /**
-     * The model, effort, and context usage the action row shows, and the sent prompts ArrowUp recalls.
+     * The permission, model, effort, and context usage the action row shows, and the sent prompts ArrowUp recalls.
      */
     snapshot:
         | Pick<
               AgentChatSnapshot,
-              'activeTurnId' | 'effort' | 'items' | 'model' | 'models' | 'turns' | 'usage'
+              | 'activeTurnId'
+              | 'effort'
+              | 'items'
+              | 'model'
+              | 'models'
+              | 'permissionMode'
+              | 'planMode'
+              | 'turns'
+              | 'usage'
           >
         | undefined;
     /**
@@ -369,6 +378,7 @@ export function AgentChatComposer({
                             }}
                         />
                         {contextUsage && <AgentChatContextMeter usage={contextUsage} />}
+                        <AgentChatPermissionMenu snapshot={snapshot} terminalId={terminalId} />
                         <AgentChatModelMenu snapshot={snapshot} terminalId={terminalId} />
                     </div>
                     {/* One primary action slot: Stop while a turn runs and nothing is typed, Send otherwise. */}

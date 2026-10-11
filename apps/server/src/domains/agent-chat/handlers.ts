@@ -70,12 +70,25 @@ export function createAgentChatHandlers(
             await agentChat.runCommand(terminalId, name, arguments_);
             return null;
         },
-        'agentChat.configure': async ({ terminalId, model, effort, ultracode }) => {
-            await agentChat.configure(terminalId, {
-                ...(model !== undefined && { model }),
-                ...(effort !== undefined && { effort }),
-                ...(ultracode !== undefined && { ultracode }),
-            });
+        'agentChat.configure': async ({
+            terminalId,
+            model,
+            effort,
+            ultracode,
+            permissionMode,
+            planMode,
+        }) => {
+            if (model !== undefined || effort !== undefined || ultracode !== undefined)
+                await agentChat.configure(terminalId, {
+                    ...(model !== undefined && { model }),
+                    ...(effort !== undefined && { effort }),
+                    ...(ultracode !== undefined && { ultracode }),
+                });
+            if (permissionMode !== undefined || planMode !== undefined)
+                await agentChat.setPermission(terminalId, {
+                    ...(permissionMode !== undefined && { permissionMode }),
+                    ...(planMode !== undefined && { planMode }),
+                });
             return null;
         },
         'agentChat.interrupt': async ({ terminalId }) => {

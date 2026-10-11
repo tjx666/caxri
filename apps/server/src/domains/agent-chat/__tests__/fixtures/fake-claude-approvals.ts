@@ -31,6 +31,7 @@ async function wasToolAllowed(
     name: string,
     input: Json,
     run: (input: Json) => { content: string; structured?: Json },
+    onAllowed?: (decision: Json) => void,
 ): Promise<boolean> {
     const toolUseId = `toolu_${crypto.randomUUID()}`;
     io.assistant(`msg_${crypto.randomUUID()}`, { type: 'tool_use', id: toolUseId, name, input });
@@ -50,6 +51,7 @@ async function wasToolAllowed(
         decision_reason: `Fake ${name} approval`,
     });
     const isAllowed = decision.behavior === 'allow';
+    if (isAllowed) onAllowed?.(decision);
     const updatedInput = (decision.updatedInput as Json | undefined) ?? input;
     const result = isAllowed
         ? run(updatedInput)
@@ -130,6 +132,9 @@ export async function didRunApprovalScenario(
             'ExitPlanMode',
             { plan: FAKE_CLAUDE_PLAN },
             () => ({ content: 'User has approved your plan.' }),
+            (decision) => {
+                io.exitPlanMode(approvedMode(decision));
+            },
         );
         if (!io.isInterrupted())
             await io.didStreamFully(isAllowed ? 'Plan approved.' : 'Kept planning.', 0);
@@ -165,4 +170,14 @@ export async function didRunApprovalScenario(
         return true;
     }
     return false;
+}
+
+/**
+ * The mode a `setMode` update in an approval switches to, as Claude Code applies it with the approval.
+ */
+function approvedMode(decision: Json): string | undefined {
+    const updates = Array.isArray(decision.updatedPermissions) ? decision.updatedPermissions : [];
+    for (const update of updates as Json[])
+        if (update.type === 'setMode' && typeof update.mode === 'string') return update.mode;
+    return undefined;
 }

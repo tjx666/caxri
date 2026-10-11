@@ -233,9 +233,9 @@ that explicitly advertised the required capability.
 ## Current state delivery and command recovery
 
 State tables are authoritative. The current Server writes structural changes to a bounded durable
-changefeed and uses request identity to deduplicate in-flight and completed requests. Four reviewed
-synchronous SQLite structural commands (`project.reorder`, `project.setIcon`, `session.markRead`, and
-`session.unarchive`) commit state, content-free events, and their receipt in one transaction. Commands
+changefeed and uses request identity to deduplicate in-flight and completed requests. Five reviewed
+synchronous SQLite structural commands (`project.reorder`, `project.setIcon`,
+`project.setChatDefault`, `session.markRead`, and `session.unarchive`) commit state, content-free events, and their receipt in one transaction. Commands
 `session.rename` first completes its idempotent Agent-provider operation, then commits the returned
 title, content-free event, and durable receipt in one SQLite transaction. Other commands that cross
 filesystem, PTY, Git, Agent-provider, or Desktop boundaries retain their A0 behavior and persist a
