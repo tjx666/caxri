@@ -8,6 +8,7 @@ import { FlashList } from '@shopify/flash-list';
 import { ArrowDown } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
+import { SavedCopyNote } from '../read-cache/saved-copy-note';
 import { PANEL_ENTER_MS, segmentEnterOffset } from '../sessions/hooks/use-segment-entering';
 import { ConversationEntry } from './conversation-entry';
 import type { ConversationEntry as Entry } from './conversation-model';
@@ -262,6 +263,7 @@ const ConversationList = ({
                     style={styles.list}
                 />
             </Animated.View>
+            <SavedCopyNote savedAt={timeline.savedAt} testID="conversation-saved" theme={theme} />
             {timeline.status === 'stale' ? (
                 <Pressable
                     accessibilityRole="button"

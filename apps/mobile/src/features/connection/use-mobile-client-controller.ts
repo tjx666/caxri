@@ -10,6 +10,7 @@ import type { CaxriMethod, MethodResult, ParametersArgument } from '@caxri/proto
 import * as Device from 'expo-device';
 import * as Network from 'expo-network';
 
+import { useReadCache } from '../read-cache/read-cache-context';
 import type { MobileConnectionStatus } from './connection-state';
 import { loadMobileCredential } from './credential-load';
 import type { MobileCredential } from './credential-store';
@@ -112,6 +113,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
     const deferredNetworkWake = useRef(false);
     const removeTerminationListener = useRef<() => void>(() => {});
     const removeObservationListener = useRef<() => void>(() => {});
+    const readCache = useReadCache();
 
     const replaceConnection = useCallback((next: MobileGatewayConnection | null): void => {
         removeTerminationListener.current();
@@ -172,6 +174,8 @@ export const useMobileClientController = (): MobileClientContextValue => {
                 setLastSeenAt(null);
                 setRetryAttempt(0);
                 if (reason === 'revoked') {
+                    // The saved copy belongs to the revoked pairing; nothing of it stays on the phone.
+                    readCache.clear();
                     setCredential(null);
                     setStatus('revoked');
                 } else setStatus('stale');
@@ -180,7 +184,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             if (!observation.didTerminate) setConnectionEpoch((epoch) => epoch + 1);
             return !observation.didTerminate;
         },
-        [replaceConnection, setLastSeenAt],
+        [readCache, replaceConnection, setLastSeenAt],
     );
 
     useEffect(() => {
@@ -252,6 +256,8 @@ export const useMobileClientController = (): MobileClientContextValue => {
         const wasForeground = appState.current === 'active';
         appState.current = nextState;
         if (nextState !== 'active') {
+            // Timers may not run again before the system ends a backgrounded app.
+            readCache.flush();
             if (nextState === 'background' && pairingAttempts.cancel())
                 setStatus(credential ? 'stale' : 'unpaired');
             if (wasForeground) backgroundedAt.current = Date.now();
@@ -345,6 +351,8 @@ export const useMobileClientController = (): MobileClientContextValue => {
                     paired.connection.close();
                     throw new Error('Pairing attempt was superseded.');
                 }
+                // A new pairing starts without the previous one's saved copy.
+                readCache.clear();
                 setCredential(paired.credential);
                 if (!adoptConnection(paired.connection)) return;
                 setLastSeenAt(Date.now());
@@ -366,7 +374,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
                 attempt.finish();
             }
         },
-        [adoptConnection, credential, pairingAttempts, replaceConnection, setLastSeenAt],
+        [adoptConnection, credential, pairingAttempts, readCache, replaceConnection, setLastSeenAt],
     );
 
     const cancelPairing = useCallback((): void => {
@@ -377,12 +385,14 @@ export const useMobileClientController = (): MobileClientContextValue => {
     const forgetDevice = useCallback(async (): Promise<void> => {
         pairingAttempts.invalidate();
         replaceConnection(null);
+        // Cleared first, so a failing secure store cannot leave the forgotten computer's content behind.
+        readCache.clear();
         await expoMobileCredentialStore.clear();
         setCredential(null);
         setLastSeenAt(null);
         setRetryAttempt(0);
         setStatus('unpaired');
-    }, [pairingAttempts, replaceConnection, setLastSeenAt]);
+    }, [pairingAttempts, readCache, replaceConnection, setLastSeenAt]);
 
     const retryConnection = useCallback((): void => {
         if (!credential || status === 'version-mismatch') return;
