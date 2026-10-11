@@ -2,10 +2,13 @@ import type {
     AgentChatDecision,
     AgentChatMessageInput,
     AgentChatModelRequest,
+    TerminalRecord,
 } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
-import { tryCommand } from '../../stores/toasts';
+import { pushToast, tryCommand } from '../../stores/toasts';
+import { createTerminalForSession } from '../terminal/terminal-commands';
+import { agentChatHandoffPrompt } from './agent-chat-handoff';
 
 /**
  * Sends a message. An idle Chat starts a turn; while a turn runs, `delivery` decides whether the message waits in the
@@ -169,4 +172,41 @@ export function resumeAgentChatQueue(terminalId: string): void {
     void tryCommand('Unable to resume the queue', () =>
         caxri.request('agentChat.resumeQueue', { terminalId }),
     );
+}
+
+/**
+ * Opens a new Chat of the same Agent in the same Session and sends it {@link agentChatHandoffPrompt}: the manual "start
+ * over and point the new conversation at the old transcript" routine for a Chat whose prompt cache expired. Resolves
+ * `true` once the new Chat accepted the prompt, so the composer clears the draft it carried over only then.
+ */
+export async function didContinueAgentChatInNewChat(
+    terminal: TerminalRecord,
+    { pendingRequest, providerName }: { pendingRequest: string; providerName: string },
+): Promise<boolean> {
+    const transcript = await tryCommand('Unable to find the transcript', () =>
+        caxri.request('terminal.agentTranscript', {
+            terminalId: terminal.id,
+            withContent: false,
+        }),
+    );
+    if (transcript === undefined) return false;
+    if (!transcript?.exists) {
+        pushToast('error', 'This Chat has no transcript on disk for a new Chat to read.');
+        return false;
+    }
+    const terminalId = await createTerminalForSession(terminal.sessionId, terminal.kind, {
+        surface: 'chat',
+    });
+    if (!terminalId) return false;
+    return didSendAgentChatMessage(terminalId, {
+        text: agentChatHandoffPrompt({
+            providerName,
+            provider: terminal.provider,
+            title: terminal.title,
+            agentSessionId: terminal.agentSessionId,
+            transcriptPath: transcript.path,
+            cwd: terminal.agentCwd ?? terminal.cwd,
+            pendingRequest,
+        }),
+    });
 }
