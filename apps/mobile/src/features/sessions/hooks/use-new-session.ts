@@ -12,6 +12,7 @@ import {
     availableNewSessionAgent,
     canCreateNewSession,
     markUncertainSessionsChecked,
+    newSessionSurface,
     selectedNewSessionProject,
     sortNewSessionProjects,
 } from '../new-session-model';
@@ -29,6 +30,7 @@ export const useNewSession = () => {
         setNewSessionAgent,
         setNewSessionCreateState,
         setNewSessionProjectId,
+        setNewSessionSurface,
         setSegment,
     } = useHostSessions();
     const creatingReference = useRef(false);
@@ -56,6 +58,11 @@ export const useNewSession = () => {
     });
     const agents = availability.data?.agents ?? [];
     const selectedAgent = availableNewSessionAgent(newSessionSelection.agent, agents);
+    const selectedSurface = newSessionSurface(
+        newSessionSelection.surface,
+        selectedAgent,
+        availability.data?.openAgentsInChat ?? false,
+    );
     const canCreate = canCreateNewSession({
         agent: selectedAgent,
         createState: newSessionCreateState,
@@ -99,6 +106,7 @@ export const useNewSession = () => {
                 result = await request('mobile.session.create', {
                     projectId: selectedProjectId,
                     defaultAgent: selectedAgent,
+                    ...(selectedSurface && { surface: selectedSurface }),
                 });
             } catch (error) {
                 const canRetry =
@@ -126,13 +134,15 @@ export const useNewSession = () => {
                 });
                 return;
             }
-            if (selectedAgent === 'claude' || selectedAgent === 'codex') {
+            // A Chat renders its own streamed view with its own composer, so it waits for no transcript.
+            const isChat = selectedSurface === 'chat';
+            if (!isChat && (selectedAgent === 'claude' || selectedAgent === 'codex')) {
                 setSegment(result.sessionId, 'conversation');
                 await waitForCreatedConversation(() =>
                     request('mobile.timeline.read', { sessionId: result.sessionId }),
                 );
             }
-            openCreatedSession(result.sessionId, true);
+            openCreatedSession(result.sessionId, !isChat);
         } finally {
             creatingReference.current = false;
         }
@@ -142,6 +152,7 @@ export const useNewSession = () => {
         request,
         selectedAgent,
         selectedProjectId,
+        selectedSurface,
         setNewSessionAgent,
         setNewSessionCreateState,
         setNewSessionProjectId,
@@ -167,8 +178,10 @@ export const useNewSession = () => {
         refreshDashboard: sessions.refresh,
         selectedAgent,
         selectedProjectId,
+        selectedSurface,
         setNewSessionAgent,
         setNewSessionProjectId,
+        setNewSessionSurface,
         status,
     };
 };

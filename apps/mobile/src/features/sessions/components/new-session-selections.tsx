@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import type { TerminalKind } from '@caxri/protocol';
-import { Folder, FolderPlus, Search } from 'lucide-react-native';
+import { Folder, FolderPlus, MessageSquare, Search, SquareTerminal } from 'lucide-react-native';
 
 import { AgentGlyph } from '../../../components/agent-icon';
 import type { MobileTheme } from '../../../theme/tokens';
@@ -41,6 +41,44 @@ const NewSessionAgentChoice = ({
             testID={`new-session-agent-${kind}`}
             theme={theme}
         />
+    );
+};
+
+/**
+ * Shown only for an Agent that supports Chat; a Shell or a PTY-only Agent always opens in a Terminal.
+ */
+const NewSessionSurfaceGroup = ({
+    state,
+    theme,
+}: {
+    state: NewSessionViewState;
+    theme: MobileTheme;
+}) => {
+    if (state.selectedSurface === null) return null;
+    return (
+        <View accessibilityRole="radiogroup" style={styles.group}>
+            <Text style={[styles.groupLabel, { color: theme.muted }]}>Open as</Text>
+            <View style={styles.agentGrid}>
+                <NewSessionChoice
+                    isCompact
+                    label="Chat"
+                    leading={<MessageSquare color={theme.muted} size={18} />}
+                    onPress={() => state.setNewSessionSurface('chat')}
+                    selected={state.selectedSurface === 'chat'}
+                    testID="new-session-surface-chat"
+                    theme={theme}
+                />
+                <NewSessionChoice
+                    isCompact
+                    label="Terminal"
+                    leading={<SquareTerminal color={theme.muted} size={18} />}
+                    onPress={() => state.setNewSessionSurface('pty')}
+                    selected={state.selectedSurface === 'pty'}
+                    testID="new-session-surface-terminal"
+                    theme={theme}
+                />
+            </View>
+        </View>
     );
 };
 
@@ -93,6 +131,7 @@ export const NewSessionSelections = ({
                     </Pressable>
                 ) : null}
             </View>
+            <NewSessionSurfaceGroup state={state} theme={theme} />
             <View accessibilityRole="radiogroup" style={styles.group}>
                 <Text style={[styles.groupLabel, { color: theme.muted }]}>Project</Text>
                 {state.projects.length > PROJECT_FILTER_THRESHOLD ? (

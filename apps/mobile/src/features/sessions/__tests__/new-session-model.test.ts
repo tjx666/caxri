@@ -8,6 +8,7 @@ import {
     markUncertainSessionsChecked,
     NEW_SESSION_AGENT_ORDER,
     newSessionAgentReason,
+    newSessionSurface,
     selectedNewSessionProject,
     sortNewSessionProjects,
 } from '../new-session-model';
@@ -109,5 +110,22 @@ describe('New Session choices', () => {
                 isLoading: false,
             }),
         ).toBeUndefined();
+    });
+});
+
+describe('New Session surface', () => {
+    it("defaults a Chat-capable Agent to the Mac's Open Agents in Chat setting", () => {
+        expect(newSessionSurface(null, 'claude', true)).toBe('chat');
+        expect(newSessionSurface(null, 'codex', false)).toBe('pty');
+    });
+
+    it('keeps an explicit pick over the Mac setting', () => {
+        expect(newSessionSurface('pty', 'claude', true)).toBe('pty');
+        expect(newSessionSurface('chat', 'codex', false)).toBe('chat');
+    });
+
+    it('hides the choice for a Shell or no Agent, which always open in a Terminal', () => {
+        expect(newSessionSurface('chat', 'shell', true)).toBeNull();
+        expect(newSessionSurface('chat', null, true)).toBeNull();
     });
 });
