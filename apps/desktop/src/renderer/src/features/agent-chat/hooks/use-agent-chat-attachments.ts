@@ -7,12 +7,23 @@ import {
     readAgentChatAttachments,
     writeAgentChatAttachments,
 } from '../agent-chat-drafts';
-import type { AgentChatImageRejection } from '../agent-chat-images';
+import type { AgentChatImageRejection, AgentChatImageReservation } from '../agent-chat-images';
 import {
+    agentChatImageBytes,
     agentChatImageRejection,
     agentChatImageRejectionMessage,
     readAgentChatImage,
 } from '../agent-chat-images';
+
+function reservationOf(attachments: readonly AgentChatAttachment[]): AgentChatImageReservation {
+    return {
+        count: attachments.length,
+        bytes: attachments.reduce(
+            (total, attachment) => total + agentChatImageBytes(attachment.image),
+            0,
+        ),
+    };
+}
 
 /**
  * The composer's image attachments: validated and read as they are pasted, dropped, or picked, kept per Chat across
@@ -22,9 +33,10 @@ export function useAgentChatAttachments(terminalId: string) {
     const [attachments, setAttachments] = useState(() => readAgentChatAttachments(terminalId));
     const [readingCount, setReadingCount] = useState(0);
     /**
-     * Attached plus still-reading images, so files added in quick succession cannot together pass the count limit.
+     * Attached plus still-reading images, so files added in quick succession cannot together pass the count or combined
+     * size limit.
      */
-    const reservedCount = useRef(attachments.length);
+    const reserved = useRef<AgentChatImageReservation>(reservationOf(attachments));
     const update = (next: (current: AgentChatAttachment[]) => AgentChatAttachment[]): void =>
         setAttachments((current) => {
             const updated = next(current);
@@ -38,12 +50,15 @@ export function useAgentChatAttachments(terminalId: string) {
          */
         const rejections = new Map<AgentChatImageRejection, string[]>();
         for (const file of files) {
-            const rejection = agentChatImageRejection(file, reservedCount.current);
+            const rejection = agentChatImageRejection(file, reserved.current);
             if (rejection)
                 rejections.set(rejection, [...(rejections.get(rejection) ?? []), file.name]);
             else {
                 accepted.push(file);
-                reservedCount.current += 1;
+                reserved.current = {
+                    count: reserved.current.count + 1,
+                    bytes: reserved.current.bytes + file.size,
+                };
             }
         }
         for (const [rejection, fileNames] of rejections)
@@ -57,19 +72,30 @@ export function useAgentChatAttachments(terminalId: string) {
                 ? [{ image: result.value, name: accepted[index]?.name }]
                 : [],
         );
-        reservedCount.current -= accepted.length - images.length;
+        const unread = accepted.filter((_, index) => results[index]?.status !== 'fulfilled');
+        reserved.current = {
+            count: reserved.current.count - unread.length,
+            bytes: reserved.current.bytes - unread.reduce((total, file) => total + file.size, 0),
+        };
         if (images.length < accepted.length) pushToast('error', 'An image could not be read');
         update((current) => [
             ...current,
             ...images.map(({ image, name }) => ({ id: crypto.randomUUID(), image, name })),
         ]);
     };
+    const release = (released: readonly AgentChatAttachment[]): void => {
+        const freed = reservationOf(released);
+        reserved.current = {
+            count: reserved.current.count - freed.count,
+            bytes: reserved.current.bytes - freed.bytes,
+        };
+    };
     const remove = (id: string): void => {
-        reservedCount.current -= 1;
+        release(attachments.filter((attachment) => attachment.id === id));
         update((current) => current.filter((attachment) => attachment.id !== id));
     };
     const clearSent = (sent: readonly AgentChatAttachment[]): void => {
-        reservedCount.current -= sent.length;
+        release(sent);
         update((current) => attachmentsAfterSend(current, sent));
     };
     return { attachments, isReading: readingCount > 0, add, remove, clearSent };

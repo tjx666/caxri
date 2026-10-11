@@ -4,7 +4,11 @@ import {
     isExtensionViewReadOperation,
 } from '@caxri/protocol';
 
-const SELF_SERIALIZED_OPERATIONS = new Set(['files.copy', 'terminal.prepareLongPaste']);
+const SELF_SERIALIZED_OPERATIONS = new Set([
+    'agentChat.saveLongPaste',
+    'files.copy',
+    'terminal.prepareLongPaste',
+]);
 
 /**
  * `viewContainers.viewOperation` is one `control` method that multiplexes Extension view reads and the `source.action`

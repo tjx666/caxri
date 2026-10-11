@@ -2,6 +2,11 @@
 import { z } from 'zod';
 
 import { identifierSchema } from '../domain/domain.js';
+import {
+    isLongPasteWithinLimit,
+    MAX_LONG_PASTE_BYTES,
+    savedLongPasteSchema,
+} from '../domain/terminal-long-paste.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import {
     agentChatCommandSchema,
@@ -15,6 +20,7 @@ import {
     agentChatThumbnailSchema,
     MAX_AGENT_CHAT_IMAGE_BYTES,
     MAX_AGENT_CHAT_IMAGES,
+    MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
     MAX_AGENT_CHAT_MESSAGE_LENGTH,
 } from './agent-chat-contract.js';
 import { agentChatDecisionSchema } from './agent-chat-requests.js';
@@ -44,11 +50,27 @@ export const agentChatImageInputSchema = z.strictObject({
     thumbnail: agentChatThumbnailSchema,
 });
 
+/**
+ * Upper bound of one message's combined image base64 length, from {@link MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES}. Padding
+ * makes each image's encoding round up to a multiple of four, so every image may add up to three characters more.
+ */
+const MAX_IMAGES_TOTAL_BASE64_LENGTH =
+    Math.ceil(MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES / 3) * 4 + MAX_AGENT_CHAT_IMAGES * 3;
+
 const terminalTarget = { terminalId: identifierSchema };
 
 const messageContent = {
     text: z.string().trim().max(MAX_AGENT_CHAT_MESSAGE_LENGTH),
-    images: z.array(agentChatImageInputSchema).max(MAX_AGENT_CHAT_IMAGES).optional(),
+    images: z
+        .array(agentChatImageInputSchema)
+        .max(MAX_AGENT_CHAT_IMAGES)
+        .refine(
+            (images) =>
+                images.reduce((total, image) => total + image.data.length, 0) <=
+                MAX_IMAGES_TOTAL_BASE64_LENGTH,
+            { message: 'Images in one message exceed the combined size limit' },
+        )
+        .optional(),
 };
 
 const hasMessageContent = (message: { text: string; images?: unknown[] }): boolean =>
@@ -250,6 +272,22 @@ export const agentChatMethods = {
             ]),
         }),
         result: z.null(),
+    },
+    /**
+     * Saves text too long for the message input to a local file and returns where it is, so the message cites the file
+     * (`formatLongPasteReference`) instead of carrying the text. It shares the Terminal long paste directory and
+     * retention; the text never enters logs or SQLite.
+     */
+    'agentChat.saveLongPaste': {
+        ...commandPolicy('server', 'control'),
+        idempotency: 'none' as const,
+        params: z.strictObject({
+            ...terminalTarget,
+            content: z.string().min(1).max(MAX_LONG_PASTE_BYTES).refine(isLongPasteWithinLimit, {
+                message: 'Pasted text exceeds the local file safety limit',
+            }),
+        }),
+        result: savedLongPasteSchema,
     },
     /**
      * Native confirmation before "Edit from here" restores files: putting back the files later turns changed overwrites

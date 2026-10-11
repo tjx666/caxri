@@ -4,6 +4,7 @@ import type {
     AgentChatModelRequest,
     TerminalRecord,
 } from '@caxri/protocol';
+import { formatLongPasteReference } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import { pushToast, tryCommand } from '../../stores/toasts';
@@ -32,6 +33,21 @@ export async function didSendAgentChatMessage(
         isSent = true;
     });
     return isSent;
+}
+
+/**
+ * Saves a long paste to a local file and returns the reference the message carries in its place, or `undefined` after a
+ * toast when it could not be saved. The pasted text itself is never logged.
+ */
+export function saveAgentChatLongPaste(
+    terminalId: string,
+    content: string,
+): Promise<string | undefined> {
+    return tryCommand("Long paste couldn't be saved", async () =>
+        formatLongPasteReference(
+            await caxri.request('agentChat.saveLongPaste', { terminalId, content }),
+        ),
+    );
 }
 
 /**

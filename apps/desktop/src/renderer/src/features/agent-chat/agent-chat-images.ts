@@ -3,6 +3,7 @@ import {
     agentChatImageMediaTypeSchema,
     MAX_AGENT_CHAT_IMAGE_BYTES,
     MAX_AGENT_CHAT_IMAGES,
+    MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES,
     MAX_AGENT_CHAT_THUMBNAIL_LENGTH,
 } from '@caxri/protocol';
 
@@ -27,40 +28,66 @@ const THUMBNAIL_MAX_EDGE = 768;
  */
 const THUMBNAIL_QUALITIES = [0.9, 0.8, 0.65, 0.5];
 
-export type AgentChatImageRejection = 'count' | 'size' | 'type';
+export type AgentChatImageRejection = 'count' | 'size' | 'total' | 'type';
+
+/**
+ * Images already attached to the message, or reserved by ones still being read.
+ */
+export interface AgentChatImageReservation {
+    bytes: number;
+    count: number;
+}
 
 function isAgentChatImageType(type: string): type is AgentChatImageMediaType {
     return (agentChatImageMediaTypeSchema.options as readonly string[]).includes(type);
 }
 
 /**
- * Why a file cannot be attached next to `attachedCount` images, or `undefined` when it can.
+ * Why a file cannot be attached next to the images already `reserved`, or `undefined` when it can.
  */
 export function agentChatImageRejection(
     file: { type: string; size: number },
-    attachedCount: number,
+    reserved: AgentChatImageReservation,
 ): AgentChatImageRejection | undefined {
     if (!isAgentChatImageType(file.type)) return 'type';
     if (file.size > MAX_AGENT_CHAT_IMAGE_BYTES) return 'size';
-    if (attachedCount >= MAX_AGENT_CHAT_IMAGES) return 'count';
+    if (reserved.count >= MAX_AGENT_CHAT_IMAGES) return 'count';
+    if (reserved.bytes + file.size > MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES) return 'total';
     return undefined;
 }
 
 /**
- * The toast for one kind of rejection. `fileNames` names the files a size rejection refused, so the user knows which
- * one to shrink when several were dropped at once.
+ * Decoded bytes of an attached image, from its base64 length, so images kept across a remount count against the
+ * combined limit without being decoded.
+ */
+export function agentChatImageBytes(image: Pick<AgentChatImageInput, 'data'>): number {
+    const padding = image.data.endsWith('==') ? 2 : image.data.endsWith('=') ? 1 : 0;
+    return (image.data.length / 4) * 3 - padding;
+}
+
+const MEGABYTE = 1024 * 1024;
+
+/**
+ * The toast for one kind of rejection. `fileNames` names the files a size or combined-size rejection refused, so the
+ * user knows which one to shrink or leave out when several were dropped at once.
  */
 export function agentChatImageRejectionMessage(
     rejection: AgentChatImageRejection,
     fileNames: readonly string[] = [],
 ): string {
+    const named = (message: string): string =>
+        fileNames.length > 0 ? `${message}: ${fileNames.join(', ')}` : message;
     switch (rejection) {
         case 'count': {
             return `A message can include up to ${MAX_AGENT_CHAT_IMAGES} images`;
         }
         case 'size': {
-            const limit = `Images must be ${MAX_AGENT_CHAT_IMAGE_BYTES / 1024 / 1024} MB or smaller`;
-            return fileNames.length > 0 ? `${limit}: ${fileNames.join(', ')}` : limit;
+            return named(`Images must be ${MAX_AGENT_CHAT_IMAGE_BYTES / MEGABYTE} MB or smaller`);
+        }
+        case 'total': {
+            return named(
+                `Images in one message must add up to ${MAX_AGENT_CHAT_IMAGES_TOTAL_BYTES / MEGABYTE} MB or less`,
+            );
         }
         case 'type': {
             return 'Only PNG, JPEG, GIF, and WebP images can be attached';
@@ -96,10 +123,10 @@ export function agentChatThumbnailSize(
 }
 
 /**
- * The image files a paste or drop carries. Other files, and text, are left to the input's default handling.
+ * The image files among those a paste, drop, or pick carries. Other files, and text, are left to other handling.
  */
-export function agentChatImageFiles(transfer: DataTransfer | null): File[] {
-    return [...(transfer?.files ?? [])].filter((file) => file.type.startsWith('image/'));
+export function agentChatImageFiles(files: Iterable<File>): File[] {
+    return [...files].filter((file) => file.type.startsWith('image/'));
 }
 
 async function blobToBase64(blob: Blob): Promise<string> {
