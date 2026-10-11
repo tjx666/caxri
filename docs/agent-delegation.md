@@ -311,7 +311,7 @@ tasks is still active, only the outer Shell comes back, and that task continues 
 explicit `--resume` above. Once every task settled (a restart itself settles an active task as
 `interrupted`/`host_reset`), the Agent resumes its native conversation like any other Agent Terminal,
 with the frozen launch settings of its newest task rather than the user's current defaults
-(`apps/server/src/domains/terminal-restore.ts`). That restored launch is the same conversation with
+(`apps/server/src/domains/terminal/restore.ts`). That restored launch is the same conversation with
 nothing new typed into it, so the newest settled task adopts it (`bindEnvironment`): its owner can
 still `--resume` it, which replaces the restored launch. Typing into the Terminal revokes that
 durably, and a fresh restart starts a different conversation, which fences every earlier task. The authenticated profile owner can recover saved

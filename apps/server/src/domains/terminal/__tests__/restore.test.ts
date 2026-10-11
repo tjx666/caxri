@@ -7,12 +7,12 @@ import type { AgentDelegationReceipt, TerminalRecord } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
-import type { AgentCoordinator } from '../agents';
-import { CaxriDatabase } from '../db';
-import type { TerminalManager } from '../terminal';
-import { TerminalRestoreSupervisor } from '../terminal';
-import { createInterruptedTerminalRestorer } from '../terminal-restore';
-import { writeClaudeTranscript } from './create-test-domain-services';
+import { writeClaudeTranscript } from '../../__tests__/create-test-domain-services';
+import type { AgentCoordinator } from '../../agents';
+import { CaxriDatabase } from '../../db';
+import type { TerminalManager } from '../manager';
+import { createInterruptedTerminalRestorer } from '../restore';
+import { TerminalRestoreSupervisor } from '../restore-supervisor';
 
 const FROZEN_LAUNCH = { executable: 'codex', args: ['--model', 'frozen-model'] };
 

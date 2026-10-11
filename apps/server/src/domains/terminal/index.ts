@@ -22,7 +22,13 @@ export type {
     TerminalWorkingDirectoryIdentity,
 } from './manager-types';
 export { createTerminalMoveHandler } from './move';
+export { createRelaunchHandlers } from './relaunch';
 export { TerminalResourceMonitor } from './resource-monitor';
+export {
+    createCommanderTerminalRestorer,
+    createInterruptedTerminalRestorer,
+    type TerminalRestoreOptions,
+} from './restore';
 export { TerminalRestoreSupervisor } from './restore-supervisor';
 export { ShellIntegrationService } from './shell-integration';
 export { TerminalSuspensionService } from './suspension';

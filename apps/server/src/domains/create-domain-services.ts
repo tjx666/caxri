@@ -23,15 +23,16 @@ import {
 import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
-import { createGitReviewHandlers } from './git-review-comments';
+import { createGitReviewHandlers } from './git-review';
 import { createIntrospectionServices } from './introspection';
+import { mainOwned, mainOwnedHandlers } from './main-owned';
 import { createMobileDomainHandlers, MobileTerminalMutationQueue } from './mobile';
 import { createOrderingHandlers } from './ordering-handlers';
 import { createSessionParkingHandlers, createTerminateAllHandler } from './parking-handlers';
 import { createProjectHidingHandlers } from './project';
 import { ProjectStatusService, VercelDeploymentStore } from './project-status';
 import { createRootServices } from './root-services';
-import { createServiceHandlers, mainOwned, mainOwnedHandlers } from './service-handlers';
+import { createServiceHandlers } from './service-handlers';
 import {
     createMobileSessionHandler,
     createSessionAgentRuntimeHandlers,
@@ -40,7 +41,10 @@ import {
     SessionSelectionQueue,
 } from './session';
 import {
+    createCommanderTerminalRestorer,
+    createInterruptedTerminalRestorer,
     createLifecycleEnvironment,
+    createRelaunchHandlers,
     createTerminalAgentExactInputHandler,
     createTerminalBinaryInputHandler,
     createTerminalCreation,
@@ -54,11 +58,6 @@ import {
     TerminalRestoreSupervisor,
     TerminalSuspensionService,
 } from './terminal';
-import { createRelaunchHandlers } from './terminal-relaunch';
-import {
-    createCommanderTerminalRestorer,
-    createInterruptedTerminalRestorer,
-} from './terminal-restore';
 import { createWindowStateHandlers } from './window-state-handlers';
 import * as provenance from './workbench';
 import {

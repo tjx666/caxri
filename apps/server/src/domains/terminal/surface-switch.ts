@@ -3,11 +3,12 @@ import { canUseAgentChat, CaxriError, isChatTerminal } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { AgentCoordinator, AgentEnvironment } from './agents';
-import type { CaxriDatabase } from './db';
-import type { DomainHandlers } from './domain-services';
-import type { TerminalManager, TerminalWorkingDirectoryIdentity } from './terminal';
-import { resumableAgentSessionId } from './terminal-restore';
+import type { AgentCoordinator, AgentEnvironment } from '../agents';
+import type { CaxriDatabase } from '../db';
+import type { DomainHandlers } from '../domain-services';
+import type { TerminalManager } from './manager';
+import type { TerminalWorkingDirectoryIdentity } from './manager-types';
+import { resumableAgentSessionId } from './restore';
 
 export interface TerminalSurfaceSwitchOptions {
     agentEnvironment?: AgentEnvironment;

@@ -3,13 +3,14 @@ import { isDelegationActive, visiblePaneTerminalIds } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import { delegationResumeLaunch } from './agent-delegation';
-import type { AgentCoordinator, AgentEnvironment } from './agents';
-import { isAgentConversationUnwritten } from './agents';
-import type { CaxriDatabase } from './db';
-import { isPtyTerminal } from './pty-guard';
-import type { TerminalManager, TerminalWorkingDirectoryIdentity } from './terminal';
-import { TerminalRestoreSupervisor } from './terminal';
+import { delegationResumeLaunch } from '../agent-delegation';
+import type { AgentCoordinator, AgentEnvironment } from '../agents';
+import { isAgentConversationUnwritten } from '../agents';
+import type { CaxriDatabase } from '../db';
+import { isPtyTerminal } from '../pty-guard';
+import type { TerminalManager } from './manager';
+import type { TerminalWorkingDirectoryIdentity } from './manager-types';
+import { TerminalRestoreSupervisor } from './restore-supervisor';
 
 interface InterruptedTerminalRestorerOptions {
     agentEnvironment?: AgentEnvironment;

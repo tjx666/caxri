@@ -23,8 +23,8 @@ import {
     createTerminalBinaryInputHandler,
     createTerminalInputHandler,
 } from '../terminal/input';
+import { createInterruptedTerminalRestorer } from '../terminal/restore';
 import { decideTerminalSuspensions } from '../terminal/suspension-policy';
-import { createInterruptedTerminalRestorer } from '../terminal-restore';
 
 const PRINCIPAL: Principal = { kind: 'human-cli', id: 'human-cli:test' };
 
