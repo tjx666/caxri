@@ -6,8 +6,6 @@ import { inArray } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
-import type { ShutdownReason } from '../session-policy';
-import { shutdownOutcome } from '../session-policy';
 import {
     BASELINE_SCHEMA_VERSION,
     CURRENT_SCHEMA_VERSION,
@@ -16,6 +14,8 @@ import {
 } from './migrations/manifest';
 import * as schema from './schema';
 import { terminals } from './schema';
+import type { ShutdownReason } from './session-policy';
+import { shutdownOutcome } from './session-policy';
 
 export { CURRENT_SCHEMA_VERSION } from './migrations/manifest';
 

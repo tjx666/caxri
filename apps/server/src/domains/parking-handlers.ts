@@ -4,7 +4,7 @@ import { CaxriError } from '@caxri/protocol';
 import type { AgentChatService } from './agent-chat';
 import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
-import type { MobileTerminalMutationQueue } from './mobile-terminal-mutation-queue';
+import type { MobileTerminalMutationQueue } from './mobile';
 import type { TerminalRestoreSupervisor, TerminalSuspensionService } from './terminal';
 
 export interface SessionParkingOptions {

@@ -14,16 +14,16 @@ import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentCoordinator } from '../agents';
 import { CompactionReadiness, defaultAgentEnvironment, LongPasteService } from '../agents';
 import { CaxriDatabase } from '../db';
-import { SessionCompaction } from '../session-compaction';
+import { SessionCompaction } from '../session/compaction';
 import type { TerminalManager } from '../terminal';
 import { TerminalRestoreSupervisor } from '../terminal';
 import { InFlightLaunches } from '../terminal/in-flight-launches';
-import { decideTerminalSuspensions } from '../terminal/suspension-policy';
 import {
     createTerminalAgentExactInputHandler,
     createTerminalBinaryInputHandler,
     createTerminalInputHandler,
-} from '../terminal-input';
+} from '../terminal/input';
+import { decideTerminalSuspensions } from '../terminal/suspension-policy';
 import { createInterruptedTerminalRestorer } from '../terminal-restore';
 
 const PRINCIPAL: Principal = { kind: 'human-cli', id: 'human-cli:test' };

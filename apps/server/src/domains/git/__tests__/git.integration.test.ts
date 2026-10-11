@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
 import { ExternalStatusHub } from '../../external-status';
-import { ProjectRootResolver } from '../../project-roots';
+import { ProjectRootResolver } from '../../project/roots';
 import { GitService } from '..';
 import type { GitMetadataWatcher } from '../metadata-watcher';
 import { computeRepoId } from '../repo';

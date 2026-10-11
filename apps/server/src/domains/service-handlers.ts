@@ -2,8 +2,6 @@ import type { ServerOperation } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
-import { agentSkillHealthReader } from './agent-skills';
-import { AgentThroughputService } from './agent-throughput';
 import type {
     AgentEnvironment,
     AgentHookManager,
@@ -12,6 +10,8 @@ import type {
     LongPasteService,
 } from './agents';
 import {
+    agentSkillHealthReader,
+    AgentThroughputService,
     listAgentActions,
     readAgentAction,
     readAgentReplySummary,
@@ -31,13 +31,13 @@ import type { FileService } from './files';
 import type { GitService } from './git';
 import { withGitRequestSignal } from './git';
 import type { createIntrospectionServices } from './introspection';
-import { resolveOwnerProjectRoot, resolveProjectRoot } from './project-root-identity';
+import { resolveOwnerProjectRoot, resolveProjectRoot } from './project';
 import type { ProjectStatusService, VercelDeploymentStore } from './project-status';
+import { SessionPullRequestService } from './project-status';
 import type { PullRequestMergeNoticeOptions } from './pull-request-merge-notice';
 import { createPullRequestMergeNotice } from './pull-request-merge-notice';
 import { refreshAfterMerge } from './pull-request-merge-refresh';
-import type { SessionContextService } from './session-context';
-import { SessionPullRequestService } from './session-pull-requests';
+import type { SessionContextService } from './session';
 import { resolveTerminalFileLink } from './terminal';
 import { UsageService } from './usage';
 

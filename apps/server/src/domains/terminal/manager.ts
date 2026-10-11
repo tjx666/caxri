@@ -12,9 +12,9 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import { disposeAllThenRethrow } from '@caxri/utils';
 
+import type { ShutdownReason } from '../db';
+import { shutdownOutcome } from '../db';
 import { assertPtyTerminal, isPtyTerminal } from '../pty-guard';
-import type { ShutdownReason } from '../session-policy';
-import { shutdownOutcome } from '../session-policy';
 import { SingleFlight } from '../single-flight';
 import { AgentStartWaiters } from './agent-start-waiters';
 import { logTerminalAttach } from './attach-log';

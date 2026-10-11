@@ -1,7 +1,7 @@
 import type { AppSettings, ServerEvent } from '@caxri/protocol';
 
 import type { GitHubPullRequestStore } from '../external-status';
-import type { SessionTranscriptContext } from '../session-context';
+import type { SessionTranscriptContext } from '../session';
 import type { VercelDeploymentStore } from './vercel-store';
 
 export interface ProjectStatusServiceOptions {

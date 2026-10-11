@@ -21,10 +21,9 @@ import {
 } from '@caxri/system';
 import { expandLaunchArguments } from '@caxri/utils';
 
-import { AgentRunAutonomy } from '../agent-run-autonomy';
 // Server providers use the public domain barrel by architecture contract.
 // oxlint-disable-next-line react-doctor/no-barrel-import
-import { agentProviders, defaultAgentEnvironment, readVersion } from '../agents';
+import { agentProviders, AgentRunAutonomy, defaultAgentEnvironment, readVersion } from '../agents';
 import { serverProcessEnvironment } from '../executables';
 import { assertTerminalWorkingDirectory, resolveTerminalExecutable } from './launch';
 import type {

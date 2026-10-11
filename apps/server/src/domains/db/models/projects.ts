@@ -23,7 +23,7 @@ function projectRecord(row: typeof projects.$inferSelect): ProjectRecord {
 
 /**
  * Pure CRUD over the `projects` table. Deletion-fallback selection and every other cross-record decision live in
- * `../../session-policy.ts`, not here.
+ * `../session-policy.ts`, not here.
  */
 export class ProjectsModel {
     constructor(private readonly database: CaxriDrizzleDatabase) {}

@@ -45,7 +45,7 @@ The provider descriptor's optional `createThroughputScanner` owns the transcript
 ## Server path
 
 `terminal.agentThroughput` is a polled read (`AgentThroughputService`,
-`apps/server/src/domains/agent-throughput.ts`). It resolves the Terminal's transcript through the
+`apps/server/src/domains/agents/agent-throughput.ts`). It resolves the Terminal's transcript through the
 provider's locator (cached briefly so a 2 s poll does not rescan Codex's session index), then
 scans only bytes appended since the previous read. Each transcript keeps running totals plus the
 last 20 samples, so cost stays constant however long the Session gets; a rewritten or truncated

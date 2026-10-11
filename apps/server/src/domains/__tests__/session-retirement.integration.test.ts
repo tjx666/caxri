@@ -6,8 +6,8 @@ import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestDomainServices } from '../../__tests__/support/domain-services';
-import { SessionAutoNamingService } from '../session-auto-naming';
-import { SessionRenameService } from '../session-rename';
+import { SessionAutoNamingService } from '../session/auto-naming';
+import { SessionRenameService } from '../session/rename';
 import { createFakePty } from './create-test-domain-services';
 
 afterEach(() => vi.restoreAllMocks());
