@@ -25,6 +25,7 @@ export function createAgentChatHandlers(
     | 'agentChat.respond'
     | 'agentChat.resumeQueue'
     | 'agentChat.rewind'
+    | 'agentChat.restoreFiles'
     | 'agentChat.runCommand'
     | 'agentChat.send'
     | 'agentChat.sendQueuedNow'
@@ -61,14 +62,19 @@ export function createAgentChatHandlers(
                     return { sessionId: created.session.id, terminalId: created.terminal!.id };
                 },
             ),
+        'agentChat.restoreFiles': async ({ terminalId, itemId }) => {
+            await agentChat.restoreFiles(terminalId, itemId);
+            return null;
+        },
         'agentChat.runCommand': async ({ terminalId, name, arguments: arguments_ }) => {
             await agentChat.runCommand(terminalId, name, arguments_);
             return null;
         },
-        'agentChat.configure': async ({ terminalId, model, effort }) => {
+        'agentChat.configure': async ({ terminalId, model, effort, ultracode }) => {
             await agentChat.configure(terminalId, {
                 ...(model !== undefined && { model }),
                 ...(effort !== undefined && { effort }),
+                ...(ultracode !== undefined && { ultracode }),
             });
             return null;
         },

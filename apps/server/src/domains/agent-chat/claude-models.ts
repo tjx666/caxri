@@ -62,39 +62,59 @@ export function claudeHookEffort(input: unknown): AgentChatPatchOperation[] {
 }
 
 /**
- * The effort Claude Code will send on its next request: `get_settings`' `applied.effort`, after settings, env
- * overrides, organization caps, and model downgrades. Hooks only report it once a turn runs, so this is what names the
- * effort of a Chat that was just started or resumed. Agent SDK 0.3.295 implements `Query.getSettings` without declaring
- * it, so it is read structurally; a missing method or a model without effort reports nothing.
+ * The effort and ultracode Claude Code will apply on its next request: `get_settings`' `applied`, after settings, env
+ * overrides, organization caps, and model downgrades. Hooks only report the effort once a turn runs, so this is what
+ * names the effort of a Chat that was just started or resumed. Agent SDK 0.3.295 implements `Query.getSettings` without
+ * declaring it, so it is read structurally; a missing method or a model without effort reports nothing. Ultracode is
+ * offered only while `applied.ultracodeAvailable` is true (Claude Code 2.1.296 reports both keys); any other answer
+ * withdraws it, so the toggle never outlives a switch to a model without it.
  */
-export async function readClaudeAppliedEffort(stream: Query): Promise<AgentChatPatchOperation[]> {
+export async function readClaudeAppliedSettings(stream: Query): Promise<AgentChatPatchOperation[]> {
     const { getSettings } = stream as Query & { getSettings?: () => Promise<unknown> };
     if (typeof getSettings !== 'function') return [];
     const settings = await withTimeout(getSettings.call(stream), CONFIGURE_TIMEOUT_MS);
     if (!isRecord(settings) || !isRecord(settings.applied)) return [];
-    const effort = stringField(settings.applied.effort);
-    return effort ? [{ op: 'state', state: { effort: clip(effort, 40) } }] : [];
+    const { applied } = settings;
+    const effort = stringField(applied.effort);
+    const ultracode = applied.ultracodeAvailable === true ? applied.ultracode === true : null;
+    return [{ op: 'state', state: { ...(effort && { effort: clip(effort, 40) }), ultracode } }];
 }
 
 /**
- * Switches a running Claude Code in place: `setModel` applies from the next response, and the effort goes to the
- * session's flag settings layer, which outranks the user's settings files without writing to them. Each step reports
- * its state as soon as Claude Code accepts it, so a failed effort change still shows the model that did switch.
+ * Switches a running Claude Code in place: `setModel` applies from the next response, and the effort and ultracode go
+ * to the session's flag settings layer, which outranks the user's settings files without writing to them. Each step
+ * reports its state as soon as Claude Code accepts it, so a failed effort change still shows the model that did
+ * switch.
+ *
+ * An `effortLevel` sent without an `ultracode` key turns ultracode off, so an effort change carries the current
+ * ultracode along to keep it on, the way Claude Code's own `/effort` picker does.
  */
 export async function configureClaudeModel(
     stream: Pick<Query, 'applyFlagSettings' | 'setModel'>,
-    { model, effort }: AgentChatModelChange,
+    { model, effort, ultracode }: AgentChatModelChange,
+    current: { ultracode: boolean | undefined },
     apply: (operations: AgentChatPatchOperation[]) => void,
 ): Promise<void> {
     if (model) {
         await withTimeout(stream.setModel(model.id), CONFIGURE_TIMEOUT_MS);
         apply([{ op: 'state', state: { model: model.resolvedId ?? model.id } }]);
     }
-    if (effort) {
-        await withTimeout(
-            stream.applyFlagSettings({ effortLevel: effort as EffortLevel }),
-            CONFIGURE_TIMEOUT_MS,
-        );
-        apply([{ op: 'state', state: { effort } }]);
-    }
+    const nextUltracode = ultracode ?? (effort ? current.ultracode : undefined);
+    if (!effort && nextUltracode === undefined) return;
+    await withTimeout(
+        stream.applyFlagSettings({
+            ...(effort && { effortLevel: effort as EffortLevel }),
+            ...(nextUltracode !== undefined && { ultracode: nextUltracode }),
+        }),
+        CONFIGURE_TIMEOUT_MS,
+    );
+    apply([
+        {
+            op: 'state',
+            state: {
+                ...(effort && { effort }),
+                ...(nextUltracode !== undefined && { ultracode: nextUltracode }),
+            },
+        },
+    ]);
 }

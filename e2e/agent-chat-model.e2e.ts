@@ -2,7 +2,11 @@ import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { fakeCodexChatAgentMode, openAgentChat } from './support/agent-chat-fixture.ts';
+import {
+    fakeClaudeChatAgentMode,
+    fakeCodexChatAgentMode,
+    openAgentChat,
+} from './support/agent-chat-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     closeAppQuietly,
@@ -71,6 +75,45 @@ test('a Codex Chat switches its model and effort and shows the context it uses',
         await expect(chat.getByRole('button', { name: 'https://example.com/faq' })).toBeVisible();
         await expect(chat.getByText('Esc to stop')).toBeHidden();
         await page.screenshot({ path: testInfo.outputPath('codex-chat-markdown.png') });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
+test('a Claude Chat turns ultracode on beside the effort and keeps it through an effort change', async ({}, testInfo) => {
+    const created = await mkdtemp(join(tmpdir(), 'caxri-agent-chat-model-'));
+    const directory = await realpath(created);
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root, { recursive: true });
+    const agentMode = await fakeClaudeChatAgentMode(userData);
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        const { page } = running;
+        await createProjectSession(page, 'shell');
+        await openAgentChat(page, 'Claude Chat');
+        const chat = page.locator(VISIBLE_SESSION);
+        const message = chat.getByRole('textbox', { name: 'Message' });
+        await message.fill('hello');
+        await message.press('Enter');
+        await expect(chat.getByText(/You said: hello/u)).toBeVisible();
+
+        const picker = chat.getByRole('button', { name: /^Model: / });
+        await picker.click();
+        const menu = page.getByRole('menu');
+        const ultracode = menu.getByRole('menuitemcheckbox', { name: /Ultracode/u });
+        await expect(ultracode).not.toBeChecked();
+        await ultracode.click();
+        await expect(ultracode).toBeChecked();
+        await menu.getByRole('menuitemradio', { name: 'High' }).click();
+        await expect(menu.getByRole('menuitemradio', { name: 'High' })).toBeChecked();
+        await expect(ultracode).toBeChecked();
+        await page.screenshot({ path: testInfo.outputPath('claude-chat-ultracode-menu.png') });
+        await page.keyboard.press('Escape');
+        await expect(picker).toHaveAccessibleName('Model: Fake, High effort, ultracode on');
+        await page.screenshot({ path: testInfo.outputPath('claude-chat-ultracode-trigger.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

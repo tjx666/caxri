@@ -78,6 +78,11 @@ export const logEventCatalog = {
          * carries message text or paths.
          */
         forked: 'agent_chat.forked',
+        /**
+         * One "Restore code to here" with a closed `outcome` (`restored`, `refused`, `failed`), the provider, the turns
+         * whose file changes were undone, and the duration. Never carries message text or paths.
+         */
+        filesRestored: 'agent_chat.files_restored',
     },
     agent: {
         automaticNamingFinished: 'agent.automatic_naming_finished',
