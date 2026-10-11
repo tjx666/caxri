@@ -144,6 +144,31 @@ describe('mobile Agent Chat requests', () => {
         ]);
     });
 
+    it('forwards a model or effort switch through Core admission without inventing the other field', async () => {
+        const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
+        const domain = domainFixture({ surface: 'chat' });
+        await invoke(
+            {
+                method: 'mobile.agentChat.configure',
+                params: { terminalId: 'terminal-1', model: 'opus' },
+            },
+            domain,
+            forward,
+        );
+        await invoke(
+            {
+                method: 'mobile.agentChat.configure',
+                params: { terminalId: 'terminal-1', effort: 'high' },
+            },
+            domain,
+            forward,
+        );
+        expect(forward.mock.calls.map(([operation]) => operation)).toEqual([
+            { method: 'agentChat.configure', params: { terminalId: 'terminal-1', model: 'opus' } },
+            { method: 'agentChat.configure', params: { terminalId: 'terminal-1', effort: 'high' } },
+        ]);
+    });
+
     it('restarts only a failed Chat on Retry', async () => {
         const forward = vi.fn<(operation: unknown) => Promise<null>>(async () => null);
         await invoke(
@@ -163,11 +188,20 @@ describe('mobile Agent Chat requests', () => {
         });
     });
 
-    it('lets every role read, reply devices send, and only control devices answer or stop', () => {
+    it('lets every role read, reply devices send and choose the model, and only control devices answer or stop', () => {
         for (const role of ['view', 'reply', 'control'] as const)
             expect(isMobileGatewayMethodAllowedForRole(role, 'mobile.agentChat.read')).toBe(true);
         expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.agentChat.send')).toBe(false);
         expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.agentChat.send')).toBe(true);
+        expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.agentChat.configure')).toBe(
+            false,
+        );
+        expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.agentChat.configure')).toBe(
+            true,
+        );
+        expect(isMobileGatewayMethodAllowedForRole('control', 'mobile.agentChat.configure')).toBe(
+            true,
+        );
         expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.agentChat.respond')).toBe(
             false,
         );

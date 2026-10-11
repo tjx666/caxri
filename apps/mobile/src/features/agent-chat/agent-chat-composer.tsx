@@ -6,6 +6,7 @@ import { ArrowUp, Square } from 'lucide-react-native';
 import type { MobileTheme } from '../../theme/tokens';
 import { sessionDetailStyles as styles } from '../sessions/components/session-detail-styles';
 import { agentChatComposerDisabledReason } from './agent-chat-model';
+import { AgentChatModelButton } from './agent-chat-model-sheet';
 import type { AgentChatController } from './use-agent-chat';
 
 /**
@@ -113,6 +114,7 @@ export const AgentChatComposer = ({
             style={[styles.composerBlock, { borderColor: theme.border }]}
             testID="agent-chat-composer"
         >
+            <AgentChatModelButton chat={chat} disabledReason={disabledReason} theme={theme} />
             <View style={styles.composerRow}>
                 <TextInput
                     accessibilityHint="Return inserts a new line. Use Send message to submit."

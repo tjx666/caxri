@@ -640,10 +640,6 @@ test('executes one report-bound Android product scenario', async ({}) => {
         case 'MOB-PANELS-01':
             await executeMobileProjectPanelsScenario(environment, artifacts);
             break;
-        case 'MOB-CHAT-01':
-        case 'MOB-CHAT-02':
-            await executeMobileAgentChatCase(environment, artifacts);
-            break;
         case 'MOB-CONV-05':
             await executeMobileConversationTransitionScenario(environment, artifacts);
             break;
@@ -671,6 +667,10 @@ test('executes one report-bound Android product scenario', async ({}) => {
             await executeMobileChangesScenario(environment, artifacts);
             break;
         default:
-            throw new Error(`Unsupported Playwright mobile Acceptance case: ${environment.caseId}`);
+            if (!environment.caseId.startsWith('MOB-CHAT-'))
+                throw new Error(
+                    `Unsupported Playwright mobile Acceptance case: ${environment.caseId}`,
+                );
+            await executeMobileAgentChatCase(environment, artifacts);
     }
 });
