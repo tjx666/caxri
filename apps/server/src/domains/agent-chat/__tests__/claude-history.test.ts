@@ -7,6 +7,40 @@ function jsonl(records: unknown[]): string {
 }
 
 describe('Claude transcript history', () => {
+    it('dates each message by the transcript record that began it', () => {
+        const operations = claudeHistoryOperations(
+            jsonl([
+                {
+                    type: 'user',
+                    uuid: 'u1',
+                    timestamp: '2026-10-11T09:59:00.000Z',
+                    message: { role: 'user', content: 'hello' },
+                },
+                {
+                    type: 'assistant',
+                    uuid: 'a1',
+                    timestamp: '2026-10-11T10:00:00.000Z',
+                    message: { id: 'm1', content: [{ type: 'text', text: 'Hi' }] },
+                },
+                {
+                    type: 'assistant',
+                    uuid: 'a2',
+                    timestamp: 'not a time',
+                    message: { id: 'm2', content: [{ type: 'text', text: 'Again' }] },
+                },
+            ]),
+            false,
+        );
+        const items = operations.flatMap((operation) =>
+            operation.op === 'upsertItem' ? [operation.item] : [],
+        );
+        expect(items.map((item) => [item.type, item.createdAt])).toEqual([
+            ['userMessage', Date.parse('2026-10-11T09:59:00.000Z')],
+            ['agentMessage', Date.parse('2026-10-11T10:00:00.000Z')],
+            ['agentMessage', undefined],
+        ]);
+    });
+
     it('rebuilds finished turns from visible records and skips sidechains and harness records', () => {
         const operations = claudeHistoryOperations(
             jsonl([

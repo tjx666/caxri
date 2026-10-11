@@ -275,6 +275,11 @@ record is the source of truth.
   it, and stops a provider whose stdin backlog passes 8 MiB rather than buffering without bound.
 - Items a turn left open (an interrupted command, a cut-off message) are closed as `interrupted`
   when the turn ends or the process exits.
+- An item's optional `createdAt` is when it began. Server Core stamps an item on its first live
+  upsert (`stampNewItems` in `apps/server/src/domains/agent-chat/chat-projection.ts`) and the
+  reducer keeps it across later upserts that omit it. A history replay is not stamped with the read
+  time: Claude Code history takes each message's transcript record time, and a provider whose
+  history carries no time leaves resumed items undated, so they show no time rather than a wrong one.
 
 ## Background work
 
@@ -412,7 +417,23 @@ stop`, which is also a pointer shortcut for Stop. Only the label is the polite l
   leveled headings, nested and task lists, quotes, tables with Copy table (Markdown plus HTML), and
   fenced code with a header (language, word-wrap toggle, Copy code) painted by Monaco's colorizer
   once the fence closes. A reply offers Copy message only while the pointer is over it (or focus reaches the button), after
-  it finishes.
+  it finishes, followed by the time the reply began.
+- Message times follow the Codex app. A centered day break (`Today 17:59`, `Yesterday 09:12`,
+  `Oct 3 17:59`) heads the first user message of each day. Under a user message, a hover row shows
+  its time and Copy message; the row keeps its height, so revealing it never shifts the transcript.
+  Every time carries a tooltip with the full date. Formatting and day grouping live in
+  `apps/desktop/src/renderer/src/features/agent-chat/agent-chat-time.ts`.
+- From the second user message, a message rail sits at the pane's left edge: one tick per user
+  message, the one being read longer and brighter. Hovering a tick previews its message, and
+  clicking it stops following new output and jumps there. Ticks shrink together rather than scroll
+  when a long conversation would overflow the view
+  (`apps/desktop/src/renderer/src/features/agent-chat/agent-chat-rail-marks.ts`).
+- A web link in a reply or pasted into a user message shows the site's favicon and opens a hover
+  card naming the host with an Open action. For HTTPS links, the card previews the page's share
+  image, title, and description. Main reads them through the `links.preview` desktop method
+  (`apps/desktop/src/main/link-previews.ts`): the HTML head only, at most 256 KiB, a 5 s timeout,
+  Open Graph then Twitter Card then `<title>` fallbacks, HTTPS images only, and an LRU of 256
+  URLs. A page that declares nothing keeps the card's link summary.
 - While a reply streams, `repairStreamingMarkdown` completes the last block's unfinished emphasis,
   inline code, and links so raw syntax never flashes, and blocks are memoized by value so a delta
   re-renders only the block it changed.

@@ -5,7 +5,6 @@ import { identifierSchema } from '../domain/domain.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import {
     agentChatCommandSchema,
-    agentChatDecisionSchema,
     agentChatEffortSchema,
     agentChatImageMediaTypeSchema,
     agentChatModelSchema,
@@ -18,6 +17,7 @@ import {
     MAX_AGENT_CHAT_IMAGES,
     MAX_AGENT_CHAT_MESSAGE_LENGTH,
 } from './agent-chat-contract.js';
+import { agentChatDecisionSchema } from './agent-chat-requests.js';
 
 export type AgentChatImageInput = z.infer<typeof agentChatImageInputSchema>;
 export type AgentChatMessageInput = Omit<

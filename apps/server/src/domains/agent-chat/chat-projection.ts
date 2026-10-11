@@ -37,6 +37,32 @@ interface ChatProjectionOptions {
 }
 
 /**
+ * Stamps `createdAt` on each item that enters the projection live, so the transcript can say when a message was sent or
+ * answered. Every provider rebuilds history as one batch led by `reset`, and an item after that `reset` is a replay
+ * whose real time is long past: it keeps whatever time its provider recorded, or none, rather than the time of the
+ * replay. Later upserts of a stamped item inherit the stamp in the shared reducer.
+ */
+export function stampNewItems(
+    snapshot: AgentChatSnapshot,
+    operations: readonly AgentChatPatchOperation[],
+    now: number,
+): readonly AgentChatPatchOperation[] {
+    if (operations.some((operation) => operation.op === 'reset')) return operations;
+    const known = new Set(snapshot.items.map((item) => item.id));
+    let stamped: AgentChatPatchOperation[] | undefined;
+    for (const [index, operation] of operations.entries()) {
+        if (operation.op !== 'upsertItem') continue;
+        const { item } = operation;
+        if (item.createdAt === undefined && !known.has(item.id)) {
+            stamped ??= [...operations];
+            stamped[index] = { op: 'upsertItem', item: { ...item, createdAt: now } };
+        }
+        known.add(item.id);
+    }
+    return stamped ?? operations;
+}
+
+/**
  * One Chat's in-memory projection: the snapshot every Client mirrors, its task projections, and the operations not yet
  * flushed as `agentChat.patch` / `agentChat.taskPatch` events.
  */
@@ -102,10 +128,11 @@ export class ChatProjection {
     apply(operations: readonly AgentChatPatchOperation[]): void {
         if (operations.length === 0) return;
         const previousTasks = this.snapshot.tasks;
-        for (const operation of operations)
+        const stamped = stampNewItems(this.snapshot, operations, Date.now());
+        for (const operation of stamped)
             this.snapshot = applyAgentChatOperation(this.snapshot, operation);
         if (this.snapshot.tasks !== previousTasks) this.logFinishedTasks(previousTasks ?? []);
-        this.queued.push(...operations);
+        this.queued.push(...stamped);
         this.scheduleFlush();
         this.options.onChange();
     }
