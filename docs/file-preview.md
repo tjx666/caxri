@@ -88,6 +88,13 @@ same in development and in the packaged app. The worker is bundled with Vite's `
 like Monaco's workers. None of this is in the initial Renderer bundle; the size cost is recorded in
 [bundle-size.md](bundle-size.md).
 
+Every open PDF shares that one worker through a single long-lived `PDFWorker` passed to each
+`getDocument` call, never through `GlobalWorkerOptions.workerPort`. With the global port, pdf.js
+lets each loading task tear down the shared `PDFWorker` on `destroy()`, and a PDF opened during that
+round trip (switching from one PDF to the next) failed with "the worker is being destroyed" instead
+of its own result
+([`pdf-document.test.ts`](../apps/desktop/src/renderer/src/features/preview/__tests__/pdf-document.test.ts)).
+
 ### CSV and TSV
 
 The table parses the editor's buffer with [Papa Parse](https://www.papaparse.com/), so quoted
