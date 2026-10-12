@@ -372,12 +372,8 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('shellCommand.uninstall', (context) => context.shellCommand.uninstall(), {
         when: (context) => context.remote.isLocalOnlyAvailable(),
     }),
-    /**
-     * The path browser lists and opens paths with this Mac's filesystem, so an SSH Host window does not offer it.
-     */
     fromCatalog('pathBrowser.open', (context) => context.dialogs.openPathBrowser(), {
         allowInEditable: true,
-        when: (context) => context.remote.isLocalOnlyAvailable(),
     }),
     fromCatalog('commandPalette.open', (context) => context.dialogs.openPalette(), {
         allowInEditable: true,

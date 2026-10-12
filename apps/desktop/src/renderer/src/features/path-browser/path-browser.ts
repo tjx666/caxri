@@ -75,13 +75,18 @@ export function parsePathBrowserInput(value: string): ParsedPathBrowserInput {
  * `./` is the way back. It is consumed rather than sent, so the bare prefix restores the Project chrome with an empty
  * field and `./src` lands on `src` under the root. Nothing is lost by claiming it in free mode: a free-mode `./x` and a
  * bare `x` already resolved to the same entry of the current directory.
+ *
+ * An SSH Host window has no free mode (`canBrowseFree` false): an absolute path stays a Project path there, so one that
+ * points inside the remote Project still opens.
  */
 export function pathBrowserInputTransition(
     current: PathBrowserInputState,
     input: string,
+    canBrowseFree = true,
 ): PathBrowserInputState {
     const isAbsoluteOrHome = input.startsWith('/') || input === '~' || input.startsWith('~/');
-    if (isAbsoluteOrHome && current.mode === 'project') return { input, mode: 'free' };
+    if (canBrowseFree && isAbsoluteOrHome && current.mode === 'project')
+        return { input, mode: 'free' };
     if (current.mode === 'free' && input.startsWith('./'))
         return { input: input.slice(2), mode: 'project' };
     return { input, mode: current.mode };
@@ -155,6 +160,10 @@ export type PathBrowserKeyIntent =
     | { kind: 'parent' };
 
 interface PathBrowserKeyContext {
+    /**
+     * False in an SSH Host window, which has no free mode to detach into.
+     */
+    canBrowseFree?: boolean;
     entryCount: number;
     input: string;
     isComposing: boolean;
@@ -169,6 +178,7 @@ interface PathBrowserKeyContext {
  * Maps input keys to browser commands while preserving ordinary caret movement whenever the cursor is inside text.
  */
 export function pathBrowserKeyIntent({
+    canBrowseFree = true,
     entryCount,
     input,
     isComposing,
@@ -182,6 +192,7 @@ export function pathBrowserKeyIntent({
     if (key === 'Escape') return { kind: 'close' };
     const isCollapsed = selectionStart !== null && selectionStart === selectionEnd;
     if (
+        canBrowseFree &&
         mode === 'project' &&
         input === '' &&
         isCollapsed &&
