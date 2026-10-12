@@ -7,38 +7,52 @@ import type { AgentChatTaskLink } from '../agent-chat-tasks';
 import { agentChatTaskLinkForItem, agentChatTasksByItem } from '../agent-chat-tasks';
 
 /**
- * What a Chat's timeline needs to open a tab beside the Chat: the tasks keyed by the item that started each, how to
- * open one, and how to open a turn's review. Provided by a Workbench Chat pane; a task tab's own read-only timeline and
- * the Agent Commander window's Chat (which mounts no pane layout to open a tab in) provide nothing, so their rows stay
- * plain and their turns offer no review.
+ * What a Chat's timeline knows about its tasks: the tasks keyed by the item that started each and, where the host can
+ * open a tab beside the Chat, how to open one and how to open a turn's review. Provided by every Chat pane; a task
+ * tab's own read-only timeline provides nothing, so its rows stay plain.
+ *
+ * `tasksByItem` is always present because it drives live task status, not just navigation: a row whose subagent or
+ * background shell still runs stays out of the `Ran N commands` summary and shows its elapsed time (issue caxri#1719).
+ * The openers are absent in the Agent Commander window, which mounts no pane layout to open a tab in, so its rows offer
+ * no Open button and its turns no review while keeping their live status.
  */
 export interface AgentChatTaskLinks {
     tasksByItem: ReadonlyMap<string, AgentChatTask>;
-    openTask: (taskId: string) => void;
-    openTurnReview: (turnId: string) => void;
+    openTask?: (taskId: string) => void;
+    openTurnReview?: (turnId: string) => void;
 }
 
 export const AgentChatTaskLinksContext = createContext<AgentChatTaskLinks | undefined>(undefined);
 
 /**
- * What the Chat pane provides: rows that started a subagent or background shell open its tab beside this Chat, or
- * nothing when the host cannot open a tab there (`canOpenBesideChat` in `agentChatHostCapabilities`). Memoized on the
- * task list so a streamed delta that leaves tasks alone does not re-render every memoized work row.
+ * Builds the Chat pane's task links: always the task index, plus the beside-Chat openers only when `canOpenBesideChat`
+ * (see `agentChatHostCapabilities`).
+ */
+export function createAgentChatTaskLinks(
+    tasks: readonly AgentChatTask[] | undefined,
+    terminalId: string,
+    canOpenBesideChat: boolean,
+): AgentChatTaskLinks {
+    const tasksByItem = agentChatTasksByItem(tasks);
+    if (!canOpenBesideChat) return { tasksByItem };
+    return {
+        tasksByItem,
+        openTask: (taskId) => openAgentChatTaskTab(terminalId, taskId),
+        openTurnReview: (turnId) => openAgentChatTurnReview(terminalId, turnId),
+    };
+}
+
+/**
+ * What the Chat pane provides (see {@link createAgentChatTaskLinks}). Memoized on the task list so a streamed delta that
+ * leaves tasks alone does not re-render every memoized work row.
  */
 export function useAgentChatTaskLinks(
     tasks: readonly AgentChatTask[] | undefined,
     terminalId: string,
     canOpenBesideChat: boolean,
-): AgentChatTaskLinks | undefined {
+): AgentChatTaskLinks {
     return useMemo(
-        () =>
-            canOpenBesideChat
-                ? {
-                      tasksByItem: agentChatTasksByItem(tasks),
-                      openTask: (taskId) => openAgentChatTaskTab(terminalId, taskId),
-                      openTurnReview: (turnId) => openAgentChatTurnReview(terminalId, turnId),
-                  }
-                : undefined,
+        () => createAgentChatTaskLinks(tasks, terminalId, canOpenBesideChat),
         [canOpenBesideChat, tasks, terminalId],
     );
 }
@@ -51,13 +65,16 @@ export function useAgentChatTurnReviewOpener(): ((turnId: string) => void) | und
 }
 
 /**
- * The task a timeline row opens, with the opener, or `undefined` for an ordinary row.
+ * The task a timeline row belongs to, or `undefined` for an ordinary row. `open` is absent where the Chat cannot open a
+ * tab beside itself; the row still shows the task's live status.
  */
 export function useAgentChatTaskLink(
     item: AgentChatItem,
-): (AgentChatTaskLink & { open: () => void }) | undefined {
+): (AgentChatTaskLink & { open?: () => void }) | undefined {
     const links = useContext(AgentChatTaskLinksContext);
     if (!links) return undefined;
     const link = agentChatTaskLinkForItem(item, links.tasksByItem);
-    return link && { ...link, open: () => links.openTask(link.taskId) };
+    if (!link) return undefined;
+    const { openTask } = links;
+    return openTask ? { ...link, open: () => openTask(link.taskId) } : link;
 }
