@@ -349,7 +349,7 @@ CAXRI_USER_DATA_DIR="$profile" "$profile/bin/caxri" settings get --json`,
         expect(first.states.at(-1)?.phase).toBe('connected');
     }, 60_000);
 
-    it('serves a Desktop connection: Project, Session, and a Terminal echo', async () => {
+    it('serves a Desktop connection: Project, Session, Terminal echo, and Trash', async () => {
         await control!.exec(`mkdir -p "$HOME/${PROJECT_FOLDER}"`, { timeoutMs: 10_000 });
         const { credential, manifest } = await first.supervisor.discoverDesktop();
         const desktopCommands: string[] = [];
@@ -394,6 +394,28 @@ CAXRI_USER_DATA_DIR="$profile" "$profile/bin/caxri" settings get --json`,
         report.desktopFlowMs = Date.now() - startedAt;
         report.desktopCommands = desktopCommands;
         await desktop.request('terminal.close', { terminalId: terminal.id });
+
+        // Main moves an SSH Host window's entry into that host's freedesktop.org Trash after its dialog.
+        const trashed = `${project.rootPath}/agent-made.txt`;
+        await control!.exec(`printf draft > '${trashed}' && rm -rf "$HOME/.local/share/Trash"`, {
+            timeoutMs: 10_000,
+        });
+        const sessionId = created.session.id;
+        const approved = await desktop.requestServerOperation('files.authorizeTrash', {
+            sessionId,
+            path: trashed,
+        });
+        await desktop.requestServerOperation('files.trashOnHost', {
+            sessionId,
+            path: approved.path,
+            device: approved.device,
+            inode: approved.inode,
+        });
+        const { stdout: trash } = await control!.exec(
+            `test ! -e '${trashed}' && cat "$HOME/.local/share/Trash/files/agent-made.txt" && grep '^Path=' "$HOME/.local/share/Trash/info/agent-made.txt.trashinfo"`,
+            { timeoutMs: 10_000 },
+        );
+        expect(trash).toBe(`draftPath=${trashed}\n`);
     }, 60_000);
 
     it('stops the Server with host.stop and waits for its exit', async () => {

@@ -268,4 +268,19 @@ export const fileInternalMethods = {
         params: z.object({ sessionId: identifierSchema, path: pathSchema }),
         result: authorizedFileEntry,
     },
+    /**
+     * Moves an entry Main already confirmed into the Server host's own Trash. An SSH Host window uses it in place of
+     * Electron's `shell.trashItem`, which would act on this Mac; `device` and `inode` are the identity the user
+     * approved, so a path replaced after the dialog is refused instead of trashed.
+     */
+    'files.trashOnHost': {
+        ...serverControl,
+        params: z.object({
+            sessionId: identifierSchema,
+            path: pathSchema,
+            device: z.string().regex(/^\d+$/),
+            inode: z.string().regex(/^\d+$/),
+        }),
+        result: z.null(),
+    },
 } as const satisfies Record<string, MethodSpec>;

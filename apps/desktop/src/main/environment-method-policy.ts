@@ -95,9 +95,10 @@ const environmentMethodScopes = {
     'session.deleteMany': 'any',
     'terminal.openFileLink': 'remote-override',
     /**
-     * Electron's Trash API moves a local path.
+     * Electron's Trash API moves a local path, so an SSH Host window asks its Server to move the entry into the remote
+     * host's own Trash instead.
      */
-    'files.trash': 'local-only',
+    'files.trash': 'remote-override',
     'git.discard': 'any',
     /**
      * Server Core imports a path the native picker chose on this Mac.

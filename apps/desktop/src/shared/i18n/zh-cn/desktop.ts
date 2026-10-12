@@ -47,6 +47,10 @@ export const desktop: TranslatedNamespace<typeof source> = {
     'desktop.trash.detail': '{{path}}\n\n你可以从废纸篓中恢复此项目。',
     'desktop.trash.detailUnsaved':
         '{{path}}\n\n此文件在编辑器中有未保存的更改。从废纸篓只能恢复最后一次保存的版本。',
+    'desktop.trash.detailRemote':
+        '{{path}}\n\n此项目会移到 {{host}} 上的废纸篓（~/.local/share/Trash），之后可以从那里恢复。',
+    'desktop.trash.detailRemoteUnsaved':
+        '{{path}}\n\n此项目会移到 {{host}} 上的废纸篓（~/.local/share/Trash）。此文件在编辑器中有未保存的更改，只能恢复最后一次保存的版本。',
     'desktop.trash.confirm': '移到废纸篓',
 
     'desktop.shellCommand.installTitle': '安装“caxri”命令',
