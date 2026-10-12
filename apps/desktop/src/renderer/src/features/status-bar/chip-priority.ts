@@ -48,11 +48,12 @@ export type DroppableChip = (typeof CHIP_DROP_ORDER)[number];
 export type ChipVisibility = Readonly<Record<DroppableChip, boolean>>;
 
 /**
- * Hidden chips, each with the width (gap included) it last occupied, so the bar can tell when it fits again.
+ * The chips hidden by priority. A hidden chip still renders, out of the bar's layout (`PriorityChipSlot`), so its
+ * current width stays measurable.
  */
-export type HiddenChips = ReadonlyMap<DroppableChip, number>;
+export type HiddenChips = ReadonlySet<DroppableChip>;
 
-export const NO_HIDDEN_CHIPS: HiddenChips = new Map();
+export const NO_HIDDEN_CHIPS: HiddenChips = new Set();
 
 /**
  * One layout measurement of the bar.
@@ -63,48 +64,47 @@ export interface ChipFit {
      */
     available: number;
     /**
-     * Width the bar's content needs at natural size, with the chips currently rendered.
+     * Width the bar's in-flow content needs at natural size: the chips shown in the bar, not the hidden ones.
      */
     required: number;
     /**
-     * Width (gap included) of each droppable chip currently rendered; a chip with nothing to show is absent.
+     * Current width (gap included) of each droppable chip with something to show, shown or hidden; a chip with nothing
+     * to show is absent.
      */
-    rendered: Partial<Record<DroppableChip, number>>;
+    chips: Partial<Record<DroppableChip, number>>;
 }
 
 /**
  * Which chips to hide so the bar's content fits, dropping lowest priority first. Pure, so it stays unit-testable
  * without a DOM.
  *
- * The answer does not depend on which chips happen to be hidden right now, only on their widths: a currently hidden
- * chip counts with the width it last occupied, which is what lets a widening bar bring it back once it fits and keeps a
- * bar near the threshold from flickering a chip in and out. A chip that renders nothing is never hidden, because hiding
- * it frees no room.
+ * The answer does not depend on which chips happen to be hidden right now, only on their current widths: a hidden chip
+ * is measured where it renders out of the layout, which is what lets a widening bar bring it back once it fits and
+ * keeps a bar near the threshold from flickering a chip in and out. A chip with nothing to show (an Agent's output
+ * speed after the Agent exits) measures as absent, shown or hidden, so it never holds room the other chips could use.
  */
 export function resolveHiddenChips(fit: ChipFit, hidden: HiddenChips): HiddenChips {
-    let renderedTotal = 0;
-    for (const width of Object.values(fit.rendered)) renderedTotal += width;
-    const widths = CHIP_DROP_ORDER.map((chip) => fit.rendered[chip] ?? hidden.get(chip) ?? 0);
-    let total = fit.required - renderedTotal;
-    for (const width of widths) total += width;
-    const next = new Map<DroppableChip, number>();
+    const widths = CHIP_DROP_ORDER.map((chip) => fit.chips[chip] ?? 0);
+    let total = fit.required;
+    for (const [index, chip] of CHIP_DROP_ORDER.entries())
+        if (hidden.has(chip)) total += widths[index];
+    const next = new Set<DroppableChip>();
     for (const [index, chip] of CHIP_DROP_ORDER.entries()) {
         if (total <= fit.available) break;
         const width = widths[index];
         if (width <= 0) continue;
-        next.set(chip, width);
+        next.add(chip);
         total -= width;
     }
     return next;
 }
 
 /**
- * True when two hidden sets hide the same chips. Remembered widths are not compared, so a chip whose width moved by a
- * pixel while hidden does not re-render the bar.
+ * True when two hidden sets hide the same chips.
  */
 export function isSameHiddenChips(left: HiddenChips, right: HiddenChips): boolean {
     if (left.size !== right.size) return false;
-    for (const chip of left.keys()) if (!right.has(chip)) return false;
+    for (const chip of left) if (!right.has(chip)) return false;
     return true;
 }
 

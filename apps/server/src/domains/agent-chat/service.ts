@@ -37,7 +37,7 @@ import {
     readChatTranscript,
     requireChatTerminal,
 } from './chat-launch';
-import { chatPermissionToStore, switchChatPermission } from './chat-permission-switch';
+import { ChatPermissionSwitches, chatReportedStateHost } from './chat-permission-switch';
 import type { AgentChatProviderSession } from './chat-provider';
 import { AgentChatStartError } from './chat-provider';
 import * as queueActions from './chat-queue-actions';
@@ -63,6 +63,8 @@ export class AgentChatService {
 
     private readonly agentRunAutonomy = new AgentRunAutonomy();
 
+    private readonly permissionSwitches: ChatPermissionSwitches;
+
     private readonly endpoint: ChatEndpointLease;
 
     private isShuttingDown = false;
@@ -74,6 +76,13 @@ export class AgentChatService {
             logger: options.logger,
             send: (event) => options.send(event),
             enqueue: (terminalId, state, deliver) => this.enqueueOn(terminalId, state, deliver),
+        });
+        this.permissionSwitches = new ChatPermissionSwitches({
+            options,
+            enqueue: (id, deliver) => this.enqueueOn(id, this.states.open(id), deliver),
+            restart: (id) => this.restart(id, true),
+            isLive: (id) => this.isLive(id),
+            admit: (id) => this.states.admitOpen(id),
         });
     }
 
@@ -202,19 +211,12 @@ export class AgentChatService {
                         if (event.phase === 'turnStarted') state.resumeAt = undefined;
                     },
                 }),
-                onSessionBound: (agentSessionId) => {
-                    if (!isCurrent()) return;
-                    if (database.rebindAgentSession(terminalId, provider, agentSessionId))
-                        this.states.publish(terminalId);
-                },
-                onPermissionChanged: (permission) => {
-                    if (!isCurrent()) return;
-                    const stored = database.getChatPermission(terminalId);
-                    database.setChatPermission(
-                        terminalId,
-                        chatPermissionToStore(stored, permission),
-                    );
-                },
+                ...chatReportedStateHost(database, {
+                    terminalId,
+                    provider,
+                    isCurrent,
+                    onRebound: () => this.states.publish(terminalId),
+                }),
                 ...chatSessionLogCallbacks(this.options, terminalId),
                 onExit: (exit) =>
                     handleChatExit(this.exitHost(), terminalId, provider, state, launchId, exit),
@@ -267,8 +269,12 @@ export class AgentChatService {
         return { options, states, enqueue: (id, deliver) => this.enqueue(id, deliver) };
     }
 
-    private enqueue(terminalId: string, deliver: ChatStateDelivery): Promise<void> {
+    /**
+     * Appends input to the Chat's current send chain, after a pending permission switch (see `ChatPermissionSwitches`).
+     */
+    private async enqueue(terminalId: string, deliver: ChatStateDelivery): Promise<void> {
         requireChatTerminal(this.options.database, terminalId);
+        await this.permissionSwitches.settled(terminalId);
         return this.enqueueOn(terminalId, this.states.open(terminalId), deliver);
     }
 
@@ -385,15 +391,10 @@ export class AgentChatService {
     }
 
     /**
-     * Switches the permission level or plan mode; see {@link switchChatPermission}.
+     * Switches the permission level or plan mode; see {@link ChatPermissionSwitches}.
      */
-    async setPermission(terminalId: string, request: AgentChatPermissionRequest): Promise<void> {
-        const restart = (id: string) => this.restart(id, true);
-        await switchChatPermission(
-            { options: this.options, enqueue: this.enqueue.bind(this), restart },
-            terminalId,
-            request,
-        );
+    setPermission(terminalId: string, request: AgentChatPermissionRequest): Promise<void> {
+        return this.permissionSwitches.switch(terminalId, request);
     }
 
     /**

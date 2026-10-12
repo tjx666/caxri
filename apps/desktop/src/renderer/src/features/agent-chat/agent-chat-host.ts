@@ -18,6 +18,13 @@ export interface AgentChatHostCapabilities {
      */
     canSaveProjectDefault: boolean;
     /**
+     * Opening a subagent, a background shell, or a turn's review as a tab beside the Chat. The tab goes into the
+     * Session's pane layout, which the Commander window never mounts: there it would be invisible and still be
+     * persisted into the Commander Session's layout, so the window offers those entries as plain, unclickable rows
+     * instead.
+     */
+    canOpenBesideChat: boolean;
+    /**
      * The context meter's Details button: it opens the Context tab, a Workbench editor tab.
      */
     canOpenContext: boolean;
@@ -27,6 +34,7 @@ export function agentChatHostCapabilities(host: AgentChatHost): AgentChatHostCap
     const isWorkbench = host === 'workbench';
     return {
         canFork: isWorkbench,
+        canOpenBesideChat: isWorkbench,
         canSaveProjectDefault: isWorkbench,
         canOpenContext: isWorkbench,
     };

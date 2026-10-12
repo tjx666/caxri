@@ -61,7 +61,7 @@ export const statusBar = {
     'statusBar.usage.limitsAsOf': 'Limits as of',
     'statusBar.usage.methodNote':
         "Tokens and cost are read from this conversation's own transcript and priced at API list prices, the same rules as the Usage page. Plan limits are account-wide: the newest reading from any conversation.",
-    'statusBar.usage.clickToOpen': 'Click to open Usage',
+    'statusBar.usage.clickToOpen': "Click to open this Session's usage",
     'statusBar.terminal.childProcessOne': '{{count}} child process',
     'statusBar.terminal.childProcessOther': '{{count}} child processes',
     'statusBar.terminal.memoryAriaLabel': 'Open Process Explorer — Terminal memory: {{memory}}',
@@ -102,9 +102,9 @@ export const statusBar = {
     'statusBar.commanderInbox.textOne': '{{count}} needs you',
     'statusBar.commanderInbox.textOther': '{{count}} need you',
     'statusBar.commanderInbox.descriptionOne':
-        'Open Agent Commander: 1 item in its Inbox needs your answer or merge.',
+        'Open Inbox: 1 Agent Commander item needs your answer or merge.',
     'statusBar.commanderInbox.descriptionOther':
-        'Open Agent Commander: {{count}} items in its Inbox need your answer or merge.',
+        'Open Inbox: {{count}} Agent Commander items need your answer or merge.',
     'statusBar.listSeparator': ', ',
     'statusBar.alsoReferenced': 'Also referenced',
     'statusBar.source.pullRequest': 'From the pull request description',

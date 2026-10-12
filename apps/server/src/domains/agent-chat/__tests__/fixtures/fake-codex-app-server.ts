@@ -41,7 +41,7 @@
  * thread open also appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert
  * the configuration Caxri asked for (`fake-codex-threads.ts`). A `<threadId>.writer-held` file there makes resuming
  * that thread fail as Codex does when another client still holds the thread's writer, and an `unsubscribe-fails` file
- * makes `thread/unsubscribe` answer with an error.
+ * makes `thread/unsubscribe` answer with an error. `config/read` reports `readFakeConfig`'s workspace-write table.
  */
 import crypto from 'node:crypto';
 import path from 'node:path';
@@ -75,6 +75,7 @@ import {
 } from './fake-codex-tasks.ts';
 import {
     fakeCodexStateDirectory,
+    readFakeConfig,
     readSavedThread,
     recordThreadOpen,
     recordTurnStart,
@@ -454,6 +455,10 @@ function handle(message: RpcMessage) {
         }
         case 'thread/unsubscribe': {
             send({ id, ...unsubscribeThread(fakeCodexStateDirectory()) });
+            return;
+        }
+        case 'config/read': {
+            send({ id, result: readFakeConfig() });
             return;
         }
         case 'model/list': {

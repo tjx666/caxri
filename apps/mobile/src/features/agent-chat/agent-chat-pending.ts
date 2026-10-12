@@ -97,6 +97,7 @@ export class AgentChatPendingStore {
                     id: message.id,
                     text: message.text,
                     imageUris: message.imageUris,
+                    imageCount: message.imageUris.length,
                     placement: agentChatPendingPlacement(
                         snapshot,
                         message.delivery,

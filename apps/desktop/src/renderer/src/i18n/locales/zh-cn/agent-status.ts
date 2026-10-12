@@ -20,7 +20,7 @@ export const agentStatus: TranslatedNamespace<typeof source> = {
     'agentStatus.phase.resolved': '已解决',
     'agentStatus.phase.postmortem': '事后复盘',
     'agentStatus.moreIncidents': '另有 {{count}} 个',
-    'agentStatus.incidentWithPhase': '{{name}}（{{phase}}）',
+    'agentStatus.incidentPhase': '（{{phase}}）',
     // Status-bar card summary
     'agentStatus.summary.readFailed': '无法读取状态页',
     'agentStatus.summary.checking': '正在检查…',

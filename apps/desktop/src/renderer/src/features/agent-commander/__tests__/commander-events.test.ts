@@ -34,6 +34,7 @@ describe('commanderEventEffect', () => {
             inbox: false,
             pullRequestSessionIds: [],
             reattach: false,
+            revealInbox: false,
             snapshot: true,
         });
     });
@@ -51,6 +52,7 @@ describe('commanderEventEffect', () => {
             inbox: false,
             pullRequestSessionIds: [],
             reattach: false,
+            revealInbox: false,
             snapshot: false,
         });
     });
@@ -92,6 +94,7 @@ describe('commanderEventEffect', () => {
             inbox: true,
             pullRequestSessionIds: [],
             reattach: true,
+            revealInbox: false,
             snapshot: true,
         });
     });
@@ -103,6 +106,7 @@ describe('commanderEventEffect', () => {
             inbox: false,
             pullRequestSessionIds: [],
             reattach: false,
+            revealInbox: false,
             snapshot: false,
         };
         expect(
@@ -124,6 +128,7 @@ describe('commanderEventEffect', () => {
                 inbox: false,
                 pullRequestSessionIds: [],
                 reattach: false,
+                revealInbox: false,
                 snapshot: true,
             });
             expect(
@@ -148,6 +153,7 @@ describe('commanderEventEffect', () => {
             inbox: false,
             pullRequestSessionIds: ['session-1', 'session-2'],
             reattach: false,
+            revealInbox: false,
             snapshot: false,
         });
     });
@@ -164,6 +170,19 @@ describe('commanderEventEffect', () => {
             inbox: true,
             pullRequestSessionIds: [],
             reattach: false,
+            revealInbox: false,
+            snapshot: false,
+        });
+    });
+
+    it('opens the Inbox, and only that, when the status bar chip asks for it', () => {
+        expect(commanderEventEffect(event('agentCommander.inboxRequested', {}), identity)).toEqual({
+            board: false,
+            ensure: false,
+            inbox: false,
+            pullRequestSessionIds: [],
+            reattach: false,
+            revealInbox: true,
             snapshot: false,
         });
     });
@@ -190,6 +209,7 @@ describe('commanderEventEffect', () => {
             inbox: false,
             pullRequestSessionIds: [],
             reattach: false,
+            revealInbox: false,
             snapshot: false,
         };
         expect(

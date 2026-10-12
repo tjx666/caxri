@@ -116,6 +116,11 @@ export interface AgentChatPermissionView {
     isSavedDefault: boolean;
     projectDefaultItem: AgentChatProjectDefaultItem;
     /**
+     * Whether the Project has a saved default for this provider, so the menu offers "Clear Project default" even while
+     * the Chat's own choice differs from it.
+     */
+    hasProjectDefault: boolean;
+    /**
      * The trigger's muted suffix while the shown choice reaches the provider only with the next turn.
      */
     pendingCaption: string | undefined;
@@ -167,6 +172,7 @@ export function agentChatPermissionView(
         projectDefault,
         isSavedDefault,
         projectDefaultItem: projectDefaultItem(projectDefault, isSavedDefault),
+        hasProjectDefault: defaults?.[provider] !== undefined,
         pendingCaption: isDeferred ? translate('agentChat.permission.pendingCaption') : undefined,
     };
 }

@@ -17,6 +17,7 @@ import {
     MenuContent,
     MenuGroup,
     MenuGroupLabel,
+    MenuItem,
     MenuRadioGroup,
     MenuRadioItem,
     MenuSeparator,
@@ -28,7 +29,7 @@ import { useTranslation } from '../../i18n';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import { useProjectById, useSessionById, useTerminal } from '../../stores/selectors';
-import { saveAgentChatProjectDefault } from './agent-chat-commands';
+import { setAgentChatProjectDefault } from './agent-chat-commands';
 import type { AgentChatProjectDefaultItem } from './agent-chat-permissions';
 import {
     AGENT_CHAT_CUSTOM_PERMISSION,
@@ -69,9 +70,10 @@ const FULL_ACCESS_TRIGGER_CLASS_NAME =
  * the next turn (Codex) says so while a turn runs: the menu notes it, and the trigger adds `from next turn` until that
  * turn ends. Launch settings no level matches read as a checked "Custom" row. "Use as Project default" saves the
  * current choice for the Project's new Chats of this provider, shows as a checked "Project default" once saved, and
- * stays visible but disabled, with the reason, while the level is Custom; see `docs/agent-chat.md`. The Agent Commander
- * window omits it, because Main's Commander policy refuses Project writes. `agentChat.changePermissionMode` opens it
- * from the keyboard, and its tooltip names that shortcut.
+ * stays visible but disabled, with the reason, while the level is Custom; see `docs/agent-chat.md`. While the Project
+ * has a saved default for the provider, "Clear Project default" removes it so new Chats follow the launch settings
+ * again. The Agent Commander window omits both rows, because Main's Commander policy refuses Project writes.
+ * `agentChat.changePermissionMode` opens it from the keyboard, and its tooltip names that shortcut.
  */
 export function AgentChatPermissionMenu({
     canSaveProjectDefault,
@@ -159,13 +161,32 @@ export function AgentChatPermissionMenu({
                             item={view.projectDefaultItem}
                             onSave={() => {
                                 if (projectDefault)
-                                    saveAgentChatProjectDefault(
+                                    setAgentChatProjectDefault(
                                         project.id,
                                         provider,
                                         projectDefault,
                                     );
                             }}
                         />
+                        {view.hasProjectDefault && (
+                            <MenuItem
+                                className="h-auto min-h-7 py-1"
+                                onClick={() =>
+                                    setAgentChatProjectDefault(project.id, provider, null)
+                                }
+                            >
+                                {/* Keeps the text in the check column's line, like the rows above. */}
+                                <span aria-hidden className="size-3.5 shrink-0" />
+                                <span className="flex min-w-0 flex-col">
+                                    <span className="truncate">
+                                        {t('agentChat.permission.clearProjectDefault')}
+                                    </span>
+                                    <span className="truncate text-[11px] leading-4 text-muted">
+                                        {t('agentChat.permission.clearProjectDefaultDescription')}
+                                    </span>
+                                </span>
+                            </MenuItem>
+                        )}
                     </>
                 )}
             </MenuContent>

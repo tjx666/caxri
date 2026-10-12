@@ -105,6 +105,10 @@ const environmentMethodScopes = {
      * Server Core imports a path the native picker chose on this Mac.
      */
     'theme.import': 'local-only',
+    /**
+     * Reads the calling window's own fullscreen state, so its title bar restores the right chrome after a reload.
+     */
+    'window.fullScreen.get': 'any',
 } as const satisfies Record<DesktopMethod, EnvironmentMethodScope>;
 
 export type EnvironmentKind = 'local' | 'ssh';

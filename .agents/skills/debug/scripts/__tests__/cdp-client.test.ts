@@ -49,6 +49,44 @@ describe('Renderer CDP target selection', () => {
         ).toBe('ws://dev');
     });
 
+    it('selects the dev main window while a Commander or Process Explorer window is open', () => {
+        const targets = [
+            {
+                type: 'page',
+                url: 'http://localhost:5173/agent-commander.html',
+                webSocketDebuggerUrl: 'ws://commander',
+            },
+            { type: 'page', url: 'http://localhost:5173/', webSocketDebuggerUrl: 'ws://main' },
+            {
+                type: 'page',
+                url: 'http://localhost:5173/process-explorer.html',
+                webSocketDebuggerUrl: 'ws://process-explorer',
+            },
+        ];
+
+        expect(selectRendererTarget(targets).webSocketDebuggerUrl).toBe('ws://main');
+        expect(selectRendererTarget(targets, 'agent-commander').webSocketDebuggerUrl).toBe(
+            'ws://commander',
+        );
+    });
+
+    it('treats a dev index.html page as the main window', () => {
+        expect(
+            selectRendererTarget([
+                {
+                    type: 'page',
+                    url: 'http://localhost:5173/index.html#/',
+                    webSocketDebuggerUrl: 'ws://main',
+                },
+                {
+                    type: 'page',
+                    url: 'http://localhost:5173/agent-commander.html',
+                    webSocketDebuggerUrl: 'ws://commander',
+                },
+            ]).webSocketDebuggerUrl,
+        ).toBe('ws://main');
+    });
+
     it('refuses an ambiguous target list instead of guessing', () => {
         expect(() =>
             selectRendererTarget([

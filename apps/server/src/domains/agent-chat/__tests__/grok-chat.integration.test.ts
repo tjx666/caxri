@@ -111,6 +111,23 @@ describe('AgentChatService with a fake Grok Build ACP agent', () => {
         expect(done.items.at(-1)).toMatchObject({ text: 'The command was declined.' });
     });
 
+    it('still shows a declined command as declined after session/load replays it', async () => {
+        const { service, terminal, until } = await fixture({ provider: 'grok' });
+        await service.send(terminal.id, { text: 'please approve this' });
+        const pending = await until((snapshot) => snapshot.requests.length === 1);
+        const request = pending.requests[0];
+        service.respond(terminal.id, request.id, { kind: 'decision', decision: 'decline' });
+        await until((snapshot) => snapshot.turns.at(-1)?.status === 'completed');
+        // A restart rebuilds the Chat from Grok Build's replay, without the live session that saw the decline.
+        await service.restart(terminal.id);
+        expect(
+            service.read(terminal.id).items.find((item) => item.id === request.id),
+        ).toMatchObject({
+            type: 'command',
+            status: 'declined',
+        });
+    });
+
     it('answers a pending approval cancelled when the turn is interrupted', async () => {
         const { service, terminal, signals, until } = await fixture({ provider: 'grok' });
         await service.send(terminal.id, { text: 'please approve this' });

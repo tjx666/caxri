@@ -4,6 +4,7 @@ import { HandHelping, MessageSquareWarning, PanelLeft, Power } from 'lucide-reac
 
 import { CaxriLogo } from '../../components/caxri-logo';
 import { Button } from '../../components/ui/button';
+import { Toggle } from '../../components/ui/toggle';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
@@ -98,6 +99,10 @@ export function AgentCommanderHeader() {
 /**
  * Shows or hides one of the columns beside the Terminal. The visible label names the column and stays the accessible
  * name, `aria-pressed` carries whether it is open, and the tooltip says what a click does next.
+ *
+ * An open column reads as the shared Toggle's pressed fill plus a border, the same treatment as the `Terminal | Chat`
+ * switch beside it: the shared Toggle paints hover and pressed alike, so without the border a hovered closed column
+ * would look open.
  */
 function CommanderColumnToggle({
     badge,
@@ -122,17 +127,16 @@ function CommanderColumnToggle({
                 { column: label },
             )}
         >
-            <Button
-                aria-pressed={isVisible}
-                variant="ghost"
-                size="sm"
-                className={cn(className, 'text-muted')}
-                onClick={() => onVisibleChange(!isVisible)}
+            <Toggle
+                size="dense"
+                className={cn(className, 'gap-2 text-[11px] data-pressed:border-border')}
+                pressed={isVisible}
+                onPressedChange={onVisibleChange}
             >
                 {icon}
                 {label}
                 {badge}
-            </Button>
+            </Toggle>
         </Tooltip>
     );
 }

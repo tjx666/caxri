@@ -45,6 +45,7 @@ import { defaultHookHealth, hookHealthFor } from './health';
 import { withAgentHookInstallLock } from './install-lock';
 import { HookLaunchRegistry } from './launch-registry';
 import { parseProfileIntents, serializeProfileIntents } from './profile-intents';
+import { SerialTasks } from './serial-tasks';
 import type { HookWireAttention } from './server';
 import { AgentHookServer } from './server';
 import { prepareAgentHookSocketPath } from './socket-path';
@@ -109,7 +110,12 @@ export class AgentHookManager {
     private readonly ownsWatchHub: boolean;
     private health = defaultHookHealth();
     private launchSettings?: Record<AgentProvider, AgentProviderSettings>;
-    private reconcileQueue = Promise.resolve();
+    /**
+     * `reconcile()` clears `launchSettings` for new settings; a provider config edit (watcher or poll) queues
+     * `reconcileNow` directly, because its unchanged settings keep the last gated launch view valid. An Agent launched
+     * meanwhile then still gets its hook environment, not an empty one (Claude, Codex) or `UNAVAILABLE` (Grok).
+     */
+    private readonly reconcileQueue = new SerialTasks();
     private server?: AgentHookServer;
     private settings?: Record<AgentProvider, AgentProviderSettings>;
     private requestedSettings?: Record<AgentProvider, AgentProviderSettings>;
@@ -162,8 +168,9 @@ export class AgentHookManager {
             watchHub: this.watchHub,
             onChange: () => this.scheduleConfigReconcile(),
             pollOnce: async () => {
-                if (this.requestedSettings && this.anyEnabled())
-                    await this.reconcile(this.requestedSettings);
+                const requested = this.requestedSettings;
+                if (requested && this.anyEnabled())
+                    await this.reconcileQueue.run(() => this.reconcileNow(requested));
             },
         });
         this.profileId = createHash('sha256')
@@ -565,8 +572,9 @@ export class AgentHookManager {
         if (this.configReconcileTimer) clearTimeout(this.configReconcileTimer);
         this.configReconcileTimer = setTimeout(() => {
             this.configReconcileTimer = undefined;
-            // eslint-disable-next-line no-void -- synchronous timer callback cannot await; reconcile() never rejects (errors are caught and logged internally)
-            if (this.requestedSettings) void this.reconcile(this.requestedSettings);
+            const requested = this.requestedSettings;
+            // eslint-disable-next-line no-void -- synchronous timer callback cannot await; reconcileNow() never rejects (errors are caught and logged internally)
+            if (requested) void this.reconcileQueue.run(() => this.reconcileNow(requested));
         }, CONFIG_WATCH_SETTLE_MS);
         this.configReconcileTimer.unref();
     }
@@ -666,16 +674,7 @@ export class AgentHookManager {
         this.requestedSettings = settings;
         // A managed launch must not combine requested settings with health from the previous executable gate.
         this.launchSettings = undefined;
-        /**
-         * The queue field must be reassigned synchronously (not after an `await`) so concurrent `reconcile()` calls
-         * serialize onto the same chain instead of racing to read `reconcileQueue` before this call's continuation is
-         * attached.
-         */
-        // eslint-disable-next-line unicorn/prefer-await -- see comment above; the queue must be reassigned synchronously
-        const run = this.reconcileQueue.then(() => this.reconcileNow(settings));
-        // eslint-disable-next-line unicorn/prefer-await -- see comment above; the queue must be reassigned synchronously
-        this.reconcileQueue = run.catch(() => {});
-        return run;
+        return this.reconcileQueue.run(() => this.reconcileNow(settings));
     }
 
     terminalEnvironment(
@@ -719,7 +718,7 @@ export class AgentHookManager {
         this.closed = true;
         if (this.configReconcileTimer) clearTimeout(this.configReconcileTimer);
         this.configReconcileTimer = undefined;
-        await this.reconcileQueue;
+        await this.reconcileQueue.idle();
         await this.configWatchers.close();
         if (this.ownsWatchHub) await this.watchHub.close();
         this.launches.close();

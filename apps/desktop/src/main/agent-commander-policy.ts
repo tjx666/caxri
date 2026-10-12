@@ -44,6 +44,7 @@ const ADMITTED_METHODS = new Set<string>([
     'session.pullRequests',
     'settings.get',
     'theme.get',
+    'window.fullScreen.get',
 ]);
 
 /**
@@ -132,6 +133,12 @@ const snapshotReplySchema = z.object({
  */
 export class AgentCommanderRendererPolicy {
     private identity: z.infer<typeof commanderIdentityReplySchema> | undefined;
+    /**
+     * Whether the current document has learned its Terminal. A reload clears it so PTY bytes wait for the new
+     * document's `commander.ensure`, while `identity` keeps admitting the old document's last layout and resize
+     * requests that are still in flight when the navigation starts.
+     */
+    private isViewing = false;
 
     constructor(private readonly onDenied: (method: string | null) => void) {}
 
@@ -140,7 +147,8 @@ export class AgentCommanderRendererPolicy {
         if (method && ADMITTED_METHODS.has(method)) return;
         if (method && TERMINAL_METHODS.has(method)) {
             const target = terminalTargetSchema.safeParse(raw);
-            if (target.success && this.ownsTerminal(target.data.params.terminalId)) return;
+            if (target.success && this.identity?.terminalId === target.data.params.terminalId)
+                return;
         }
         if (method && SESSION_METHODS.has(method)) {
             const target = sessionTargetSchema.safeParse(raw);
@@ -155,18 +163,20 @@ export class AgentCommanderRendererPolicy {
         const method = methodFromEnvelope(raw);
         if (method !== 'commander.ensure' && method !== 'commander.snapshot') return;
         const parsed = snapshotReplySchema.safeParse(reply);
-        if (parsed.success) this.identity = parsed.data.result.identity;
+        if (!parsed.success) return;
+        this.identity = parsed.data.result.identity;
+        this.isViewing = true;
     }
 
     /**
      * True when `terminalId` is the Terminal the Commander window views, so its output belongs to that window.
      */
     viewedTerminalId(): string | undefined {
-        return this.identity?.terminalId;
+        return this.isViewing ? this.identity?.terminalId : undefined;
     }
 
     ownsTerminal(terminalId: string): boolean {
-        return this.identity?.terminalId === terminalId;
+        return this.viewedTerminalId() === terminalId;
     }
 
     /**
@@ -189,8 +199,19 @@ export class AgentCommanderRendererPolicy {
         return { commander: isCommander, workbench: !isCommander };
     }
 
+    /**
+     * The window started loading a new document: route nothing to it until that document re-learns its Terminal.
+     */
+    releaseView(): void {
+        this.isViewing = false;
+    }
+
+    /**
+     * The window closed: nothing it sent is admitted any more.
+     */
     reset(): void {
         this.identity = undefined;
+        this.isViewing = false;
     }
 }
 

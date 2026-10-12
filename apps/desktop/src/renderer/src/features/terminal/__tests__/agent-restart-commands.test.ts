@@ -18,7 +18,7 @@ vi.mock('../../../stores/workbench', () => ({ refreshWorkbench: vi.fn() }));
 vi.mock('../../session/session-commands', () => ({ moveTerminalToNewSession: vi.fn() }));
 
 import { serializeContextMenu } from '../../../lib/context-menu';
-import { agentRestartMenuEntry } from '../agent-restart-commands';
+import { agentRestartMenuEntry, canRestartResumeAgent } from '../agent-restart-commands';
 import { terminalTabMenuEntries } from '../terminal-tab-menu';
 
 function agentTerminal(overrides: Partial<TerminalRecord> = {}): TerminalRecord {
@@ -121,5 +121,14 @@ describe('terminalTabMenuEntries', () => {
                 agentTerminal({ kind: 'shell', provider: undefined, agentSessionId: undefined }),
             ),
         ).toEqual(['Move to New Session']);
+    });
+});
+
+describe('canRestartResumeAgent', () => {
+    it('is true only for an Agent Terminal bound to a conversation', () => {
+        expect(canRestartResumeAgent(agentTerminal())).toBe(true);
+        expect(canRestartResumeAgent(agentTerminal({ agentSessionId: undefined }))).toBe(false);
+        expect(canRestartResumeAgent(agentTerminal({ provider: undefined }))).toBe(false);
+        expect(canRestartResumeAgent(undefined)).toBe(false);
     });
 });

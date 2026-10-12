@@ -107,6 +107,28 @@ describe('mapGrokToolCall', () => {
             output: 'timed out',
         });
     });
+
+    it('reads a replayed rejection as declined and any other failure as failed', () => {
+        const failed = (text: string) =>
+            mapGrokToolCall(
+                call({
+                    kind: 'execute',
+                    title: 'Execute `rm ./marker`',
+                    status: 'failed',
+                    rawInput: { command: 'rm ./marker' },
+                    content: [{ type: 'content', content: { type: 'text', text } }],
+                }),
+                undefined,
+                false,
+            );
+        expect(failed('User rejected the execution for tool `run_terminal_command`')).toMatchObject(
+            { type: 'command', status: 'declined' },
+        );
+        expect(failed('rm: ./marker: Permission denied')).toMatchObject({
+            type: 'command',
+            status: 'failed',
+        });
+    });
 });
 
 describe('Grok Build permissions', () => {

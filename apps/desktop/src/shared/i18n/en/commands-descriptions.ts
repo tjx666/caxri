@@ -59,7 +59,7 @@ export const commandDescriptions = {
     'commands.description.workbench.action.terminal.sendSequence':
         'Send configured text directly to the active Terminal',
     'commands.description.terminal.restart':
-        'Restart the active Shell, or restart the active Agent and resume its conversation (Restart Agent)',
+        'Restart the active Shell, or restart the active Agent and resume its conversation',
     'commands.description.terminal.startNewAgentSession':
         'Restart the active Agent with a new conversation instead of resuming the current one',
     'commands.description.terminal.switchAgentSurface':

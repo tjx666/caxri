@@ -7,8 +7,15 @@ import { GithubMarkIcon } from '../../icons/brands/github-mark-icon';
 import { LinearLogoIcon } from '../../icons/brands/linear-logo-icon';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
+import { useCaxriQuery } from '../../queries/client';
 import { pushToast } from '../../stores/toasts';
-import { trackerExcerptText, trackerReferenceText } from './agent-chat-tracker-labels';
+import {
+    trackerExcerptText,
+    trackerPreviewTitle,
+    trackerReferenceText,
+    trackerTitlePreviewRequest,
+} from './agent-chat-tracker-labels';
+import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
 
 const ACTION_LABEL_KEYS: Record<
     AgentChatTrackerArtifact['action'],
@@ -57,10 +64,34 @@ function actionLabel(artifact: AgentChatTrackerArtifact, t: Translate): string {
 }
 
 /**
+ * The title of a GitHub pull request or issue the card names only by number, read through the same Terminal reference
+ * preview (and its cache) as a Chat pull request link's state glyph. The Server answers only for repositories the
+ * Session already has, so another repository, a failed read, or a Chat without a Terminal leaves it `undefined`.
+ */
+function useTrackerPreviewTitle(artifact: AgentChatTrackerArtifact): string | undefined {
+    const terminalId = useAgentChatTerminal();
+    const reference = trackerTitlePreviewRequest(artifact);
+    const preview = useCaxriQuery(
+        'terminal.reference.preview',
+        {
+            terminalId: terminalId ?? '',
+            reference: reference ?? { kind: 'github', owner: '', repo: '', number: 1 },
+        },
+        {
+            enabled: terminalId !== undefined && reference !== undefined,
+            retry: false,
+            staleTime: 5 * 60_000,
+        },
+    );
+    return reference ? trackerPreviewTitle(preview.data) : undefined;
+}
+
+/**
  * A pull request, issue, or acceptance report the Agent created or edited this turn, as one clickable card: the
  * tracker's mark in a tile, the title beside its `owner/repo#N`, `ENG-123`, or `Round N` reference, what was done to
  * it, and the body's first line. Opens the page in the browser, which the trailing external arrow says before the
- * click; the edited-files card beside it expands in place and carries no arrow.
+ * click; the edited-files card beside it expands in place and carries no arrow. A GitHub card without a title shows its
+ * reference until the reference preview supplies one.
  */
 export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerArtifact }) {
     const Mark = PROVIDER_MARK[artifact.provider];
@@ -69,10 +100,12 @@ export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerA
     const label = actionLabel(artifact, t);
     const reference = trackerReferenceText(artifact, t);
     const excerpt = trackerExcerptText(artifact, t);
+    const previewTitle = useTrackerPreviewTitle(artifact);
     // An acceptance round ingested with `--requirement "$VAR"` carries no readable title; name the report instead of
     // promoting `Round N` to the headline.
     const title =
         artifact.title ??
+        previewTitle ??
         (artifact.kind === 'acceptance' ? t('agentChat.tracker.acceptanceTitle') : undefined);
     return (
         <button

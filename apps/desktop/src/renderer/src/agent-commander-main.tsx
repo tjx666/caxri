@@ -1,3 +1,5 @@
+// Keep first: arms opt-in react-scan render counting before react-dom evaluates (see electron.vite.config.ts).
+import 'virtual:caxri-react-scan-boot';
 import '@xterm/xterm/css/xterm.css';
 import './styles/terminal-fonts.css';
 import './styles/styles.css';

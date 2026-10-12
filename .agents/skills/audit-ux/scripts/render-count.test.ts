@@ -1,12 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { RenderInstanceRow } from './render-count';
 import {
+    collectRenderSample,
     formatRenderTable,
-    parseRenderCountOptions,
     scopeRenderSample,
     summarizeRenderSample,
 } from './render-count';
+import { parseRenderCountOptions } from './render-count-options';
 
 function row(overrides: Partial<RenderInstanceRow> & { name: string }): RenderInstanceRow {
     return {
@@ -69,6 +70,19 @@ describe('render-count options', () => {
             within: 'PrimarySidebar',
         });
         expect(parseRenderCountOptions(['sample'])).not.toHaveProperty('within');
+    });
+
+    it('targets a secondary window only when a URL substring is given', async () => {
+        const options = parseRenderCountOptions(['sample', '--url', 'agent-commander']);
+        expect(options).toMatchObject({ command: 'sample', url: 'agent-commander' });
+        expect(parseRenderCountOptions(['sample'])).not.toHaveProperty('url');
+
+        // The connection fails right after target selection; only the selection arguments matter here.
+        const connect = vi.fn(() => Promise.reject(new Error('stop after selection')));
+        await expect(
+            collectRenderSample(options as Exclude<typeof options, 'help'>, connect),
+        ).rejects.toThrow('stop after selection');
+        expect(connect).toHaveBeenCalledWith(9233, 'agent-commander');
     });
 
     it('returns help for no arguments so a bare run explains itself', () => {

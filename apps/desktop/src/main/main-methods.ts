@@ -206,6 +206,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     remoteDebugging: options.getRemoteDebugging(),
                     value: await readArgvConfig(options.getUserDataPath()),
                 };
+            case 'window.fullScreen.get':
+                return { isFullScreen: requestWindowOr(mainWindow).isFullScreen() };
             case 'argv.update':
                 return {
                     value: await (options.updateArgvConfig
@@ -453,7 +455,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 options.getProcessExplorer().open();
                 return null;
             case 'agentCommander.open':
-                options.getAgentCommander()?.open();
+                options.getAgentCommander()?.open(request.params.target);
                 return null;
             case 'agentCommander.stop':
                 await options.getAgentCommander()?.stop();

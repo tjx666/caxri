@@ -37,6 +37,39 @@ describe('Agent Chat follow-up queue with a fake Codex app-server', () => {
         expect(drained.turns.map((turn) => turn.status)).toEqual(['interrupted', 'completed']);
     });
 
+    it('holds a queued message behind a queued compaction until the compaction turn ends', async () => {
+        const { service, terminal, until } = await fixture();
+        await service.send(terminal.id, { text: 'slow please' });
+        await until((snapshot) => snapshot.activeTurnId !== undefined);
+        await service.runCommand(terminal.id, 'compact');
+        await service.send(terminal.id, { text: 'hello after' });
+        await until((snapshot) => snapshot.queue?.length === 2);
+        await service.interrupt(terminal.id);
+        await until((snapshot) => !snapshot.activeTurnId && snapshot.queuePaused === true);
+
+        // The compaction request resolves before Codex reports its turn; the message must still wait for that turn.
+        service.resumeQueue(terminal.id);
+        const drained = await until(
+            (snapshot) =>
+                snapshot.queue?.length === 0 &&
+                !snapshot.activeTurnId &&
+                snapshot.turns.length === 3,
+        );
+        const order = drained.items.flatMap((item) =>
+            item.type === 'userMessage'
+                ? [item.text]
+                : item.type === 'notice' && item.kind === 'compacted'
+                  ? ['compacted']
+                  : [],
+        );
+        expect(order).toEqual(['slow please', 'compacted', 'hello after']);
+        expect(drained.turns.map((turn) => turn.status)).toEqual([
+            'interrupted',
+            'completed',
+            'completed',
+        ]);
+    });
+
     it('keeps queued and steered marks on messages after a restart', async () => {
         const { service, terminal, until } = await fixture();
         await service.send(terminal.id, { text: 'slow please' });

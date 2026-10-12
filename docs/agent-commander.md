@@ -144,8 +144,11 @@ Terminal in the Workbench. The title bar's surface toggle, next to **Stop**, and
 Surface shortcut (`terminal.switchAgentSurface`, `Cmd+Shift+J` by default) flip it through `terminal.switchSurface`, which keeps the bound
 Codex conversation. In Chat mode the window mounts the same `AgentChatTerminalContent` the Workbench
 pane uses and subscribes to `agentChat.patch` itself. The Chat's file-change Open in Editor stays
-unavailable here, because the window mounts no pane session, and opening a background task as a tab
-needs the Workbench.
+unavailable here, because the window mounts no pane session. For the same reason the Chat opens
+nothing beside itself (`canOpenBesideChat` in `agentChatHostCapabilities`): background work lists
+each subagent and shell as a plain row that can still be stopped, timeline rows do not link to their
+task, and a turn's file changes offer no Review, so no tab is ever written into the Commander
+Session's layout where nothing would show it.
 
 Closing or reloading the Commander window detaches its view of the Commander Terminal, but the PTY
 keeps running and the next window re-attaches from a snapshot. Closing the main window detaches

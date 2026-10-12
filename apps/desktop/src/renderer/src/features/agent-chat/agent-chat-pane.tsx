@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
 
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
@@ -6,7 +6,6 @@ import { useCaxriQuery } from '../../queries/client';
 import { useTerminal } from '../../stores/selectors';
 import { useTerminalLinkPicker } from '../terminal/hooks/use-terminal-link-picker';
 import { TerminalLinkPicker } from '../terminal/terminal-link-picker';
-import { registerTerminalFocusHandler } from '../terminal/terminal-pane-handlers';
 import {
     canSwitchTerminalSurface,
     switchTerminalSurfaceTo,
@@ -112,7 +111,8 @@ export function AgentChatPane({
     const projectRoot = usePaneViewSession()?.rootPath;
     const inputReference = useRef<HTMLTextAreaElement | null>(null);
     const composerDrop = useRef<AgentChatDropHandlers | null>(null);
-    const { canFork, canOpenContext, canSaveProjectDefault } = agentChatHostCapabilities(host);
+    const { canFork, canOpenBesideChat, canOpenContext, canSaveProjectDefault } =
+        agentChatHostCapabilities(host);
     const { composerEdit, editActions, setEditingId } = useAgentChatEditActions(
         terminalId,
         snapshot,
@@ -144,15 +144,6 @@ export function AgentChatPane({
      */
     const linkPicker = useTerminalLinkPicker(terminalId, focusComposer);
     const openFile = useAgentChatOpenFile(terminalId);
-    useEffect(
-        () =>
-            registerTerminalFocusHandler(
-                terminalId,
-                () => inputReference.current?.focus(),
-                () => inputReference.current,
-            ),
-        [terminalId],
-    );
     useAgentChatActivationFocus(inputReference, { isShown, terminalId });
     const history = useAgentChatHistory(terminalId, snapshot, {
         scrollReference,
@@ -175,7 +166,7 @@ export function AgentChatPane({
         [jumpTo, stopFollowing],
     );
     const pending = useAgentChatPending(terminalId, snapshot);
-    const taskLinks = useAgentChatTaskLinks(snapshot?.tasks, terminalId);
+    const taskLinks = useAgentChatTaskLinks(snapshot?.tasks, terminalId, canOpenBesideChat);
     /**
      * Read from the Terminal record like the PTY pane does: a hand-over to another client is recorded there as
      * `detached`, while the projection only reads `stopped`.
@@ -319,6 +310,7 @@ export function AgentChatPane({
                 snapshot={snapshot}
                 terminalId={terminalId}
                 onAnswered={focusComposer}
+                onOpenTask={taskLinks.openTask}
                 onOpenAsTerminal={openAsTerminal}
                 onRecover={recover}
             />

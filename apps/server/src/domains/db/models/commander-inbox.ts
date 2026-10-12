@@ -86,8 +86,9 @@ function toItem(row: ItemRow, replies: CommanderInboxReply[]): StoredCommanderIn
 }
 
 /**
- * Storage for the Commander Inbox. Every mutation bumps `revision` and `updated_at` in the same statement, so a reader
- * comparing revisions never sees a change without a new one.
+ * Storage for the Commander Inbox. Every mutation bumps `updated_at`. `revision` counts the Commander's reports: only a
+ * new report (insert or replace) or a close bumps it, in the same statement, so the owner's merge names the report they
+ * read. A reply, an acknowledgement, or a stale mark leaves it alone, so none of them refuses that merge.
  */
 export class CommanderInboxModel {
     constructor(
@@ -176,7 +177,7 @@ export class CommanderInboxModel {
             .run();
         this.database
             .update(commanderInboxItems)
-            .set({ revision: sql`${commanderInboxItems.revision} + 1`, updatedAt: now })
+            .set({ updatedAt: now })
             .where(eq(commanderInboxItems.id, id))
             .run();
         return sequence;
@@ -339,11 +340,7 @@ export class CommanderInboxModel {
         return (
             this.database
                 .update(commanderInboxItems)
-                .set({
-                    staleReason: reason ?? null,
-                    revision: sql`${commanderInboxItems.revision} + 1`,
-                    updatedAt: now,
-                })
+                .set({ staleReason: reason ?? null, updatedAt: now })
                 .where(
                     and(
                         eq(commanderInboxItems.id, id),
@@ -372,11 +369,7 @@ export class CommanderInboxModel {
         return (
             this.database
                 .update(commanderInboxItems)
-                .set({
-                    acknowledgedSequence: sequence,
-                    revision: sql`${commanderInboxItems.revision} + 1`,
-                    updatedAt: now,
-                })
+                .set({ acknowledgedSequence: sequence, updatedAt: now })
                 .where(
                     and(
                         eq(commanderInboxItems.id, id),

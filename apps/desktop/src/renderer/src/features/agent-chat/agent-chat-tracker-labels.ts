@@ -1,4 +1,8 @@
-import type { AgentChatTrackerArtifact } from '@caxri/protocol';
+import type {
+    AgentChatTrackerArtifact,
+    TerminalReferencePreview,
+    TerminalReferencePreviewRequest,
+} from '@caxri/protocol';
 
 import type { Translate } from '../../i18n';
 
@@ -25,4 +29,35 @@ export function trackerExcerptText(
         artifact.checks === 1 ? 'agentChat.tracker.checksOne' : 'agentChat.tracker.checksOther',
         { count: artifact.checks },
     );
+}
+
+const GITHUB_REFERENCE = /^([\w.-]+)\/([\w.-]+)#(\d+)$/u;
+
+/**
+ * The reference preview request that can supply a title the card lacks, or `undefined` when there is nothing to ask:
+ * the card already has a title, or it is not a GitHub pull request or issue. A `gh api` edit (`-F body=@file`) names
+ * only the number, so its card otherwise reads `owner/repo#N` alone.
+ */
+export function trackerTitlePreviewRequest(
+    artifact: AgentChatTrackerArtifact,
+): Extract<TerminalReferencePreviewRequest, { kind: 'github' }> | undefined {
+    if (artifact.title !== undefined || artifact.provider !== 'github') return undefined;
+    if (artifact.kind !== 'pull' && artifact.kind !== 'issue') return undefined;
+    const match = GITHUB_REFERENCE.exec(artifact.reference);
+    if (!match) return undefined;
+    const [, owner, repo, number] = match;
+    if (!owner || !repo || !number) return undefined;
+    return { kind: 'github', owner, repo, number: Number(number) };
+}
+
+/**
+ * The title a reference preview found, or `undefined` while it loads, when it failed, or when the repository is not one
+ * of the Session's, so the card keeps showing its reference.
+ */
+export function trackerPreviewTitle(
+    preview: TerminalReferencePreview | undefined,
+): string | undefined {
+    if (preview?.kind !== 'github') return undefined;
+    const title = preview.title.trim();
+    return title === '' ? undefined : title;
 }
