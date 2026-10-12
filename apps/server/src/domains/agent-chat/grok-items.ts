@@ -120,6 +120,22 @@ function contentText(content: readonly unknown[]): string {
         .join('\n');
 }
 
+/**
+ * The text Grok Build reports for a tool call the user rejected, e.g. `User rejected the execution for tool
+ * `run_terminal_command` `. Grok Build marks such a call `failed`, the same status as a call that broke, both live and
+ * in a `session/load` replay; this text is the only trace of the decline once the live session that saw the user's
+ * answer is gone. Verified against Grok Build 1.0.50.
+ */
+const GROK_REJECTED_TEXT = /^User rejected the execution for tool `[^`\n]{1,200}`$/u;
+
+/**
+ * Whether Grok Build reported `call` as rejected by the user rather than failed. Without it a Chat rebuilt from a
+ * replay after Server Core restarted would show the same declined call as failed.
+ */
+function isGrokRejected(call: GrokToolCall): boolean {
+    return call.status === 'failed' && GROK_REJECTED_TEXT.test(contentText(call.content).trim());
+}
+
 function toolSummary(input: Json): string | undefined {
     const field = TOOL_SUBJECT_FIELDS.find((key) => typeof input[key] === 'string' && input[key]);
     return field ? clip(String(input[field]), 1_000) : undefined;
@@ -163,7 +179,8 @@ function diffChanges(
 
 /**
  * The timeline item for one tool call: a command row for a shell call, a file change once the call carries diffs, and a
- * generic tool row otherwise. `isDeclined` marks a call whose approval the user declined.
+ * generic tool row otherwise. `isDeclined` marks a call whose approval the user declined in this live session; a call
+ * Grok Build itself reports as rejected is declined too.
  */
 export function mapGrokToolCall(
     call: GrokToolCall,
@@ -171,7 +188,8 @@ export function mapGrokToolCall(
     isDeclined: boolean,
 ): AgentChatItem {
     const base = { id: call.id, ...(turnId && { turnId: clip(turnId, 200) }) };
-    const status: AgentChatItemStatus = isDeclined ? 'declined' : itemStatus(call.status);
+    const status: AgentChatItemStatus =
+        isDeclined || isGrokRejected(call) ? 'declined' : itemStatus(call.status);
     const output = contentText(call.content);
     if (call.kind === 'execute') {
         // The pending call's content is the command's description; output replaces it once the command runs.
