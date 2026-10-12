@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AgentProviderLowCostGenerationContext } from '../../contract';
-import { MACOS_SANDBOX_EXECUTABLE, prepareLowCostSandbox } from '../../low-cost-sandbox';
+import { prepareLowCostSandbox } from '../../low-cost-sandbox';
 import { agentCommandEnvironment, assertAgentRenameVersion } from '../../rename';
 import { runAgentTextCommand } from '../../text-generation';
 import { resolveCodexHome } from './paths';
@@ -46,7 +46,7 @@ export async function generateCodexLowCostText(
     assertAgentRenameVersion('codex', context.version, CODEX_LOW_COST_GENERATION_MINIMUM_VERSION);
     const isolatedDirectory = await mkdtemp(join(tmpdir(), 'caxri-codex-text-'));
     try {
-        const profile = await prepareLowCostSandbox({
+        const sandbox = await prepareLowCostSandbox({
             projectDirectory: context.cwd,
             configDirectory: resolveCodexHome(context.environment),
             executable: context.executable,
@@ -55,8 +55,7 @@ export async function generateCodexLowCostText(
         });
         const output = await runAgentTextCommand({
             arguments: [
-                '-p',
-                profile,
+                ...sandbox.arguments,
                 context.executable,
                 'exec',
                 '--ephemeral',
@@ -88,7 +87,7 @@ export async function generateCodexLowCostText(
             ],
             cwd: isolatedDirectory,
             environment: await agentCommandEnvironment(context.environment),
-            executable: MACOS_SANDBOX_EXECUTABLE,
+            executable: sandbox.executable,
             input: `${systemInstructions}\n\n${context.prompt}`,
             limits: timeoutMs === undefined ? undefined : { timeoutMs },
             operation,

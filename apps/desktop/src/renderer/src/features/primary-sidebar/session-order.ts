@@ -1,6 +1,7 @@
 import type { SessionRecord } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
+import { sessionTitleForDisplay } from '../session/session-title';
 
 export const SESSION_DRAG_TYPE = 'application/x-caxri-session';
 
@@ -105,9 +106,12 @@ export function sessionMoveAnnouncement(
     sessionId: string,
     target: SessionDropTarget,
 ): string {
-    const titleOf = (id: string): string =>
-        sessions.find((session) => session.id === id)?.displayTitle ??
-        translate('primarySidebar.sessionOrder.fallbackTitle');
+    const titleOf = (id: string): string => {
+        const title = sessions.find((session) => session.id === id)?.displayTitle;
+        return title === undefined
+            ? translate('primarySidebar.sessionOrder.fallbackTitle')
+            : sessionTitleForDisplay(title, translate);
+    };
     return translate(
         target.placement === 'before'
             ? 'primarySidebar.sessionOrder.movedBefore'

@@ -12,6 +12,7 @@ export function AgentChatFindBar({
     activeIndex,
     count,
     focusRevision,
+    isPartial,
     query,
     onClose,
     onNext,
@@ -21,6 +22,10 @@ export function AgentChatFindBar({
     activeIndex: number;
     count: number;
     focusRevision: number;
+    /**
+     * Older history exists that find has not searched, because it is not loaded or cannot be shown in Chat.
+     */
+    isPartial: boolean;
     query: string;
     onClose: () => void;
     onNext: () => void;
@@ -31,7 +36,7 @@ export function AgentChatFindBar({
     return (
         <FindBar
             ariaLabel={t('agentChat.find.label')}
-            countLabel={agentChatFindCountLabel(query, count, activeIndex, t)}
+            countLabel={agentChatFindCountLabel(query, count, activeIndex, { isPartial, t })}
             focusRevision={focusRevision}
             hasMatches={count > 0}
             inputLabel={t('agentChat.find.label')}

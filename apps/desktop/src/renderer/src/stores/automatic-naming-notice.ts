@@ -1,5 +1,6 @@
 import type { AutomaticNamingNotice, BootstrapState } from '@caxri/protocol';
 
+import { sessionTitleForDisplay } from '../features/session/session-title';
 import { translate } from '../i18n';
 import { pushToast } from './toasts';
 
@@ -20,8 +21,18 @@ const reportedLaunches = new Set<string>();
 function describeSubject(bootstrap: BootstrapState | undefined, sessionId: string): string {
     const session = bootstrap?.sessions.find((item) => item.id === sessionId);
     const project = bootstrap?.projects.find((item) => item.id === session?.projectId);
-    return [project?.displayTitle, session?.displayTitle].filter(Boolean).join(' / ') || 'Agent';
+    return (
+        [project?.displayTitle, session && sessionTitleForDisplay(session.displayTitle, translate)]
+            .filter(Boolean)
+            .join(' / ') || 'Agent'
+    );
 }
+
+const automaticNamingNoticeKey = {
+    sandboxBoundaryConflict: 'core.automaticNaming.sandboxBoundaryConflict',
+    sandboxPathUnavailable: 'core.automaticNaming.unverifiedPaths',
+    sandboxUnavailable: 'core.automaticNaming.sandboxUnavailable',
+} as const satisfies Record<AutomaticNamingNotice['reason'], string>;
 
 /**
  * Shows the notices this window has not shown yet, whichever path delivered them.
@@ -36,14 +47,6 @@ export function reportAutomaticNamingNotices(
         if (reportedLaunches.has(launch)) continue;
         reportedLaunches.add(launch);
         const subject = describeSubject(bootstrap, notice.sessionId);
-        pushToast(
-            'info',
-            translate(
-                notice.reason === 'sandboxBoundaryConflict'
-                    ? 'core.automaticNaming.sandboxBoundaryConflict'
-                    : 'core.automaticNaming.unverifiedPaths',
-                { subject },
-            ),
-        );
+        pushToast('info', translate(automaticNamingNoticeKey[notice.reason], { subject }));
     }
 }

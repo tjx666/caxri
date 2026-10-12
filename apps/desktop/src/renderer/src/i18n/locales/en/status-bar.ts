@@ -35,7 +35,7 @@ export const statusBar = {
     'statusBar.throughput.thisTurn': 'This turn',
     'statusBar.throughput.firstToken': 'First token',
     'statusBar.throughput.firstTokenValue': '{{duration}} in the last finished turn',
-    'statusBar.throughput.agentSession': 'Agent Session',
+    'statusBar.throughput.agentSession': 'Conversation',
     'statusBar.throughput.lastSamples': 'Last {{count}}',
     'statusBar.usage.tokensInput': '{{count}} input',
     'statusBar.usage.tokensOutput': '{{count}} output',

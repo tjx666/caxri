@@ -8,6 +8,8 @@ import type {
 } from '@caxri/protocol';
 
 import type { TranslationKey } from '../../i18n';
+import { translate } from '../../i18n';
+import { sessionTitleForDisplay } from '../session/session-title';
 
 /**
  * One row of the hand-over picker: a Workbench Session or an Agent conversation started outside Caxri.
@@ -76,23 +78,27 @@ function groupCandidates(
 }
 
 /**
- * The user's Sessions the Commander does not manage yet, matching `query` by Session or Project title.
+ * The user's Sessions the Commander does not manage yet, matching `query` by Session or Project title. `keep` names
+ * Sessions to list even though the Commander now manages them: the ones the last request refused, which the dialog
+ * keeps in place beside their reason instead of letting them vanish when the board refreshes.
  */
 export function handoverSessionGroups(
     rows: readonly CommanderBoardRow[],
     query: string,
+    keep: ReadonlySet<string> = new Set(),
 ): HandoverCandidateGroup[] {
     return groupCandidates(
         rows
             .filter(
                 (row) =>
-                    !row.commanderSession && isMatch(query, row.sessionTitle, row.projectTitle),
+                    (!row.commanderSession || keep.has(row.sessionId)) &&
+                    isMatch(query, row.sessionTitle, row.projectTitle),
             )
             .map((row) => ({
                 group: { key: row.projectId, title: row.projectTitle },
                 candidate: {
                     key: row.sessionId,
-                    title: row.sessionTitle,
+                    title: sessionTitleForDisplay(row.sessionTitle, translate),
                     agentKind: row.agent?.kind ?? 'shell',
                     updatedAt: row.lastActivityAt,
                     sessionId: row.sessionId,
@@ -170,21 +176,35 @@ export interface HandoverSummary {
     accepted: number;
     ownershipOnly: number;
     rejected: Array<{ reason: CommanderHandoverRejection; count: number }>;
+    /**
+     * Each refused entry's reason by its picker key (the Session ID, or `provider:conversation`), so the dialog can
+     * show the reason on the row itself.
+     */
+    rejectedByKey: Map<string, CommanderHandoverRejection>;
 }
 
 export function summarizeHandover(result: CommanderHandoverResult): HandoverSummary {
     const rejected = new Map<CommanderHandoverRejection, number>();
+    const rejectedByKey = new Map<string, CommanderHandoverRejection>();
     let accepted = 0;
     let ownershipOnly = 0;
     for (const outcome of result.outcomes) {
         if (outcome.outcome === 'accepted') {
             accepted += 1;
             if (outcome.ownershipReason) ownershipOnly += 1;
-        } else rejected.set(outcome.reason, (rejected.get(outcome.reason) ?? 0) + 1);
+            continue;
+        }
+        rejected.set(outcome.reason, (rejected.get(outcome.reason) ?? 0) + 1);
+        const key =
+            outcome.sessionId ??
+            (outcome.conversation && conversationCandidateKey(outcome.conversation));
+        // A duplicate names an entry that was also handled on its own; its first outcome is the one that counts.
+        if (key && !rejectedByKey.has(key)) rejectedByKey.set(key, outcome.reason);
     }
     return {
         accepted,
         ownershipOnly,
+        rejectedByKey,
         rejected: [...rejected]
             .map(([reason, count]) => ({ reason, count }))
             .toSorted((left, right) => right.count - left.count),

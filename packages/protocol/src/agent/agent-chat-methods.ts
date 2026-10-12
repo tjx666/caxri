@@ -135,11 +135,12 @@ export const agentChatMethods = {
         result: z.null(),
     },
     /**
-     * Switches the model, reasoning effort, ultracode, permission level, or plan mode for the next turn and the ones
-     * after it; a running turn keeps its own. A model the snapshot's `models` does not list, an effort that model does
-     * not accept, ultracode while the snapshot does not offer it, or a level or plan mode the provider does not offer
-     * (`agentChatPermissionCapabilities`), fails with `VALIDATION`. A provider that fixes its permission at launch
-     * (Grok Build) restarts on the same conversation to apply one, and fails with `CONFLICT` while a turn runs.
+     * Switches the model, reasoning effort, ultracode, Fast mode, permission level, or plan mode for the next turn and
+     * the ones after it; a running turn keeps its own. A model the snapshot's `models` does not list, an effort that
+     * model does not accept, ultracode while the snapshot does not offer it, Fast mode on a model without it, or a
+     * level or plan mode the provider does not offer (`agentChatPermissionCapabilities`), fails with `VALIDATION`. A
+     * provider that fixes its permission at launch (Grok Build) restarts on the same conversation to apply one, and
+     * fails with `CONFLICT` while a turn runs.
      */
     'agentChat.configure': {
         ...commandPolicy('server', 'control'),
@@ -149,6 +150,7 @@ export const agentChatMethods = {
                 model: agentChatModelSchema.shape.id.optional(),
                 effort: agentChatEffortSchema.optional(),
                 ultracode: z.boolean().optional(),
+                fast: z.boolean().optional(),
                 permissionMode: agentChatPermissionModeSchema.optional(),
                 planMode: z.boolean().optional(),
             })
@@ -157,11 +159,12 @@ export const agentChatMethods = {
                     change.model !== undefined ||
                     change.effort !== undefined ||
                     change.ultracode !== undefined ||
+                    change.fast !== undefined ||
                     change.permissionMode !== undefined ||
                     change.planMode !== undefined,
                 {
                     message:
-                        'Choose a model, an effort, ultracode, a permission level, or plan mode',
+                        'Choose a model, an effort, ultracode, Fast mode, a permission level, or plan mode',
                 },
             ),
         result: z.null(),

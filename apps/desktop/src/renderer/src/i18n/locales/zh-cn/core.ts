@@ -18,6 +18,7 @@ export const core: TranslatedNamespace<typeof source> = {
     'core.copy.failed': '复制失败',
     'core.copy.code': '复制代码',
     'core.copy.table': '复制表格',
+    'core.copy.quote': '复制引用',
 
     'core.findBar.placeholder': '查找',
     'core.findBar.previousMatch': '上一个匹配项',
@@ -80,6 +81,8 @@ export const core: TranslatedNamespace<typeof source> = {
 
     'core.automaticNaming.sandboxBoundaryConflict':
         '{{subject}}：项目沙箱边界阻止了自动命名。请选择更具体的项目文件夹，然后重启 Agent。',
+    'core.automaticNaming.sandboxUnavailable':
+        '{{subject}}：自动命名需要这台机器安装 bubblewrap（bwrap）。安装后请重启 Agent。',
     'core.automaticNaming.unverifiedPaths':
         '{{subject}}：无法验证沙箱路径，自动命名不可用。请更正路径后重启 Agent。',
 

@@ -30,10 +30,18 @@ export interface HandoverSubmission {
  * Commander is created first if the user never opened it, and the toast offers to open its window; inside that window
  * there is nothing to open. Returns the summary so the dialog can keep refused entries in view, or undefined when the
  * request itself failed (already reported).
+ *
+ * `isReportedInPlace` is asked once the answer arrives: while the dialog that sent the request is still open, it shows
+ * refusals on the rows themselves, and DESIGN.md's Toasts rule keeps a failure the dialog reports in place out of the
+ * toast channel. A full success closes the dialog, so it is always a toast; so is any outcome the user closed the
+ * dialog before seeing.
  */
 export async function handOverToCommander(
     submission: HandoverSubmission,
-    { isFromWorkbench }: { isFromWorkbench: boolean },
+    {
+        isFromWorkbench,
+        isReportedInPlace,
+    }: { isFromWorkbench: boolean; isReportedInPlace?: () => boolean },
 ): Promise<HandoverSummary | undefined> {
     const note = submission.note?.trim();
     const summary = await tryCommand(
@@ -50,7 +58,8 @@ export async function handOverToCommander(
         },
         { refresh: invalidateHandoverReads },
     );
-    if (summary) reportHandover(summary, isFromWorkbench);
+    if (summary && !(summary.rejected.length > 0 && isReportedInPlace?.()))
+        reportHandover(summary, isFromWorkbench);
     return summary;
 }
 

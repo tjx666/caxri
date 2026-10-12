@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react';
 import { formatShortcut, MAX_COMMANDER_HANDOVER_BATCH } from '@caxri/protocol';
 import { Search } from 'lucide-react';
 
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Alert } from '../../components/ui/alert';
 import { Button } from '../../components/ui/button';
 import {
@@ -18,6 +19,7 @@ import { Spinner } from '../../components/ui/spinner';
 import { Textarea } from '../../components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { useTranslation } from '../../i18n';
+import { isImeComposing } from '../../lib/ime';
 import { handoverRejectionLabelKeys } from './commander-handover';
 import { CommanderHandoverList } from './commander-handover-list';
 import { closeCommanderHandover, useCommanderHandoverStore } from './commander-handover-store';
@@ -46,6 +48,7 @@ export function CommanderHandoverDialog({ isFromWorkbench }: { isFromWorkbench: 
                         key={request.id}
                         isFromWorkbench={isFromWorkbench}
                         initialSessionIds={request.sessionIds}
+                        requestId={request.id}
                     />
                 )}
             </DialogContent>
@@ -56,18 +59,23 @@ export function CommanderHandoverDialog({ isFromWorkbench }: { isFromWorkbench: 
 function HandoverDialogBody({
     isFromWorkbench,
     initialSessionIds,
+    requestId,
 }: {
     isFromWorkbench: boolean;
     initialSessionIds: readonly string[];
+    requestId: number;
 }) {
     const { t } = useTranslation();
     const picker = useCommanderHandoverPicker({
         isFromWorkbench,
         initialSessionIds,
+        // A reopened dialog is a new request: an answer for the closed one is no longer shown in place.
+        isOpen: () => useCommanderHandoverStore.getState().request?.id === requestId,
         onDone: closeCommanderHandover,
     });
     const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-        if (event.key !== 'Enter' || !(event.metaKey || event.ctrlKey)) return;
+        if (isImeComposing(event) || event.key !== 'Enter' || !(event.metaKey || event.ctrlKey))
+            return;
         event.preventDefault();
         // eslint-disable-next-line no-void -- the submission reports its own failures through a toast
         void picker.submit();
@@ -127,16 +135,18 @@ function HandoverDialogBody({
                 <HandoverCandidates picker={picker} />
             </div>
             <div className="grid gap-2 border-t border-border px-4 py-3">
-                {picker.refused.length > 0 && (
+                {picker.outcome && picker.outcome.rejected.length > 0 && (
                     <Alert variant="warning" className="commander-handover-refused">
-                        {picker.refused
-                            .map(({ count, reason }) =>
-                                t('agentCommander.handover.refusedLine', {
-                                    count,
-                                    reason: t(handoverRejectionLabelKeys[reason]),
-                                }),
-                            )
-                            .join('\n')}
+                        {picker.outcome.accepted > 0
+                            ? t('agentCommander.handover.partlyAccepted', {
+                                  accepted: picker.outcome.accepted,
+                                  refused: picker.outcome.rejectedByKey.size,
+                              })
+                            : t('agentCommander.handover.noneAccepted', {
+                                  reason: t(
+                                      handoverRejectionLabelKeys[picker.outcome.rejected[0].reason],
+                                  ),
+                              })}
                     </Alert>
                 )}
                 {picker.overLimitCount > 0 && (
@@ -172,6 +182,7 @@ function HandoverDialogBody({
                         {t('common.cancel')}
                     </Button>
                     <Button
+                        aria-busy={picker.isSubmitting}
                         className="commander-handover-submit"
                         disabled={
                             picker.selectedCount === 0 ||
@@ -183,8 +194,17 @@ function HandoverDialogBody({
                             void picker.submit();
                         }}
                     >
-                        {t('agentCommander.handover.submit')}
-                        <Kbd size="compact">{formatShortcut(SUBMIT_SHORTCUT)}</Kbd>
+                        {picker.isSubmitting ? (
+                            <>
+                                <Spinner />
+                                {t('agentCommander.handover.submitting')}
+                            </>
+                        ) : (
+                            <>
+                                {t('agentCommander.handover.submit')}
+                                <Kbd size="compact">{formatShortcut(SUBMIT_SHORTCUT)}</Kbd>
+                            </>
+                        )}
                     </Button>
                 </div>
             </div>
@@ -194,26 +214,50 @@ function HandoverDialogBody({
 
 /**
  * The current tab's candidates, or why there are none: still loading, failed, nothing to offer, or nothing matching.
+ * The Sessions tab waits on a board read and draws the rows it is about to show; the conversation search keeps its
+ * Spinner because its copy tells the user which Agent histories it is reading, which can take a moment.
  */
 function HandoverCandidates({ picker }: { picker: ReturnType<typeof useCommanderHandoverPicker> }) {
     const { t } = useTranslation();
     const isSessions = picker.tab === 'sessions';
     const source = isSessions ? picker.board : picker.conversations;
+    if (isSessions && source.isPending)
+        return (
+            <LoadingSkeleton
+                variant="list"
+                className="commander-handover-loading"
+                label={t('agentCommander.handover.loadingSessions')}
+            />
+        );
     if (source.isPending)
         return (
             <div className="grid min-h-40 place-items-center text-[12px] text-muted">
                 <span className="flex items-center gap-2">
                     <Spinner />
-                    {t(
-                        isSessions
-                            ? 'agentCommander.handover.loadingSessions'
-                            : 'agentCommander.handover.loadingConversations',
-                    )}
+                    {t('agentCommander.handover.loadingConversations')}
                 </span>
             </div>
         );
     if (source.isError)
-        return <Alert variant="danger">{t('agentCommander.handover.loadFailed')}</Alert>;
+        return (
+            <Alert
+                variant="danger"
+                className="commander-handover-load-failed flex items-center gap-3"
+            >
+                <span className="min-w-0 flex-1">{t('agentCommander.handover.loadFailed')}</span>
+                <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                        // Fire-and-forget: a failed retry lands back in this same error state.
+                        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+                        void source.refetch();
+                    }}
+                >
+                    {t('common.retry')}
+                </Button>
+            </Alert>
+        );
     if (picker.groups.length === 0)
         return (
             <div className="grid min-h-40 place-items-center rounded border border-dashed border-border p-6 text-center text-[12px] text-muted">
@@ -230,6 +274,7 @@ function HandoverCandidates({ picker }: { picker: ReturnType<typeof useCommander
         <CommanderHandoverList
             groups={picker.groups}
             now={source.dataUpdatedAt}
+            refusedByKey={picker.refusedByKey}
             selection={picker.selection}
             onToggle={picker.toggle}
         />

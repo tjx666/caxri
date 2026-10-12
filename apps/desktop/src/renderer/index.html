@@ -18,9 +18,10 @@
             content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src __CAXRI_CONNECT_SRC__; worker-src 'self' blob:"
         />
         <title>Caxri</title>
-        <!-- Startup loader: painted by the first frame, before any bundle runs. On macOS the window is a translucent
-             vibrancy material behind this transparent page (see `createWindow` in `main/index.ts`), so the Caxri mark
-             floats over the blurred desktop until the workbench attaches and `App` removes `#startup-loader`. The mark is
+        <!-- Startup loader: painted by the first frame, before any bundle runs. On macOS in a dark appearance the window
+             is a translucent vibrancy material behind this transparent page (see `mainWindowChromeOptions` in
+             `main/window-chrome.ts`), so the Caxri mark floats over the blurred desktop until the workbench attaches and
+             `App` removes `#startup-loader`; a light appearance paints the default theme background instead. The mark is
              one CSS mask so a single element carries both its base color and the sweeping highlight. -->
         <style>
             /* Stacks every React surface (the transparent wait screen, a crash screen) above the loader. */
@@ -35,6 +36,19 @@
              */
             html:has(#startup-loader) {
                 background: transparent;
+            }
+
+            /*
+             * macOS `under-window` vibrancy follows the system appearance and Electron offers no per-window override,
+             * so in a light appearance the clear root above showed a white sheet for the first second before the dark
+             * workbench attached. A light appearance therefore paints the default theme's `--background` (the same
+             * literal `window-chrome.ts` gives non-macOS windows) and only a dark appearance keeps the translucent
+             * material, which is already dark and hands off to the workbench without a flash.
+             */
+            @media (prefers-color-scheme: light) {
+                html:has(#startup-loader) {
+                    background: #282a36;
+                }
             }
 
             .startup-loader {

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 
 import type { AgentProvider, UsageRange, UsageReport, UsageScope } from '@caxri/protocol';
-import { agentProviderCatalog, agentProviderIds, errorMessage } from '@caxri/protocol';
+import { agentProviderCatalog, agentProviderIds } from '@caxri/protocol';
 import { ChartColumn, RefreshCw, X } from 'lucide-react';
 
+import { LoadingSkeleton } from '../../components/loading-skeleton';
 import { Button } from '../../components/ui/button';
 import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
 import { Spinner } from '../../components/ui/spinner';
@@ -18,6 +19,7 @@ import {
     didUsageRefreshFail,
     formatDate,
     usageEmptyState,
+    usageLoadFailureText,
     usageRangeLabel,
     usageScanCaption,
 } from './usage-metrics';
@@ -83,12 +85,7 @@ function UsageBody({
     const { t } = useTranslation();
     const empty = usageEmptyState(t, report, agent);
     if (empty?.kind === 'scanning')
-        return (
-            <Empty className="h-full">
-                <Spinner aria-hidden="true" />
-                <EmptyTitle>{t('usage.empty.scanning')}</EmptyTitle>
-            </Empty>
-        );
+        return <LoadingSkeleton variant="page" label={t('usage.empty.scanning')} />;
     if (empty?.kind === 'agentFilter')
         return (
             <Empty className="h-full">
@@ -155,8 +152,9 @@ function SessionFilterButton({
 
 /**
  * Usage Workbench tab: token usage, estimated API cost, Agent time, and delivery outcomes for Agent Sessions started in
- * Caxri Sessions, or for every Agent Session on this Mac. Everything is computed by the Server from local transcripts;
- * see `docs/usage.md`.
+ * Caxri Sessions, or for every Agent Session on this Mac. A failed first read names a closed reason
+ * (`usageLoadFailureReason`), never the Server's raw message. Everything is computed by the Server from local
+ * transcripts; see `docs/usage.md`.
  */
 export function UsageWorkbenchPage() {
     const { t } = useTranslation();
@@ -322,7 +320,7 @@ export function UsageWorkbenchPage() {
                     <Empty className="h-full">
                         <EmptyTitle className="text-danger">{t('usage.loadFailed')}</EmptyTitle>
                         <p className="m-0 max-w-[420px] text-[12px] text-muted">
-                            {errorMessage(query.error, t('usage.loadFailedFallback'))}
+                            {usageLoadFailureText(t, query.error)}
                         </p>
                         <Button size="sm" variant="secondary" onClick={retry}>
                             <RefreshCw aria-hidden="true" size={12} />
@@ -330,10 +328,7 @@ export function UsageWorkbenchPage() {
                         </Button>
                     </Empty>
                 ) : (
-                    <Empty className="h-full">
-                        <Spinner aria-hidden="true" />
-                        <EmptyTitle>{t('usage.loading')}</EmptyTitle>
-                    </Empty>
+                    <LoadingSkeleton variant="page" label={t('usage.loading')} />
                 )}
             </div>
         </div>

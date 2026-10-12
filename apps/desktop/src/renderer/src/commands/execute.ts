@@ -4,6 +4,7 @@ import type { CommandId } from '@caxri/protocol';
 import { errorMessage, listPaneTerminalIds, paneSplitBlockedReason } from '@caxri/protocol';
 
 import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
+import { openCommanderHandover } from '../features/agent-commander/commander-handover-store';
 import { stopCommanderFromWorkbench } from '../features/agent-commander/commander-stop-commands';
 import { openAgentStatusTab } from '../features/agent-status/open-agent-status-tab';
 import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-commands';
@@ -69,6 +70,11 @@ import {
     uninstallShellCommand,
 } from '../features/shell-command/shell-command-commands';
 import {
+    openConnectSshHostDialog,
+    reconnectSshHost,
+    stopSshHostServer,
+} from '../features/ssh-host/ssh-host-commands';
+import {
     canSelectWorkbenchRoot,
     canSwitchBranch,
     selectWorkbenchRootFromCommand,
@@ -116,6 +122,7 @@ import { isEditableEventTarget } from '../lib/keybindings';
 import { isAgentProcessRunning } from '../lib/terminal-agent-runtime';
 import { useChromeLayoutStore } from '../stores/chrome-layout';
 import { useDialogStore } from '../stores/dialogs';
+import { isLocalOnlyAvailable, isRemote } from '../stores/environment';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../stores/selectors';
 import { useSessionViewStore } from '../stores/session-view';
 import { pushToast, tryCommand } from '../stores/toasts';
@@ -395,6 +402,10 @@ const commandContext: CommandContext = {
             else pushToast('info', translate('core.commands.usageNeedsProject'));
         },
         openSessionContentSearch: () => useDialogStore.getState().setSessionContentSearchOpen(true),
+        /**
+         * Opens the picker with nothing selected; a Session row's menu is the entry that preselects one Session.
+         */
+        openCommanderHandover: () => openCommanderHandover(),
         // eslint-disable-next-line no-void -- floating-promise discard: seeding never rejects
         openProjectSearch: () => void openSeededProjectSearch(),
         openPathBrowser: () => {
@@ -446,6 +457,15 @@ const commandContext: CommandContext = {
     },
     updates: { check: checkForUpdates },
     shellCommand: { install: installShellCommand, uninstall: uninstallShellCommand },
+    remote: {
+        isLocalOnlyAvailable: () => isLocalOnlyAvailable(),
+        isRemote: () => isRemote(),
+        connect: openConnectSshHostDialog,
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        reconnect: () => void reconnectSshHost(),
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        stopServer: () => void stopSshHostServer(),
+    },
 };
 
 export function isCommandAvailable(

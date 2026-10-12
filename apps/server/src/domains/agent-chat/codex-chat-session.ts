@@ -348,14 +348,14 @@ class CodexChatSession implements AgentChatProviderSession {
         });
         if (opened.outcome === 'resumed') {
             this.loadHistory(opened.thread, opened.model);
-            this.models.reportOpened(opened.effort);
+            this.models.reportOpened(opened);
             this.permissions.reportOpened(opened.collaborationMode);
             return 'resumed';
         }
         this.threadId = opened.threadId;
         if (opened.model)
             this.options.apply([{ op: 'state', state: { model: clip(opened.model, 200) } }]);
-        this.models.reportOpened(opened.effort);
+        this.models.reportOpened(opened);
         this.permissions.reportOpened(opened.collaborationMode);
         return 'started';
     }

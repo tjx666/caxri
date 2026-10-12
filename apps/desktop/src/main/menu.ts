@@ -28,6 +28,15 @@ export interface AppMenuOptions {
      * Whether a window other than the Workbench follows the app-wide `window.zoomLevel`, as the Agent Commander does.
      */
     isFollowingAppZoom: (window: BaseWindow) => boolean;
+    /**
+     * Runs a command in an SSH Host window when that window is focused; returns false for any other window. An SSH Host
+     * window is a full Workbench of its own, so its commands act on it rather than on the local Workbench.
+     */
+    dispatchToRemoteWindow?: (
+        window: BaseWindow,
+        command: CommandId,
+        isViaAccelerator: boolean,
+    ) => boolean;
 }
 
 /**
@@ -146,6 +155,7 @@ export function buildAppMenuTemplate({
     workbenchWindow,
     focusWorkbench,
     isFollowingAppZoom,
+    dispatchToRemoteWindow,
 }: AppMenuOptions): MenuItemConstructorOptions[] {
     const command = (definition: CommandDefinition): MenuItemConstructorOptions => ({
         id: `command.${definition.id}`,
@@ -179,6 +189,8 @@ export function buildAppMenuTemplate({
             if (definition.id === 'agentCommander.open') return openAgentCommander();
             // A programmatic `MenuItem.click()` passes no event; it is a deliberate click, not an accelerator.
             const isViaAccelerator = event?.triggeredByAccelerator === true;
+            if (focused && dispatchToRemoteWindow?.(focused, definition.id, isViaAccelerator))
+                return;
             const workbench = workbenchWindow();
             switch (
                 commandTarget(
@@ -256,7 +268,13 @@ export function buildAppMenuTemplate({
                 ...commandItems('view'),
             ],
         },
+        /**
+         * `windowMenu` and `help` roles on the top-level items register them with AppKit as the Window and Help menus:
+         * macOS then appends the open-window list and the Help search field. An explicit submenu replaces Electron's
+         * default items, so the labels still follow `workbench.language`.
+         */
         {
+            role: 'windowMenu',
             label: translateMain('desktop.menu.window'),
             submenu: [
                 ...commandItems('window'),
@@ -266,6 +284,6 @@ export function buildAppMenuTemplate({
                 { role: 'front', label: translateMain('desktop.menu.bringAllToFront') },
             ],
         },
-        { label: translateMain('desktop.menu.help'), submenu: commandItems('help') },
+        { role: 'help', label: translateMain('desktop.menu.help'), submenu: commandItems('help') },
     ];
 }

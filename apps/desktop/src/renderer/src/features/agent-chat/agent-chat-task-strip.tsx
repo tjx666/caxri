@@ -3,12 +3,17 @@ import { useId, useState } from 'react';
 import type { AgentChatTask } from '@caxri/protocol';
 import { Square, X } from 'lucide-react';
 
+import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
-import { stopAgentChatTask } from './agent-chat-commands';
+import {
+    agentChatTaskKey,
+    stopAgentChatTask,
+    useAgentChatTaskStopStore,
+} from './agent-chat-commands';
 import { AgentChatStatusGlyph } from './agent-chat-status-glyph';
 import { AgentChatTaskElapsed, AgentChatTaskGlyph } from './agent-chat-task-glyph';
 import {
@@ -32,6 +37,9 @@ function TaskEntry({
     onOpenTask: ((taskId: string) => void) | undefined;
 }) {
     const { t } = useTranslation();
+    const isStopping = useAgentChatTaskStopStore(({ stopping }) =>
+        stopping.has(agentChatTaskKey(terminalId, task.id)),
+    );
     const title =
         task.title ||
         t(task.kind === 'shell' ? 'agentChat.tasks.shell' : 'agentChat.tasks.subagent');
@@ -81,15 +89,25 @@ function TaskEntry({
                 <div className={TASK_ENTRY_CLASS_NAME}>{summary}</div>
             )}
             {canStopAgentChatTask(task) && (
-                <Tooltip content={t('agentChat.tasks.stop')}>
+                <Tooltip
+                    content={t(isStopping ? 'agentChat.tasks.stopping' : 'agentChat.tasks.stop')}
+                >
                     <Button
+                        aria-busy={isStopping || undefined}
+                        aria-disabled={isStopping || undefined}
                         aria-label={t('agentChat.tasks.stopTask', { title })}
-                        className="size-6 shrink-0 text-muted hover:text-foreground"
+                        className="size-6 shrink-0 text-muted hover:text-foreground aria-busy:cursor-progress aria-busy:opacity-100"
                         size="icon"
                         variant="ghost"
-                        onClick={() => stopAgentChatTask(terminalId, task.id)}
+                        onClick={() => {
+                            if (!isStopping) stopAgentChatTask(terminalId, task.id);
+                        }}
                     >
-                        <Square className="size-2.5 fill-current" />
+                        {isStopping ? (
+                            <Spinner className="size-3.5" role="presentation" />
+                        ) : (
+                            <Square aria-hidden="true" className="size-2.5 fill-current" />
+                        )}
                     </Button>
                 </Tooltip>
             )}
@@ -183,14 +201,18 @@ export function AgentChatTaskStrip({
                     ))}
                 </ul>
             )}
-            {isShowingEnded && ended.length > 0 && (
+            <DisclosureMotion
+                animate
+                expanded={isShowingEnded && ended.length > 0}
+                id={endedListId}
+                kind="agent-chat-ended-tasks"
+            >
                 <ul
                     aria-label={t('agentChat.tasks.endedList')}
                     className={cn(
                         'm-0 flex max-h-32 list-none flex-col overflow-y-auto p-0',
                         running.length > 0 && 'mt-1 border-t border-border pt-1',
                     )}
-                    id={endedListId}
                 >
                     {ended.map((task) => (
                         <TaskEntry
@@ -201,7 +223,7 @@ export function AgentChatTaskStrip({
                         />
                     ))}
                 </ul>
-            )}
+            </DisclosureMotion>
         </section>
     );
 }

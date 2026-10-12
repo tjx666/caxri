@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     agentChatCompactCommand,
     agentChatContextAlerts,
+    agentChatContextAnnouncement,
     agentChatContextUsage,
 } from '../agent-chat-context';
 
@@ -126,5 +127,29 @@ describe('agentChatCompactCommand', () => {
         expect(agentChatCompactCommand([{ name: 'review' }, { name: 'compact' }])).toEqual({
             name: 'compact',
         });
+    });
+});
+
+describe('agentChatContextAnnouncement', () => {
+    const usage = {
+        totalTokens: 113_000,
+        contextWindow: 1_000_000,
+        cacheTtlMinutes: 60,
+        lastResponseAt: 0,
+    };
+
+    it('changes with the notice state, never with the ticking countdown', () => {
+        const at = (minutes: number, tokens = usage.totalTokens) =>
+            agentChatContextAnnouncement(
+                agentChatContextAlerts({ ...usage, totalTokens: tokens }, minutes * MINUTE),
+            );
+        expect(at(49)).toBe('');
+        expect(at(51)).toBe('Prompt cache expires soon');
+        expect(at(55)).toBe(at(51));
+        expect(at(61)).toBe('Prompt cache expired');
+        expect(at(75)).toBe(at(61));
+        expect(at(75, 900_000)).toBe(
+            'Prompt cache expired. Context nearly full, consider compacting',
+        );
     });
 });

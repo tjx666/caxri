@@ -3,15 +3,17 @@ import { useEffect, useId, useMemo, useState } from 'react';
 
 import type { AgentAction, AgentChatCommand } from '@caxri/protocol';
 
+import { isImeComposing } from '../../../lib/ime';
 import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/suggestion-options';
 import { isAgentProcessRunning } from '../../../lib/terminal-agent-runtime';
 import { useCaxriQuery } from '../../../queries/client';
 import { useTerminal } from '../../../stores/selectors';
+import { agentChatCommandMenuKeyStep } from '../agent-chat-presentation';
 import {
+    agentChatDraftMatches,
     agentChatMenuActions,
     agentChatSkillDiscoveryNotice,
     agentChatSlashQuery,
-    filterAgentChatActions,
 } from '../agent-chat-slash-commands';
 import { agentChatActionSuggestion } from '../agent-chat-suggestions';
 
@@ -23,7 +25,9 @@ const DISCOVERY_STALE_MS = 30_000;
 
 /**
  * Suggestion state for a draft that is a bare `/name` or `$name`. The list stays open with a `No matching command or
- * skill` row when nothing matches, so a typo reads as a miss instead of the list silently vanishing. Escape dismisses
+ * skill` row when nothing matches, so a typo reads as a miss instead of the list silently vanishing. Enter on that row
+ * does not send at once: the first press only asks for confirmation (`confirmsSendAsText`), so a mistyped command is
+ * not sent to the Agent as prose by surprise, and a second Enter on the same draft sends it as text. Escape dismisses
  * the list for the current draft only: any edit brings it back, including clearing the box and typing the same `/`
  * again. Skills are discovered only once the user starts an invocation, and the provider's commands show while
  * discovery runs or when it fails; `skillNotice` says why skills are missing until discovery answers. The list shows
@@ -62,13 +66,16 @@ export function useAgentChatCommandMenu({
      */
     if (dismissedDraft !== undefined && dismissedDraft !== draft) setDismissedDraft(undefined);
     /**
+     * The draft a first Enter on a list with no match was held for; a second Enter on the same draft sends it as text.
+     * Any edit ends the confirmation, reset during render like the dismissal above.
+     */
+    const [confirmingDraft, setConfirmingDraft] = useState<string>();
+    if (confirmingDraft !== undefined && confirmingDraft !== draft) setConfirmingDraft(undefined);
+    /**
      * Keyed by query so a new search starts at the first match.
      */
     const [active, setActive] = useState({ query, index: 0 });
-    const matches =
-        query === undefined
-            ? []
-            : filterAgentChatActions(actions, query, draft.startsWith('$') ? '$' : '/');
+    const matches = agentChatDraftMatches(actions, draft);
     const isOpen = query !== undefined && dismissedDraft !== draft && isInputFocused;
     const activeIndex =
         active.query === query ? Math.min(active.index, Math.max(matches.length - 1, 0)) : 0;
@@ -90,6 +97,11 @@ export function useAgentChatCommandMenu({
         setActive({ query, index: (activeIndex + delta + matches.length) % matches.length });
     return {
         isOpen,
+        /**
+         * The first Enter on a draft no command or skill matches was held; the composer says a second Enter sends the
+         * draft as text.
+         */
+        confirmsSendAsText: isOpen && matches.length === 0 && confirmingDraft === draft,
         matches,
         suggestions: matches.map(agentChatActionSuggestion),
         skillNotice: agentChatSkillDiscoveryNotice({
@@ -111,8 +123,9 @@ export function useAgentChatCommandMenu({
         highlight: (index: number) => setActive({ query, index }),
         /**
          * Arrow keys move, Tab completes, Enter chooses, and Escape dismisses while the list is open
-         * (`suggestionMenuKeyAction`). With no matching row only Escape is the menu's, so Enter still sends the draft
-         * as a message. Returns whether the key was the menu's, so the composer skips its own handling.
+         * (`suggestionMenuKeyAction`). With no matching row Escape is the menu's, and so is the first Enter, which only
+         * asks for confirmation; the second Enter on the same draft falls through and sends it as a message. Returns
+         * whether the key was the menu's, so the composer skips its own handling.
          */
         didHandleKey: (
             event: KeyboardEvent<HTMLTextAreaElement>,
@@ -121,13 +134,31 @@ export function useAgentChatCommandMenu({
                 complete: (action: AgentAction) => void;
             },
         ): boolean => {
-            if (!isOpen || event.nativeEvent.isComposing) return false;
-            const action = suggestionMenuKeyAction(event);
-            if (!action || (action !== 'dismiss' && !activeCommand)) return false;
+            if (!isOpen || isImeComposing(event)) return false;
+            const step = agentChatCommandMenuKeyStep(suggestionMenuKeyAction(event), {
+                confirmingDraft,
+                draft,
+                matchCount: matches.length,
+                hasActiveCommand: activeCommand !== undefined,
+            });
+            if (!step) return false;
             event.preventDefault();
-            if (action === 'next' || action === 'previous') move(action === 'next' ? 1 : -1);
-            else if (action === 'dismiss') setDismissedDraft(draft);
-            else if (activeCommand) handlers[action](activeCommand);
+            switch (step.kind) {
+                case 'confirm': {
+                    setConfirmingDraft(draft);
+                    break;
+                }
+                case 'move': {
+                    move(step.delta);
+                    break;
+                }
+                case 'dismiss': {
+                    setDismissedDraft(draft);
+                    break;
+                }
+                default:
+                    if (activeCommand) handlers[step.handler](activeCommand);
+            }
             return true;
         },
     };

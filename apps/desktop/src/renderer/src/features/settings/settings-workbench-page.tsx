@@ -5,6 +5,7 @@ import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
+import { useIsLocalOnlyAvailable } from '../../stores/environment';
 import type { ConfigKind } from './config-edit';
 import { CONFIG_KINDS } from './config-edit';
 import { ConfigSourceView } from './config-source-view';
@@ -27,6 +28,7 @@ const TAB_LABELS: Record<ConfigKind, TranslationKey> = {
 function SettingsWorkbenchView(controller: SettingsPageController) {
     const { commitSource, sourceErrors, state, tab, updateSource, view } = controller;
     const { t } = useTranslation();
+    const canImportTheme = useIsLocalOnlyAvailable();
 
     const sourceView = state.theme.value && (
         <ConfigSourceView
@@ -137,7 +139,7 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                             agentSkillHealth={controller.agentSkillHealth}
                             argvConfig={controller.argvConfig}
                             gitExclusionsFocusRequestId={controller.gitExclusionsFocusRequestId}
-                            argvRowFocusRequest={controller.argvRowFocusRequest}
+                            rowFocusRequest={controller.rowFocusRequest}
                             searchFocusRequestId={controller.searchFocusRequestId}
                             settings={state.settings.value}
                             trustedDomainsFocusRequestId={controller.trustedDomainsFocusRequestId}
@@ -184,10 +186,14 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
                             warnings={state.theme.warnings}
                             onColorChange={controller.updateThemeColor}
                             onDismissImportResult={controller.dismissThemeImportResult}
-                            onImport={() => {
-                                // eslint-disable-next-line no-void -- intentional floating-promise discard, importTheme() reports its own errors
-                                void controller.importTheme();
-                            }}
+                            onImport={
+                                canImportTheme
+                                    ? () => {
+                                          // eslint-disable-next-line no-void -- intentional floating-promise discard, importTheme() reports its own errors
+                                          void controller.importTheme();
+                                      }
+                                    : undefined
+                            }
                             onSelectBuiltin={controller.selectBuiltinTheme}
                         />
                     ))}

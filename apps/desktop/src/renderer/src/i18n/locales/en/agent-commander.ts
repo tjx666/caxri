@@ -23,12 +23,12 @@ export const agentCommander = {
     'agentCommander.board.loadFailed': 'Unable to load the board',
     'agentCommander.board.loading': 'Loading Agents…',
     'agentCommander.board.emptyCommander':
-        'No Commander tasks yet. Describe a goal to the Commander, and the Sessions it starts appear here.',
+        'No Commander Sessions yet. Describe a goal to the Commander, or hand over Sessions you started, and they appear here.',
     'agentCommander.board.emptyAll':
         'No Sessions yet. Sessions from every Project appear here as their Agents work.',
     'agentCommander.board.scopeLabel': 'Board scope',
     'agentCommander.board.scopeCommander': 'Commander',
-    'agentCommander.board.scopeCommanderLabel': 'Sessions the Commander started',
+    'agentCommander.board.scopeCommanderLabel': 'Sessions the Commander manages',
     'agentCommander.board.scopeAll': 'All',
     'agentCommander.board.scopeAllLabel': 'Every Session',
     'agentCommander.board.group.attention': 'Needs attention',
@@ -58,7 +58,7 @@ export const agentCommander = {
     'agentCommander.task.label.running': 'Running',
     'agentCommander.task.label.starting': 'Starting',
     'agentCommander.task.label.stopped': 'Stopped',
-    'agentCommander.task.label.takenOver': 'Taken over by you',
+    'agentCommander.task.label.takenOver': 'Taken back by you',
     'agentCommander.task.label.waitingAtStartup': 'Waiting at startup',
     'agentCommander.task.description.answerUnavailable':
         'The Agent finished, but its answer could not be read back.',
@@ -100,7 +100,7 @@ export const agentCommander = {
     'agentCommander.inbox.mergeTooltip': 'Merge the commit the Commander verified',
     'agentCommander.inbox.reply': 'Reply',
     'agentCommander.inbox.kind.decision': 'Decision',
-    'agentCommander.inbox.kind.hands': 'Needs your hands',
+    'agentCommander.inbox.kind.hands': 'Needs you',
     'agentCommander.inbox.kind.merge': 'Pull request',
     'agentCommander.inbox.replyState.read': 'Read by Commander',
     'agentCommander.inbox.replyState.delivered': 'Delivered to Commander',
@@ -158,6 +158,7 @@ export const agentCommander = {
         'Agent Commander is still working. Stopping it ends the current turn and closes its window. Tasks it delegated keep running.',
     // Hand-over
     'agentCommander.handover.open': 'Hand Over',
+    'agentCommander.handover.openEllipsis': 'Hand Over…',
     'agentCommander.handover.openTooltip':
         'Hand your own Sessions, or Agent conversations started outside Caxri, to the Commander',
     'agentCommander.handover.title': 'Hand Over to Agent Commander',
@@ -171,8 +172,7 @@ export const agentCommander = {
     'agentCommander.handover.loadingSessions': 'Loading Sessions…',
     'agentCommander.handover.loadingConversations':
         'Looking for Claude Code, Codex, and Grok Build conversations…',
-    'agentCommander.handover.loadFailed':
-        'Unable to load this list. Close the dialog and try again.',
+    'agentCommander.handover.loadFailed': 'Unable to load this list.',
     'agentCommander.handover.noMatches': 'Nothing matches your search.',
     'agentCommander.handover.noSessions': 'Every Session is already with the Commander.',
     'agentCommander.handover.noConversations':
@@ -186,21 +186,24 @@ export const agentCommander = {
     'agentCommander.handover.tooMany':
         'Hand over at most {{max}} at once. Deselect {{excess}} to continue.',
     'agentCommander.handover.untitledConversation': 'Untitled conversation',
-    'agentCommander.handover.refusedLine': 'Not handed over ({{count}}): {{reason}}',
+    'agentCommander.handover.refusedReason': 'Not handed over: {{reason}}',
     'agentCommander.handover.noteLabel': 'Note for the Commander',
     'agentCommander.handover.notePlaceholder':
         'Optional: what the Commander should do, for example "finish the migration and open a pull request"',
     'agentCommander.handover.takeBackHint': 'Typing into a handed-over Session takes it back.',
     'agentCommander.handover.selectedCount': '{{count}} selected',
     'agentCommander.handover.submit': 'Hand Over',
+    'agentCommander.handover.submitting': 'Handing over…',
     'agentCommander.handover.failed': 'Unable to hand over to Agent Commander',
     'agentCommander.handover.noneAccepted': 'Nothing was handed over: {{reason}}',
     'agentCommander.handover.partlyAccepted':
         'Handed {{accepted}} to Agent Commander; {{refused}} could not be handed over',
-    'agentCommander.handover.acceptedOne': 'Handed 1 to Agent Commander',
-    'agentCommander.handover.acceptedOther': 'Handed {{count}} to Agent Commander',
+    'agentCommander.handover.acceptedOne': 'Handed 1 Session to Agent Commander',
+    'agentCommander.handover.acceptedOther': 'Handed {{count}} Sessions to Agent Commander',
     'agentCommander.handover.takeBackFailed': 'Unable to take the Session back',
     'agentCommander.handover.takenBack': 'Took the Session back from Agent Commander',
+    'agentCommander.handover.takenBackByInput': 'Took {{title}} back from Agent Commander',
+    'agentCommander.handover.takenBackByInputUntitled': 'Took a Session back from Agent Commander',
     'agentCommander.handover.rejection.alreadyManaged': 'the Commander already manages it',
     'agentCommander.handover.rejection.commanderSession': 'it is the Commander itself',
     'agentCommander.handover.rejection.commanderUnavailable': 'Agent Commander is not set up',
@@ -219,4 +222,9 @@ export const agentCommander = {
         'Handed over by you. The Commander continues this conversation once its Agent is between turns.',
     'agentCommander.board.handoverOwnershipOnly':
         'Handed over by you. There is no Agent conversation to continue, so the Commander starts new work here.',
+
+    // Workbench Session row marker
+    'agentCommander.sessionMarker.managed': 'Managed by Agent Commander',
+    'agentCommander.sessionMarker.inputTakesBack':
+        'Managed by Agent Commander · typing here takes it back',
 } as const;

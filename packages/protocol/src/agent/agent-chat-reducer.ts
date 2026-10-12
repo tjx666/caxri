@@ -191,6 +191,7 @@ export function applyAgentChatOperation(
                 ...(snapshot.queue && { queue: snapshot.queue }),
                 ...(snapshot.queueLength !== undefined && { queueLength: snapshot.queueLength }),
                 ...(snapshot.queuePaused !== undefined && { queuePaused: snapshot.queuePaused }),
+                ...(snapshot.queuePauseReason && { queuePauseReason: snapshot.queuePauseReason }),
             };
         }
         case 'upsertItem': {
@@ -223,6 +224,7 @@ export function applyAgentChatOperation(
             if (state.model !== undefined) next.model = state.model ?? undefined;
             if (state.effort !== undefined) next.effort = state.effort ?? undefined;
             if (state.ultracode !== undefined) next.ultracode = state.ultracode ?? undefined;
+            if (state.fast !== undefined) next.fast = state.fast ?? undefined;
             if (state.permissionMode !== undefined)
                 next.permissionMode = state.permissionMode ?? undefined;
             if (state.planMode !== undefined) next.planMode = state.planMode ?? undefined;
@@ -234,6 +236,8 @@ export function applyAgentChatOperation(
             if (state.queue !== undefined) next.queue = state.queue;
             if (state.queueLength !== undefined) next.queueLength = state.queueLength;
             if (state.queuePaused !== undefined) next.queuePaused = state.queuePaused;
+            if (state.queuePauseReason !== undefined)
+                next.queuePauseReason = state.queuePauseReason ?? undefined;
             for (const key of [
                 'failure',
                 'activeTurnId',
@@ -241,10 +245,12 @@ export function applyAgentChatOperation(
                 'model',
                 'effort',
                 'ultracode',
+                'fast',
                 'permissionMode',
                 'planMode',
                 'usage',
                 'operation',
+                'queuePauseReason',
             ] as const)
                 if (next[key] === undefined) delete next[key];
             return next;

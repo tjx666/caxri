@@ -8,6 +8,7 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 import { translate, useTranslation } from '../../i18n';
 import { isDirectoryEntry } from '../../lib/file-entry';
+import { isImeComposing } from '../../lib/ime';
 import { setPathBrowserOpen } from '../../stores/dialogs';
 import { describeFailure } from '../../stores/toasts';
 import { openExternalEditorDocument } from '../editor/external-editor-documents';
@@ -517,7 +518,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         const intent = pathBrowserKeyIntent({
             entryCount: rows.length,
             input: inputState.input,
-            isComposing: event.nativeEvent.isComposing,
+            isComposing: isImeComposing(event),
             key: event.key,
             mode: inputState.mode,
             selectedKind: selected && isDirectoryEntry(selected) ? 'directory' : selected?.kind,

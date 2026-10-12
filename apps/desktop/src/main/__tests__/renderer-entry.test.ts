@@ -96,7 +96,9 @@ describe('renderer entry loading', () => {
         expect(mainSource).toMatch(
             /loadRendererEntry\(window, \{[\s\S]*?isPackaged: app\.isPackaged,[\s\S]*?page: 'index\.html'/,
         );
-        expect(processExplorerSource).toMatch(/resolveProcessExplorerRendererUrl\(this\.options\)/);
+        expect(processExplorerSource).toMatch(
+            /resolveProcessExplorerRendererUrl\(\{\s*\.\.\.this\.options,\s*locale: mainLocale\(\),?\s*\}\)/,
+        );
         expect(agentCommanderSource).toMatch(
             /resolveRendererEntryUrl\(\{[\s\S]*?isPackaged: this\.options\.isPackaged,[\s\S]*?page: 'agent-commander\.html'/,
         );

@@ -43,8 +43,25 @@ export interface MobileTheme {
      */
     merged: string;
     muted: string;
+    /**
+     * A full-screen media viewer's chrome over {@link MobileTheme.scrim}: always light, because the photo backdrop stays
+     * near-black in every appearance, like the system photo viewer.
+     */
+    onScrim: string;
+    /**
+     * Secondary text over the scrim, such as a "Showing a preview" note.
+     */
+    onScrimMuted: string;
     primary: string;
     primaryForeground: string;
+    /**
+     * The near-opaque backdrop of a full-screen media viewer, so an image reads against black regardless of theme.
+     */
+    scrim: string;
+    /**
+     * A round control (Close) floating over the scrim.
+     */
+    scrimControl: string;
     success: string;
     surface: string;
     text: string;
@@ -74,8 +91,12 @@ export const mobileTheme = {
     gitUntracked: draculaTheme.colors.gitUntracked,
     merged: draculaTheme.colors.merged,
     muted: draculaTheme.colors.muted,
+    onScrim: '#ffffff',
+    onScrimMuted: 'rgba(255, 255, 255, 0.8)',
     primary: draculaTheme.colors.accent,
     primaryForeground: draculaTheme.colors.background,
+    scrim: 'rgba(0, 0, 0, 0.94)',
+    scrimControl: 'rgba(255, 255, 255, 0.16)',
     success: draculaTheme.colors.success,
     surface: draculaTheme.colors.surface,
     text: draculaTheme.colors.foreground,

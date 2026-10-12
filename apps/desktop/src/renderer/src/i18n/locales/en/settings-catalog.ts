@@ -27,6 +27,7 @@ export const settingsCatalog = {
     'settings.workbench.language.description':
         'Display language of the interface. Follow system uses Simplified Chinese when the system language is Chinese.',
     'settings.workbench.language.nullLabel': 'Follow system',
+    'settings.workbench.language.nullLabelResolved': 'Follow system ({{language}})',
 
     'settings.notifications.worktreeFallback.title': 'Worktree fallback reminders',
     'settings.notifications.worktreeFallback.description':
@@ -102,17 +103,17 @@ export const settingsCatalog = {
     'settings.terminal.gpuAcceleration.option.on': 'On',
     'settings.terminal.gpuAcceleration.option.off': 'Off',
 
-    'settings.terminal.suspendUntouchedAgents.title': 'Pause Agents you opened but never used',
+    'settings.terminal.suspendUntouchedAgents.title': 'Suspend Agents you opened but never used',
     'settings.terminal.suspendUntouchedAgents.description':
-        'Pauses an Agent you never typed into once you switch to another Session, to save memory. It picks up where it left off when you come back.',
+        'Suspends an Agent you never typed into once you switch to another Session, to save memory. It picks up where it left off when you come back.',
 
-    'settings.terminal.idleSuspension.enabled.title': 'Pause idle Agents in the background',
+    'settings.terminal.idleSuspension.enabled.title': 'Suspend idle Agents in the background',
     'settings.terminal.idleSuspension.enabled.description':
-        'Pauses an Agent that finished its work and waited in a Session you are not viewing, to save memory. It picks up where it left off when you come back.',
+        'Suspends an Agent that finished its work and waited in a Session you are not viewing, to save memory. It picks up where it left off when you come back.',
 
-    'settings.terminal.idleSuspension.afterMinutes.title': 'Pause idle Agents after',
+    'settings.terminal.idleSuspension.afterMinutes.title': 'Suspend idle Agents after',
     'settings.terminal.idleSuspension.afterMinutes.description':
-        'How long an Agent waits, in a Session you are not viewing, before it is paused. Used only while Pause idle Agents in the background is on.',
+        'How long an Agent waits, in a Session you are not viewing, before it is suspended. Used only while Suspend idle Agents in the background is on.',
 
     'settings.terminal.osc52ClipboardWrite.title': 'Allow OSC 52 clipboard writes',
     'settings.terminal.osc52ClipboardWrite.description':

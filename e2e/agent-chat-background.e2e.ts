@@ -79,7 +79,7 @@ test('a Codex Chat opens a subagent and a background shell beside the Chat', asy
 });
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
-test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and steers on request', async ({}, testInfo) => {
+test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and steers on request or on an empty Enter', async ({}, testInfo) => {
     const { directory, agentMode, userData, root } = await fixture(
         'caxri-agent-chat-queue-',
         'codex',
@@ -138,6 +138,25 @@ test('a Codex Chat queues follow-ups during a turn, sends them as one turn, and 
         // A queued message reads as an ordinary one once delivered; only a steered message keeps a caption.
         await expect(chat.getByText('Queued', { exact: true })).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath('codex-queue-drained.png') });
+
+        // With nothing typed, Enter steers the queued message into the running turn, and the placeholder says so.
+        await message.fill('slow please');
+        await message.press('Enter');
+        await expect(chat.getByRole('button', { name: 'Stop' })).toBeVisible();
+        await message.fill('hello fourth');
+        await message.press('Enter');
+        await expect(queue.getByText('hello fourth')).toBeVisible();
+        await expect(message).toHaveAttribute(
+            'placeholder',
+            'Enter to steer the queued message, or type a follow-up',
+        );
+        await page.screenshot({ path: testInfo.outputPath('codex-queue-empty-enter.png') });
+        await message.press('Enter');
+        await expect(queue).toHaveCount(0);
+        await expect(chat.getByText('Steered')).toHaveCount(2);
+        await expect(
+            chat.locator('[data-agent-chat-user-message]').filter({ hasText: 'hello fourth' }),
+        ).toBeVisible();
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

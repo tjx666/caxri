@@ -94,7 +94,8 @@ export function AgentChatPermissionMenu({
                     <ChevronDown className="size-3 shrink-0" />
                 )}
             </MenuTrigger>
-            <MenuContent align="end" className="max-w-80 min-w-60" side="top">
+            {/* The trigger sits at the composer's leading edge, so the menu opens aligned to its start. */}
+            <MenuContent align="start" className="max-w-80 min-w-60" side="top">
                 <AgentChatPermissionMenuItems
                     isNextTurnOnly={isNextTurnOnly}
                     planMode={snapshot.planMode}

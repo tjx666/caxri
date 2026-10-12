@@ -1,12 +1,13 @@
 {
     "name": "@caxri/server",
-    "version": "0.0.96",
+    "version": "0.0.97",
     "private": true,
     "description": "Caxri Server application.",
     "type": "module",
     "main": "dist/server/bundles/server-core.js",
     "scripts": {
         "build": "vite build --config vite.config.ts && bun run scripts/build-artifact.ts",
+        "build:remote": "bun run scripts/build-remote-layers.ts",
         "dev": "bun run scripts/watch.ts",
         "test": "vitest run --root ../.. --project server-parallel --project server-serial-native",
         "typecheck": "tsc --noEmit -p tsconfig.json"

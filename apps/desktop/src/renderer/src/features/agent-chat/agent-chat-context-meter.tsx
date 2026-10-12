@@ -18,16 +18,16 @@ const TONE_CLASS_NAMES: Record<AgentChatContextUsage['tone'], string> = {
 };
 
 /**
- * Shades for the breakdown, one per row in order: the foreground at falling strengths, so the bar reads in any theme
- * without inventing chart colors, and each row's swatch matches its segment.
+ * Shades for the breakdown, one per row in order: opacity steps of the one `--chart` role, as DESIGN.md asks of every
+ * quantity series, so each row's swatch matches its segment and a theme retunes them all at once.
  */
 const SEGMENT_SHADES = [
-    'bg-foreground',
-    'bg-foreground/70',
-    'bg-foreground/50',
-    'bg-foreground/35',
-    'bg-foreground/25',
-    'bg-foreground/15',
+    'bg-chart',
+    'bg-chart/75',
+    'bg-chart/55',
+    'bg-chart/40',
+    'bg-chart/25',
+    'bg-chart/15',
 ];
 
 function shade(index: number): string {
@@ -59,7 +59,7 @@ function ContextCard({
                     <span className={cn('ml-1.5', TONE_CLASS_NAMES[usage.tone])}>{percent}%</span>
                 </span>
             </span>
-            <span aria-hidden className="flex h-1.5 overflow-hidden rounded-full bg-foreground/10">
+            <span aria-hidden className="flex h-1.5 overflow-hidden rounded bg-chart/10">
                 {rows.length > 0 ? (
                     rows.map((row, index) => (
                         <span

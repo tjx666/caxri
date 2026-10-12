@@ -6,6 +6,7 @@ import { useDialogStore } from '../../stores/dialogs';
 import { getSelectedSession } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
+import { sessionTitleForDisplay } from './session-title';
 
 /**
  * Longest Session title a lifecycle notice quotes. Titles are user- and Agent-authored and effectively unbounded, so a
@@ -22,7 +23,7 @@ function describeSessionNotice(
     change: 'archived' | 'restored',
     displayTitle: string | undefined,
 ): string {
-    const title = displayTitle?.trim() ?? '';
+    const title = sessionTitleForDisplay(displayTitle?.trim() ?? '', translate);
     if (title.length === 0) return translate(`session.notice.${change}Untitled`);
     // Count and cut by code point: an Agent-authored title can end on an emoji, and a UTF-16 cut would leave a lone
     // surrogate that renders as the replacement character.
@@ -87,7 +88,7 @@ async function archiveSessionWithNotice(sessionId: string): Promise<void> {
             // Several archived Sessions leave several `Undo` buttons in the history, identical to a screen reader
             // reading the buttons alone. The title says which one this is.
             accessibleLabel: translate('session.notice.undoArchive', {
-                title: archived.displayTitle,
+                title: sessionTitleForDisplay(archived.displayTitle, translate),
             }),
         },
     });

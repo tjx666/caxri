@@ -62,6 +62,19 @@ export function filterAgentChatActions(
 }
 
 /**
+ * The menu rows for a draft: none unless it is a bare invocation (`agentChatSlashQuery`), otherwise the matches led by
+ * the group its sigil names (`filterAgentChatActions`).
+ */
+export function agentChatDraftMatches(
+    actions: readonly AgentAction[],
+    draft: string,
+): AgentAction[] {
+    const query = agentChatSlashQuery(draft);
+    if (query === undefined) return [];
+    return filterAgentChatActions(actions, query, draft.startsWith('$') ? '$' : '/');
+}
+
+/**
  * The group heading a row starts, or `undefined` when it continues the group above it. An identity, not display text:
  * the menu translates it.
  */

@@ -8,4 +8,4 @@ export {
 } from './conversation-reference';
 export { createSessionCreationHandlers, createSessionCreator } from './creation';
 export { SessionRenameService } from './rename';
-export { SessionSelectionQueue } from './selection';
+export { createSessionSelectionHandlers } from './selection-handlers';

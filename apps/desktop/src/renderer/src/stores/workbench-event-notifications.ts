@@ -1,5 +1,6 @@
 import type { BootstrapState, ServerEvent } from '@caxri/protocol';
 
+import { sessionTitleForDisplay } from '../features/session/session-title';
 import { translate } from '../i18n';
 import { recordNotification } from './notifications';
 
@@ -19,7 +20,9 @@ export function recordAgentNotification(
             payload.attentionKind === 'waiting'
                 ? 'core.agentNotification.waiting'
                 : 'core.agentNotification.completed',
-            { title: session?.displayTitle ?? 'Agent' },
+            {
+                title: session ? sessionTitleForDisplay(session.displayTitle, translate) : 'Agent',
+            },
         ),
         projectId: session?.projectId,
         projectTitle: bootstrap?.projects.find((item) => item.id === session?.projectId)

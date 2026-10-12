@@ -18,6 +18,7 @@ import { SessionStatusIndicator } from '../primary-sidebar/session-status-indica
 import { sessionAgentTerminal } from './session-agent-terminal';
 import { commitMruSession } from './session-commands';
 import { resolveSessionMruView, useSessionMruSwitcherStore } from './session-mru-switcher-state';
+import { sessionTitleForDisplay } from './session-title';
 
 /**
  * Chord names for the modifiers the user is physically holding, so the release hint renders through the shared
@@ -115,7 +116,7 @@ function SessionMruRow({
                         selected ? 'font-semibold' : 'font-medium',
                     )}
                 >
-                    {session.displayTitle}
+                    {sessionTitleForDisplay(session.displayTitle, t)}
                 </strong>
                 <span className="mt-0.5 flex items-center gap-1 text-[11px] text-muted">
                     <ProjectIcon className="flex-none" icon={project?.icon} size={11} />
@@ -224,7 +225,7 @@ function SessionMruSwitcherPanel() {
             />
             <p className="sr-only" aria-atomic="true" role="status">
                 {t('session.mru.selectedStatus', {
-                    title: selected.displayTitle,
+                    title: sessionTitleForDisplay(selected.displayTitle, t),
                     position: selectedIndex + 1,
                     total: candidates.length,
                 })}

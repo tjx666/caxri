@@ -273,7 +273,7 @@ into one of six groups, in this order: `attention`, `working`, `waiting`, `faile
   its newest link, and a follow-up rejected because its parent still runs never hides that parent.
   Only receipt state leaves the database; the
   task's prompt and answer never reach the board. The window prints it next to the `Commander`
-  marker as `Starting`, `Running`, `Answered`, `Blocked`, `Taken over`, `Stopped`, or `Failed`.
+  marker as `Starting`, `Running`, `Answered`, `Blocked`, `Taken back`, `Stopped`, or `Failed`.
   A task `blocked` with `startup_waiting` reads `Waiting at startup` and moves its row to
   `attention`: its Agent is running but waits at startup, usually on a first-run prompt only the
   user can answer. The badge does not reuse `Needs you`, which names the Commander Inbox column,
@@ -307,7 +307,7 @@ The second line holds the Agent's color icon, the Project name, an icon for a no
 (exited, failed, interrupted, starting, or suspended; a detached Terminal shows none), and the pull
 request as `#N` with a checks icon (passed, failed, or pending). Every icon carries a tooltip and
 an accessible name with the full wording: the task tooltip leads with its label (`Waiting at startup`,
-`Taken over`, ...), explains the status, names the failure reason, and ends with the delegation ID;
+`Taken back`, ...), explains the status, names the failure reason, and ends with the delegation ID;
 the pull request tooltip reads `#N State · Checks: title`. A takeover uses a warning tint because it
 means the Commander has let the Session go: the user typed into it, and the Commander no longer
 drives it or sends it follow-ups.
@@ -472,8 +472,10 @@ Sessions it created, so a half-finished task in the user's own Session had to be
 scratch.
 
 **Picking.** The Commander window's title bar **Hand Over** button opens a searchable, multi-select
-dialog (`commander-handover-dialog.tsx`); a Workbench Session's context menu opens the same dialog
-with that Session already selected, and offers **Take Back** instead once the Commander manages it.
+dialog (`commander-handover-dialog.tsx`); so do the **Hand Over…** button in the empty board and
+empty Inbox, and the Workbench command palette's **Hand Over to Agent Commander…**
+(`agentCommander.handOver`). A Workbench Session's context menu opens the same dialog with that
+Session already selected, and offers **Take Back** instead once the Commander manages it.
 The dialog has two tabs that share one selection and one optional note:
 
 - **Sessions** lists every Workbench Session the Commander does not manage yet, grouped by Project,
@@ -489,8 +491,10 @@ The dialog has two tabs that share one selection and one optional note:
 
 Search narrows what the list shows, never what stays selected. `commander.session.handOver` handles
 every entry on its own, so a refused entry (for example an archived Session, or a conversation that
-disappeared) never blocks the rest; the dialog keeps the refusals in view and the toast counts what
-was accepted. From the Workbench the request first runs `commander.ensure`, so handing over works
+disappeared) never blocks the rest. While the dialog is open it reports a partly or wholly refused
+request in place: refused rows stay selected where they were, each with its reason, and no toast
+repeats it. A full success closes the dialog and the toast counts what was accepted; so does any
+answer that arrives after the user closed the dialog. From the Workbench the request first runs `commander.ensure`, so handing over works
 before the user ever opened the Commander. `caxri commander session hand-over` and `take-back` are
 the human CLI equivalents; the Commander's own Endpoint cannot hand over or take back, because it
 lacks `agents.control`.
@@ -518,6 +522,18 @@ Notices the Commander lost to a restart are queued again on its next launch.
 working there again, and the Commander must not take the conversation over afterwards. The
 Session's menu and `commander session take-back` do the same explicitly. Taking back never stops an
 Agent; tasks the Commander already started keep their receipts.
+
+Because a single keystroke ends the hand-over, the Workbench says so before and after. Every Session
+the Commander manages shows a small hand marker in the sidebar row
+(`agent-commander/commander-session-marker.tsx`); for a hand-over that continues an Agent
+conversation its label adds that typing there takes it back. When typing does take one back, the
+main window shows an info toast naming the Session. Both read `commander.managedSessions`, which
+returns the managed IDs, the subset where input takes the Session back, and the most recent
+input-caused take-backs (in Server Core memory, at most 16). The notice rides on that read instead
+of a dedicated event: every take-back already announces a full `state.changed`, after which the
+marker must re-read the set anyway, so one read serves both without adding an event to the
+registry, the durable journal, mobile subscriptions, and the companion-window policy. A reader
+treats the take-backs it sees on its first read as already shown.
 
 ## Observability
 
@@ -658,7 +674,10 @@ Settings writes are never implied.
   same `session.archive` path as the sidebar: its Terminals and Chats are parked, and the user can
   restore it from Archived Sessions. Any other Session, including the user's own and the
   Commander's hidden one, is refused with `NOT_FOUND`, because the Commander has no control
-  authority over Sessions it did not create. Archiving does not remove the Session from the
+  authority over Sessions it did not create. A Session the user handed over is refused the same
+  way even while the Commander manages it: hand-over writes the same ownership list, but the
+  Session stays the user's, so `requireCommanderSession` also rejects any Session with a hand-over
+  record. Archiving does not remove the Session from the
   Commander's record, so a restored Session can receive delegations again.
 - `agent.delegation.create` and `agent.delegation.presets` skip Server Core's Project-scope check
   only for a `commander` Agent principal. The delegation domain then admits the request only when

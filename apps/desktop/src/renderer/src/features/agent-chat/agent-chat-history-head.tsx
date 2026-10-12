@@ -13,7 +13,8 @@ const PRELOAD_MARGIN_PX = 1600;
 /**
  * The top of a Chat transcript whose conversation goes back further than the pane holds: it loads the previous page
  * once the reader scrolls near it, says so while a page is on its way or failed, and says when the rest cannot be shown
- * in Chat at all.
+ * in Chat at all. Between pages it offers a `Load earlier messages` button, so a keyboard or screen reader user who
+ * never scrolls the view still reaches older history.
  */
 export function AgentChatHistoryHead({
     hasFailed,
@@ -77,12 +78,18 @@ export function AgentChatHistoryHead({
                             {t('common.retry')}
                         </button>
                     </p>
+                ) : isLoading ? (
+                    <p className="m-0 text-[11px] text-muted" role="status">
+                        {t('agentChat.history.loading')}
+                    </p>
                 ) : (
-                    isLoading && (
-                        <p className="m-0 text-[11px] text-muted" role="status">
-                            {t('agentChat.history.loading')}
-                        </p>
-                    )
+                    <button
+                        className="cursor-pointer rounded border-0 bg-transparent px-1 text-[11px] text-muted hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-accent"
+                        type="button"
+                        onClick={onLoad}
+                    >
+                        {t('agentChat.history.loadEarlier')}
+                    </button>
                 )}
             </div>
         );

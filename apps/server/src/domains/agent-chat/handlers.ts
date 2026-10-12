@@ -76,14 +76,21 @@ export function createAgentChatHandlers(
             model,
             effort,
             ultracode,
+            fast,
             permissionMode,
             planMode,
         }) => {
-            if (model !== undefined || effort !== undefined || ultracode !== undefined)
+            if (
+                model !== undefined ||
+                effort !== undefined ||
+                ultracode !== undefined ||
+                fast !== undefined
+            )
                 await agentChat.configure(terminalId, {
                     ...(model !== undefined && { model }),
                     ...(effort !== undefined && { effort }),
                     ...(ultracode !== undefined && { ultracode }),
+                    ...(fast !== undefined && { fast }),
                 });
             if (permissionMode !== undefined || planMode !== undefined)
                 await agentChat.setPermission(terminalId, {
