@@ -8,7 +8,7 @@ import { openEditorTab } from '../editor/document-commands';
  * What the opener asked the Usage page to show. `sessionId` narrows the report to one Caxri Session (the status bar's
  * usage chip); its absence asks for the whole report, clearing a Session filter an earlier request left on the page.
  */
-export interface UsagePageRequest {
+interface UsagePageRequest {
     readonly sessionId?: string;
 }
 
