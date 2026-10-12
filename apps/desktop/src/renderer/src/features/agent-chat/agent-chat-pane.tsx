@@ -282,6 +282,7 @@ export function AgentChatPane({
                                             })}
                                             <AgentChatPendingTimeline
                                                 pending={pending}
+                                                requests={snapshot?.requests}
                                                 onOpenFile={openFile}
                                             />
                                         </AgentChatEditContext>

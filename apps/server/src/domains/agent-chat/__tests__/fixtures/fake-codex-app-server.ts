@@ -44,7 +44,12 @@ import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline';
 
-import { runApprovalCommand, runApprovalPatch, runQuestion } from './fake-codex-approvals.ts';
+import {
+    runApprovalCommand,
+    runApprovalPatch,
+    runQuestion,
+    runQuestions,
+} from './fake-codex-approvals.ts';
 import { runTurnArtifacts } from './fake-codex-artifacts.ts';
 import {
     listThreadItems,
@@ -279,6 +284,8 @@ async function runTurn(turn: FakeTurn, input: FakeInput[], clientId: string | nu
             durationMs: 5,
         });
         await streamMessage(turn, 'Explored the project.', 0);
+    } else if (text.includes('several questions')) {
+        await runQuestions(io, turn);
     } else if (text.includes('ask')) {
         await runQuestion(io, turn);
     } else if (text.includes('slow')) {

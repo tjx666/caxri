@@ -137,7 +137,7 @@ describe('shared approval labels', () => {
 });
 
 describe('agentChatAnsweredNotice', () => {
-    it('records the answers to a question, labelled by header, and skips unanswered questions', () => {
+    it('records the answers to a question, a digest labelled by header plus each full question, and skips unanswered questions', () => {
         const question = (id: string, header: string) => ({
             id,
             header,
@@ -165,6 +165,11 @@ describe('agentChatAnsweredNotice', () => {
             type: 'notice',
             kind: 'answered',
             message: 'Color: Blue\nsize?: S, M',
+            answers: [
+                { question: 'color?', answer: 'Blue' },
+                { question: 'size?', answer: 'S, M' },
+                { question: 'skip?', answer: '' },
+            ],
         });
         expect(
             agentChatAnsweredNotice({ id: 'a', kind: 'fileChange' }, undefined, {}),

@@ -139,6 +139,24 @@ async function executeMobileAgentChatScenario(
         );
         await waitForNoCheck(serial, 'agent-chat-request');
 
+        // Several questions sit behind tabs; a tap answers and moves to the next unanswered question.
+        await sendFromPhone(serial, 'ask several questions');
+        await waitForCheck(serial, 'agent-chat-question-tab-2');
+        await capture(environment, 'questions', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-question-0-option-1');
+        await waitForCheck(serial, 'agent-chat-question-1-option-1');
+        await tapMobileCheckByBounds(serial, 'agent-chat-question-1-option-1');
+        await waitForCheck(serial, 'agent-chat-question-2-other');
+        await capture(environment, 'questions-answered', artifacts);
+        await tapMobileCheckByBounds(serial, 'agent-chat-question-submit');
+        await waitForMobile(
+            () => chat.read(),
+            (snapshot) =>
+                agentText(snapshot).includes('You answered Per request / Free only / -.') &&
+                !snapshot.activeTurnId,
+        );
+        await waitForNoCheck(serial, 'agent-chat-request');
+
         await sendFromPhone(serial, 'crash');
         await waitForCheck(serial, 'agent-chat-failed-action');
         await capture(environment, 'failed', artifacts);

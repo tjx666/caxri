@@ -15,7 +15,8 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
 /**
  * The composer strip's row while the Chat starts, works, or waits on the user. The strip sits on top of the card rather
  * than inside it, so the Chat's state never reads as part of what the user is typing. A working turn shows its verb
- * under a sweeping highlight and how long it has run, so a long turn reads as progress rather than a stall. The polite
+ * under a sweeping highlight and how long it has run, so a long turn reads as progress rather than a stall; a turn
+ * waiting on the user sweeps too, as the Codex app's does, so the row reads as live rather than stalled. The polite
  * live region stays mounted so transitions between starting, working, and waiting are announced, while the ticking time
  * never is. The Esc hint is also clickable, so pointing at it gives feedback instead of reading as dead text. While a
  * turn runs and the user has typed something, the row also says what Enter and Cmd+Enter will do with it, because the
@@ -58,11 +59,7 @@ export function AgentChatActivityBar({
                         <Spinner className="size-3.5 shrink-0" role="presentation" />
                     )}
                     <span className="min-w-0 truncate">
-                        <span
-                            className={activity.kind === 'waiting' ? undefined : 'activity-shimmer'}
-                        >
-                            {activity.text}
-                        </span>
+                        <span className="activity-shimmer">{activity.text}</span>
                     </span>
                     {activity.kind === 'working' && activity.startedAt !== undefined && (
                         <ElapsedTime startedAt={activity.startedAt} />

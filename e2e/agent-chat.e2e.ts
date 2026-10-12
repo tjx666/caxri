@@ -122,11 +122,48 @@ test('a Codex Chat streams a reply, answers an approval and a question', async (
         await message.fill('ask me');
         await message.press('Enter');
         const question = chat.getByRole('region', { name: 'Codex has a question' });
-        await question.getByRole('radio', { name: /^Blue/u }).click();
-        await question.getByRole('button', { name: 'Submit' }).click();
-        await expect(chat.getByText('You chose Blue.')).toBeVisible();
-        await expect(chat.getByText('Answered: Color: Blue')).toBeVisible();
+        // The transcript marks the question being asked while the card waits, as the Codex app does.
+        await expect(chat.locator('[data-agent-chat-asking]')).toHaveText('Asking a question');
         await page.screenshot({ path: testInfo.outputPath('agent-chat-question.png') });
+        // One click answers a lone question.
+        await question.getByRole('radio', { name: /^Blue/u }).click();
+        await expect(chat.getByText('You chose Blue.')).toBeVisible();
+        await expect(chat.locator('[data-agent-chat-asking]')).toHaveCount(0);
+        const answered = chat.locator('[data-agent-chat-answered]').last();
+        await expect(answered.getByRole('button', { name: 'Asked a question' })).toHaveAttribute(
+            'aria-expanded',
+            'true',
+        );
+        await expect(answered).toContainText('Which color?Blue');
+
+        // Several questions sit behind tabs, one at a time; answering moves to the next unanswered question.
+        await message.fill('ask several questions');
+        await message.press('Enter');
+        const questions = chat.getByRole('region', { name: 'Codex has 3 questions' });
+        const questionTabs = questions.getByRole('tab');
+        await expect(questionTabs).toHaveCount(3);
+        // The recommended option starts selected, so the first question already counts as answered.
+        await expect(questionTabs.nth(0)).toHaveAttribute('aria-description', 'Answered');
+        await expect(questionTabs.nth(1)).toHaveAttribute('aria-description', 'Not answered yet');
+        await expect(questions.getByText('Which users count as free?')).toBeHidden();
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-questions.png') });
+        await questions.getByRole('radio', { name: /^Per request/u }).focus();
+        await page.keyboard.press('Enter');
+        await expect(questionTabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+        await expect(questions.getByRole('radio', { name: /^Free and Hobby/u })).toBeFocused();
+        await page.keyboard.press('2');
+        await expect(questionTabs.nth(2)).toHaveAttribute('aria-selected', 'true');
+        // Going back keeps the earlier answer.
+        await questionTabs.nth(0).click();
+        await expect(questions.getByRole('radio', { name: /^Per request/u })).toBeChecked();
+        await questions.getByRole('button', { name: 'Submit' }).click();
+        await expect(chat.getByText('You answered Per request / Free only / -.')).toBeVisible();
+        const answeredSeveral = chat.locator('[data-agent-chat-answered]').last();
+        await expect(
+            answeredSeveral.getByRole('button', { name: 'Asked 3 questions' }),
+        ).toBeVisible();
+        await expect(answeredSeveral).toContainText('Anything else to keep in mind?Skipped');
+        await page.screenshot({ path: testInfo.outputPath('agent-chat-questions-answered.png') });
 
         // Consecutive tool calls fold into one summary; a finished turn folds its work behind its duration.
         await message.fill('explore the project');
@@ -528,7 +565,6 @@ test('a Claude Code Chat streams a reply, answers an approval and a question, an
         await message.press('Enter');
         const question = chat.getByRole('region', { name: 'Claude has a question' });
         await question.getByRole('radio', { name: /^Blue/u }).click();
-        await question.getByRole('button', { name: 'Submit' }).click();
         await expect(chat.getByText('You chose Blue.')).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('claude-chat-question.png') });
 
