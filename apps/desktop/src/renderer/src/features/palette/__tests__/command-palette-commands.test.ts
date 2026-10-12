@@ -198,6 +198,9 @@ describe('commanderPaletteWhenContext', () => {
     const visible = (context: ReturnType<typeof commanderPaletteWhenContext>) => {
         const full = {
             ...context,
+            agentChatModels: false,
+            agentChatPermissionModes: false,
+            agentChatPlanMode: false,
             localMachine: true,
             sessionHasDetachedAgent: false,
             sessionHasLiveAgent: false,
