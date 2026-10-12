@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from 'react-native';
 
+import type { AgentProvider } from '@caxri/protocol';
 import { sentenceStartProvider } from '@caxri/protocol';
 import { ArrowUp, CornerDownLeft, Paperclip, Square } from 'lucide-react-native';
 
@@ -19,6 +20,8 @@ import {
     isAgentChatStopping,
 } from './agent-chat-model';
 import { AgentChatModelButton } from './agent-chat-model-sheet';
+import { AgentChatPermissionButton } from './agent-chat-permission-sheet';
+import { sheetStyles } from './agent-chat-sheet-styles';
 import type { AgentChatController } from './use-agent-chat';
 
 /**
@@ -281,6 +284,7 @@ export const AgentChatComposer = ({
     onComposerFocused,
     onDraftChange,
     provider,
+    providerId,
     sessionId,
     supportsImages,
     theme,
@@ -298,6 +302,7 @@ export const AgentChatComposer = ({
     onComposerFocused?: () => void;
     onDraftChange: (draft: string) => void;
     provider: string;
+    providerId: AgentProvider | undefined;
     /**
      * Uploaded images are scoped to the Chat's Session on the Server.
      */
@@ -354,11 +359,19 @@ export const AgentChatComposer = ({
             style={[styles.composerBlock, { borderColor: theme.border }]}
             testID="agent-chat-composer"
         >
-            <AgentChatModelButton
-                chat={chat}
-                disabledReason={agentChatDisabledReason({ ...access, action: 'configure' })}
-                theme={theme}
-            />
+            <View style={sheetStyles.choices}>
+                <AgentChatPermissionButton
+                    chat={chat}
+                    disabledReason={agentChatDisabledReason({ ...access, action: 'permission' })}
+                    provider={providerId}
+                    theme={theme}
+                />
+                <AgentChatModelButton
+                    chat={chat}
+                    disabledReason={agentChatDisabledReason({ ...access, action: 'configure' })}
+                    theme={theme}
+                />
+            </View>
             <SessionComposerAttachments images={images} theme={theme} />
             <View style={styles.composerRow}>
                 {canAttach ? (

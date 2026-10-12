@@ -133,7 +133,8 @@ const trimChatItem = (item: AgentChatItem): AgentChatItem => {
 
 /**
  * A Chat as the phone last saw it, without pending approvals: those can only be answered live. Of the provider's model
- * list it keeps only the model in use, so the composer still names it as Desktop does (`Fake Codex`, not its id).
+ * list it keeps only the model in use, so the composer still names it as Desktop does (`Fake Codex`, not its id), and
+ * it keeps ultracode, the permission level, and plan mode, so an offline composer still shows them read-only.
  */
 export const trimChatSnapshot = (snapshot: AgentChatSnapshot): AgentChatSnapshot => {
     const items = snapshot.items.slice(-READ_CACHE_MAX_ITEMS).map(trimChatItem);
@@ -151,6 +152,9 @@ export const trimChatSnapshot = (snapshot: AgentChatSnapshot): AgentChatSnapshot
         ...(snapshot.model !== undefined && { model: snapshot.model }),
         ...(model && { models: [model] }),
         ...(snapshot.effort !== undefined && { effort: snapshot.effort }),
+        ...(snapshot.ultracode !== undefined && { ultracode: snapshot.ultracode }),
+        ...(snapshot.permissionMode !== undefined && { permissionMode: snapshot.permissionMode }),
+        ...(snapshot.planMode !== undefined && { planMode: snapshot.planMode }),
     };
 };
 

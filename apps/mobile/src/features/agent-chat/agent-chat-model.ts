@@ -3,6 +3,7 @@ import type {
     AgentChatItem,
     AgentChatRequest,
     AgentChatSnapshot,
+    AgentProvider,
 } from '@caxri/protocol';
 import { agentProviderCatalog, sentenceStartProvider } from '@caxri/protocol';
 
@@ -27,6 +28,17 @@ export const agentChatProviderName = (
 ): string => {
     const provider = terminal?.provider ?? terminal?.kind;
     return provider && provider !== 'shell' ? mobileAgentDisplayName(provider) : 'the Agent';
+};
+
+/**
+ * The Chat's provider id, which decides the permission levels and plan mode it offers, or `undefined` for a Terminal
+ * that names none.
+ */
+export const agentChatProviderId = (
+    terminal: Pick<MobileTerminal, 'kind' | 'provider'> | undefined,
+): AgentProvider | undefined => {
+    const provider = terminal?.provider ?? terminal?.kind;
+    return provider && provider !== 'shell' ? provider : undefined;
 };
 
 /**
@@ -131,11 +143,18 @@ const DISABLED_REASONS = {
         handedOff: 'Resume the Agent on your computer to change the model.',
         failed: 'Retry the Chat before changing the model.',
     },
+    permission: {
+        access: 'Control access is required to change permissions.',
+        offline: 'Reconnect to change permissions.',
+        handedOff: 'Resume the Agent on your computer to change permissions.',
+        failed: 'Retry the Chat before changing permissions.',
+    },
 } as const;
 
 /**
- * Why this device cannot send to, or `configure` the model of, the Chat right now, or `undefined` when it can. Both
- * actions need the same access and connection, so they share one precedence and differ only in what the reason names.
+ * Why this device cannot send to the Chat, `configure` its model, or change its `permission` level right now, or
+ * `undefined` when it can. The actions share one precedence and differ in what the reason names, and the permission
+ * level needs `control` access, as answering approvals does, where the others need `reply`.
  */
 export const agentChatDisabledReason = ({
     action = 'send',
@@ -144,7 +163,7 @@ export const agentChatDisabledReason = ({
     isHandedOff,
     snapshot,
 }: {
-    action?: 'send' | 'configure';
+    action?: 'send' | 'configure' | 'permission';
     deviceRole: 'view' | 'reply' | 'control' | null;
     isConnected: boolean;
     /**
@@ -154,7 +173,9 @@ export const agentChatDisabledReason = ({
     snapshot: AgentChatSnapshot | undefined;
 }): string | undefined => {
     const reasons = DISABLED_REASONS[action];
-    if (deviceRole !== 'reply' && deviceRole !== 'control') return reasons.access;
+    const hasAccess =
+        deviceRole === 'control' || (deviceRole === 'reply' && action !== 'permission');
+    if (!hasAccess) return reasons.access;
     if (!isConnected) return reasons.offline;
     if (isHandedOff) return reasons.handedOff;
     if (snapshot?.status === 'failed') return reasons.failed;

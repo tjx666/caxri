@@ -21,7 +21,7 @@ import {
 } from './agent-chat-sheet-primitives';
 import { sheetStyles, TRIGGER_HIT_SLOP } from './agent-chat-sheet-styles';
 import type { AgentChatController } from './use-agent-chat';
-import { useAgentChatModelSelection } from './use-agent-chat-model-selection';
+import { useAgentChatModelSelection } from './use-agent-chat-choice';
 
 type ModelSelection = ReturnType<typeof useAgentChatModelSelection>;
 
@@ -54,8 +54,8 @@ const AgentChatModelSheet = ({
     const effortHint = agentChatEffortHint(snapshot);
     const isDisabled = busy !== null || disabledReason !== undefined;
     const select = (change: AgentChatModelRequest, isSelected: boolean): void => {
-        // eslint-disable-next-line no-void -- `configure` reports its own failure in the sheet.
-        if (!isSelected) void selection.configure(change);
+        // eslint-disable-next-line no-void -- `didConfigure` reports its own failure in the sheet.
+        if (!isSelected) void selection.didConfigure(change);
     };
     return (
         <BottomSheet

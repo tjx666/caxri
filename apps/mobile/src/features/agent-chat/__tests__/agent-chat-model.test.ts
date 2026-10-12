@@ -15,6 +15,7 @@ import {
     agentChatEmptyMessage,
     agentChatImageCounts,
     agentChatImagesUnsupportedReason,
+    agentChatProviderId,
     agentChatProviderName,
     agentChatRequestBlockedReason,
     canAttachAgentChatImages,
@@ -128,6 +129,34 @@ describe('Agent Chat model', () => {
         expect(
             agentChatDisabledReason({ ...access, action: 'configure', deviceRole: 'view' }),
         ).toBe('Reply access is required to change the model.');
+    });
+
+    it('needs control access to change permissions, where the model needs reply', () => {
+        const live = { isConnected: true, isHandedOff: false, snapshot: base } as const;
+        expect(
+            agentChatDisabledReason({ ...live, action: 'permission', deviceRole: 'reply' }),
+        ).toBe('Control access is required to change permissions.');
+        expect(
+            agentChatDisabledReason({ ...live, action: 'permission', deviceRole: 'control' }),
+        ).toBeUndefined();
+        expect(
+            agentChatDisabledReason({
+                ...live,
+                action: 'permission',
+                deviceRole: 'control',
+                isConnected: false,
+            }),
+        ).toBe('Reconnect to change permissions.');
+        expect(
+            agentChatDisabledReason({ ...live, action: 'configure', deviceRole: 'reply' }),
+        ).toBeUndefined();
+    });
+
+    it('reads the provider id from the Terminal for its permission levels', () => {
+        expect(agentChatProviderId({ kind: 'codex' })).toBe('codex');
+        expect(agentChatProviderId({ kind: 'shell', provider: 'claude' })).toBe('claude');
+        expect(agentChatProviderId({ kind: 'shell' })).toBeUndefined();
+        expect(agentChatProviderId(undefined)).toBeUndefined();
     });
 
     it('starts the unsupported-images reason with a capital for the providerless fallback', () => {

@@ -30,11 +30,15 @@ export const sheetStyles = StyleSheet.create({
     optionMark: { alignItems: 'center', width: 24 },
     hint: { fontSize: 13, lineHeight: 18, paddingHorizontal: 10, paddingVertical: 6 },
     /**
+     * The row above the composer input holding the permission and model triggers, as Desktop keeps them beside its
+     * input. It wraps on a narrow phone rather than truncating both.
+     */
+    choices: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', columnGap: 4 },
+    /**
      * The composer's model and permission triggers: 40dp rows above the input, grown to a 48dp target by hit slop.
      */
     trigger: {
         alignItems: 'center',
-        alignSelf: 'flex-start',
         borderRadius: 8,
         flexDirection: 'row',
         gap: 6,
