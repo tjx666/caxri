@@ -47,6 +47,19 @@ export function agentChatQueueEntries(
     ];
 }
 
+/**
+ * The queued message Enter in an empty composer sends now: the head of Server Core's queue, so the shortcut does what
+ * the first card's Steer or Send now does. `undefined` when the queue is empty or its head must wait for the turn (a
+ * command cannot steer).
+ */
+export function agentChatNextQueuedId(
+    queue: readonly AgentChatQueuedMessage[] | undefined,
+    isTurnRunning: boolean,
+): string | undefined {
+    const head = queue?.at(0);
+    return head && agentChatQueueEntry(head, isTurnRunning).canSendNow ? head.id : undefined;
+}
+
 function queueEntryView(
     message: AgentChatQueuedMessage,
     isTurnRunning: boolean,

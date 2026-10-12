@@ -315,6 +315,23 @@ export function agentChatSendAction(
 }
 
 /**
+ * The input's placeholder. While a message waits at the head of the queue, an empty input's Enter sends it now
+ * (`agentChatComposerKeyAction`), so the placeholder says so instead of describing a follow-up nobody typed yet.
+ */
+export function agentChatComposerPlaceholder(
+    sendAction: { placeholder: string },
+    state: { hasNextQueued: boolean; isEditing: boolean; isTurnRunning: boolean },
+    t: Translate = translate,
+): string {
+    if (!state.hasNextQueued || state.isEditing) return sendAction.placeholder;
+    return t(
+        state.isTurnRunning
+            ? 'agentChat.message.steerQueuedPlaceholder'
+            : 'agentChat.message.sendQueuedPlaceholder',
+    );
+}
+
+/**
  * Why the Chat itself refuses a message right now (`canSendAgentChatMessage`), or `undefined` when it accepts one.
  */
 export function agentChatSendBlock(
