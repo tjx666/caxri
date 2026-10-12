@@ -132,6 +132,8 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.permission.planModeDescription': '先制定计划，批准前不做任何更改',
     'agentChat.permission.useAsProjectDefault': '设为项目默认',
     'agentChat.permission.projectDefault': '项目默认',
+    'agentChat.permission.clearProjectDefault': '清除项目默认',
+    'agentChat.permission.clearProjectDefaultDescription': '新 Chat 将沿用启动设置',
     'agentChat.permission.chooseLevelForDefault': '选择一个级别后才能保存为默认',
     'agentChat.permission.changeFailed': '无法更改权限',
 

@@ -1041,7 +1041,9 @@ launches with it, so the switch never starts the provider by itself.
 
 **Project default.** The menu's last row is a checkbox item. "Use as Project default" saves the
 Chat's level and plan mode for that provider on its Project; once the Chat matches the saved
-default the row reads "Project default" and stays checked. While the level is Custom it stays
+default the row reads "Project default" and stays checked. While the Project has a saved default for
+the provider, a "Clear Project default" row below it removes that default (`chatDefault: null`), so
+new Chats follow the launch settings again; Chats that already copied it keep their choice. While the level is Custom it stays
 visible but disabled with `Choose a level to save it as the default`, since a default must name a
 level. The Agent Commander window omits the row (`AgentChatHostCapabilities`). The default is stored
 (`projects.chat_defaults`, `project.setChatDefault`). A new Chat copies it at creation, except a

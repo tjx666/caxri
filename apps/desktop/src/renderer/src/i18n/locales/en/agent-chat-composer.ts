@@ -136,6 +136,8 @@ export const agentChatComposer = {
     'agentChat.permission.planModeDescription': 'Plans first and changes nothing until you approve',
     'agentChat.permission.useAsProjectDefault': 'Use as Project default',
     'agentChat.permission.projectDefault': 'Project default',
+    'agentChat.permission.clearProjectDefault': 'Clear Project default',
+    'agentChat.permission.clearProjectDefaultDescription': 'New Chats follow the launch settings',
     'agentChat.permission.chooseLevelForDefault': 'Choose a level to save it as the default',
     'agentChat.permission.changeFailed': 'Unable to change permissions',
 
