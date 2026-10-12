@@ -1,3 +1,4 @@
+import type { TreeItemRichTooltip } from 'caxri';
 import { describe, expect, it } from 'vitest';
 
 import { buildRepoNode } from '../status-tree';
@@ -32,5 +33,44 @@ describe('Status extension branch row', () => {
         });
         const branch = root.children!.find((node) => node.item.id?.endsWith(':branch'))!;
         expect(branch.item.iconPath?.id).toBe('loading');
+    });
+
+    /**
+     * The pull request row sits under the checked-out branch, so one the Agent opened from another worktree must name
+     * its own branch rather than read as that branch's.
+     */
+    it('names the pull request branch only when it is not the checked-out branch', () => {
+        const pullRequestRow = (headBranch: string) =>
+            buildRepoNode({
+                id: 'repo',
+                kind: 'primary',
+                name: 'Project',
+                branch: 'main',
+                acceptances: [],
+                linearIssues: [],
+                errors: [],
+                pullRequest: {
+                    number: 2,
+                    title: 'Delivery',
+                    url: 'https://github.com/a/b/pull/2',
+                    lifecycle: 'open',
+                    state: 'success',
+                    hiddenCheckCount: 0,
+                    checks: [],
+                    headBranch,
+                },
+            }).children?.find((child) => child.item.id === 'status:repo:repo:pr')?.item;
+
+        const elsewhere = pullRequestRow('feat/delivery');
+        expect((elsewhere?.tooltip as TreeItemRichTooltip).rows).toContainEqual({
+            label: 'branch',
+            value: 'feat/delivery',
+        });
+        expect(elsewhere?.accessibilityInformation?.label).toContain('from feat/delivery');
+
+        const here = pullRequestRow('main');
+        expect(
+            (here?.tooltip as TreeItemRichTooltip).rows?.some((row) => row.label === 'branch'),
+        ).toBe(false);
     });
 });

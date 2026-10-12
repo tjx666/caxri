@@ -277,7 +277,7 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
   running turn never folds. The Agent's plan
   is a one-row card above the composer (`Plan`, the current step, a segment per step, `2/5`) that
   expands to its steps. The line above the composer says what the Chat is doing with Desktop's
-  words under the same sweep (`Pondering…`, `Compacting context…`) and, after a second, how long
+  words under the same sweep (`Herding tokens…`, `Compacting context…`) and, after a second, how long
   the turn has run; waiting on the user shows a still question glyph in the warning color instead.
 - Content the Agent's harness injects as a user turn (background task notifications, slash-command
   echoes, local command output) renders as a compact event row: status icon and a short title,

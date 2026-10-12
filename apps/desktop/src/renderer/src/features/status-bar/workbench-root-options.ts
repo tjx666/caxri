@@ -56,3 +56,18 @@ export function workbenchRootLabel(
         ? `${root.branch === 'detached' ? t('statusBar.workbenchRoot.detached') : root.branch} · ${root.displayTitle}`
         : root.branch;
 }
+
+/**
+ * The label the closed picker's trigger points at: the worktree this Session's conversation worked in most recently,
+ * while the Session is still on its own root. Once the Session is on a linked worktree, that choice is the answer, so
+ * nothing is suggested.
+ */
+export function conversationWorkbenchRootSuggestion(
+    roots: readonly WorkbenchRootOption[],
+    isWorktree: boolean,
+    t: Translate = translate,
+): string | undefined {
+    if (isWorktree) return undefined;
+    const first = conversationWorkbenchRoots(roots).at(0);
+    return first ? workbenchRootLabel(first, roots, t) : undefined;
+}

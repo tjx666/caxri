@@ -158,33 +158,38 @@ export function agentChatRecoveryNotice(
 
 /**
  * What a running turn says it is doing. A long turn reads as progress rather than a stall when the line has some life
- * in it, as Claude Code's spinner does; the words stay calm and never claim a specific step.
+ * in it, as Claude Code's spinner does; the words never claim a specific step. The phrases are LobeHub's
+ * (`opStatusTray.generatingPhrases`); Desktop's translated list keeps the same order, so both pick the same position.
  */
 const WORKING_VERBS: readonly TranslationKey[] = [
-    'agentChat.timeline.working.pondering',
-    'agentChat.timeline.working.tinkering',
-    'agentChat.timeline.working.mullingItOver',
-    'agentChat.timeline.working.connectingTheDots',
-    'agentChat.timeline.working.untangling',
-    'agentChat.timeline.working.sketching',
-    'agentChat.timeline.working.percolating',
-    'agentChat.timeline.working.rummaging',
-    'agentChat.timeline.working.piecingItTogether',
-    'agentChat.timeline.working.noodling',
-    'agentChat.timeline.working.brewing',
-    'agentChat.timeline.working.weighingOptions',
-    'agentChat.timeline.working.tracing',
-    'agentChat.timeline.working.sleuthing',
-    'agentChat.timeline.working.distilling',
-    'agentChat.timeline.working.simmering',
-    'agentChat.timeline.working.calibrating',
-    'agentChat.timeline.working.whittling',
-    'agentChat.timeline.working.wrangling',
-    'agentChat.timeline.working.conjuring',
-    'agentChat.timeline.working.exploring',
-    'agentChat.timeline.working.crossChecking',
-    'agentChat.timeline.working.liningThingsUp',
-    'agentChat.timeline.working.spelunking',
+    'agentChat.timeline.working.phrase01',
+    'agentChat.timeline.working.phrase02',
+    'agentChat.timeline.working.phrase03',
+    'agentChat.timeline.working.phrase04',
+    'agentChat.timeline.working.phrase05',
+    'agentChat.timeline.working.phrase06',
+    'agentChat.timeline.working.phrase07',
+    'agentChat.timeline.working.phrase08',
+    'agentChat.timeline.working.phrase09',
+    'agentChat.timeline.working.phrase10',
+    'agentChat.timeline.working.phrase11',
+    'agentChat.timeline.working.phrase12',
+    'agentChat.timeline.working.phrase13',
+    'agentChat.timeline.working.phrase14',
+    'agentChat.timeline.working.phrase15',
+    'agentChat.timeline.working.phrase16',
+    'agentChat.timeline.working.phrase17',
+    'agentChat.timeline.working.phrase18',
+    'agentChat.timeline.working.phrase19',
+    'agentChat.timeline.working.phrase20',
+    'agentChat.timeline.working.phrase21',
+    'agentChat.timeline.working.phrase22',
+    'agentChat.timeline.working.phrase23',
+    'agentChat.timeline.working.phrase24',
+    'agentChat.timeline.working.phrase25',
+    'agentChat.timeline.working.phrase26',
+    'agentChat.timeline.working.phrase27',
+    'agentChat.timeline.working.phrase28',
 ];
 
 /**

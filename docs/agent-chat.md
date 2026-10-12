@@ -902,7 +902,7 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
 
 - **Images.** A provider with `capabilities.chatImages` (Codex and Claude Code) accepts up to 20 PNG,
   JPEG, GIF, or WebP images per message, at most 5 MB each and 20 MB together, pasted, dropped
-  anywhere on the Chat, or chosen with the composer's Attach files button. 5 MB is the Anthropic
+  anywhere on the Chat, or chosen with Files in the composer's `+` menu. 5 MB is the Anthropic
   API's per-image limit; 20 images stays under its stricter 2000 px dimension rule for requests with
   more than 20; and 20 MB keeps the worst-case payload where four full-size images already put it,
   inside the API's 32 MB request limit once base64 adds a third. Server Core enforces the same count
@@ -916,7 +916,7 @@ after this turn`, or `Queue paused · sends nothing until you resume` with Resum
   position; no provider process is needed), makes the same thumbnail, and caches only the thumbnail.
   Codex history comes from its app-server, whose item ids name no on-disk record, so a resumed Codex
   image stays a placeholder, as does an image the transcript tail no longer reaches.
-- **Other files.** Attach files opens the system file picker (Chromium's file input, which is the
+- **Other files.** Files in `+` opens the system file picker (Chromium's file input, which is the
   native open panel, so no Main dialog method is involved). A picked or dropped file that is not an
   attachable image, and every file for a provider without image input such as Grok Build, is
   inserted at the caret as its path, relative to the Agent's directory and quoted the way a
@@ -1078,8 +1078,9 @@ The snapshot's `permissionMode` is the level the provider runs with. It is absen
 picker) when the launch settings match no level, for example Codex with `--ask-for-approval
 untrusted`; such a Chat keeps those settings until the user picks a level. The menu then lists a
 checked `Custom (from launch settings)` row above the levels, so the trigger's "Custom" has a row
-to point at. Picking a level closes the menu; toggling plan mode keeps it open. `planMode` is present
-only for a provider that has plan mode.
+to point at. Picking a level closes the menu. Plan mode is switched from the composer's `+` menu, and
+a Plan chip beside `+` shows it is on and turns it off; both share the permission picker's optimistic
+selection. `planMode` is present only for a provider that has plan mode.
 
 A switch is saved on the Chat's Terminal (`terminals.chat_permission_mode`,
 `terminals.chat_plan_mode`), so a restart, resume, or app relaunch starts with it. A level the Chat

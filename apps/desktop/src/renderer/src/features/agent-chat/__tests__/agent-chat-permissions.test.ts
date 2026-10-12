@@ -63,7 +63,7 @@ describe('Agent Chat permission picker', () => {
             }),
         ).toEqual({
             label: 'Full access',
-            ariaLabel: 'Permissions: Full access, plan mode on',
+            ariaLabel: 'Permissions: Full access',
             isFullAccess: true,
             projectDefault: { permissionMode: 'fullAccess', planMode: true },
             isSavedDefault: true,

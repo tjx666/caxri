@@ -1,6 +1,9 @@
+import { homedir } from 'node:os';
+
 import type {
     GitRepositorySummary as GitRepoSummary,
     ProjectStatusError,
+    ProjectStatusLinearIssue,
     ProjectStatusOverview,
     ProjectStatusRepository as ProjectStatusRepo,
     ProjectStatusSummary,
@@ -33,6 +36,7 @@ import {
     RemoteHeadCache,
     RepoRemoteCache as RepoRemoteCache,
 } from './branch';
+import { summaryCacheTtlMs } from './cache-ttl';
 import type { PreparedRepo, PreparedSummary, SummaryCacheEntry } from './carry-over';
 import { pendingSummaryEntry } from './carry-over';
 import { projectStatusCliError } from './external';
@@ -49,7 +53,7 @@ import {
 } from './session-pull-request';
 import { VercelDeploymentStore } from './vercel-store';
 import type { WatchOutcome } from './watch';
-import { deliveryKeys, DeliveryWatch, isInFlight } from './watch';
+import { deliveryKeys, DeliveryWatch } from './watch';
 
 export { extractLinearReferences } from './external';
 export type { ProjectStatusServiceOptions } from './options';
@@ -59,19 +63,6 @@ export { VercelDeploymentStore } from './vercel-store';
 export { parseGitHubRemote } from '@caxri/utils';
 
 const SUMMARY_CACHE_LIMIT = 128;
-/**
- * Cache lifetime adapts to what the snapshot contains, because that is also what paces the resident poller below. A
- * running CI job or an in-flight deployment changes on a scale of tens of seconds and is exactly when the user wants to
- * see movement; a settled pull request will not change until someone pushes, so re-asking every minute only spends the
- * shared `gh`/`vc` budget the limiter is trying to protect.
- */
-const SUMMARY_PENDING_CACHE_TTL_MS = 20_000;
-const SUMMARY_SETTLED_CACHE_TTL_MS = 120_000;
-/**
- * A failed refresh must back off _further_ than a successful one, never less. The previous 30s retried a rate-limited
- * `gh` twice as often as a healthy one, which is how a transient limit turned into a sustained one.
- */
-const SUMMARY_FAILURE_CACHE_TTL_MS = 5 * 60_000;
 /**
  * Only a slow local preparation is written. Every watch round prepares each watched Session, which wrote ~6,000
  * `project_status.local` records per 4 hours with a 30ms median; `project_status.watch` already aggregates the round,
@@ -436,22 +427,6 @@ export class ProjectStatusService {
     }
 
     /**
-     * How long this snapshot stays authoritative. An explicit `cacheTtlMs` (tests, and callers that need a fixed
-     * window) wins; otherwise the presence of anything still running decides.
-     */
-    private summaryCacheTtlMs(summary: ProjectStatusSummary, hasFailures: boolean): number {
-        if (hasFailures) return this.options.failureCacheTtlMs ?? SUMMARY_FAILURE_CACHE_TTL_MS;
-        if (this.options.cacheTtlMs !== undefined) return this.options.cacheTtlMs;
-        /*
-         * `queued` counts as in flight. A queued run is the state most likely to be stale a second later: it is
-         * waiting for a runner, and the transition to `pending` is the one thing the split between the two states
-         * exists to show. Holding it for the settled window would report "not started" for up to two minutes after it
-         * started, and for a repository reporting through commit statuses rather than check runs, for the whole run.
-         */
-        return isInFlight(summary) ? SUMMARY_PENDING_CACHE_TTL_MS : SUMMARY_SETTLED_CACHE_TTL_MS;
-    }
-
-    /**
      * Emits one `projectStatus.alert` per newly failing check or deployment. The tracker is fed even while
      * notifications are disabled so re-enabling them does not replay every failure that accumulated in the meantime as
      * if it had just happened.
@@ -613,7 +588,7 @@ export class ProjectStatusService {
                     return;
                 const value = { repositories, refreshedAt: this.now() };
                 const hasFailures = repositories.some((repo) => repo.errors.length > 0);
-                const ttl = this.summaryCacheTtlMs(value, hasFailures);
+                const ttl = summaryCacheTtlMs(value, hasFailures, this.options);
                 this.rememberSummary(sessionId, {
                     expiresAt: this.now() + ttl,
                     fingerprint,
@@ -748,5 +723,23 @@ export class ProjectStatusService {
 
     overview(sessionId: string): Promise<ProjectStatusOverview> {
         return this.overviewRequests.run(sessionId, () => this.loadOverview(sessionId));
+    }
+
+    /**
+     * A linked issue for a hover card, sharing the Status panel's record so hovering an issue the panel already shows
+     * spawns nothing. The URL's workspace slug selects the credential, so no Project checkout is needed and the home
+     * directory serves as the working directory. The CLI only holds credentials the user stored, so a link in a
+     * transcript cannot reach a workspace the user has not signed in to.
+     */
+    async linearIssue(
+        identifier: string,
+        workspace: string,
+    ): Promise<ProjectStatusLinearIssue | null> {
+        try {
+            const issue = await this.linear.issue({ cwd: homedir(), identifier, workspace });
+            return issue.title === undefined ? null : issue;
+        } catch {
+            return null;
+        }
     }
 }

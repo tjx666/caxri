@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { BookMarked, CircleDot, ExternalLink, GitPullRequest, MessagesSquare } from 'lucide-react';
 
 import { useTranslation } from '../../i18n';
+import { LinearStatusIcon } from '../../icons/linear/linear-status-icon';
 import type { LinkSummary } from '../../lib/link-summary';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
@@ -94,8 +95,10 @@ export function WebLink({
                         <ExternalLink aria-hidden className="size-3.5" />
                     </button>
                 </div>
-                {summary.isSecure ? (
-                    <PagePreview href={href} summary={summary} />
+                {summary.linearIssue ? (
+                    <LinearIssuePreview href={href} issue={summary.linearIssue} summary={summary} />
+                ) : summary.isSecure ? (
+                    <PagePreview key={href} href={href} summary={summary} />
                 ) : (
                     <LinkDetail summary={summary} />
                 )}
@@ -106,6 +109,10 @@ export function WebLink({
 
 /**
  * Mounted only while the card is open, so a transcript full of links reads no page until the user hovers one.
+ *
+ * The card only ever grows, the way the Codex app's does: the header alone while the page is read, the text once it
+ * arrives, and the share image only after it has decoded. Reserving the image's box up front showed a blank panel that
+ * collapsed again whenever the image was slow or broken.
  */
 function PagePreview({ href, summary }: { href: string; summary: LinkSummary }) {
     const preview = useCaxriQuery(
@@ -113,17 +120,23 @@ function PagePreview({ href, summary }: { href: string; summary: LinkSummary }) 
         { url: href },
         { retry: false, staleTime: Infinity },
     );
-    const [hasImageFailed, setHasImageFailed] = useState(false);
+    const [imageState, setImageState] = useState<'loading' | 'loaded' | 'failed'>('loading');
+    if (preview.isPending) return null;
     const { title, description, imageUrl } = preview.data ?? {};
-    if (!title && !description && !imageUrl) return <LinkDetail summary={summary} />;
+    const hasImage = imageUrl !== undefined && imageState !== 'failed';
+    if (!title && !description && !hasImage) return <LinkDetail summary={summary} />;
     return (
         <>
-            {imageUrl && !hasImageFailed && (
+            {hasImage && (
                 <img
                     alt=""
-                    className="motion-safe:animate-in motion-safe:fade-in-0 block aspect-[1.91/1] w-full border-t border-border bg-background object-cover"
+                    className={cn(
+                        'motion-safe:animate-in motion-safe:fade-in-0 block aspect-[1.91/1] w-full border-t border-border bg-background object-cover',
+                        imageState !== 'loaded' && 'hidden',
+                    )}
                     src={imageUrl}
-                    onError={() => setHasImageFailed(true)}
+                    onError={() => setImageState('failed')}
+                    onLoad={() => setImageState('loaded')}
                 />
             )}
             {(title !== undefined || description !== undefined) && (
@@ -135,6 +148,47 @@ function PagePreview({ href, summary }: { href: string; summary: LinkSummary }) 
                 </div>
             )}
         </>
+    );
+}
+
+/**
+ * A Linear issue page renders only after sign-in, so an anonymous page read returns Linear's generic card. The Server
+ * asks the signed-in `linear` CLI instead and the card shows what the Status panel would: the workflow state in the
+ * workspace's color, the title, and the description's opening. When it cannot answer (no CLI, no credential for that
+ * workspace), the generic page preview stands in.
+ */
+function LinearIssuePreview({
+    href,
+    issue,
+    summary,
+}: {
+    href: string;
+    issue: NonNullable<LinkSummary['linearIssue']>;
+    summary: LinkSummary;
+}) {
+    const preview = useCaxriQuery('projectStatus.linearIssue', issue, {
+        retry: false,
+        staleTime: 5 * 60_000,
+    });
+    // The header alone while the CLI answers; reading the page as well would flash Linear's generic card first.
+    if (preview.isPending) return null;
+    const data = preview.data;
+    if (!data) return <PagePreview key={href} href={href} summary={summary} />;
+    return (
+        <div className="flex flex-col gap-1 border-t border-border px-3 py-2.5 text-[12px] leading-4">
+            <span className="flex min-w-0 items-center gap-1.5 text-muted">
+                <LinearStatusIcon
+                    className="shrink-0"
+                    size={14}
+                    kind={data.stateType ?? 'backlog'}
+                    style={data.stateColor ? { color: data.stateColor } : undefined}
+                />
+                <span className="shrink-0 font-mono text-[11px]">{data.identifier}</span>
+                {data.state && <span className="min-w-0 truncate">{data.state}</span>}
+            </span>
+            <span className="line-clamp-2 font-medium text-foreground">{data.title}</span>
+            {data.excerpt && <span className="line-clamp-3 text-muted">{data.excerpt}</span>}
+        </div>
     );
 }
 

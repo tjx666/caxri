@@ -1,7 +1,11 @@
 import type { WorkbenchRootOption } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { conversationWorkbenchRoots, visibleWorkbenchRoots } from '../workbench-root-options';
+import {
+    conversationWorkbenchRoots,
+    conversationWorkbenchRootSuggestion,
+    visibleWorkbenchRoots,
+} from '../workbench-root-options';
 
 function option(
     overrides: Partial<WorkbenchRootOption> & Pick<WorkbenchRootOption, 'branch' | 'rootPath'>,
@@ -33,6 +37,21 @@ describe('Workbench Root picker options', () => {
             '/worktrees/gamma',
             '/worktrees/alpha',
         ]);
+    });
+
+    it('points the closed trigger at the top-ranked conversation worktree', () => {
+        const roots = [main, { ...alpha, conversationRank: 1 }, { ...beta, conversationRank: 0 }];
+        expect(conversationWorkbenchRootSuggestion(roots, false)).toBe('feat/beta');
+    });
+
+    /**
+     * Once the Session moved to a linked worktree, the binding answers "which worktree", so the trigger stops pointing.
+     */
+    it('suggests nothing from a linked worktree or without a recommendation', () => {
+        expect(
+            conversationWorkbenchRootSuggestion([main, { ...alpha, conversationRank: 0 }], true),
+        ).toBeUndefined();
+        expect(conversationWorkbenchRootSuggestion([main, alpha], false)).toBeUndefined();
     });
 
     it('is empty when the Server sent no recommendation', () => {

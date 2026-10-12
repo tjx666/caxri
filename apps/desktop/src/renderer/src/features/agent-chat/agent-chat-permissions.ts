@@ -99,7 +99,7 @@ export interface AgentChatPermissionView {
      */
     label: string;
     /**
-     * The trigger's accessible name, which also says when plan mode is on and when the choice waits for the next turn.
+     * The trigger's accessible name, which also says when the choice waits for the next turn.
      */
     ariaLabel: string;
     /**
@@ -162,7 +162,7 @@ export function agentChatPermissionView(
         isAgentChatProjectDefault(projectDefault, defaults, provider);
     return {
         label,
-        ariaLabel: `${translate('agentChat.permission.triggerLabel', { label })}${snapshot.planMode ? translate('agentChat.permission.triggerPlanMode') : ''}${isDeferred ? translate('agentChat.permission.triggerDeferred') : ''}`,
+        ariaLabel: `${translate('agentChat.permission.triggerLabel', { label })}${isDeferred ? translate('agentChat.permission.triggerDeferred') : ''}`,
         isFullAccess: snapshot.permissionMode === 'fullAccess',
         projectDefault,
         isSavedDefault,

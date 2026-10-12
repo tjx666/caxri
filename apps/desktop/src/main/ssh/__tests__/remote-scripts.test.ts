@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { spawn } from 'node:child_process';
-import { mkdir, readFile, stat } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -230,6 +230,43 @@ describe('remote scripts', () => {
             expect(launched.result?.get('outcome')).toBe('exited');
             expect(launched.stderr).toContain('fatal: profile locked');
         });
+
+        it('reports the host holding a shared-home profile without waiting out the exit grace', async () => {
+            fixture = await buildLayerFixture(layers, {
+                extraFiles: {
+                    'runtime/caxri-server':
+                        '#!/bin/sh\necho "CAXRI_PROFILE_IN_USE host=login-1.cluster" >&2\nexit 1\n',
+                },
+            });
+            await host.installBuild(fixture, layers);
+            const startedAt = Date.now();
+            const launched = await host.run(launchScript({ buildId: fixture.descriptor.buildId }));
+            expect(launched.code).toBe(33);
+            expect(launched.result?.get('outcome')).toBe('profile-in-use');
+            expect(launched.result?.get('holder')).toBe('login-1.cluster');
+            expect(Date.now() - startedAt).toBeLessThan(4000);
+        });
+
+        it(
+            'ignores a profile-in-use line left in the log by an earlier start',
+            { timeout: 20_000 },
+            async () => {
+                fixture = await buildLayerFixture(layers, {
+                    extraFiles: { 'runtime/caxri-server': '#!/bin/sh\nexit 1\n' },
+                });
+                await host.installBuild(fixture, layers);
+                const logs = join(host.serverRoot(), 'profile', 'logs');
+                await mkdir(logs, { recursive: true });
+                await writeFile(
+                    join(logs, 'server-stdio.log'),
+                    'CAXRI_PROFILE_IN_USE host=login-1.cluster\n',
+                );
+                const launched = await host.run(
+                    launchScript({ buildId: fixture.descriptor.buildId }),
+                );
+                expect(launched.result?.get('outcome')).toBe('exited');
+            },
+        );
 
         it('times out when discovery files never appear', async () => {
             fixture = await buildLayerFixture(layers, {

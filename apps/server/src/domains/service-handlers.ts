@@ -101,6 +101,7 @@ type ServiceHandlerMethods =
     | 'git.fileHead'
     | 'projectStatus.summary'
     | 'projectStatus.overview'
+    | 'projectStatus.linearIssue'
     | 'session.pullRequests'
     | 'commander.ensure'
     | 'commander.snapshot'
@@ -399,6 +400,8 @@ export function createServiceHandlers(services: {
         'projectStatus.summary': ({ sessionId, refreshToken }) =>
             projectStatus.summary(sessionId, refreshToken),
         'projectStatus.overview': ({ sessionId }) => projectStatus.overview(sessionId),
+        'projectStatus.linearIssue': ({ identifier, workspace }) =>
+            projectStatus.linearIssue(identifier, workspace),
         'session.pullRequests': () => sessionPullRequests.snapshot(),
         'commander.ensure': () => commander.ensure(),
         'commander.snapshot': () => commander.snapshot(),
