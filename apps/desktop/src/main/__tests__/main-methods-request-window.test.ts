@@ -74,3 +74,21 @@ describe('agentChat.confirmRevertFiles window', () => {
         expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
     });
 });
+
+describe('window.fullScreen.get', () => {
+    it('reports the fullscreen state of the window that asked', async () => {
+        const handle = handler(
+            () => ({ isDestroyed: () => false, isFullScreen: () => false }) as never,
+        );
+        const fullScreenCommander = { isDestroyed: () => false, isFullScreen: () => true } as never;
+
+        await expect(
+            runInRequestWindow(fullScreenCommander, () =>
+                handle({ method: 'window.fullScreen.get', params: {} }),
+            ),
+        ).resolves.toEqual({ isFullScreen: true });
+        await expect(handle({ method: 'window.fullScreen.get', params: {} })).resolves.toEqual({
+            isFullScreen: false,
+        });
+    });
+});

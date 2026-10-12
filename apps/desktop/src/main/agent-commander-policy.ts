@@ -44,6 +44,7 @@ const ADMITTED_METHODS = new Set<string>([
     'session.pullRequests',
     'settings.get',
     'theme.get',
+    'window.fullScreen.get',
 ]);
 
 /**
