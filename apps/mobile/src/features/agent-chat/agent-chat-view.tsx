@@ -32,7 +32,7 @@ import { AgentChatPlanCard } from './agent-chat-plan-card';
 import { AgentChatQueueList } from './agent-chat-queue-list';
 import { AgentChatRequestCard } from './agent-chat-request-card';
 import type { AgentChatTimelineEntry as TimelineEntry } from './agent-chat-timeline';
-import { buildAgentChatTimeline } from './agent-chat-timeline';
+import { buildAgentChatTimeline, toggleAgentChatTurn } from './agent-chat-timeline';
 import { AgentChatTimelineEntry } from './agent-chat-timeline-entry';
 import type { AgentChatController } from './use-agent-chat';
 
@@ -59,7 +59,18 @@ const AgentChatBody = ({
     theme: MobileTheme;
 }) => {
     const { snapshot } = chat;
-    const entries = useMemo(() => (snapshot ? buildAgentChatTimeline(snapshot) : []), [snapshot]);
+    /**
+     * The finished turns the user unfolded, by turn id. The list owns it so FlashList can recycle a row for any turn.
+     */
+    const [expandedTurnIds, setExpandedTurnIds] = useState<ReadonlySet<string>>(() => new Set());
+    const toggleTurn = useCallback(
+        (turnId: string) => setExpandedTurnIds((current) => toggleAgentChatTurn(current, turnId)),
+        [],
+    );
+    const entries = useMemo(
+        () => (snapshot ? buildAgentChatTimeline(snapshot, expandedTurnIds) : []),
+        [expandedTurnIds, snapshot],
+    );
     /**
      * The Chat reads one bounded window, so the list's history header only says whether older messages were cut.
      */
@@ -77,8 +88,10 @@ const AgentChatBody = ({
         [truncated],
     );
     const renderEntry = useCallback(
-        (entry: TimelineEntry) => <AgentChatTimelineEntry entry={entry} theme={theme} />,
-        [theme],
+        (entry: TimelineEntry) => (
+            <AgentChatTimelineEntry entry={entry} onToggleTurn={toggleTurn} theme={theme} />
+        ),
+        [theme, toggleTurn],
     );
     /**
      * Keyed on the messages that carry images, not the snapshot, so a streamed reply does not redraw every entry.
@@ -218,8 +231,8 @@ const AgentChatActivity = ({
 
 /**
  * The phone's Chat: Desktop's Chat timeline in the Conversation's list (Markdown replies, work rows and summaries, each
- * finished turn's artifacts and `Worked for` footer), with the Chat's own states, pending requests, plan, and activity
- * docked above the composer.
+ * finished turn folded behind its `Worked for` row with its artifacts under the reply), with the Chat's own states,
+ * pending requests, plan, and activity docked above the composer.
  */
 export const AgentChatView = ({
     chat,

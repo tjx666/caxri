@@ -9,9 +9,11 @@ import type {
     AgentTimelineItem,
 } from '@caxri/protocol';
 import {
+    agentChatFinalReplyId,
     agentChatNoticeMessage,
     agentChatTurnLabel,
     collectAgentChatTurnArtifacts,
+    foldAgentChatTurn,
     isAgentChatItemVisible,
     splitAgentChatWork,
 } from '@caxri/protocol';
@@ -30,7 +32,8 @@ type AgentChatMessageEntry = Extract<
 /**
  * One row of the phone's Chat timeline. Consecutive work becomes one `work` entry, split the way Desktop splits it
  * (`splitAgentChatWork`): settled work into a summary row once it holds two tool calls, and work still running as its
- * own live rows. A finished turn ends with what it left behind (`artifacts`) and its `Worked for` footer.
+ * own live rows. A finished turn folds its work and commentary behind its `Worked for` row (`turn`) the way Desktop
+ * does (`foldAgentChatTurn`), and ends with what it left behind (`artifacts`) under its final reply.
  */
 export type AgentChatTimelineEntry =
     | { kind: 'message'; id: string; message: AgentChatMessageEntry }
@@ -41,7 +44,18 @@ export type AgentChatTimelineEntry =
           rows: readonly AgentChatWorkItem[];
       }
     | { kind: 'artifacts'; id: string; artifacts: AgentChatTurnArtifacts }
-    | { kind: 'turn'; id: string; label: string; status: AgentChatTurn['status'] };
+    | {
+          kind: 'turn';
+          id: string;
+          turnId: string;
+          label: string;
+          status: AgentChatTurn['status'];
+          /**
+           * Whether the row toggles the turn's folded work, which then follows it as ordinary entries. Absent when the
+           * turn had nothing to fold (a prompt and its reply), so the row only says how the turn went.
+           */
+          fold?: 'collapsed' | 'expanded';
+      };
 
 const WORK_TYPES: ReadonlySet<AgentChatItem['type']> = new Set([
     'command',
@@ -73,25 +87,9 @@ const toMessage = (
 };
 
 /**
- * The turn's final reply. A loop rather than `findLast`, which the phone's ES2022 runtime library does not declare.
+ * Visible items as entries, consecutive work grouped into one `work` entry.
  */
-function lastReplyId(items: readonly AgentChatItem[]): string | undefined {
-    for (let index = items.length - 1; index >= 0; index -= 1) {
-        const item = items[index];
-        if (item.type === 'agentMessage') return item.id;
-    }
-    return undefined;
-}
-
-/**
- * One turn's entries, with the turn's artifacts right after its final reply (or at its end when it ended without one).
- */
-function turnEntries(
-    segment: readonly AgentChatItem[],
-    artifacts: AgentChatTurnArtifacts | undefined,
-): AgentChatTimelineEntry[] {
-    const visible = segment.filter((item) => isAgentChatItemVisible(item));
-    const finalReplyId = artifacts ? lastReplyId(visible) : undefined;
+function groupEntries(visible: readonly AgentChatItem[]): AgentChatTimelineEntry[] {
     const entries: AgentChatTimelineEntry[] = [];
     let work: AgentChatWorkItem[] = [];
     const flush = (): void => {
@@ -107,22 +105,64 @@ function turnEntries(
         }
         flush();
         entries.push({ kind: 'message', id: item.id, message: toMessage(item) });
-        if (artifacts && item.id === finalReplyId)
-            entries.push({ kind: 'artifacts', id: `artifacts:${artifacts.turnId}`, artifacts });
     }
     flush();
-    if (artifacts && finalReplyId === undefined)
-        entries.push({ kind: 'artifacts', id: `artifacts:${artifacts.turnId}`, artifacts });
+    return entries;
+}
+
+/**
+ * A finished turn's entries. Collapsed, the turn reads as its prompt, the `Worked for` row, its final reply with the
+ * artifacts under it, and its notices; expanded, the folded work follows the row. A turn with nothing to fold still
+ * gets the row, just before its reply, so how long it ran and how it ended stay in view.
+ */
+function finishedTurnEntries(
+    visible: readonly AgentChatItem[],
+    turn: AgentChatTurn,
+    artifacts: AgentChatTurnArtifacts | undefined,
+    isExpanded: boolean,
+): AgentChatTimelineEntry[] {
+    const finalReplyId = agentChatFinalReplyId(visible);
+    const parts = foldAgentChatTurn(visible, finalReplyId);
+    const row = (
+        fold: 'collapsed' | 'expanded' | undefined,
+    ): Extract<AgentChatTimelineEntry, { kind: 'turn' }> => ({
+        kind: 'turn',
+        id: `turn:${turn.id}`,
+        turnId: turn.id,
+        label: agentChatTurnLabel(turn),
+        status: turn.status,
+        ...(fold && { fold }),
+    });
+    const artifactsEntry: AgentChatTimelineEntry[] = artifacts
+        ? [{ kind: 'artifacts', id: `artifacts:${artifacts.turnId}`, artifacts }]
+        : [];
+    const hasFold = parts.some((part) => part.kind === 'fold');
+    const entries: AgentChatTimelineEntry[] = [];
+    for (const part of parts) {
+        if (part.kind === 'fold') {
+            entries.push(row(isExpanded ? 'expanded' : 'collapsed'));
+            if (isExpanded) entries.push(...groupEntries(part.items));
+            continue;
+        }
+        if (!hasFold && part.item.id === finalReplyId) entries.push(row(undefined));
+        entries.push(...groupEntries([part.item]));
+        if (part.item.id === finalReplyId) entries.push(...artifactsEntry);
+    }
+    if (!hasFold && finalReplyId === undefined) entries.push(row(undefined));
+    if (finalReplyId === undefined) entries.push(...artifactsEntry);
     return entries;
 }
 
 /**
  * Builds the phone's Chat timeline from the projection. Items arrive in order and each turn's items are contiguous, so
- * a run of items sharing a `turnId` is one turn. Only a finished turn (not running and not the active one) gets
- * artifacts and a footer, so a running turn never claims a result it has not reached.
+ * a run of items sharing a `turnId` is one turn. Only a finished turn (not running and not the active one) folds and
+ * gets artifacts, so a running turn stays live and never claims a result it has not reached. `expandedTurnIds` names
+ * the finished turns the user unfolded; the list owns it rather than a row, so a recycled row never carries another
+ * turn's state.
  */
 export function buildAgentChatTimeline(
     snapshot: Pick<AgentChatSnapshot, 'activeTurnId' | 'items' | 'turns'>,
+    expandedTurnIds: ReadonlySet<string> = new Set(),
 ): AgentChatTimelineEntry[] {
     const { activeTurnId, items, turns } = snapshot;
     const finished = new Map(
@@ -137,23 +177,33 @@ export function buildAgentChatTimeline(
         let end = start + 1;
         while (end < items.length && items[end]?.turnId === turnId) end += 1;
         const segment = items.slice(start, end);
+        const visible = segment.filter((item) => isAgentChatItemVisible(item));
         const turn = turnId === undefined ? undefined : finished.get(turnId);
         entries.push(
-            ...turnEntries(
-                segment,
-                turn ? collectAgentChatTurnArtifacts(turn.id, segment) : undefined,
-            ),
+            ...(turn
+                ? finishedTurnEntries(
+                      visible,
+                      turn,
+                      collectAgentChatTurnArtifacts(turn.id, segment),
+                      expandedTurnIds.has(turn.id),
+                  )
+                : groupEntries(visible)),
         );
-        if (turn)
-            entries.push({
-                kind: 'turn',
-                id: `turn:${turn.id}`,
-                label: agentChatTurnLabel(turn),
-                status: turn.status,
-            });
         start = end;
     }
     return entries;
+}
+
+/**
+ * The expanded-turn set after the user taps a turn's `Worked for` row.
+ */
+export function toggleAgentChatTurn(
+    expandedTurnIds: ReadonlySet<string>,
+    turnId: string,
+): ReadonlySet<string> {
+    const next = new Set(expandedTurnIds);
+    if (!next.delete(turnId)) next.add(turnId);
+    return next;
 }
 
 /**
