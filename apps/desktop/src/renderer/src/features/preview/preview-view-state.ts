@@ -1,5 +1,8 @@
+import type { TableSort } from './csv-row-view';
+
 /**
- * Where a reader left a preview: the scroll offset every view has, plus the PDF view's page and zoom.
+ * Where a reader left a preview: the scroll offset every view has, plus the PDF view's page and zoom and the table
+ * view's sort and filter.
  */
 export interface PreviewViewState {
     scrollTop?: number;
@@ -13,6 +16,14 @@ export interface PreviewViewState {
      * a fit keeps following the pane after it is restored instead of freezing at the width it had.
      */
     scaleValue?: string;
+    /**
+     * Table only: the sorted column, or `null` once the reader returned to the file's order.
+     */
+    tableSort?: TableSort | null;
+    /**
+     * Table only: the row filter text.
+     */
+    tableFilter?: string;
 }
 
 /**
