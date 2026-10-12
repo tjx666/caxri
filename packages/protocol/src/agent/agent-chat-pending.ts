@@ -23,6 +23,11 @@ export interface AgentChatPendingMessageBase {
      * this message.
      */
     knownIds: ReadonlySet<string>;
+    /**
+     * The projection's full queue length at send time (`queueLength`), for a bounded copy whose queue preview stops
+     * before the end, where a message joining the queue never appears.
+     */
+    knownQueueLength?: number;
 }
 
 /**
@@ -46,6 +51,12 @@ export const AGENT_CHAT_PENDING_ACCEPTED_TTL_MS = 30_000;
 const MATCHED_PREFIX_LENGTH = 200;
 
 /**
+ * Characters a clipped entry must keep to identify a message on its own. Lower than `MATCHED_PREFIX_LENGTH` because the
+ * phone clips the raw text before blank lines collapse, so the part it kept can collapse below that length.
+ */
+const MIN_CLIPPED_MATCH_LENGTH = 50;
+
+/**
  * The marker a bounded copy of the projection (the phone's window and queue preview) puts where it cut a text.
  */
 const CLIP_MARKER = '…';
@@ -62,7 +73,32 @@ function clippedPart(text: string): string | undefined {
     const isClipped = text.startsWith(CLIP_MARKER) || text.endsWith(CLIP_MARKER);
     if (!isClipped) return undefined;
     const kept = matchableText(text.replace(/^…/u, '').replace(/…$/u, ''));
-    return kept.length >= MATCHED_PREFIX_LENGTH ? kept : undefined;
+    return kept.length >= MIN_CLIPPED_MATCH_LENGTH ? kept : undefined;
+}
+
+/**
+ * The projection's full queue length, recorded with a send so a queue preview that stops early can still settle it.
+ */
+export function agentChatPendingKnownQueueLength(snapshot: AgentChatSnapshot | undefined): number {
+    return snapshot?.queueLength ?? snapshot?.queue?.length ?? 0;
+}
+
+/**
+ * Whether a queued message has joined a queue past the end of a bounded copy's preview, which can only show it as a
+ * longer `queueLength`.
+ */
+function isQueuedPastPreview(
+    pending: Pick<AgentChatPendingMessageBase, 'knownQueueLength' | 'placement'>,
+    snapshot: AgentChatSnapshot,
+): boolean {
+    const shownLength = snapshot.queue?.length ?? 0;
+    const fullLength = snapshot.queueLength ?? shownLength;
+    return (
+        pending.placement === 'queue' &&
+        pending.knownQueueLength !== undefined &&
+        fullLength > shownLength &&
+        fullLength > pending.knownQueueLength
+    );
 }
 
 /**
@@ -97,13 +133,18 @@ export function agentChatPendingPlacement(
  * Whether the projection now shows the message: a user message or queue entry it did not hold at send time whose text
  * carries the message's. Containment rather than equality, because the queue joins consecutive messages into one. A
  * bounded copy that clipped the entry (the phone keeps a long message's tail and a queued message's head) settles it
- * when the part it kept is part of the message.
+ * when the part it kept is part of the message, and a queue preview that stops before the end settles a queued message
+ * once the full queue grew.
  */
 export function isAgentChatPendingMessageSettled(
-    pending: Pick<AgentChatPendingMessageBase, 'knownIds' | 'text'>,
+    pending: Pick<
+        AgentChatPendingMessageBase,
+        'knownIds' | 'knownQueueLength' | 'placement' | 'text'
+    >,
     snapshot: AgentChatSnapshot | undefined,
 ): boolean {
     if (!snapshot) return false;
+    if (isQueuedPastPreview(pending, snapshot)) return true;
     const sent = matchableText(pending.text);
     const wanted = sent.slice(0, MATCHED_PREFIX_LENGTH);
     const shown = [

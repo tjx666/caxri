@@ -41,7 +41,6 @@ import {
     externalLinkPrompt,
     revertAgentChatFilesPrompt,
     revokeMobileDevicePrompt,
-    shellCommandElevationPrompt,
     sumRunningWork,
     trashPrompt,
     unsavedChangesChoice,
@@ -57,20 +56,26 @@ import { openExternalUrl } from './external-links';
 import { createLinkFavicons } from './link-favicons';
 import { createLinkPreviews } from './link-previews';
 import { translateMain } from './locale';
+import type { MainEnvironmentMethods } from './main-environment-methods';
+import {
+    handleEnvironmentRequest,
+    isEnvironmentRequest,
+    unconfiguredEnvironment,
+} from './main-environment-methods';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 import { requestWindowOr } from './request-window';
 import type { DesktopServerConnection } from './server-connection';
-import type { ShellCommandEnvironment } from './shell-command';
-import {
-    installShellCommand,
-    runAsAdministrator,
-    SHELL_COMMAND_LINK_PATH,
-    uninstallShellCommand,
-} from './shell-command';
+import { installShellCommand, uninstallShellCommand } from './shell-command';
+import { createShellCommandEnvironment } from './shell-command-environment';
 import type { UpdateService } from './updates';
 import type { createWorkbenchRootAuthority } from './workbench-root-authority';
 
-interface MainMethodHandlerOptions {
+export interface MainMethodHandlerOptions {
+    /**
+     * Defaults to `unconfiguredEnvironment`: a local environment without SSH Host support, which is what focused
+     * handler tests need.
+     */
+    environment?: MainEnvironmentMethods;
     externalOpenFixture?: ReturnType<typeof createAcceptanceExternalOpenFixture>;
     acceptanceSessionDeleteFixture?: ReturnType<typeof createAcceptanceSessionDeleteFixture>;
     acceptanceThemeImportFixture?: ReturnType<typeof createAcceptanceThemeImportFixture>;
@@ -123,6 +128,7 @@ function assertNever(value: never): never {
  * screenshots, and update control all need direct Electron API access the Server process lacks.
  */
 export function createMainMethodHandler(options: MainMethodHandlerOptions) {
+    const environment = options.environment ?? unconfiguredEnvironment;
     const linkFavicon = createLinkFavicons((url, init) => net.fetch(url, init));
     const agentProviderStatus = createAgentProviderStatus({
         fetch:
@@ -150,21 +156,6 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
             environment: process.env,
             userDataPath: options.getUserDataPath(),
         });
-    function shellCommandEnvironment(window: BrowserWindow | undefined): ShellCommandEnvironment {
-        return {
-            launcherPath: app.isPackaged ? join(process.resourcesPath, 'bin', 'caxri') : undefined,
-            linkPath: SHELL_COMMAND_LINK_PATH,
-            confirmElevation: async (action) => {
-                const prompt = shellCommandElevationPrompt(action, SHELL_COMMAND_LINK_PATH);
-                const result =
-                    window && !window.isDestroyed()
-                        ? await dialog.showMessageBox(window, prompt)
-                        : await dialog.showMessageBox(prompt);
-                return result.response === 0;
-            },
-            runElevated: runAsAdministrator,
-        };
-    }
     async function handleExternalUrl(
         url: string,
         externalOptions: { allowTrust: boolean; window?: BrowserWindow },
@@ -210,6 +201,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
         const supervisor = options.getSupervisor();
         if (isExternalDocumentRequest(request))
             return handleExternalDocumentRequest(request, supervisor, externalDocumentWatcher);
+        if (isEnvironmentRequest(request)) return handleEnvironmentRequest(request, environment);
         const mainWindow = options.getWindow();
         switch (request.method) {
             case 'argv.get':
@@ -588,9 +580,9 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
             case 'updates.open':
                 return options.getUpdateService().open();
             case 'shellCommand.install':
-                return installShellCommand(shellCommandEnvironment(mainWindow));
+                return installShellCommand(createShellCommandEnvironment(mainWindow));
             case 'shellCommand.uninstall':
-                return uninstallShellCommand(shellCommandEnvironment(mainWindow));
+                return uninstallShellCommand(createShellCommandEnvironment(mainWindow));
         }
         return assertNever(request);
     };

@@ -26,7 +26,7 @@ const CITED_AGENT_SESSION = 'synthetic-cited-claude';
  * Server chooses.
  */
 const REFERENCE = new RegExp(
-    String.raw`^@(/\S+/caxri-session-references/session-[^\s/]+\.md) contains the conversation from Session "${CITED_TITLE}"\.`,
+    String.raw`^@(/\S+/caxri-session-references-\d+/session-[^\s/]+\.md) contains the conversation from Session "${CITED_TITLE}"\.`,
     'u',
 );
 

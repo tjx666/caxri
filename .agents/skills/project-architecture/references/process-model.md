@@ -1,13 +1,16 @@
 # Process ownership, runtime profiles, and recovery
 
 For the product-level why behind this topology, see
-[Server architecture](../../../../docs/server-architecture.md#server-process-ownership).
+[Server architecture](../../../../docs/server-architecture.md#server-process-ownership). SSH Host
+windows, their per-environment Main method policy, and the remote install layout are in
+[Remote SSH](../../../../docs/remote-ssh.md).
 
 ```text
 Desktop Main
   -> secure BrowserWindow + native dialogs
   -> dedicated Process Explorer window + fixed process sampler
   -> Agent Commander window sharing the Desktop connection behind a Main admission policy
+  -> one window, connection, relay, and IPC transport per SSH Host, routed by sending WebContents
   -> correlated IPC allowlist
   -> authenticated Client with a generation-bound Desktop lease
 
@@ -18,7 +21,7 @@ Standalone Server artifact (pinned runtime)
        -> Project/Session/File/Git/Agent/Settings/Theme/Diagnostics domains
        -> SQLite through Drizzle ORM
        -> one Terminal Host child
-       -> one shared native ESM Extension Host child
+       -> one shared native ESM Extension Host child, started on Desktop attach or first need
 
 Preload
   -> typed request/event bridge only

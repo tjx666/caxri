@@ -131,6 +131,7 @@ export const useAgentChatModelSelection = (chat: ChoiceChat, disabledReason: str
             model: reported?.model,
             effort: reported?.effort,
             ultracode: reported?.ultracode,
+            fast: reported?.fast,
         }),
         chat,
         disabledReason,

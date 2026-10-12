@@ -1,4 +1,3 @@
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
@@ -8,6 +7,7 @@ import {
     serverProcessIdentitySchema,
 } from '@caxri/protocol';
 import {
+    defaultUnixSocketDirectory,
     installProcessErrorMonitor,
     logEventCatalog,
     observationProcessManifestDirectory,
@@ -75,7 +75,7 @@ const send = (message: TerminalHostMessage): void => {
 };
 const runtimeReference: { current?: TerminalHostRuntime } = {};
 const agentLauncher = new ManagedAgentLauncherServer({
-    socketPath: managedAgentLauncherSocketPath(tmpdir(), bootId),
+    socketPath: managedAgentLauncherSocketPath(defaultUnixSocketDirectory(), bootId),
     runtimePath: process.execPath,
     entryPath: join(import.meta.dirname, 'agent-launcher.js'),
     onEvent: (event) => {

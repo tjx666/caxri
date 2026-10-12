@@ -10,6 +10,10 @@ import { isTranslationKey, translate } from '../../i18n';
 export function agentChatConfigureFailureMessage(change: AgentChatModelRequest): string {
     if (change.model !== undefined) return translate('agentChat.model.switchModelFailed');
     if (change.effort !== undefined) return translate('agentChat.model.switchEffortFailed');
+    if (change.fast !== undefined)
+        return translate(
+            change.fast ? 'agentChat.model.fastOnFailed' : 'agentChat.model.fastOffFailed',
+        );
     return translate(
         change.ultracode
             ? 'agentChat.model.ultracodeOnFailed'
@@ -40,12 +44,23 @@ export function agentChatMenuModel(
 }
 
 /**
+ * Whether the menu offers the Fast mode toggle: the provider reports Fast mode for this Chat and the model the menu
+ * checks lists it.
+ */
+export function isAgentChatFastOffered(
+    snapshot: Pick<AgentChatSnapshot, 'fast'>,
+    model: AgentChatModel | undefined,
+): boolean {
+    return snapshot.fast !== undefined && model?.fast !== undefined;
+}
+
+/**
  * The trigger's visible model and effort words plus its accessible name. `agentChatModelLabel` names an unreported
  * model "Default"; a listed model's name is the provider's own and stays as reported.
  */
 export function agentChatModelTriggerText(
     t: Translate,
-    snapshot: Pick<AgentChatSnapshot, 'effort' | 'model' | 'ultracode'> | undefined,
+    snapshot: Pick<AgentChatSnapshot, 'effort' | 'fast' | 'model' | 'ultracode'> | undefined,
     label: { model: string; effort?: string },
 ): { modelName: string; effortName: string | undefined; ariaLabel: string } {
     const modelName = snapshot?.model ? label.model : t('agentChat.model.default');
@@ -57,6 +72,7 @@ export function agentChatModelTriggerText(
         t('agentChat.model.triggerLabel', { model: modelName }),
         effortName ? t('agentChat.model.triggerEffort', { effort: effortName }) : '',
         snapshot?.ultracode ? t('agentChat.model.triggerUltracode') : '',
+        snapshot?.fast ? t('agentChat.model.triggerFast') : '',
     ].join('');
     return { modelName, effortName, ariaLabel };
 }

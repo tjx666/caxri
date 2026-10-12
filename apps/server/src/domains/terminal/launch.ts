@@ -1,10 +1,9 @@
 import { constants } from 'node:fs';
 import { lstat, realpath } from 'node:fs/promises';
-import process from 'node:process';
 
 import type { AgentLaunchSettings, TerminalKind } from '@caxri/protocol';
 import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
-import { isAccessible } from '@caxri/system';
+import { accountShell, isAccessible, preferredShell, systemShellCandidates } from '@caxri/system';
 
 /**
  * Server domain boundaries require cross-domain dependencies to enter through the owning domain root.
@@ -25,17 +24,21 @@ export async function terminalDirectoryIdentity(
     return { path, device: stats.dev.toString(), inode: stats.ino.toString() };
 }
 
-const DEFAULT_SHELL = '/bin/zsh';
-
 /**
  * `SHELL` is inherited from the login session, so it can outlive the shell it names (an uninstalled Homebrew fish or
- * bash). Falling back to the system shell keeps the Terminal usable; failing only when neither runs lets the launch
- * report a named missing shell instead of a generic spawn failure.
+ * bash). Falling back to the account's login shell and then the platform's system shells keeps the Terminal usable;
+ * failing only when none runs lets the launch report a named missing shell instead of a generic spawn failure.
  */
 async function resolveShellExecutable(configured: string): Promise<string> {
     if (await isAccessible(configured, constants.X_OK)) return configured;
-    if (configured !== DEFAULT_SHELL && (await isAccessible(DEFAULT_SHELL, constants.X_OK)))
-        return DEFAULT_SHELL;
+    const fallbacks = [accountShell(), ...systemShellCandidates()].filter(
+        (candidate): candidate is string => candidate !== undefined && candidate !== configured,
+    );
+    for (const candidate of fallbacks) {
+        // Ordered fallback: the first runnable shell wins, so the probes stay sequential.
+        // eslint-disable-next-line no-await-in-loop -- ordered fallback, see comment above
+        if (await isAccessible(candidate, constants.X_OK)) return candidate;
+    }
     throw new CaxriError('UNAVAILABLE', `Shell ${configured} was not found`, {
         reason: 'shell_not_found',
     });
@@ -47,11 +50,7 @@ export async function resolveTerminalExecutable(
     override: TerminalManagerOptions['resolveExecutable'],
 ): Promise<string> {
     if (override) return override(kind, launchSettings);
-    /**
-     * An empty `SHELL` is not runnable either, so this deliberately uses `||` instead of `??`.
-     */
-    // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- empty string is not a valid shell path
-    if (kind === 'shell') return resolveShellExecutable(process.env.SHELL || DEFAULT_SHELL);
+    if (kind === 'shell') return resolveShellExecutable(preferredShell());
     const executable = await discoverExecutable(kind, launchSettings?.executable);
     if (!executable)
         throw new CaxriError(

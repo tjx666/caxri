@@ -3,6 +3,7 @@ import { agentProviderCatalog } from '@caxri/protocol';
 
 import { translate } from '../../i18n';
 import { formatCpuPercent, formatMemoryMb } from '../../lib/resource-usage-format';
+import { isLocalOnlyAvailable } from '../../stores/environment';
 import { dismissToastsMatching, pushToast } from '../../stores/toasts';
 
 /**
@@ -53,7 +54,8 @@ export function reportTerminalResourceAlert(alert: TerminalResourceAlert): void 
     liveAlerts.set(terminalId, message);
     pushToast('warning', message, {
         persist: true,
-        secondaryAction: { id: 'processExplorer.open' },
+        // Process Explorer lists this Mac's processes, not the SSH Host's.
+        secondaryAction: isLocalOnlyAvailable() ? { id: 'processExplorer.open' } : undefined,
         action: {
             id: 'terminal.stopRunaway',
             params: { terminalId, processId: alert.terminal.processId },

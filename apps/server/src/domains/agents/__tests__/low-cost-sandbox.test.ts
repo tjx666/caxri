@@ -31,6 +31,7 @@ async function fixture() {
         isolatedDirectory,
         executable,
         instructionNames: ['INSTRUCTIONS.md'],
+        platform: 'darwin' as const,
     };
 }
 
@@ -89,11 +90,23 @@ describe('Low-cost generation sandbox preflight', () => {
 
     it('allows absent instruction files but fails closed on a symlink loop', async () => {
         const options = await fixture();
-        await expect(prepareLowCostSandbox(options)).resolves.toContain('INSTRUCTIONS.md');
+        const sandbox = await prepareLowCostSandbox(options);
+        expect(sandbox.executable).toBe('/usr/bin/sandbox-exec');
+        expect(sandbox.arguments.join(' ')).toContain('INSTRUCTIONS.md');
         await symlink('INSTRUCTIONS.md', join(options.configDirectory, 'INSTRUCTIONS.md'));
         await expect(prepareLowCostSandbox(options)).rejects.toMatchObject({
             code: 'UNAVAILABLE',
             details: { reason: 'sandboxPathUnavailable' },
+        });
+    });
+
+    it('fails with a closed reason on a host that has no supported sandbox', async () => {
+        const options = await fixture();
+        await expect(
+            prepareLowCostSandbox({ ...options, platform: 'win32' }),
+        ).rejects.toMatchObject({
+            code: 'UNAVAILABLE',
+            details: { reason: 'sandboxUnavailable' },
         });
     });
 });

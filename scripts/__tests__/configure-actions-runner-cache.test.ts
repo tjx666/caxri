@@ -88,6 +88,10 @@ describe('GitHub Actions runner archive cache', () => {
                 sha: '3d3c42e5aac5ba805825da76410c181273ba90b1',
             },
             {
+                repository: 'actions/download-artifact',
+                sha: '9000827ccba6bdab643e8b6fd33ac0654aef8333',
+            },
+            {
                 repository: 'actions/setup-node',
                 sha: '820762786026740c76f36085b0efc47a31fe5020',
             },

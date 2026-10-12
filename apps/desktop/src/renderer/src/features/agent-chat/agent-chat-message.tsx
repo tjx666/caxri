@@ -13,6 +13,7 @@ import { cn } from '../../lib/utilities';
 import { openAgentChatLink } from './agent-chat-links';
 import { AgentChatMessageTime } from './agent-chat-message-time';
 import { agentChatNoticeMessage } from './agent-chat-presentation';
+import { AgentChatReplyFrame } from './agent-chat-reply-frame';
 import { AgentChatTurnArtifactList } from './agent-chat-turn-artifact-list';
 import { useAgentChatTerminal } from './hooks/use-agent-chat-terminal';
 
@@ -62,34 +63,42 @@ export function AgentChatMessage({
 /**
  * An Agent reply, with a Copy action and the time it was sent underneath when it is the reply that ends a turn.
  * Commentary between tool calls carries no action row, so a long turn does not reserve empty space under every reply.
- * The latest turn's reply keeps the row in view (Copy in `--muted`, rising to `--foreground` on hover), since it is the
- * one most likely to be taken away; an earlier reply's row appears only while the pointer is over it or keyboard focus
- * reaches it, so a scrolled transcript is not lined with copy icons. The row keeps its height either way, so revealing
- * it never shifts the transcript. Copy takes the Markdown source, which pastes back into an issue, a document, or
- * another Agent intact. The reply text is selectable in an otherwise `select-none` transcript, as are the user's
- * messages, notice text, reasoning, and code and diff bodies (see `announceAgentChatSelectionCopy`). A reply that ends
- * a turn which changed files or filed an issue or pull request carries those cards between its text and the action row,
- * as the Codex app does.
+ * Every reply, the latest included, mounts its row only while the pointer is over it or keyboard focus is inside it
+ * (`AgentChatReplyFrame`), so neither a finished turn nor a scrolled transcript is lined with copy icons and times. The
+ * row keeps its height either way, so revealing it never shifts the transcript. Copy takes the Markdown source, which
+ * pastes back into an issue, a document, or another Agent intact. The reply text is selectable in an otherwise
+ * `select-none` transcript, as are the user's messages, notice text, reasoning, and code and diff bodies (see
+ * `announceAgentChatSelectionCopy`). A reply that ends a turn which changed files or filed an issue or pull request
+ * carries those cards between its text and the action row, as the Codex app does.
  */
 export function AgentChatReply({
     artifacts,
     canCopy,
-    isLatest = false,
     item,
     onOpenFile,
 }: {
     artifacts?: AgentChatTurnArtifacts;
     canCopy: boolean;
-    /**
-     * The final reply of the most recent turn (`isLatestReply`).
-     */
-    isLatest?: boolean;
     item: Extract<AgentChatItem, { type: 'agentMessage' }>;
     onOpenFile?: (target: string) => void;
 }) {
     const { t } = useTranslation();
+    const actions = canCopy
+        ? !item.streaming && (
+              <>
+                  <CopyIconButton
+                      className="-ml-1"
+                      copy={() => writeToClipboardWithFeedback(navigator.clipboard, item.text)}
+                      label={t('agentChat.message.copy')}
+                  />
+                  {item.createdAt !== undefined && (
+                      <AgentChatMessageTime timestamp={item.createdAt} />
+                  )}
+              </>
+          )
+        : null;
     return (
-        <div className="group/reply" data-agent-chat-reply="">
+        <AgentChatReplyFrame actions={actions}>
             <AgentChatMessage
                 className="text-foreground select-text"
                 isStreaming={item.streaming}
@@ -97,32 +106,7 @@ export function AgentChatReply({
                 onOpenFile={onOpenFile}
             />
             {artifacts && <AgentChatTurnArtifactList artifacts={artifacts} />}
-            {canCopy && (
-                <div
-                    className={cn(
-                        'mt-0.5 flex h-6 items-center gap-1',
-                        !isLatest &&
-                            'opacity-0 group-hover/reply:opacity-100 focus-within:opacity-100',
-                    )}
-                    data-agent-chat-find-ignore=""
-                >
-                    {!item.streaming && (
-                        <>
-                            <CopyIconButton
-                                className="-ml-1"
-                                copy={() =>
-                                    writeToClipboardWithFeedback(navigator.clipboard, item.text)
-                                }
-                                label={t('agentChat.message.copy')}
-                            />
-                            {item.createdAt !== undefined && (
-                                <AgentChatMessageTime timestamp={item.createdAt} />
-                            )}
-                        </>
-                    )}
-                </div>
-            )}
-        </div>
+        </AgentChatReplyFrame>
     );
 }
 

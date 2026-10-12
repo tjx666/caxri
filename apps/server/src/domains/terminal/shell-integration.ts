@@ -1,6 +1,7 @@
 import { constants } from 'node:fs';
 import { chmod, lstat, mkdir, open } from 'node:fs/promises';
 import { basename, join } from 'node:path';
+import process from 'node:process';
 
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -12,10 +13,15 @@ export interface ShellIntegrationLaunch {
 
 /**
  * Managed Agent startup needs a shell whose private startup files Caxri can control. Ordinary Shell Terminals still use
- * the configured platform shell; only Agent Terminals fall back to macOS's system zsh.
+ * the configured platform shell; only Agent Terminals fall back to the platform's integrated system shell: zsh on
+ * macOS, bash on Linux, where zsh is often not installed.
  */
-export function managedAgentShellExecutable(executable: string): string {
-    return ['bash', 'zsh'].includes(basename(executable)) ? executable : '/bin/zsh';
+export function managedAgentShellExecutable(
+    executable: string,
+    platform: NodeJS.Platform = process.platform,
+): string {
+    if (['bash', 'zsh'].includes(basename(executable))) return executable;
+    return platform === 'darwin' ? '/bin/zsh' : '/bin/bash';
 }
 
 const ZSH_ENV = `typeset -g __caxri_user_zdotdir="\${CAXRI_USER_ZDOTDIR:-\${HOME:-}}"

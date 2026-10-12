@@ -56,6 +56,8 @@ export const agentChatTimeline: TranslatedNamespace<typeof source> = {
     'agentChat.message.queueSteerTooltip': '加入队列（Enter）· 引导（⌘Enter）',
     'agentChat.message.queuePlaceholder': '排队一条后续消息',
     'agentChat.message.queueSteerPlaceholder': '排队一条后续消息（⌘Enter 引导当前轮次）',
+    'agentChat.message.steerQueuedPlaceholder': '按 Enter 将排队消息引导进当前轮次，或输入后续消息',
+    'agentChat.message.sendQueuedPlaceholder': '按 Enter 发送排队消息，或输入新消息',
     'agentChat.message.planPlaceholder': '描述要规划的内容…',
     'agentChat.message.placeholder': '给 {{provider}} 发消息',
     'agentChat.message.sendBlockedLoading': '对话加载中…',

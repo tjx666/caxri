@@ -5,15 +5,30 @@ import {
     agentChatConfigureFailureMessage,
     agentChatMenuModel,
     agentChatModelTriggerText,
+    isAgentChatFastOffered,
 } from '../agent-chat-model-selection';
 
 const models = [
     { id: 'fast', displayName: 'Fast', efforts: ['low', 'medium'], defaultEffort: 'low' },
-    { id: 'deep', displayName: 'Deep', efforts: ['medium', 'high'], defaultEffort: 'high' },
+    {
+        id: 'deep',
+        displayName: 'Deep',
+        efforts: ['medium', 'high'],
+        defaultEffort: 'high',
+        fast: { description: '1.5x speed' },
+    },
 ];
 const snapshot = { model: 'fast', effort: 'medium', models };
 
 describe('Agent Chat model selection', () => {
+    it('offers Fast mode only when the provider reports it and the model lists it', () => {
+        const [plain, deep] = models;
+        expect(isAgentChatFastOffered({ fast: false }, deep)).toBe(true);
+        expect(isAgentChatFastOffered({ fast: false }, plain)).toBe(false);
+        expect(isAgentChatFastOffered({}, deep)).toBe(false);
+        expect(isAgentChatFastOffered({ fast: false }, undefined)).toBe(false);
+    });
+
     it('names what failed to switch', () => {
         expect(agentChatConfigureFailureMessage({ effort: 'high' })).toBe(
             'Unable to switch the effort',
@@ -23,6 +38,9 @@ describe('Agent Chat model selection', () => {
         );
         expect(agentChatConfigureFailureMessage({ ultracode: true })).toBe(
             'Unable to turn on Ultracode',
+        );
+        expect(agentChatConfigureFailureMessage({ fast: false })).toBe(
+            'Unable to turn off Fast mode',
         );
     });
 });
@@ -64,6 +82,16 @@ describe('agentChatModelTriggerText', () => {
             effortName: 'High',
             ariaLabel: 'Model: Fast, High effort, ultracode on',
         });
+    });
+
+    it('names Fast mode in the trigger when it is on', () => {
+        expect(
+            agentChatModelTriggerText(
+                translate,
+                { model: 'deep', effort: 'high', fast: true },
+                { model: 'Deep', effort: 'High' },
+            ).ariaLabel,
+        ).toBe('Model: Deep, High effort, Fast mode on');
     });
 
     it('translates the unreported model as Default', () => {

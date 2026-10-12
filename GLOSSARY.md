@@ -19,6 +19,12 @@ _Avoid_: Host, backend, Local Server, Remote Server
 A Desktop, CLI, Web, Mobile, or Agent Endpoint that connects to a Server under an explicit grant.
 _Avoid_: Frontend, UI owner
 
+**SSH Host**:
+A Linux machine Desktop reaches with the user's OpenSSH configuration and runs its own Server on.
+Desktop shows it in a separate window titled `SSH: <destination>`; its Projects, Terminals, and
+Agents live on that machine.
+_Avoid_: Remote, remote machine, Remote Server
+
 **Session View**:
 One Client's presentation of a Session, including its pane layout, open resources, selection, and
 an optional Workbench Root override. It never owns the resources it presents.

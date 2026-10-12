@@ -44,6 +44,7 @@ import { gpuDesktopMethods } from '../desktop/gpu-contract.js';
 import { linkFaviconDesktopMethods } from '../desktop/link-favicon-contract.js';
 import { linkPreviewDesktopMethods } from '../desktop/link-preview-contract.js';
 import { pathBrowserContractMethods } from '../desktop/path-browser-contract.js';
+import { remoteEnvironmentDesktopMethods } from '../desktop/remote-environment-contract.js';
 import { shellCommandDesktopMethods } from '../desktop/shell-command-contract.js';
 import { windowStateInternalMethods } from '../desktop/window-state-contract.js';
 import { bootstrapStateSchema } from '../domain/bootstrap.js';
@@ -71,6 +72,7 @@ import { fileInternalMethods, fileMethods } from '../domain/file-contract.js';
 import { gitInternalMethods, gitMethods } from '../domain/git-contract.js';
 import { gitReviewMethods } from '../domain/git-review-contract.js';
 import { projectIconSchema } from '../domain/project-customization.js';
+import { projectFolderBrowseMethods } from '../domain/project-folder-browse-contract.js';
 import {
     projectStatusOverviewSchema,
     projectStatusSummarySchema,
@@ -266,6 +268,7 @@ export const methods = {
     ...argvDesktopMethods,
     ...gpuDesktopMethods,
     ...shellCommandDesktopMethods,
+    ...remoteEnvironmentDesktopMethods,
     ...contextMenuDesktopMethods,
     ...externalDocumentDesktopMethods,
     ...editorPromptDesktopMethods,
@@ -332,6 +335,7 @@ export const methods = {
         params: z.object({ rootPath: pathSchema }),
         result: z.boolean(),
     },
+    ...projectFolderBrowseMethods,
     'project.reorder': {
         ...serverWrite,
         params: z.object({

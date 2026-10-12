@@ -8,7 +8,6 @@ import type { AppSettings } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION, isLogProcess, logProcesses } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, redactLogValue, redactSecrets } from '@caxri/system';
-import { ZipArchive } from 'archiver';
 
 import { commanderDiagnostics } from './commander';
 import type { CaxriDatabase } from './db';
@@ -276,6 +275,11 @@ export class DiagnosticsService {
         const performance = summarizePerformanceLogs(redactedLogs.map((log) => log.content));
         const settings = diagnosticSettingsFile(this.getSettings());
 
+        /**
+         * Archiver and its stream stack (about 300 KB of bundled source) load only when a diagnostics export runs, so
+         * they stay out of the resident Server Core startup chunk.
+         */
+        const { ZipArchive } = await import('archiver');
         await new Promise<void>((resolve, reject) => {
             const output = createWriteStream(destination, { mode: 0o600 });
             const archive = new ZipArchive({ zlib: { level: 9 } });
