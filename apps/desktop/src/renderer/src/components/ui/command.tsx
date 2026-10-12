@@ -3,6 +3,7 @@ import { useLayoutEffect, useRef } from 'react';
 
 import { Command as CommandPrimitive, useCommandState } from 'cmdk';
 
+import { useTranslation } from '@/i18n';
 import { cn } from '@/lib/utilities';
 
 export function Command({ className, ...properties }: ComponentProps<typeof CommandPrimitive>) {
@@ -34,10 +35,16 @@ export function CommandInput({
     );
 }
 
+/**
+ * Cmdk names the list `Suggestions` in English when no `label` is passed, so the default here is translated and a
+ * screen reader hears the list in the UI language. A caller may still pass a more specific `label`.
+ */
 export function CommandList({
     className,
+    label,
     ...properties
 }: Omit<ComponentProps<typeof CommandPrimitive.List>, 'ref'>) {
+    const { t } = useTranslation();
     const search = useCommandState((state) => state.search);
     const listReference = useRef<HTMLDivElement>(null);
     /**
@@ -51,6 +58,7 @@ export function CommandList({
         <CommandPrimitive.List
             ref={listReference}
             data-slot="command-list"
+            label={label ?? t('core.command.suggestions')}
             className={cn('max-h-[360px] overflow-auto p-1', className)}
             {...properties}
         />
