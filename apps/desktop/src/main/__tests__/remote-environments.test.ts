@@ -172,6 +172,25 @@ describe('SSH Host environments', () => {
         expect(attempts).toBe(1);
     });
 
+    it('does not ask for an answer when a failure has nothing to answer', async () => {
+        const { environments, harnesses } = setup((started) => {
+            // A terminal failure: automatic reconnection stops, yet there is no prompt to answer.
+            started.supervisor.isFailed.mockReturnValue(true);
+            started.hooks.update({
+                failure: { reason: 'profileInUse', message: 'In use by login-1' },
+            });
+            return Promise.reject(new CaxriError('UNAVAILABLE', 'In use by login-1'));
+        });
+        await environments.connect('dev@build-box');
+        const harness = harnesses[0];
+
+        await vi.waitFor(() => expect(lastState(harness).phase).toBe('failed'));
+        expect(lastState(harness)).toMatchObject({
+            needsUserAction: false,
+            failure: { reason: 'profileInUse', message: 'In use by login-1' },
+        });
+    });
+
     it('detaches without stopping the remote Server when the window closes', async () => {
         const { environments, harnesses } = setup();
         await environments.connect('dev@build-box');
