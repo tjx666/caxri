@@ -6,10 +6,13 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import type { AgentChatItem, AgentChatRequest, AgentChatResponse } from '@caxri/protocol';
 import {
     agentChatApprovalChoices,
+    agentChatNextUnansweredQuestion,
     agentChatQuestionAnswers,
+    agentChatQuestionDefaults,
     agentChatRequestTitle,
     sentenceStartProvider,
 } from '@caxri/protocol';
+import { Check } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
 import type { agentChatRequestBlockedReason } from './agent-chat-model';
@@ -181,82 +184,121 @@ const ApprovalBody = ({
 };
 
 /**
- * Test IDs use positions, not provider question IDs or option labels: Android resource IDs only admit lowercase
- * identifiers, and a label is free text.
+ * Several questions sit behind `Q1 Q2 Q3` tabs so the card stays one question tall on a phone; a tab carries a check
+ * once its question has an answer. Test IDs use positions, not provider question IDs or option labels: Android resource
+ * IDs only admit lowercase identifiers, and a label is free text.
  */
+const QuestionTabs = ({
+    answers,
+    index,
+    request,
+    setIndex,
+    theme,
+}: {
+    answers: Readonly<Record<string, string[]>>;
+    index: number;
+    request: QuestionRequest;
+    setIndex: (index: number) => void;
+    theme: MobileTheme;
+}) => (
+    <View accessibilityRole="tablist" style={styles.tabs}>
+        {request.questions.map((question, questionIndex) => {
+            const isSelected = questionIndex === index;
+            const isAnswered = Object.hasOwn(answers, question.id);
+            const color = isSelected ? theme.text : theme.muted;
+            return (
+                <Pressable
+                    key={question.id}
+                    accessibilityLabel={[
+                        `Question ${questionIndex + 1} of ${request.questions.length}: ${question.header || question.question}`,
+                        isAnswered ? 'answered' : 'not answered yet',
+                    ].join(', ')}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: isSelected }}
+                    onPress={() => setIndex(questionIndex)}
+                    style={[
+                        styles.tab,
+                        { borderBottomColor: isSelected ? theme.primary : 'transparent' },
+                    ]}
+                    testID={`agent-chat-question-tab-${questionIndex}`}
+                >
+                    <Text style={[styles.tabLabel, { color }]}>Q{questionIndex + 1}</Text>
+                    {isAnswered ? <Check color={theme.success} size={14} /> : null}
+                </Pressable>
+            );
+        })}
+    </View>
+);
+
 const QuestionBody = ({
     other,
-    request,
+    question,
+    questionIndex,
     selected,
     setOther,
     setSelected,
     theme,
 }: {
     other: Record<string, string>;
-    request: QuestionRequest;
+    question: QuestionRequest['questions'][number];
+    questionIndex: number;
     selected: Record<string, string>;
     setOther: (id: string, value: string) => void;
     setSelected: (id: string, value: string) => void;
     theme: MobileTheme;
 }) => (
-    <>
-        {request.questions.map((question, questionIndex) => (
-            <View key={question.id} style={styles.question}>
-                {question.header ? (
-                    <Text style={[styles.header, { color: theme.muted }]}>{question.header}</Text>
-                ) : null}
-                <Text style={{ color: theme.text }}>{question.question}</Text>
-                {question.options.map((option, optionIndex) => {
-                    const isSelected =
-                        selected[question.id] === option.label && !other[question.id]?.trim();
-                    return (
-                        <Pressable
-                            key={option.label}
-                            accessibilityLabel={option.label}
-                            accessibilityRole="radio"
-                            accessibilityState={{ selected: isSelected }}
-                            onPress={() => setSelected(question.id, option.label)}
-                            style={[
-                                styles.option,
-                                {
-                                    backgroundColor: isSelected ? theme.elevated : 'transparent',
-                                    borderColor: isSelected ? theme.primary : theme.border,
-                                },
-                            ]}
-                            testID={`agent-chat-question-${questionIndex}-option-${optionIndex}`}
-                        >
-                            <Text style={{ color: theme.text, fontWeight: '600' }}>
-                                {option.label}
-                            </Text>
-                            {option.description ? (
-                                <Text style={[styles.meta, { color: theme.muted }]}>
-                                    {option.description}
-                                </Text>
-                            ) : null}
-                        </Pressable>
-                    );
-                })}
-                {question.allowsOther || question.options.length === 0 ? (
-                    <TextInput
-                        accessibilityLabel={`Answer: ${question.question}`}
-                        onChangeText={(value) => setOther(question.id, value)}
-                        placeholder={question.options.length > 0 ? 'Other answer' : 'Your answer'}
-                        placeholderTextColor={theme.muted}
-                        style={[
-                            styles.input,
-                            {
-                                backgroundColor: theme.surface,
-                                borderColor: theme.border,
-                                color: theme.text,
-                            },
-                        ]}
-                        testID={`agent-chat-question-${questionIndex}-other`}
-                        value={other[question.id] ?? ''}
-                    />
-                ) : null}
-            </View>
-        ))}
-    </>
+    <View style={styles.question}>
+        {question.header ? (
+            <Text style={[styles.header, { color: theme.muted }]}>{question.header}</Text>
+        ) : null}
+        <Text style={[styles.questionText, { color: theme.text }]}>{question.question}</Text>
+        {question.options.map((option, optionIndex) => {
+            const isSelected =
+                selected[question.id] === option.label && !other[question.id]?.trim();
+            return (
+                <Pressable
+                    key={option.label}
+                    accessibilityLabel={option.label}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected }}
+                    onPress={() => setSelected(question.id, option.label)}
+                    style={[
+                        styles.option,
+                        {
+                            backgroundColor: isSelected ? theme.elevated : 'transparent',
+                            borderColor: isSelected ? theme.primary : theme.border,
+                        },
+                    ]}
+                    testID={`agent-chat-question-${questionIndex}-option-${optionIndex}`}
+                >
+                    <Text style={{ color: theme.text, fontWeight: '600' }}>{option.label}</Text>
+                    {option.description ? (
+                        <Text style={[styles.meta, { color: theme.muted }]}>
+                            {option.description}
+                        </Text>
+                    ) : null}
+                </Pressable>
+            );
+        })}
+        {question.allowsOther || question.options.length === 0 ? (
+            <TextInput
+                accessibilityLabel={`Answer: ${question.question}`}
+                onChangeText={(value) => setOther(question.id, value)}
+                placeholder={question.options.length > 0 ? 'Other answer' : 'Your answer'}
+                placeholderTextColor={theme.muted}
+                style={[
+                    styles.input,
+                    {
+                        backgroundColor: theme.surface,
+                        borderColor: theme.border,
+                        color: theme.text,
+                    },
+                ]}
+                testID={`agent-chat-question-${questionIndex}-other`}
+                value={other[question.id] ?? ''}
+            />
+        ) : null}
+    </View>
 );
 
 /**
@@ -280,8 +322,11 @@ export const AgentChatRequestCard = ({
     request: AgentChatRequest;
     theme: MobileTheme;
 }) => {
-    const [selected, setSelected] = useState<Record<string, string>>({});
+    const [selected, setSelected] = useState<Record<string, string>>(() =>
+        request.kind === 'question' ? agentChatQuestionDefaults(request) : {},
+    );
     const [other, setOther] = useState<Record<string, string>>({});
+    const [questionIndex, setQuestionIndex] = useState(0);
     /**
      * The test id of the button whose answer is in flight, so only that button shows a spinner.
      */
@@ -302,6 +347,7 @@ export const AgentChatRequestCard = ({
     const isShowsActions = blockedReason?.kind !== 'access';
     const answers =
         request.kind === 'question' ? agentChatQuestionAnswers(request, selected, other) : null;
+    const question = request.kind === 'question' ? request.questions.at(questionIndex) : undefined;
     return (
         <View
             style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
@@ -311,16 +357,46 @@ export const AgentChatRequestCard = ({
                 {agentChatRequestTitle(request, sentenceStartProvider(provider))}
             </Text>
             {request.kind === 'question' ? (
-                <QuestionBody
-                    other={other}
-                    request={request}
-                    selected={selected}
-                    setOther={(id, value) => setOther((current) => ({ ...current, [id]: value }))}
-                    setSelected={(id, value) =>
-                        setSelected((current) => ({ ...current, [id]: value }))
-                    }
-                    theme={theme}
-                />
+                answers && (
+                    <>
+                        {request.questions.length > 1 ? (
+                            <QuestionTabs
+                                answers={answers.answers}
+                                index={questionIndex}
+                                request={request}
+                                setIndex={setQuestionIndex}
+                                theme={theme}
+                            />
+                        ) : null}
+                        {question ? (
+                            <QuestionBody
+                                other={other}
+                                question={question}
+                                questionIndex={questionIndex}
+                                selected={selected}
+                                setOther={(id, value) =>
+                                    setOther((current) => ({ ...current, [id]: value }))
+                                }
+                                setSelected={(id, value) => {
+                                    const nextSelected = { ...selected, [id]: value };
+                                    setSelected(nextSelected);
+                                    /*
+                                     * A tap answers and moves on to the next unanswered question, as the Codex app does.
+                                     * Sending stays with Submit, so a stray tap on a phone never sends the card.
+                                     */
+                                    const next = agentChatNextUnansweredQuestion(
+                                        request,
+                                        agentChatQuestionAnswers(request, nextSelected, other)
+                                            .answers,
+                                        questionIndex,
+                                    );
+                                    if (next !== undefined) setQuestionIndex(next);
+                                }}
+                                theme={theme}
+                            />
+                        ) : null}
+                    </>
+                )
             ) : (
                 <ApprovalBody items={items} request={request} theme={theme} />
             )}
@@ -350,7 +426,7 @@ export const AgentChatRequestCard = ({
                         tone="plain"
                     />
                     <ActionButton
-                        disabled={isDisabled || !answers?.isComplete}
+                        disabled={isDisabled || Object.keys(answers?.answers ?? {}).length === 0}
                         isPending={pendingAction === 'agent-chat-question-submit'}
                         label="Submit"
                         onPress={() => {
@@ -421,6 +497,19 @@ const styles = StyleSheet.create({
     toggle: { alignSelf: 'flex-start', justifyContent: 'center', minHeight: 48, minWidth: 48 },
     toggleLabel: { fontSize: 13, fontWeight: '700' },
     question: { gap: 6 },
+    questionText: { fontSize: 15, fontWeight: '600', lineHeight: 21 },
+    tabs: { flexDirection: 'row', gap: 4 },
+    tab: {
+        alignItems: 'center',
+        borderBottomWidth: 2,
+        flexDirection: 'row',
+        gap: 4,
+        justifyContent: 'center',
+        minHeight: 44,
+        minWidth: 48,
+        paddingHorizontal: 8,
+    },
+    tabLabel: { fontSize: 14, fontWeight: '700' },
     option: { borderRadius: 10, borderWidth: 1, gap: 2, minHeight: 48, padding: 10 },
     input: {
         borderRadius: 10,
