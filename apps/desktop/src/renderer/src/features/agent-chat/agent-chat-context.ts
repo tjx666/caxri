@@ -15,6 +15,13 @@ const HIGH_CONTEXT_SHARE = 0.85;
 const ELEVATED_CONTEXT_SHARE = 0.6;
 
 /**
+ * How long before the prompt cache expires the composer starts counting down, so the user can still reply (or compact)
+ * while the context is cached instead of learning about the expiry after it already cost a full re-read. A short cache
+ * (Claude's 5m default) warns for its second half only, or the notice would appear the moment a reply lands.
+ */
+const CACHE_EXPIRY_LEAD_MS = 10 * 60_000;
+
+/**
  * How full the context window is, for the composer's meter. Omitted until the provider reports a window size.
  */
 export interface AgentChatContextUsage {
@@ -60,8 +67,9 @@ export function agentChatContextUsage(
 }
 
 /**
- * The composer's notices about the context of an idle Chat: the prompt cache has expired, so the next message pays to
- * write the whole context again; and the context is high enough that compacting it first is worth suggesting.
+ * The composer's notices about the context of an idle Chat: the prompt cache is about to expire or has expired, so the
+ * next message pays (or soon will pay) to write the whole context again; and the context is high enough that compacting
+ * it first is worth suggesting.
  */
 interface AgentChatContextAlert {
     /**
@@ -74,8 +82,15 @@ interface AgentChatContextAlert {
     detail: string;
 }
 
+export interface AgentChatCacheAlert extends AgentChatContextAlert {
+    /**
+     * `expiring` while the cache is still warm but within the warning lead of its TTL; `expired` once it is gone.
+     */
+    state: 'expiring' | 'expired';
+}
+
 export interface AgentChatContextAlerts {
-    cache?: AgentChatContextAlert;
+    cache?: AgentChatCacheAlert;
     pressure?: AgentChatContextAlert;
 }
 
@@ -89,14 +104,24 @@ export function agentChatContextAlerts(
     const tokens = formatTokens(usage.totalTokens);
     if (cacheTtlMinutes && lastResponseAt !== undefined) {
         const idleMs = now - lastResponseAt;
-        if (idleMs >= cacheTtlMinutes * 60_000) {
-            const cost =
-                usage.cacheRewriteUsd === undefined
-                    ? ''
-                    : ` (est. ~${formatUsd(usage.cacheRewriteUsd)})`;
+        const ttlMs = cacheTtlMinutes * 60_000;
+        const cost =
+            usage.cacheRewriteUsd === undefined
+                ? ''
+                : ` (est. ~${formatUsd(usage.cacheRewriteUsd)})`;
+        if (idleMs >= ttlMs) {
             alerts.cache = {
+                state: 'expired',
                 text: `Idle ${formatDuration(idleMs)} · next reply re-reads the whole conversation${cost}`,
                 detail: `The prompt cache lasts ${cacheTtlMinutes}m, so the next reply reads all ${tokens} tokens again without it.${cost && ' The cost is an estimate at standard API prices.'}`,
+            };
+        } else if (idleMs >= ttlMs - Math.min(CACHE_EXPIRY_LEAD_MS, ttlMs / 2)) {
+            // Rounded up so the countdown never claims `0m` while the cache is still warm.
+            const remaining = formatDuration(Math.ceil((ttlMs - idleMs) / 60_000) * 60_000);
+            alerts.cache = {
+                state: 'expiring',
+                text: `Cache expires in ${remaining} · reply now to skip a full re-read${cost}`,
+                detail: `The prompt cache lasts ${cacheTtlMinutes}m from the last reply. A message sent within ${remaining} reuses it; after that the next reply reads all ${tokens} tokens again.${cost && ' The cost is an estimate at standard API prices.'}`,
             };
         }
     }
