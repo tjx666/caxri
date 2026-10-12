@@ -6,12 +6,9 @@ import { translate } from '../../i18n';
 
 export interface RemoteDebuggingChipCopy {
     /**
-     * The chip's visible text, short enough to sit on the crowded actions rail.
-     */
-    text: string;
-    /**
-     * Accessible name. The chip's two words cannot carry the consequence, so the long form states who can connect and
-     * what they get, in the same words the Settings row uses.
+     * Accessible name. The chip is icon-only (an open channel is a chosen mode, not a degradation, so DESIGN.md keeps
+     * it wordless on the bar), so this long form states who can connect and what they get, in the same words the
+     * Settings row uses.
      */
     description: string;
     /**
@@ -40,11 +37,6 @@ export function remoteDebuggingChipCopy(
               : t('statusBar.remoteDebugging.whereLoopback');
     const consequence = t('statusBar.remoteDebugging.consequence');
     return {
-        text: t(
-            state.transport === 'pipe'
-                ? 'statusBar.remoteDebugging.pipeText'
-                : 'statusBar.remoteDebugging.portText',
-        ),
         description: t('statusBar.remoteDebugging.description', { where, consequence }),
         tooltip: {
             title: t('statusBar.remoteDebugging.title'),
