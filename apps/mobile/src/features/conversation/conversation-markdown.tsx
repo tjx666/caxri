@@ -42,7 +42,14 @@ const ConversationCodeBlock = ({
     const text = code.replace(/\n$/u, '');
     return (
         <View
-            style={{ backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }}
+            style={{
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+                borderWidth: 1,
+                // These rules replace the library's own blocks and their spacing, so back-to-back fences (or a fence
+                // under a table) would otherwise share borders and read as one block.
+                marginVertical: 8,
+            }}
             testID={testID}
         >
             <ScrollView horizontal showsHorizontalScrollIndicator>
