@@ -254,8 +254,10 @@ commands · 12s`); a failed member puts a failure glyph on the group. Tapping ex
   change's detail lists each file with its colored status letter, `+N -M`, and a diff that scrolls
   sideways. A finished turn ends under its final reply with what it left behind: an `Edited
 <file>` or `Edited N files` card that expands to every file's diff, and a card for each pull
-  request, issue, or acceptance report the Agent filed that opens it in the browser. Then a footer
-  says `Worked for X`, `Failed after X` (danger), or `Stopped after X` (warning). The Agent's plan
+  request, issue, or acceptance report the Agent filed that opens it in the browser. Its work and
+  commentary fold behind a `Worked for X`, `Failed after X` (danger), or `Stopped after X`
+  (warning) row over a hairline, placed where the work began; a tap shows or hides them, and a
+  running turn never folds. The Agent's plan
   is a one-row card above the composer (`Plan`, the current step, a segment per step, `2/5`) that
   expands to its steps. The line above the composer says what the Chat is doing with Desktop's
   words under the same sweep (`Pondering…`, `Compacting context…`) and, after a second, how long

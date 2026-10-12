@@ -20,7 +20,7 @@ type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
  * The caption that ends a turn (`Worked for 2m 1s`), a small centered pill like a chat app's time stamp. A failed or
  * stopped turn carries its tone in the text color, as Desktop's fold row does.
  */
-export const ConversationTurnDivider = ({
+const ConversationTurnDivider = ({
     label,
     testID,
     theme,

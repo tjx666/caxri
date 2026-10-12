@@ -6,9 +6,11 @@ import type {
     AgentToolPresentation,
 } from '@caxri/protocol';
 import {
+    agentChatFinalReplyId,
     agentChatWorkSummaryTools,
     collectAgentChatTurnArtifacts,
     describeAgentChatWorkAction,
+    foldAgentChatTurn,
     formatNoticeableDuration,
     isAgentChatItemVisible,
     isAgentChatWorkUnsuccessful,
@@ -167,9 +169,8 @@ export function agentChatTurnTone(
 }
 
 /**
- * A finished turn keeps its prompt, its final reply, and its notices (an error, a compaction, an answered question) in
- * view, dropping only a transient retry; the work and commentary before the reply fold into one disclosure at the
- * position of the first folded item, the way Codex and T3 Code end a turn.
+ * A finished turn's work and commentary before the reply fold into one `turn` entry where `foldAgentChatTurn` (shared
+ * with the phone) puts the fold; the prompt, the final reply, and its notices stay in view.
  */
 function foldTurn(
     items: readonly AgentChatItem[],
@@ -177,34 +178,26 @@ function foldTurn(
     finalReplyId: string | undefined,
 ): AgentChatTimelineEntry[] {
     const visible = items.filter((item) => isAgentChatItemVisible(item));
-    const replyIndex = visible.findIndex((item) => item.id === finalReplyId);
-    const isKept = (item: AgentChatItem, index: number): boolean =>
-        item.type === 'userMessage' ||
-        index === replyIndex ||
-        (item.type === 'notice' && item.kind !== 'retrying');
-    const folded = visible.filter((item, index) => !isKept(item, index));
-    if (folded.length === 0) return groupWork(visible, finalReplyId);
-    const entries: AgentChatTimelineEntry[] = [];
-    let hasFold = false;
-    for (const [index, item] of visible.entries()) {
-        if (isKept(item, index)) {
-            entries.push(...groupWork([item], finalReplyId));
-            continue;
-        }
-        if (hasFold) continue;
-        hasFold = true;
-        entries.push({
-            kind: 'turn',
-            id: `turn:${turn.id}`,
-            status: turn.status,
-            ...(turn.durationMs !== undefined && { durationMs: turn.durationMs }),
-            ...(turn.startedAt !== undefined && { startedAt: turn.startedAt }),
-            ...(turn.startedAt !== undefined &&
-                turn.durationMs !== undefined && { endedAt: turn.startedAt + turn.durationMs }),
-            entries: groupWork(folded),
-        });
-    }
-    return entries;
+    const parts = foldAgentChatTurn(visible, finalReplyId);
+    if (parts.every((part) => part.kind === 'kept')) return groupWork(visible, finalReplyId);
+    return parts.flatMap((part): AgentChatTimelineEntry[] =>
+        part.kind === 'kept'
+            ? groupWork([part.item], finalReplyId)
+            : [
+                  {
+                      kind: 'turn',
+                      id: `turn:${turn.id}`,
+                      status: turn.status,
+                      ...(turn.durationMs !== undefined && { durationMs: turn.durationMs }),
+                      ...(turn.startedAt !== undefined && { startedAt: turn.startedAt }),
+                      ...(turn.startedAt !== undefined &&
+                          turn.durationMs !== undefined && {
+                              endedAt: turn.startedAt + turn.durationMs,
+                          }),
+                      entries: groupWork(part.items),
+                  },
+              ],
+    );
 }
 
 /**
@@ -289,9 +282,7 @@ export function buildAgentChatTimeline(
         const finalReplyId =
             turnId !== undefined && running.has(turnId)
                 ? undefined
-                : segment.findLast(
-                      (item) => item.type === 'agentMessage' && isAgentChatItemVisible(item),
-                  )?.id;
+                : agentChatFinalReplyId(segment);
         entries.push(
             ...(turn
                 ? withTurnArtifacts(
