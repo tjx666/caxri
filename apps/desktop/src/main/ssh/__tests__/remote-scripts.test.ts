@@ -16,6 +16,7 @@ import {
     seedConfigScript,
     stopWaitScript,
 } from '../remote-scripts';
+import { launchFailureDetail } from '../remote-setup';
 import type { LayerFixture } from './support/remote-fixtures';
 import { buildLayerFixture, runLocalScript, writeShims } from './support/remote-fixtures';
 import { RemoteScriptHost } from './support/remote-script-host';
@@ -230,6 +231,65 @@ describe('remote scripts', () => {
             expect(launched.result?.get('outcome')).toBe('exited');
             expect(launched.stderr).toContain('fatal: profile locked');
         });
+
+        it(
+            'keeps the error header of a Node crash for the failure detail',
+            { timeout: 20_000 },
+            async () => {
+                const crash = [
+                    'file:///remote/bundles/process.js:1',
+                    'CaxriError: A Host already owns this profile',
+                    ...Array.from(
+                        { length: 8 },
+                        (_, index) => `    at frame${index} (process.js:1:${index})`,
+                    ),
+                    "  code: 'CONFLICT'",
+                    '}',
+                    '',
+                    'Node.js v24.20.0',
+                ];
+                fixture = await buildLayerFixture(layers, {
+                    extraFiles: {
+                        'runtime/caxri-server': `#!/bin/sh\ncat >&2 <<'CRASH'\n${crash.join('\n')}\nCRASH\nexit 1\n`,
+                    },
+                });
+                await host.installBuild(fixture, layers);
+                const launched = await host.run(
+                    launchScript({ buildId: fixture.descriptor.buildId }),
+                );
+                expect(launched.result?.get('outcome')).toBe('exited');
+                expect(launchFailureDetail(launched.stderr)).toBe(
+                    'CaxriError: A Host already owns this profile',
+                );
+                expect(launchFailureDetail('fatal: profile locked\n')).toBe(
+                    'fatal: profile locked',
+                );
+            },
+        );
+
+        it(
+            'never reports an earlier run crash as this launch failure',
+            { timeout: 20_000 },
+            async () => {
+                fixture = await buildLayerFixture(layers, {
+                    extraFiles: {
+                        'runtime/caxri-server':
+                            '#!/bin/sh\necho "fatal: port refused" >&2\nexit 1\n',
+                    },
+                });
+                await host.installBuild(fixture, layers);
+                const logs = join(host.serverRoot(), 'profile', 'logs');
+                await mkdir(logs, { recursive: true });
+                await writeFile(
+                    join(logs, 'server-stdio.log'),
+                    'CaxriError: A Host already owns this profile\n\nNode.js v24.20.0\n',
+                );
+                const launched = await host.run(
+                    launchScript({ buildId: fixture.descriptor.buildId }),
+                );
+                expect(launchFailureDetail(launched.stderr)).toBe('fatal: port refused');
+            },
+        );
 
         it('reports the host holding a shared-home profile without waiting out the exit grace', async () => {
             fixture = await buildLayerFixture(layers, {

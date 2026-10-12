@@ -21,7 +21,8 @@ import {
     serverLockSchema,
     serverManifestSchema,
 } from '@caxri/protocol';
-import { profileIdForPath } from '@caxri/system';
+import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog, profileIdForPath } from '@caxri/system';
 
 import type { LockHandle, ProcessLock } from './linux-profile-lock';
 import { acquireLinuxProcessLock } from './linux-profile-lock';
@@ -114,12 +115,23 @@ export async function readServerManifest(path: string): Promise<ServerManifest> 
     return parsed.data;
 }
 
-async function acquireProcessLock(path: string, profileId: string): Promise<ProcessLock> {
+async function acquireProcessLock(
+    path: string,
+    logger: StructuredLogger | undefined,
+): Promise<ProcessLock> {
     if (process.platform === 'darwin') {
         const handle = await acquireDarwinProcessLock(path);
         return { handle, close: () => handle.close() };
     }
-    if (process.platform === 'linux') return acquireLinuxProcessLock(path, profileId);
+    if (process.platform === 'linux')
+        return acquireLinuxProcessLock(path, {
+            onSquatted: ({ outcome, squattedNames }) =>
+                logger?.write(
+                    outcome === 'exhausted' ? 'error' : 'warn',
+                    logEventCatalog.serverCore.profileLockSquatted,
+                    { fields: { outcome, squattedNames } },
+                ),
+        });
     throw new CaxriError('UNAVAILABLE', 'Headless Host locking requires macOS or Linux');
 }
 
@@ -279,6 +291,10 @@ export async function acquireServerProfile(options: {
      * through its ordinary SIGTERM shutdown.
      */
     onHostLeaseLost?: (holder: string) => void;
+    /**
+     * Records lock names another account held on a shared Linux machine; see `linux-profile-lock.ts`.
+     */
+    logger?: StructuredLogger;
     processState?: (pid: number) => ServerProcessState;
     startedAt?: number;
     userDataPath: string;
@@ -289,7 +305,7 @@ export async function acquireServerProfile(options: {
     /**
      * The kernel lock makes both ordinary startup and stale takeover one atomic profile CAS.
      */
-    const processLock = await acquireProcessLock(paths.lock, paths.profileId);
+    const processLock = await acquireProcessLock(paths.lock, options.logger);
     const lockHandle = processLock.handle;
     const processIdentity = randomBytes(16).toString('hex');
     const startedAt = options.startedAt ?? Date.now();

@@ -361,7 +361,10 @@ while [ "$caxri_iteration" -lt ${readyIterations} ]; do
         fi
         caxri_gone=$((caxri_gone + 1))
         if [ "$caxri_gone" -ge 25 ]; then
-            tail -n 5 "$caxri_log" >&2 2>/dev/null || true
+            # A Node crash ends with its stack and a \`Node.js vX\` line, so the error header sits well above the last few
+            # lines; Desktop picks it back out with \`launchFailureDetail\`. Only this launch's output counts, so an
+            # earlier run's crash cannot stand in for this one's reason.
+            tail -c "+$caxri_log_start" "$caxri_log" 2>/dev/null | tail -n 40 >&2 || true
             caxri_result outcome=exited
             exit 31
         fi
@@ -369,7 +372,7 @@ while [ "$caxri_iteration" -lt ${readyIterations} ]; do
     caxri_iteration=$((caxri_iteration + 1))
     caxri_sleep
 done
-tail -n 5 "$caxri_log" >&2 2>/dev/null || true
+tail -c "+$caxri_log_start" "$caxri_log" 2>/dev/null | tail -n 40 >&2 || true
 caxri_result outcome=timeout
 exit 32
 `;
