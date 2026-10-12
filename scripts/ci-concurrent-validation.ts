@@ -2,80 +2,29 @@
 
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { spawn } from 'node:child_process';
-import { appendFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import process from 'node:process';
 
 import { prepareChecksWorktree } from './ci-checks-worktree';
 import { sanitizedChildEnvironment } from './ci-child-environment';
+import type {
+    ConcurrentValidationProvenance,
+    ConcurrentValidationReceipt,
+} from './ci-concurrent-validation-report';
+import {
+    publishConcurrentValidationFailureSummary,
+    publishConcurrentValidationOutcome,
+    receiptPath,
+} from './ci-concurrent-validation-report';
 import { waitForChildExit } from './exec';
 
 const projectRoot = resolve(import.meta.dirname, '..');
-const receiptPath = resolve(
-    projectRoot,
-    'test-results',
-    'receipts',
-    'ci-concurrent-validation.json',
-);
 
 type ConcurrentValidationComponent =
     'checks' | 'desktop-exclusive' | 'e2e-auxiliary' | 'parallel-safe';
 
-interface ConcurrentValidationProvenance {
-    checksRevision: string;
-    exactHead: string;
-    parallelWorkers: number;
-    profile: 'optimized';
-    runAttempt: string;
-    runId: string;
-}
-
-interface ConcurrentValidationReceipt {
-    checks: number;
-    ciParity: number | null;
-    desktopExclusive: number | null;
-    e2eSetup: number | null;
-    failureCensus: number | null;
-    failureIsolation: number | null;
-    manifest: number | null;
-    parallelSafe: number | null;
-    provenance: ConcurrentValidationProvenance;
-    version: 1;
-}
-
 type E2EValidationResults = Omit<ConcurrentValidationReceipt, 'checks' | 'provenance' | 'version'>;
-
-const RECEIPT_EXIT_KEYS = [
-    'checks',
-    'e2eSetup',
-    'failureIsolation',
-    'failureCensus',
-    'parallelSafe',
-    'desktopExclusive',
-    'ciParity',
-    'manifest',
-] as const satisfies ReadonlyArray<keyof ConcurrentValidationReceipt>;
-
-/**
- * Job-log search anchors for each receipted component. The concurrent `run` step inherits child stdio, so these strings
- * are the practical way to jump to the failing fragment without knowing the receipt file exists.
- */
-function componentLogHint(label: string, preparationFailure?: string): string {
-    const anchors = [`"${label} failed with exit"`, `"${label} could not start"`];
-    if (preparationFailure) anchors.push(`"${preparationFailure}"`);
-    return `Search the job log for ${anchors.join(' or ')}.`;
-}
-
-const RECEIPT_LOG_HINTS = {
-    checks: componentLogHint('Full platform checks', 'Full platform checks could not prepare'),
-    ciParity: componentLogHint('Deterministic CI-parity cases'),
-    desktopExclusive: componentLogHint('Desktop-exclusive E2E pool'),
-    e2eSetup: `${componentLogHint('Electron Vite build')} ${componentLogHint('Electron native compatibility')}`,
-    failureCensus: componentLogHint('Bounded E2E failure census'),
-    failureIsolation: componentLogHint('Desktop worker interruption recovery'),
-    manifest: componentLogHint('E2E execution receipt'),
-    parallelSafe: componentLogHint('Parallel-safe E2E pool'),
-} as const satisfies Record<(typeof RECEIPT_EXIT_KEYS)[number], string>;
 
 interface ConcurrentValidationProcessOperations {
     clearForceTimer: (timer: ReturnType<typeof setTimeout>) => void;
@@ -116,6 +65,7 @@ export class ConcurrentValidationProcesses {
     private readonly forceTimers = new Map<ChildProcess, ReturnType<typeof setTimeout>>();
     private readonly operations: ConcurrentValidationProcessOperations;
     private isAborted = false;
+    private abortedReason: string | undefined;
 
     constructor(operations: Partial<ConcurrentValidationProcessOperations> = {}) {
         this.operations = { ...defaultProcessOperations, ...operations };
@@ -199,9 +149,17 @@ export class ConcurrentValidationProcesses {
         }
     }
 
+    /**
+     * Why the run was aborted, or `undefined` when every component ran to its own exit.
+     */
+    get abortReason(): string | undefined {
+        return this.abortedReason;
+    }
+
     abort(reason: string): void {
         if (this.isAborted) return;
         this.isAborted = true;
+        this.abortedReason = reason;
         console.error(`Concurrent validation aborted: ${reason}`);
         for (const child of this.active) {
             this.signal(child, 'SIGTERM');
@@ -480,35 +438,6 @@ async function writeReceipt(receipt: ConcurrentValidationReceipt): Promise<void>
     await rename(temporary, receiptPath);
 }
 
-/**
- * Human-readable failure summary for a concurrent-validation receipt. Green receipts return `undefined` so a passing
- * `run` stays silent. Null (skipped) components are not listed; only a concrete non-zero exit is.
- */
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-concurrent-validation.test.ts
-export function formatConcurrentValidationFailureSummary(
-    receipt: ConcurrentValidationReceipt,
-    receiptFile = receiptPath,
-): string | undefined {
-    const failed = RECEIPT_EXIT_KEYS.flatMap((key) => {
-        const exitCode = receipt[key];
-        return typeof exitCode === 'number' && exitCode !== 0
-            ? [`- ${key}: exit ${exitCode}. ${RECEIPT_LOG_HINTS[key]}`]
-            : [];
-    });
-    if (failed.length === 0) return undefined;
-    return ['Concurrent validation failed.', ...failed, `Receipt: ${receiptFile}`].join('\n');
-}
-
-async function publishConcurrentValidationFailureSummary(
-    receipt: ConcurrentValidationReceipt,
-): Promise<void> {
-    const summary = formatConcurrentValidationFailureSummary(receipt);
-    if (!summary) return;
-    console.error(summary);
-    const stepSummary = process.env.GITHUB_STEP_SUMMARY;
-    if (stepSummary) await appendFile(stepSummary, `${summary}\n`);
-}
-
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-concurrent-validation.test.ts
 export function isVerificationPassed(
     receipt: ConcurrentValidationReceipt,
@@ -566,6 +495,7 @@ async function execute(): Promise<void> {
         const receipt = { checks, ...e2e, provenance, version: 1 as const };
         await writeReceipt(receipt);
         await publishConcurrentValidationFailureSummary(receipt);
+        await publishConcurrentValidationOutcome(processes);
     } finally {
         clearTimeout(deadline);
     }

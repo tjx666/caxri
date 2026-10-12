@@ -1,7 +1,7 @@
 import type { ChildProcess } from 'node:child_process';
 import { execFile } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -19,12 +19,15 @@ import {
 import {
     ConcurrentValidationProcesses,
     concurrentValidationProvenance,
-    formatConcurrentValidationFailureSummary,
     isVerificationPassed,
     parseConcurrentValidationReceipt,
     runE2ESetup,
     scheduleConcurrentValidationDeadline,
 } from '../ci-concurrent-validation';
+import {
+    formatConcurrentValidationFailureSummary,
+    publishConcurrentValidationOutcome,
+} from '../ci-concurrent-validation-report';
 import { platformCheckCommands } from '../ci-platform-checks';
 import {
     EXPECTED_PLATFORM_NEUTRAL_GATE_IDS,
@@ -233,6 +236,27 @@ describe('concurrent CI validation', () => {
         } finally {
             vi.clearAllTimers();
             vi.useRealTimers();
+        }
+    });
+
+    it('reports an aborted run so the Renderer performance gate can skip it (issue #1852)', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-concurrent-outcome-'));
+        const output = join(directory, 'output');
+        const summary = join(directory, 'summary');
+        const runner = new ConcurrentValidationProcesses();
+        try {
+            await publishConcurrentValidationOutcome(runner, { output, summary });
+            expect(await readFile(output, 'utf8')).toBe('aborted=false\n');
+            await expect(access(summary)).rejects.toThrow();
+
+            runner.abort('concurrent validation exceeded 25 minutes');
+            await publishConcurrentValidationOutcome(runner, { output, summary });
+            expect(await readFile(output, 'utf8')).toBe('aborted=false\naborted=true\n');
+            expect(await readFile(summary, 'utf8')).toContain(
+                'Renderer performance gate skipped: concurrent validation aborted (concurrent validation exceeded 25 minutes)',
+            );
+        } finally {
+            await rm(directory, { force: true, recursive: true });
         }
     });
 
