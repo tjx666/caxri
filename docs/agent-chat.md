@@ -1044,8 +1044,9 @@ mid-Chat differs per provider:
 - **Codex** has no in-place request, so a level rides on the next `turn/start` as
   `approvalPolicy`, `approvalsReviewer`, and `sandboxPolicy`, which Codex keeps on the thread; a
   running turn keeps the level it started with. Because `sandboxPolicy` replaces the thread's whole
-  policy and app-server fills omitted fields with empty defaults, a switch to a workspace-write level
-  also sends the `[sandbox_workspace_write]` extras (absolute `writable_roots`, `network_access`,
+  policy and app-server resets omitted fields to defaults (verified on Codex 0.163: a bare
+  `workspaceWrite` turns `network_access` off and drops the tmp exclusions), a switch to a
+  workspace-write level also sends the `[sandbox_workspace_write]` extras (absolute `writable_roots`, `network_access`,
   and the tmp exclusions) that `config/read` reports for the Chat's directory. `thread/start` and
   `thread/resume` pass the saved level directly. Plan mode is app-server's `collaborationMode`, which names the model and effort it
   runs with: it is sent on every turn while on, and `default` is sent once to turn it off when the
