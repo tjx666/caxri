@@ -24,13 +24,22 @@ export function startupDeadlineOutcome(
 }
 
 /**
+ * True for a task that relaunches an existing conversation (an exact resume, or the Commander continuing a hand-over)
+ * rather than starting a fresh one.
+ */
+function isConversationContinuation(record: StoredAgentDelegation): boolean {
+    return Boolean(record.input.resumeFrom ?? record.input.continueFromHandover);
+}
+
+/**
  * Before a fresh Agent starts its turn, the user's input answers its startup prompt; there is no conversation to take
  * over yet, so it neither interrupts the task nor revokes its continuation authority. The caller carries the Terminal's
  * already advanced input epoch onto the task, so the fence guarding a later follow-up measures input after the turn,
- * not this answer. A resumed task already has a conversation, so input there still counts as a takeover.
+ * not this answer. A resumed or handed-over task already has a conversation, so input there still counts as a
+ * takeover.
  */
 export function isStartupPromptInput(record: StoredAgentDelegation): boolean {
-    return !record.input.resumeFrom && isAwaitingStartup(record);
+    return !isConversationContinuation(record) && isAwaitingStartup(record);
 }
 
 /**
@@ -43,7 +52,11 @@ export function interruptedDelegation(
     retiredLaunchId?: string,
 ): StoredAgentDelegation | undefined {
     if (!isHumanInput) {
-        if (record.input.resumeFrom && !record.launchId && record.receipt.status === 'launching')
+        if (
+            isConversationContinuation(record) &&
+            !record.launchId &&
+            record.receipt.status === 'launching'
+        )
             return undefined;
         if (retiredLaunchId && record.launchId && record.launchId !== retiredLaunchId)
             return undefined;

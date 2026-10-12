@@ -14,6 +14,7 @@ import type { StructuredLogger } from '@caxri/system';
 import type { CaxriDatabase } from '../db';
 import { agentCommanderTerminal } from '../db';
 import { commanderBoard } from './board';
+import { commanderHandovers } from './handover-records';
 import { CommanderTaskLedger } from './tasks';
 import { prepareCommanderWorkspace } from './workspace';
 
@@ -279,6 +280,7 @@ export class AgentCommanderService {
         const rows = database.agentCommanderRows();
         return commanderBoard({
             commanderSessionIds: new Set(rows?.sessionIds),
+            handovers: commanderHandovers(database),
             now: this.now(),
             projects: database.listVisibleProjects(),
             pullRequests: this.options.pullRequests(),

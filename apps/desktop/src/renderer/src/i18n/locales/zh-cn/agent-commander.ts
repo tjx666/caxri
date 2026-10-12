@@ -153,4 +153,61 @@ export const agentCommander: TranslatedNamespace<typeof source> = {
     'agentCommander.commands.stopTurnTitle': '停止正在运行的这一轮？',
     'agentCommander.commands.stopTurnMessage':
         'Agent Commander 仍在工作。停止它会结束当前这一轮并关闭其窗口。它委派的任务会继续运行。',
+    // Hand-over
+    'agentCommander.handover.open': '转交',
+    'agentCommander.handover.openTooltip':
+        '把你自己的会话，或在 Caxri 之外开始的 Agent 对话，转交给 Commander',
+    'agentCommander.handover.title': '转交给 Agent Commander',
+    'agentCommander.handover.description':
+        'Commander 会接管你选中的内容，并从每段 Agent 对话停下的地方继续。备注告诉它要做什么。',
+    'agentCommander.handover.sourceLabel': '转交什么',
+    'agentCommander.handover.sessionsTab': '会话',
+    'agentCommander.handover.conversationsTab': 'Caxri 之外',
+    'agentCommander.handover.searchSessions': '搜索会话或项目',
+    'agentCommander.handover.searchConversations': '搜索对话或文件夹',
+    'agentCommander.handover.loadingSessions': '正在加载会话…',
+    'agentCommander.handover.loadingConversations':
+        '正在查找 Claude Code、Codex 和 Grok Build 的对话…',
+    'agentCommander.handover.loadFailed': '无法加载此列表。请关闭对话框后重试。',
+    'agentCommander.handover.noMatches': '没有符合搜索条件的结果。',
+    'agentCommander.handover.noSessions': '所有会话都已交给 Commander。',
+    'agentCommander.handover.noConversations': '在 Caxri 之外没有找到最近 30 天的 Agent 对话。',
+    'agentCommander.handover.selectGroup': '全选 {{group}}',
+    'agentCommander.handover.selectCandidate': '选择 {{title}}',
+    'agentCommander.handover.addsProject': '会将此文件夹添加为项目',
+    'agentCommander.handover.mayBeOpen': '可能在别处打开',
+    'agentCommander.handover.mayBeOpenWarning':
+        '你选中的某段对话在几分钟内仍有活动。如果它还在另一个终端里打开，两边会各自继续，形成分叉。',
+    'agentCommander.handover.tooMany': '一次最多转交 {{max}} 个，请取消选择 {{excess}} 个后继续。',
+    'agentCommander.handover.untitledConversation': '未命名对话',
+    'agentCommander.handover.refusedLine': '未转交（{{count}}）：{{reason}}',
+    'agentCommander.handover.noteLabel': '给 Commander 的备注',
+    'agentCommander.handover.notePlaceholder':
+        '可选：Commander 要做什么，例如“完成迁移并提交 pull request”',
+    'agentCommander.handover.takeBackHint': '在已转交的会话里输入内容会将其收回。',
+    'agentCommander.handover.selectedCount': '已选 {{count}} 项',
+    'agentCommander.handover.submit': '转交',
+    'agentCommander.handover.failed': '无法转交给 Agent Commander',
+    'agentCommander.handover.noneAccepted': '没有转交任何内容：{{reason}}',
+    'agentCommander.handover.partlyAccepted':
+        '已转交 {{accepted}} 项给 Agent Commander，{{refused}} 项未能转交',
+    'agentCommander.handover.acceptedOne': '已转交 1 项给 Agent Commander',
+    'agentCommander.handover.acceptedOther': '已转交 {{count}} 项给 Agent Commander',
+    'agentCommander.handover.takeBackFailed': '无法收回该会话',
+    'agentCommander.handover.takenBack': '已从 Agent Commander 收回该会话',
+    'agentCommander.handover.rejection.alreadyManaged': 'Commander 已在管理它',
+    'agentCommander.handover.rejection.commanderSession': '它就是 Commander 自己',
+    'agentCommander.handover.rejection.commanderUnavailable': 'Agent Commander 尚未设置',
+    'agentCommander.handover.rejection.conversationBound': '已有 Caxri 终端绑定了这段对话',
+    'agentCommander.handover.rejection.conversationMissing': '对话或其文件夹已不存在',
+    'agentCommander.handover.rejection.duplicate': '重复选择',
+    'agentCommander.handover.rejection.ownershipCapacity': 'Commander 管理的会话过多',
+    'agentCommander.handover.rejection.projectUnavailable': '其项目已隐藏或不可用',
+    'agentCommander.handover.rejection.sessionArchived': '会话已归档',
+    'agentCommander.handover.rejection.sessionMissing': '会话已不存在',
+    'agentCommander.handover.rejection.taskCapacity': 'Commander 未完成的任务过多',
+    'agentCommander.board.handoverContinuable':
+        '由你转交。待其 Agent 处于两轮之间时，Commander 会继续这段对话。',
+    'agentCommander.board.handoverOwnershipOnly':
+        '由你转交。这里没有可继续的 Agent 对话，Commander 会在这里开始新的工作。',
 };

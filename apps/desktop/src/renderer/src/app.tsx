@@ -8,6 +8,7 @@ import { useCommandShortcuts } from './commands/use-command-shortcuts';
 import { TooltipProvider } from './components/ui/tooltip';
 import { AgentActionsDialog } from './features/agent-actions/agent-actions-dialog';
 import { subscribeAgentChatPatches } from './features/agent-chat/agent-chat-client';
+import { CommanderHandoverDialog } from './features/agent-commander/commander-handover-dialog';
 import { AgentMessageApprovalDialog } from './features/agent-inbox/agent-message-approval-dialog';
 import { subscribeHeldMessageQueue } from './features/agent-inbox/agent-message-approval-store';
 import { BugReportDialog } from './features/bug-report/bug-report-dialog';
@@ -252,6 +253,7 @@ export function App() {
                 <StatusBar />
                 <CreateSessionDialog />
                 <ArchivedSessionsDialog />
+                <CommanderHandoverDialog isFromWorkbench />
                 <ContentSearchDialog />
                 <UpdateDialog />
                 <CommandPalette />

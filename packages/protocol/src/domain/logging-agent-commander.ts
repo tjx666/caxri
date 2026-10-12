@@ -15,6 +15,21 @@ export const agentCommanderLogEvents = {
     sessionCreated: 'agent_commander.session_created',
     sessionDiscarded: 'agent_commander.session_discarded',
     /**
+     * One `commander.session.handOver` request finished: `fields.accepted` and `fields.rejected` count its entries,
+     * `fields.reasons` names each refusal's closed reason, `fields.conversations` counts imported external
+     * conversations, and `fields.ownershipOnly` counts Sessions handed over without a conversation to continue.
+     */
+    sessionsHandedOver: 'agent_commander.sessions_handed_over',
+    /**
+     * A handed-over Session left the Commander. `fields.reason` is `take_back` (the user asked) or `human_input` (the
+     * user typed into its Agent), with the hand-over's age and whether the Commander had already continued it.
+     */
+    sessionTakenBack: 'agent_commander.session_taken_back',
+    /**
+     * The Commander's first task continued a handed-over conversation, with the hand-over's age in `fields.waitMs`.
+     */
+    handoverContinued: 'agent_commander.handover_continued',
+    /**
      * `commander.stop` parked the Commander Terminal. `fields.outcome` is `stopped` or `not_running`.
      */
     stopped: 'agent_commander.stopped',

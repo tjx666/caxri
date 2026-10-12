@@ -13,12 +13,7 @@ import { createBackgroundTasks } from './background-tasks';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import { createAgentChatService } from './chat-service-creation';
 import { createChatTerminalCreator } from './chat-terminal-creation';
-import {
-    commanderHostOptions,
-    CommanderInboxService,
-    CommanderTerminalHooks,
-    createCommanderCompletionNotifier,
-} from './commander';
+import { commanderHostOptions, CommanderTerminalHooks, createCommanderServices } from './commander';
 import { coreRoutedHandlers } from './core-routed';
 import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
@@ -28,7 +23,7 @@ import { createIntrospectionServices } from './introspection';
 import { createMobileDomainHandlers, MobileTerminalMutationQueue } from './mobile';
 import { createOrderingHandlers } from './ordering-handlers';
 import { createSessionParkingHandlers, createTerminateAllHandler } from './parking-handlers';
-import { createProjectHidingHandlers } from './project';
+import { createProjectHidingHandlers, resolveOwnerProjectRoot } from './project';
 import { createRootServices } from './root-services';
 import { createServiceHandlers } from './service-handlers';
 import {
@@ -105,6 +100,7 @@ export async function createDomainServices(
             delegationState.service?.observe(signal);
             suspensionState.service?.observeAppliedLifecycle(signal);
             commanderHooks.notifier?.onLifecycleApplied(signal);
+            commanderHooks.handovers?.onLifecycleApplied(signal);
         },
         send,
         userDataPath,
@@ -165,10 +161,10 @@ export async function createDomainServices(
         },
         onOutputActivity: (terminalId, processId) =>
             coordinator.observeOutput(terminalId, processId),
-        onInput: (terminalId, data) => {
+        onInput: (terminalId, data, origin) => {
             compactionReadiness.input(terminalId, data);
             suspensionState.service?.observeInput(terminalId, data);
-            commanderHooks.notifier?.observeInput(terminalId, data);
+            if (origin === 'human') commanderHooks.input(terminalId, data);
             delegationState.service?.interruptTerminal(terminalId, true);
         },
         onAgentStateChanged: (terminalId, state, cause) =>
@@ -361,27 +357,22 @@ export async function createDomainServices(
     });
     agentDispatchState.service = agentCommands.dispatchService;
     delegationState.service = agentCommands.delegationService;
-    /**
-     * Constructed only once the exact-launch write path it fences against exists.
-     */
-    commanderHooks.notifier = createCommanderCompletionNotifier({
+    const { inbox: commanderInbox, handovers: commanderHandovers } = createCommanderServices({
         agentChat,
         coordinator,
         database,
-        logger,
-        terminals,
-    });
-    const commanderInbox = new CommanderInboxService({
-        database,
+        environment: agentEnvironment,
         github: externalStatus.github,
+        hooks: commanderHooks,
         ignoredChecks: () => configuration.getSettings().value['projectStatus.ignoredChecks'],
         logger,
-        notify: (itemId, event) => commanderHooks.notifier?.notifyInbox(itemId, event),
+        resolveProjectRoot: resolveOwnerProjectRoot,
         run: externalStatus.run,
         send,
+        sendFullStateChange: () => sendFullStateChange('session.create'),
+        terminals,
         workingDirectory: userDataPath,
     });
-    commanderInbox.start();
     const sessionSelections = new SessionSelectionQueue();
     let isClosed = false;
     async function close(): Promise<void> {
@@ -601,6 +592,7 @@ export async function createDomainServices(
                 sendFullStateChange: () => sendFullStateChange('session.create'),
                 terminals,
             }),
+            commanderHandovers,
             commanderInbox,
             configuration,
             database,

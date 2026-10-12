@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { MessageSquareWarning, PanelLeft, Power } from 'lucide-react';
+import { HandHelping, MessageSquareWarning, PanelLeft, Power } from 'lucide-react';
 
 import { CaxriLogo } from '../../components/caxri-logo';
 import { Button } from '../../components/ui/button';
@@ -13,6 +13,7 @@ import { canSwitchTerminalSurface } from '../terminal/terminal-surface-commands'
 import { setCommanderBoardVisible, useCommanderBoardUiStore } from './commander-board-store';
 import { useAgentCommanderStore } from './commander-client';
 import { stopCommander } from './commander-commands';
+import { openCommanderHandover } from './commander-handover-store';
 import { openCommanderInboxCount } from './commander-inbox';
 import { setCommanderInboxVisible, useCommanderInboxUiStore } from './commander-inbox-store';
 import { useCommanderInbox } from './hooks/use-commander-inbox';
@@ -64,6 +65,17 @@ export function AgentCommanderHeader() {
                     onVisibleChange={setCommanderBoardVisible}
                 />
                 <InboxToggle />
+                <Tooltip content={t('agentCommander.handover.openTooltip')}>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="agent-commander-handover text-muted"
+                        onClick={() => openCommanderHandover()}
+                    >
+                        <HandHelping size={13} />
+                        {t('agentCommander.handover.open')}
+                    </Button>
+                </Tooltip>
                 {terminal && canSwitchTerminalSurface(terminal) && (
                     <AgentSurfaceToggle terminal={terminal} />
                 )}

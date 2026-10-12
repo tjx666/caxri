@@ -85,12 +85,15 @@ Session and caller provider; it grants only delegation and does not start a Serv
 See [external callers](agent-delegation.md#external-callers-and-directory-authorization).
 
 `commander board`, `commander session create --project <id>`, `commander session archive <session-id>`,
+`commander session hand-over <session-id>... [--note-file <path>]`, `commander session take-back <session-id>`,
 `commander task add|update|list`, and
 `commander inbox add|list|show|ack|resolve` belong to the
 [Agent Commander](agent-commander.md). They require the `commander` capability, which only the
 Commander's own Agent Endpoint and the human owner hold. `agent delegate create --new-session --title <title>` (in place of
 `--session <id>`) creates the Commander Session in the same request and names it; only the Commander
-may pass it. Replying to, dismissing, and merging an [Inbox](agent-commander.md#commander-inbox) item
+may pass it. Hand-over and take-back are owner-only, since the Commander's Endpoint lacks
+`agents.control`; `--continue-handover <id>` on `agent delegate create` is the Commander's side
+([Hand-over](agent-commander.md#hand-over)). Replying to, dismissing, and merging an [Inbox](agent-commander.md#commander-inbox) item
 are owner-only Desktop and mobile actions with no CLI command.
 
 Agent automation deliberately separates Peer Messages (`agent message`), durable Agent lifecycle

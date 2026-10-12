@@ -93,6 +93,8 @@ export const effectfulCommandRecovery = {
     'commander.ensure': 'memory',
     'commander.session.create': 'durable',
     'commander.session.archive': 'durable',
+    'commander.session.handOver': 'durable',
+    'commander.session.takeBack': 'durable',
     'commander.task.create': 'durable',
     'commander.task.update': 'durable',
     'commander.stop': 'durable',

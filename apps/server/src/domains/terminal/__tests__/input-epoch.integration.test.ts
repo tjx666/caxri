@@ -31,9 +31,13 @@ it('retains draft-input ownership while excluding native protocol replies, mouse
         expect(onInput).not.toHaveBeenCalled();
         manager.write(id, 'Unsubmitted synthetic draft');
         expect(manager.inputEpoch(id)).toBe(1);
-        expect(onInput).toHaveBeenCalledWith(id, 'Unsubmitted synthetic draft');
+        expect(onInput).toHaveBeenCalledWith(id, 'Unsubmitted synthetic draft', 'human');
         manager.writeAgentExact(id, '\u{1B}', 'launch');
         expect(manager.inputEpoch(id)).toBe(2);
+        // Server maintenance such as warm-Session compaction still fences drafts but is not the user typing.
+        manager.writeAgentExact(id, '/compact\r', 'launch', 'maintenance');
+        expect(manager.inputEpoch(id)).toBe(3);
+        expect(onInput).toHaveBeenLastCalledWith(id, '/compact\r', 'maintenance');
     } finally {
         await manager.shutdown('orderly');
         database.close();

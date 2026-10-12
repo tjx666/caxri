@@ -306,6 +306,13 @@ It can also recover a stopped Terminal. It never resubmits the previous task: th
 new instructions that account for uncertain prior effects. Human takeover or another launch fences
 both continuation operations. Each task retains its own answer and correlation evidence.
 
+`--continue-handover <handover-id>` is the Agent Commander's first task in a Session the user
+[handed over](agent-commander.md#hand-over). Like `--resume` it relaunches the Session's existing
+Agent on its exact native conversation, replacing the user's launch, but it creates the root task
+of a new chain: it takes no provider or preset, refuses a human caller, refuses while the Agent is
+in a turn, and fails as `launch_failed` if human input arrives during the relaunch. It consumes the
+hand-over, so a second call is refused; later tasks continue the chain with `--follow-up`.
+
 After a Caxri restart, selecting a delegated Session restores it the way it was. While one of its
 tasks is still active, only the outer Shell comes back, and that task continues only through the
 explicit `--resume` above. Once every task settled (a restart itself settles an active task as

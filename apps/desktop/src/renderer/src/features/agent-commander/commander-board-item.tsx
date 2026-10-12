@@ -13,6 +13,7 @@ import {
     CircleStop,
     CircleX,
     Hand,
+    HandHelping,
     LoaderCircle,
     Moon,
     Power,
@@ -36,6 +37,7 @@ import type {
     CommanderTaskIconId,
 } from './commander-board';
 import {
+    commanderHandoverDescription,
     commanderPullRequestBadge,
     commanderRowPresentation,
     commanderTaskBadge,
@@ -106,6 +108,7 @@ export function CommanderBoardItem({
     const presentation = commanderRowPresentation(row, t);
     const badge = commanderPullRequestBadge(row, t);
     const task = commanderTaskBadge(row.task, t);
+    const handover = commanderHandoverDescription(row.handover, t);
     const GlyphIcon = GLYPH_COMPONENTS[presentation.glyph];
     const ProcessIcon = presentation.processIcon && PROCESS_ICONS[presentation.processIcon];
     const ChecksIcon = badge?.checksIcon && CHECKS_ICONS[badge.checksIcon];
@@ -139,9 +142,14 @@ export function CommanderBoardItem({
                     >
                         {row.sessionTitle}
                     </button>
-                    {row.commanderSession && (task !== undefined || showsOwnership) && (
-                        <CommanderTaskIcon showsOwnership={showsOwnership} task={task} />
-                    )}
+                    {row.commanderSession &&
+                        (task !== undefined || handover !== undefined || showsOwnership) && (
+                            <CommanderTaskIcon
+                                handover={handover}
+                                showsOwnership={showsOwnership}
+                                task={task}
+                            />
+                        )}
                     <span className="commander-board-time ml-auto flex-none pl-1 text-[11px] whitespace-nowrap text-muted tabular-nums">
                         {localizedRelativeTime(row.lastActivityAt, now, 'narrow', locale)}
                     </span>
@@ -202,19 +210,22 @@ export function CommanderBoardItem({
 
 /**
  * The Commander's hold on a Session as one tinted icon: its current task's status, tinted when the task needs someone,
- * with the status and what it means in the tooltip. In the whole-Workbench scope a Session the Commander created but
- * never delegated into shows a robot, so the Commander's rows stand out from the user's.
+ * with the status and what it means in the tooltip. A Session the user handed over and the Commander has not continued
+ * yet shows a helping hand. In the whole-Workbench scope a Session the Commander created but never delegated into shows
+ * a robot, so the Commander's rows stand out from the user's.
  */
 function CommanderTaskIcon({
+    handover,
     showsOwnership,
     task,
 }: {
+    handover: string | undefined;
     showsOwnership: boolean;
     task: ReturnType<typeof commanderTaskBadge>;
 }) {
     const { t } = useTranslation();
-    const TaskIcon = task ? TASK_ICONS[task.icon] : Bot;
-    const description = task?.title ?? t('agentCommander.board.ownedSession');
+    const TaskIcon = task ? TASK_ICONS[task.icon] : handover ? HandHelping : Bot;
+    const description = task?.title ?? handover ?? t('agentCommander.board.ownedSession');
     const label =
         showsOwnership && task
             ? t('agentCommander.board.commanderTask', { description })
@@ -232,7 +243,9 @@ function CommanderTaskIcon({
                 data-task-label={
                     task
                         ? englishAgentCommander[task.labelKey as keyof typeof englishAgentCommander]
-                        : 'Commander'
+                        : handover
+                          ? 'Handed over'
+                          : 'Commander'
                 }
             >
                 <TaskIcon size={12} />

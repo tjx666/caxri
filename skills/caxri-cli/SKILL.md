@@ -157,8 +157,8 @@ lifecycle completion from Terminal silence or read output to guess Agent state.
 
 Only the Agent Commander Terminal holds the `commander` capability. It reads every visible Project
 and Session through one board, instead of `project current` or `session current`, and delegates each
-task into a Session it created itself. `agent delegate create --new-session --title <title>` (in place of
-`--session <id>`) creates that Session together with the task, so it never sits empty in the
+task into a Session it created itself or the user handed it.
+`agent delegate create --new-session --title <title>` (in place of `--session <id>`) creates that Session together with the task, so it never sits empty in the
 Workbench. The required title names the Session after the task's concrete subject, because its
 Agent only ever sees a pointer to the task file. `commander session create` creates an empty one:
 
@@ -167,12 +167,27 @@ caxri commander board --json
 caxri commander session create --project project-1 --json
 ```
 
-When the user asks to clean up finished work, archive a Session you created with
+When the user asks to clean up finished work, archive a Session you manage with
 `commander session archive`. It is reversible: the Session's Agent is parked and the user restores it
-from Archived Sessions. Sessions you did not create are refused:
+from Archived Sessions. Other Sessions are refused:
 
 ```bash
 caxri commander session archive session-1 --json
+```
+
+The user can also hand the Commander Sessions they started themselves, or Agent conversations begun
+outside Caxri, from the Workbench or with `commander session hand-over`. Each becomes a Commander
+Session with an open ledger task carrying the user's note (`--note-file <path>`), and Caxri
+announces it with a hand-over ID. Continue it with
+`agent delegate create --session <id> --prompt-file <path> --continue-handover <handover-id>`: that
+first task resumes the Session's own Agent conversation instead of starting a fresh one, takes no
+provider or preset, and is refused while the Agent is still in a turn. Later tasks continue that
+delegation as usual. Typing into the handed-over Agent, or `commander session take-back`, returns
+the Session to the user. Only the user can hand over or take back:
+
+```bash
+caxri commander session hand-over session-1 session-2 --json
+caxri commander session take-back session-1 --json
 ```
 
 The Commander's task ledger is durable product state, not notes it has to remember to keep. Record

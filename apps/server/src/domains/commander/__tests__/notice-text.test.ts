@@ -38,6 +38,32 @@ describe('formatCommanderCompletionNotice', () => {
         );
     });
 
+    it('names hand-overs by hand-over and Session ID with a closed event word', () => {
+        expect(
+            formatCommanderCompletionNotice(
+                [],
+                [],
+                [
+                    { handoverId: 'h1', sessionId: 's1', event: 'ready' },
+                    { handoverId: 'h2', sessionId: 's2', event: 'ownership_only' },
+                ],
+            ),
+        ).toBe(
+            '[Caxri notice] 2 hand-over updates: hand-over h1 of Session s1 is ready to continue; ' +
+                'hand-over h2 of Session s2 has no conversation to continue; start a new task there.',
+        );
+        expect(
+            formatCommanderCompletionNotice(
+                [],
+                [{ itemId: 'i1', event: 'replied' }],
+                [{ handoverId: 'h1', sessionId: 's1', event: 'busy' }],
+            ),
+        ).toBe(
+            '[Caxri notice] 2 updates: inbox item i1 has a new reply; ' +
+                'hand-over h1 of Session s1 is still in a turn; wait for its ready notice.',
+        );
+    });
+
     it('never lets an interpolated field introduce a control character or a newline', () => {
         const text = formatCommanderCompletionNotice([
             { delegationId: 'd1\u{7}\ninjected', sessionId: 's1', status: 'completed' },
