@@ -102,6 +102,13 @@ test('a Codex Chat switches its model, effort, and Fast mode and shows the conte
         await expect(faq.locator('[data-link-icon]')).toHaveCount(1);
         await expect(chat.getByText('Esc to stop')).toBeHidden();
         await page.screenshot({ path: testInfo.outputPath('codex-chat-markdown.png') });
+        // A quote offers Copy on hover, the way a code block does.
+        const quote = chat.locator('blockquote').filter({ hasText: 'nothing outside the Project' });
+        const copyQuote = quote.locator('..').getByRole('button', { name: 'Copy quote' });
+        await expect(copyQuote).toHaveCSS('opacity', '0');
+        await quote.hover();
+        await expect(copyQuote).toHaveCSS('opacity', '1');
+        await page.screenshot({ path: testInfo.outputPath('codex-chat-quote-copy.png') });
     } finally {
         await closeAppQuietly(running.app);
         await rm(directory, { recursive: true, force: true });

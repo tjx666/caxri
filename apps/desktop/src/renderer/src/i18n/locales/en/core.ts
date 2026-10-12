@@ -22,6 +22,7 @@ export const core = {
     'core.copy.failed': 'Copy failed',
     'core.copy.code': 'Copy code',
     'core.copy.table': 'Copy table',
+    'core.copy.quote': 'Copy quote',
 
     // components/find-bar.tsx
     'core.findBar.placeholder': 'Find',
