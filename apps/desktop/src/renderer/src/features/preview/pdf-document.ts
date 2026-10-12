@@ -10,6 +10,7 @@ import type { PdfFindResult, PdfFindStep } from './pdf-find';
 import { pdfFindEvent } from './pdf-find';
 import type { PdfZoomChoice } from './pdf-toolbar-model';
 import { clampPdfPageNumber } from './pdf-toolbar-model';
+import { pinchScaleFactor } from './preview-zoom';
 
 /**
  * Zoom bounds and the fit the viewer opens at. `page-width` matches how a reader opens a PDF in a narrow editor pane:
@@ -254,7 +255,7 @@ export async function createPdfViewerSession({
             if (!event.ctrlKey) return;
             event.preventDefault();
             viewer.updateScale({
-                scaleFactor: Math.exp(-event.deltaY / 100),
+                scaleFactor: pinchScaleFactor(event.deltaY),
                 origin: [event.clientX, event.clientY],
             });
         },

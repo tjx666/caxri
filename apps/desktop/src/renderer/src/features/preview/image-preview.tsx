@@ -8,6 +8,7 @@ import { EditorLoadFailure } from '../editor/editor-load-failure';
 import { usePreviewSourceRevision } from './hooks/use-preview-source-revision';
 import { readAssetObjectUrl } from './preview-asset-client';
 import { PREVIEW_LOADING_LABEL_KEY } from './preview-registry';
+import { PreviewZoomView } from './preview-zoom-view';
 
 type ImageState =
     | { status: 'failed'; error: unknown }
@@ -78,7 +79,7 @@ function useImageObjectUrl(
 }
 
 /**
- * The image reading view, currently reached for SVG.
+ * The image reading view, currently reached for SVG. It zooms and pans (see `PreviewZoomView`), opening at Fit.
  *
  * It reads the file again when it is rewritten on disk, so an SVG an Agent regenerates shows its current state. A read
  * that fails says why and offers the recovery that fits: Retry for a read that can succeed later, the default app for a
@@ -90,10 +91,12 @@ function useImageObjectUrl(
 export function ImagePreview({
     path,
     sessionId,
+    viewStateKey,
     workbenchProjectId,
 }: {
     path: string;
     sessionId: string;
+    viewStateKey: string;
     workbenchProjectId: string | undefined;
 }) {
     const { t } = useTranslation();
@@ -109,17 +112,21 @@ export function ImagePreview({
         );
     return (
         <div className="flex h-full min-h-0 flex-col bg-background">
-            <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-6">
-                {state.status === 'loading' ? (
+            {state.status === 'loading' ? (
+                <div className="flex min-h-0 flex-1 items-center justify-center p-6">
                     <Skeleton
                         className="h-full max-h-80 w-full max-w-120"
                         role="status"
                         aria-hidden={false}
                         aria-label={t(PREVIEW_LOADING_LABEL_KEY)}
                     />
-                ) : (
+                </div>
+            ) : (
+                <PreviewZoomView viewStateKey={viewStateKey}>
+                    {/* Natural size: the zoom view scales it. Not draggable, so a drag pans instead of lifting the file. */}
                     <img
-                        className="caxri-image-preview-canvas max-h-full max-w-full object-contain"
+                        className="caxri-image-preview-canvas block max-w-none"
+                        draggable={false}
                         src={state.objectUrl}
                         alt={basename(path)}
                         onLoad={(event) =>
@@ -129,8 +136,8 @@ export function ImagePreview({
                             })
                         }
                     />
-                )}
-            </div>
+                </PreviewZoomView>
+            )}
             <div className="flex h-6 flex-none items-center justify-center bg-surface text-[11px] text-muted">
                 {size ? `${size.width} × ${size.height}` : ''}
             </div>
