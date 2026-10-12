@@ -54,3 +54,47 @@ export async function streamPlannedReply(io: FakeClaudeIo, reply: string) {
     });
     await io.didStreamFully(`Hello from fake Claude. ${reply}`, 5);
 }
+
+/**
+ * Three Claude in Chrome steps (open a page, click on it, and a find that fails) followed by a short reply, leaving the
+ * turn's result to the caller.
+ */
+export async function streamBrowserSteps(io: FakeClaudeIo) {
+    const messageId = `msg_${crypto.randomUUID()}`;
+    const steps = [
+        {
+            name: 'mcp__claude-in-chrome__navigate',
+            input: { url: 'https://example.test/settings', tabId: 1 },
+            output: 'Navigated to https://example.test/settings',
+        },
+        {
+            name: 'mcp__claude-in-chrome__computer',
+            input: { action: 'left_click', ref: 'ref_12', tabId: 1 },
+            output: 'Clicked ref_12',
+        },
+        {
+            name: 'mcp__claude-in-chrome__find',
+            input: { query: 'Export button', tabId: 1 },
+            output: 'No matching element',
+            isError: true,
+        },
+    ];
+    for (const step of steps) {
+        const id = `toolu_${crypto.randomUUID()}`;
+        io.assistant(messageId, { type: 'tool_use', id, name: step.name, input: step.input });
+        const message = {
+            role: 'user',
+            content: [
+                {
+                    type: 'tool_result',
+                    tool_use_id: id,
+                    content: step.output,
+                    ...(step.isError && { is_error: true }),
+                },
+            ],
+        };
+        io.send(io.frame({ type: 'user', message }));
+        io.record({ type: 'user', message });
+    }
+    await io.didStreamFully('Checked the settings page.', 0);
+}
