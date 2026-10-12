@@ -135,12 +135,19 @@ export const commandDescriptions = {
         'Open the cross-Project Agent board beside the Commander Agent',
     'commands.description.agentCommander.stop':
         'Stop the Agent Commander running in the background; opening it again resumes the same conversation',
+    'commands.description.agentCommander.handOver':
+        'Pick Sessions, or Agent conversations started outside Caxri, for the Agent Commander to take over',
     'commands.description.processExplorer.open': 'Inspect Caxri process resource usage',
     'commands.description.developer.toggleScreencastMode':
         'Show clicks and Caxri shortcuts for external screen recording',
     'commands.description.developer.reportBug':
         'Preview and send a privacy-safe local bug report to a running Agent',
     'commands.description.diagnostics.export': 'Export a privacy-safe diagnostics bundle',
+    'commands.description.remote.connect':
+        'Open a window whose Projects, Terminals, and Agents run on an SSH Host',
+    'commands.description.remote.reconnect': "Reconnect this window to its SSH Host's Server",
+    'commands.description.remote.stopServer':
+        'Stop the Server on this SSH Host, ending every Terminal and Agent running there',
     'commands.description.git.switchBranch':
         "Check out another branch in the selected Session's repository",
     'commands.description.git.goToNextReviewComment':

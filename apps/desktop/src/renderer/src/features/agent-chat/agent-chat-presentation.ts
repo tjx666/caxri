@@ -8,6 +8,7 @@ import { projectRelativePath } from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
+import type { SuggestionMenuKeyAction } from '../../lib/suggestion-options';
 import { getTerminalExitPresentation } from '../terminal/terminal-exit-presentation';
 import {
     agentChatLocalizedFailureMessage,
@@ -315,6 +316,23 @@ export function agentChatSendAction(
 }
 
 /**
+ * The input's placeholder. While a message waits at the head of the queue, an empty input's Enter sends it now
+ * (`agentChatComposerKeyAction`), so the placeholder says so instead of describing a follow-up nobody typed yet.
+ */
+export function agentChatComposerPlaceholder(
+    sendAction: { placeholder: string },
+    state: { hasNextQueued: boolean; isEditing: boolean; isTurnRunning: boolean },
+    t: Translate = translate,
+): string {
+    if (!state.hasNextQueued || state.isEditing) return sendAction.placeholder;
+    return t(
+        state.isTurnRunning
+            ? 'agentChat.message.steerQueuedPlaceholder'
+            : 'agentChat.message.sendQueuedPlaceholder',
+    );
+}
+
+/**
  * Why the Chat itself refuses a message right now (`canSendAgentChatMessage`), or `undefined` when it accepts one.
  */
 export function agentChatSendBlock(
@@ -363,6 +381,61 @@ export function agentChatSendTooltip(
     if (state.isSending) return t('agentChat.message.sending');
     if (!state.hasContent) return t('agentChat.message.typeToSend');
     return action.tooltip;
+}
+
+/**
+ * Whether Enter on an open slash list with no matching row is held for confirmation rather than sending the draft: the
+ * first press on a draft is held (it may be a mistyped command), and a second press on the same draft sends it as
+ * text.
+ */
+export function shouldConfirmUnmatchedSend(state: {
+    /**
+     * The draft a previous Enter was already held for, if any.
+     */
+    confirmingDraft: string | undefined;
+    draft: string;
+    matchCount: number;
+}): boolean {
+    return state.matchCount === 0 && state.confirmingDraft !== state.draft;
+}
+
+/**
+ * What a key does to the open slash list (`suggestionMenuKeyAction`), or `undefined` when the key is not the list's and
+ * the composer handles it. The first Enter on a draft with no match is held for confirmation
+ * (`shouldConfirmUnmatchedSend`); the second falls through and sends the draft. Escape dismisses the list even with no
+ * match, while moving, completing, and choosing need an active row.
+ */
+export type AgentChatCommandMenuKeyStep =
+    | { kind: 'confirm' }
+    | { kind: 'dismiss' }
+    | { kind: 'move'; delta: -1 | 1 }
+    | { kind: 'run'; handler: 'choose' | 'complete' };
+
+export function agentChatCommandMenuKeyStep(
+    action: SuggestionMenuKeyAction | undefined,
+    state: Parameters<typeof shouldConfirmUnmatchedSend>[0] & { hasActiveCommand: boolean },
+): AgentChatCommandMenuKeyStep | undefined {
+    if (action === 'choose' && shouldConfirmUnmatchedSend(state)) return { kind: 'confirm' };
+    if (action === 'dismiss') return { kind: 'dismiss' };
+    if (!action || !state.hasActiveCommand) return undefined;
+    if (action === 'next' || action === 'previous') {
+        return { kind: 'move', delta: action === 'next' ? 1 : -1 };
+    }
+    return { kind: 'run', handler: action };
+}
+
+/**
+ * Why Enter did not send a typed draft, for the composer to announce and show briefly, or `undefined` when it sent or
+ * there was nothing to send. Without it a refused Enter does nothing visible: the Send button's tooltip says why, but
+ * only to someone pointing at it. The reason is the one that tooltip gives (`agentChatSendTooltip`).
+ */
+export function agentChatSendRefusal(
+    action: { tooltip: string },
+    state: Parameters<typeof agentChatSendTooltip>[1] & { isSendable: boolean },
+    t: Translate = translate,
+): string | undefined {
+    if (state.isSendable || !state.hasContent) return undefined;
+    return agentChatSendTooltip(action, state, t);
 }
 
 /**

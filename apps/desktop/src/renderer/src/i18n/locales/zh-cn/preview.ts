@@ -8,6 +8,7 @@ export const preview: TranslatedNamespace<typeof source> = {
     'preview.externalClosed.reason': '此文件不在任何项目中，且已不再打开。请重新打开它以进行预览。',
     'preview.externalClosed.action': '打开文件…',
 
+    'preview.revealInFinder': '在访达中显示',
     'preview.openSource': '打开源文件',
     'preview.openPreviewToSide': '在侧边打开预览',
 

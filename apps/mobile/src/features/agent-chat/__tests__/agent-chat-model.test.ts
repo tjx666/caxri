@@ -10,6 +10,7 @@ import {
     agentChatApprovalRows,
     agentChatComposerAvailability,
     agentChatComposerButton,
+    agentChatComposerHint,
     agentChatComposerSubmission,
     agentChatDisabledReason,
     agentChatEmptyMessage,
@@ -17,6 +18,7 @@ import {
     agentChatImagesUnsupportedReason,
     agentChatProviderName,
     agentChatRequestBlockedReason,
+    agentChatSendFailureMessage,
     canAttachAgentChatImages,
     isAgentChatFailureRetryable,
     isAgentChatHandedOff,
@@ -334,5 +336,37 @@ describe('Agent Chat model', () => {
             expect(
                 agentChatEmptyMessage({ canSend, isHandedOff: true, provider: 'Grok Build' }),
             ).toBe('No messages to show.');
+    });
+});
+
+describe('agentChatSendFailureMessage', () => {
+    it('says "not sent" only when the message provably did not reach the Agent', () => {
+        expect(agentChatSendFailureMessage({ kind: 'rejected', code: 'CONFLICT' })).toBe(
+            'Your message was not sent. Try again.',
+        );
+        expect(agentChatSendFailureMessage({ kind: 'rejected', code: 'FORBIDDEN' })).toContain(
+            'not sent',
+        );
+        expect(agentChatSendFailureMessage({ kind: 'offline' })).toContain('not sent');
+        const unknown = agentChatSendFailureMessage({ kind: 'unknown' });
+        expect(unknown).toBe("Couldn't confirm delivery. Check the Chat before sending again.");
+        expect(unknown).not.toContain('not sent');
+    });
+});
+
+describe('agentChatComposerHint', () => {
+    it('teaches hold-to-steer only while a running turn can be steered and nothing else owns the line', () => {
+        expect(agentChatComposerHint({ canSteer: true, hasError: false, isStopping: false })).toBe(
+            'Tap to queue · hold to steer',
+        );
+        expect(
+            agentChatComposerHint({ canSteer: false, hasError: false, isStopping: false }),
+        ).toBeUndefined();
+        expect(
+            agentChatComposerHint({ canSteer: true, hasError: true, isStopping: false }),
+        ).toBeUndefined();
+        expect(
+            agentChatComposerHint({ canSteer: true, hasError: false, isStopping: true }),
+        ).toBeUndefined();
     });
 });

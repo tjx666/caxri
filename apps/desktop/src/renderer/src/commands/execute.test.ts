@@ -190,6 +190,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 openPathBrowser: record('dialogs.openPathBrowser'),
                 openProjectSearch: record('dialogs.openProjectSearch'),
                 openSessionContentSearch: record('dialogs.openSessionContentSearch'),
+                openCommanderHandover: record('dialogs.openCommanderHandover'),
             },
             windows: {
                 openAgentCommander: record('windows.openAgentCommander'),
@@ -206,6 +207,13 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             shellCommand: {
                 install: record('shellCommand.install'),
                 uninstall: record('shellCommand.uninstall'),
+            },
+            remote: {
+                isLocalOnlyAvailable: () => true,
+                isRemote: () => true,
+                connect: record('remote.connect'),
+                reconnect: record('remote.reconnect'),
+                stopServer: record('remote.stopServer'),
             },
         },
     };
@@ -257,6 +265,39 @@ describe('executeCommand', () => {
         context.agentActions.canOpen = () => true;
         executeCommand('agentActions.open', undefined, context);
         expect(calls).toEqual(['agentActions.open']);
+    });
+
+    it('offers local-only commands only in a local window and SSH Host commands only in an SSH Host window', () => {
+        const localOnly = [
+            'agentCommander.open',
+            'agentCommander.stop',
+            'developer.reportBug',
+            'diagnostics.export',
+            'pathBrowser.open',
+            'processExplorer.open',
+            'project.openInEditor',
+            'shellCommand.install',
+            'shellCommand.uninstall',
+        ] as const;
+        const sshHostOnly = ['remote.reconnect', 'remote.stopServer'] as const;
+        const local = recordingContext();
+        local.context.remote.isRemote = () => false;
+        const remote = recordingContext();
+        remote.context.remote.isLocalOnlyAvailable = () => false;
+
+        for (const id of [...localOnly, ...sshHostOnly, 'remote.connect'] as const) {
+            executeCommand(id, undefined, local.context);
+            executeCommand(id, undefined, remote.context);
+        }
+
+        expect(local.calls).toHaveLength(localOnly.length + 1);
+        expect(local.calls).not.toContain('remote.reconnect');
+        expect(remote.calls).toEqual(['remote.reconnect', 'remote.stopServer', 'remote.connect']);
+        for (const id of localOnly)
+            expect(
+                sharedCommandDefinitions.find((definition) => definition.id === id)?.when,
+                `${id} must stay out of an SSH Host window's palette`,
+            ).toBe('localMachine');
     });
 
     it('passes a Project row target through the delete command', () => {

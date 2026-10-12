@@ -144,6 +144,7 @@ export interface CommandContext {
         openPathBrowser(): void;
         openProjectSearch(): void;
         openSessionContentSearch(): void;
+        openCommanderHandover(): void;
     };
     windows: {
         openAgentCommander(): void;
@@ -155,6 +156,21 @@ export interface CommandContext {
     diagnostics: { export(): void };
     updates: { check(): void };
     shellCommand: { install(): void; uninstall(): void };
+    remote: {
+        /**
+         * True only in a window whose Server runs on this Mac. Gates every command that reaches a Main method
+         * classified `local-only` (see `main/environment-method-policy.ts`), which an SSH Host window must not offer.
+         */
+        isLocalOnlyAvailable(): boolean;
+        /**
+         * True in an SSH Host window, the only window whose connection can be reconnected or whose Server can be
+         * stopped.
+         */
+        isRemote(): boolean;
+        connect(): void;
+        reconnect(): void;
+        stopServer(): void;
+    };
 }
 
 export interface SessionMruShortcutInvocation {

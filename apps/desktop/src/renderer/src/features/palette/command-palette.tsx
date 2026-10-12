@@ -17,6 +17,7 @@ import { commandCategory, commandDescription, commandTitle } from '../../lib/com
 import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
+import { useIsLocalOnlyAvailable, useIsRemote } from '../../stores/environment';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
 import { topLevelProjects } from '../primary-sidebar/project-visibility';
 import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
@@ -26,6 +27,7 @@ import {
     selectProject,
     SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
 } from '../session/session-commands';
+import { sessionTitleForDisplay } from '../session/session-title';
 import { canRestartResumeAgent } from '../terminal/agent-restart-commands';
 import { didExecuteViewCatalogCommand } from '../view-containers/view-container-commands';
 import { useActivePaneTab } from '../workbench/pane-actions';
@@ -159,7 +161,11 @@ function CommandPaletteBody() {
     const titleContext: CommandTitleContext = {
         activeTerminalRestartsAgent: canRestartResumeAgent(activeTerminal),
     };
+    const isLocalOnlyAvailable = useIsLocalOnlyAvailable();
+    const isRemote = useIsRemote();
     const whenContext = {
+        localMachine: isLocalOnlyAvailable,
+        sshHost: isRemote,
         sessionHasLiveAgent:
             selectedSession !== undefined && hasLiveAgentTerminal(selectedSession.id, terminals),
         sessionHasDetachedAgent:
@@ -203,14 +209,14 @@ function CommandPaletteBody() {
                                     // sessions sharing a title and project (e.g. two "Untitled" sessions
                                     // in one worktree) would both render as selected. The id keeps every
                                     // value unique without changing what the search matches on.
-                                    value={`Session ${session.displayTitle} ${project?.displayTitle ?? ''} ${project?.rootPath ?? ''} ${session.id}`}
+                                    value={`Session ${sessionTitleForDisplay(session.displayTitle, t)} ${session.displayTitle} ${project?.displayTitle ?? ''} ${project?.rootPath ?? ''} ${session.id}`}
                                     onSelect={() => {
                                         onOpenChange(false);
                                         // eslint-disable-next-line no-void -- intentional floating-promise discard, didSelectSession() reports its own errors
                                         void didSelectSession(session.id);
                                     }}
                                 >
-                                    <span>{session.displayTitle}</span>
+                                    <span>{sessionTitleForDisplay(session.displayTitle, t)}</span>
                                     <small className={commandItemMetaClassName}>
                                         {project?.displayTitle ?? t('palette.source.session')}
                                     </small>

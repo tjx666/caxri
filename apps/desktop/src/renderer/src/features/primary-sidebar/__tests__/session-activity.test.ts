@@ -92,7 +92,7 @@ describe('current Session activity', () => {
             { kind: 'claude', lastProcessState: 'suspended' },
         );
         expect(activity.label).toBe('Suspended');
-        expect(activity.description).toContain('Settings > Agents');
+        expect(activity.description).toContain('Settings › Agents');
     });
 
     it('describes a Shell Session as having no Agent instead of an idle one', () => {

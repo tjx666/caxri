@@ -9,6 +9,7 @@ import {
     agentMessageReceiptSchema,
 } from '../agent/agent-inbox-contract.js';
 import { configurationSourceSchema as configSourceSchema } from '../configuration/configuration-contract.js';
+import { environmentStateSchema } from '../desktop/remote-environment-contract.js';
 import { commandIdSchema } from '../domain/commands.js';
 import {
     agentHookHealthMapSchema,
@@ -303,6 +304,11 @@ export const serverEventPayloads = {
     'keybindings.changed': configChangedSchema,
     'theme.changed': configChangedSchema,
     'updates.state': updateStateSchema,
+    /**
+     * Main-originated connection state of the receiving window's environment, including a pending OpenSSH prompt;
+     * `environment.get` reads the same value.
+     */
+    'environment.changed': environmentStateSchema,
     /**
      * Main-originated resync signal after the Desktop↔Host connection dropped and re-attached (observed in production
      * on macOS sleep/wake). Transient events sent during the outage, PTY output above all, were never delivered and are

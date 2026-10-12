@@ -20,6 +20,7 @@ import type { SessionTitleScroll } from '../primary-sidebar/hooks/use-session-ti
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
 import { canSuggestSessionTitle } from '../primary-sidebar/session-rename-draft';
 import { didSelectSession } from '../session/session-commands';
+import { sessionTitleForDisplay } from '../session/session-title';
 import type { AgentActivityGlyphId } from './agent-activity-glyph';
 import { agentActivityGlyph } from './agent-activity-glyph';
 import { AgentActivityRowTitle } from './agent-activity-row-title';
@@ -195,7 +196,7 @@ export function AgentActivityRowTrigger({
                     sessionId={session.id}
                     sessionRename={sessionRename}
                     textReference={textReference}
-                    title={session.displayTitle}
+                    title={sessionTitleForDisplay(session.displayTitle, t)}
                     viewportReference={viewportReference}
                 />
                 <span className="agent-activity-metadata flex h-4 min-w-0 flex-wrap items-start gap-x-1.5 overflow-hidden text-[11px] leading-4 text-muted">

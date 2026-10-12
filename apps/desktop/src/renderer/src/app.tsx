@@ -36,6 +36,9 @@ import { SessionMruSwitcher } from './features/session/session-mru-switcher';
 import { useSessionMruSwitcherLifecycle } from './features/session/use-session-mru-switcher-lifecycle';
 import { useSessionNavigationHistory } from './features/session/use-session-navigation-history';
 import { useSettingsTabOpener } from './features/settings/settings-tab-opener';
+import { ConnectSshHostDialog } from './features/ssh-host/connect-ssh-host-dialog';
+import { SshHostFolderPickerDialog } from './features/ssh-host/ssh-host-folder-picker-dialog';
+import { SshHostLayer } from './features/ssh-host/ssh-host-layer';
 import { StatusBar } from './features/status-bar/status-bar';
 import { ToastOutlet } from './features/toasts/toast-outlet';
 import { UpdateDialog } from './features/updates/update-dialog';
@@ -65,6 +68,7 @@ import {
     useChromeViewportClamp,
 } from './stores/chrome-layout';
 import { useDialogStore } from './stores/dialogs';
+import { subscribeEnvironment } from './stores/environment';
 import { useIsFullScreen } from './stores/selectors';
 import { syncWindowFullScreen } from './stores/window-full-screen';
 import {
@@ -143,6 +147,7 @@ export function App() {
         (state) => state.secondarySidebarVisible,
     );
 
+    useEffect(() => subscribeEnvironment(), []);
     useRuntimeAttachment();
     useStartupLoaderRemoval(isAttached);
     useSettingsTabOpener();
@@ -184,96 +189,112 @@ export function App() {
         );
     }, [secondarySidebarWidth]);
 
-    if (!isAttached) return <LoadingScreen />;
+    /**
+     * Rendered at the same position in both branches so an OpenSSH prompt being answered keeps its state when the
+     * Server attaches underneath it; see `SshHostLayer`.
+     */
+    const sshHostLayer = <SshHostLayer />;
+    if (!isAttached)
+        return (
+            <>
+                <LoadingScreen />
+                {sshHostLayer}
+            </>
+        );
 
     return (
-        <TooltipProvider>
-            <main
-                className={cn(
-                    /*
-                     * PrimarySidebar/SecondarySidebar widths are device-local UI state (`stores/chrome-layout.ts`), not part
-                     * of the Server-synced Session; each panel writes its own custom property directly on
-                     * drag and through React on commit/reset. The 6px tracks are the divider hit areas; see
-                     * `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
-                     */
-                    'app-shell grid h-screen w-screen grid-rows-[minmax(0,1fr)_24px] bg-background',
-                    isPrimarySidebarVisible && isSecondarySidebarVisible
-                        ? 'grid-cols-[var(--primary-sidebar-width,230px)_6px_minmax(320px,1fr)_6px_var(--secondary-sidebar-width,310px)]'
-                        : isPrimarySidebarVisible
-                          ? 'secondary-sidebar-collapsed grid-cols-[var(--primary-sidebar-width,230px)_6px_minmax(320px,1fr)]'
-                          : isSecondarySidebarVisible
-                            ? 'primary-sidebar-collapsed grid-cols-[minmax(320px,1fr)_6px_var(--secondary-sidebar-width,310px)]'
-                            : 'primary-sidebar-collapsed secondary-sidebar-collapsed grid-cols-[minmax(320px,1fr)]',
-                )}
-            >
-                {!isPrimarySidebarVisible && !isFullScreen && (
-                    <div
-                        aria-hidden="true"
-                        className="collapsed-primary-sidebar-titlebar fixed top-0 left-0 z-20 h-11 w-(--traffic-light-clearance) [-webkit-app-region:drag]"
-                    />
-                )}
-                {isPrimarySidebarVisible && (
-                    <RendererPerformanceProfiler surface="primary-sidebar">
-                        <PrimarySidebar />
+        <>
+            <TooltipProvider>
+                <main
+                    className={cn(
+                        /*
+                         * PrimarySidebar/SecondarySidebar widths are device-local UI state (`stores/chrome-layout.ts`), not part
+                         * of the Server-synced Session; each panel writes its own custom property directly on
+                         * drag and through React on commit/reset. The 6px tracks are the divider hit areas; see
+                         * `PanelDivider`. `minmax(320px, 1fr)` reserves the main pane so a resize never overlaps it.
+                         */
+                        'app-shell grid h-screen w-screen grid-rows-[minmax(0,1fr)_24px] bg-background',
+                        isPrimarySidebarVisible && isSecondarySidebarVisible
+                            ? 'grid-cols-[var(--primary-sidebar-width,230px)_6px_minmax(320px,1fr)_6px_var(--secondary-sidebar-width,310px)]'
+                            : isPrimarySidebarVisible
+                              ? 'secondary-sidebar-collapsed grid-cols-[var(--primary-sidebar-width,230px)_6px_minmax(320px,1fr)]'
+                              : isSecondarySidebarVisible
+                                ? 'primary-sidebar-collapsed grid-cols-[minmax(320px,1fr)_6px_var(--secondary-sidebar-width,310px)]'
+                                : 'primary-sidebar-collapsed secondary-sidebar-collapsed grid-cols-[minmax(320px,1fr)]',
+                    )}
+                >
+                    {!isPrimarySidebarVisible && !isFullScreen && (
+                        <div
+                            aria-hidden="true"
+                            className="collapsed-primary-sidebar-titlebar fixed top-0 left-0 z-20 h-11 w-(--traffic-light-clearance) [-webkit-app-region:drag]"
+                        />
+                    )}
+                    {isPrimarySidebarVisible && (
+                        <RendererPerformanceProfiler surface="primary-sidebar">
+                            <PrimarySidebar />
+                        </RendererPerformanceProfiler>
+                    )}
+                    {isPrimarySidebarVisible && (
+                        <PanelDivider
+                            ariaLabel="Resize Primary Side Bar"
+                            size={primarySidebarWidth}
+                            min={PRIMARY_SIDEBAR_MIN_WIDTH}
+                            max={PRIMARY_SIDEBAR_MAX_WIDTH}
+                            defaultSize={PRIMARY_SIDEBAR_DEFAULT_WIDTH}
+                            cssVariable="--primary-sidebar-width"
+                            growDirection={1}
+                            orientation="vertical"
+                            onCommit={(width) =>
+                                useChromeLayoutStore.getState().setPrimarySidebarWidth(width)
+                            }
+                        />
+                    )}
+                    <RendererPerformanceProfiler surface="workbench">
+                        <WorkbenchColumn />
                     </RendererPerformanceProfiler>
-                )}
-                {isPrimarySidebarVisible && (
-                    <PanelDivider
-                        ariaLabel="Resize Primary Side Bar"
-                        size={primarySidebarWidth}
-                        min={PRIMARY_SIDEBAR_MIN_WIDTH}
-                        max={PRIMARY_SIDEBAR_MAX_WIDTH}
-                        defaultSize={PRIMARY_SIDEBAR_DEFAULT_WIDTH}
-                        cssVariable="--primary-sidebar-width"
-                        growDirection={1}
-                        orientation="vertical"
-                        onCommit={(width) =>
-                            useChromeLayoutStore.getState().setPrimarySidebarWidth(width)
-                        }
-                    />
-                )}
-                <RendererPerformanceProfiler surface="workbench">
-                    <WorkbenchColumn />
-                </RendererPerformanceProfiler>
-                {isSecondarySidebarVisible && (
-                    <PanelDivider
-                        ariaLabel="Resize Secondary Side Bar"
-                        size={secondarySidebarWidth}
-                        min={SECONDARY_SIDEBAR_MIN_WIDTH}
-                        max={SECONDARY_SIDEBAR_MAX_WIDTH}
-                        defaultSize={SECONDARY_SIDEBAR_DEFAULT_WIDTH}
-                        cssVariable="--secondary-sidebar-width"
-                        growDirection={-1}
-                        orientation="vertical"
-                        onCommit={(width) =>
-                            useChromeLayoutStore.getState().setSecondarySidebarWidth(width)
-                        }
-                    />
-                )}
-                {isSecondarySidebarVisible && (
-                    <RendererPerformanceProfiler surface="secondary-sidebar">
-                        <SecondarySidebar />
-                    </RendererPerformanceProfiler>
-                )}
-                <StatusBar />
-                <CreateSessionDialog />
-                <ArchivedSessionsDialog />
-                <CommanderHandoverDialog isFromWorkbench />
-                <ContentSearchDialog />
-                <UpdateDialog />
-                <CommandPalette />
-                <ProjectSearchDialog />
-                <AgentActionsDialog />
-                <PathBrowserDialog />
-                <BugReportDialog />
-                <ProjectIconDialog />
-                <AgentMessageApprovalDialog />
-                <SessionMruSwitcher />
-                <WorkbenchRootPrompt />
-                <ConfirmationDialog />
-                <ToastOutlet />
-                <ScreencastOverlay />
-            </main>
-        </TooltipProvider>
+                    {isSecondarySidebarVisible && (
+                        <PanelDivider
+                            ariaLabel="Resize Secondary Side Bar"
+                            size={secondarySidebarWidth}
+                            min={SECONDARY_SIDEBAR_MIN_WIDTH}
+                            max={SECONDARY_SIDEBAR_MAX_WIDTH}
+                            defaultSize={SECONDARY_SIDEBAR_DEFAULT_WIDTH}
+                            cssVariable="--secondary-sidebar-width"
+                            growDirection={-1}
+                            orientation="vertical"
+                            onCommit={(width) =>
+                                useChromeLayoutStore.getState().setSecondarySidebarWidth(width)
+                            }
+                        />
+                    )}
+                    {isSecondarySidebarVisible && (
+                        <RendererPerformanceProfiler surface="secondary-sidebar">
+                            <SecondarySidebar />
+                        </RendererPerformanceProfiler>
+                    )}
+                    <StatusBar />
+                    <CreateSessionDialog />
+                    <ArchivedSessionsDialog />
+                    <CommanderHandoverDialog isFromWorkbench />
+                    <ContentSearchDialog />
+                    <UpdateDialog />
+                    <CommandPalette />
+                    <ProjectSearchDialog />
+                    <AgentActionsDialog />
+                    <PathBrowserDialog />
+                    <BugReportDialog />
+                    <ProjectIconDialog />
+                    <AgentMessageApprovalDialog />
+                    <SessionMruSwitcher />
+                    <WorkbenchRootPrompt />
+                    <ConnectSshHostDialog />
+                    <SshHostFolderPickerDialog />
+                    <ConfirmationDialog />
+                    <ToastOutlet />
+                    <ScreencastOverlay />
+                </main>
+            </TooltipProvider>
+            {sshHostLayer}
+        </>
     );
 }

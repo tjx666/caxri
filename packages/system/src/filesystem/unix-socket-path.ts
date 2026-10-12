@@ -1,8 +1,9 @@
 import { Buffer } from 'node:buffer';
 import type { Stats } from 'node:fs';
 import { chmod, lstat, mkdir } from 'node:fs/promises';
-import { userInfo } from 'node:os';
+import { tmpdir, userInfo } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
+import process from 'node:process';
 
 /**
  * MacOS stores an `AF_UNIX` address in a 104-byte `sun_path` including its terminator, and Linux allows 108. The
@@ -25,6 +26,15 @@ export function isWithinUnixSocketLimit(path: string): boolean {
  */
 function shortPrivateSocketRoot(): string {
     return join('/tmp', `caxri-${userInfo().uid}`);
+}
+
+/**
+ * Where a Caxri process should put its private sockets. macOS gives every account its own `TMPDIR`; Linux normally
+ * leaves it at the shared, world-writable `/tmp`, where another account could pre-create or squat a socket name, so
+ * there the uid-owned root is used directly. {@link ensureUnixSocketDirectory} verifies that root before any listen.
+ */
+export function defaultUnixSocketDirectory(platform: NodeJS.Platform = process.platform): string {
+    return platform === 'darwin' ? tmpdir() : shortPrivateSocketRoot();
 }
 
 /**

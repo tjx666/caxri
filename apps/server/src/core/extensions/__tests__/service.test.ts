@@ -2,7 +2,7 @@ import type { ProjectStatusSummary } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { DiscoveredExtension } from '../discovery';
-import { grantsForExtension, projectStatusForExtension } from '../service';
+import { grantsForExtension, projectStatusForExtension } from '../host-api-access';
 
 function extension(source: DiscoveredExtension['source']): DiscoveredExtension {
     return {

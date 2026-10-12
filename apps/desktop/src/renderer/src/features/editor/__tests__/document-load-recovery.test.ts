@@ -10,9 +10,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../../lib/desktop-file-actions', () => mocks);
 
+import { useEnvironmentStore } from '../../../stores/environment';
 import { documentLoadRecoveryAction, documentReadRecovery } from '../document-load-recovery';
 
 beforeEach(() => {
+    useEnvironmentStore.setState({ state: { kind: 'local' } });
     mocks.openExternalDocumentWithDefaultApp.mockClear();
     mocks.openFileWithDefaultApp.mockClear();
 });
@@ -61,5 +63,20 @@ describe('documentLoadRecoveryAction', () => {
         expect(external.actionLabel).toBe('Open with Default App');
         expect(mocks.openExternalDocumentWithDefaultApp).toHaveBeenCalledWith('doc-1');
         expect(retry).not.toHaveBeenCalled();
+    });
+
+    it('falls back to Retry in an SSH Host window, which cannot open the file on this Mac', () => {
+        const retry = vi.fn();
+        const action = documentLoadRecoveryAction(
+            'openWithDefaultApp',
+            '/project/big.log',
+            retry,
+            translate,
+            false,
+        );
+        action.onAction();
+        expect(action.actionLabel).toBe('Retry');
+        expect(retry).toHaveBeenCalledOnce();
+        expect(mocks.openFileWithDefaultApp).not.toHaveBeenCalled();
     });
 });

@@ -2,8 +2,11 @@ import { useState } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 
+import { useTranslation } from '../../i18n';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
+import { CommanderSessionMarker } from '../agent-commander/commander-session-marker';
+import { sessionTitleForDisplay } from '../session/session-title';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useSessionPullRequest } from './hooks/use-session-pull-request';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
@@ -110,6 +113,8 @@ export function ActiveSessionRow({
     terminal,
     worktreeProject,
 }: ActiveSessionRowProperties) {
+    const { t } = useTranslation();
+    const title = sessionTitleForDisplay(session.displayTitle, t);
     const project = {
         displayTitle: projectDisplayTitle,
         icon: projectIcon,
@@ -134,7 +139,7 @@ export function ActiveSessionRow({
     const [menuOpen, setMenuOpen] = useState(false);
     const hasLifecycleGlyph = sessionStatus(session, terminal).kind !== 'default';
     const { viewportReference, textReference, setHovered, setFocused } = useSessionTitleScroll(
-        session.displayTitle,
+        title,
         renaming || menuOpen,
     );
     const sessionCard = (
@@ -155,7 +160,7 @@ export function ActiveSessionRow({
             {renaming ? (
                 <SessionRenameInput
                     sessionId={session.id}
-                    title={session.displayTitle}
+                    title={title}
                     error={renameError}
                     value={renameValue}
                     focusInput={focusRenameInput}
@@ -184,7 +189,7 @@ export function ActiveSessionRow({
                         onPointerLeave={() => setHovered(false)}
                     >
                         <span ref={textReference} className="block w-max max-w-full">
-                            {session.displayTitle}
+                            {title}
                         </span>
                     </strong>
                     {/*
@@ -202,6 +207,11 @@ export function ActiveSessionRow({
                     )}
                 </span>
             )}
+            {/*
+             * Outside the title's span, whose overflow fade would hide a glyph after a long title. Absent for the
+             * ordinary Session the Commander does not manage, so it costs no width there.
+             */}
+            {!renaming && <CommanderSessionMarker sessionId={session.id} />}
             {/*
              * Lifecycle signals take priority over the PR. The wrapper follows the rendered glyph's width, so an idle
              * Session with no PR gives the otherwise invisible 14px slot back to its title; every visible glyph still

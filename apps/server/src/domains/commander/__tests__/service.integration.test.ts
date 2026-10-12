@@ -8,6 +8,7 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { authorizeDelegationSession } from '../../agent-delegation/admission';
 import { CaxriDatabase } from '../../db';
+import { CommanderHandoverService } from '../handover';
 import { AgentCommanderService, requireCommanderSession } from '../service';
 import { COMMANDER_WORKSPACE_DIRECTORY } from '../workspace';
 
@@ -249,6 +250,30 @@ describe('Agent Commander service', () => {
             expect(() => requireCommanderSession(database, sessionId)).toThrow(
                 expect.objectContaining({ code: 'NOT_FOUND' }),
             );
+    });
+
+    it('refuses archiving a Session the user handed over even though the Commander manages it', async () => {
+        const { database, sendFullStateChange, service, userProject, userSession } =
+            await fixture();
+        await service.ensure();
+        const created = service.createSession(userProject.id);
+        const handovers = new CommanderHandoverService({
+            database,
+            notify: () => {},
+            resolveProjectRoot: (path) => Promise.resolve(path),
+            sendFullStateChange,
+        });
+
+        const result = await handovers.handOver({ sessionIds: [userSession.id] });
+
+        expect(result.outcomes).toEqual([
+            expect.objectContaining({ outcome: 'accepted', sessionId: userSession.id }),
+        ]);
+        expect(database.agentCommanderRows()?.sessionIds).toContain(userSession.id);
+        expect(() => requireCommanderSession(database, userSession.id)).toThrow(
+            expect.objectContaining({ code: 'NOT_FOUND' }),
+        );
+        expect(() => requireCommanderSession(database, created.sessionId)).not.toThrow();
     });
 
     it('creates Commander Sessions without moving the Workbench selection', async () => {

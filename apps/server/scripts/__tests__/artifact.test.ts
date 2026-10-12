@@ -158,4 +158,77 @@ describe('standalone Server artifact', () => {
             'Server artifact integrity verification failed',
         );
     });
+
+    it('drops source maps and adds the CLI only for SSH Host targets', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'caxri-server-artifact-'));
+        temporaryDirectories.push(root);
+        const bundleSource = join(root, 'bundles');
+        const runtimeExecutable = join(root, 'node');
+        const ripgrepExecutable = join(root, 'rg');
+        const cliBundle = join(root, 'caxri.cjs');
+        await Promise.all([
+            ...[
+                'server-core.js',
+                'agent-launcher.js',
+                'extension-host.js',
+                'project-search-worker.js',
+                'terminal-host.js',
+            ].flatMap((name) => [
+                fixtureFile(join(bundleSource, name), name),
+                fixtureFile(join(bundleSource, `${name}.map`), '{}'),
+            ]),
+            fixtureFile(runtimeExecutable, 'runtime'),
+            fixtureFile(ripgrepExecutable, 'ripgrep'),
+            fixtureFile(join(root, 'RIPGREP_LICENSE.txt'), 'ripgrep license'),
+            fixtureFile(join(root, 'VSCODE_RIPGREP_LICENSE.txt'), 'vscode ripgrep license'),
+            fixtureFile(join(root, 'migrations', '0000.sql'), 'SELECT 1;'),
+            fixtureFile(cliBundle, 'cli'),
+        ]);
+        const input = {
+            architecture: 'x64',
+            bundleSource,
+            commit: '01234567',
+            extensions: [],
+            migrationsSource: join(root, 'migrations'),
+            nativePackages: [],
+            platform: 'linux',
+            protocolVersion: 2,
+            ripgrep: {
+                executable: ripgrepExecutable,
+                ripgrepLicense: join(root, 'RIPGREP_LICENSE.txt'),
+                vscodeLicense: join(root, 'VSCODE_RIPGREP_LICENSE.txt'),
+            },
+            runtime: { executable: runtimeExecutable, version: '24.0.0-fixture' },
+            runtimeSource: {
+                member: 'node-v24.0.0-linux-x64/bin/node',
+                sha256: 'a'.repeat(64),
+                url: 'https://nodejs.org/dist/v24.0.0/node-v24.0.0-linux-x64.tar.gz',
+            },
+            version: '0.0.18',
+        };
+
+        const local = await assembleServerArtifact({
+            ...input,
+            artifactRoot: join(root, 'local', 'server'),
+        });
+        const remote = await assembleServerArtifact({
+            ...input,
+            artifactRoot: join(root, 'remote', 'server'),
+            cliBundle,
+            omitSourceMaps: true,
+        });
+
+        const localPaths = local.integrity.files.map(({ path }) => path);
+        const remotePaths = remote.integrity.files.map(({ path }) => path);
+        expect(localPaths).toContain('bundles/server-core.js.map');
+        expect(localPaths).not.toContain('cli/caxri.cjs');
+        expect(remotePaths.filter((path) => path.endsWith('.map'))).toEqual([]);
+        expect(remote.integrity.files.find(({ path }) => path === 'cli/caxri.cjs')).toMatchObject({
+            mode: 0o755,
+        });
+        const bundles = (files: typeof local.integrity.files) =>
+            files.filter(({ path }) => path.startsWith('bundles/') && path.endsWith('.js'));
+        expect(bundles(remote.integrity.files)).toEqual(bundles(local.integrity.files));
+        expect(remote.runtime.source?.url).toMatch(/\.tar\.gz$/u);
+    });
 });

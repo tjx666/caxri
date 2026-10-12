@@ -23,6 +23,8 @@ export function claudeChatModels(models: unknown): AgentChatModel[] {
         if (!id) continue;
         const resolvedId = stringField(entry.resolvedModel);
         const description = stringField(entry.description);
+        // Claude Code describes no speed-up, so the picker supplies its own wording.
+        const fast = entry.supportsFastMode === true ? {} : undefined;
         const efforts =
             entry.supportsEffort !== false && Array.isArray(entry.supportedEffortLevels)
                 ? entry.supportedEffortLevels.flatMap((effort) => {
@@ -36,9 +38,33 @@ export function claudeChatModels(models: unknown): AgentChatModel[] {
             ...(description && { description }),
             ...(resolvedId && resolvedId !== id && { resolvedId }),
             efforts,
+            ...(fast && { fast }),
         });
     }
     return boundedChatModels(mapped);
+}
+
+/**
+ * The `fast_mode_disabled_reason` values that still let this Chat turn Fast mode on. Under the Agent SDK Claude Code
+ * reports `sdk_opt_in_required` until the host sets `fastMode` in the flag settings, which is exactly what the toggle
+ * does; `pending` is an organization check still in flight. Every other reason (a free plan, a policy, a non-Anthropic
+ * API, a model the organization disallows) withdraws the toggle.
+ */
+const FAST_MODE_REACHABLE_REASONS = new Set(['sdk_opt_in_required', 'pending']);
+
+/**
+ * The Fast mode state Claude Code reports with `initialize`, each init message, and each result: on (including the
+ * `cooldown` after a rate limit, which resumes by itself), off, or withdrawn when something outside the Chat blocks it.
+ * A message without `fast_mode_state` (an older CLI) reports nothing.
+ */
+export function claudeFastMode(message: unknown): AgentChatPatchOperation[] {
+    if (!isRecord(message)) return [];
+    const state = stringField(message.fast_mode_state);
+    if (!state) return [];
+    const reason = stringField(message.fast_mode_disabled_reason);
+    const isReachable = reason === undefined || FAST_MODE_REACHABLE_REASONS.has(reason);
+    const fast = state === 'off' ? (isReachable ? false : null) : true;
+    return [{ op: 'state', state: { fast } }];
 }
 
 /**
@@ -81,17 +107,17 @@ export async function readClaudeAppliedSettings(stream: Query): Promise<AgentCha
 }
 
 /**
- * Switches a running Claude Code in place: `setModel` applies from the next response, and the effort and ultracode go
- * to the session's flag settings layer, which outranks the user's settings files without writing to them. Each step
- * reports its state as soon as Claude Code accepts it, so a failed effort change still shows the model that did
- * switch.
+ * Switches a running Claude Code in place: `setModel` applies from the next response, and the effort, ultracode, and
+ * Fast mode go to the session's flag settings layer, which outranks the user's settings files without writing to them
+ * (`apply_flag_settings` merges into that layer, so each key stays until it is sent again). Each step reports its state
+ * as soon as Claude Code accepts it, so a failed effort change still shows the model that did switch.
  *
  * An `effortLevel` sent without an `ultracode` key turns ultracode off, so an effort change carries the current
  * ultracode along to keep it on, the way Claude Code's own `/effort` picker does.
  */
 export async function configureClaudeModel(
     stream: Pick<Query, 'applyFlagSettings' | 'setModel'>,
-    { model, effort, ultracode }: AgentChatModelChange,
+    { model, effort, ultracode, fast }: AgentChatModelChange,
     current: { ultracode: boolean | undefined },
     apply: (operations: AgentChatPatchOperation[]) => void,
 ): Promise<void> {
@@ -100,11 +126,12 @@ export async function configureClaudeModel(
         apply([{ op: 'state', state: { model: model.resolvedId ?? model.id } }]);
     }
     const nextUltracode = ultracode ?? (effort ? current.ultracode : undefined);
-    if (!effort && nextUltracode === undefined) return;
+    if (!effort && nextUltracode === undefined && fast === undefined) return;
     await withTimeout(
         stream.applyFlagSettings({
             ...(effort && { effortLevel: effort as EffortLevel }),
             ...(nextUltracode !== undefined && { ultracode: nextUltracode }),
+            ...(fast !== undefined && { fastMode: fast }),
         }),
         CONFIGURE_TIMEOUT_MS,
     );
@@ -114,6 +141,7 @@ export async function configureClaudeModel(
             state: {
                 ...(effort && { effort }),
                 ...(nextUltracode !== undefined && { ultracode: nextUltracode }),
+                ...(fast !== undefined && { fast }),
             },
         },
     ]);

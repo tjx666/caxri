@@ -10,14 +10,26 @@ export interface ServerArtifactInput {
     architecture: string;
     artifactRoot: string;
     bundleSource: string;
+    /**
+     * The `caxri` CLI bundle, copied to `cli/caxri.cjs`. Only SSH Host targets ship it: on macOS the Desktop app bundle
+     * already carries the CLI beside the Server.
+     */
+    cliBundle?: string;
     commit: string;
     extensions: Array<{ id: string; source: string }>;
     migrationsSource: string;
     nativePackages: Array<{ name: string; source: string; version: string }>;
     platform: string;
     protocolVersion: number;
+    /**
+     * Drops `*.map` files from the copied bundles. SSH Host targets set it because every byte is uploaded over SSH and
+     * remote stack traces are not symbolicated; the bundles themselves stay byte-identical, so the build fingerprint is
+     * unchanged.
+     */
+    omitSourceMaps?: boolean;
     ripgrep: { executable: string; ripgrepLicense: string; vscodeLicense: string };
     runtime: { executable: string; version: string };
+    runtimeSource?: { member: string; sha256: string; url: string };
     version: string;
 }
 
@@ -156,8 +168,14 @@ export async function assembleServerArtifact(
     ]);
 
     await cp(input.bundleSource, join(input.artifactRoot, 'bundles'), {
+        filter: (source) => !input.omitSourceMaps || !source.endsWith('.map'),
         recursive: true,
     });
+    if (input.cliBundle) {
+        await mkdir(join(input.artifactRoot, 'cli'), { recursive: true });
+        await cp(input.cliBundle, join(input.artifactRoot, 'cli', 'caxri.cjs'));
+        await chmod(join(input.artifactRoot, 'cli', 'caxri.cjs'), 0o755);
+    }
     await Promise.all(
         requiredBundleNames.map(async (bundleName) => {
             const metadata = await lstat(join(input.artifactRoot, 'bundles', bundleName));
@@ -237,7 +255,11 @@ export async function assembleServerArtifact(
             .toSorted((left, right) => compareCodeUnits(left.name, right.name)),
         platform: input.platform,
         protocolVersion: input.protocolVersion,
-        runtime: { executable: 'runtime/bin/node', version: input.runtime.version },
+        runtime: {
+            executable: 'runtime/bin/node',
+            ...(input.runtimeSource && { source: input.runtimeSource }),
+            version: input.runtime.version,
+        },
         schemaVersion: 2,
         version: input.version,
     });

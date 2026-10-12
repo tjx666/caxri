@@ -150,6 +150,12 @@ export const agentChatModelSchema = z.strictObject({
      */
     efforts: z.array(agentChatEffortSchema).max(10),
     defaultEffort: agentChatEffortSchema.optional(),
+    /**
+     * Present when the model offers Fast mode: faster output at a higher usage cost (Codex's `priority` service tier,
+     * Claude Code's `fastMode`). `description` is the provider's own wording, such as Codex's `1.5x speed, increased
+     * usage`.
+     */
+    fast: z.strictObject({ description: z.string().max(200).optional() }).optional(),
 });
 
 /**
@@ -427,6 +433,11 @@ export const agentChatSnapshotSchema = z.strictObject({
      */
     ultracode: z.boolean().optional(),
     /**
+     * Whether the next turn runs in Fast mode. Present only while the provider can turn it on for this Chat; the picker
+     * offers the toggle when the current model also lists `fast`. `agentChat.configure` turns it on or off.
+     */
+    fast: z.boolean().optional(),
+    /**
      * The permission level the next turn runs with. Absent when the provider's launch settings describe something no
      * level matches (shown as "Custom"); `agentChat.configure` switches it.
      */
@@ -459,6 +470,13 @@ export const agentChatSnapshotSchema = z.strictObject({
      * True after the user stopped a turn with messages still queued; nothing is sent until they resume the queue.
      */
     queuePaused: z.boolean().optional(),
+    /**
+     * Why the queue is paused, set together with `queuePaused` and cleared when it resumes or empties: `stopped` after
+     * the user interrupted a turn, `sendFailed` after Server Core could not send the queued messages it took, and
+     * `deliveryUnknown` after a send may have reached the provider unconfirmed. Clients tell a failure from a Stop by
+     * it.
+     */
+    queuePauseReason: z.enum(['stopped', 'sendFailed', 'deliveryUnknown']).optional(),
 });
 
 /**
@@ -488,6 +506,7 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 model: agentChatSnapshotSchema.shape.model.unwrap().nullable(),
                 effort: agentChatSnapshotSchema.shape.effort.unwrap().nullable(),
                 ultracode: agentChatSnapshotSchema.shape.ultracode.unwrap().nullable(),
+                fast: agentChatSnapshotSchema.shape.fast.unwrap().nullable(),
                 permissionMode: agentChatSnapshotSchema.shape.permissionMode.unwrap().nullable(),
                 planMode: agentChatSnapshotSchema.shape.planMode.unwrap().nullable(),
                 models: agentChatSnapshotSchema.shape.models.unwrap(),
@@ -500,6 +519,9 @@ export const agentChatPatchOperationSchema = z.discriminatedUnion('op', [
                 queue: agentChatSnapshotSchema.shape.queue.unwrap(),
                 queueLength: agentChatSnapshotSchema.shape.queueLength.unwrap(),
                 queuePaused: agentChatSnapshotSchema.shape.queuePaused.unwrap(),
+                queuePauseReason: agentChatSnapshotSchema.shape.queuePauseReason
+                    .unwrap()
+                    .nullable(),
             })
             .partial(),
     }),

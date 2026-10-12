@@ -1,18 +1,11 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { useState } from 'react';
-import {
-    ActivityIndicator,
-    Linking,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { MobileCommanderInboxItem } from '@caxri/protocol';
 import { ExternalLink, MessageSquareReply } from 'lucide-react-native';
 
+import { openExternalLink } from '../../lib/open-external-link';
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationMarkdown } from '../conversation/conversation-markdown';
 import { commanderInboxCardModel, commanderInboxReplyBody } from './commander-inbox-model';
@@ -62,8 +55,8 @@ export const CommanderInboxCard = ({
                         accessibilityRole="link"
                         hitSlop={8}
                         onPress={() => {
-                            // eslint-disable-next-line no-void -- A link the system cannot open has nothing to report.
-                            void Linking.openURL(pullRequestUrl).catch(() => {});
+                            // eslint-disable-next-line no-void -- openExternalLink reports a refused link itself.
+                            void openExternalLink(pullRequestUrl);
                         }}
                         style={styles.link}
                     >

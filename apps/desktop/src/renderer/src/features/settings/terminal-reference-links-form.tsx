@@ -13,6 +13,7 @@ import { Input } from '../../components/ui/input';
 import { Switch } from '../../components/ui/switch';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useTranslation } from '../../i18n';
+import { isImeComposing } from '../../lib/ime';
 
 interface TerminalReferenceLinksFormProperties {
     rules: TerminalReferenceLinkRule[];
@@ -191,7 +192,7 @@ export function TerminalReferenceLinksForm({
                         setError(undefined);
                     }}
                     onKeyDown={(event) => {
-                        if (event.key !== 'Enter') return;
+                        if (isImeComposing(event) || event.key !== 'Enter') return;
                         event.preventDefault();
                         save();
                     }}

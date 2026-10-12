@@ -6,6 +6,7 @@ import type {
 } from '@caxri/protocol';
 import { agentProviderCatalog, sentenceStartProvider } from '@caxri/protocol';
 
+import type { MobileWriteFailure } from '../connection/mobile-write-failure';
 import { mobileAgentDisplayName } from '../sessions/agent-display-name';
 import type { MobileTerminal } from '../sessions/session-model';
 
@@ -274,3 +275,38 @@ export const agentChatComposerButton = ({
         testID: 'agent-chat-composer-send',
     };
 };
+
+/**
+ * The composer's line after a send failed. Only a write the Server explicitly refused, or one that never left the
+ * phone, is "not sent"; any other failure may have reached the Agent, so the reader checks the Chat before repeating a
+ * message the Agent may already be working on. Same contract as the Terminal composer's `unknown` delivery.
+ */
+export const agentChatSendFailureMessage = (failure: MobileWriteFailure): string => {
+    switch (failure.kind) {
+        case 'rejected':
+            return failure.code === 'FORBIDDEN'
+                ? 'This device no longer has access to this Chat. Your message was not sent.'
+                : 'Your message was not sent. Try again.';
+        case 'offline':
+            return 'Your message was not sent. Reconnect to Caxri and try again.';
+        case 'unknown':
+            return "Couldn't confirm delivery. Check the Chat before sending again.";
+    }
+};
+
+const AGENT_CHAT_STEER_HINT = 'Tap to queue · hold to steer';
+
+/**
+ * The composer's quiet line while a turn runs and a draft is ready: Send queues it and holding Send steers, and the
+ * hold has no other affordance on a phone. A failure or a pending Stop already owns the line, so the hint yields.
+ */
+export const agentChatComposerHint = ({
+    canSteer,
+    hasError,
+    isStopping,
+}: {
+    canSteer: boolean;
+    hasError: boolean;
+    isStopping: boolean;
+}): string | undefined =>
+    canSteer && !hasError && !isStopping ? AGENT_CHAT_STEER_HINT : undefined;

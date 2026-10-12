@@ -1,6 +1,6 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import type { ComponentType } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import type { AgentChatTrackerArtifact } from '@caxri/protocol';
@@ -14,6 +14,7 @@ import {
     ListChecks,
 } from 'lucide-react-native';
 
+import { openExternalLink } from '../../lib/open-external-link';
 import type { MobileTheme } from '../../theme/tokens';
 
 interface MarkProperties {
@@ -91,8 +92,8 @@ export const AgentChatTrackerCard = ({
             accessibilityLabel={`${label}: ${title ?? reference}, ${reference}. Open in browser`}
             accessibilityRole="link"
             onPress={() => {
-                // eslint-disable-next-line no-void -- A link the system cannot open has nothing to recover.
-                void Linking.openURL(artifact.url).catch(() => {});
+                // eslint-disable-next-line no-void -- openExternalLink reports a refused link itself.
+                void openExternalLink(artifact.url);
             }}
             style={({ pressed }) => [
                 styles.card,

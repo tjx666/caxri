@@ -30,8 +30,8 @@
  * `stall` is recorded at once but answered only after {@link STALL_MS}, as a loaded Codex answers past Caxri's request
  * timeout; one containing `lost` is never answered nor recorded. `thread/turns/list` returns the newest turns with
  * their items, and `thread/items/list` the newest items with when each started. `model/list` offers two models, and a
- * `turn/start` that names a model or effort saves it on the thread, as Codex does, so a resumed thread reports the last
- * choice.
+ * `turn/start` that names a model, effort, or service tier saves it on the thread, as Codex does, so a resumed thread
+ * reports the last choice.
  *
  * Threads persist to `FAKE_CODEX_STATE_DIR` (or the OS temp directory) so `thread/resume` returns real history. Each
  * thread open also appends its method, sandbox, and approval policy to `thread-opens.jsonl` there, so tests can assert
@@ -502,6 +502,8 @@ function handle(message: RpcMessage) {
             const thread = currentThread();
             if (typeof parameters.model === 'string') thread.model = parameters.model;
             if (typeof parameters.effort === 'string') thread.effort = parameters.effort;
+            if (typeof parameters.serviceTier === 'string')
+                thread.serviceTier = parameters.serviceTier;
             recordTurnStart(parameters);
             const collaboration = parameters.collaborationMode as { mode?: unknown } | undefined;
             if (typeof collaboration?.mode === 'string')

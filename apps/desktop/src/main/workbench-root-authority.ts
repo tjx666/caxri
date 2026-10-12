@@ -32,6 +32,12 @@ type OpenCommanderFileLinkParameters = Extract<
 type ExternalOpenDecision = 'cancel' | 'open' | 'trust';
 
 interface WorkbenchRootAuthorityOptions {
+    /**
+     * `ssh` serves an SSH Host window: every root path names a folder on the remote machine, so this authority never
+     * resolves it on the local disk, never mints a local folder grant for it, and refuses files outside every Project
+     * instead of reading a same-named local file. See docs/adr/0014-ssh-remote-server.md.
+     */
+    environment?: 'local' | 'ssh';
     getServer(): DesktopServerConnection;
     getWindow(): BrowserWindow | undefined;
     grants: ProjectRootGrants;
@@ -64,6 +70,7 @@ async function showMessageBox(
  * and can never nominate a path for automatic authorization.
  */
 export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOptions) {
+    const isRemote = options.environment === 'ssh';
     /**
      * The Session that should receive the file, or why it will not be opened. A refusal carries a reason so the
      * Renderer can say something; a user who dismissed the chooser gets `undefined` and no message, because they
@@ -142,6 +149,11 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                 candidates: resolved.candidates,
                 truncated: resolved.truncated,
             };
+        if (isRemote && resolved.status === 'external')
+            throw new CaxriError(
+                'UNAVAILABLE',
+                'Files outside every Project on an SSH Host cannot be opened yet',
+            );
         if (resolved.status === 'external') {
             if (!resolved.trusted) {
                 const decision = await confirmExternalOpen(resolved.path);
@@ -359,12 +371,21 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
         },
 
         createProject(parameters: CreateProjectParameters) {
+            /**
+             * The remote folder was listed by the remote Server itself (`project.browseFolders`), which canonicalizes
+             * the root again in `project.create`; a local grant would describe a path on the wrong machine.
+             */
+            if (isRemote)
+                return options.getServer().request('project.create', {
+                    rootPath: parameters.rootPath,
+                });
             return options.grants.use(parameters.rootPath, () =>
                 options.getServer().request('project.create', parameters),
             );
         },
 
         cancelProjectCreate(parameters: CancelProjectParameters) {
+            if (isRemote) return null;
             options.grants.revoke(parameters.rootPath);
             return null;
         },
@@ -379,6 +400,12 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             const selectedPath = await options
                 .getServer()
                 .request('session.workbenchRoot.resolve', parameters);
+            if (isRemote)
+                return options.getServer().request('session.workbenchRoot.authorizeSelection', {
+                    sessionId: parameters.sessionId,
+                    rootPath: selectedPath,
+                    worktreeId: parameters.worktreeId,
+                });
             const canonicalRoot = await realpath(selectedPath);
             options.grants.grant(canonicalRoot);
             try {
@@ -412,6 +439,12 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                  * Continue authorizes the exact Server-owned candidate, never a Renderer-supplied path. Server
                  * revalidates the candidate and Git topology before consuming this single-use root grant.
                  */
+                if (isRemote)
+                    return await server.request('session.workbenchCandidate.authorize', {
+                        candidateId,
+                        rootPath: candidate.rootPath,
+                        sessionId,
+                    });
                 let selectedRoot: string;
                 try {
                     selectedRoot = await realpath(candidate.rootPath);

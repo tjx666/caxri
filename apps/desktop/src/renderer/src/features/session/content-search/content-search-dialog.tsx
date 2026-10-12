@@ -9,6 +9,7 @@ import {
 import { Input } from '../../../components/ui/input';
 import { useTranslation } from '../../../i18n';
 import { setSessionContentSearchOpen, useDialogStore } from '../../../stores/dialogs';
+import { sessionTitleForDisplay } from '../session-title';
 import { openContentSearchResult } from './content-search-commands';
 import { contentSearchCoverage } from './content-search-model';
 import { useContentSearch } from './use-content-search';
@@ -90,7 +91,9 @@ function ContentSearchDialogBody() {
                                         className="grid w-full gap-1 rounded border border-border px-3 py-2 text-left hover:bg-elevated focus-visible:outline focus-visible:outline-accent"
                                         onClick={() => openContentSearchResult(item.sessionId)}
                                     >
-                                        <span className="truncate font-medium">{item.title}</span>
+                                        <span className="truncate font-medium">
+                                            {sessionTitleForDisplay(item.title, t)}
+                                        </span>
                                         <span className="text-xs text-muted">
                                             {item.project ?? t('session.unknownProject')} ·{' '}
                                             {item.provider} ·{' '}

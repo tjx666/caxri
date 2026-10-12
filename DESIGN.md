@@ -306,8 +306,8 @@ major outage marks it `--danger`. The dot is drawn into the glyph, so the chip k
 comes and goes, and the chip's accessible name ends with the same status in words
 (`API status: Partial outage`). An operational provider, an unread or unreadable status page, and a
 provider without one show no dot.
-The hover card breaks it down by last response, turn, and Agent Session (the turn row folds into the
-Agent Session row while both cover the same responses), lists provider incidents as at most one line
+The hover card breaks it down by last response, turn, and conversation (the turn row folds into the
+conversation row while both cover the same responses), lists provider incidents as at most one line
 plus `+N more`, charts the recent responses, and states the method (see `docs/agent-throughput.md`).
 Beside it, the conversation's running usage (`1.2M · $3.40 · 5h 62%`: tokens, estimated cost, and
 the shortest rate-limit window that has not reset) appears once the transcript records a billed
@@ -1065,8 +1065,9 @@ row shares adds when that Session was last opened (`· 3h`), a query with no mat
 match`, and after a choice the list becomes one spinner row (`Preparing “Title”…`) until the
 reference is written, while Enter waits. Both lists show only while the input has focus. Queued
 messages sit above the card as 12px `--surface` cards, each with Edit (back into the composer),
-Delete, and Send now (Steer while a turn runs); after a stopped turn a `Queue paused` row with
-Resume heads them. The dock above the card (recovery row, plan, requests, and task strip) is capped
+Delete, and Send now (Steer while a turn runs); a paused queue is headed by a row that
+names why (`queuePauseReason`): a stopped turn reads `Queue paused` with Resume, a failed send
+reads `Couldn't send queued messages` in `--danger` with Retry. The dock above the card (recovery row, plan, requests, and task strip) is capped
 at 60% of the pane and scrolls past it. Above everything in the dock, a recovery row explains why the Chat cannot
 continue: a provider failure in a `--danger` bordered card with Retry (a conversation the provider
 could not resume adds a body naming the cause and Open as Terminal), or a hand-over to another
@@ -1090,7 +1091,7 @@ stop` right-aligned. A working turn's label is one playful verb chosen per turn 
 so a long turn reads as progress rather than a stall; a waiting one reads `Waiting for your
 approval` or `Waiting for your answer` by its first pending request. On an idle Chat the same row
 carries context notices instead: an expired prompt cache in `--muted` (a cost fact, not a fault),
-and context high enough to read `consider compacting` in `--danger` with a Compact button. References: T3 Code's Chat composer, Claude
+and context high enough to read `consider compacting` in `--warning` (a suggestion, since nothing failed) with a Compact button. References: T3 Code's Chat composer, Claude
 Code's spinner verbs, and the Codex app's round Send and Stop, context ring, and model and effort
 picker. In the transcript, inline code sits in a lifted `--elevated` chip and links take
 `--accent`; a code block is one radius-8 `--elevated` panel whose header (a code glyph, Monaco's

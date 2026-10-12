@@ -21,6 +21,7 @@ import {
     agentChatEffortDisplayName,
     agentChatMenuModel,
     agentChatModelTriggerText,
+    isAgentChatFastOffered,
 } from './agent-chat-model-selection';
 import { useAgentChatModelSelection } from './hooks/use-agent-chat-model-selection';
 
@@ -35,14 +36,17 @@ const LABEL_CLASS_NAME = 'flex min-w-0 items-center gap-1 text-[12px] leading-4 
  * stays muted beside it. Before Claude Code names its model, the menu checks the provider's `default` row and offers
  * its efforts, matching the trigger's "Default" (`agentChatMenuModel`).
  *
- * Claude Code's ultracode is a toggle beside the effort rather than an effort level, as in its own `/effort` picker
- * since 2.1.284: it stays on at any effort. The row appears only while the provider offers it for the current model.
+ * Fast mode and Claude Code's ultracode are toggles below the efforts rather than effort levels: ultracode follows
+ * Claude Code's own `/effort` picker since 2.1.284, and Fast mode is a separate speed tier at any effort, as Codex's
+ * `/fast` and Claude Code's `/fast` keep it. Each row appears only while the provider offers it for the current model,
+ * and an active one reads as a mode word on the trigger, set like the permission trigger's `Plan`.
  */
 export function AgentChatModelMenu({
     snapshot: reported,
     terminalId,
 }: {
-    snapshot: Pick<AgentChatSnapshot, 'effort' | 'model' | 'models' | 'ultracode'> | undefined;
+    snapshot:
+        Pick<AgentChatSnapshot, 'effort' | 'fast' | 'model' | 'models' | 'ultracode'> | undefined;
     terminalId: string;
 }) {
     const { t } = useTranslation();
@@ -55,7 +59,9 @@ export function AgentChatModelMenu({
         <>
             <span className="truncate text-foreground">{modelName}</span>
             {effortName && <span className="shrink-0">{effortName}</span>}
-            {/* A mode word, set like the permission trigger's `Plan`. */}
+            {snapshot?.fast && (
+                <span className="shrink-0 text-foreground">{t('agentChat.model.fast')}</span>
+            )}
             {snapshot?.ultracode && <span className="shrink-0 text-foreground">Ultracode</span>}
         </>
     );
@@ -125,37 +131,83 @@ export function AgentChatModelMenu({
                         </MenuGroup>
                     </>
                 )}
-                {snapshot.ultracode !== undefined && (
-                    <UltracodeItem
-                        isOn={snapshot.ultracode}
-                        onChange={(isOn) => configure({ ultracode: isOn })}
-                    />
-                )}
+                <ModeItems
+                    configure={configure}
+                    fast={
+                        isAgentChatFastOffered(snapshot, current)
+                            ? {
+                                  description:
+                                      current?.fast?.description ??
+                                      t('agentChat.model.fastDescription'),
+                                  isOn: snapshot.fast === true,
+                              }
+                            : undefined
+                    }
+                    ultracode={snapshot.ultracode}
+                />
             </MenuContent>
         </Menu>
     );
 }
 
 /**
- * Claude Code's ultracode toggle, below the efforts.
+ * The mode toggles below the efforts, behind one separator: Fast mode when the current model offers it, then ultracode
+ * when the provider reports it.
  */
-function UltracodeItem({ isOn, onChange }: { isOn: boolean; onChange: (isOn: boolean) => void }) {
+function ModeItems({
+    configure,
+    fast,
+    ultracode,
+}: {
+    configure: (change: { fast?: boolean; ultracode?: boolean }) => void;
+    fast: { description: string; isOn: boolean } | undefined;
+    ultracode: boolean | undefined;
+}) {
     const { t } = useTranslation();
+    if (!fast && ultracode === undefined) return null;
     return (
         <>
             <MenuSeparator />
-            <MenuCheckboxItem
-                checked={isOn}
-                className="h-auto min-h-7 py-1"
-                onCheckedChange={onChange}
-            >
-                <span className="flex min-w-0 flex-col">
-                    <span className="truncate">Ultracode</span>
-                    <span className="truncate text-[11px] leading-4 text-muted">
-                        {t('agentChat.model.ultracodeDescription')}
-                    </span>
-                </span>
-            </MenuCheckboxItem>
+            {fast && (
+                <ModeItem
+                    description={fast.description}
+                    isOn={fast.isOn}
+                    label={t('agentChat.model.fast')}
+                    onChange={(isOn) => configure({ fast: isOn })}
+                />
+            )}
+            {ultracode !== undefined && (
+                <ModeItem
+                    description={t('agentChat.model.ultracodeDescription')}
+                    isOn={ultracode}
+                    label="Ultracode"
+                    onChange={(isOn) => configure({ ultracode: isOn })}
+                />
+            )}
         </>
+    );
+}
+
+/**
+ * One mode toggle below the efforts (Fast mode, ultracode), with what it does underneath.
+ */
+function ModeItem({
+    description,
+    isOn,
+    label,
+    onChange,
+}: {
+    description: string;
+    isOn: boolean;
+    label: string;
+    onChange: (isOn: boolean) => void;
+}) {
+    return (
+        <MenuCheckboxItem checked={isOn} className="h-auto min-h-7 py-1" onCheckedChange={onChange}>
+            <span className="flex min-w-0 flex-col">
+                <span className="truncate">{label}</span>
+                <span className="truncate text-[11px] leading-4 text-muted">{description}</span>
+            </span>
+        </MenuCheckboxItem>
     );
 }

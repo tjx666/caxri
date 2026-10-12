@@ -5,9 +5,11 @@ import { caxri } from '../../lib/caxri';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
 import { clearPendingSession, useDialogStore } from '../../stores/dialogs';
+import { isRemote } from '../../stores/environment';
 import { getBootstrap } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
+import { pickSshHostFolder } from '../ssh-host/ssh-host-dialogs-store';
 import { newAgentSurface } from '../terminal/new-terminal-agent';
 import { selectProject } from './session-commands';
 
@@ -107,9 +109,18 @@ async function restoreHiddenProject(rootPath: string): Promise<void> {
     selectProject(project.id);
 }
 
+/**
+ * The native picker sees only this Mac's disk, so an SSH Host window chooses from the folders its own Server lists.
+ * Either way the rest of the flow is the same: Main's `project.create` treats the SSH Host's folder as remote and
+ * grants nothing locally.
+ */
+function selectProjectFolder(): Promise<string | null | undefined> {
+    return isRemote() ? pickSshHostFolder() : caxri.request('dialog.selectDirectory');
+}
+
 export async function chooseProjectFolder(): Promise<void> {
     await tryCommand(translate('session.errors.selectFolderFailed'), async () => {
-        const rootPath = await caxri.request('dialog.selectDirectory');
+        const rootPath = await selectProjectFolder();
         if (!rootPath) return;
         if (await caxri.request('project.restorable', { rootPath })) {
             await restoreHiddenProject(rootPath);

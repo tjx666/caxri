@@ -79,7 +79,9 @@ export const commandDefinitions: CommandDefinition[] = [
         { confirm: true },
     ),
     fromCatalog('project.hide', (context) => context.project.hideSelected()),
-    fromCatalog('project.openInEditor', (context) => context.project.openInExternalEditor()),
+    fromCatalog('project.openInEditor', (context) => context.project.openInExternalEditor(), {
+        when: (context) => context.remote.isLocalOnlyAvailable(),
+    }),
     fromCatalog('project.customizeIcon', (context, arguments_) =>
         context.project.customizeIcon(projectIdArgument(arguments_)),
     ),
@@ -343,10 +345,18 @@ export const commandDefinitions: CommandDefinition[] = [
         { allowInEditable: true },
     ),
     fromCatalog('updates.check', (context) => context.updates.check()),
-    fromCatalog('shellCommand.install', (context) => context.shellCommand.install()),
-    fromCatalog('shellCommand.uninstall', (context) => context.shellCommand.uninstall()),
+    fromCatalog('shellCommand.install', (context) => context.shellCommand.install(), {
+        when: (context) => context.remote.isLocalOnlyAvailable(),
+    }),
+    fromCatalog('shellCommand.uninstall', (context) => context.shellCommand.uninstall(), {
+        when: (context) => context.remote.isLocalOnlyAvailable(),
+    }),
+    /**
+     * The path browser lists and opens paths with this Mac's filesystem, so an SSH Host window does not offer it.
+     */
     fromCatalog('pathBrowser.open', (context) => context.dialogs.openPathBrowser(), {
         allowInEditable: true,
+        when: (context) => context.remote.isLocalOnlyAvailable(),
     }),
     fromCatalog('commandPalette.open', (context) => context.dialogs.openPalette(), {
         allowInEditable: true,
@@ -362,9 +372,18 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('secondarySidebar.searchFiles', (context) => context.dialogs.openProjectSearch(), {
         allowInEditable: true,
     }),
-    fromCatalog('processExplorer.open', (context) => context.windows.openProcessExplorer()),
-    fromCatalog('agentCommander.open', (context) => context.windows.openAgentCommander()),
-    fromCatalog('agentCommander.stop', (context) => context.windows.stopAgentCommander()),
+    fromCatalog('processExplorer.open', (context) => context.windows.openProcessExplorer(), {
+        when: (context) => context.remote.isLocalOnlyAvailable(),
+    }),
+    fromCatalog('agentCommander.open', (context) => context.windows.openAgentCommander(), {
+        when: (context) => context.remote.isLocalOnlyAvailable(),
+    }),
+    fromCatalog('agentCommander.stop', (context) => context.windows.stopAgentCommander(), {
+        when: (context) => context.remote.isLocalOnlyAvailable(),
+    }),
+    fromCatalog('agentCommander.handOver', (context) => context.dialogs.openCommanderHandover(), {
+        when: (context) => context.remote.isLocalOnlyAvailable(),
+    }),
     fromCatalog(
         'developer.toggleScreencastMode',
         (context) => context.developer.toggleScreencastMode(),
@@ -374,8 +393,20 @@ export const commandDefinitions: CommandDefinition[] = [
     ),
     fromCatalog('developer.reportBug', (context) => context.developer.reportBug(), {
         allowInEditable: true,
+        when: (context) => context.remote.isLocalOnlyAvailable(),
     }),
-    fromCatalog('diagnostics.export', (context) => context.diagnostics.export()),
+    fromCatalog('diagnostics.export', (context) => context.diagnostics.export(), {
+        when: (context) => context.remote.isLocalOnlyAvailable(),
+    }),
+    fromCatalog('remote.connect', (context) => context.remote.connect(), {
+        allowInEditable: true,
+    }),
+    fromCatalog('remote.reconnect', (context) => context.remote.reconnect(), {
+        when: (context) => context.remote.isRemote(),
+    }),
+    fromCatalog('remote.stopServer', (context) => context.remote.stopServer(), {
+        when: (context) => context.remote.isRemote(),
+    }),
     fromCatalog('editor.openImportLink', (context) => context.editor.openImportLink(), {
         allowInEditable: true,
         when: (context) => context.editor.canOpenImportLink(),

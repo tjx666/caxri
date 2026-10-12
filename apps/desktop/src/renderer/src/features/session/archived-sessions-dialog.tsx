@@ -42,6 +42,7 @@ import {
 } from './archived-sessions';
 import { unarchiveSession, unarchiveSessions } from './session-archive-commands';
 import { deleteSession, deleteSessions } from './session-commands';
+import { sessionTitleForDisplay } from './session-title';
 
 const NO_RECORDS: never[] = [];
 const EMPTY_SELECTION: ReadonlySet<string> = new Set();
@@ -257,7 +258,7 @@ function ArchivedSessionRow({
         >
             <Checkbox
                 aria-label={t('session.archived.selectSession', {
-                    title: item.session.displayTitle,
+                    title: sessionTitleForDisplay(item.session.displayTitle, t),
                 })}
                 checked={isSelected}
                 onCheckedChange={(next) => onToggle([item.session.id], next === true)}
@@ -266,7 +267,7 @@ function ArchivedSessionRow({
                 <AgentIdentityIcon identity={item.agent} size={15} />
                 <div className="min-w-0">
                     <p className="m-0 truncate text-[12px] font-medium">
-                        {item.session.displayTitle}
+                        {sessionTitleForDisplay(item.session.displayTitle, t)}
                     </p>
                     <p className="m-0 text-[10px] text-muted">
                         {resolveAgentIcon(item.agent).label}
@@ -280,7 +281,7 @@ function ArchivedSessionRow({
             <div className="flex gap-1">
                 <Button
                     aria-label={t('session.archived.restoreSession', {
-                        title: item.session.displayTitle,
+                        title: sessionTitleForDisplay(item.session.displayTitle, t),
                     })}
                     size="sm"
                     variant="secondary"
@@ -291,7 +292,7 @@ function ArchivedSessionRow({
                 </Button>
                 <Button
                     aria-label={t('session.archived.deleteSession', {
-                        title: item.session.displayTitle,
+                        title: sessionTitleForDisplay(item.session.displayTitle, t),
                     })}
                     className="text-danger hover:text-danger"
                     size="sm"

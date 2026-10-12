@@ -99,11 +99,18 @@ export const commandDescriptions: TranslatedNamespace<typeof source> = {
     'commands.description.agentCommander.open': '打开 Commander Agent 旁的跨项目 Agent 看板',
     'commands.description.agentCommander.stop':
         '停止在后台运行的 Agent Commander；再次打开会恢复同一对话',
+    'commands.description.agentCommander.handOver':
+        '选择会话或在 Caxri 之外开始的 Agent 对话，交给 Agent Commander 接手',
     'commands.description.processExplorer.open': '查看 Caxri 各进程的资源占用',
     'commands.description.developer.toggleScreencastMode': '显示点击和 Caxri 快捷键，便于外部录屏',
     'commands.description.developer.reportBug':
         '预览并向运行中的 Agent 发送一份保护隐私的本地问题报告',
     'commands.description.diagnostics.export': '导出一份保护隐私的诊断包',
+    'commands.description.remote.connect':
+        '打开一个新窗口，其中的项目、终端和 Agent 都运行在 SSH Host 上',
+    'commands.description.remote.reconnect': '让此窗口重新连接到 SSH Host 上的 Server',
+    'commands.description.remote.stopServer':
+        '停止此 SSH Host 上的 Server，并结束其中运行的所有终端和 Agent',
     'commands.description.git.switchBranch': '在所选会话的仓库中检出另一个分支',
     'commands.description.git.goToNextReviewComment': '跳转到当前 Git 差异标签页中的下一条评审评论',
     'commands.description.git.goToPreviousReviewComment':

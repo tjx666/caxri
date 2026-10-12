@@ -32,7 +32,11 @@ interface ThemeFormProperties {
     importResult?: ThemeImportResult;
     onColorChange: (section: 'colors' | 'terminal' | 'editor', key: string, value: string) => void;
     onDismissImportResult: () => void;
-    onImport: () => void;
+    /**
+     * Omitted in an SSH Host window: the import reads a file picked on this Mac, which the SSH Host's Server cannot
+     * see.
+     */
+    onImport?: () => void;
     onSelectBuiltin: (id: string) => void;
 }
 
@@ -124,9 +128,11 @@ export function ThemeForm({
                             </SelectContent>
                         </Select>
                     </span>
-                    <Button size="sm" variant="secondary" onClick={onImport}>
-                        <Import size={13} /> {t('settings.themeEditor.importTheme')}
-                    </Button>
+                    {onImport && (
+                        <Button size="sm" variant="secondary" onClick={onImport}>
+                            <Import size={13} /> {t('settings.themeEditor.importTheme')}
+                        </Button>
+                    )}
                 </Field>
                 <ThemePreview theme={theme} />
                 {(['colors', 'terminal', 'editor'] as const).map((section) => (

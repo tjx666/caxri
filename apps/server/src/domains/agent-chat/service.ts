@@ -382,8 +382,7 @@ export class AgentChatService {
     async configure(terminalId: string, change: AgentChatModelRequest): Promise<void> {
         await this.enqueue(terminalId, async (session, state) => {
             const config = resolveAgentChatModelChange(state.projection.snapshot, change);
-            if (config.model || config.effort || config.ultracode !== undefined)
-                await session.configure?.(config);
+            if (Object.keys(config).length > 0) await session.configure?.(config);
         });
     }
 

@@ -14,6 +14,7 @@ vi.mock('../features/editor/git-review-comment-binding', () => ({
     listBoundGitReviewCommentEditors: () => new Set(),
 }));
 
+import { useEnvironmentStore } from '../stores/environment';
 import { configureToastActions } from '../stores/toast-actions';
 import { dismissToast, getToasts } from '../stores/toasts';
 import { executeCommand } from './execute';
@@ -27,6 +28,8 @@ describe('diagnostics export recovery', () => {
     beforeEach(() => {
         mocks.request.mockReset();
         dismissToast();
+        // Exporting diagnostics is a local-only command, so the suite runs as a local window.
+        useEnvironmentStore.setState({ state: { kind: 'local' } });
     });
 
     afterEach(() => {

@@ -37,7 +37,7 @@ export const terminal = {
     'terminal.exit.failure.agentSessionUnavailable':
         'Original Agent Session could not be restored; check provider state or start fresh',
     'terminal.exit.suspendedDetail':
-        'Caxri suspends background Agents to save memory and resumes them when you come back. Change when this happens in Settings > Agents.',
+        'Caxri suspends background Agents to save memory and resumes them when you come back. Change when this happens in {{settingsPath}}.',
     'terminal.exit.stopped': 'Process exited normally',
     'terminal.exit.failed': 'Terminal failed to start',
     'terminal.exit.dead': 'Terminal stopped unexpectedly',
@@ -49,6 +49,7 @@ export const terminal = {
     'terminal.recovery.restartAgent': 'Restart Agent',
     'terminal.recovery.restartTerminal': 'Restart Terminal',
     'terminal.recovery.openSettings': 'Open Settings',
+    'terminal.recovery.openSuspensionSettings': 'Open Agent suspension settings',
     'terminal.recovery.restart': 'Restart',
     'terminal.recovery.startNewConversation': 'Start New Conversation',
     'terminal.recovery.newConversation': 'New Conversation',
