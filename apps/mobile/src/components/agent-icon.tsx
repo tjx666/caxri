@@ -33,7 +33,7 @@ const CodexGlyph = ({ size }: { size: number }) => (
                 y2="21"
             >
                 <Stop stopColor="#B1A7FF" />
-                <Stop offset=".5" stopColor="#7A9DFF" />
+                <Stop offset="0.5" stopColor="#7A9DFF" />
                 <Stop offset="1" stopColor="#3941FF" />
             </LinearGradient>
         </Defs>
