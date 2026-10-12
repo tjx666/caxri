@@ -42,9 +42,13 @@ const projectStatusReviewThreadSchema = z.object({
     line: z.number().int().positive().optional(),
 });
 
-const projectStatusLinearIssueSchema = z.object({
+export const projectStatusLinearIssueSchema = z.object({
     identifier: z.string(),
     title: z.string().optional(),
+    /**
+     * The description's opening as plain text, capped at the Server, for a link's hover card.
+     */
+    excerpt: z.string().optional(),
     url: z.url().optional(),
     state: z.string().optional(),
     stateType: z
