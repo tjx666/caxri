@@ -27,6 +27,12 @@ describe('shownPdfRead', () => {
         );
     });
 
+    it('keeps the password form on screen while a password attempt reads', () => {
+        expect(shownPdfRead(settled, { source: 'report', request: 2, cause: 'password' })).toBe(
+            'page 3',
+        );
+    });
+
     it('shows the loading state for Retry', () => {
         expect(shownPdfRead(settled, { source: 'report', request: 2, cause: 'open' })).toBe(
             undefined,
@@ -49,7 +55,8 @@ describe('pdfReadFailureAction', () => {
         expect(pdfReadFailureAction('confirm')).toBe('show');
     });
 
-    it('shows a failed first read or Retry at once', () => {
+    it('shows a failed first read, Retry, or password attempt at once', () => {
         expect(pdfReadFailureAction('open')).toBe('show');
+        expect(pdfReadFailureAction('password')).toBe('show');
     });
 });

@@ -18,8 +18,9 @@ export const preview = {
     'preview.mermaid.renderFailed': 'This diagram could not be rendered.',
 
     // PDF.
-    'preview.pdf.passwordProtected':
-        'This PDF is password-protected, and protected PDFs cannot be previewed yet.',
+    'preview.pdf.passwordPrompt': 'This PDF is password-protected. Enter its password to open it.',
+    'preview.pdf.password': 'Password',
+    'preview.pdf.passwordIncorrect': 'Incorrect password.',
     'preview.pdf.invalid': 'This file is not a valid PDF, or it is damaged.',
     'preview.pdf.tooLarge': 'This PDF is larger than the {{limit}} preview limit.',
     'preview.pdf.displayFailed': "Couldn't display this PDF.",

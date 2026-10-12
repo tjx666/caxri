@@ -17,7 +17,9 @@ export const preview: TranslatedNamespace<typeof source> = {
     'preview.mermaid.empty': '此图表为空。',
     'preview.mermaid.renderFailed': '无法渲染此图表。',
 
-    'preview.pdf.passwordProtected': '此 PDF 受密码保护，暂不支持预览受保护的 PDF。',
+    'preview.pdf.passwordPrompt': '此 PDF 受密码保护。输入密码以打开。',
+    'preview.pdf.password': '密码',
+    'preview.pdf.passwordIncorrect': '密码错误。',
     'preview.pdf.invalid': '此文件不是有效的 PDF，或已损坏。',
     'preview.pdf.tooLarge': '此 PDF 超过了 {{limit}} 的预览上限。',
     'preview.pdf.displayFailed': '无法显示此 PDF。',

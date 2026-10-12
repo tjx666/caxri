@@ -26,6 +26,7 @@ import { usePdfFind } from './hooks/use-pdf-find';
 import type { PdfViewerSession, PdfViewState } from './pdf-document';
 import { createPdfViewerSession } from './pdf-document';
 import { isPdfFindMiss, isPdfFindShortcut, pdfFindCountLabel } from './pdf-find';
+import { PdfPasswordForm } from './pdf-password-form';
 import type { PdfZoomChoice } from './pdf-toolbar-model';
 import {
     describePdfView,
@@ -334,13 +335,28 @@ export function PdfPreview({
     workbenchProjectId: string | undefined;
 }) {
     const { t } = useTranslation();
-    const { state, retry } = usePdfDocument(sessionId, workbenchProjectId, path);
+    const { state, isCheckingPassword, retry, submitPassword } = usePdfDocument(
+        sessionId,
+        workbenchProjectId,
+        path,
+    );
     if (state.status === 'failed')
         return (
             <EditorLoadFailure
                 {...documentLoadRecoveryAction(state.failure.recovery, path, retry, t)}
                 reason={state.failure.reason}
                 tone={state.failure.tone}
+            />
+        );
+    if (state.status === 'password')
+        return (
+            <PdfPasswordForm
+                // A different protected file starts with an empty field.
+                key={path}
+                attempt={state.attempt}
+                isChecking={isCheckingPassword}
+                isIncorrect={state.isIncorrect}
+                onSubmit={submitPassword}
             />
         );
     if (state.status === 'loading')
