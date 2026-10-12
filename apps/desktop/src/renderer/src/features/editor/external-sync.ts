@@ -91,6 +91,7 @@ function applyExternalDocuments(
      */
     pushToast('warning', discardedChangesMessage(discardedDirtyDocuments.map(name)), {
         persist: true,
+        dismissOnSuccess: true,
         action: {
             id: 'editor.restoreDiscardedChanges',
             params: {
