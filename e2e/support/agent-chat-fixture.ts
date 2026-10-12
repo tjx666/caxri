@@ -87,4 +87,12 @@ export async function openAgentChat(
     // A pointer left on + would reopen the hover list, which takes focus from the new Chat's message box.
     await page.mouse.move(0, 300);
     await expect(page.getByRole('menu')).toHaveCount(0);
+    /**
+     * The Composer refuses Enter until the Chat's first snapshot loads (`agentChatSendBlock` returns `loading`), so a
+     * caller that fills and sends at once loses its message on a loaded runner (issue #1846, `parallel-safe`). The
+     * empty Chat's invitation renders only once that snapshot reads `ready`.
+     */
+    await expect(
+        session.getByText(/^Send a message to start working with /u).filter({ visible: true }),
+    ).toBeVisible();
 }
