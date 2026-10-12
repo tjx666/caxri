@@ -17,7 +17,7 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     // Project tree
     'primarySidebar.tree.ariaLabel': '主侧边栏',
     'primarySidebar.tree.addFirstProject': '添加第一个项目',
-    'primarySidebar.reveal.showMore': '再显示 {{count}} 个',
+    'primarySidebar.reveal.showMore': '展开显示',
     'primarySidebar.project.collapse': '折叠 {{title}}',
     'primarySidebar.project.expand': '展开 {{title}}',
     'primarySidebar.project.actionsHint': '按 Shift+F10 打开项目操作',
@@ -73,14 +73,14 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     'primarySidebar.projectIcon.color.danger': '危险',
 
     // Pinned group
-    'primarySidebar.pinned.title': '已置顶',
-    'primarySidebar.pinned.collapse': '折叠已置顶',
-    'primarySidebar.pinned.expand': '展开已置顶',
-    'primarySidebar.pinned.headingAriaLabelOne': '已置顶，{{count}} 个会话',
-    'primarySidebar.pinned.headingAriaLabelOther': '已置顶，{{count}} 个会话',
-    'primarySidebar.pinned.listAriaLabel': '已置顶的会话',
-    'primarySidebar.pinned.revealAriaLabelOne': '再显示 {{count}} 个已置顶的会话',
-    'primarySidebar.pinned.revealAriaLabelOther': '再显示 {{count}} 个已置顶的会话',
+    'primarySidebar.pinned.title': '置顶',
+    'primarySidebar.pinned.collapse': '折叠置顶',
+    'primarySidebar.pinned.expand': '展开置顶',
+    'primarySidebar.pinned.headingAriaLabelOne': '置顶，{{count}} 个会话',
+    'primarySidebar.pinned.headingAriaLabelOther': '置顶，{{count}} 个会话',
+    'primarySidebar.pinned.listAriaLabel': '置顶会话',
+    'primarySidebar.pinned.revealAriaLabelOne': '再显示 {{count}} 个置顶会话',
+    'primarySidebar.pinned.revealAriaLabelOther': '再显示 {{count}} 个置顶会话',
     'primarySidebar.pinned.pinnedAnnouncement': '已置顶 {{title}}',
 
     // Session row
@@ -117,7 +117,7 @@ export const primarySidebar: TranslatedNamespace<typeof source> = {
     // Session activity card
     'primarySidebar.card.openPullRequestAriaLabel': '打开 Pull Request #{{number}}：{{title}}',
     'primarySidebar.card.unreadAttention': '未读的待处理：{{label}}',
-    'primarySidebar.card.inPinnedGroup': '位于已置顶分组。',
+    'primarySidebar.card.inPinnedGroup': '位于置顶分组。',
     'primarySidebar.card.projectSentence': '项目 {{title}}。',
     'primarySidebar.card.agentSentence': 'Agent {{agent}}。',
     'primarySidebar.card.pullRequestUnknown': 'Pull Request 状态未知。{{hint}}',

@@ -2,6 +2,8 @@ import { Popover as PopoverPrimitive } from '@base-ui/react/popover';
 
 import { cn } from '@/lib/utilities';
 
+import { ANCHORED_POPUP_MOTION } from './overlay-motion';
+
 export type PopoverActions = PopoverPrimitive.Root.Actions;
 
 export function Popover<Payload>(properties: PopoverPrimitive.Root.Props<Payload>) {
@@ -33,9 +35,8 @@ export function PopoverContent({
                 <PopoverPrimitive.Popup
                     data-slot="popover-content"
                     className={cn(
-                        'w-72 origin-(--transform-origin) overflow-hidden rounded-md bg-elevated text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)] outline-none',
-                        'motion-safe:data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 motion-safe:data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
-                        'duration-(--motion-overlay-enter) data-closed:duration-(--motion-overlay-exit)',
+                        'w-72 overflow-hidden rounded-md bg-elevated text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)] outline-none',
+                        ANCHORED_POPUP_MOTION,
                         className,
                     )}
                     {...properties}

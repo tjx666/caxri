@@ -4,8 +4,11 @@ import { translate } from '../../../i18n';
 import type { AgentChatPendingSelection } from '../agent-chat-model-selection';
 import {
     agentChatConfigureFailureMessage,
+    agentChatEffortReset,
+    agentChatEffortStop,
     agentChatMenuModel,
     agentChatModelTriggerText,
+    agentChatPickerOpeningView,
     agentChatSelectionView,
     isAgentChatFastOffered,
     isAgentChatSelectionSettled,
@@ -177,5 +180,32 @@ describe('agentChatModelTriggerText', () => {
             agentChatModelTriggerText(translate, { ultracode: false }, { model: 'Default' })
                 .ariaLabel,
         ).toBe('Model: Default');
+    });
+});
+
+describe('the effort panel', () => {
+    const [low, deep] = models;
+
+    it('opens on the model list only when there is nothing for the effort panel to set', () => {
+        expect(agentChatPickerOpeningView(low, false)).toBe('effort');
+        expect(agentChatPickerOpeningView({ ...low, efforts: [] }, true)).toBe('effort');
+        expect(agentChatPickerOpeningView({ ...low, efforts: [] }, false)).toBe('models');
+        expect(agentChatPickerOpeningView(undefined, false)).toBe('models');
+    });
+
+    it('puts an unlisted effort on the default stop, else the lowest', () => {
+        expect(agentChatEffortStop(deep, 'high')).toBe(1);
+        expect(agentChatEffortStop(deep, 'ultra')).toBe(1);
+        expect(agentChatEffortStop(deep, undefined)).toBe(1);
+        expect(agentChatEffortStop({ ...deep, defaultEffort: undefined }, 'ultra')).toBe(0);
+    });
+
+    it('resets to the default effort only when the model names one it is not already on', () => {
+        expect(agentChatEffortReset(deep, 'medium')).toBe('high');
+        expect(agentChatEffortReset(deep, 'high')).toBeUndefined();
+        expect(
+            agentChatEffortReset({ ...deep, defaultEffort: undefined }, 'medium'),
+        ).toBeUndefined();
+        expect(agentChatEffortReset({ ...deep, defaultEffort: 'max' }, 'medium')).toBeUndefined();
     });
 });

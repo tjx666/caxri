@@ -104,9 +104,13 @@ export function FindBar({
             aria-label={ariaLabel}
             className={cn(
                 'flex items-center gap-1 rounded border border-border bg-surface p-1',
+                // Opening fades the bar in (a floating bar also drops 4px from the top edge it is pinned to, the way
+                // VS Code's find widget slides down). Closing stays instant: Escape hands focus straight back to the
+                // content, and a fading bar would linger over the match the user just landed on.
+                'motion-safe:animate-in motion-safe:fade-in-0 duration-(--motion-overlay-enter) ease-(--motion-ease-enter)',
                 isDocked
                     ? 'max-w-full'
-                    : 'absolute top-2 right-2 max-w-[calc(100%-1rem)] shadow-lg',
+                    : 'motion-safe:slide-in-from-top-1 absolute top-2 right-2 max-w-[calc(100%-1rem)] shadow-lg',
                 className,
             )}
             onKeyDown={onKeyDown}

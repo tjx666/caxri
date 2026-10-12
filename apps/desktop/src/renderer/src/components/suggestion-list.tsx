@@ -63,7 +63,7 @@ export function SuggestionList({
     return (
         <div
             className={cn(
-                'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 absolute inset-x-0 bottom-full mb-1 flex max-h-72 origin-bottom flex-col overflow-hidden rounded-md bg-elevated text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)] duration-(--motion-overlay-enter) ease-(--motion-ease-enter)',
+                'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-bottom-1 absolute inset-x-0 bottom-full mb-1 flex max-h-72 origin-bottom flex-col overflow-hidden rounded-md bg-elevated text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)] duration-(--motion-overlay-enter) ease-(--motion-ease-enter)',
                 className,
             )}
         >

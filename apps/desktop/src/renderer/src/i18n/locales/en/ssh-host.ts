@@ -48,6 +48,8 @@ export const sshHost = {
     'sshHost.failure.installFailed':
         'Caxri Server could not be installed on the SSH Host. Check its free disk space and the permissions of ~/.caxri-server.',
     'sshHost.failure.launchFailed': 'Caxri Server was installed but did not start on the SSH Host.',
+    'sshHost.failure.profileInUse':
+        'Another computer that shares your home folder is running Caxri Server with the same data. Stop that Server, or wait a minute after it exits, then reconnect.',
     'sshHost.failure.cancelled': 'The connection was cancelled.',
     'sshHost.failure.connectionLost':
         'The connection to the SSH Host dropped. Terminals and Agents keep running there and reappear when you reconnect.',

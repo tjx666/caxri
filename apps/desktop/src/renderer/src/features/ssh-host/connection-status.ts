@@ -27,6 +27,7 @@ const failureExplanationKeys = {
     missingTool: 'sshHost.failure.missingTool',
     installFailed: 'sshHost.failure.installFailed',
     launchFailed: 'sshHost.failure.launchFailed',
+    profileInUse: 'sshHost.failure.profileInUse',
     cancelled: 'sshHost.failure.cancelled',
     connectionLost: 'sshHost.failure.connectionLost',
     unknown: 'sshHost.failure.unknown',

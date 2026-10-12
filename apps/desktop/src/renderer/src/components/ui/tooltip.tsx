@@ -11,6 +11,7 @@ import {
     TOOLTIP_CURSOR_COLLISION_PADDING,
     TOOLTIP_CURSOR_SIDE_OFFSET,
 } from '../tooltip-positioning';
+import { TOOLTIP_MOTION } from './overlay-motion';
 
 export function TooltipProvider({ children }: { children: ReactNode }) {
     return (
@@ -27,6 +28,7 @@ export function Tooltip({
     disabled,
     hoverOnly,
     shortcut,
+    side: elementSide = 'bottom',
     triggerId,
 }: {
     /**
@@ -49,6 +51,10 @@ export function Tooltip({
      */
     hoverOnly?: boolean;
     shortcut?: string;
+    /**
+     * The trigger edge an element-anchored tooltip opens from; a cursor-anchored one always sits beside the pointer.
+     */
+    side?: 'bottom' | 'left' | 'right' | 'top';
     /**
      * Required when the trigger element needs an `id` of its own (a WAI-ARIA `role="tab"`, for example).
      *
@@ -81,7 +87,7 @@ export function Tooltip({
      * Keeps the popup beside the pointer so its vertical path through adjacent tree rows stays clear. Floating UI flips
      * the popup to the left near the right edge without moving it across that path.
      */
-    const side = isCursorAnchored ? 'right' : 'bottom';
+    const side = isCursorAnchored ? 'right' : elementSide;
     return (
         <TooltipPrimitive.Root
             disabled={disabled}
@@ -142,27 +148,7 @@ export function Tooltip({
                             // Kept as a plain class (not `data-slot`) because E2E reads a tooltip's rendered text
                             // through `.tooltip-popup` (`e2e/statusbar.e2e.ts`, `e2e/editor-git-actions.e2e.ts`).
                             'tooltip-popup flex max-w-80 items-center gap-3 rounded-md bg-elevated px-2.5 py-1.5 text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)] outline-none',
-                            // `TooltipPositioner` exposes `--transform-origin`
-                            // (`TooltipPositionerCssVars`) and it inherits down to this
-                            // popup, so the zoom animation scales from the trigger edge.
-                            'origin-(--transform-origin)',
-                            // Switched from the previous transition-less
-                            // `data-[starting-style]/[ending-style]:opacity-0` (which never
-                            // actually animated) to the same keyframe-based `animate-in`/
-                            // `animate-out` pattern as the other overlay popups. Gating on
-                            // `data-open`/`data-closed` (which persist for the whole
-                            // enter/exit run, unlike the one-frame starting/ending-style
-                            // attributes) keeps the keyframe running to completion; Base UI
-                            // keeps the tooltip mounted until `getAnimations()` reports
-                            // nothing running.
-                            'motion-safe:data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 motion-safe:data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
-                            'duration-(--motion-overlay-enter) data-closed:duration-(--motion-overlay-exit)',
-                            // The keyframes are gated behind `motion-safe:` because a bare
-                            // `motion-reduce:animate-none` (0,1,0) loses the specificity
-                            // fight against `data-open:animate-in`'s attribute selector
-                            // (0,2,0). Under reduced motion no animation runs, so
-                            // `getAnimations()` reports nothing and close unmounts without
-                            // waiting a frame.
+                            TOOLTIP_MOTION,
                         )}
                     >
                         <span className="min-w-0 wrap-anywhere whitespace-pre-line">{content}</span>

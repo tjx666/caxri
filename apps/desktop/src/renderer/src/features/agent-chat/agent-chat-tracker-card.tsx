@@ -6,6 +6,7 @@ import { useTranslation } from '../../i18n';
 import { GithubMarkIcon } from '../../icons/brands/github-mark-icon';
 import { LinearLogoIcon } from '../../icons/brands/linear-logo-icon';
 import { openExternalUrl } from '../../lib/external-link';
+import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { pushToast } from '../../stores/toasts';
 import {
@@ -46,6 +47,14 @@ const KIND_ICON = {
     issue: CircleDot,
     acceptance: ListChecks,
 } satisfies Record<AgentChatTrackerArtifact['kind'], unknown>;
+
+/**
+ * A pull request's glyph carries GitHub's pull request green, matching the untinted pull request link icon in the
+ * transcript. The card records what the Agent did, not the pull request's live state, so it never turns purple or red.
+ */
+const KIND_ICON_TONE: Partial<Record<AgentChatTrackerArtifact['kind'], string>> = {
+    pull: 'text-success',
+};
 
 /**
  * `Created pull request`, `Updated issue`: what the Agent did, in the words a reader scans for.
@@ -105,7 +114,7 @@ export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerA
                 title: title ?? reference,
                 reference,
             })}
-            className="flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors duration-(--motion-overlay-enter) ease-(--motion-ease-enter) hover:bg-elevated focus-visible:outline focus-visible:outline-accent motion-reduce:transition-none"
+            className="flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors hover:bg-elevated focus-visible:outline focus-visible:outline-accent motion-reduce:transition-none"
             data-agent-chat-tracker={artifact.provider}
             type="button"
             onClick={() => {
@@ -132,7 +141,10 @@ export function AgentChatTrackerCard({ artifact }: { artifact: AgentChatTrackerA
                 )}
             </span>
             <span className="flex shrink-0 items-center gap-1 text-[12px] text-muted">
-                <KindIcon aria-hidden="true" className="size-3.5" />
+                <KindIcon
+                    aria-hidden="true"
+                    className={cn('size-3.5', KIND_ICON_TONE[artifact.kind])}
+                />
                 {label}
                 <ArrowUpRight aria-hidden="true" className="size-3.5" />
             </span>

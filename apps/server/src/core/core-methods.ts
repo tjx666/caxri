@@ -106,6 +106,7 @@ export const coreForwardedMethods = [
     'project.reorder',
     'project.setIcon',
     'project.setChatDefault',
+    'projectStatus.linearIssue',
     'projectStatus.overview',
     'projectStatus.summary',
     'session.archive',

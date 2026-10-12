@@ -109,6 +109,23 @@ function groupWork(items: readonly AgentChatItem[], finalReplyId?: string): Flat
 }
 
 /**
+ * A finished turn's duration in the active language's units, `2m 1s` or `2 分钟 1 秒` as the Codex app writes it, rounded
+ * to whole seconds like `formatShortDuration`; `undefined` under a second.
+ */
+function agentChatTurnDuration(
+    durationMs: number | undefined,
+    t: Translate = translate,
+): string | undefined {
+    if (durationMs === undefined || formatNoticeableDuration(durationMs) === null) return undefined;
+    const total = Math.round(durationMs / 1000);
+    const minutes = Math.floor(total / 60);
+    const seconds = total % 60;
+    if (minutes === 0) return t('agentChat.fold.durationSeconds', { seconds });
+    if (seconds === 0) return t('agentChat.fold.durationMinutes', { minutes });
+    return t('agentChat.fold.durationMinutesSeconds', { minutes, seconds });
+}
+
+/**
  * `Worked for 2m 1s`, or how a turn that did not complete ended, in the active language; the phone reads the English
  * `agentChatTurnLabel` in `@caxri/protocol`. A turn under a second reads as plain `Worked`, as a work row drops its
  * sub-second duration: `<1s` is noise.
@@ -117,7 +134,7 @@ export function agentChatTurnLabel(
     turn: Pick<AgentChatTurn, 'durationMs' | 'status'>,
     t: Translate = translate,
 ): string {
-    const duration = formatNoticeableDuration(turn.durationMs);
+    const duration = agentChatTurnDuration(turn.durationMs, t);
     if (duration)
         return t(
             turn.status === 'interrupted'

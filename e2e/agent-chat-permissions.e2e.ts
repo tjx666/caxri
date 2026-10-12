@@ -41,12 +41,20 @@ test('a Codex Chat switches its permission level and plan mode, and a new Chat s
             /Full access/,
         ]);
         await menu.getByRole('menuitemradio', { name: /Read only/ }).click();
-        // Picking a level closes the menu; reopen it for plan mode and the Project default.
+        // Picking a level closes the menu.
         await expect(menu).toBeHidden();
         await expect(picker).toHaveAccessibleName('Permissions: Read only');
-        await picker.click();
+        // Plan mode lives in `+`, and a Plan chip beside it says it is on.
+        await chat
+            .getByRole('button', { name: 'Add files and more' })
+            .filter({ visible: true })
+            .click();
         await menu.getByRole('menuitemcheckbox', { name: /Plan mode/ }).click();
-        await expect(picker).toHaveAccessibleName('Permissions: Read only, plan mode on');
+        const planChip = chat
+            .getByRole('button', { name: 'Turn off plan mode' })
+            .filter({ visible: true });
+        await expect(planChip).toBeVisible();
+        await picker.click();
         await page.screenshot({ path: testInfo.outputPath('codex-chat-permission-menu.png') });
         const projectDefault = menu.getByRole('menuitemcheckbox', {
             name: 'Use as Project default',
@@ -69,7 +77,10 @@ test('a Codex Chat switches its permission level and plan mode, and a new Chat s
         await openAgentChat(page, 'Codex Chat');
         await expect(
             chat.getByRole('button', { name: /^Permissions: / }).filter({ visible: true }),
-        ).toHaveAccessibleName('Permissions: Read only, plan mode on');
+        ).toHaveAccessibleName('Permissions: Read only');
+        await expect(
+            chat.getByRole('button', { name: 'Turn off plan mode' }).filter({ visible: true }),
+        ).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('codex-chat-project-default.png') });
 
         // Clearing the default leaves this Chat's own choice alone; the next new Chat follows the launch settings.

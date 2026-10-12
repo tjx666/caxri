@@ -18,7 +18,7 @@ import { cn } from '@/lib/utilities';
  * never match such a button, so the dimming and the hover gate are mirrored onto the attribute.
  */
 const buttonVariants = cva(
-    'inline-flex cursor-pointer items-center justify-center gap-2 rounded border border-transparent transition-[background] duration-75 ease-out disabled:cursor-not-allowed disabled:opacity-45 aria-disabled:cursor-not-allowed aria-disabled:opacity-45',
+    'inline-flex cursor-pointer items-center justify-center gap-2 rounded border border-transparent transition-[background] disabled:cursor-not-allowed disabled:opacity-45 aria-disabled:cursor-not-allowed aria-disabled:opacity-45',
     {
         variants: {
             variant: {
