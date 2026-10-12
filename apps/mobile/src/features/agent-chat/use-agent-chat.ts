@@ -4,7 +4,11 @@ import type { AgentChatRequest, AgentChatResponse, AgentChatSnapshot } from '@ca
 
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { useReadCache } from '../read-cache/read-cache-context';
-import { cachedChatSchema, trimChatSnapshot } from '../read-cache/read-cache-model';
+import {
+    cachedChatSchema,
+    liveReadSaveScope,
+    trimChatSnapshot,
+} from '../read-cache/read-cache-model';
 import { startAgentChatReader } from './agent-chat-sync';
 
 /**
@@ -17,6 +21,10 @@ export interface AgentChatAttachment {
 
 export interface AgentChatState {
     error: string | null;
+    /**
+     * The pairing the live snapshot was read under; only that pairing may save it.
+     */
+    readScope?: string;
     /**
      * Set while the snapshot is the copy saved on this phone; the first live snapshot replaces it.
      */
@@ -66,8 +74,9 @@ export const useAgentChat = ({
         !observable && stored.snapshot ? { ...stored, status: 'stale' } : stored;
 
     useEffect(() => {
-        if (terminalId === null || !observable) return;
+        if (terminalId === null || !observable || connectionScopeKey === null) return;
         let isActive = true;
+        const readScope = connectionScopeKey;
         const update = (value: (current: AgentChatState) => AgentChatState): void => {
             if (!isActive) return;
             setRecord((current) => ({
@@ -81,7 +90,8 @@ export const useAgentChat = ({
                 ? (listener) => subscribe({ kind: 'agentChat', terminalId }, listener)
                 : undefined,
             onRetry: () => setRetry((value) => value + 1),
-            onSnapshot: (snapshot) => update(() => ({ error: null, snapshot, status: 'ready' })),
+            onSnapshot: (snapshot) =>
+                update(() => ({ error: null, readScope, snapshot, status: 'ready' })),
             onError: () =>
                 update((current) => ({
                     ...current,
@@ -93,7 +103,16 @@ export const useAgentChat = ({
             isActive = false;
             stop();
         };
-    }, [connectionEpoch, observable, request, retry, subscribe, subscriptionAvailable, terminalId]);
+    }, [
+        connectionEpoch,
+        connectionScopeKey,
+        observable,
+        request,
+        retry,
+        subscribe,
+        subscriptionAvailable,
+        terminalId,
+    ]);
 
     useEffect(() => {
         if (terminalId === null || connectionScopeKey === null) return;
@@ -119,14 +138,15 @@ export const useAgentChat = ({
     }, [connectionScopeKey, readCache, terminalId]);
 
     const liveSnapshot = stored.savedAt === undefined ? stored.snapshot : undefined;
+    const saveScope = liveReadSaveScope(stored.readScope, connectionScopeKey);
     useEffect(() => {
-        if (!liveSnapshot || connectionScopeKey === null) return;
+        if (!liveSnapshot || saveScope === null) return;
         readCache.save(
-            connectionScopeKey,
+            saveScope,
             { kind: 'chat', terminalId: liveSnapshot.terminalId },
             trimChatSnapshot(liveSnapshot),
         );
-    }, [connectionScopeKey, liveSnapshot, readCache]);
+    }, [liveSnapshot, readCache, saveScope]);
 
     const refresh = useCallback((): void => {
         setRetry((value) => value + 1);

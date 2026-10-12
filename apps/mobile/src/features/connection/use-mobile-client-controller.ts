@@ -12,7 +12,7 @@ import * as Network from 'expo-network';
 
 import { useReadCache } from '../read-cache/read-cache-context';
 import type { MobileConnectionStatus } from './connection-state';
-import { loadMobileCredential } from './credential-load';
+import { loadMobileCredentialAtStart } from './credential-load';
 import type { MobileCredential } from './credential-store';
 import { expoMobileCredentialStore } from './expo-credential-store';
 import { expoMobileGatewayRuntime } from './expo-mobile-gateway-runtime';
@@ -190,7 +190,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
     useEffect(() => {
         let isActive = true;
         const loadCredential = async (): Promise<void> => {
-            const result = await loadMobileCredential(expoMobileCredentialStore);
+            const result = await loadMobileCredentialAtStart(expoMobileCredentialStore, readCache);
             if (!isActive) return;
             if (result.kind === 'storage-error') {
                 setStatus('storage-error');
@@ -206,7 +206,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             pairingAttempts.invalidate();
             replaceConnection(null);
         };
-    }, [credentialLoadAttempt, pairingAttempts, replaceConnection]);
+    }, [credentialLoadAttempt, pairingAttempts, readCache, replaceConnection]);
 
     const reconnect = useCallback(
         (storedCredential: MobileCredential) =>
@@ -479,13 +479,18 @@ export const useMobileClientController = (): MobileClientContextValue => {
         [credential, isDesktopNewer, status],
     );
 
+    const connectionScopeKey = credential
+        ? JSON.stringify([credential.serverId, credential.deviceId, credential.generation])
+        : null;
+    useEffect(() => {
+        readCache.setScope(connectionScopeKey);
+    }, [connectionScopeKey, readCache]);
+
     const value = useMemo<MobileClientContextValue>(
         () => ({
             cancelPairing,
             connectionEpoch,
-            connectionScopeKey: credential
-                ? JSON.stringify([credential.serverId, credential.deviceId, credential.generation])
-                : null,
+            connectionScopeKey,
             forgetDevice,
             hostId: credential?.serverId ?? null,
             isForeground,
@@ -503,6 +508,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
         [
             cancelPairing,
             connectionEpoch,
+            connectionScopeKey,
             credential,
             forgetDevice,
             isForeground,
