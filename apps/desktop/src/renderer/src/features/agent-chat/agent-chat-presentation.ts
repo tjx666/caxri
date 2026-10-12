@@ -8,6 +8,7 @@ import { projectRelativePath } from '@caxri/protocol';
 
 import type { Translate, TranslationKey } from '../../i18n';
 import { translate } from '../../i18n';
+import type { SuggestionMenuKeyAction } from '../../lib/suggestion-options';
 import { getTerminalExitPresentation } from '../terminal/terminal-exit-presentation';
 import {
     agentChatLocalizedFailureMessage,
@@ -396,6 +397,31 @@ export function shouldConfirmUnmatchedSend(state: {
     matchCount: number;
 }): boolean {
     return state.matchCount === 0 && state.confirmingDraft !== state.draft;
+}
+
+/**
+ * What a key does to the open slash list (`suggestionMenuKeyAction`), or `undefined` when the key is not the list's and
+ * the composer handles it. The first Enter on a draft with no match is held for confirmation
+ * (`shouldConfirmUnmatchedSend`); the second falls through and sends the draft. Escape dismisses the list even with no
+ * match, while moving, completing, and choosing need an active row.
+ */
+export type AgentChatCommandMenuKeyStep =
+    | { kind: 'confirm' }
+    | { kind: 'dismiss' }
+    | { kind: 'move'; delta: -1 | 1 }
+    | { kind: 'run'; handler: 'choose' | 'complete' };
+
+export function agentChatCommandMenuKeyStep(
+    action: SuggestionMenuKeyAction | undefined,
+    state: Parameters<typeof shouldConfirmUnmatchedSend>[0] & { hasActiveCommand: boolean },
+): AgentChatCommandMenuKeyStep | undefined {
+    if (action === 'choose' && shouldConfirmUnmatchedSend(state)) return { kind: 'confirm' };
+    if (action === 'dismiss') return { kind: 'dismiss' };
+    if (!action || !state.hasActiveCommand) return undefined;
+    if (action === 'next' || action === 'previous') {
+        return { kind: 'move', delta: action === 'next' ? 1 : -1 };
+    }
+    return { kind: 'run', handler: action };
 }
 
 /**

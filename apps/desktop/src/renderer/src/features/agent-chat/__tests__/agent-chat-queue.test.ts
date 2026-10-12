@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     agentChatNextQueuedId,
+    agentChatQueueCardLabels,
     agentChatQueueEntries,
     agentChatQueueHeader,
 } from '../agent-chat-queue';
@@ -121,5 +122,50 @@ describe('agentChatQueueHeader', () => {
         expect(agentChatQueueHeader({ queuePaused: false }, false, [message, message]).text).toBe(
             'Queued',
         );
+    });
+});
+
+describe('agentChatQueueCardLabels', () => {
+    const message = { canEdit: true, canSendNow: true, sendNowLabel: 'Steer' as const };
+
+    it('names each action, steering while a turn runs', () => {
+        expect(agentChatQueueCardLabels(message)).toEqual({
+            editTooltip: 'Edit',
+            deleteTooltip: 'Delete',
+            sendTooltip: 'Add to the running turn now',
+            sendText: 'Steer',
+            sendAriaLabel: 'Steer now',
+        });
+        expect(agentChatQueueCardLabels({ ...message, sendNowLabel: 'Send now' })).toMatchObject({
+            sendTooltip: 'Send now',
+            sendText: 'Send now',
+            sendAriaLabel: 'Send now',
+        });
+    });
+
+    it('says why an action is unavailable', () => {
+        expect(
+            agentChatQueueCardLabels({ ...message, canEdit: false, canSendNow: false }),
+        ).toMatchObject({
+            editTooltip: 'Messages with images cannot be edited',
+            sendTooltip: 'A command waits for the running turn to end',
+        });
+    });
+
+    it('says every action waits while the message is still sending', () => {
+        expect(
+            agentChatQueueCardLabels({
+                ...message,
+                canEdit: false,
+                canSendNow: false,
+                isPending: true,
+            }),
+        ).toEqual({
+            editTooltip: 'Sending…',
+            deleteTooltip: 'Sending…',
+            sendTooltip: 'Sending…',
+            sendText: 'Steer',
+            sendAriaLabel: 'Steer now',
+        });
     });
 });

@@ -8,12 +8,12 @@ import { suggestionMenuKeyAction, suggestionOptionId } from '../../../lib/sugges
 import { isAgentProcessRunning } from '../../../lib/terminal-agent-runtime';
 import { useCaxriQuery } from '../../../queries/client';
 import { useTerminal } from '../../../stores/selectors';
-import { shouldConfirmUnmatchedSend } from '../agent-chat-presentation';
+import { agentChatCommandMenuKeyStep } from '../agent-chat-presentation';
 import {
+    agentChatDraftMatches,
     agentChatMenuActions,
     agentChatSkillDiscoveryNotice,
     agentChatSlashQuery,
-    filterAgentChatActions,
 } from '../agent-chat-slash-commands';
 import { agentChatActionSuggestion } from '../agent-chat-suggestions';
 
@@ -75,10 +75,7 @@ export function useAgentChatCommandMenu({
      * Keyed by query so a new search starts at the first match.
      */
     const [active, setActive] = useState({ query, index: 0 });
-    const matches =
-        query === undefined
-            ? []
-            : filterAgentChatActions(actions, query, draft.startsWith('$') ? '$' : '/');
+    const matches = agentChatDraftMatches(actions, draft);
     const isOpen = query !== undefined && dismissedDraft !== draft && isInputFocused;
     const activeIndex =
         active.query === query ? Math.min(active.index, Math.max(matches.length - 1, 0)) : 0;
@@ -138,20 +135,30 @@ export function useAgentChatCommandMenu({
             },
         ): boolean => {
             if (!isOpen || isImeComposing(event)) return false;
-            const action = suggestionMenuKeyAction(event);
-            if (
-                action === 'choose' &&
-                shouldConfirmUnmatchedSend({ confirmingDraft, draft, matchCount: matches.length })
-            ) {
-                event.preventDefault();
-                setConfirmingDraft(draft);
-                return true;
-            }
-            if (!action || (action !== 'dismiss' && !activeCommand)) return false;
+            const step = agentChatCommandMenuKeyStep(suggestionMenuKeyAction(event), {
+                confirmingDraft,
+                draft,
+                matchCount: matches.length,
+                hasActiveCommand: activeCommand !== undefined,
+            });
+            if (!step) return false;
             event.preventDefault();
-            if (action === 'next' || action === 'previous') move(action === 'next' ? 1 : -1);
-            else if (action === 'dismiss') setDismissedDraft(draft);
-            else if (activeCommand) handlers[action](activeCommand);
+            switch (step.kind) {
+                case 'confirm': {
+                    setConfirmingDraft(draft);
+                    break;
+                }
+                case 'move': {
+                    move(step.delta);
+                    break;
+                }
+                case 'dismiss': {
+                    setDismissedDraft(draft);
+                    break;
+                }
+                default:
+                    if (activeCommand) handlers[step.handler](activeCommand);
+            }
             return true;
         },
     };

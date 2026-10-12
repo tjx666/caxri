@@ -1,4 +1,5 @@
 import type { AgentChatUsage } from '@caxri/protocol';
+import type { LucideIcon } from 'lucide-react';
 import { Gauge, MessageSquarePlus, Timer, TimerOff } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
@@ -12,6 +13,82 @@ import { useClockTick } from './hooks/use-clock-tick';
  * Both of the row's actions share one Button shape, so neither reads as the lesser choice by styling alone.
  */
 const ACTION_CLASS = 'min-h-6 shrink-0 gap-1.5 px-1.5 text-[12px]';
+
+/**
+ * One notice of the row: its glyph, then its short text as a Tab stop whose tooltip carries the numbers.
+ */
+function ContextNotice({
+    alert,
+    cacheState,
+    className,
+    icon: Icon,
+}: {
+    alert: { detail: string; text: string };
+    /**
+     * Marks the cache notice with its state for tests; omitted for the context-pressure notice.
+     */
+    cacheState?: 'expired' | 'expiring';
+    className: string;
+    icon: LucideIcon;
+}) {
+    return (
+        <span
+            className={cn('flex min-w-0 items-center gap-2', className)}
+            data-agent-chat-cache-alert={cacheState}
+        >
+            <Icon aria-hidden className="size-3.5 shrink-0" />
+            <Tooltip content={alert.detail}>
+                <span
+                    className="truncate rounded focus-visible:outline focus-visible:outline-accent"
+                    tabIndex={0}
+                >
+                    {alert.text}
+                </span>
+            </Tooltip>
+        </span>
+    );
+}
+
+/**
+ * The row's trailing actions: continue in a new Chat once the cache expired, and Compact while the context is high and
+ * the provider reports a compact command (`onCompact` is omitted otherwise).
+ */
+function ContextActions({
+    isContinuing,
+    isExpired,
+    onCompact,
+    onContinueInNewChat,
+}: {
+    isContinuing: boolean;
+    isExpired: boolean;
+    onCompact: (() => void) | undefined;
+    onContinueInNewChat: () => void;
+}) {
+    const { t } = useTranslation();
+    return (
+        <span className="-mr-1.5 ml-auto flex shrink-0 items-center gap-1">
+            {isExpired && (
+                <Tooltip content={t('agentChat.context.continueTooltip')}>
+                    <Button
+                        aria-disabled={isContinuing || undefined}
+                        className={ACTION_CLASS}
+                        size="sm"
+                        variant="secondary"
+                        onClick={onContinueInNewChat}
+                    >
+                        <MessageSquarePlus aria-hidden className="size-3.5" />
+                        {t('agentChat.context.continueInNewChat')}
+                    </Button>
+                </Tooltip>
+            )}
+            {onCompact && (
+                <Button className={ACTION_CLASS} size="sm" variant="secondary" onClick={onCompact}>
+                    {t('agentChat.context.compact')}
+                </Button>
+            )}
+        </span>
+    );
+}
 
 /**
  * The composer's first row while an idle Chat's context needs attention: the prompt cache is about to expire
@@ -49,7 +126,8 @@ export function AgentChatContextAlerts({
     onContinueInNewChat: () => void;
     usage: AgentChatUsage | undefined;
 }) {
-    const { t } = useTranslation();
+    // The alert text comes from the global `translate`; subscribing here re-renders it when the language changes.
+    useTranslation();
     const alerts = agentChatContextAlerts(usage, useClockTick('minute'));
     const isVisible = isShown && (alerts.cache !== undefined || alerts.pressure !== undefined);
     const canCompact = alerts.pressure !== undefined && onCompact !== undefined;
@@ -65,71 +143,30 @@ export function AgentChatContextAlerts({
                     data-agent-chat-composer-strip-row=""
                 >
                     {alerts.cache && (
-                        <span
-                            className={cn(
-                                'flex min-w-0 items-center gap-2',
-                                isExpired ? 'text-muted' : 'text-warning',
-                            )}
-                            data-agent-chat-cache-alert={alerts.cache.state}
-                        >
-                            {isExpired ? (
-                                <TimerOff aria-hidden className="size-3.5 shrink-0" />
-                            ) : (
-                                <Timer aria-hidden className="size-3.5 shrink-0" />
-                            )}
-                            <Tooltip content={alerts.cache.detail}>
-                                <span
-                                    className="truncate rounded focus-visible:outline focus-visible:outline-accent"
-                                    tabIndex={0}
-                                >
-                                    {alerts.cache.text}
-                                </span>
-                            </Tooltip>
-                        </span>
+                        <ContextNotice
+                            alert={alerts.cache}
+                            cacheState={alerts.cache.state}
+                            className={isExpired ? 'text-muted' : 'text-warning'}
+                            icon={isExpired ? TimerOff : Timer}
+                        />
                     )}
                     {alerts.cache && alerts.pressure && (
                         <span aria-hidden className="h-3 w-px shrink-0 bg-border" />
                     )}
                     {alerts.pressure && (
-                        <span className="flex min-w-0 items-center gap-2 text-warning">
-                            <Gauge aria-hidden className="size-3.5 shrink-0" />
-                            <Tooltip content={alerts.pressure.detail}>
-                                <span
-                                    className="truncate rounded focus-visible:outline focus-visible:outline-accent"
-                                    tabIndex={0}
-                                >
-                                    {alerts.pressure.text}
-                                </span>
-                            </Tooltip>
-                        </span>
+                        <ContextNotice
+                            alert={alerts.pressure}
+                            className="text-warning"
+                            icon={Gauge}
+                        />
                     )}
                     {(isExpired || canCompact) && (
-                        <span className="-mr-1.5 ml-auto flex shrink-0 items-center gap-1">
-                            {isExpired && (
-                                <Tooltip content={t('agentChat.context.continueTooltip')}>
-                                    <Button
-                                        aria-disabled={isContinuing || undefined}
-                                        className={ACTION_CLASS}
-                                        size="sm"
-                                        variant="secondary"
-                                        onClick={onContinueInNewChat}
-                                    >
-                                        <MessageSquarePlus aria-hidden className="size-3.5" />
-                                        {t('agentChat.context.continueInNewChat')}
-                                    </Button>
-                                </Tooltip>
-                            )}
-                            {canCompact && (
-                                <Button
-                                    className={ACTION_CLASS}
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={onCompact}
-                                >
-                                    {t('agentChat.context.compact')}
-                                </Button>
-                            )}
-                        </span>
+                        <ContextActions
+                            isContinuing={isContinuing}
+                            isExpired={isExpired}
+                            onCompact={canCompact ? onCompact : undefined}
+                            onContinueInNewChat={onContinueInNewChat}
+                        />
                     )}
                 </div>
             )}

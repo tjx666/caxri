@@ -6,6 +6,7 @@ import { getTerminalExitPresentation } from '../../terminal/terminal-exit-presen
 import {
     agentChatAttachLabel,
     agentChatCommandCwd,
+    agentChatCommandMenuKeyStep,
     agentChatComposerPlaceholder,
     agentChatDeliveryCaption,
     agentChatEmptyHint,
@@ -448,5 +449,48 @@ describe('shouldConfirmUnmatchedSend', () => {
         expect(
             shouldConfirmUnmatchedSend({ confirmingDraft: undefined, draft: '/te', matchCount: 2 }),
         ).toBe(false);
+    });
+});
+
+describe('agentChatCommandMenuKeyStep', () => {
+    const matched = {
+        confirmingDraft: undefined,
+        draft: '/te',
+        matchCount: 2,
+        hasActiveCommand: true,
+    };
+    const unmatched = {
+        confirmingDraft: undefined,
+        draft: '/tset',
+        matchCount: 0,
+        hasActiveCommand: false,
+    };
+
+    it('moves, completes, chooses, and dismisses on a list with an active row', () => {
+        expect(agentChatCommandMenuKeyStep('next', matched)).toEqual({ kind: 'move', delta: 1 });
+        expect(agentChatCommandMenuKeyStep('previous', matched)).toEqual({
+            kind: 'move',
+            delta: -1,
+        });
+        expect(agentChatCommandMenuKeyStep('complete', matched)).toEqual({
+            kind: 'run',
+            handler: 'complete',
+        });
+        expect(agentChatCommandMenuKeyStep('choose', matched)).toEqual({
+            kind: 'run',
+            handler: 'choose',
+        });
+        expect(agentChatCommandMenuKeyStep('dismiss', matched)).toEqual({ kind: 'dismiss' });
+        expect(agentChatCommandMenuKeyStep(undefined, matched)).toBeUndefined();
+    });
+
+    it('holds the first Enter with no match, then lets the composer send it', () => {
+        expect(agentChatCommandMenuKeyStep('choose', unmatched)).toEqual({ kind: 'confirm' });
+        expect(
+            agentChatCommandMenuKeyStep('choose', { ...unmatched, confirmingDraft: '/tset' }),
+        ).toBeUndefined();
+        expect(agentChatCommandMenuKeyStep('dismiss', unmatched)).toEqual({ kind: 'dismiss' });
+        expect(agentChatCommandMenuKeyStep('next', unmatched)).toBeUndefined();
+        expect(agentChatCommandMenuKeyStep('complete', unmatched)).toBeUndefined();
     });
 });
