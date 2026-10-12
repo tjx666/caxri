@@ -135,8 +135,12 @@ describe('pending messages pair one to one with what the projection shows', () =
     const select = selectAgentChatPendingMessages('terminal-1');
     const shownTexts = (current: AgentChatSnapshot) =>
         settledAgentChatPendingMessages(select(useAgentChatPendingStore.getState()), current);
-    function send(text: string, images: ReadonlyArray<{ thumbnail: string }> = []) {
-        return showAgentChatPendingMessage('terminal-1', snapshot(), {
+    function send(
+        text: string,
+        images: ReadonlyArray<{ thumbnail: string }> = [],
+        current: AgentChatSnapshot = snapshot(),
+    ) {
+        return showAgentChatPendingMessage('terminal-1', current, {
             text,
             images,
             delivery: undefined,
@@ -209,7 +213,8 @@ describe('pending messages pair one to one with what the projection shows', () =
 
     it('settles a joined message cut off at the timeline text bound', () => {
         const long = 'a'.repeat(MAX_AGENT_CHAT_TEXT_LENGTH - 10);
-        const first = send(long);
+        // Only queued messages are joined, so all three wait behind a running turn.
+        const first = send(long, [], snapshot({ activeTurnId: 't' }));
         const cut = send('the tail starts here and runs past the bound');
         const gone = send('sent before the dispatch, wholly past the bound');
         const joined = `${long}\n\nthe tail starts here and runs past the bound\n\nsent before the dispatch, wholly past the bound`;
@@ -223,6 +228,53 @@ describe('pending messages pair one to one with what the projection shows', () =
             ],
         });
         expect([...shownTexts(shown)]).toEqual([first, cut, gone]);
+    });
+
+    it('keeps a later message pending when a clipped entry ends with an earlier message', () => {
+        // A message long enough to be clipped starts its own turn; nothing can be joined to it.
+        const long = send('a'.repeat(MAX_AGENT_CHAT_TEXT_LENGTH + 10));
+        const later = send('ok');
+        const shown = snapshot({
+            activeTurnId: 't',
+            items: [
+                {
+                    id: 'u1',
+                    type: 'userMessage',
+                    text: 'a'.repeat(MAX_AGENT_CHAT_TEXT_LENGTH),
+                },
+            ],
+        });
+        expect([...shownTexts(shown)]).toEqual([long]);
+        pruneAgentChatPending('terminal-1', shown);
+        expect(shownTexts(shown).size).toBe(0);
+        // Shown on its own, it settles there.
+        expect([...shownTexts(snapshot({ ...shown, queue: [{ id: 'q1', text: 'ok' }] }))]).toEqual([
+            later,
+        ]);
+    });
+
+    it('prefers an entry showing a queued message over the cut tail of a clipped one', () => {
+        const long = 'a'.repeat(MAX_AGENT_CHAT_TEXT_LENGTH - 10);
+        const busy = snapshot({ activeTurnId: 't' });
+        const first = send(`${long} the tail runs past the bound`, [], busy);
+        const second = send('queued after the dispatch');
+        send('still on its way');
+        const shown = snapshot({
+            activeTurnId: 't2',
+            items: [
+                {
+                    id: 'u1',
+                    type: 'userMessage',
+                    text: `${long} the tail runs past the bound`.slice(
+                        0,
+                        MAX_AGENT_CHAT_TEXT_LENGTH,
+                    ),
+                },
+            ],
+            queue: [{ id: 'q1', text: 'queued after the dispatch' }],
+        });
+        // The message still on its way did not follow the cut one into the clipped entry.
+        expect([...shownTexts(shown)]).toEqual([first, second]);
     });
 });
 
