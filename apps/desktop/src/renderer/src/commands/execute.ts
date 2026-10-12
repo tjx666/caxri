@@ -9,6 +9,7 @@ import {
 } from '@caxri/protocol';
 
 import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
+import { stopCommanderFromWorkbench } from '../features/agent-commander/commander-stop-commands';
 import { openAgentStatusTab } from '../features/agent-status/open-agent-status-tab';
 import {
     closeDocumentTabs,
@@ -416,12 +417,8 @@ const commandContext: CommandContext = {
                 caxri.request('agentCommander.open'),
             );
         },
-        stopAgentCommander: () => {
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void tryCommand('Unable to stop Agent Commander', () =>
-                caxri.request('agentCommander.stop'),
-            );
-        },
+        // eslint-disable-next-line no-void -- the stop reports its own failures through toasts
+        stopAgentCommander: () => void stopCommanderFromWorkbench(),
         openProcessExplorer,
         // eslint-disable-next-line no-void -- floating-promise discard: the step reports failure via its own toast
         zoom: (step) => void stepWindowZoom(step),
