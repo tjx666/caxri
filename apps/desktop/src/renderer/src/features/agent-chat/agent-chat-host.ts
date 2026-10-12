@@ -24,6 +24,10 @@ export interface AgentChatHostCapabilities {
      * instead.
      */
     canOpenBesideChat: boolean;
+    /**
+     * The context meter's Details button: it opens the Context tab, a Workbench editor tab.
+     */
+    canOpenContext: boolean;
 }
 
 export function agentChatHostCapabilities(host: AgentChatHost): AgentChatHostCapabilities {
@@ -32,5 +36,6 @@ export function agentChatHostCapabilities(host: AgentChatHost): AgentChatHostCap
         canFork: isWorkbench,
         canOpenBesideChat: isWorkbench,
         canSaveProjectDefault: isWorkbench,
+        canOpenContext: isWorkbench,
     };
 }

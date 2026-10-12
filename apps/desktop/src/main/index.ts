@@ -53,7 +53,7 @@ import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
 import {
     createLocalWorkbenchEnvironment,
-    createRemoteWindowCommandDispatcher,
+    createRemoteWindowMenu,
 } from './local-workbench-environment';
 import { setMainLanguage } from './locale';
 import { createMainMethodHandler } from './main-methods';
@@ -533,9 +533,9 @@ if (ownsProfileInstance) {
         });
     }
 
-    const dispatchToRemoteWindow = createRemoteWindowCommandDispatcher(() => remoteEnvironments);
+    const remoteWindowMenu = createRemoteWindowMenu(() => remoteEnvironments);
     function installMenu(keybindings: Keybinding[]): void {
-        Menu.setApplicationMenu(
+        remoteWindowMenu.setApplicationMenu(
             Menu.buildFromTemplate(
                 buildAppMenuTemplate({
                     keybindings,
@@ -545,7 +545,7 @@ if (ownsProfileInstance) {
                     workbenchWindow: () =>
                         mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
                     isFollowingAppZoom: (window) => window === agentCommander?.openWindow(),
-                    dispatchToRemoteWindow,
+                    dispatchToRemoteWindow: remoteWindowMenu.dispatch,
                     focusWorkbench: () => {
                         // eslint-disable-next-line no-void -- best effort: the command reaches the Workbench whether or not it came forward
                         void focusMainWindow().catch(() => {});

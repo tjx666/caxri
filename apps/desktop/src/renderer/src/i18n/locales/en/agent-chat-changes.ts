@@ -32,6 +32,8 @@ export const agentChatChanges = {
     'agentChat.undo.undone': 'Undone',
     'agentChat.undo.truncatedTooltip':
         'A diff was too large to keep in full, so this turn cannot be undone',
+    'agentChat.undo.partialTurnTooltip':
+        'The start of this turn is no longer in the Chat, so it cannot be undone in full',
     'agentChat.undo.tooltip': 'Restore the files to how they were before this turn',
     'agentChat.undo.button': 'Undo',
     'agentChat.review.tooltip': "Review this turn's changes beside the Chat and comment on them",
@@ -68,6 +70,8 @@ export const agentChatChanges = {
     'agentChat.undo.failureReason.changed': 'it changed after the Agent edited it',
     'agentChat.undo.failureReason.missing': 'it no longer exists',
     'agentChat.undo.failureReason.exists': 'it was created again after the Agent deleted it',
+    'agentChat.undo.failureReason.renamed':
+        'the Agent renamed it, and undoing a rename is not supported yet',
     'agentChat.undo.nextStep.changed':
         'Undo the later turn that edited it first, or use Restore Code to Here on the message that started this turn.',
     'agentChat.undo.successOne': 'Undid the changes to 1 file',

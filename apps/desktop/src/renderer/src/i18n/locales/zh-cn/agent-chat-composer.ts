@@ -24,6 +24,7 @@ export const agentChatComposer: TranslatedNamespace<typeof source> = {
     'agentChat.add.tooltip': '添加文件等内容',
     'agentChat.add.add': '添加',
     'agentChat.add.files': '文件',
+    'agentChat.add.filesAndFolders': '文件和文件夹',
     'agentChat.add.goal': '目标',
     'agentChat.add.goalDescription': '设定一个让 Agent 持续推进的目标',
     'agentChat.add.turnOffPlanMode': '关闭计划模式',

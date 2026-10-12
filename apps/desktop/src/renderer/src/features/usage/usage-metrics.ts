@@ -146,6 +146,20 @@ export function usageHourTooltip(t: Translate, hour: number, tokens: number): st
     return `${span} · ${tokens > 0 ? formatMetric(t, tokens, 'tokens') : t('usage.noUsage')}`;
 }
 
+/**
+ * Hover text for one weekly bar, shared by its Tooltip and the keyboard readout so both read the same figure.
+ */
+export function usageWeekTooltip(
+    t: Translate,
+    week: Pick<HeatmapWeek, 'start' | 'total'>,
+    metric: UsageMetric,
+): string {
+    return t('usage.activity.weekTooltip', {
+        date: formatDate(t, week.start),
+        value: week.total > 0 ? formatMetric(t, week.total, metric) : t('usage.noUsage'),
+    });
+}
+
 interface HeatmapCell {
     date: string;
     value: number;

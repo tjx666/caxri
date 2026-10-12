@@ -245,12 +245,12 @@
 }
 
 /*
- * A `.mmd` file is the whole tab, and the view around it scrolls. Plain centering would push the left edge of a diagram
- * wider than a narrow side pane out of the scrollable area; `safe` falls back to start alignment so every node stays
- * reachable by scrolling.
+ * A `.mmd` file is the whole tab, shown at its natural size inside the zoomable frame (`preview-zoom-view.tsx`), which
+ * scrolls and scales it. The frame sizes to its content, so a parse error is held to a readable measure instead of
+ * stretching to one line.
  */
-.caxri-mermaid-file-diagram {
-    align-items: safe center;
+.caxri-mermaid-file-diagram .caxri-markdown-diagram-error {
+    max-width: 60ch;
 }
 
 /* The last diagram that rendered, kept while the source does not parse; the error below it says why it is stale. */

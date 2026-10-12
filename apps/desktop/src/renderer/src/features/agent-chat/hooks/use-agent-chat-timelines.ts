@@ -4,7 +4,7 @@ import type { AgentChatSnapshot } from '@caxri/protocol';
 
 import { useTranslation } from '../../../i18n';
 import type { AgentChatOlderHistory } from '../agent-chat-history';
-import { splitAgentChatHistory } from '../agent-chat-history';
+import { hasOlderAgentChatHistory, splitAgentChatHistory } from '../agent-chat-history';
 import type { AgentChatRailMark } from '../agent-chat-rail-marks';
 import { agentChatRailMarks, sampleAgentChatRailMarks } from '../agent-chat-rail-marks';
 import type { AgentChatSettledChunk } from '../agent-chat-settled-chunks';
@@ -30,6 +30,12 @@ export function useAgentChatTimelines(
     const items = snapshot?.items;
     const turns = snapshot?.turns;
     const activeTurnId = snapshot?.activeTurnId;
+    /**
+     * Whether items older than the live timeline exist that this pane has not read, or cannot read at all. History read
+     * back up to an earlier turn gives the first live turn its start again.
+     */
+    const isTruncated =
+        hasOlderAgentChatHistory(history, snapshot) || (history.isLoaded && history.truncated);
     const { items: olderItems, turns: olderTurns } = history;
     const liveTurnId = items?.[0]?.turnId;
     const { settled, carried } = useMemo(
@@ -44,9 +50,11 @@ export function useAgentChatTimelines(
         () => agentChatSettledChunks(settled, olderTurns),
         [settled, olderTurns],
     );
+    const isFirstTurnCut = settled.length === 0 && isTruncated;
     const timeline = useMemo(() => {
         if (!items || !turns) return [];
-        if (carried.length === 0) return buildAgentChatTimeline(items, turns, activeTurnId);
+        if (carried.length === 0)
+            return buildAgentChatTimeline(items, turns, activeTurnId, isFirstTurnCut);
         const carriedTurn = olderTurns.find((turn) => turn.id === liveTurnId);
         return buildAgentChatTimeline(
             [...carried, ...items],
@@ -54,8 +62,9 @@ export function useAgentChatTimelines(
                 ? [carriedTurn, ...turns]
                 : turns,
             activeTurnId,
+            isFirstTurnCut,
         );
-    }, [items, turns, activeTurnId, carried, olderTurns, liveTurnId]);
+    }, [items, turns, activeTurnId, carried, olderTurns, liveTurnId, isFirstTurnCut]);
     const dayBreaks = useMemo(
         () =>
             agentChatDayBreaks(

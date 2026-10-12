@@ -36,8 +36,13 @@ import {
     AGENT_CHAT_USER_MESSAGE_ATTRIBUTE,
     isAgentChatMessageRailShown,
 } from './agent-chat-rail-marks';
+import {
+    AGENT_CHAT_REPLY_NAVIGATION_SHORTCUTS,
+    onAgentChatTranscriptKeyDown,
+} from './agent-chat-reply-navigation';
 import { AgentChatSelectionToolbar } from './agent-chat-selection-toolbar';
 import { AgentChatSettledTimeline } from './agent-chat-settled-timeline';
+import type { AgentChatTimelineEntry } from './agent-chat-timeline';
 import { agentChatTimelineEntryKey } from './agent-chat-timeline';
 import { AgentChatTimelineEntryView } from './agent-chat-timeline-entry-view';
 import { AgentChatTurnAnnouncer } from './agent-chat-turn-announcer';
@@ -106,7 +111,8 @@ export function AgentChatPane({
     const projectRoot = usePaneViewSession()?.rootPath;
     const inputReference = useRef<HTMLTextAreaElement | null>(null);
     const composerDrop = useRef<AgentChatDropHandlers | null>(null);
-    const { canFork, canOpenBesideChat, canSaveProjectDefault } = agentChatHostCapabilities(host);
+    const { canFork, canOpenBesideChat, canOpenContext, canSaveProjectDefault } =
+        agentChatHostCapabilities(host);
     const { composerEdit, editActions, setEditingId } = useAgentChatEditActions(
         terminalId,
         snapshot,
@@ -213,12 +219,14 @@ export function AgentChatPane({
                         it without a pointer. `aria-live` is off because a log is polite by default, which would read
                         every streamed token aloud; `AgentChatTurnAnnouncer` owns what is announced. */}
                     <div
+                        aria-keyshortcuts={AGENT_CHAT_REPLY_NAVIGATION_SHORTCUTS}
                         aria-label={t('agentChat.timeline.transcriptLabel')}
                         aria-live="off"
                         className="h-full overflow-y-auto outline-none focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-accent"
                         ref={scrollReference}
                         role="log"
                         tabIndex={0}
+                        onKeyDown={onAgentChatTranscriptKeyDown}
                         onScroll={onScroll}
                     >
                         <div
@@ -253,23 +261,11 @@ export function AgentChatPane({
                                             onOpenFile={openFile}
                                         />
                                         <AgentChatEditContext value={editActions}>
-                                            {timeline.map((entry) => {
-                                                const key = agentChatTimelineEntryKey(entry);
-                                                const dayBreak = dayBreaks.get(key);
-                                                return (
-                                                    <Fragment key={key}>
-                                                        {dayBreak !== undefined && (
-                                                            <AgentChatDayBreak
-                                                                timestamp={dayBreak}
-                                                            />
-                                                        )}
-                                                        <AgentChatTimelineEntryView
-                                                            entry={entry}
-                                                            onOpenFile={openFile}
-                                                        />
-                                                    </Fragment>
-                                                );
-                                            })}
+                                            <LiveTimelineEntries
+                                                dayBreaks={dayBreaks}
+                                                timeline={timeline}
+                                                onOpenFile={openFile}
+                                            />
                                             <AgentChatPendingTimeline
                                                 pending={pending}
                                                 onOpenFile={openFile}
@@ -333,6 +329,7 @@ export function AgentChatPane({
                 activity={agentChatActivity(snapshot, providerName, {
                     hasConversation: Boolean(terminal?.agentSessionId),
                 })}
+                canOpenContext={canOpenContext}
                 canSaveProjectDefault={canSaveProjectDefault}
                 sendBlock={agentChatSendBlock(snapshot, processState)}
                 commands={snapshot?.commands}
@@ -358,4 +355,28 @@ export function AgentChatPane({
             />
         </section>
     );
+}
+
+/**
+ * The live timeline's rows, each preceded by the day break that starts its calendar day.
+ */
+function LiveTimelineEntries({
+    dayBreaks,
+    onOpenFile,
+    timeline,
+}: {
+    dayBreaks: ReadonlyMap<string, number>;
+    onOpenFile: (reference: string) => void;
+    timeline: readonly AgentChatTimelineEntry[];
+}) {
+    return timeline.map((entry) => {
+        const key = agentChatTimelineEntryKey(entry);
+        const dayBreak = dayBreaks.get(key);
+        return (
+            <Fragment key={key}>
+                {dayBreak !== undefined && <AgentChatDayBreak timestamp={dayBreak} />}
+                <AgentChatTimelineEntryView entry={entry} onOpenFile={onOpenFile} />
+            </Fragment>
+        );
+    });
 }

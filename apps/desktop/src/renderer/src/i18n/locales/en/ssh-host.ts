@@ -18,6 +18,8 @@ export const sshHost = {
     'sshHost.connect.noMatch': 'No matching SSH Host. Type a full user@host to connect to it.',
     'sshHost.connect.loadFailed': 'Unable to read ~/.ssh/config. You can still type a destination.',
     'sshHost.connect.failed': 'Unable to open the SSH Host window',
+    'sshHost.connect.reused':
+        'Already connected to the same SSH Host ({{destination}}) in this window',
 
     // Connection overlay
     'sshHost.phase.connecting': 'Connecting…',

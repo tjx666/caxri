@@ -1,5 +1,5 @@
 import type { BootstrapState, SessionState } from '@caxri/protocol';
-import { filePreviewTabPath } from '@caxri/protocol';
+import { binaryFileReadError, CaxriError, filePreviewTabPath } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -13,6 +13,7 @@ vi.mock('../editor-reveal', () => ({
 }));
 
 import { useSessionViewStore } from '../../../stores/session-view';
+import { dismissToast, getToasts } from '../../../stores/toasts';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import { openFileForSession } from '../document-commands';
 
@@ -52,7 +53,8 @@ function activeTabPath(): string | undefined {
 }
 
 afterEach(() => {
-    mocks.request.mockClear();
+    mocks.request.mockReset();
+    dismissToast();
     useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0 });
     useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
 });
@@ -89,5 +91,51 @@ describe('opening a file whose only view is its preview', () => {
 
         expect(mocks.request).toHaveBeenCalledWith('files.read', expect.anything());
         expect(activeTabPath()).toBe('/project/data.csv');
+    });
+});
+
+describe('opening a binary file', () => {
+    it('opens a no-preview tab instead of failing', async () => {
+        installSession();
+        mocks.request.mockImplementation((method) =>
+            method === 'files.read' ? Promise.reject(binaryFileReadError()) : Promise.resolve(null),
+        );
+
+        await expect(openFileForSession('session-1', '/project/sample.bin')).resolves.toBe(
+            '/project/sample.bin',
+        );
+
+        expect(activeTabPath()).toBe(filePreviewTabPath('/project/sample.bin'));
+        expect(getToasts()).toEqual([]);
+        expect(useSessionViewStore.getState().documents['session-1']).toBeUndefined();
+    });
+
+    it('reactivates the open no-preview tab without reading the file again', async () => {
+        installSession();
+        mocks.request.mockImplementation((method) =>
+            method === 'files.read' ? Promise.reject(binaryFileReadError()) : Promise.resolve(null),
+        );
+        await openFileForSession('session-1', '/project/sample.bin');
+        await openFileForSession('session-1', '/project/current.ts');
+        mocks.request.mockClear();
+
+        await openFileForSession('session-1', '/project/sample.bin');
+
+        expect(mocks.request).not.toHaveBeenCalledWith('files.read', expect.anything());
+        expect(activeTabPath()).toBe(filePreviewTabPath('/project/sample.bin'));
+    });
+
+    it('still reports a real read failure', async () => {
+        installSession();
+        mocks.request.mockImplementation((method) =>
+            method === 'files.read'
+                ? Promise.reject(new CaxriError('PATH_DENIED', 'Permission denied'))
+                : Promise.resolve(null),
+        );
+
+        await expect(openFileForSession('session-1', '/project/locked.txt')).resolves.toBe(false);
+
+        expect(getToasts().map((entry) => entry.type)).toEqual(['error']);
+        expect(activeTabPath()).toBe('/project/current.ts');
     });
 });

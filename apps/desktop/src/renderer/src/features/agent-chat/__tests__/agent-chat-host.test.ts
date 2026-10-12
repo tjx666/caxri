@@ -8,6 +8,7 @@ describe('agentChatHostCapabilities', () => {
             canFork: true,
             canOpenBesideChat: true,
             canSaveProjectDefault: true,
+            canOpenContext: true,
         });
     });
 
@@ -15,10 +16,11 @@ describe('agentChatHostCapabilities', () => {
      * Main's Commander policy refuses Project writes and the window has no Workbench, so offering either action there
      * only ends in a failure toast.
      */
-    it('offers neither fork nor the Project default in the Agent Commander window', () => {
+    it('offers no fork, Project default, or Context tab in the Agent Commander window', () => {
         expect(agentChatHostCapabilities('commander')).toMatchObject({
             canFork: false,
             canSaveProjectDefault: false,
+            canOpenContext: false,
         });
     });
 

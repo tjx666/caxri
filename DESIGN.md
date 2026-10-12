@@ -210,7 +210,9 @@ may use unitless `1.45` or `1.5` line height; compact uppercase headings may use
   different axis.
 - Control heights: 24px compact inline rename/history, 28px dense workbench search, 36px standard
   Settings fields/buttons, and 44px palette/path input.
-- Radius: 4px controls, 6px cards/list selection, 8px dialogs and palette. `rounded-full` is
+- Radius: 8px controls (buttons, selects, toggles, text fields), matching the Codex app's roughly
+  quarter-height rounding; a 24px compact field takes 6px so it does not read as a pill. 6px
+  cards/list selection, 8px dialogs and palette. `rounded-full` is
   reserved for intrinsically circular shapes: activity dots, the drag insertion line's leading
   cap, and the Switch track/thumb. The Agent Chat composer is the one other sanctioned exception,
   copying the Codex app's composer: its `+`, its Plan chip, its model picker pill, its 28px primary
@@ -355,6 +357,12 @@ program read every window and act as the user must be disclosed where the user c
 going looking. It is a mode the build or the user chose, not a degradation, so it stays `--muted`; it
 reports what the process is actually doing rather than what `argv.jsonc` now says, because turning the
 switch off leaves the channel open until the next launch (principle 9). Clicking it opens its setting.
+
+A standing mode in its normal state is icon-only: the debugging disclosure, Screencast Mode, and
+`Always Allow` show a glyph and keep their words on the accessible name and hover card. Visible
+words on the bar are reserved for a value (a count, a metric, a branch, a delivery id) and for an
+abnormal state (degraded, failed, waiting on the user), and even then stay a word or two; a mode
+name such as `Debug port` is neither and only spends rail width.
 
 Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
 accessible names and hover tooltips. Clickable `StatusItem` and read-only `StatusInfo` both set
@@ -1085,9 +1093,9 @@ list in place: a `Choose model` caption, one row per model with a trailing check
 and each model's description in a tooltip to its right (Claude Code's `default` alias keeps its
 description inline). Choosing a model returns to the effort panel when the model has efforts or
 modes, and closes the popover otherwise; a model with neither opens straight on the list. The
-permission picker shows a shield, the level's name, a `--warning` shield for full access, and, for a
-provider that applies a switch only from the next turn (Codex), a `from next turn` caption while a
-turn runs. Its menu leads every level with a glyph (an eye for read only, a hand for ask, a pen for
+permission picker shows a shield and the level's name with no disclosure chevron; full access tints
+both shield and name `--warning`, as the Codex app does. For a provider that applies a switch only
+from the next turn (Codex), it adds a `from next turn` caption while a turn runs. Its menu leads every level with a glyph (an eye for read only, a hand for ask, a pen for
 accept edits, a bot for auto, the `--warning` shield for full access) and trails the current level
 with a check; a chosen Full access row reads in `--warning`, as the Codex app tints it. Every
 checkable menu row in the app trails its check, as macOS menus do. The primary action slot is a 28px `--foreground`
@@ -1187,8 +1195,9 @@ line in the expanded view. A finished turn folds everything except the prompt, t
 notices behind one `Worked for 2m 1s` row with a bottom hairline; a failed or stopped turn's row
 (`Failed after 40s`, `Stopped after 3s`) takes `--danger` or `--warning` with its glyph. A running
 row carries no trailing spinner: its shimmer and ticking time already say it runs. The most recent
-turn's final reply keeps Copy visible in `--muted`, rising to `--foreground` on hover; an earlier
-reply shows it only on hover or keyboard focus, in a row that keeps its height. Between the final
+turn's final reply, like every earlier one, shows Copy only on hover or keyboard focus, in a row
+that keeps its height. Replies add no Tab stops: `Option+ArrowUp`/`Option+ArrowDown` in the
+transcript focus the latest or the adjacent reply, revealing its row, and Tab reaches Copy. Between the final
 reply and Copy, a finished turn shows what it left behind as `--surface` cards with a 36px
 `--background` glyph tile: `Edited 3 files` over the turn's `+N -M` (hovered, the counts become
 `View changes` or `Hide changes` and preview the diffs; with its always-visible chevron it is the

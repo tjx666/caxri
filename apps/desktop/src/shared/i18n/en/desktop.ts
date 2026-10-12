@@ -195,6 +195,7 @@ export const desktop = {
     'desktop.diagnosticsExport.title': 'Export Diagnostics',
     'desktop.diagnosticsExport.zipArchive': 'ZIP Archive',
     'desktop.chooseProjectFolder': 'Choose a Project folder',
+    'desktop.chooseChatFilesAndFolders': 'Add files and folders',
 
     'desktop.fallback.thisProject': 'this Project',
     'desktop.fallback.thisSession': 'this Session',

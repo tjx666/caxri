@@ -1,12 +1,19 @@
 import type { CommandDefinition, CommandId, Keybinding, NativeMenuId } from '@caxri/protocol';
 import {
     buildChordLeadingChords,
+    commandDefinitions,
     formatShortcut,
     getNativeMenuCommandGroups,
     normalizeShortcut,
     shortcutLeadingChord,
 } from '@caxri/protocol';
-import type { BaseWindow, KeyboardEvent, MenuItem, MenuItemConstructorOptions } from 'electron';
+import type {
+    BaseWindow,
+    KeyboardEvent,
+    Menu,
+    MenuItem,
+    MenuItemConstructorOptions,
+} from 'electron';
 
 import { translateCommandTitle, translateMain } from './locale';
 import { electronAccelerator } from './menu-accelerator';
@@ -140,6 +147,29 @@ function isRendererOwnedShortcut(commandId: string): boolean {
         'terminal.restart',
         'panel.toggle',
     ].includes(commandId);
+}
+
+/**
+ * Native menu items whose commands act on this Mac's disk or OS (`when: 'localMachine'` in the command catalog). An SSH
+ * Host window's Renderer already hides these commands, because Main refuses them there.
+ */
+const LOCAL_MACHINE_MENU_ITEM_IDS = commandDefinitions
+    .filter((definition) => definition.nativeMenu && definition.when === 'localMachine')
+    .map((definition) => `command.${definition.id}`);
+
+/**
+ * Enables the local-machine-only items while a local window is focused and disables them while an SSH Host window is.
+ * The menu bar is shared by every window, so this runs on every window focus change and after every menu rebuild.
+ */
+export function syncLocalMachineMenuItems(
+    menu: Pick<Menu, 'getMenuItemById'> | null,
+    isLocalMachine: boolean,
+): void {
+    if (!menu) return;
+    for (const id of LOCAL_MACHINE_MENU_ITEM_IDS) {
+        const item = menu.getMenuItemById(id);
+        if (item) item.enabled = isLocalMachine;
+    }
 }
 
 /**

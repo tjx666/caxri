@@ -79,6 +79,15 @@ export const defaultKeybindings: Keybinding[] = [
      */
     { key: 'cmd+shift+j', command: 'terminal.switchAgentSurface' },
     /**
+     * The Chat composer's menus follow Cursor's Agent input: `Cmd+/` opens its model picker and `Cmd+.` its mode menu.
+     * Claude Code and Codex cycle modes with `Shift+Tab`, which here moves focus out of the composer, so Plan gets the
+     * free `Cmd+Option+P` instead. All three fire only while the active tab is a Chat that offers the menu, so an
+     * editor's `Cmd+/` comment toggle and `Cmd+.` quick fix still reach the editor.
+     */
+    { key: 'cmd+/', command: 'agentChat.changeModel' },
+    { key: 'cmd+.', command: 'agentChat.changePermissionMode' },
+    { key: 'cmd+alt+p', command: 'agentChat.togglePlanMode' },
+    /**
      * `Cmd+\` provides the requested iTerm2-style split-terminal behavior: preserve the active Terminal and open a
      * fresh Shell in a new pane to its right. The generic Split Right command remains available in the command palette
      * for moving an existing tab.
@@ -262,6 +271,18 @@ export const defaultKeybindingChanges = [
     {
         type: 'add',
         binding: { key: 'cmd+shift+j', command: 'terminal.switchAgentSurface' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+/', command: 'agentChat.changeModel' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+.', command: 'agentChat.changePermissionMode' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+alt+p', command: 'agentChat.togglePlanMode' },
     },
     /**
      * Terminal Clear has to vacate `Cmd+K` before the two chord bindings below can be added:

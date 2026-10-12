@@ -1,4 +1,9 @@
-import { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from '@caxri/protocol';
+import {
+    binaryFileReadError,
+    CaxriError,
+    MOBILE_FILES_MAX_ENTRIES,
+    MOBILE_FILES_READ_MAX_BYTES,
+} from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentTimelineService } from '../../agents/timeline';
@@ -72,5 +77,20 @@ describe('mobile read-only files', () => {
                 principal,
             }),
         ).resolves.toEqual({ status: 'oversized' });
+    });
+
+    it('reports a binary file from the read reason, not its message', async () => {
+        const read = (error: CaxriError) =>
+            handlersWith({ read: vi.fn().mockRejectedValue(error) })['mobile.files.readInternal']({
+                sessionId: 'session-granted',
+                path: '/workspace/image.png',
+                principal,
+            });
+
+        await expect(read(binaryFileReadError())).resolves.toEqual({ status: 'binary' });
+        // The same sentence without the reason is an ordinary IO failure and still propagates.
+        await expect(
+            read(new CaxriError('IO', 'Binary files cannot be opened in the editor')),
+        ).rejects.toThrow('Binary files');
     });
 });

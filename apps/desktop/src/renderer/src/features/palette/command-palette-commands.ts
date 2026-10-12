@@ -59,6 +59,28 @@ export function isCommandVisibleInPalette(
 }
 
 /**
+ * Offers Hand Over to Agent Commander or Take Back from it for the selected Session, matching the choice its row menu
+ * makes. Until the managed set is read (`managedSessionIds` undefined) the palette offers Hand Over, which the Server
+ * refuses as `already_managed` if that was wrong. An SSH Host window offers neither: the Commander is local-only.
+ */
+export function commanderPaletteWhenContext({
+    isLocalOnlyAvailable,
+    managedSessionIds,
+    selectedSessionId,
+}: {
+    isLocalOnlyAvailable: boolean;
+    managedSessionIds: readonly string[] | undefined;
+    selectedSessionId: string | undefined;
+}): Pick<CommandPaletteWhenContext, 'commanderHandOverAvailable' | 'commanderTakeBackAvailable'> {
+    const isManaged =
+        selectedSessionId !== undefined && managedSessionIds?.includes(selectedSessionId) === true;
+    return {
+        commanderHandOverAvailable: isLocalOnlyAvailable && !isManaged,
+        commanderTakeBackAvailable: isLocalOnlyAvailable && isManaged,
+    };
+}
+
+/**
  * The search value always carries the English catalog copy, so an English query finds a command in any language; with
  * `t`, the translated title, category, and description are appended when they differ from English.
  */

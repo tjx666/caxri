@@ -65,10 +65,21 @@ export function agentChatEmptyHint(canAttachImages: boolean, t: Translate = tran
 }
 
 /**
- * The Attach button's name and tooltip. A picked image attaches only when the provider takes images; any other file is
- * inserted into the message as its path, so the button says both.
+ * What `+` → Files says a pick does. A picked image attaches only when the provider takes images; any other file is
+ * inserted into the message as its path, so it says both. `canPickFolders` is the local panel that also takes folders
+ * (`dialog.selectPaths`), which an SSH Host window does not offer.
  */
-export function agentChatAttachLabel(canAttachImages: boolean, t: Translate = translate): string {
+export function agentChatAttachLabel(
+    canAttachImages: boolean,
+    canPickFolders: boolean,
+    t: Translate = translate,
+): string {
+    if (canPickFolders)
+        return t(
+            canAttachImages
+                ? 'agentChat.message.attachImagesOrFolderPaths'
+                : 'agentChat.message.insertFolderPaths',
+        );
     return t(
         canAttachImages ? 'agentChat.message.attachImagesOrPaths' : 'agentChat.message.insertPaths',
     );

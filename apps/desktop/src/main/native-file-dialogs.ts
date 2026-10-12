@@ -21,6 +21,16 @@ export function themeImportDialogOptions(): OpenDialogOptions {
     };
 }
 
+/**
+ * The Chat composer's `+` → Files and folders: files and folders together, several at once.
+ */
+export function agentChatPathPickerOptions(): OpenDialogOptions {
+    return {
+        title: translateMain('desktop.chooseChatFilesAndFolders'),
+        properties: ['openFile', 'openDirectory', 'multiSelections'],
+    };
+}
+
 export function diagnosticsExportDialogOptions(now: Date): SaveDialogOptions {
     return {
         title: translateMain('desktop.diagnosticsExport.title'),

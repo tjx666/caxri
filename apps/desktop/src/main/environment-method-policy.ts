@@ -74,6 +74,11 @@ const environmentMethodScopes = {
     'processExplorer.open': 'local-only',
     'dialog.selectDirectory': 'local-only',
     /**
+     * The panel lists this Mac's disk, whose paths mean nothing to an Agent on the SSH Host; that window's `+` keeps
+     * the file-only picker for its images instead.
+     */
+    'dialog.selectPaths': 'local-only',
+    /**
      * Server Core writes the archive to the chosen path, which would be a path on the SSH Host.
      */
     'diagnostics.export': 'local-only',

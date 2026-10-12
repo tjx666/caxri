@@ -3,6 +3,13 @@ import { debounce } from 'es-toolkit';
 
 import { translate } from '../../i18n';
 import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
+import { useEnvironmentStore } from '../../stores/environment';
+import type { AgentChatAttachmentWindow } from './agent-chat-attachment-persistence';
+import {
+    agentChatAttachmentDatabaseName,
+    createAgentChatAttachmentPersistence,
+    indexedDatabaseAgentChatAttachmentBackend,
+} from './agent-chat-attachment-persistence';
 import type { AgentChatEdit } from './agent-chat-edit';
 import { readAgentChatEdit, retainAgentChatEdits, writeAgentChatEdit } from './agent-chat-edit';
 import { agentChatResizedImageLabel } from './agent-chat-images';
@@ -113,10 +120,33 @@ export interface AgentChatAttachment {
 }
 
 /**
- * Unsent images per Chat Terminal. Unlike the text they live for this Renderer only: a few encoded images already
- * approach the whole `localStorage` quota, which the text drafts and the layout share.
+ * Unsent images per Chat Terminal. A few encoded images already approach the whole `localStorage` quota, which the text
+ * drafts and the layout share, so they are mirrored to IndexedDB instead (`agent-chat-attachment-persistence.ts`) and
+ * read back once per Renderer, on first use; absent under Vitest's Node environment.
  */
 const attachments = new Map<string, AgentChatAttachment[]>();
+const attachmentWindow: { kind: AgentChatAttachmentWindow } = { kind: 'workbench' };
+const attachmentPersistence =
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- absent under Vitest's Node environment
+    typeof indexedDB === 'undefined'
+        ? undefined
+        : createAgentChatAttachmentPersistence({
+              backend: indexedDatabaseAgentChatAttachmentBackend(() =>
+                  agentChatAttachmentDatabaseName(
+                      attachmentWindow.kind,
+                      useEnvironmentStore.getState().state,
+                  ),
+              ),
+          });
+const attachmentHydration: { started: boolean } = { started: false };
+
+/**
+ * Keeps the Agent Commander window's unsent images in its own store (see `AgentChatAttachmentWindow`). Called from its
+ * entry before the first render, before any composer can open the store.
+ */
+export function configureAgentChatAttachmentsForCommander(): void {
+    attachmentWindow.kind = 'commander';
+}
 
 export function readAgentChatDraft(terminalId: string): string {
     return loadedDrafts().get(terminalId) ?? '';
@@ -188,6 +218,7 @@ export function draftAfterEditCancel(
 }
 
 export function readAgentChatAttachments(terminalId: string): AgentChatAttachment[] {
+    hydrateAgentChatAttachments();
     return attachments.get(terminalId) ?? [];
 }
 
@@ -195,23 +226,27 @@ export function writeAgentChatAttachments(
     terminalId: string,
     next: readonly AgentChatAttachment[],
 ): void {
+    hydrateAgentChatAttachments();
     if (next.length > 0) attachments.set(terminalId, [...next]);
     else attachments.delete(terminalId);
+    attachmentPersistence?.save(terminalId, next);
 }
 
 /**
- * Releases the Renderer-only composer state of every Chat outside `chatTerminalIds`: its unsent images (up to the
- * attachment budget per Chat) and its "Edit from here". Nothing else frees them, so a Chat that was closed, deleted
- * with its Session or Project, or switched to the Terminal surface would hold them until the window reloads. The
- * Workbench calls this whenever the set of Chat Terminals it knows changes.
+ * Releases the composer state of every Chat outside `chatTerminalIds`: its unsent images (up to the attachment budget
+ * per Chat), in memory and in their persisted copy, and its "Edit from here". Nothing else frees them, so a Chat that
+ * was closed, deleted with its Session or Project, or switched to the Terminal surface would hold them until the window
+ * reloads. The Workbench calls this whenever the set of Chat Terminals it knows changes.
  *
  * The text draft is deliberately kept: it is bounded and trimmed by recency when persisted (see
  * `MAX_PERSISTED_AGENT_CHAT_DRAFTS`), and dropping it on a transient snapshot gap would lose typed text that should
  * survive a restart. Append listeners need nothing here; a composer removes its own when it unmounts.
  */
 export function retainAgentChatComposerState(chatTerminalIds: ReadonlySet<string>): void {
+    hydrateAgentChatAttachments();
     for (const terminalId of attachments.keys())
         if (!chatTerminalIds.has(terminalId)) attachments.delete(terminalId);
+    attachmentPersistence?.retain(chatTerminalIds);
     retainAgentChatEdits(chatTerminalIds);
 }
 
@@ -221,6 +256,33 @@ export function retainAgentChatComposerState(chatTerminalIds: ReadonlySet<string
  */
 export function draftAfterSend(current: string, sent: string): string {
     return current === sent ? '' : current;
+}
+
+/**
+ * Delivers what the composer sends besides a plain message (a slash command, an "Edit from here") with the feedback a
+ * message gets: it leaves the composer as soon as it is on its way, and comes back if delivery fails, whose reason the
+ * delivery reports itself (`tryCommand`). `deliver` calls `clear` once the user can no longer decline, after any
+ * confirmation, so a declined confirmation leaves the composer as it was and has nothing to put back. Resolves whether
+ * it was delivered.
+ */
+export async function didDeliverAgentChatComposerInput({
+    clear,
+    deliver,
+    restore,
+}: {
+    clear: () => void;
+    deliver: (clear: () => void) => Promise<boolean>;
+    restore: () => void;
+}): Promise<boolean> {
+    // An object rather than a `let`: control-flow analysis cannot see the callback set it, and reads it as always false.
+    const progress = { isCleared: false };
+    const isDelivered = await deliver(() => {
+        if (progress.isCleared) return;
+        progress.isCleared = true;
+        clear();
+    });
+    if (!isDelivered && progress.isCleared) restore();
+    return isDelivered;
 }
 
 /**
@@ -303,6 +365,22 @@ export function returnUnsentAgentChatMessage(
         terminalId,
         attachmentsWithReturned(readAgentChatAttachments(terminalId), sent),
     );
+}
+
+/**
+ * Restores the images an earlier run left unsent, once. A Chat's composer already on screen takes them the way it takes
+ * a failed send's images back (`returnUnsentAgentChatMessage`); any other Chat finds them when its composer mounts.
+ */
+function hydrateAgentChatAttachments(): void {
+    if (!attachmentPersistence || attachmentHydration.started) return;
+    attachmentHydration.started = true;
+    // eslint-disable-next-line no-void -- hydrate swallows storage failures; an unreadable store restores nothing
+    void attachmentPersistence.hydrate().then((restored) => {
+        for (const [terminalId, list] of restored) {
+            if (returnListeners.has(terminalId)) returnUnsentAgentChatMessage(terminalId, '', list);
+            else if (!attachments.has(terminalId)) attachments.set(terminalId, list);
+        }
+    });
 }
 
 /**

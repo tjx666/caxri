@@ -7,6 +7,7 @@ import { CaxriError, resolveAgentChatPermissionChange } from '@caxri/protocol';
 
 import { requireChatTerminal } from './chat-launch';
 import { chatPermissionState } from './chat-permissions';
+import type { AgentChatSessionHost } from './chat-provider';
 import type { ChatState, ChatStateDelivery } from './chat-states';
 import type { AgentChatServiceOptions } from './service-options';
 
@@ -158,17 +159,33 @@ function saveIdleChatPermission(
 }
 
 /**
- * Saves the permission a running provider reports it switched to on its own (Claude Code leaving plan mode).
+ * The `onSessionBound` and `onPermissionChanged` members of a Chat host, scoped to one launch: they persist what the
+ * running provider reports (its session id, or a permission it switched to on its own such as Claude Code leaving plan
+ * mode). Reports from a superseded launch are dropped.
  */
-export function saveReportedChatPermission(
+export function chatReportedStateHost(
     database: ChatPermissionSwitchHost['options']['database'],
-    terminalId: string,
-    permission: AgentChatPermission,
-): void {
-    database.setChatPermission(
-        terminalId,
-        chatPermissionToStore(database.getChatPermission(terminalId), permission),
-    );
+    scope: {
+        terminalId: string;
+        provider: AgentProvider;
+        isCurrent: () => boolean;
+        onRebound: () => void;
+    },
+): Pick<AgentChatSessionHost, 'onPermissionChanged' | 'onSessionBound'> {
+    const { terminalId, provider, isCurrent, onRebound } = scope;
+    return {
+        onSessionBound: (agentSessionId) => {
+            if (!isCurrent()) return;
+            if (database.rebindAgentSession(terminalId, provider, agentSessionId)) onRebound();
+        },
+        onPermissionChanged: (permission) => {
+            if (!isCurrent()) return;
+            database.setChatPermission(
+                terminalId,
+                chatPermissionToStore(database.getChatPermission(terminalId), permission),
+            );
+        },
+    };
 }
 
 /**

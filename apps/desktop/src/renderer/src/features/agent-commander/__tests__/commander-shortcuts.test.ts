@@ -21,6 +21,7 @@ vi.mock('../../terminal/terminal-surface-commands', () => ({
 import { commandDefinitions } from '../../../commands/definitions';
 import { useDialogStore } from '../../../stores/dialogs';
 import { useWorkbenchStore } from '../../../stores/workbench';
+import { registerAgentChatComposerCommand } from '../../agent-chat/agent-chat-composer-commands';
 import {
     COMMANDER_TERMINAL_COMMANDS,
     createCommanderShortcutState,
@@ -121,6 +122,25 @@ describe('Agent Commander shortcuts', () => {
         );
 
         expect(mocks.ran).toEqual(['surface terminal-1']);
+    });
+
+    it("opens the Commander Chat's menus from its composer, and leaves the chord alone without a Chat", () => {
+        const composer = { closest: () => ({}) };
+        const withoutChat = keydown('/', { metaKey: true }, composer);
+        dispatchCommanderKeydown(createCommanderShortcutState(), withoutChat, 'terminal-1');
+        expect(withoutChat.preventDefault).not.toHaveBeenCalled();
+
+        const unregister = registerAgentChatComposerCommand('terminal-1', 'changeModel', () =>
+            mocks.ran.push('model terminal-1'),
+        );
+        try {
+            const withChat = keydown('/', { metaKey: true }, composer);
+            dispatchCommanderKeydown(createCommanderShortcutState(), withChat, 'terminal-1');
+            expect(withChat.preventDefault).toHaveBeenCalled();
+        } finally {
+            unregister();
+        }
+        expect(mocks.ran).toEqual(['model terminal-1']);
     });
 
     it('leaves every Workbench command and chord to the focused surface', () => {

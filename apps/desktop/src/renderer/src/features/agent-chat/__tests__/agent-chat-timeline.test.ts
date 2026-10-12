@@ -131,6 +131,47 @@ describe('buildAgentChatTimeline', () => {
         expect(artifactsOf(buildAgentChatTimeline([...items], turns, undefined).at(2))).toBe(final);
     });
 
+    it('marks the artifacts of a first turn that lost its start to the budget as partial', () => {
+        const change: AgentChatItem = {
+            id: 'f1',
+            turnId: 't1',
+            type: 'fileChange',
+            status: 'completed',
+            changes: [{ path: '/p/a.ts', kind: 'update', diff: '@@ -1 +1 @@\n-a\n+b' }],
+        };
+        const turns: AgentChatTurn[] = [
+            { id: 't1', status: 'completed' },
+            { id: 't2', status: 'completed' },
+        ];
+        const later: AgentChatItem = { ...change, id: 'f2', turnId: 't2' };
+        const items = [change, reply('a1', 't1'), user('u2', 't2'), later, reply('a2', 't2')];
+        const partialOf = (entries: readonly AgentChatTimelineEntry[]) =>
+            entries.flatMap((entry) =>
+                entry.kind === 'item' && entry.artifacts
+                    ? [[entry.artifacts.turnId, entry.artifacts.isPartial ?? false]]
+                    : [],
+            );
+        expect(partialOf(buildAgentChatTimeline(items, turns, undefined, true))).toEqual([
+            ['t1', true],
+            ['t2', false],
+        ]);
+        expect(partialOf(buildAgentChatTimeline(items, turns, undefined, false))).toEqual([
+            ['t1', false],
+            ['t2', false],
+        ]);
+        // A first turn that still opens on its prompt kept its start.
+        const withPrompt = buildAgentChatTimeline(
+            [user('u1', 't1'), ...items],
+            turns,
+            undefined,
+            true,
+        );
+        expect(partialOf(withPrompt)).toEqual([
+            ['t1', false],
+            ['t2', false],
+        ]);
+    });
+
     it('leaves a finished turn with nothing to fold, and items without a turn, as they are', () => {
         const turns: AgentChatTurn[] = [{ id: 't1', status: 'completed' }];
         const items = [user('u', 't1'), reply('a1', 't1'), command('c', undefined)];

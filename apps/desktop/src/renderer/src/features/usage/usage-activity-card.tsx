@@ -1,29 +1,32 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { UsageDay } from '@caxri/protocol';
-import { shiftLocalDate } from '@caxri/protocol';
 
 import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
 import { Tooltip } from '../../components/ui/tooltip';
 import type { TranslationKey } from '../../i18n';
 import { useTranslation } from '../../i18n';
 import { cn } from '../../lib/utilities';
+import type { ActivityHoverTarget, ActivityView } from './usage-activity';
+import {
+    ACTIVITY_VIEWS,
+    activityCursorLayout,
+    activityCursorText,
+    activityYearSummary,
+    cumulativeTarget,
+} from './usage-activity';
 import type { EndPin } from './usage-activity-scroll';
 import { attachEndPin } from './usage-activity-scroll';
-import type { HeatmapWeek, UsageMetric } from './usage-metrics';
+import { CHART_CURSOR_CLASS } from './usage-chart-cursor';
+import type { CumulativePoint, HeatmapWeek, UsageMetric } from './usage-metrics';
 import {
     activityCardLabel,
-    activityHighlights,
     buildCumulative,
     buildHeatmap,
-    formatDate,
-    formatMetric,
     usageDayTooltip,
+    usageWeekTooltip,
 } from './usage-metrics';
-
-type ActivityView = 'daily' | 'weekly' | 'cumulative';
-
-const ACTIVITY_VIEWS: readonly ActivityView[] = ['daily', 'weekly', 'cumulative'];
+import { useChartKeyboardCursor } from './use-chart-keyboard-cursor';
 
 /**
  * Intensity steps over the `--chart` role, GitHub style. Level 0 is an empty day on the card's own elevated fill.
@@ -39,10 +42,13 @@ const WEEKDAY_LABELS: ReadonlyArray<TranslationKey | undefined> = [
     undefined,
 ];
 
-interface HoverTarget {
-    label: string;
-    detail: string;
-}
+/**
+ * Scrolls the keyboard cursor's item into the chart's horizontal scroller: on a narrow pane the year grid overflows,
+ * and the cursor would otherwise ring a day the user cannot see.
+ */
+const revealCursor = (element: HTMLElement | null): void => {
+    element?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+};
 
 function MonthLabels({ weeks }: { weeks: readonly HeatmapWeek[] }) {
     return (
@@ -62,9 +68,11 @@ function MonthLabels({ weeks }: { weeks: readonly HeatmapWeek[] }) {
 function DailyGrid({
     weeks,
     days,
+    cursorDate,
 }: {
     weeks: readonly HeatmapWeek[];
     days: ReadonlyMap<string, UsageDay>;
+    cursorDate: string | undefined;
 }) {
     const { t } = useTranslation();
     return (
@@ -80,9 +88,11 @@ function DailyGrid({
                                 content={usageDayTooltip(t, cell.date, days.get(cell.date))}
                             >
                                 <div
+                                    ref={cell.date === cursorDate ? revealCursor : undefined}
                                     className={cn(
                                         'aspect-square rounded-sm',
                                         LEVEL_CLASSES[cell.level],
+                                        cell.date === cursorDate && CHART_CURSOR_CLASS,
                                     )}
                                 />
                             </Tooltip>
@@ -94,24 +104,29 @@ function DailyGrid({
     );
 }
 
-function WeeklyBars({ weeks, metric }: { weeks: readonly HeatmapWeek[]; metric: UsageMetric }) {
+function WeeklyBars({
+    weeks,
+    metric,
+    cursorWeek,
+}: {
+    weeks: readonly HeatmapWeek[];
+    metric: UsageMetric;
+    cursorWeek: number | undefined;
+}) {
     const { t } = useTranslation();
     const peak = Math.max(0, ...weeks.map((week) => week.total));
     return (
         <div className="grid h-28 grid-cols-[repeat(53,minmax(0,1fr))] items-end gap-0.5">
             {/* The full-height column is the trigger, so a short week's bar is as easy to hover as the peak. */}
-            {weeks.map((week) => (
-                <Tooltip
-                    key={week.start}
-                    content={t('usage.activity.weekTooltip', {
-                        date: formatDate(t, week.start),
-                        value:
-                            week.total > 0
-                                ? formatMetric(t, week.total, metric)
-                                : t('usage.noUsage'),
-                    })}
-                >
-                    <div className="flex h-full items-end">
+            {weeks.map((week, index) => (
+                <Tooltip key={week.start} content={usageWeekTooltip(t, week, metric)}>
+                    <div
+                        ref={index === cursorWeek ? revealCursor : undefined}
+                        className={cn(
+                            'flex h-full items-end rounded-sm',
+                            index === cursorWeek && CHART_CURSOR_CLASS,
+                        )}
+                    >
                         <div
                             className={cn(
                                 'w-full rounded-sm',
@@ -137,16 +152,17 @@ const CHART_WIDTH = 1000;
 const CHART_HEIGHT = 112;
 
 function CumulativeChart({
-    weeks,
+    points,
     metric,
+    cursorIndex,
     onHover,
 }: {
-    weeks: readonly HeatmapWeek[];
+    points: readonly CumulativePoint[];
     metric: UsageMetric;
-    onHover: (target: HoverTarget | undefined) => void;
+    cursorIndex: number | undefined;
+    onHover: (target: ActivityHoverTarget | undefined) => void;
 }) {
     const { t } = useTranslation();
-    const points = useMemo(() => buildCumulative(weeks), [weeks]);
     const total = points.at(-1)?.total ?? 0;
     const step = CHART_WIDTH / Math.max(1, points.length - 1);
     const y = (value: number) =>
@@ -169,11 +185,7 @@ function CumulativeChart({
                     ((event.clientX - bounds.left) / bounds.width) * (points.length - 1),
                 );
                 const point = points.at(Math.min(points.length - 1, Math.max(0, index)));
-                if (point)
-                    onHover({
-                        label: t('usage.activity.through', { date: formatDate(t, point.date) }),
-                        detail: formatMetric(t, point.total, metric),
-                    });
+                if (point) onHover(cumulativeTarget(t, point, metric));
             }}
         >
             <path
@@ -186,6 +198,17 @@ function CumulativeChart({
                 strokeWidth={2}
                 vectorEffect="non-scaling-stroke"
             />
+            {cursorIndex !== undefined && (
+                <line
+                    className="stroke-accent"
+                    strokeWidth={1}
+                    vectorEffect="non-scaling-stroke"
+                    x1={cursorIndex * step}
+                    x2={cursorIndex * step}
+                    y1={0}
+                    y2={CHART_HEIGHT}
+                />
+            )}
         </svg>
     );
 }
@@ -195,7 +218,9 @@ function CumulativeChart({
  * and week bars carry their figures in a Tooltip; the continuous cumulative line has no discrete target, so it reports
  * the hovered week in the caption under the chart instead of the summary. The Tokens/Cost switch lives here, beside the
  * view switch, because nothing else on the page follows it. The chart is one `img` whose name is the year's summary
- * plus its busiest day, so a keyboard or screen-reader user gets the reading without stepping through 365 cells.
+ * plus its busiest day, so a keyboard or screen-reader user gets the reading without stepping through 365 cells; the
+ * arrow keys then step through days, weeks, or points (`usage-chart-cursor.ts`), ringing the item and showing its
+ * Tooltip text in the caption, announced through a polite live region.
  */
 export function UsageActivityCard({
     activity,
@@ -207,7 +232,7 @@ export function UsageActivityCard({
     const { t } = useTranslation();
     const [view, setView] = useState<ActivityView>('daily');
     const [metric, setMetric] = useState<UsageMetric>('tokens');
-    const [hover, setHover] = useState<HoverTarget>();
+    const [hover, setHover] = useState<ActivityHoverTarget>();
     const chartReference = useRef<HTMLDivElement>(null);
     const endPinReference = useRef<EndPin>(undefined);
     /**
@@ -232,24 +257,14 @@ export function UsageActivityCard({
         [t, activity, today, metric],
     );
     const days = useMemo(() => new Map(activity.map((day) => [day.date, day])), [activity]);
-    const yearStart = shiftLocalDate(today, -364);
-    const yearDays = activity.filter((day) => day.date >= yearStart);
-    const yearTotal = yearDays.reduce(
-        (sum, day) => sum + (metric === 'tokens' ? day.tokens : day.costUsd),
-        0,
+    const points = useMemo(() => buildCumulative(weeks), [weeks]);
+    const keyboard = useChartKeyboardCursor(
+        activityCursorLayout(view, weeks.length, points.length),
+        view,
     );
-    const activeDays = yearDays.filter((day) => day.tokens > 0).length;
-    const summary = t(
-        activeDays === 1 ? 'usage.activity.summaryOne' : 'usage.activity.summaryOther',
-        { count: activeDays, value: formatMetric(t, yearTotal, metric) },
-    );
-    const busiestDay = activityHighlights(yearDays).busiestDay;
-    const chartLabel = busiestDay
-        ? t('usage.activity.chartLabel', {
-              busiestDay: usageDayTooltip(t, busiestDay.date, busiestDay),
-              summary,
-          })
-        : summary;
+    const cursor = keyboard.cursor;
+    const cursorText = activityCursorText(t, { cursor, days, metric, points, view, weeks });
+    const { summary, chartLabel } = activityYearSummary(t, activity, today, metric);
 
     return (
         <section
@@ -302,6 +317,12 @@ export function UsageActivityCard({
                 role="img"
                 aria-label={chartLabel}
                 tabIndex={0}
+                onBlur={keyboard.onBlur}
+                onKeyDown={(event) => {
+                    // The key takes the readout back from the pointer until the pointer moves again.
+                    setHover(undefined);
+                    keyboard.onKeyDown(event);
+                }}
             >
                 <div className="flex min-w-160 gap-2" onPointerLeave={() => setHover(undefined)}>
                     {view === 'daily' && (
@@ -318,10 +339,23 @@ export function UsageActivityCard({
                     )}
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                         {view !== 'cumulative' && <MonthLabels weeks={weeks} />}
-                        {view === 'daily' && <DailyGrid weeks={weeks} days={days} />}
-                        {view === 'weekly' && <WeeklyBars weeks={weeks} metric={metric} />}
+                        {view === 'daily' && (
+                            <DailyGrid
+                                weeks={weeks}
+                                days={days}
+                                cursorDate={cursor === undefined ? undefined : points[cursor].date}
+                            />
+                        )}
+                        {view === 'weekly' && (
+                            <WeeklyBars weeks={weeks} metric={metric} cursorWeek={cursor} />
+                        )}
                         {view === 'cumulative' && (
-                            <CumulativeChart weeks={weeks} metric={metric} onHover={setHover} />
+                            <CumulativeChart
+                                points={points}
+                                metric={metric}
+                                cursorIndex={cursor}
+                                onHover={setHover}
+                            />
                         )}
                     </div>
                 </div>
@@ -335,8 +369,12 @@ export function UsageActivityCard({
                             <span className="text-foreground">{hover.label}</span> · {hover.detail}
                         </>
                     ) : (
-                        summary
+                        (cursorText ?? summary)
                     )}
+                </span>
+                {/* Only keyboard steps are announced; pointer moves would flood the live region. */}
+                <span className="sr-only" aria-live="polite">
+                    {cursorText}
                 </span>
                 {view === 'daily' && (
                     <span className="flex flex-none items-center gap-1" aria-hidden="true">

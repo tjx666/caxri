@@ -4,7 +4,7 @@ import { lstat, open, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 
 import type { MethodResult } from '@caxri/protocol';
-import { CaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
+import { binaryFileReadError, CaxriError, MAX_CONFIGURABLE_FILE_BYTES } from '@caxri/protocol';
 
 import { rememberExternalDocument } from './external-documents';
 import { EXTERNAL_FILE_SIZE_LIMIT_LABEL } from './external-file-limits';
@@ -114,8 +114,7 @@ export async function readExternalFile(
                 `File is larger than ${EXTERNAL_FILE_SIZE_LIMIT_LABEL} and can't be opened here.`,
             );
         const boundedContent = await readBoundedExternalContent(file);
-        if (boundedContent.includes(0))
-            throw new CaxriError('IO', 'Binary files cannot be opened in the editor');
+        if (boundedContent.includes(0)) throw binaryFileReadError();
         const current = await lstat(authorized.path, { bigint: true });
         if (
             current.isSymbolicLink() ||

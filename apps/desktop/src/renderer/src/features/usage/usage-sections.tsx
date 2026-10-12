@@ -2,6 +2,7 @@ import type { UsageLimit, UsageReport } from '@caxri/protocol';
 import { formatLineCount, formatPercent, formatTokens, formatUsd } from '@caxri/protocol';
 
 import { ReportCard, StatTile } from '../../components/report-card';
+import { ShareBar } from '../../components/share-bar';
 import { Progress } from '../../components/ui/progress';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useRelativeTime } from '../../hooks/use-relative-time';
@@ -13,8 +14,8 @@ import {
 } from '../../lib/usage-format';
 import { cn } from '../../lib/utilities';
 import { ProviderLabel } from './provider-label';
-import { ShareBar } from './share-bar';
 import { UsageActivityCard } from './usage-activity-card';
+import { CHART_CURSOR_CLASS } from './usage-chart-cursor';
 import { UsageCost } from './usage-cost';
 import { UsageDetailCards } from './usage-detail-cards';
 import {
@@ -40,6 +41,7 @@ import {
     usageShare,
     usageShareBasis,
 } from './usage-presentation';
+import { useChartKeyboardCursor } from './use-chart-keyboard-cursor';
 
 function KpiTiles({ report }: { report: UsageReport }) {
     const { t } = useTranslation();
@@ -330,17 +332,29 @@ function AgentsCard({ report }: { report: UsageReport }) {
     );
 }
 
+/**
+ * Tab reaches the chart's summary; the arrow keys then step through the hours (`usage-chart-cursor.ts`), ringing the
+ * bar and showing its Tooltip text in the caption, announced through a polite live region.
+ */
 function HourOfDayCard({ report }: { report: UsageReport }) {
     const peak = Math.max(0, ...report.hourOfDay);
     const busiest = peakHour(report.hourOfDay);
     const { t } = useTranslation();
+    const keyboard = useChartKeyboardCursor(
+        { kind: 'linear', count: report.hourOfDay.length },
+        'hours',
+    );
+    const cursor = keyboard.cursor;
+    const cursorText =
+        cursor === undefined ? undefined : usageHourTooltip(t, cursor, report.hourOfDay[cursor]);
     return (
         <ReportCard
             title={t('usage.hours.title')}
             caption={
-                busiest === undefined
+                cursorText ??
+                (busiest === undefined
                     ? undefined
-                    : t('usage.hours.peak', { hour: formatHour(busiest) })
+                    : t('usage.hours.peak', { hour: formatHour(busiest) }))
             }
         >
             <div
@@ -349,13 +363,21 @@ function HourOfDayCard({ report }: { report: UsageReport }) {
                         ? t('usage.noUsage')
                         : t('usage.hours.peakLabel', { hour: formatHour(busiest) })
                 }
-                className="grid h-20 grid-cols-24 items-end gap-0.5"
+                className="grid h-20 grid-cols-24 items-end gap-0.5 rounded-sm focus-visible:outline focus-visible:outline-accent"
                 role="img"
+                tabIndex={0}
+                onBlur={keyboard.onBlur}
+                onKeyDown={keyboard.onKeyDown}
             >
                 {/* The full-height column is the trigger, so a quiet hour is as easy to hover as the peak. */}
                 {report.hourOfDay.map((tokens, hour) => (
                     <Tooltip key={hour} content={usageHourTooltip(t, hour, tokens)}>
-                        <div className="flex h-full items-end">
+                        <div
+                            className={cn(
+                                'flex h-full items-end rounded-sm',
+                                hour === cursor && CHART_CURSOR_CLASS,
+                            )}
+                        >
                             <div
                                 className={cn(
                                     'w-full rounded-sm',
@@ -372,6 +394,9 @@ function HourOfDayCard({ report }: { report: UsageReport }) {
                     </Tooltip>
                 ))}
             </div>
+            <span className="sr-only" aria-live="polite">
+                {cursorText}
+            </span>
             <div aria-hidden="true" className="mt-1 grid grid-cols-4 text-[11px] text-muted">
                 <span>00</span>
                 <span>06</span>

@@ -201,6 +201,7 @@ export const usage = {
     'usage.sessions.empty': 'No Session usage in this range.',
     'usage.sessions.session': 'Session',
     'usage.sessions.project': 'Project',
+    'usage.sessions.deletedTitle': 'Deleted Session',
     'usage.sessions.archived': 'Archived',
     'usage.sessions.open': 'Open Session {{title}}',
 } as const;

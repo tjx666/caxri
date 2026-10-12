@@ -52,7 +52,9 @@ export function PriorityChipSlot({
 
 /**
  * Same hover-tooltip contract as `StatusInfo`, for the clickable status-bar entries. `flex-none`: a status-bar item
- * keeps its whole label, and the bar drops whole chips by priority instead (DESIGN.md status bar redline).
+ * keeps its whole label, and the bar drops whole chips by priority instead (DESIGN.md status bar redline). Omit
+ * `children` for a standing mode in its normal state: DESIGN.md keeps those icon-only, with the words on `ariaLabel`
+ * and `title`.
  */
 export function StatusItem({
     ariaLabel,
@@ -65,7 +67,10 @@ export function StatusItem({
     title,
 }: {
     ariaLabel: string;
-    children: ReactNode;
+    /**
+     * Visible text after the glyph. Omitted for an icon-only item, which then renders no text span at all.
+     */
+    children?: ReactNode;
     className?: string;
     href?: string;
     icon: ReactNode;
@@ -79,7 +84,7 @@ export function StatusItem({
     const content = (
         <>
             {icon}
-            <span>{children}</span>
+            {children === undefined ? null : <span>{children}</span>}
         </>
     );
     return (
