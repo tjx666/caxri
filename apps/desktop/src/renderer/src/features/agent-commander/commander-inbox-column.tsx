@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 
+import { cn } from '../../lib/utilities';
 import { PanelDivider } from '../workbench/panel-divider';
+import { useCommanderBoardUiStore } from './commander-board-store';
 import {
     COMMANDER_INBOX_DEFAULT_WIDTH,
     COMMANDER_INBOX_MAX_WIDTH,
@@ -11,20 +13,37 @@ import {
 import { CommanderInboxView } from './commander-inbox-view';
 
 /**
- * The resizable "Needs you" column on the right of the Agent Commander window. Below 1080px the window cannot fit the
- * board, a usable Terminal, and this column side by side, so the column overlays the Terminal as a drawer instead of
- * squeezing it, and its resize edge is hidden.
+ * Below these window widths the column overlays the Terminal as a drawer and hides its resize edge. With the board open
+ * that is 1080px: the board (360px), a usable Terminal, and this column no longer fit side by side. A collapsed board
+ * frees its 360px, so the column stays beside the Terminal down to 720px. Tailwind needs each breakpoint as a literal.
+ */
+const INBOX_DRAWER_CLASS_NAMES = {
+    withBoard: {
+        edge: 'max-[1080px]:hidden',
+        column: 'max-[1080px]:absolute max-[1080px]:inset-y-0 max-[1080px]:right-0 max-[1080px]:z-20 max-[1080px]:max-w-[calc(100%-48px)] max-[1080px]:border-l max-[1080px]:border-border max-[1080px]:shadow-xl',
+    },
+    withoutBoard: {
+        edge: 'max-[720px]:hidden',
+        column: 'max-[720px]:absolute max-[720px]:inset-y-0 max-[720px]:right-0 max-[720px]:z-20 max-[720px]:max-w-[calc(100%-48px)] max-[720px]:border-l max-[720px]:border-border max-[720px]:shadow-xl',
+    },
+} as const;
+
+/**
+ * The resizable "Needs you" column on the right of the Agent Commander window. When the window cannot fit it beside the
+ * Terminal (see {@link INBOX_DRAWER_CLASS_NAMES}), it overlays the Terminal as a drawer instead of squeezing it.
  */
 export function CommanderInboxColumn() {
     const isVisible = useCommanderInboxUiStore((state) => state.isVisible);
+    const isBoardVisible = useCommanderBoardUiStore((state) => state.isVisible);
     const width = useCommanderInboxUiStore((state) => state.width);
     useEffect(() => {
         document.documentElement.style.setProperty('--commander-inbox-width', `${width}px`);
     }, [width]);
     if (!isVisible) return null;
+    const drawer = INBOX_DRAWER_CLASS_NAMES[isBoardVisible ? 'withBoard' : 'withoutBoard'];
     return (
         <>
-            <div className="flex flex-none max-[1080px]:hidden">
+            <div className={cn('flex flex-none', drawer.edge)}>
                 <PanelDivider
                     ariaLabel="Resize Needs you"
                     size={width}
@@ -39,7 +58,10 @@ export function CommanderInboxColumn() {
             </div>
             <aside
                 aria-label="Needs you"
-                className="agent-commander-inbox flex w-[var(--commander-inbox-width,352px)] flex-none flex-col bg-surface max-[1080px]:absolute max-[1080px]:inset-y-0 max-[1080px]:right-0 max-[1080px]:z-20 max-[1080px]:max-w-[calc(100%-48px)] max-[1080px]:border-l max-[1080px]:border-border max-[1080px]:shadow-xl"
+                className={cn(
+                    'agent-commander-inbox flex w-[var(--commander-inbox-width,352px)] flex-none flex-col bg-surface',
+                    drawer.column,
+                )}
             >
                 <CommanderInboxView />
             </aside>
