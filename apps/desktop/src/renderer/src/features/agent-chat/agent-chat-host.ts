@@ -17,9 +17,20 @@ export interface AgentChatHostCapabilities {
      * "Use as Project default" in the permission menu: saving writes the Project, which the Commander policy refuses.
      */
     canSaveProjectDefault: boolean;
+    /**
+     * Opening a subagent, a background shell, or a turn's review as a tab beside the Chat. The tab goes into the
+     * Session's pane layout, which the Commander window never mounts: there it would be invisible and still be
+     * persisted into the Commander Session's layout, so the window offers those entries as plain, unclickable rows
+     * instead.
+     */
+    canOpenBesideChat: boolean;
 }
 
 export function agentChatHostCapabilities(host: AgentChatHost): AgentChatHostCapabilities {
     const isWorkbench = host === 'workbench';
-    return { canFork: isWorkbench, canSaveProjectDefault: isWorkbench };
+    return {
+        canFork: isWorkbench,
+        canOpenBesideChat: isWorkbench,
+        canSaveProjectDefault: isWorkbench,
+    };
 }

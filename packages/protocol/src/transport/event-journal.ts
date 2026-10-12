@@ -18,6 +18,7 @@ export type TransientServerEvent = Extract<
         event:
             | 'agentChat.patch'
             | 'agentChat.taskPatch'
+            | 'agentCommander.inboxRequested'
             | 'agent.message.held'
             | 'agent.notification'
             | 'agent.automaticNamingUnavailable'
@@ -105,6 +106,11 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      * the user may have already closed.
      */
     'settings.openRequested',
+    /**
+     * One-shot: the status bar chip asked the Commander window to show its Inbox. Replaying it after a reconnect would
+     * reopen an Inbox the user may have closed since.
+     */
+    'agentCommander.inboxRequested',
     'viewContainers.catalogChanged',
     'viewContainers.treeChanged',
     'viewContainers.viewChanged',

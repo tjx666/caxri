@@ -76,6 +76,7 @@ export function AgentChatDock({
     terminalId,
     onAnswered,
     onOpenAsTerminal,
+    onOpenTask,
     onRecover,
 }: {
     /**
@@ -89,6 +90,10 @@ export function AgentChatDock({
     terminalId: string;
     onAnswered: () => void;
     onOpenAsTerminal: (() => void) | undefined;
+    /**
+     * Opens a background task's tab beside the Chat; absent where the host cannot (see `canOpenBesideChat`).
+     */
+    onOpenTask: ((taskId: string) => void) | undefined;
     onRecover: () => void;
 }) {
     const dockedPlan = agentChatDockedPlan(snapshot);
@@ -126,6 +131,7 @@ export function AgentChatDock({
                 latestTurnStartedAt={snapshot?.turns.at(-1)?.startedAt}
                 tasks={snapshot?.tasks}
                 terminalId={terminalId}
+                onOpenTask={onOpenTask}
             />
         </div>
     );

@@ -8,7 +8,7 @@ vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } })
 
 import { useDialogStore } from '../../../stores/dialogs';
 import { terminalPaneHost } from '../../terminal/terminal-pane-host';
-import { configureCommanderTerminalHost } from '../commander-commands';
+import { configureCommanderTerminalHost, openCommanderInbox } from '../commander-commands';
 
 beforeEach(() => {
     mocks.caxriRequest.mockClear();
@@ -27,5 +27,13 @@ describe('Agent Commander Terminal host', () => {
 
     it('keeps Terminal links to what the window can open', () => {
         expect(terminalPaneHost().hasWorkbenchLinks).toBe(false);
+    });
+});
+
+describe('openCommanderInbox', () => {
+    it('asks Main to raise the Commander with its Inbox open', () => {
+        openCommanderInbox();
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('agentCommander.open', { target: 'inbox' });
     });
 });
